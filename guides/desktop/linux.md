@@ -30,15 +30,17 @@ forwarding catcher the shell places like any other node. The catcher's focus is 
 focus (`Windows::focus`), and so the desktop app's `WindowsWatch` `focused`. A view built again
 elsewhere, as when the desktop moves a window into or out of fullscreen in another of its windows,
 takes the focus back if the view it replaces had it (`Windows::unmounted_focused`, answered through
-the same `asks` as a raise) and no other window has been focused in between. A floating window (every window under
-the desktop shell) and every dialog own their size: a new one is configured 0×0,
-`WindowInfo::size` is the size it last chose for itself (a commit that is not the answer to a
-size the compositor asked for), a floating window follows that size through
-`DockTabControl::resize_window` and a dialog's card through its `DockDialog` size, and a window
-shown at its own size is never told a size, so it stays free to resize itself. `WindowInfo`
-carries the least and greatest size the program asks for: `xdg_toplevel.set_min_size` and
-`set_max_size`, or an X11 window's `WM_NORMAL_HINTS` (`State::size_limits`). Only when the person resizes it, or it is docked, is it configured
-with a size, and then with the tiled states too. A 1×1 placeholder, which Firefox commits for its
+the same `asks` as a raise) and no other window has been focused in between. A window is configured to the rect
+its view is placed at, always, with the tiled states, and drawn top-left at the size it last drew,
+clipped to that rect. Until it is first placed it is configured 0×0, so it picks a size of its
+own: `WindowInfo::size` is the size it last chose for itself (a commit that is not the answer to a
+size the compositor asked for), which be-host passes on as the window child's `intrinsic`, and
+`WindowInfo::drawn` is the size of its latest buffer. `WindowInfo` also carries the least and
+greatest size the program asks for: `xdg_toplevel.set_min_size` and `set_max_size`, or an X11
+window's `WM_NORMAL_HINTS` (`State::size_limits`). A window once placed whose last view is gone is
+told it is suspended (`Windows::suspended`); a shell keeps a window it does not show placed
+hidden, which mounts no view, so it is suspended too. A view's `focus` counter gives its window the keyboard each time it counts
+up; be-host counts it up when the placer gives the window child the keyboard or asks `focus-child`. A 1×1 placeholder, which Firefox commits for its
 server-side-decorated windows and never grows on its own, opens at a default size instead.
 
 Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the monitor their window
@@ -88,10 +90,8 @@ integer scales. It keeps every window entered into the output of the display it 
 (`wl_surface.enter`/`leave`, the preferred buffer scale and the `wp_fractional_scale_v1`
 preferred scale follow it as it moves, and a display's new scale reaches the windows on it at
 once), so a program with fractional scaling and viewporter draws a buffer of exactly the pixels
-it is shown at; `render.rs` puts each surface on whole pixels. The shell sizes a program's pane
-from its content (`WINDOW_CHROME`), and when the pane's chrome snaps to the pixel grid and takes
-a fraction of a point from the content, grows the pane by that much (`snapped_short` in
-be-sdk-shell's `window.rs`), so the window is shown, and configured, at its own size. It sends its frame callbacks and presentation feedback
+it is shown at; `render.rs` puts each surface on whole pixels. Every placed window is configured
+to its child's rect, whatever size the dock gives it. It sends its frame callbacks and presentation feedback
 through that output, and honours the output named in `xdg_toplevel.set_fullscreen` by making the
 window fullscreen on that display. Xwayland binds the same outputs, so X11 programs see the same
 monitors. A `WindowView` reports its rect in desktop coordinates (its window's origin added). In a
@@ -598,8 +598,10 @@ A window with a parent (`xdg_toplevel.set_parent`) instead hangs from its parent
 
 `weston-simple-shm` (from the `weston` package) and `foot` are small clients to try it with.
 `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on
-the focused window (the desktop app's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). A window's
-tab menu offers the same (`FloatingWindow` offers fullscreen on its tab).
+the focused window (the dock's full screen action, which places the window child with
+`child-placement.fullscreen`, which be-host tells the program). A window's tab menu offers the
+same (`ProgramTab` offers full screen on its tab), and a program's own `set_fullscreen` reaches the
+shell as its child's `fullscreen`, which shows the tab full screen on its display.
 
 Under `--desktop`, Super+drag anywhere on a floating window, its bar included, moves the window,
 and Super+right-drag resizes it from its nearest edge or corner, or moves the split beside a
@@ -688,8 +690,8 @@ as it does an edit from the Display page.
 
 A window's tab shows the icon its program set with `xdg-toplevel-icon-v1`: be-host-wayland
 reads the pixels it was handed (the smallest at least 64 pixels, shrunk to 64) or looks the
-name up in the icon theme, and it reaches the shell as `HostWindow::icon` beside the title,
-which be-sdk-shell's `WindowTab` hands the dock as its `DockTab` `picture`. Without one, be-host-desktop's
+name up in the icon theme, and it reaches the shell as its window child's `icon` beside the title,
+which be-sdk-shell's `ProgramTab` hands the dock as its `DockTab` `picture`. Without one, be-host-desktop's
 `linux.rs` gives it the `Icon=` of the desktop entry the window was launched from, else of the one its
 program id names (`Environment::entry_of_window`: the app id or X11 `WM_CLASS` as an entry's name, as
 is or lowercased, then as an entry's `StartupWMClass`), which also names it; with neither the tab
@@ -697,7 +699,7 @@ shows a generic glyph. An X11 window's `_NET_WM_ICON` is not read (smithay does 
 `programs::load_icon` reads PNG, SVG and XPM; an SVG with text draws it with the system fonts (loaded
 once, the first time one is needed) and beui's bundled Inter and Hack for any generic family the
 system lacks, and an icon that draws nothing counts as none, so the glyph shows instead. `xdg-foreign` v2 lets a program parent its window to another
-program's, as a portal does with its file chooser: the child's `HostWindow::parent` is the
+program's, as a portal does with its file chooser: the child's `host-window.parent` is the
 exported window, and it is shown as that window's child like any other dialog. The xdg shell offers the
 fullscreen, minimize and window menu capabilities (`wm_capabilities`), but not maximize: a window's size is
 the dock's, so maximizing would change nothing (a request to maximize is still answered
@@ -710,14 +712,15 @@ be-host's `AppView` gives one to the views of a floating window (`be_host_deskto
 begins the same gesture the window's own bar would (`compositor/desktop.rs`'s `begin`) and steers
 the window's pointer input through it until the button or finger that pressed is let go; the other
 pointers' input passes by. A window docked in a pane has no
-carrier, so it does not move. `show_window_menu` reaches the shell as `HostWindow::menu` (a count of
-asks and the point, from the window's top left), where be-sdk-shell's `WindowPanel` opens a menu
-there with Hide, Full screen and Close; minimizing (`xdg_toplevel.set_minimized`, an X11 window's
-iconify) hides the window as its chip's Hide does. A hidden window shown again comes back where
-it was (guides/desktop.md, Shown and hidden entries). While hidden, the window is told so, so its program can stop drawing:
-be-host-desktop passes Hide and Show to `Windows::set_hidden`, which reconfigures it with
-`xdg_toplevel`'s `suspended` state (`xdg_wm_base` v6) or, for an X11 window,
-`_NET_WM_STATE_HIDDEN`. An X11 window's `WM_STATE` stays `NormalState`: smithay writes
+carrier, so it does not move. `show_window_menu` reaches the shell as its window child's `menu-asked` (a count of
+asks and the point, from the window's top left), where be-sdk-shell's `WindowBody` opens a menu
+there with Hide, Full screen and Close. Minimizing (`xdg_toplevel.set_minimized`, an X11 window's
+iconify, both `ServerEvent::Minimized`) counts up the window's `Windows::minimized`, which reaches
+the shell as its window child's `minimized`, and the shell hides the tab's dock window.
+A hidden window shown again comes back where it was (guides/desktop.md, Shown and hidden entries).
+While its tab is placed nowhere, the window is told so, so its program can stop drawing:
+be-host-wayland reconfigures it with `xdg_toplevel`'s `suspended` state (`xdg_wm_base` v6) or,
+for an X11 window, `_NET_WM_STATE_HIDDEN` (`Windows::suspended`). An X11 window's `WM_STATE` stays `NormalState`: smithay writes
 `IconicState` only by unmapping the window's frame, which takes its surface away. GTK ignores those capabilities
 before 4.20 and from then on only greys the buttons out; its header bar lays out its window
 buttons from GSettings' `org.gnome.desktop.wm.preferences button-layout`. So the compositor
@@ -772,7 +775,7 @@ alpha), leaving its sub-surfaces as they are.
 with its title and app id and an identifier that lasts as long as the window, to any client, as
 compositors without a security context do; it is brought up to date at the end of each dispatch.
 `xdg_system_bell_v1` (`bell.rs`): a ring on a surface counts up its window's `Windows::rung`, which
-reaches the shell as `HostWindow::rung`, and the desktop app flashes that window's chip
+reaches the shell as its window child's `rung`, and the desktop app flashes that window's chip
 (guides/desktop.md, Shown and hidden entries). A ring on no surface is ignored, and no sound is
 played yet.
 
@@ -794,8 +797,9 @@ got it; the token works once, within `TOKEN_LIFETIME` on the frame clock, and on
 keyboard is still where it was when the token was made. Every program the compositor starts
 (`Windows::run`, which the Apps panel's Run row sends as `ProgramAction::Run`) gets a fresh token of the
 compositor's own as `XDG_ACTIVATION_TOKEN` and `DESKTOP_STARTUP_ID`, honoured whatever has the
-keyboard. An honoured request goes through `Windows::activate`, as `WindowAction::Focus` does,
-which bumps the window's `raised` count so the shell shows its tab. Anything else is ignored;
+keyboard. An honoured request goes through `Windows::activate`, which bumps the window's `raised`
+count, reported in its child's status, so the shell shows its tab and gives it the keyboard (a
+hidden tab's window is placed hidden, so it hears the raise too). Anything else is ignored;
 the dock has no way yet to mark a tab as wanting attention.
 
 ### Windows kept across restarts
@@ -806,28 +810,25 @@ placeholder instead, with the program's icon and name, the window's old title, O
 Dismiss, stacked as the windows were with the one that had the focus on top. Each placeholder
 has a chip in the Windows bar after the running windows' (outlined, with a muted label, as
 `ButtonFace`'s `placeholder`) whose click brings it in front and whose menu offers Open and
-Dismiss, and the Restore chip leading the bar opens them all. be-sdk-shell's `Workspace` (with `keeps_windows`,
-which only the desktop app sets) saves a `KeptWindow` per top-level window beside the dock layout
-in its `layout` view state. Each window tab is keyed by a kept key that outlives the window
-(`window_tab(key)`), and `kept.rs` binds live windows to keys: a window a record names is bound
-to its key (a shell started again over the same compositor keeps every window), a window that
-appears after the restore takes the placeholder it was launched from, else the oldest unbound
-one with its program id, and any other window is its own key. The dock never sees a binding change:
-`WindowTab` shows the bound window's `WindowPanel`, or the placeholder the desktop app hands it
-when none is bound. When the host's `PowerAvailability` says the session is `ending`, the
-workspace (`keep_through_ending`, `kept::ending`) first makes a record of every window open then,
-and while it ends a window that closes becomes a placeholder rather than being forgotten, saved as
+Dismiss, and the Restore chip leading the bar opens them all. Each is a program tab with no window
+(guides/desktop.md, Program windows): be-sdk-shell's `Workspace` saves every program tab's `ProgramRecord` beside the dock layout in its
+`layout` view state, and a window that appears after the restore takes the tab it was launched
+from, else one that last held the same window id for the same program (a shell started again over
+the same compositor keeps every window), else the oldest waiting tab of its program id, else a tab
+of its own. The dock never sees a binding change: the tab shows the window's body while it has
+one and be-sdk-shell's placeholder while it has none. When the host's `PowerAvailability` says
+the session is `ending`, the workspace (`keep_through_ending`) keeps the tab of every window that
+closes as a placeholder rather than closing it, saved as
 usual. So whether the session ends, is cancelled or a restart fails, nothing open at that moment
 is lost: cancelled, the person has the programs that stayed open and a placeholder for each one
 that closed.
 
 Window ids start from the compositor's start time in microseconds, so an id never names two
-windows across runs: a saved record's window id is only ever adopted by that window, and a new
-window's own id never collides with a kept key. The host fills `HostWindow::origin`: when the
+windows across runs: a saved record's window id is only ever adopted by that window. The host fills `host-window.origin`: when the
 compositor launched the program or an ancestor of it, the `.desktop` entry it was launched from
 and the `launch` number the shell put on its `ProgramAction::Launch` or `Exec`; otherwise the
 program's executable, the first word of the client's `/proc` command line (an X11 window's
-`_NET_WM_PID`). The arguments are not kept (decisions/kept_windows_store_no_program_arguments.md). The desktop app opens a placeholder with that entry, else one from
+`_NET_WM_PID`). The arguments are not kept (decisions/kept_windows_store_no_program_arguments.md). be-sdk-shell opens a placeholder with that entry, else one from
 `Programs` whose `StartupWMClass` or id matches the program id, else the executable. The host runs
 a `Launch` that arrives before it has listed the programs once the list is in.
 

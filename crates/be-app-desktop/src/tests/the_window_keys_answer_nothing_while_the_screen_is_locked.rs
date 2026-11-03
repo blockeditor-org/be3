@@ -28,10 +28,9 @@ fn the_window_keys_answer_nothing_while_the_screen_is_locked() {
         fixture.settle();
     }
     assert!(
-        fixture
-            .test
-            .take_host_calls(be_sdk_test::requested::window)
-            .is_empty(),
+        fixture.closed_windows().is_empty()
+            && fixture.window_rect(1).is_some()
+            && fixture.window_rect(2).is_some(),
         "nor does anything to a window"
     );
 }

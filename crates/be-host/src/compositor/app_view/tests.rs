@@ -26,6 +26,7 @@ pub(super) fn child(clip: Rect) -> HostChild {
         sheet: false,
         anchor: None,
         focus_asked: false,
+        fullscreen: false,
     }
 }
 

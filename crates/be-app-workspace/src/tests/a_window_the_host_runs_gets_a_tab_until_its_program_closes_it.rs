@@ -4,9 +4,7 @@ use super::*;
 fn a_window_the_host_runs_gets_a_tab_until_its_program_closes_it() {
     let (mut fixture, _) = editor();
 
-    fixture
-        .host
-        .set_watched::<WindowsWatch>(&vec![window(7, "Terminal", None)]);
+    fixture.show_windows(&[window(7, "Terminal", None)]);
     fixture.settle();
 
     assert_eq!(
@@ -23,17 +21,14 @@ fn a_window_the_host_runs_gets_a_tab_until_its_program_closes_it() {
         "it takes the pane beside the files"
     );
 
-    fixture
-        .host
-        .set_watched::<WindowsWatch>(&vec![window(7, "~ - Terminal", None)]);
+    fixture.show_windows(&[window(7, "~ - Terminal", None)]);
     fixture.settle();
     assert!(
         fixture.says("Terminal \u{2014} ~"),
         "the tab follows the title"
     );
 
-    fixture.host.set_watched::<WindowsWatch>(&Vec::new());
-    fixture.settle();
+    fixture.show_windows(&[]);
 
     assert!(placed_windows(&fixture).is_empty());
     assert!(fixture.says("No file open"), "the tab goes with the window");

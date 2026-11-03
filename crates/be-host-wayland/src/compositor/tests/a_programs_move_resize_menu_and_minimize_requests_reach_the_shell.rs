@@ -75,9 +75,11 @@ fn a_programs_move_resize_menu_and_minimize_requests_reach_the_shell() {
 
     toplevel.set_minimized();
     harness.settle();
+    toplevel.set_minimized();
+    harness.settle();
     assert_eq!(
-        harness.compositor().windows().take_minimized(),
-        [id],
-        "a minimized window is handed to the shell to hide"
+        harness.compositor().windows().minimized(id),
+        2,
+        "each ask to minimize counts up, for the shell to hide the window"
     );
 }

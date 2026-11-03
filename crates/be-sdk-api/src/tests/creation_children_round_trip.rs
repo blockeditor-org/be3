@@ -30,6 +30,7 @@ fn creation_children_round_trip() {
             }),
             docks: None,
             anchor: None,
+            fullscreen: false,
         }],
         occluders: Vec::new(),
     });

@@ -16,9 +16,9 @@ use be_sdk_beui::FromEditor;
 use be_sdk_beui::be_block::{LiveEdit, Merge};
 use be_sdk_beui::headless::{Adopted, HeadlessApp};
 use be_sdk_beui::{
-    Artifacts, BeuiRoot, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
-    Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence, ViewChange, WebViewCommand,
-    WebViewId,
+    Artifacts, BeuiRoot, ChildMode, ChildPlacement, ChildStatus, Creation, EditorHost,
+    EditorInstanceId, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence,
+    ViewChange, WebViewCommand, WebViewId,
 };
 use beui::native::Document;
 use beui::{
@@ -120,6 +120,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     overflows: Vec<String>,
     viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
+    views_children: Vec<(ViewId, Vec<ChildPlacement>)>,
     occluders: Vec<Occluder>,
     report: Option<FrameReport>,
     window: be_sdk_api::WindowRequests,
@@ -404,6 +405,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             overflows: Vec::new(),
             viewport: None,
             children: Vec::new(),
+            views_children: Vec::new(),
             occluders: Vec::new(),
             report: None,
             window: be_sdk_api::WindowRequests::default(),
@@ -656,6 +658,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn take_child_focus(&mut self) -> Vec<ChildId> {
         self.take_calls(|call| match call {
             ShellCall::FocusChild { child, .. } => Some(*child),
+            _ => None,
+        })
+    }
+
+    pub fn take_child_closes(&mut self) -> Vec<ChildId> {
+        self.take_calls(|call| match call {
+            ShellCall::CloseChild { child, .. } => Some(*child),
             _ => None,
         })
     }
@@ -970,25 +979,37 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn available_children(&mut self) {
         let view = self.view().id;
-        self.report_children(|placement| ChildStatus {
-            instance: INSTANCE,
-            view,
-            child: placement.child,
-            available: true,
-            intrinsic: None,
-            aspect_ratio: None,
-            active: false,
-            interaction: be_sdk_beui::InteractionMode::Preview,
-            capabilities: be_sdk_beui::EditorCapabilities::default(),
-            resize: be_sdk_beui::ResizeMode::None,
-            error: None,
-            menu: Vec::new(),
-            creation: None,
-            preview: Default::default(),
-            dialog: Default::default(),
-            picked: None,
-            card: false,
+        self.report_children(|placement| available_status(view, placement));
+    }
+
+    pub fn every_child(&self) -> Vec<ChildPlacement> {
+        self.views_children
+            .iter()
+            .flat_map(|(_, children)| children.iter().cloned())
+            .collect()
+    }
+
+    pub fn report_child(&mut self, child: ChildId, change: impl FnOnce(&mut ChildStatus)) {
+        let (view, placement) = self
+            .views_children
+            .iter()
+            .find_map(|(view, children)| {
+                children
+                    .iter()
+                    .find(|placement| placement.child == child)
+                    .map(|placement| (*view, placement))
+            })
+            .expect("the editor placed the child to report on");
+        let mut status = available_status(view, placement);
+        change(&mut status);
+        self.child_statuses.change(&mut self.connection, |held| {
+            let mut held = held.unwrap_or_default();
+            held.retain(|held| held.child != child);
+            held.push(status);
+            held
         });
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
     }
 
     pub fn rect(&self) -> Rect {
@@ -1179,14 +1200,36 @@ impl<A: BeuiRoot> BeuiTest<A> {
         let view = self.view().id;
         let asked = commit.window_requests;
         let reports = commit.reports.clone();
+        for placements in &commit.children {
+            self.views_children
+                .retain(|(held, _)| *held != placements.view);
+            self.views_children
+                .push((placements.view, placements.children.clone()));
+        }
         if let Some(placements) = commit
             .children
             .into_iter()
             .filter(|placements| placements.view == view)
             .last()
         {
-            self.children = placements.children;
-            self.occluders = placements.occluders;
+            let hidden = |placement: &ChildPlacement| placement.mode == ChildMode::Hidden;
+            self.occluders = placements
+                .occluders
+                .into_iter()
+                .map(|occluder| Occluder {
+                    after: placements.children
+                        [..(occluder.after as usize).min(placements.children.len())]
+                        .iter()
+                        .filter(|placement| !hidden(placement))
+                        .count() as u32,
+                    ..occluder
+                })
+                .collect();
+            self.children = placements
+                .children
+                .into_iter()
+                .filter(|placement| !hidden(placement))
+                .collect();
         }
         if let Some(report) = commit
             .reports
@@ -1482,6 +1525,15 @@ impl<A: BeuiRoot> BeuiTest<A> {
             dialog: Default::default(),
             picked: (placement.child == picker).then(|| pick.clone()),
             card: false,
+            title: None,
+            icon: None,
+            group: None,
+            raised: 0,
+            rung: 0,
+            minimized: 0,
+            fullscreen: false,
+            notice: None,
+            menu_asked: None,
         });
         self.run();
     }
@@ -1515,6 +1567,15 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 dialog: Default::default(),
                 picked: None,
                 card: shown && card,
+                title: None,
+                icon: None,
+                group: None,
+                raised: 0,
+                rung: 0,
+                minimized: 0,
+                fullscreen: false,
+                notice: None,
+                menu_asked: None,
             }
         });
         self.run();
@@ -2372,4 +2433,35 @@ fn published(method: be_sdk_api::ops::MethodId) -> Option<be_sdk_api::ops::Watch
                 && be_sdk_api::is_published(watching.interface)
         })
         .copied()
+}
+
+fn available_status(view: ViewId, placement: &ChildPlacement) -> ChildStatus {
+    ChildStatus {
+        instance: INSTANCE,
+        view,
+        child: placement.child,
+        available: true,
+        intrinsic: None,
+        aspect_ratio: None,
+        active: false,
+        interaction: be_sdk_beui::InteractionMode::Preview,
+        capabilities: be_sdk_beui::EditorCapabilities::default(),
+        resize: be_sdk_beui::ResizeMode::None,
+        error: None,
+        menu: Vec::new(),
+        creation: None,
+        preview: Default::default(),
+        dialog: Default::default(),
+        picked: None,
+        card: false,
+        title: None,
+        icon: None,
+        group: None,
+        raised: 0,
+        rung: 0,
+        minimized: 0,
+        fullscreen: false,
+        notice: None,
+        menu_asked: None,
+    }
 }

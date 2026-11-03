@@ -9,18 +9,19 @@ use beui::dock::styled::{DockBarGrip, DockBarSurface, Docking};
 use beui::dock::unstyled::{
     DockAlign, DockBar, DockBarPlacement, DockDialog, DockDocument, DockDocumentBody,
     DockDocumentTabs, DockDocuments, DockEdge, DockOpened, DockPane, DockSlot, DockSplit, DockTab,
-    DockTabControl, DockingLayout, SplitSize, TabId, dock_menu, use_dock_tab,
+    DockTabControl, DockWindow, DockingLayout, SplitSize, TabId, dock_menu, use_dock_tab,
 };
 use beui::icons::Glyph;
 use beui::icons::{
-    ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG, ICON_CALENDAR_DAYS,
-    ICON_CIRCLE_DOT, ICON_CLIPBOARD, ICON_CODE, ICON_COLUMNS_3, ICON_CONTRAST, ICON_COPY,
-    ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS, ICON_LAYOUT_DASHBOARD,
-    ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_LOG_IN,
-    ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_NETWORK, ICON_PALETTE,
-    ICON_PANEL_BOTTOM, ICON_PANELS_TOP_LEFT, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER,
-    ICON_ROTATE_CCW, ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE,
-    ICON_STAR, ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE,
+    ICON_APP_WINDOW, ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG,
+    ICON_CALENDAR_DAYS, ICON_CIRCLE_DOT, ICON_CLIPBOARD, ICON_CODE, ICON_COLUMNS_3, ICON_CONTRAST,
+    ICON_COPY, ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS,
+    ICON_LAYOUT_DASHBOARD, ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST,
+    ICON_LOCK, ICON_LOG_IN, ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK,
+    ICON_NETWORK, ICON_PALETTE, ICON_PANEL_BOTTOM, ICON_PANELS_TOP_LEFT, ICON_PEN_TOOL,
+    ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_ROTATE_CCW, ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL,
+    ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR, ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT,
+    ICON_TRASH, ICON_TYPE,
 };
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
@@ -46,7 +47,7 @@ use styled_pages::AttachedDialog;
 use styled_pages::{
     ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockBarsPage, DockingPage, EditorPage,
     InputsPage, LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage,
-    RowsPage, TextPage, ThemesPage, TreePage,
+    RowsPage, TextPage, ThemesPage, TreePage, WindowManagerPage,
 };
 use unstyled_pages::{
     DraggingPage, PopupsPage, PressingPage, ScrollingPage, SelectingPage, ValuesPage,
@@ -81,6 +82,7 @@ enum Page {
     Docking,
     NestedDocks,
     DockBars,
+    WindowManager,
     Text,
     Buttons,
     Inputs,
@@ -112,10 +114,11 @@ enum Page {
     Paths,
 }
 
-const STYLED_PAGES: [Page; 19] = [
+const STYLED_PAGES: [Page; 20] = [
     Page::Docking,
     Page::NestedDocks,
     Page::DockBars,
+    Page::WindowManager,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
@@ -153,10 +156,11 @@ const BASE_PAGES: [Page; 7] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 32] = [
+const PAGES: [Page; 33] = [
     Page::Docking,
     Page::NestedDocks,
     Page::DockBars,
+    Page::WindowManager,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
@@ -194,6 +198,7 @@ impl Page {
             Page::Docking => "Docking",
             Page::NestedDocks => "Nested docks",
             Page::DockBars => "Dock bars",
+            Page::WindowManager => "Window manager",
             Page::Text => "Text",
             Page::Buttons => "Buttons",
             Page::Inputs => "Inputs",
@@ -231,6 +236,7 @@ impl Page {
             Page::Docking => ICON_LAYOUT_PANEL_LEFT,
             Page::NestedDocks => ICON_PANELS_TOP_LEFT,
             Page::DockBars => ICON_PANEL_BOTTOM,
+            Page::WindowManager => ICON_APP_WINDOW,
             Page::Text => ICON_TYPE,
             Page::Buttons => ICON_MOUSE_POINTER_CLICK,
             Page::Inputs => ICON_TOGGLE_RIGHT,
@@ -268,6 +274,7 @@ impl Page {
             Page::Docking => "Tabs, splits, windows and groups",
             Page::NestedDocks => "A dock in a tab joins the dock around it",
             Page::DockBars => "A tool bar on any edge of its pane, or in a window",
+            Page::WindowManager => "Floating windows hidden, snapped and moved between displays",
             Page::Text => "Text styles, sizes, colour roles, icons in text, links",
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
@@ -644,6 +651,9 @@ fn PageView(page: Page) -> NodeId {
         },
         Page::DockBars => view! {
             <DockBarsPage />
+        },
+        Page::WindowManager => view! {
+            <WindowManagerPage />
         },
         Page::Text => view! {
             <TextPage />

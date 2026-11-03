@@ -34,8 +34,8 @@ fn the_window_keys_use_ctrl_alt_where_the_system_keeps_super() {
     assert!(fixture.test.host_key(Modifiers::CTRL, Key::F4));
     fixture.settle();
     assert_eq!(
-        fixture.test.take_host_calls(be_sdk_test::requested::window),
-        [WindowAction::Close(HostWindowId(2))],
+        fixture.closed_windows(),
+        [HostWindowId(2)],
         "and Ctrl+F4 closes it"
     );
 }

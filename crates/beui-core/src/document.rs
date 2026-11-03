@@ -1562,7 +1562,11 @@ impl Document {
                     region,
                     moved,
                 }];
+                let open = self.open_windows();
                 for (window, painting) in windows {
+                    if !open.contains(&window) {
+                        continue;
+                    }
                     let Some(viewport) = self.window_rect(window) else {
                         continue;
                     };

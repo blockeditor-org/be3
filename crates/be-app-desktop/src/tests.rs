@@ -7,19 +7,20 @@ use be_sdk_beui::be_block::{
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
 use be_sdk_beui::{
-    AudioOutput, BlockInfo, BlockParent, ChildContent, DisplaysWatch, EditorHost, EndingAnswer,
-    EpaperWatch, HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId,
+    AudioOutput, BlockInfo, BlockParent, ChildContent, ChildId, DisplaysWatch, EditorHost,
+    EndingAnswer, EpaperWatch, HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId,
     IncomingNotification, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, MediaLevel,
-    MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
-    NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
+    MediaLevels, MediaRequest, MediaWatch, MenuAsk, NotificationInbox, NotificationRequest,
+    NotificationSignal, NotificationsWatch, OwnedEditor, Picture, PlayerCommand, PowerAction,
     PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, SessionEnd,
-    WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction,
-    WindowKind, WindowOrigin, WindowsWatch,
+    WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowKind,
+    WindowOrigin, WindowsWatch,
 };
 
 use be_sdk_beui::be_block::{EditorView, EditorViewContent};
-use be_sdk_shell::{KeptWindow, SHELL_BARS, saved_windows};
+use be_sdk_shell::{SHELL_BARS, SavedProgram, saved_programs};
 use be_sdk_test::BeuiTest;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::root::DesktopRoot;
@@ -45,18 +46,18 @@ mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_floating_bar_dragged_by_its_grip_follows_to_the_end_and_lands_where_let_go;
 mod a_fullscreen_window_covers_the_bars;
 mod a_fullscreen_window_on_the_second_display_covers_only_that_displays_bars;
-mod a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen;
 mod a_held_volume_key_keeps_turning_the_volume;
 mod a_hidden_bar_stays_hidden_and_the_apps_panel_shows_it_again;
 mod a_hidden_session_chosen_from_the_apps_panel_comes_back_in_front_with_the_focus;
+mod a_hidden_window_is_still_heard_and_its_programs_raise_brings_it_back;
 mod a_hidden_window_shown_again_returns_where_it_was_moved;
+mod a_hidden_window_that_rings_the_bell_flashes_its_chip;
 mod a_key_with_nothing_to_change_says_so;
 mod a_locked_screen_shows_no_notification_toasts;
 mod a_long_window_title_ends_inside_the_window_switcher;
 mod a_moved_bar_leaves_no_focus_ring_behind_while_switching;
 mod a_narrow_desktop_shows_one_program_window_filling_it_under_the_dock_bar;
 mod a_new_window_fills_the_oldest_placeholder_of_its_program;
-mod a_new_window_opens_within_its_programs_least_and_greatest_size;
 mod a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time;
 mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
 mod a_program_tile_whose_name_is_cut_short_shows_it_whole_on_hover;
@@ -81,6 +82,8 @@ mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_volume_louder_than_full_shows_how_much_louder;
 mod a_window_dragged_over_the_bars_passes_beneath_them;
 mod a_window_holding_one_tab_closes_from_its_tab_and_its_bar;
+mod a_window_its_program_minimizes_is_hidden;
+mod a_window_its_program_raises_comes_in_front_with_the_keyboard;
 mod a_window_launched_from_a_placeholder_takes_its_place;
 mod a_window_moved_to_a_display_at_another_scale_keeps_its_size_in_points_above_its_bars;
 mod a_window_moved_to_another_display_lists_its_chip_on_that_displays_bar;
@@ -162,7 +165,6 @@ mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 const PROGRAMS_BAR: u64 = 0;
 const WINDOWS_BAR: u64 = 1;
 const STATUS_BAR: u64 = 2;
-const WINDOW_TABS: u64 = 1 << 41;
 const EVERYTHING: PowerAvailability = PowerAvailability {
     lock: true,
     suspend: true,
@@ -184,6 +186,63 @@ struct Fixture {
     client: Uuid,
     settings: Uuid,
     notified: u64,
+    windows: Vec<TestWindow>,
+    raises: HashMap<u64, u64>,
+    reported: HashMap<ChildId, (u64, Reported)>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct TestWindow {
+    id: HostWindowId,
+    kind: WindowKind,
+    title: String,
+    program_id: String,
+    name: String,
+    parent: Option<HostWindowId>,
+    modal: bool,
+    size: Vec2,
+    fullscreen: Option<Rect>,
+    focused: bool,
+    icon: Option<HostImage>,
+    raised: u64,
+    rung: u64,
+    minimized: u64,
+    origin: WindowOrigin,
+    note: Option<String>,
+    menu: Option<WindowMenu>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct WindowMenu {
+    asked: u64,
+    at: Vec2,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Reported {
+    title: String,
+    icon: Option<Picture>,
+    group: String,
+    raised: u64,
+    rung: u64,
+    minimized: u64,
+    fullscreen: bool,
+    notice: Option<String>,
+    menu: Option<MenuAsk>,
+    intrinsic: Option<Vec2>,
+}
+
+impl TestWindow {
+    fn listed(&self) -> HostWindow {
+        HostWindow {
+            id: self.id,
+            kind: self.kind,
+            parent: self.parent,
+            modal: self.modal,
+            program_id: self.program_id.clone(),
+            origin: self.origin.clone(),
+        }
+    }
 }
 
 impl Fixture {
@@ -206,17 +265,164 @@ impl Fixture {
         self.test.content::<EditorViewContent>(None)
     }
 
-    fn kept(&self) -> Vec<KeptWindow> {
+    fn kept(&self) -> Vec<SavedProgram> {
         self.saved()
             .root()
             .state("layout")
-            .map(saved_windows)
+            .map(saved_programs)
             .unwrap_or_default()
     }
 
-    fn show_windows(&mut self, windows: &[HostWindow]) {
-        self.test.set_watched::<WindowsWatch>(&windows.to_vec());
+    fn block_chips(&self) -> Vec<String> {
+        let mut chips: Vec<String> = self
+            .test
+            .test_ids()
+            .iter()
+            .map(|(id, _)| id)
+            .filter(|id| {
+                id.strip_prefix("desktop.windows.block.")
+                    .is_some_and(|rest| !rest.contains('.'))
+            })
+            .map(str::to_owned)
+            .collect();
+        chips.sort();
+        chips.dedup();
+        chips
+    }
+
+    fn block_chip(&self) -> String {
+        self.block_chips().pop().expect("a block window has a chip")
+    }
+
+    fn tab_of(&self, window: u64) -> u64 {
+        self.kept()
+            .iter()
+            .rev()
+            .find(|kept| kept.record.window == Some(HostWindowId(window)))
+            .map(|kept| kept.tab)
+            .unwrap_or_else(|| panic!("window {window} has a tab"))
+    }
+
+    fn show_windows(&mut self, windows: &[TestWindow]) {
+        for window in windows {
+            let was = self
+                .windows
+                .iter()
+                .any(|held| held.id == window.id && held.focused);
+            if window.focused && !was {
+                *self.raises.entry(window.id.0).or_default() += 1;
+            }
+        }
+        self.windows = windows.to_vec();
+        let listed: Vec<HostWindow> = windows.iter().map(TestWindow::listed).collect();
+        self.test.set_watched::<WindowsWatch>(&listed);
         self.settle();
+    }
+
+    fn raise(&mut self, window: u64) {
+        *self.raises.entry(window).or_default() += 1;
+        self.settle();
+    }
+
+    fn reported(&self, window: &TestWindow) -> Reported {
+        let parent = window
+            .parent
+            .and_then(|parent| self.windows.iter().find(|held| held.id == parent));
+        Reported {
+            title: window_name(window, parent),
+            icon: window.icon.as_ref().map(|icon| Picture {
+                width: icon.width,
+                height: icon.height,
+                rgba: icon.rgba.clone(),
+            }),
+            group: window.program_id.clone(),
+            raised: window.raised + self.raises.get(&window.id.0).copied().unwrap_or_default(),
+            rung: window.rung,
+            minimized: window.minimized,
+            fullscreen: window.fullscreen.is_some(),
+            notice: window.note.clone(),
+            menu: window.menu.map(|menu| MenuAsk {
+                asked: menu.asked,
+                at: Pos2::ZERO + menu.at,
+            }),
+            intrinsic: (window.size.x >= 1.0 && window.size.y >= 1.0).then_some(window.size),
+        }
+    }
+
+    fn report_windows(&mut self) -> bool {
+        let placed: Vec<(ChildId, u64)> = self
+            .test
+            .every_child()
+            .iter()
+            .filter_map(|placement| match placement.content {
+                ChildContent::Window(window) => Some((placement.child, window.0)),
+                _ => None,
+            })
+            .collect();
+        let mut reported = false;
+        for (child, id) in placed {
+            let Some(window) = self.windows.iter().find(|held| held.id.0 == id) else {
+                continue;
+            };
+            let status = self.reported(window);
+            if self.reported.get(&child) == Some(&(id, status.clone())) {
+                continue;
+            }
+            self.reported.insert(child, (id, status.clone()));
+            self.test.report_child(child, move |held| {
+                held.title = Some(status.title);
+                held.icon = status.icon;
+                held.group = Some(status.group);
+                held.raised = status.raised;
+                held.rung = status.rung;
+                held.minimized = status.minimized;
+                held.fullscreen = status.fullscreen;
+                held.notice = status.notice;
+                held.menu_asked = status.menu;
+                held.intrinsic = status.intrinsic.map(|size| be_sdk_beui::Size {
+                    width: size.x,
+                    height: size.y,
+                });
+            });
+            reported = true;
+        }
+        reported
+    }
+
+    fn window_of(&self, child: ChildId) -> Option<HostWindowId> {
+        self.reported
+            .get(&child)
+            .map(|(window, _)| HostWindowId(*window))
+            .or_else(|| {
+                self.test
+                    .children()
+                    .iter()
+                    .find(|placement| placement.child == child)
+                    .and_then(|placement| match placement.content {
+                        ChildContent::Window(window) => Some(window),
+                        _ => None,
+                    })
+            })
+    }
+
+    fn closed_windows(&mut self) -> Vec<HostWindowId> {
+        let closes = self.test.take_child_closes();
+        closes
+            .into_iter()
+            .filter_map(|child| self.window_of(child))
+            .collect()
+    }
+
+    fn fullscreen_windows(&self) -> Vec<HostWindowId> {
+        self.test
+            .every_child()
+            .iter()
+            .filter(|placement| placement.fullscreen)
+            .filter_map(|placement| match placement.content {
+                ChildContent::Window(window) => Some(window),
+                _ => None,
+            })
+            .collect()
     }
 
     fn window_rect(&self, id: u64) -> Option<Rect> {
@@ -228,7 +434,7 @@ impl Fixture {
     }
 
     fn placeholder_rect(&self, key: u64) -> Option<Rect> {
-        let id = format!("desktop.placeholder.{key}");
+        let id = format!("workspace.placeholder.{key}");
         self.test.shown(&id).then(|| self.test.rect_of(&id))
     }
 
@@ -265,6 +471,9 @@ impl Fixture {
             client,
             settings: Uuid::new_v4(),
             notified: 0,
+            windows: Vec::new(),
+            raises: HashMap::new(),
+            reported: HashMap::new(),
         }
     }
 
@@ -335,25 +544,21 @@ impl Fixture {
         let mut fixture = Self::new();
         fixture.settle();
         for focused in std::iter::once(None).chain(ids.iter().copied().map(Some)) {
-            let windows = ids
+            let windows: Vec<TestWindow> = ids
                 .iter()
                 .map(|id| host_window(*id, focused == Some(*id)))
                 .collect();
-            fixture.test.set_watched::<WindowsWatch>(&windows);
-            fixture.settle();
+            fixture.show_windows(&windows);
         }
         fixture.test.clear_calls();
         fixture
     }
 
-    fn focused_windows(&self) -> Vec<HostWindowId> {
-        self.test
-            .host_calls(be_sdk_test::requested::window)
+    fn focused_windows(&mut self) -> Vec<HostWindowId> {
+        let given = self.test.take_child_focus();
+        given
             .into_iter()
-            .filter_map(|action| match action {
-                WindowAction::Focus(window) => Some(window),
-                _ => None,
-            })
+            .filter_map(|child| self.window_of(child))
             .collect()
     }
 
@@ -369,6 +574,12 @@ impl Fixture {
 
     fn settle(&mut self) {
         self.test.run();
+        for _ in 0..4 {
+            if !self.report_windows() {
+                break;
+            }
+            self.test.run();
+        }
     }
 
     fn hear(&mut self, level: f32, muted: bool, default_output: &str) {
@@ -483,7 +694,7 @@ impl Fixture {
     }
 
     fn window_grip(&self, window: u64) -> Pos2 {
-        let id = format!("dock.window.grip.window.{window}");
+        let id = format!("dock.window.grip.window.{}", self.tab_of(window));
         self.test
             .desk_rects_of(&id)
             .first()
@@ -677,33 +888,61 @@ fn picture() -> HostImage {
     }
 }
 
-fn host_window(id: u64, focused: bool) -> HostWindow {
-    HostWindow {
+fn host_window(id: u64, focused: bool) -> TestWindow {
+    TestWindow {
         id: HostWindowId(id),
         kind: WindowKind::Window,
-        shown: true,
         title: format!("todo-{id}.txt"),
         program_id: "org.kde.kate".to_owned(),
         name: "Kate".to_owned(),
         parent: None,
         modal: false,
         size: Vec2::new(320.0, 200.0),
-        min_size: Vec2::ZERO,
-        max_size: Vec2::ZERO,
         fullscreen: None,
-        responding: true,
         focused,
         icon: None,
         raised: 0,
         rung: 0,
+        minimized: 0,
         origin: Default::default(),
         note: None,
         menu: None,
     }
 }
 
-fn program_window(id: u64, program_id: &str, title: &str, origin: WindowOrigin) -> HostWindow {
-    HostWindow {
+fn readable_id(program_id: &str) -> String {
+    let id = program_id.trim();
+    let last = id.rsplit('.').next().unwrap_or(id);
+    let mut letters = last.chars();
+    match letters.next() {
+        Some(first) => first.to_uppercase().chain(letters).collect(),
+        None => String::new(),
+    }
+}
+
+fn window_name(window: &TestWindow, parent: Option<&TestWindow>) -> String {
+    let named = |window: &TestWindow| Some(window.name.clone()).filter(|name| !name.is_empty());
+    let read =
+        |window: &TestWindow| Some(readable_id(&window.program_id)).filter(|name| !name.is_empty());
+    let name = named(window)
+        .or_else(|| parent.and_then(named))
+        .or_else(|| read(window))
+        .or_else(|| parent.and_then(read))
+        .unwrap_or_default();
+    let title = window.title.trim();
+    let titled = !title.is_empty()
+        && !title.eq_ignore_ascii_case(&name)
+        && title != window.program_id.trim();
+    match (name.is_empty(), titled) {
+        (true, false) => "Window".to_owned(),
+        (true, true) => title.to_owned(),
+        (false, false) => name,
+        (false, true) => format!("{name} \u{2014} {title}"),
+    }
+}
+
+fn program_window(id: u64, program_id: &str, title: &str, origin: WindowOrigin) -> TestWindow {
+    TestWindow {
         title: title.to_owned(),
         program_id: program_id.to_owned(),
         name: String::new(),
@@ -712,7 +951,7 @@ fn program_window(id: u64, program_id: &str, title: &str, origin: WindowOrigin) 
     }
 }
 
-fn foot(id: u64) -> HostWindow {
+fn foot(id: u64) -> TestWindow {
     let window = program_window(
         id,
         "foot",
@@ -723,13 +962,13 @@ fn foot(id: u64) -> HostWindow {
             launch: None,
         },
     );
-    HostWindow {
+    TestWindow {
         name: "Foot".to_owned(),
         ..window
     }
 }
 
-fn notes(id: u64) -> HostWindow {
+fn notes(id: u64) -> TestWindow {
     program_window(
         id,
         "org.example.Notes",
@@ -839,12 +1078,12 @@ fn ending(end: SessionEnd) -> PowerAvailability {
     }
 }
 
-fn kept_keys(fixture: &Fixture) -> Vec<u64> {
-    fixture.kept().iter().map(|kept| kept.key.0).collect()
+fn dialog_tab(window: u64) -> u64 {
+    be_sdk_shell::dialog_tab(HostWindowId(window)).value()
 }
 
-fn window_tab(id: u64) -> u64 {
-    WINDOW_TABS + id
+fn kept_keys(fixture: &Fixture) -> Vec<u64> {
+    fixture.kept().iter().map(|kept| kept.tab).collect()
 }
 
 fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {

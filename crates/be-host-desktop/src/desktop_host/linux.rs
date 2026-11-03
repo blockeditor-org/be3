@@ -5,14 +5,15 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use super::DesktopHost;
-use super::shown::Shown;
+use crate::known_window::KnownWindow;
 use crate::programs::{Opener, ProgramSource};
+use crate::window_body::WindowStatus;
 use be_host_wayland::programs::{
     DesktopEntry, Environment, IconThemes, MimeGlobs, NamedIcons, load_icon,
 };
 use be_host_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use be_sdk_api::{
-    HostImage, HostProgram, HostWindow, HostWindowId, WindowKind, WindowMenu, WindowOrigin,
+    HostImage, HostProgram, HostWindow, HostWindowId, MenuAsk, Picture, WindowKind, WindowOrigin,
 };
 use beui::native::Document;
 use beui::reactive::*;
@@ -43,7 +44,6 @@ thread_local! {
     static WINDOWS: Cell<Option<Windows>> = const { Cell::new(None) };
     static RUNNING: RefCell<Option<Running>> = const { RefCell::new(None) };
     static LAUNCHES: RefCell<Vec<Launched>> = const { RefCell::new(Vec::new()) };
-    static SHOWN: RefCell<Shown> = RefCell::new(Shown::default());
     static KNOWN: RefCell<HashMap<String, Known>> = RefCell::new(HashMap::new());
     static ICONS: RefCell<NamedIcons> = RefCell::new(NamedIcons::default());
 }
@@ -203,11 +203,6 @@ impl DesktopHost for Linux {
             running.compositor.set_monitors(monitors);
             running.compositor.before(context, rect);
         });
-        if let Some(windows) = windows() {
-            for id in windows.take_minimized() {
-                set_shown(HostWindowId(id.0), false);
-            }
-        }
     }
 
     fn after(context: &Context, document: &mut Document) {
@@ -287,15 +282,6 @@ impl DesktopHost for Linux {
 
     fn revision() -> u64 {
         windows().map_or(0, |windows| windows.revision())
-            + SHOWN.with(|kept| kept.borrow().changes())
-    }
-
-    fn show(window: HostWindowId) {
-        set_shown(window, true);
-    }
-
-    fn hide(window: HostWindowId) {
-        set_shown(window, false);
     }
 
     fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
@@ -304,61 +290,27 @@ impl DesktopHost for Linux {
         };
         let listed = windows.list().get_untracked();
         let opening: Vec<WindowId> = hidden.iter().map(|window| WindowId(window.0)).collect();
-        let ids: Vec<HostWindowId> = listed.iter().map(|info| HostWindowId(info.id.0)).collect();
-        SHOWN.with(|kept| kept.borrow_mut().keep_only(&ids));
         listed
             .into_iter()
             .filter(|info| !opening.contains(&info.id))
-            .map(|info| {
-                let launched = launched(info.launch);
-                let known = match launched.program.is_some() {
-                    true => Known::default(),
-                    false => known(&info.program_id),
-                };
-                let icon = info.icon.or_else(|| {
-                    let name = launched.icon.as_ref().or(known.icon.as_ref())?;
-                    ICONS.with_borrow_mut(|icons| icons.get(name, be_host_wayland::ICON_PIXELS))
-                });
-                HostWindow {
-                    id: HostWindowId(info.id.0),
-                    kind: WindowKind::Window,
-                    shown: SHOWN.with(|kept| kept.borrow().shown(HostWindowId(info.id.0))),
-                    name: match launched.name.is_empty() {
-                        true => known.name,
-                        false => launched.name.clone(),
-                    },
-                    title: info.title,
-                    program_id: info.program_id,
-                    parent: info
-                        .parent
-                        .filter(|parent| !opening.contains(parent))
-                        .map(|parent| HostWindowId(parent.0)),
-                    modal: info.modal,
-                    size: info.size,
-                    min_size: info.min_size,
-                    max_size: info.max_size,
-                    fullscreen: info.fullscreen,
-                    responding: info.responding,
-                    focused: windows.focused() == Some(info.id),
-                    icon: icon.map(|icon| HostImage {
-                        width: icon.width(),
-                        height: icon.height(),
-                        rgba: icon.pixels().to_vec(),
-                    }),
-                    raised: windows.raised(info.id),
-                    rung: windows.rung(info.id),
-                    origin: WindowOrigin {
-                        command: relaunch_command(&launched.program, info.command),
-                        program: launched.program,
-                        launch: launched.launch,
-                    },
-                    note: None,
-                    menu: windows
-                        .menu(info.id)
-                        .map(|(asked, at)| WindowMenu { asked, at }),
-                }
-            })
+            .map(|info| known_window(windows, info, &opening).listed())
             .collect()
+    }
+
+    fn window_status(window: HostWindowId) -> Option<WindowStatus> {
+        let windows = windows()?;
+        windows.changes().get();
+        let id = WindowId(window.0);
+        windows.list().with(|list| {
+            let info = list.iter().find(|info| info.id == id)?;
+            let parent = info
+                .parent
+                .and_then(|parent| list.iter().find(|info| info.id == parent))
+                .map(|parent| known_window(windows, parent.clone(), &[]));
+            let drawn = info.drawn;
+            let record = known_window(windows, info.clone(), &[]);
+            Some(WindowStatus::of(&record, parent.as_ref(), drawn))
+        })
     }
 
     fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
@@ -388,13 +340,6 @@ impl DesktopHost for Linux {
     fn fullscreen(window: HostWindowId, fullscreen: bool) {
         if let Some(windows) = windows() {
             windows.request_fullscreen(WindowId(window.0), fullscreen);
-            be_host_base::host::wake();
-        }
-    }
-
-    fn focus(window: HostWindowId) {
-        if let Some(windows) = windows() {
-            windows.activate(WindowId(window.0));
             be_host_base::host::wake();
         }
     }
@@ -435,7 +380,7 @@ impl DesktopHost for Linux {
     }
 
     #[component]
-    fn WindowSurface(window: HostWindowId) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
         let occluders = crate::occlusion::occlusion();
         let occluders = create_memo(move || {
             occluders
@@ -457,12 +402,65 @@ impl DesktopHost for Linux {
         });
         match windows() {
             Some(windows) => view! {
-                <WindowView windows id={WindowId(window.0)} occluders carrier />
+                <WindowView windows id={WindowId(window.0)} occluders carrier focus />
             },
             None => view! {
                 <Frame />
             },
         }
+    }
+}
+
+fn known_window(
+    windows: Windows,
+    info: be_host_wayland::WindowInfo,
+    opening: &[WindowId],
+) -> KnownWindow {
+    let launched = launched(info.launch);
+    let known = match launched.program.is_some() {
+        true => Known::default(),
+        false => known(&info.program_id),
+    };
+    let icon = info.icon.clone().or_else(|| {
+        let name = launched.icon.as_ref().or(known.icon.as_ref())?;
+        ICONS.with_borrow_mut(|icons| icons.get(name, be_host_wayland::ICON_PIXELS))
+    });
+    KnownWindow {
+        id: HostWindowId(info.id.0),
+        kind: WindowKind::Window,
+        name: match launched.name.is_empty() {
+            true => known.name,
+            false => launched.name.clone(),
+        },
+        title: info.title,
+        program_id: info.program_id,
+        parent: info
+            .parent
+            .filter(|parent| !opening.contains(parent))
+            .map(|parent| HostWindowId(parent.0)),
+        modal: info.modal,
+        size: info.size,
+        min_size: info.min_size,
+        fullscreen: info.fullscreen,
+        responding: info.responding,
+        icon: icon.map(|icon| Picture {
+            width: icon.width(),
+            height: icon.height(),
+            rgba: icon.pixels().to_vec(),
+        }),
+        raised: windows.raised(info.id),
+        rung: windows.rung(info.id),
+        minimized: windows.minimized(info.id),
+        menu: windows.menu(info.id).map(|(asked, at)| MenuAsk {
+            asked,
+            at: beui::Pos2::ZERO + at,
+        }),
+        origin: WindowOrigin {
+            command: relaunch_command(&launched.program, info.command),
+            program: launched.program,
+            launch: launched.launch,
+        },
+        note: None,
     }
 }
 
@@ -480,15 +478,6 @@ pub fn set_keyboard(keyboard: &be_host_wayland::KeyboardConfig) -> bool {
 
 pub fn set_layout(index: u32) {
     with(|running| running.compositor.set_layout(index));
-}
-
-fn set_shown(window: HostWindowId, shown: bool) {
-    if let Some(windows) = windows() {
-        windows.set_hidden(WindowId(window.0), !shown);
-    }
-    if SHOWN.with(|kept| kept.borrow_mut().set(window, shown)) {
-        be_host_base::host::wake();
-    }
 }
 
 #[derive(Clone, Default)]

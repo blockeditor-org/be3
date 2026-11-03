@@ -465,6 +465,9 @@ impl EditorSession {
         for child in self.host.take_child_dismissals() {
             shell::dismiss_child(instance, child).detach();
         }
+        for child in self.host.take_child_closes() {
+            shell::close_child(instance, child).detach();
+        }
         for child in self.host.take_keyboard_gifts() {
             shell::focus_child(instance, child).detach();
         }

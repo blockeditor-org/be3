@@ -4,7 +4,7 @@ use std::rc::Rc;
 use be_lib_geometry::Vec2;
 use be_sdk_api::{
     BarAction, BlockPick, ChildId, ChildPreview, CreationProgress, DialogStatus,
-    EditorCapabilities, InteractionMode, MenuEntry, ResizeMode,
+    EditorCapabilities, InteractionMode, MenuAsk, MenuEntry, Picture, ResizeMode,
 };
 
 use crate::EditorHost;
@@ -27,6 +27,15 @@ pub struct ChildState {
     pub dialog: DialogStatus,
     pub picked: Option<BlockPick>,
     pub card: bool,
+    pub title: Option<String>,
+    pub icon: Option<Picture>,
+    pub group: Option<String>,
+    pub raised: u64,
+    pub rung: u64,
+    pub minimized: u64,
+    pub fullscreen: bool,
+    pub notice: Option<String>,
+    pub menu_asked: Option<MenuAsk>,
 }
 
 impl ChildState {
@@ -57,6 +66,15 @@ impl ChildState {
             dialog: status.dialog,
             picked: status.picked,
             card: status.card,
+            title: status.title,
+            icon: status.icon,
+            group: status.group,
+            raised: status.raised,
+            rung: status.rung,
+            minimized: status.minimized,
+            fullscreen: status.fullscreen,
+            notice: status.notice,
+            menu_asked: status.menu_asked,
         }
     }
 }

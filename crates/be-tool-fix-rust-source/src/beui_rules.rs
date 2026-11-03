@@ -170,6 +170,12 @@ fn attribute_named(node: &impl HasAttrs, name: &str) -> bool {
     })
 }
 
+fn has_receiver(function: &ast::Fn) -> bool {
+    function
+        .param_list()
+        .is_some_and(|params| params.self_param().is_some())
+}
+
 fn component_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
     let mut violations = Vec::new();
     for function in tree.syntax().descendants().filter_map(ast::Fn::cast) {
@@ -188,7 +194,7 @@ fn component_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
             }
             continue;
         }
-        if attribute_named(&function, "test") {
+        if attribute_named(&function, "test") || has_receiver(&function) {
             continue;
         }
         let uncovered = function

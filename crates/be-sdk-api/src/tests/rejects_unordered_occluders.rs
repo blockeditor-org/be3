@@ -27,6 +27,7 @@ fn placements(occluders: Vec<Occluder>) -> LayoutCommit {
             dialog: None,
             docks: None,
             anchor: None,
+            fullscreen: false,
         }],
         occluders,
     })

@@ -2160,11 +2160,18 @@ the host opens it only when a parent names it for a block it places as its own
 view (`ChildTarget::viewed_by` the block itself), as the host does the shell on
 its session. `be_block::profile` holds the ids of the shells and the file tree.
 
-Both shells are built from `crates/be-sdk-shell`, which holds the tabs, their
-views, the saved layout, picks, dialogs, host panels and program windows;
-workspace-ui lays them out as Files beside a pane of tabs, and the desktop app
-floats every block in a window of its own over an empty main pane, with a bar
-along the bottom for the host's menu, the sessions to open and the time.
+Both shells are built from `crates/be-sdk-shell`, which holds only what both
+use: `Workspace` (the tabs, their views, the saved layout, block menus, dialogs,
+host panels and program tabs) and the components that place them. Each shell
+adds its own. workspace-ui lays them out as Files beside a pane of tabs, keeps
+its Files view in the `files` view state of its session, and adds its revision
+history and the phone's details sheet to every block tab through the props of the
+`BlockTab` it places (`bar`, drawn above the block and above a block's own docked
+tab; `preview`, a block shown in its place; `on_details`, the phone top bar's
+Details); it also holds the picker and rename editors the
+host runs. The desktop app floats every block in a window of its own over an
+empty main pane, with a bar along the bottom for the host's menu, the sessions to
+open and the time.
 
 The shell's layout is the `layout` view state of its session
 (`saved::SavedLayout`, postcard). One that does not decode is kept rather than

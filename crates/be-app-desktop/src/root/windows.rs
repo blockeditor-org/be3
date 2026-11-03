@@ -1,5 +1,6 @@
 use be_sdk_beui::beui::accesskit::{Node, Role, Toggled};
 use be_sdk_beui::beui::dock::styled::TabId;
+use be_sdk_beui::beui::dock::unstyled::holding_area;
 use be_sdk_beui::beui::icons::{
     ICON_APP_WINDOW, ICON_ARCHIVE_RESTORE, ICON_EXTERNAL_LINK, ICON_EYE, ICON_EYE_OFF,
     ICON_MONITOR, ICON_X,
@@ -9,13 +10,11 @@ use be_sdk_beui::beui::styled::button::ButtonFace;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::unstyled;
 use be_sdk_beui::beui::{Align, Direction, Extent, ItemSize, NodeId, Pos2, Rect, Sizing};
-use be_sdk_beui::desktop;
-use be_sdk_beui::{DisplaysWatch, HostWindow, HostWindowId, WindowAction, WindowKind};
-use be_sdk_shell::{WindowManager, Workspace, window_name, window_picture, window_tab};
+use be_sdk_beui::{DisplaysWatch, HostWindowId};
+use be_sdk_shell::Workspace;
 use std::collections::HashMap;
 
 use super::bar::bar_bounds;
-use super::placeholders::Placeholders;
 
 const CHIP_SPACING: Space = Space::Xs;
 const CHIP_WIDTH: Size = Size::Menu;
@@ -24,33 +23,41 @@ const BELL_FLASH: std::time::Duration = std::time::Duration::from_millis(400);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum ChipKey {
-    Window(HostWindowId),
-    Placeholder(HostWindowId),
+    Window(TabId, HostWindowId),
+    Placeholder(TabId),
     Block(TabId),
 }
 
 impl ChipKey {
     fn test_id(self) -> String {
         match self {
-            ChipKey::Window(id) => format!("desktop.windows.{}", id.0),
-            ChipKey::Placeholder(key) => format!("desktop.windows.placeholder.{}", key.0),
+            ChipKey::Window(_, id) => format!("desktop.windows.{}", id.0),
+            ChipKey::Placeholder(tab) => format!("desktop.windows.placeholder.{}", tab.value()),
             ChipKey::Block(tab) => format!("desktop.windows.block.{}", tab.value()),
+        }
+    }
+
+    fn tab(self) -> TabId {
+        match self {
+            ChipKey::Window(tab, _) | ChipKey::Placeholder(tab) | ChipKey::Block(tab) => tab,
         }
     }
 }
 
-pub(crate) fn picked(entries: &[HostWindow]) -> Vec<HostWindowId> {
-    let top = entries.iter().filter(|entry| entry.parent.is_none());
-    let displays = top
-        .clone()
-        .filter(|entry| entry.kind == WindowKind::Display);
-    let windows = top.filter(|entry| entry.kind == WindowKind::Window);
-    displays.chain(windows).map(|entry| entry.id).collect()
-}
-
-fn overlap(left: Rect, right: Rect) -> f32 {
-    let shared = left.intersect(right);
-    shared.width().max(0.0) * shared.height().max(0.0)
+fn program_chips(workspace: Workspace, tabs: &[TabId]) -> Vec<ChipKey> {
+    let mut displays = Vec::new();
+    let mut windows = Vec::new();
+    let mut waiting = Vec::new();
+    for tab in tabs {
+        match workspace.program_window(*tab) {
+            Some(window) if workspace.is_display(*tab) => {
+                displays.push(ChipKey::Window(*tab, window));
+            }
+            Some(window) => windows.push(ChipKey::Window(*tab, window)),
+            None => waiting.push(ChipKey::Placeholder(*tab)),
+        }
+    }
+    displays.into_iter().chain(windows).chain(waiting).collect()
 }
 
 pub(crate) fn holder(window: Option<Rect>, displays: &[Rect]) -> u32 {
@@ -58,37 +65,25 @@ pub(crate) fn holder(window: Option<Rect>, displays: &[Rect]) -> u32 {
         return 0;
     };
     let window = window.translate(first.min.to_vec2());
-    let mut best = (0, 0.0);
-    for (at, display) in displays.iter().enumerate() {
-        let shared = overlap(window, *display);
-        if shared > best.1 {
-            best = (at as u32, shared);
-        }
-    }
-    best.0
+    holding_area(window, displays).unwrap_or(0) as u32
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct DeskWindows {
     workspace: Workspace,
-    pub(crate) placeholders: Placeholders,
-    pub(crate) manager: WindowManager,
     all: Memo<Vec<ChipKey>>,
     displays: Memo<Vec<Rect>>,
     bands: Signal<HashMap<u32, Rect>>,
 }
 
 impl DeskWindows {
-    pub(crate) fn new(workspace: Workspace, placeholders: Placeholders) -> Self {
-        let entries = workspace.entries();
+    pub(crate) fn new(workspace: Workspace) -> Self {
+        let programs = workspace.program_tabs();
         let tabs = workspace.block_tabs();
-        let kept = placeholders.keys;
         let all = create_memo(move || {
-            let windows = entries.with(|entries| picked(entries));
-            windows
+            let programs = programs.get();
+            program_chips(workspace, &programs)
                 .into_iter()
-                .map(ChipKey::Window)
-                .chain(kept.get().into_iter().map(ChipKey::Placeholder))
                 .chain(tabs.get().into_iter().map(ChipKey::Block))
                 .collect()
         });
@@ -120,13 +115,15 @@ impl DeskWindows {
                             (_, inside) => inside.unwrap_or(whole).translate(display.min - first),
                         }
                     })
-                    .collect()
+                    .collect::<Vec<Rect>>()
             })
+        });
+        create_effect(move || {
+            let areas = areas.get();
+            untrack(|| layout.set_areas(areas));
         });
         Self {
             workspace,
-            placeholders,
-            manager: WindowManager::new(workspace, areas),
             all,
             displays,
             bands,
@@ -195,26 +192,19 @@ impl DeskWindows {
     }
 
     fn move_to(&self, chip: ChipKey, display: u32) {
-        self.manager
-            .move_to_display(self.tab(chip), display as usize);
+        self.workspace
+            .layout()
+            .move_to_area(&self.tab(chip), display as usize);
     }
 
     fn tab(&self, chip: ChipKey) -> TabId {
-        match chip {
-            ChipKey::Window(id) => self.workspace.window_tab_of(id),
-            ChipKey::Placeholder(key) => window_tab(key),
-            ChipKey::Block(tab) => tab,
-        }
+        chip.tab()
     }
 
     fn shown(&self, chip: ChipKey) -> bool {
         match chip {
-            ChipKey::Window(id) => self
-                .workspace
-                .entries()
-                .with(|entries| entries.iter().any(|entry| entry.id == id && entry.shown)),
             ChipKey::Placeholder(_) => true,
-            ChipKey::Block(tab) => !self.workspace.is_hidden(tab),
+            ChipKey::Window(tab, _) | ChipKey::Block(tab) => !self.workspace.is_hidden(tab),
         }
     }
 
@@ -223,8 +213,8 @@ impl DeskWindows {
     }
 
     fn choose(&self, chip: ChipKey) {
-        if let ChipKey::Placeholder(key) = chip {
-            self.workspace.layout().show(&window_tab(key));
+        if let ChipKey::Placeholder(tab) = chip {
+            self.workspace.layout().show(&tab);
             return;
         }
         match untrack(|| self.focused(chip)) {
@@ -234,26 +224,19 @@ impl DeskWindows {
     }
 
     fn show(&self, chip: ChipKey) {
-        match chip {
-            ChipKey::Placeholder(key) => self.workspace.layout().show(&window_tab(key)),
-            _ => self.workspace.show(self.tab(chip)),
-        }
+        self.workspace.show(self.tab(chip));
     }
 
     fn hide(&self, chip: ChipKey) {
         if !matches!(chip, ChipKey::Placeholder(_)) {
-            self.manager.hide(self.tab(chip));
+            self.workspace.hide(self.tab(chip));
         }
     }
 
     fn close(&self, chip: ChipKey) {
         match chip {
-            ChipKey::Window(id) => self
-                .workspace
-                .editor()
-                .act(move || desktop::windows::request(WindowAction::Close(id)).detach()),
-            ChipKey::Placeholder(key) => self.placeholders.dismiss(key),
-            ChipKey::Block(tab) => self.workspace.close(tab),
+            ChipKey::Placeholder(tab) => self.workspace.dismiss(tab),
+            ChipKey::Window(tab, _) | ChipKey::Block(tab) => self.workspace.close(tab),
         }
     }
 }
@@ -266,9 +249,9 @@ pub(crate) fn WindowChips(
 ) -> NodeId {
     let chips = windows.chips(display);
     let vertical = create_memo(move || direction.get() == Direction::Vertical);
-    let placeholders = windows.placeholders;
-    let kept = placeholders.keys;
-    let launches = placeholders.launchable;
+    let workspace = windows.workspace;
+    let kept = workspace.placeholders();
+    let launches = workspace.launchable();
     let restoring = display.is_none_or(|display| display == 0);
     let waiting = create_memo(move || restoring && launches.get() && !kept.with(Vec::is_empty));
     let widest = use_size(CHIP_WIDTH);
@@ -313,7 +296,7 @@ pub(crate) fn WindowChips(
     view! {
         <List direction align=Align::Center spacing=CHIP_SPACING @test_id={"desktop.windows"}>
             <Show condition={waiting}>
-                <RestoreChip placeholders vertical />
+                <RestoreChip workspace vertical />
             </Show>
             <Show condition={listed}>
                 <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} direction fit=true>
@@ -337,8 +320,8 @@ pub(crate) fn WindowChips(
 }
 
 #[component]
-fn RestoreChip(placeholders: Placeholders, vertical: Memo<bool>) -> NodeId {
-    let keys = placeholders.keys;
+fn RestoreChip(workspace: Workspace, vertical: Memo<bool>) -> NodeId {
+    let keys = workspace.placeholders();
     let label = create_memo(move || match (vertical.get(), keys.with(Vec::len)) {
         (false, count) => format!("Restore {count}"),
         (true, 1) => "Restore the window from last time".to_owned(),
@@ -353,7 +336,7 @@ fn RestoreChip(placeholders: Placeholders, vertical: Memo<bool>) -> NodeId {
             size=ButtonSize::Compact
             press_focus=false
             @test_id={"desktop.windows.restore"}
-            on_click={move || placeholders.open_all()}
+            on_click={move || workspace.open_placeholders()}
         />
     }
 }
@@ -386,64 +369,24 @@ fn WindowChip(
     count: Memo<usize>,
 ) -> NodeId {
     let workspace = windows.workspace;
-    let entries = workspace.entries();
-    let entry = create_memo(move || match chip {
-        ChipKey::Window(id) => {
-            entries.with(|entries| entries.iter().find(|entry| entry.id == id).cloned())
-        }
-        ChipKey::Placeholder(_) | ChipKey::Block(_) => None,
-    });
-    let block = match chip {
-        ChipKey::Block(tab) => Some((workspace.tab_title(tab), workspace.tab_glyph(tab))),
-        ChipKey::Window(_) | ChipKey::Placeholder(_) => None,
+    let tab = chip.tab();
+    let waiting = matches!(chip, ChipKey::Placeholder(_));
+    let title = workspace.tab_title(tab);
+    let display = match chip {
+        ChipKey::Window(tab, _) => untrack(|| workspace.is_display(tab)),
+        ChipKey::Placeholder(_) | ChipKey::Block(_) => false,
     };
-    let kept = match chip {
-        ChipKey::Placeholder(key) => Some((key, windows.placeholders.shown(key))),
-        ChipKey::Window(_) | ChipKey::Block(_) => None,
-    };
-    let waiting = kept.is_some();
-    let title = create_memo(move || match (block, kept) {
-        (Some((title, _)), _) => title.get(),
-        (None, Some((key, _))) => workspace
-            .placeholder(key)
-            .map(|kept| kept.window_name())
-            .unwrap_or_default(),
-        (None, None) => entry
-            .with(|entry| {
-                let entry = entry.as_ref()?;
-                let parent = entry.parent.and_then(|parent| {
-                    entries
-                        .with(|entries| entries.iter().find(|listed| listed.id == parent).cloned())
-                });
-                Some(window_name(entry, parent.as_ref()))
-            })
-            .unwrap_or_default(),
-    });
-    let display = create_memo(move || {
-        entry.with(|entry| {
-            entry
-                .as_ref()
-                .is_some_and(|entry| entry.kind == WindowKind::Display)
-        })
-    });
-    let glyph = create_memo(move || match (block, display.get()) {
-        (Some((_, glyph)), _) => glyph.get().or(Some(ICON_APP_WINDOW)),
-        (None, true) => Some(ICON_MONITOR),
-        (None, false) => Some(ICON_APP_WINDOW),
-    });
-    let image = create_memo(move || match kept {
-        Some((_, shown)) => shown.picture.get(),
-        None => entry.with(|entry| entry.as_ref()?.icon.as_ref().and_then(window_picture)),
-    });
+    let tab_glyph = workspace.tab_glyph(tab);
+    let glyph = create_memo(move || tab_glyph.get().or(Some(ICON_APP_WINDOW)));
+    let image = workspace.tab_picture(tab);
     let shown = create_memo(move || windows.shown(chip));
     let focused = create_memo(move || windows.focused(chip));
     let hollow = create_memo(move || waiting || !shown.get());
     let running = create_memo(move || !waiting);
-    let closable = create_memo(move || !waiting && !display.get());
-    let unopenable = create_memo(move || kept.is_some_and(|(_, shown)| !shown.openable.get()));
-    let ringing = bell_flash(create_memo(move || {
-        entry.with(|entry| entry.as_ref().map_or(0, |entry| entry.rung))
-    }));
+    let closable = create_memo(move || !waiting && !display);
+    let openable = workspace.placeholder_openable(tab);
+    let unopenable = create_memo(move || !openable.get());
+    let ringing = bell_flash(workspace.tab_rung(tab));
     let variant = create_memo(move || match (ringing.get(), shown.get()) {
         (true, _) => ButtonVariant::Primary,
         (false, true) => ButtonVariant::Secondary,
@@ -506,11 +449,7 @@ fn WindowChip(
                         glyph=ICON_EXTERNAL_LINK
                         disabled={unopenable}
                         row_test_id={open_id.clone()}
-                        on_click={move || {
-                            if let Some((key, _)) = kept {
-                                windows.placeholders.open(key);
-                            }
-                        }}
+                        on_click={move || workspace.open_placeholder(tab)}
                     />
                     <MenuItem
                         label="Dismiss"

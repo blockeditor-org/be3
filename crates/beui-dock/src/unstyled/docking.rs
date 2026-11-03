@@ -1,5 +1,6 @@
 use beui_view::types::icons::Glyph;
 mod host;
+mod manager;
 mod snap;
 mod switch;
 
@@ -42,6 +43,7 @@ pub use host::{
     DockKept, DockRequest, use_dock_join,
 };
 use host::{Joined, Registry};
+pub use manager::{DockWindowActions, holding_area};
 pub use snap::DockSnap;
 use snap::Snapped;
 
@@ -126,6 +128,7 @@ enum EntryKind<K: 'static> {
         on_close: Option<ClickCallback>,
         back_closes: bool,
         see_through: bool,
+        group: Memo<Option<String>>,
         content: RenderFn<()>,
     },
     Group {
@@ -265,6 +268,7 @@ pub fn DockTab<K>(
     on_close: Option<ClickCallback>,
     #[prop(default = true)] back_closes: bool,
     #[prop(default = false)] see_through: bool,
+    #[prop(default = None)] group: Prop<Option<String>>,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockEntry<K>
 where
@@ -279,6 +283,7 @@ where
             on_close,
             back_closes,
             see_through,
+            group: create_memo(move || group.get()),
             content,
         },
     }
@@ -351,7 +356,7 @@ struct ForeignDialog {
     _scope: Scope,
 }
 
-struct LayoutInner<K> {
+struct LayoutInner<K: 'static> {
     _scope: Scope,
     keys: RefCell<KeyMap<K>>,
     keyed: Signal<u64>,
@@ -363,7 +368,21 @@ struct LayoutInner<K> {
     place: std::cell::Cell<Option<RenderFn<TabId, NodeId>>>,
     bars_link: RefCell<Option<Rc<dyn DockHostLink>>>,
     bars_hosted: Signal<Option<DockHosted>>,
+    declared_by: std::cell::Cell<Option<Declared<K>>>,
 }
+
+struct Declared<K: 'static> {
+    found: Signal<Rc<Found<K>>>,
+    close: Callback<TabId>,
+}
+
+impl<K> Clone for Declared<K> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<K> Copy for Declared<K> {}
 
 pub struct DockingLayout<K: 'static> {
     state: Signal<DockState>,
@@ -374,6 +393,8 @@ pub struct DockingLayout<K: 'static> {
     covered: Signal<bool>,
     area: Signal<Rect>,
     snaps: Signal<HashMap<TabId, Snapped>>,
+    areas: Signal<Vec<Rect>>,
+    cleared: Signal<Option<Vec<TabId>>>,
     inner: Stored<LayoutInner<K>>,
 }
 
@@ -443,6 +464,8 @@ impl<K: DockKey> DockingLayout<K> {
         let covered = create_signal(false);
         let area = create_signal(Rect::ZERO);
         let snaps = create_signal(HashMap::default());
+        let areas = create_signal(Vec::new());
+        let cleared = create_signal(None);
         let registry = Rc::new(Registry {
             covers,
             version: create_signal(0),
@@ -466,6 +489,7 @@ impl<K: DockKey> DockingLayout<K> {
             place: std::cell::Cell::new(None),
             bars_link: RefCell::default(),
             bars_hosted,
+            declared_by: std::cell::Cell::new(None),
         };
         let layout = move |inner| Self {
             state,
@@ -476,6 +500,8 @@ impl<K: DockKey> DockingLayout<K> {
             covered,
             area,
             snaps,
+            areas,
+            cleared,
             inner,
         };
         (layout, inner)
@@ -1556,6 +1582,20 @@ impl<K: DockKey> Found<K> {
         })
     }
 
+    fn group(&self, tab: TabId) -> Option<String> {
+        match &self.tabs.get(&tab)?.kind {
+            EntryKind::Tab { group, .. } => group.is_alive().then(|| group.get()).flatten(),
+            EntryKind::Group { .. } => None,
+        }
+    }
+
+    fn dialog_parent(&self, tab: TabId) -> Option<TabId> {
+        self.dialogs
+            .iter()
+            .find(|(dialog, _)| *dialog == tab)
+            .map(|(_, parent)| *parent)
+    }
+
     fn picture(&self, tab: TabId) -> Option<Image> {
         match &self.tabs.get(&tab)?.kind {
             EntryKind::Tab { picture, .. } => picture.is_alive().then(|| picture.get()).flatten(),
@@ -1587,6 +1627,7 @@ pub fn Docking<K>(
     #[prop(default = 0.0)] short_narrower_than: f32,
     #[prop(default = None)] focus: Prop<Option<K>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
+    #[prop(default = true)] joins: bool,
     menu: MenuStyle,
     splitter_thickness: f32,
     #[prop(default = 0.0)] splitter_reach: f32,
@@ -1661,8 +1702,9 @@ where
             _ => body,
         }
     });
-    let slot = use_context::<DockHostSlot>();
-    let link = match use_dock_join().and_then(|join| join.claim()) {
+    let slot = use_context::<DockHostSlot>().filter(|_| joins);
+    let join = use_dock_join().filter(|_| joins);
+    let link = match join.and_then(|join| join.claim()) {
         Some(link) => Some((link, false)),
         None => slot
             .as_ref()
@@ -1685,6 +1727,17 @@ where
             <JoinedDock layout link nests nodes found body focus on_close />
         };
     }
+    let declared_by = Declared {
+        found,
+        close: Callback::new(on_close),
+    };
+    layout.inner().declared_by.set(Some(declared_by));
+    let inner = layout.inner;
+    on_cleanup(move || {
+        if let Some(inner) = inner.try_value() {
+            inner.declared_by.set(None);
+        }
+    });
     let registry = Rc::clone(&layout.inner().registry);
     registry.dock.set(Some(api));
     let version = registry.version;

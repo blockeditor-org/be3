@@ -8,7 +8,7 @@ fn a_tiny_program_window_is_framed_wide_enough_for_its_tab() {
     let display = Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 720.0));
     fixture.test.show_on_displays(&[(display, 1.0)]);
     fixture.settle();
-    let eyes = HostWindow {
+    let eyes = TestWindow {
         title: "Choose a colour for the desktop background".to_owned(),
         program_id: "xeyes".to_owned(),
         name: "xeyes".to_owned(),

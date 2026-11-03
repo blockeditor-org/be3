@@ -23,7 +23,11 @@ Rust on both sides is generated from it into this crate. The world imports:
   beside the core protocol rather than part of it: what a host running a desktop
   (a Linux session, or Windows) offers the editors that draw it, one interface
   per part of the desktop (windows, input devices and remaps, displays, power, media, Wi-Fi,
-  e-paper, notifications, the screen lock, programs, the tray). An app's
+  e-paper, notifications, the screen lock, programs, the tray). Its `windows`
+  watch lists only what a shell needs to place each program window and match it
+  to a tab (id, kind, parent, modal, program id, origin); the shell places a
+  window as a `window` child and hears and asks everything else through that
+  child, as for any child. An app's
   manifest names the extensions it uses (`extensions`); the host answers a call
   into one it did not name `denied`, and a host without a desktop answers its
   watches `unsupported`;
@@ -852,7 +856,25 @@ The host answers with a status per child: whether the block could be opened
 at all, the size and shape its editor asks for, whether the pointer is over
 it, whether it is being given input, whether its own editor is live or only
 previewed until it is asked for, which of rotation, aspect ratio and pan-and-zoom
-it allows, how it may be resized, and why it is unavailable when it is. A block
+it allows, how it may be resized, and why it is unavailable when it is. A
+status also carries what any child may say about itself for the tab, chip or
+header its placer shows it in: its title, icon and group (the children of one
+app, which the placer cycles together), what the host wants said about it now
+(`notice`), whether it asks to be full screen, and counters that count up each
+time it asks to be brought forward (`raised`, the placer shows its tab), asks
+for attention (`rung`, the placer flashes its tab), asks to be hidden
+(`minimized`, the placer hides its window) or asks for its tab's menu at a
+point (`menu-asked`). A block editor reports none of these yet; the host fills
+them for a program window. A child reports its status only while it is placed,
+so a placer that hides a window child keeps it placed with the `hidden` mode:
+it takes no room, the host draws nothing of it and treats the window as placed
+nowhere, and its status keeps arriving, so a raise or bell of a hidden window
+is heard. Any other child placed hidden is unavailable. A placement's
+`fullscreen` says the placer shows the child full screen, `close-child` says the
+person asked to close it, which closes a program window and does nothing yet for
+any other child, and `focus-child` or the keyboard the host gives the view that
+shows the child gives a program window the keyboard. A program window placed
+nowhere, or only hidden, is suspended. A block
 already open above the instance is refused, so an editor cannot be nested inside
 itself. The host bounds how many children of one view it will run as editors and
 falls back to preview rendering for the rest.

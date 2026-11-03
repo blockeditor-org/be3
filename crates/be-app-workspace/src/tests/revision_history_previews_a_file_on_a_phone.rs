@@ -29,7 +29,7 @@ fn revision_history_previews_a_file_on_a_phone() {
     fixture.test.settle();
     fixture.test.click(format!(
         "dock.switcher.tab.{}",
-        be_sdk_shell::REVISIONS.value()
+        crate::root::REVISIONS.value()
     ));
     fixture.settle();
     fixture.test.settle();

@@ -17,7 +17,7 @@ fn a_programs_window_shows_its_icon_on_its_chip_and_tab() {
             }
         })
         .collect();
-    fixture.show_windows(&[HostWindow {
+    fixture.show_windows(&[TestWindow {
         focused: true,
         icon: Some(HostImage {
             width: SIDE,

@@ -29,7 +29,7 @@ A `Below` region is composited under its parent's whole surface, so an app
 dialog's square corners would show through the scrim past the card's
 rounding. beui has no rounded clip and the region is a GPU drawing, so the
 block picker insets the creation `Subregion` by `Space::Sm`
-(`CREATION_INSET` in `be-sdk-shell/src/picker_view.rs`), enough for
+(`CREATION_INSET` in `be-app-workspace/src/picker/view.rs`), enough for
 `Radius::Lg`; the app's background matches the card, so the inset doesn't
 show. A rounded clip carried through the app protocol is the general fix,
 needed if more cards host regions. Keep the protocol free of beui types.

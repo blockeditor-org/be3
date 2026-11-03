@@ -6,9 +6,10 @@ fn a_desktop_resumed_after_a_restart_shows_each_window_where_it_was() {
     before.settle();
     before.show_windows(&[foot(1), notes(6)]);
     let places = [1, 6].map(|id| before.window_rect(id).expect("the window is placed"));
+    let [foot, notes] = [1, 6].map(|id| before.tab_of(id));
 
     let mut resumed = Fixture::resumed(before.saved());
-    for (key, place) in [1, 6].into_iter().zip(places) {
+    for (key, place) in [foot, notes].into_iter().zip(places) {
         let shown = resumed
             .placeholder_rect(key)
             .unwrap_or_else(|| panic!("window {key} is shown as a placeholder"));
@@ -40,22 +41,24 @@ fn a_desktop_resumed_after_a_restart_shows_each_window_where_it_was() {
         vec![
             ProgramAction::Launch {
                 program: "foot.desktop".to_owned(),
-                launch: Some(1),
+                launch: Some(foot),
             },
             ProgramAction::Exec {
                 command: vec!["/usr/bin/notes".to_owned()],
-                launch: Some(6),
+                launch: Some(notes),
             },
         ],
         "Restore starts every program: from its .desktop entry, else its command line"
     );
 
-    resumed.test.click("desktop.placeholder.6.dismiss");
+    resumed
+        .test
+        .click(&format!("workspace.placeholder.{notes}.dismiss"));
     resumed.settle();
-    assert!(resumed.placeholder_rect(6).is_none());
+    assert!(resumed.placeholder_rect(notes).is_none());
     assert_eq!(
         kept_keys(&resumed),
-        vec![1],
+        vec![foot],
         "a dismissed placeholder is forgotten"
     );
 }

@@ -6,7 +6,7 @@ use super::*;
 fn a_windows_tab_menu_shows_whole_past_its_window() {
     let mut fixture = Fixture::new();
     fixture.settle();
-    fixture.show_windows(&[HostWindow {
+    fixture.show_windows(&[TestWindow {
         size: Vec2::new(150.0, 90.0),
         ..host_window(1, true)
     }]);
@@ -38,13 +38,7 @@ fn a_windows_tab_menu_shows_whole_past_its_window() {
     fixture.test.click(full.center());
     fixture.settle();
     assert!(
-        fixture
-            .test
-            .host_calls(be_sdk_test::requested::window)
-            .contains(&WindowAction::Fullscreen {
-                window: HostWindowId(1),
-                fullscreen: true
-            }),
+        fixture.fullscreen_windows().contains(&HostWindowId(1)),
         "a click on the menu where it shows past the window reaches it"
     );
 }

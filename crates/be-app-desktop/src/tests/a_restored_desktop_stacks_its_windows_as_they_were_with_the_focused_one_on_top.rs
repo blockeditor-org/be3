@@ -10,8 +10,8 @@ fn front_at(fixture: &Fixture, at: Pos2) -> Option<ChildContent> {
         .map(|placement| placement.content.clone())
 }
 
-fn focused(window: HostWindow) -> HostWindow {
-    HostWindow {
+fn focused(window: TestWindow) -> TestWindow {
+    TestWindow {
         focused: true,
         ..window
     }

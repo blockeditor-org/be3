@@ -1,11 +1,9 @@
+use be_sdk_beui::beui::dock::styled::{DockWindowActions, DockingLayout, TabId};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Key, NodeId};
-use be_sdk_beui::{Editor, SuperKeptWatch};
-use be_sdk_shell::{WindowActions, WindowManager};
+use be_sdk_beui::{Editor, ScreenLockedWatch, SuperKeptWatch};
 use beui::KeyAt;
-
-use super::fullscreen::fullscreen_action;
 
 #[derive(Clone, Copy)]
 pub(crate) struct WindowKeys {
@@ -53,12 +51,13 @@ impl WindowKeys {
 }
 
 #[component]
-pub(super) fn WindowShortcuts(editor: Editor, manager: WindowManager) -> NodeId {
+pub(super) fn WindowShortcuts(editor: Editor, layout: DockingLayout<TabId>) -> NodeId {
     let super_kept = editor.watch::<SuperKeptWatch>();
+    let locked = editor.watch::<ScreenLockedWatch>();
     view! {
         <List spacing=Space::None>
             <Dynamic value={super_kept}>|super_kept: bool| {
-                bind(editor, manager, WindowKeys::of(super_kept));
+                bind(layout.window_actions(locked), WindowKeys::of(super_kept));
                 view! {
                     <Frame />
                 }
@@ -67,36 +66,45 @@ pub(super) fn WindowShortcuts(editor: Editor, manager: WindowManager) -> NodeId 
     }
 }
 
-fn bind(editor: Editor, manager: WindowManager, keys: WindowKeys) {
-    let WindowActions {
+fn bind(actions: DockWindowActions, keys: WindowKeys) {
+    let DockWindowActions {
         close,
+        hide,
         snap_left,
         snap_right,
         maximize,
         restore,
-        hide,
+        fullscreen,
         show_desktop,
-        next_display,
-        previous_display,
-        next_of_app,
-    } = manager.actions();
-    for (action, chord) in [
-        (close, keys.close),
-        (snap_left, keys.snap_left),
-        (snap_right, keys.snap_right),
-        (maximize, keys.maximize),
-        (restore, keys.down),
-        (hide, keys.down),
-        (show_desktop, keys.show_desktop),
-        (next_display, keys.next_display),
-        (previous_display, keys.previous_display),
-        (next_of_app, keys.next_of_app),
-        (fullscreen_action(editor), keys.fullscreen),
+        next_area,
+        previous_area,
+        next_of_group,
+        switch_next,
+        switch_previous,
+        switch_cancel,
+    } = actions;
+    let switch = Chord::key(Key::Tab).alt();
+    let escape = Chord::key(Key::Escape).alt();
+    for (action, chords) in [
+        (close, vec![keys.close]),
+        (snap_left, vec![keys.snap_left]),
+        (snap_right, vec![keys.snap_right]),
+        (maximize, vec![keys.maximize]),
+        (restore, vec![keys.down]),
+        (hide, vec![keys.down]),
+        (show_desktop, vec![keys.show_desktop]),
+        (next_area, vec![keys.next_display]),
+        (previous_area, vec![keys.previous_display]),
+        (next_of_group, vec![keys.next_of_app]),
+        (fullscreen, vec![keys.fullscreen]),
+        (switch_next, vec![switch]),
+        (switch_previous, vec![switch.shift()]),
+        (switch_cancel, vec![escape, escape.shift()]),
     ] {
-        action
-            .shortcut(chord)
-            .at(KeyAt::Window)
-            .capture()
-            .register();
+        let mut action = action;
+        for chord in chords {
+            action = action.shortcut(chord);
+        }
+        action.at(KeyAt::Window).capture().register();
     }
 }

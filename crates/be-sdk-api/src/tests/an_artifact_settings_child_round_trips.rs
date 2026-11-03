@@ -23,6 +23,7 @@ fn an_artifact_settings_child_round_trips() {
             dialog: None,
             docks: None,
             anchor: None,
+            fullscreen: false,
         }],
         occluders: Vec::new(),
     });

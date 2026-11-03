@@ -2,7 +2,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Rect};
 use be_sdk_beui::desktop;
-use be_sdk_beui::{EndingAnswer, HostWindow, PowerWatch, SessionEnd, WindowsWatch};
+use be_sdk_beui::{EndingAnswer, PowerWatch, SessionEnd};
 use be_sdk_shell::Workspace;
 use beui::{Align, Direction, ItemSize};
 
@@ -28,20 +28,6 @@ fn now_label(end: SessionEnd) -> &'static str {
         SessionEnd::Restart => "Restart now",
         SessionEnd::PowerOff => "Power off now",
     }
-}
-
-pub(crate) fn waiting_for(windows: &[HostWindow]) -> Vec<String> {
-    let mut names: Vec<String> = Vec::new();
-    for window in windows.iter().filter(|window| window.parent.is_none()) {
-        let name = match window.name.is_empty() {
-            true => window.title.clone(),
-            false => window.name.clone(),
-        };
-        if !name.is_empty() && !names.contains(&name) {
-            names.push(name);
-        }
-    }
-    names
 }
 
 pub(crate) fn said(names: &[String]) -> String {
@@ -72,10 +58,9 @@ pub(crate) fn keep_windows_through_ending(workspace: Workspace) {
 pub(crate) fn EndingBar(workspace: Workspace, area: Memo<Rect>) -> NodeId {
     let editor = workspace.editor();
     let power = editor.watch::<PowerWatch>();
-    let windows = editor.watch::<WindowsWatch>();
     let ending = create_memo(move || power.with(|power| power.ending));
     let open = create_memo(move || ending.get().is_some());
-    let names = create_memo(move || windows.with(|windows| waiting_for(windows)));
+    let names = create_memo(move || workspace.running_names());
     let heading = create_memo(move || ending.get().map(title).unwrap_or_default().to_owned());
     let detail = create_memo(move || names.with(|names| said(names)));
     let now = create_memo(move || ending.get().map(now_label).unwrap_or_default().to_owned());

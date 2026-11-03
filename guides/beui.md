@@ -34,7 +34,8 @@ available inside it (they panic anywhere else), and gives it a scope of its
 own, so the contexts it provides reach only what it builds. be-tool-fix-rust-source
 (run by `./scripts/verify`) rejects any function containing `view!` without
 the attribute, since it would build into its caller's scope; test code,
-framework trait entrypoints, and views inside document/HTML rendering calls or
+framework trait entrypoints, methods taking `self` (a component cannot, so
+`#[component]` rejects a receiver), and views inside document/HTML rendering calls or
 factories storing deferred render callbacks are exempt. Helpers that return
 child runs rather than a single node are components too.
 
@@ -1999,7 +2000,7 @@ Every change of the focused tab is a `DockVisit` in `DockState::history`: the ta
 tab it went to, and whether that tab was `opened` by it (first shown since it joined the dock).
 `back` is the last visit to the tab on show. Going back undoes it: a tab the visit opened is closed
 through its `on_close` when it has one, unless the `DockTab` says `back_closes=false` (be-sdk-shell's
-`WindowTab` does, since closing a program's window ends the program; the app protocol's `dock-tab`
+`ProgramTab` does, since closing a program's window ends the program; the app protocol's `dock-tab`
 carries it as `back-closes`). Closing the tab on show, in either mode, shows the tab its last visit
 came from; otherwise `go_back` shows that tab and drops the visit and every one after it. A tab that
 leaves the dock hands its visits to the tab it was reached from.
@@ -2019,9 +2020,10 @@ Escape cancels it with any modifiers held and wherever the focus is (a program's
 the overlay holds no focus, so the dock listens for Escape at the window while it is open and asks
 the overlay to close (`Document::dismiss_overlay`), as a press outside or back does. A dock in an app
 only hears a key a program has the keyboard for when it intercepts the chord, so the desktop app also
-registers Alt+Escape as an intercepting action that cancels. The dock binds no other key: the caller
-binds a chord that begins or steps the switch while a modifier is held, and commits when
-`held_modifiers()` shows that modifier released (the desktop app's Alt+Tab, the demo's Alt+Q).
+binds Alt+Escape to `dock.switch.cancel`, intercepting it. The dock binds no other key:
+`dock.switch.next` and `previous` (in `window_actions`) begin or step the switch, and commit it at
+once unless Alt, Ctrl or Super is held, in which case letting go of all of them commits it. Whoever
+binds them decides the keys, as the desktop app does with Alt+Tab; the demo binds Alt+Q its own way.
 
 #### Surfaces and windows
 
@@ -2071,6 +2073,38 @@ right half of `area` (in the dock's window points, as `window_rect`) or all of i
 maximized), remembering its rect before the first snap; `unsnap_window` restores that rect, and
 `window_snap` reactively reports the snap for as long as the window stays at the snapped rect (moved
 or resized away, it is unsnapped with nothing to go back to).
+
+#### The window manager
+
+The dock is the window manager of its floating windows, for any shell (docking/manager.rs,
+state/hidden.rs).
+
+- Areas: `DockingLayout::set_areas` gives it the rects of the displays it spans, in the same
+  points; with none, its own `area()` is its one area. A window belongs to the area it overlaps
+  most (`area_of_window`, `holding_area`), `snap_in_area` snaps it within that area, and
+  `move_to_area`/`step_area` move it to another keeping its place in proportion, inside the area,
+  and keep a snapped window snapped there.
+- Hiding: a floating window can be hidden (`hide_window`, `is_hidden`,
+  `DockState::hide_window`/`show_window`). It keeps its place but is not drawn, its tabs are not
+  placed (`is_shown` is false for them, a tracked read on `DockingLayout` too, so its dialogs go
+  with it), the focus goes to the tab shown before it, and the switcher skips it; showing or
+  focusing any of its tabs (`show`, `DockState::focus`) shows it again. Hidden windows are not part
+  of the saved layout. `show_desktop` hides every shown window, and pressed again while none has
+  been shown since (`shows_desktop`), brings back what it hid; anything shown meanwhile ends it, so
+  the next press hides again.
+- Groups: a `DockTab`'s `group` (an optional string: which tabs are one app's) is what
+  `next_of_group` cycles: the shown windows' tabs of the same group, in tab order.
+- Closing: `close_tab` closes a tab through its own `on_close`, so the shell decides what closing
+  means.
+- Actions: `DockingLayout::window_actions(disabled)` returns `DockWindowActions`, a set of
+  `ActionBuilder`s with ids, labels and icons but no keys, each enabled only when it has something
+  to do and never while `disabled` (the shell's memo: the desktop's lock screen) is true:
+  `dock.window.close`, `hide`, `snap_left`, `snap_right` (snapping the other way restores),
+  `maximize`, `restore`, `fullscreen` (the focused window's tab full screen over its area),
+  `show_desktop`, `next_area`, `previous_area`, `next_of_group`, and `dock.switch.next`, `previous`
+  and `cancel` (The switcher). They act on the focused window: the focused tab, or the dock dialog
+  with the focus (whose `close` closes the dialog), when its window floats and is shown. The shell
+  chooses which to bind and to which chords; the demo's Window manager page puts them in a menu.
 
 #### Dragging tabs, panes and sidebars
 
@@ -2222,6 +2256,8 @@ and build a state exactly as the `DockSpec` seeding takes (bars, homes and `outs
 - A `Docking` inside a tab body of a dock that joined a platform's host joins its own dock in turn:
   the joined dock splices it in as `joined:<tab>` and declares its tabs and dialogs as its own,
   keeping the host tab's panel alive (`DockBodies::hosts`) and passing its requests up.
+- A `Docking` given `joins=false` claims neither a `DockJoin` nor a slot and stands alone wherever
+  it is built, as the demo's Window manager page does with its floating windows.
 - A `Docking` that joins no host claims the `DockKeeper` context if one is provided above it (one per
   keeper; a dock nested in it joins it and claims none) and hands it a `DockKept`: its layout
   (`snapshot`'s state, as a memo), the keys of its tabs and bars, and a restore that keeps tab ids,
@@ -5380,7 +5416,9 @@ again from scratch and fail when the retained painting differs from it or
 changed outside the damage. The damage check (`paint/verify.rs`) compares the
 frames node by node, matched by id, and requires every pixel a difference
 touches (rounded out to whole pixels) to be damaged or, inside a copied region,
-to be what the copy brought. Painting from scratch runs every paint again, so a test that
+to be what the copy brought. Only windows still open are checked: a window that closes (even
+one whose content `keep_alive` holds) is no longer shown, and one that opens again is shown whole.
+Painting from scratch runs every paint again, so a test that
 counts paints skips the ones made while `Context::is_verifying_paint` is set.
 With `BEUI_OVER_REPAINT=1` in the environment (or
 `beui::native::detect_over_repaint(true)` on the thread that paints) they also

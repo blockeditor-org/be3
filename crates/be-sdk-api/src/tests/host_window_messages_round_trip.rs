@@ -5,46 +5,16 @@ fn host_window_messages_round_trip() {
     let window = HostWindow {
         id: HostWindowId(7),
         kind: WindowKind::Display,
-        shown: false,
-        title: "Terminal".into(),
-        program_id: "foot".into(),
-        name: "Foot".into(),
         parent: Some(HostWindowId(3)),
         modal: true,
-        size: Vec2::new(640.0, 480.0),
-        min_size: Vec2::new(320.0, 240.0),
-        max_size: Vec2::new(1280.0, 0.0),
-        fullscreen: None,
-        responding: true,
-        focused: false,
-        icon: Some(HostImage {
-            width: 1,
-            height: 1,
-            rgba: vec![1, 2, 3, 4],
-        }),
-        raised: 0,
-        rung: 0,
+        program_id: "foot".into(),
         origin: WindowOrigin {
             program: Some("foot.desktop".into()),
             command: vec!["foot".into(), "--server".into()],
             launch: Some(9),
         },
-        note: None,
-        menu: None,
     };
     watched_round_trips::<WindowsWatch>(vec![window.clone()]);
-    for action in [
-        WindowAction::Focus(window.id),
-        WindowAction::Fullscreen {
-            window: window.id,
-            fullscreen: true,
-        },
-        WindowAction::Close(window.id),
-        WindowAction::Show(window.id),
-        WindowAction::Hide(window.id),
-    ] {
-        round_trips(&action);
-    }
     {
         let message = committed(ChildPlacements {
             instance: EditorInstanceId(3),
@@ -67,6 +37,7 @@ fn host_window_messages_round_trip() {
                 dialog: None,
                 docks: None,
                 anchor: None,
+                fullscreen: false,
             }],
             occluders: Vec::new(),
         });

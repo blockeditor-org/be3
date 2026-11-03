@@ -5,8 +5,10 @@ use be_host_win32::{
     Entry, EntryId, EntryKind, FocusError, Hotkey, HotkeyError, Point, Program, Rect, Snapshot,
 };
 use be_sdk_api::{
-    HostImage, HostProgram, HostWindow, HostWindowId, Vec2, WindowKind, WindowOrigin,
+    HostImage, HostProgram, HostWindow, HostWindowId, Picture, Vec2, WindowKind, WindowOrigin,
 };
+
+use crate::known_window::KnownWindow;
 
 pub const ELEVATED: &str = "This window runs as administrator, so Block can't control it. Run Block as administrator to use it.";
 pub const SECURE_DESKTOP: &str =
@@ -190,10 +192,6 @@ impl ContentPress {
     }
 }
 
-pub fn shell_focus(_window: HostWindowId) -> Option<EntryId> {
-    None
-}
-
 fn capitalised(text: &str) -> String {
     let mut chars = text.chars();
     match chars.next() {
@@ -288,17 +286,25 @@ impl ProgramNames {
     }
 }
 
-pub fn host_window(
+pub fn drawn_size(snapshot: &Snapshot, entry: &Entry) -> Vec2 {
+    let scale = scale_at(snapshot, entry.frame);
+    Vec2::new(
+        entry.frame.width().max(0) as f32 / scale,
+        entry.frame.height().max(0) as f32 / scale,
+    )
+}
+
+pub fn known_window(
     snapshot: &Snapshot,
     entry: &Entry,
     shaping: &Shaping,
     notes: &Notes,
     names: &ProgramNames,
-) -> HostWindow {
+) -> KnownWindow {
     let scale = scale_at(snapshot, entry.frame);
     let (width, height) = shaping.own_size(entry);
     let fullscreen = shaping.fullscreen_area(snapshot, entry);
-    HostWindow {
+    KnownWindow {
         id: window_id(entry.id),
         title: entry.title.clone(),
         program_id: entry.program_id.clone(),
@@ -310,22 +316,20 @@ pub fn host_window(
         modal: entry.modal,
         size: Vec2::new(width as f32 / scale, height as f32 / scale),
         min_size: Vec2::ZERO,
-        max_size: Vec2::ZERO,
         fullscreen,
         responding: entry.responding,
-        focused: entry.focused,
-        icon: entry.icon.as_ref().map(|icon| HostImage {
+        icon: entry.icon.as_ref().map(|icon| Picture {
             width: icon.width,
             height: icon.height,
             rgba: icon.rgba.clone(),
         }),
         raised: entry.raised,
         rung: 0,
+        minimized: entry.minimizes,
         kind: match entry.kind {
             EntryKind::Window => WindowKind::Window,
             EntryKind::Display => WindowKind::Display,
         },
-        shown: entry.shown,
         origin: WindowOrigin {
             program: entry.origin.program.clone(),
             command: entry.origin.command.clone(),
@@ -348,7 +352,7 @@ pub fn listed(
         .iter()
         .filter(|entry| !hidden.contains(&window_id(entry.id)))
         .map(|entry| {
-            let mut window = host_window(snapshot, entry, shaping, notes, names);
+            let mut window = known_window(snapshot, entry, shaping, notes, names).listed();
             window.parent = window.parent.filter(|parent| !hidden.contains(parent));
             window
         })

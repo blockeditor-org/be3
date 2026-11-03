@@ -9,7 +9,7 @@ fn a_window_covering_a_monitor_or_maximized_by_the_shell_fills_the_shell() {
     let mut shaping = Shaping::default();
     shaping.observe(&snapshot);
     assert_eq!(
-        host_window(
+        known_window(
             &snapshot,
             &covering,
             &shaping,
@@ -21,7 +21,7 @@ fn a_window_covering_a_monitor_or_maximized_by_the_shell_fills_the_shell() {
     );
     assert!(shaping.set_area(area));
     assert!(!shaping.set_area(area));
-    let host = host_window(
+    let host = known_window(
         &snapshot,
         &covering,
         &shaping,
@@ -31,7 +31,7 @@ fn a_window_covering_a_monitor_or_maximized_by_the_shell_fills_the_shell() {
     assert_eq!(host.size, Vec2::new(1000.0, 800.0));
     assert_eq!(host.fullscreen, Some(area));
     assert_eq!(
-        host_window(
+        known_window(
             &snapshot,
             &maximized,
             &shaping,
@@ -44,7 +44,7 @@ fn a_window_covering_a_monitor_or_maximized_by_the_shell_fills_the_shell() {
     snapshot.entries[1].maximized = true;
     maximized.maximized = true;
     assert_eq!(
-        host_window(
+        known_window(
             &snapshot,
             &maximized,
             &shaping,
@@ -56,7 +56,7 @@ fn a_window_covering_a_monitor_or_maximized_by_the_shell_fills_the_shell() {
     );
     assert_eq!(shaping.enter_fullscreen(&snapshot, EntryId(6)), None);
     assert_eq!(
-        host_window(
+        known_window(
             &snapshot,
             &maximized,
             &shaping,

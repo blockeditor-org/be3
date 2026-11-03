@@ -49,29 +49,23 @@ fn super_arrows_snap_maximize_and_restore_the_focused_window() {
         "a maximized window leaves Super+Up alone"
     );
 
-    fixture.test.clear_calls();
     snap(&mut fixture, Key::ArrowDown);
     let restored = fixture.window_rect(1).expect("window 1 is drawn");
     assert!(
         restored.width() < 0.9 * right.width(),
         "Super+Down puts it back as it was before it was snapped: {restored:?}"
     );
-    assert!(
-        fixture
-            .test
-            .take_host_calls(be_sdk_test::requested::window)
-            .is_empty(),
-        "without hiding it"
-    );
+    fixture.focused_windows();
 
     snap(&mut fixture, Key::ArrowDown);
+    assert!(
+        fixture.window_rect(1).is_none(),
+        "Super+Down on a window that is not snapped hides it"
+    );
     assert_eq!(
-        fixture.test.take_host_calls(be_sdk_test::requested::window),
-        [
-            WindowAction::Hide(HostWindowId(1)),
-            WindowAction::Focus(HostWindowId(2))
-        ],
-        "Super+Down on a window that is not snapped hides it and focuses the one used before"
+        fixture.focused_windows(),
+        [HostWindowId(2)],
+        "and focuses the one used before"
     );
 
     focus(&mut fixture, 2);

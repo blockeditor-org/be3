@@ -4,7 +4,7 @@ use be_sdk_beui::beui::styled::*;
 use uuid::Uuid;
 
 use super::dialogs::OpenDialog;
-use super::panel::Info;
+use super::panel::TabInfo;
 use super::tab::TabItem;
 use super::workspace::Workspace;
 use be_sdk_beui::beui::TextAlign;
@@ -17,7 +17,7 @@ const SPACING: Space = Space::Md;
 #[component]
 pub(crate) fn ArtifactBar(
     workspace: Workspace,
-    info: ReadSignal<Option<Info>>,
+    info: ReadSignal<Option<TabInfo>>,
 ) -> DynamicSegment<ListChild> {
     let shown = create_memo(move || {
         info.with(|info| {

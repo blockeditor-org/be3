@@ -42,6 +42,15 @@ fn child_statuses_round_trip() {
                 placed: false,
             }))),
             card: true,
+            title: None,
+            icon: None,
+            group: None,
+            raised: 0,
+            rung: 0,
+            minimized: 0,
+            fullscreen: false,
+            notice: None,
+            menu_asked: None,
         },
         ChildStatus {
             instance: EditorInstanceId(4),
@@ -61,11 +70,27 @@ fn child_statuses_round_trip() {
             dialog: DialogStatus::default(),
             picked: None,
             card: false,
+            title: Some("Terminal — ~/be3".into()),
+            icon: Some(Picture {
+                width: 1,
+                height: 1,
+                rgba: vec![1, 2, 3, 4],
+            }),
+            group: Some("org.example.Terminal".into()),
+            raised: 3,
+            rung: 1,
+            minimized: 1,
+            fullscreen: true,
+            notice: Some("Not responding".into()),
+            menu_asked: Some(MenuAsk {
+                asked: 2,
+                at: Pos2::new(12.0, 4.0),
+            }),
         },
     ];
     assert_eq!(
         crate::ops::decode::<Vec<ChildStatus>>(&crate::ops::encode(&statuses)),
         Some(statuses),
-        "statuses keep their menus, flattened, and what a picker answered"
+        "statuses keep their menus, flattened, what a picker answered and what a window says"
     );
 }

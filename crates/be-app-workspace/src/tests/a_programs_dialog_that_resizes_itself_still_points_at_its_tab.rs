@@ -3,18 +3,16 @@ use super::*;
 #[test]
 fn a_programs_dialog_that_resizes_itself_still_points_at_its_tab() {
     let (mut fixture, _) = editor();
-    fixture.host.set_watched::<WindowsWatch>(&vec![
+    fixture.show_windows(&[
         window(1, "Text Editor", None),
         window(2, "Preferences", Some(1)),
     ]);
     fixture.settle();
-    let grown = be_sdk_beui::HostWindow {
+    let grown = TestWindow {
         size: be_sdk_beui::beui::Vec2::new(420.0, 260.0),
         ..window(2, "Preferences", Some(1))
     };
-    fixture
-        .host
-        .set_watched::<WindowsWatch>(&vec![window(1, "Text Editor", None), grown]);
+    fixture.show_windows(&[window(1, "Text Editor", None), grown]);
     fixture.settle();
 
     let dialog = placed_windows(&fixture)
@@ -27,9 +25,7 @@ fn a_programs_dialog_that_resizes_itself_still_points_at_its_tab() {
         (420.0, 260.0),
         "the dialog follows the size its program chose"
     );
-    let parent_tab = fixture
-        .test
-        .rect_of(&format!("dock.tab.{}", (1u64 << 41) + 1));
+    let parent_tab = fixture.test.rect_of("dock.tab.2");
     assert!(
         dialog.top() > parent_tab.bottom()
             && dialog.left() <= parent_tab.center().x
