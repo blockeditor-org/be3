@@ -259,6 +259,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     </DockBar>
                 </Docking>
                 <WorkspaceDialogs workspace />
+                <bar::UnreadableBarsDialog editor />
                 <Show condition={keyed}>
                     <MediaKeys editor osd />
                 </Show>
