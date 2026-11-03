@@ -6312,7 +6312,9 @@ against this one node by node, matched by id: a node's own shapes, the fades
 over it and its place among its siblings are what it shows, and every pixel a
 difference touches, rounded out to whole pixels as a renderer repaints them,
 must be damaged, or, inside a region the frame copied, must be what the copy
-brought there. Painting from scratch runs every paint again, so a test that
+brought there. Only windows still open are checked: a window that closes (even
+one whose content `keep_alive` holds) is no longer shown, and one that opens
+again is shown whole. Painting from scratch runs every paint again, so a test that
 counts paints skips the ones made while `Context::is_verifying_paint` is set.
 With `BEUI_OVER_REPAINT=1` in the environment (or
 `beui::native::detect_over_repaint(true)` on the thread that paints) they also report

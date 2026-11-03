@@ -65,4 +65,25 @@ fn a_fullscreen_window_on_the_second_display_covers_only_that_displays_bars() {
         [LayerLevel::Raised],
         "while the first display's bar stays over its windows"
     );
+
+    fixture.show_windows(&[host_window(1, true)]);
+    fixture.test.click_with(
+        "desktop.windows.1",
+        be_sdk_beui::beui::PointerButton::Secondary,
+    );
+    fixture.settle();
+    fixture.test.click("desktop.windows.1.display.0");
+    fixture.settle();
+    fixture.show_windows(&[TestWindow {
+        fullscreen: Some(left),
+        ..host_window(1, true)
+    }]);
+    assert_eq!(
+        (
+            levels_on(&fixture, "desktop.bar.status", left),
+            levels_on(&fixture, "desktop.bar.status", right),
+        ),
+        (vec![LayerLevel::Normal], vec![LayerLevel::Raised]),
+        "and the other way round once the window is fullscreen on the first"
+    );
 }
