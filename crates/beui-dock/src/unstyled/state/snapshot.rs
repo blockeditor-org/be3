@@ -124,7 +124,7 @@ impl DockState {
             state.surfaces.push(Surface {
                 id,
                 root,
-                window: Some(window.rect),
+                window: Some(super::framed(window.rect)),
                 key: named(&window.key),
             });
         }

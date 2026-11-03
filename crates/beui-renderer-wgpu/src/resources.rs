@@ -123,6 +123,7 @@ impl Resources {
             label: Some("beui smooth sampler"),
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
         let nearest = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -268,36 +269,48 @@ impl Shared {
         if self.pictures.contains_key(&image.id()) {
             return;
         }
-        let size = wgpu::Extent3d {
-            width: image.width(),
-            height: image.height(),
-            depth_or_array_layers: 1,
-        };
+        let levels = mip_levels(image.width(), image.height());
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("beui image"),
-            size,
-            mip_level_count: 1,
+            size: wgpu::Extent3d {
+                width: image.width(),
+                height: image.height(),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: levels,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: rgba(self.format.is_srgb()),
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            image.pixels(),
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(image.width() * 4),
-                rows_per_image: Some(image.height()),
-            },
-            size,
-        );
+        let mut level = (image.width(), image.height(), None::<Vec<u8>>);
+        for mip_level in 0..levels {
+            let (width, height, ref shrunk) = level;
+            let pixels = shrunk.as_deref().unwrap_or(image.pixels());
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture,
+                    mip_level,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                pixels,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(width * 4),
+                    rows_per_image: Some(height),
+                },
+                wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+            );
+            if mip_level + 1 < levels {
+                level = halved(pixels, width, height);
+            }
+        }
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind_groups = self.picture_groups(&view);
         self.pictures.insert(
@@ -325,6 +338,43 @@ impl Shared {
             self.pictures.remove(&id);
         }
     }
+}
+
+fn mip_levels(width: u32, height: u32) -> u32 {
+    u32::BITS - width.max(height).max(1).leading_zeros()
+}
+
+fn halved(pixels: &[u8], width: u32, height: u32) -> (u32, u32, Option<Vec<u8>>) {
+    let (to_width, to_height) = ((width / 2).max(1), (height / 2).max(1));
+    let mut out = Vec::with_capacity(to_width as usize * to_height as usize * 4);
+    let texel = |x: u32, y: u32| {
+        let at = (y.min(height - 1) as usize * width as usize + x.min(width - 1) as usize) * 4;
+        &pixels[at..at + 4]
+    };
+    for y in 0..to_height {
+        for x in 0..to_width {
+            let mut sums = [0u32; 4];
+            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                let texel = texel(x * 2 + dx, y * 2 + dy);
+                let alpha = u32::from(texel[3]);
+                for channel in 0..3 {
+                    sums[channel] += u32::from(texel[channel]) * alpha;
+                }
+                sums[3] += alpha;
+            }
+            let colour = |sum: u32| match sums[3] {
+                0 => 0,
+                alpha => ((sum + alpha / 2) / alpha) as u8,
+            };
+            out.extend([
+                colour(sums[0]),
+                colour(sums[1]),
+                colour(sums[2]),
+                ((sums[3] + 2) / 4) as u8,
+            ]);
+        }
+    }
+    (to_width, to_height, Some(out))
 }
 
 fn textures(

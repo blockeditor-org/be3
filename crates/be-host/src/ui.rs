@@ -324,6 +324,7 @@ pub(crate) struct HostUi {
     pub(crate) unlock: be_host_stack::keys::UnlockView,
     pub(crate) pairing: Vec<PairingRow>,
     pub(crate) reauth: Option<ReauthView>,
+    pub(crate) removing_account: Option<String>,
     pub(crate) status: StatusView,
     pub(crate) invite: Option<InviteView>,
     pub(crate) agents: Option<AgentsView>,
@@ -374,6 +375,8 @@ pub(crate) enum UiCommand {
     ReauthSubmit,
     ReauthLogOut,
     ReauthClose,
+    ConfirmRemoveAccount,
+    CancelRemoveAccount,
     OpenInspector,
     InviteMember,
     SwitchOrganization,
@@ -598,6 +601,7 @@ pub(crate) fn Root(view: HostUiStore) -> NodeId {
                     }
                 }</Dynamic>
                 <onboarding::ReauthDialog view />
+                <onboarding::RemoveAccountDialog view />
                 <onboarding::AddAccountDialog view />
                 <DisplayChrome view area primary=true />
                 <Host::WindowActions />

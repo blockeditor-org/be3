@@ -40,6 +40,16 @@ fn key(action: PowerAction) -> &'static str {
     }
 }
 
+pub(crate) fn unavailable(available: PowerAvailability, action: PowerAction) -> &'static str {
+    match () {
+        _ if available.allows(action) => "",
+        _ if action == PowerAction::Lock => "The screen is already locked",
+        _ if available.ending.is_some() => "The session is ending",
+        _ if !available.session => "Only when be3 is your login session",
+        _ => "This computer does not allow it",
+    }
+}
+
 fn question(action: PowerAction) -> String {
     format!("{}?", label(action))
 }
@@ -111,12 +121,14 @@ pub(crate) fn PowerRow(choice: PowerChoice, on_chose: Callback<()>) -> NodeId {
 fn PowerButton(action: PowerAction, choice: PowerChoice, on_chose: Callback<()>) -> NodeId {
     let available = choice.available;
     let disabled = create_memo(move || !available.get().allows(action));
+    let description = create_memo(move || unavailable(available.get(), action).to_owned());
     view! {
         <Button
             icon_only=true
             glyph={glyph(action)}
             label={label(action).to_owned()}
             disabled
+            description
             @test_id={format!("desktop.power.{}", key(action))}
             on_click={move || {
                 on_chose.call(());

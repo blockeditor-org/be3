@@ -23,6 +23,7 @@ fn reopen(
         placement,
         size: SMALL,
         role,
+        level: beui_types::WindowLevel::Normal,
     });
     send(space, now, []);
 }

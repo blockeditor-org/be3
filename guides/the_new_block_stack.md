@@ -1758,8 +1758,8 @@ A device's class is known before its profile is made: be-host's
 panel, Phone on Android, and Desktop otherwise; Tablet is only ever picked by hand.
 A class may have defaults, kept on the device: each settings type lists them in one
 place (`DeviceClass::display_defaults`: the touch classes Tablet and E-paper tablet put the
-rotate and keyboard buttons on the bar, and the E-paper tablet adds its E-paper theme, instant
-motion and 150% scale; Desktop and Phone have none, since a phone never shows the desktop's bar
+rotate and keyboard buttons on the bar, and the E-paper tablet adds its E-paper theme and instant
+motion, but no scale, since the panel's own default scale already suits a panel held in the hand; Desktop and Phone have none, since a phone never shows the desktop's bar
 and a default there would open its setup for nothing; never when the screens go off, nor a rotation).
 `ensure_profile` writes a new profile's class and its defaults into the profile's own
 blocks, and when there are any the host asks the shell to open the profile. Its page

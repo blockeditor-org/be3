@@ -34,6 +34,7 @@ use crate::toplevel_icon::ToplevelIcons;
 use crate::xwayland::XWaylandState;
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
+use smithay::delegate_fractional_scale;
 use smithay::delegate_output;
 use smithay::delegate_shm;
 use smithay::delegate_viewporter;
@@ -54,21 +55,21 @@ use smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer;
 use smithay::reexports::wayland_server::protocol::wl_seat::WlSeat;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::reexports::wayland_server::{Client, DisplayHandle, Resource};
-use smithay::utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Serial, Size, Transform};
+use smithay::utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Serial, Size};
 use smithay::wayland::buffer::BufferHandler;
 use smithay::wayland::compositor::{
     CompositorClientState, CompositorHandler, CompositorState, TraversalAction, get_parent,
-    send_surface_state, with_states, with_surface_tree_upward,
+    with_states, with_surface_tree_upward,
 };
 use smithay::wayland::cursor_shape::CursorShapeManagerState;
+use smithay::wayland::fractional_scale::{FractionalScaleHandler, FractionalScaleManagerState};
 use smithay::wayland::output::{OutputHandler, OutputManagerState};
 use smithay::wayland::seat::WaylandFocus;
-use smithay::wayland::selection::data_device::ServerDndGrabHandler;
 use smithay::wayland::shell::PingError;
 use smithay::wayland::shell::xdg::ShellClient;
 use smithay::wayland::shell::xdg::{
-    PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
-    XdgToplevelSurfaceData,
+    PopupSurface, PositionerState, SurfaceCachedState, ToplevelSurface, XdgShellHandler,
+    XdgShellState, XdgToplevelSurfaceData,
 };
 use smithay::wayland::shm::{ShmHandler, ShmState};
 use smithay::wayland::viewporter::ViewporterState;
@@ -85,15 +86,26 @@ struct Ping {
     sent: Instant,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ServerEvent {
     Opened(WindowId),
     Closed(WindowId),
     Titled(WindowId, String),
     Changed(WindowId),
     Committed(WindowId),
+    Unmapped(WindowId),
     Fullscreen(WindowId, bool),
     Activated(WindowId),
+    Grabbed(WindowId, Grab),
+    Menu(WindowId, beui::Vec2),
+    Minimized(WindowId),
+    Rang(WindowId),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Grab {
+    Move,
+    Resize(beui::WindowEdge),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -103,6 +115,7 @@ pub struct Layer {
     pub source: Rectangle<f64, Logical>,
     pub buffer: Size<f64, Logical>,
     pub popup: bool,
+    pub alpha: f32,
 }
 
 pub(crate) struct ClientWindow {
@@ -111,9 +124,11 @@ pub(crate) struct ClientWindow {
     pub(crate) title: String,
     pub(crate) fullscreen: bool,
     pub(crate) maximized: bool,
+    pub(crate) hidden: bool,
     pub(crate) position: Point<i32, Logical>,
     pub(crate) chosen: Option<Size<i32, Logical>>,
     pub(crate) entered: Option<String>,
+    pub(crate) mapped: bool,
 }
 
 #[derive(Default)]
@@ -139,12 +154,14 @@ pub struct State {
     decorations: Decorations,
     pub(crate) idle: Idle,
     pub(crate) foreign: XdgForeignState,
+    pub(crate) toplevel_list: crate::toplevel_list::ToplevelList,
     pub(crate) icons: ToplevelIcons,
     pub(crate) shortcuts: Shortcuts,
     pub(crate) presentation: Presentation,
     pub(crate) activation: Activation,
     pub(crate) text_inputs: crate::text_input::TextInputs,
-    start: Instant,
+    pub(crate) placeless: crate::layout::Placeless,
+    pub(crate) start: Instant,
     compositor: CompositorState,
     xdg_shell: XdgShellState,
     shm: ShmState,
@@ -161,6 +178,7 @@ pub struct State {
     pub(crate) cursor: CursorImageStatus,
     fullscreen_on: Vec<(WindowId, Rectangle<i32, Logical>)>,
     pub(crate) pointer_window: Option<WindowId>,
+    pub(crate) pointer_target: Option<(WindowId, Point<f64, Logical>)>,
     buttons: Vec<u32>,
     pub(crate) keyboard_window: Option<WindowId>,
     pings: Vec<Ping>,
@@ -169,6 +187,7 @@ pub struct State {
     pub(crate) xwayland: XWaylandState,
     pub(crate) tablet: crate::tablet::Tablet,
     pub(crate) touch: crate::touch::Touch,
+    pub(crate) constraints: crate::pointer::Constraints,
 }
 
 pub(crate) type SurfaceAt = (WlSurface, Point<f64, Logical>);
@@ -198,7 +217,11 @@ impl State {
         let compositor = CompositorState::new::<Self>(handle);
         let xdg_shell = XdgShellState::new_with_capabilities::<Self>(
             handle,
-            [xdg_toplevel::WmCapabilities::Fullscreen],
+            [
+                xdg_toplevel::WmCapabilities::Fullscreen,
+                xdg_toplevel::WmCapabilities::Minimize,
+                xdg_toplevel::WmCapabilities::WindowMenu,
+            ],
         );
         let shm = ShmState::new::<Self>(handle, Vec::new());
         let selection = Selection::new(handle);
@@ -209,10 +232,15 @@ impl State {
         crate::single_pixel::create(handle);
         crate::tearing::create(handle);
         crate::text_input::create(handle);
+        crate::pointer::create(handle);
+        crate::bell::create(handle);
+        crate::alpha::create(handle);
+        crate::pacing::create(handle);
         let presentation = Presentation::new(handle);
         let activation = Activation::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
         ViewporterState::new::<Self>(handle);
+        FractionalScaleManagerState::new::<Self>(handle);
         OutputManagerState::new_with_xdg_output::<Self>(handle);
         let mut seat_state = SeatState::new();
         let mut seat = seat_state.new_wl_seat(handle, "seat0");
@@ -230,11 +258,13 @@ impl State {
             decorations,
             idle,
             foreign: XdgForeignState::new::<Self>(handle),
+            toplevel_list: crate::toplevel_list::ToplevelList::new(handle),
             icons: ToplevelIcons::new(handle),
             shortcuts: Shortcuts::new(handle),
             presentation,
             activation,
             text_inputs: Default::default(),
+            placeless: Default::default(),
             handle: handle.clone(),
             start: Instant::now(),
             compositor,
@@ -253,6 +283,7 @@ impl State {
             cursor: CursorImageStatus::default_named(),
             fullscreen_on: Vec::new(),
             pointer_window: None,
+            pointer_target: None,
             buttons: Vec::new(),
             keyboard_window: None,
             pings: Vec::new(),
@@ -261,12 +292,13 @@ impl State {
             xwayland,
             tablet: crate::tablet::Tablet::new(handle),
             touch: crate::touch::Touch::default(),
+            constraints: crate::pointer::Constraints::default(),
         };
         state.set_heads(vec![crate::heads::HeadSpec {
             id: "be-wayland".to_owned(),
             name: "Nested".to_owned(),
             rect: Rectangle::from_size((1280, 800).into()),
-            scale: 1,
+            scale: 1.0,
         }]);
         state
     }
@@ -497,6 +529,17 @@ impl State {
     }
 
     pub fn parent(&self, id: WindowId) -> Option<WindowId> {
+        let mut parent = self.set_parent(id)?;
+        for _ in 0..self.windows.len() {
+            if self.mapped_size(parent).is_some() {
+                return Some(parent);
+            }
+            parent = self.set_parent(parent)?;
+        }
+        None
+    }
+
+    fn set_parent(&self, id: WindowId) -> Option<WindowId> {
         if let Some(surface) = self.find(id)?.window.x11_surface() {
             return self.x11_window(surface.is_transient_for()?);
         }
@@ -591,6 +634,16 @@ impl State {
         }
     }
 
+    pub fn set_hidden(&mut self, id: WindowId, hidden: bool) {
+        if let Some(window) = self.windows.iter_mut().find(|window| window.id == id) {
+            window.hidden = hidden;
+        }
+    }
+
+    pub fn hidden(&self, id: WindowId) -> bool {
+        self.find(id).is_some_and(|window| window.hidden)
+    }
+
     pub fn maximized(&self, id: WindowId) -> bool {
         self.find(id).is_some_and(|window| window.maximized)
     }
@@ -647,6 +700,7 @@ impl State {
             return;
         };
         let (fullscreen, maximized) = (self.fullscreen(id), self.maximized(id));
+        let hidden = self.hidden(id);
         let screen = self
             .find(id)
             .map(|window| {
@@ -676,6 +730,7 @@ impl State {
                 set_state(state, tiled, state.size.is_some());
             }
             set_state(state, xdg_toplevel::State::Activated, activated);
+            set_state(state, xdg_toplevel::State::Suspended, hidden);
         });
         if toplevel.is_initial_configure_sent() {
             toplevel.send_pending_configure();
@@ -693,6 +748,28 @@ impl State {
         }
         let size = window.chosen.unwrap_or(window.window.geometry().size);
         (size.w > 0 && size.h > 0).then(|| beui::vec2(size.w as f32, size.h as f32))
+    }
+
+    pub fn size_limits(&self, id: WindowId) -> (beui::Vec2, beui::Vec2) {
+        let points = |size: Option<Size<i32, Logical>>| {
+            size.map_or(beui::Vec2::ZERO, |size| {
+                beui::vec2(size.w.max(0) as f32, size.h.max(0) as f32)
+            })
+        };
+        if let Some(surface) = self.find(id).and_then(|window| window.window.x11_surface()) {
+            return (points(surface.min_size()), points(surface.max_size()));
+        }
+        let Some(toplevel) = self.toplevel(id) else {
+            return (beui::Vec2::ZERO, beui::Vec2::ZERO);
+        };
+        with_states(toplevel.wl_surface(), |states| {
+            let mut cached = states.cached_state.get::<SurfaceCachedState>();
+            let current = cached.current();
+            (
+                points(Some(current.min_size)),
+                points(Some(current.max_size)),
+            )
+        })
     }
 
     pub fn close(&self, id: WindowId) {
@@ -834,7 +911,7 @@ impl State {
         self.start.elapsed().as_millis() as u32
     }
 
-    fn pointer(&self) -> PointerHandle<Self> {
+    pub(crate) fn pointer(&self) -> PointerHandle<Self> {
         self.seat.get_pointer().expect("the seat has a pointer")
     }
 
@@ -867,13 +944,21 @@ impl State {
     }
 
     pub fn pointer_motion(&mut self, target: Option<(WindowId, Point<f64, Logical>)>) {
+        if self.holds_pointer_from(target) {
+            return;
+        }
+        self.pointer_target = target;
         let focus = self.under(target);
         let pointer = self.pointer();
         let serial = SERIAL_COUNTER.next_serial();
         let time = self.time();
+        let (was_on, was_at) = (pointer.current_focus(), pointer.current_location());
         match focus {
             Some((id, location, under)) => {
                 self.pointer_window = Some(id);
+                let stays = under
+                    .as_ref()
+                    .is_some_and(|(surface, _)| was_on.as_ref() == Some(surface));
                 pointer.motion(
                     self,
                     under,
@@ -883,6 +968,9 @@ impl State {
                         time,
                     },
                 );
+                if stays && location != was_at {
+                    self.moved_by(location - was_at, location - was_at);
+                }
             }
             None => {
                 self.pointer_window = None;
@@ -899,6 +987,7 @@ impl State {
             }
         }
         pointer.frame(self);
+        self.settle_constraints();
     }
 
     pub fn pointer_button(&mut self, button: u32, pressed: bool) {
@@ -964,6 +1053,7 @@ impl State {
         let keyboard = self.keyboard();
         keyboard.set_focus(self, focus, SERIAL_COUNTER.next_serial());
         self.settle_inhibitors();
+        self.settle_constraints();
         if let Some(id) = id {
             self.raise_x11(id);
         }
@@ -979,6 +1069,16 @@ impl State {
             ..XkbConfig::default()
         };
         handle.set_xkb_config(self, xkb).is_ok()
+    }
+
+    pub fn set_layout(&mut self, index: u32) {
+        let keyboard = self.keyboard();
+        keyboard.with_xkb_state(self, |mut context| {
+            let count = context.xkb().lock().unwrap().layouts().count();
+            if (index as usize) < count {
+                context.set_layout(smithay::input::keyboard::Layout(index));
+            }
+        });
     }
 
     pub fn key(&mut self, code: u32, pressed: bool) {
@@ -1009,9 +1109,11 @@ impl State {
             title: String::new(),
             fullscreen: false,
             maximized: false,
+            hidden: false,
             position: Point::default(),
             chosen: None,
             entered: None,
+            mapped: false,
         });
         self.events.push(ServerEvent::Opened(id));
     }
@@ -1046,7 +1148,7 @@ impl State {
             if let Some(output) = &output {
                 output.enter(surface);
             }
-            send_surface_state(surface, data, scale, Transform::Normal);
+            crate::heads::tell_scale(surface, data, scale);
         });
         if let Some(toplevel) = window.window.toplevel()
             && !toplevel.is_initial_configure_sent()
@@ -1066,6 +1168,20 @@ impl State {
                 window.chosen = Some(chosen);
             }
             self.events.push(ServerEvent::Changed(id));
+        }
+        let mapped = !self.layers(id).is_empty();
+        let window = self
+            .windows
+            .iter_mut()
+            .find(|window| window.id == id)
+            .expect("the window committed");
+        let unmapped = window.mapped && !mapped;
+        window.mapped = mapped;
+        if unmapped {
+            window.fullscreen = false;
+            window.maximized = false;
+            window.chosen = None;
+            self.events.push(ServerEvent::Unmapped(id));
         }
         if !self.events.contains(&ServerEvent::Committed(id)) {
             self.events.push(ServerEvent::Committed(id));
@@ -1120,13 +1236,14 @@ pub(crate) fn collect_layers(
                 source: view.src,
                 buffer: buffer.to_f64(),
                 popup,
+                alpha: crate::alpha::alpha(states),
             });
         },
         |_, _, _| true,
     );
 }
 
-fn client_compositor(client: &Client) -> &CompositorClientState {
+pub(crate) fn client_compositor(client: &Client) -> &CompositorClientState {
     if let Some(data) = client.get_data::<XWaylandClientData>() {
         return &data.compositor_state;
     }
@@ -1312,10 +1429,17 @@ impl XdgShellHandler for State {
             grab.ungrab(PopupUngrabStrategy::All);
             return;
         }
+        if keyboard.is_grabbed() {
+            keyboard.unset_grab(self);
+        }
+        pointer.set_grab(self, PopupPointerGrab::new(&grab), serial, Focus::Keep);
         keyboard.set_focus(self, grab.current_grab(), serial);
         keyboard.set_grab(self, PopupKeyboardGrab::new(&grab), serial);
-        pointer.set_grab(self, PopupPointerGrab::new(&grab), serial, Focus::Keep);
         self.popup_grab = Some(grab);
+    }
+
+    fn popup_destroyed(&mut self, _surface: PopupSurface) {
+        self.cleanup();
     }
 
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
@@ -1383,9 +1507,71 @@ impl XdgShellHandler for State {
     fn unmaximize_request(&mut self, surface: ToplevelSurface) {
         self.request_maximized(&surface, false);
     }
+
+    fn move_request(&mut self, surface: ToplevelSurface, _seat: WlSeat, serial: Serial) {
+        self.grab_from(&surface, serial, Grab::Move);
+    }
+
+    fn resize_request(
+        &mut self,
+        surface: ToplevelSurface,
+        _seat: WlSeat,
+        serial: Serial,
+        edges: xdg_toplevel::ResizeEdge,
+    ) {
+        if let Some(edge) = xdg_edge(edges) {
+            self.grab_from(&surface, serial, Grab::Resize(edge));
+        }
+    }
+
+    fn show_window_menu(
+        &mut self,
+        surface: ToplevelSurface,
+        _seat: WlSeat,
+        _serial: Serial,
+        location: Point<i32, Logical>,
+    ) {
+        let Some(window) = self.window_of(&surface) else {
+            return;
+        };
+        let (id, at) = (window.id, location - window.window.geometry().loc);
+        let at = beui::Vec2::new(at.x as f32, at.y as f32);
+        self.events.push(ServerEvent::Menu(id, at));
+    }
+
+    fn minimize_request(&mut self, surface: ToplevelSurface) {
+        if let Some(id) = self.window_of(&surface).map(|window| window.id) {
+            self.events.push(ServerEvent::Minimized(id));
+        }
+    }
+}
+
+fn xdg_edge(edges: xdg_toplevel::ResizeEdge) -> Option<beui::WindowEdge> {
+    use beui::WindowEdge;
+    use xdg_toplevel::ResizeEdge;
+    Some(match edges {
+        ResizeEdge::Top => WindowEdge::Top,
+        ResizeEdge::Bottom => WindowEdge::Bottom,
+        ResizeEdge::Left => WindowEdge::Left,
+        ResizeEdge::Right => WindowEdge::Right,
+        ResizeEdge::TopLeft => WindowEdge::TopLeft,
+        ResizeEdge::TopRight => WindowEdge::TopRight,
+        ResizeEdge::BottomLeft => WindowEdge::BottomLeft,
+        ResizeEdge::BottomRight => WindowEdge::BottomRight,
+        _ => return None,
+    })
 }
 
 impl State {
+    fn grab_from(&mut self, surface: &ToplevelSurface, serial: Serial, grab: Grab) {
+        let Some(id) = self.window_of(surface).map(|window| window.id) else {
+            return;
+        };
+        if self.pointer().has_grab(serial) || self.touch_holds(id, serial) {
+            self.events.push(ServerEvent::Grabbed(id, grab));
+        }
+    }
+
     fn constrained(
         &self,
         popup: &PopupSurface,
@@ -1466,9 +1652,19 @@ impl State {
     }
 }
 
-impl ServerDndGrabHandler for State {}
-
 impl OutputHandler for State {}
+
+impl FractionalScaleHandler for State {
+    fn new_fractional_scale(&mut self, surface: WlSurface) {
+        let scale = match self.window_of_surface(&surface) {
+            Some(id) => self.scale_of(id),
+            None => self.heads.first().map_or(1.0, |head| head.monitor.scale),
+        };
+        with_states(&surface, |data| {
+            crate::heads::tell_scale(&surface, data, scale)
+        });
+    }
+}
 
 delegate_compositor!(State);
 delegate_xdg_shell!(State);
@@ -1480,5 +1676,6 @@ delegate_data_device!(State);
 delegate_output!(State);
 delegate_cursor_shape!(State);
 delegate_viewporter!(State);
+delegate_fractional_scale!(State);
 delegate_dmabuf!(State);
 delegate_drm_syncobj!(State);

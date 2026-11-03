@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::ControlFlow;
 
 use futures_util::future::{Either, select};
 use futures_util::{FutureExt, Stream, StreamExt, pin_mut};
@@ -10,7 +11,8 @@ use zbus::{Connection, MatchRule, Message, MessageStream};
 use be_sdk_api::{WifiLink, WifiRequest, WifiStatus};
 
 use super::Backend;
-use super::model::{self, AccessPoint, Attempts, Outcome, Plan};
+use super::model::{self, AccessPoint, Attempts, Key, Outcome, Plan};
+use crate::dbus::Bus;
 use be_host_base::host::Post;
 
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";
@@ -38,10 +40,10 @@ impl NetworkManager {
     pub fn start(reports: Post<WifiStatus>) -> Self {
         let (requests, requested) = unbounded_channel();
         crate::dbus::spawn(async move {
-            let Some(connection) = crate::dbus::system().await else {
-                return;
-            };
-            run_on(connection, requested, move |status| reports.send(status)).await;
+            serve(&crate::dbus::SYSTEM, requested, move |status| {
+                reports.send(status);
+            })
+            .await;
         });
         Self { requests }
     }
@@ -129,18 +131,36 @@ fn saved_ssid(settings: &Settings) -> Option<Vec<u8>> {
     (!ssid.is_empty()).then_some(ssid)
 }
 
-fn added_settings<'a>(
+const WEP_KEY: u32 = 1;
+
+fn added_settings(
     ssid: Vec<u8>,
-    key_management: Option<&'a str>,
-    password: Option<String>,
-) -> HashMap<&'static str, HashMap<&'static str, Value<'a>>> {
-    let mut settings = HashMap::new();
-    settings.insert(WIRELESS_TYPE, HashMap::from([("ssid", Value::from(ssid))]));
-    if let Some(key_management) = key_management {
-        let mut security = HashMap::from([("key-mgmt", Value::from(key_management))]);
-        if let Some(password) = password {
-            security.insert("psk", Value::from(password));
-        }
+    key: Key,
+    hidden: bool,
+) -> HashMap<&'static str, HashMap<&'static str, Value<'static>>> {
+    let mut wireless = HashMap::from([("ssid", Value::from(ssid))]);
+    if hidden {
+        wireless.insert("hidden", Value::from(true));
+    }
+    let mut settings = HashMap::from([(WIRELESS_TYPE, wireless)]);
+    let security = match key {
+        Key::Open => None,
+        Key::Owe => Some(HashMap::from([("key-mgmt", Value::from("owe"))])),
+        Key::Psk(password) => Some(HashMap::from([
+            ("key-mgmt", Value::from("wpa-psk")),
+            ("psk", Value::from(password)),
+        ])),
+        Key::Sae(password) => Some(HashMap::from([
+            ("key-mgmt", Value::from("sae")),
+            ("psk", Value::from(password)),
+        ])),
+        Key::Wep(key) => Some(HashMap::from([
+            ("key-mgmt", Value::from("none")),
+            ("wep-key0", Value::from(key)),
+            ("wep-key-type", Value::from(WEP_KEY)),
+        ])),
+    };
+    if let Some(security) = security {
         settings.insert(SECURITY_TYPE, security);
     }
     settings
@@ -166,11 +186,36 @@ struct Watcher {
     unreadable: bool,
 }
 
-pub async fn run_on(
-    connection: Connection,
+pub async fn serve(
+    bus: &Bus,
     mut requested: UnboundedReceiver<WifiRequest>,
     mut report: impl FnMut(WifiStatus) + Send + 'static,
 ) {
+    loop {
+        let connection = bus.connected().await;
+        let serving = run_on(connection.clone(), &mut requested, &mut report);
+        if crate::dbus::until_closed(&connection, serving)
+            .await
+            .is_break()
+        {
+            return;
+        }
+    }
+}
+
+struct Unreachable<'a, R: FnMut(WifiStatus)>(&'a mut R);
+
+impl<R: FnMut(WifiStatus)> Drop for Unreachable<'_, R> {
+    fn drop(&mut self) {
+        (self.0)(WifiStatus::default());
+    }
+}
+
+async fn run_on(
+    connection: Connection,
+    requested: &mut UnboundedReceiver<WifiRequest>,
+    report: &mut (impl FnMut(WifiStatus) + Send),
+) -> ControlFlow<()> {
     let mut signals = match watch(&connection).await {
         Ok(signals) => Some(signals),
         Err(error) => {
@@ -191,7 +236,8 @@ pub async fn run_on(
         reported: None,
         unreadable: false,
     };
-    watcher.refresh(&mut report).await;
+    let mut report = Unreachable(report);
+    watcher.refresh(&mut report.0).await;
     loop {
         let next = {
             let request = requested.recv();
@@ -209,7 +255,7 @@ pub async fn run_on(
         };
         match next {
             Either::Left(Some(request)) => watcher.request(request).await,
-            Either::Left(None) => return,
+            Either::Left(None) => return ControlFlow::Break(()),
             Either::Right(Some(Ok(message))) => {
                 watcher.observe(&message).await;
                 if let Some(signals) = &mut signals {
@@ -223,7 +269,7 @@ pub async fn run_on(
             }
             Either::Right(None) => signals = None,
         }
-        watcher.refresh(&mut report).await;
+        watcher.refresh(&mut report.0).await;
     }
 }
 
@@ -420,11 +466,18 @@ impl Watcher {
             active = self.saved.ssids.get(index).cloned();
         }
         if active.is_none()
-            && let Some(point) = active_point
-            && let Some(index) = self.paths.iter().position(|path| *path == point)
+            && let Some(point) = &active_point
+            && let Some(index) = self.paths.iter().position(|path| path == point)
         {
-            active = self.points.get(index).map(|point| point.ssid.clone());
+            active = self
+                .points
+                .get(index)
+                .map(|point| point.ssid.clone())
+                .filter(|ssid| !ssid.is_empty());
         }
+        let named =
+            active_point.and_then(|point| self.paths.iter().position(|path| *path == point));
+        model::name_hidden(&mut self.points, named, active.as_deref());
         let active = active.map(|ssid| String::from_utf8_lossy(&ssid).into_owned());
         self.settle(state, active.as_deref()).await;
         let link = match (model::link(state, active), self.attempts.trying()) {
@@ -478,11 +531,22 @@ impl Watcher {
                     }
                 }
             }
-            WifiRequest::Connect { ssid, password } => self.connect(ssid, password).await,
+            WifiRequest::Connect { ssid, password } => {
+                let plan = model::plan(&ssid, password, &self.points, &self.saved.ssids);
+                self.connect(ssid, plan).await;
+            }
+            WifiRequest::JoinHidden {
+                ssid,
+                security,
+                password,
+            } => {
+                let plan = model::plan_hidden(&ssid, security, password, &self.saved.ssids);
+                self.connect(ssid, plan).await;
+            }
         }
     }
 
-    async fn connect(&mut self, ssid: String, password: Option<String>) {
+    async fn connect(&mut self, ssid: String, plan: Plan) {
         if let Some(path) = self.added.take() {
             self.forget(&path).await;
         }
@@ -491,7 +555,6 @@ impl Watcher {
             self.attempts.refused(ssid);
             return;
         };
-        let plan = model::plan(&ssid, password, &self.points, &self.saved.ssids);
         let point = |index: Option<usize>| {
             index
                 .and_then(|index| self.paths.get(index).cloned())
@@ -521,8 +584,8 @@ impl Watcher {
             }
             Plan::Add {
                 ssid: bytes,
-                key_management,
-                password,
+                key,
+                hidden,
                 point: index,
                 replaces,
             } => {
@@ -531,7 +594,7 @@ impl Watcher {
                     .iter()
                     .filter_map(|index| self.saved.paths.get(*index).cloned())
                     .collect();
-                let settings = added_settings(bytes, key_management, password);
+                let settings = added_settings(bytes, key, hidden);
                 self.attempts.start(ssid.clone());
                 let added = self
                     .call::<(OwnedObjectPath, OwnedObjectPath)>(
@@ -545,6 +608,7 @@ impl Watcher {
                     .map(|(path, _)| {
                         self.added = Some(path);
                         self.replaces = replaced;
+                        self.saved_stale = true;
                     })
                     .map_err(Some)
             }

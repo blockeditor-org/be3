@@ -1,15 +1,18 @@
+use be_sdk_beui::beui::accesskit::{Node, Role, Toggled};
 use be_sdk_beui::beui::dock::styled::TabId;
 use be_sdk_beui::beui::icons::{
-    ICON_APP_WINDOW, ICON_ARCHIVE_RESTORE, ICON_EYE, ICON_EYE_OFF, ICON_MONITOR, ICON_X,
+    ICON_APP_WINDOW, ICON_ARCHIVE_RESTORE, ICON_EXTERNAL_LINK, ICON_EYE, ICON_EYE_OFF,
+    ICON_MONITOR, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::button::ButtonFace;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::unstyled;
-use be_sdk_beui::beui::{Align, Direction, Extent, ItemSize, NodeId, Pos2, Rect, Sizing, Vec2};
+use be_sdk_beui::beui::{Align, Direction, Extent, ItemSize, NodeId, Pos2, Rect, Sizing};
 use be_sdk_beui::desktop;
 use be_sdk_beui::{DisplaysWatch, HostWindow, HostWindowId, WindowAction, WindowKind};
-use be_sdk_shell::{Workspace, window_name, window_picture};
+use be_sdk_shell::{WindowManager, Workspace, window_name, window_picture, window_tab};
+use std::collections::HashMap;
 
 use super::bar::bar_bounds;
 use super::placeholders::Placeholders;
@@ -17,10 +20,12 @@ use super::placeholders::Placeholders;
 const CHIP_SPACING: Space = Space::Xs;
 const CHIP_WIDTH: Size = Size::Menu;
 const CHIP_LEAST: Size = Size::Custom(2.0 * Size::Xl2.px());
+const BELL_FLASH: std::time::Duration = std::time::Duration::from_millis(400);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum ChipKey {
     Window(HostWindowId),
+    Placeholder(HostWindowId),
     Block(TabId),
 }
 
@@ -28,6 +33,7 @@ impl ChipKey {
     fn test_id(self) -> String {
         match self {
             ChipKey::Window(id) => format!("desktop.windows.{}", id.0),
+            ChipKey::Placeholder(key) => format!("desktop.windows.placeholder.{}", key.0),
             ChipKey::Block(tab) => format!("desktop.windows.block.{}", tab.value()),
         }
     }
@@ -62,58 +68,27 @@ pub(crate) fn holder(window: Option<Rect>, displays: &[Rect]) -> u32 {
     best.0
 }
 
-pub(crate) fn moved_onto(window: Rect, from: Rect, to: Rect) -> Pos2 {
-    let along = |offset: f32, length: f32| match length > 0.0 {
-        true => offset / length,
-        false => 0.0,
-    };
-    let offset = window.min - from.min;
-    let wanted = to.min
-        + Vec2::new(
-            along(offset.x, from.width()) * to.width(),
-            along(offset.y, from.height()) * to.height(),
-        );
-    let room = to.max - window.size();
-    Pos2::new(
-        wanted.x.min(room.x).max(to.min.x),
-        wanted.y.min(room.y).max(to.min.y),
-    )
-}
-
 #[derive(Clone, Copy)]
 pub(crate) struct DeskWindows {
     workspace: Workspace,
     pub(crate) placeholders: Placeholders,
+    pub(crate) manager: WindowManager,
     all: Memo<Vec<ChipKey>>,
-    tabs: Memo<Vec<TabId>>,
     displays: Memo<Vec<Rect>>,
-    hidden: Signal<Vec<TabId>>,
-    showing: Signal<Option<TabId>>,
+    bands: Signal<HashMap<u32, Rect>>,
 }
 
 impl DeskWindows {
     pub(crate) fn new(workspace: Workspace, placeholders: Placeholders) -> Self {
-        let hidden = create_signal(Vec::new());
-        let showing = create_signal(None::<TabId>);
-        let layout = workspace.layout();
-        create_effect(move || {
-            let Some(tab) = showing.get() else {
-                return;
-            };
-            if layout.contains(&tab) {
-                untrack(|| {
-                    showing.set(None);
-                    layout.show(&tab);
-                });
-            }
-        });
         let entries = workspace.entries();
         let tabs = workspace.block_tabs();
+        let kept = placeholders.keys;
         let all = create_memo(move || {
             let windows = entries.with(|entries| picked(entries));
             windows
                 .into_iter()
                 .map(ChipKey::Window)
+                .chain(kept.get().into_iter().map(ChipKey::Placeholder))
                 .chain(tabs.get().into_iter().map(ChipKey::Block))
                 .collect()
         });
@@ -121,29 +96,62 @@ impl DeskWindows {
         let displays = create_memo(move || {
             watched.with(|displays| displays.iter().map(|shown| shown.rect).collect())
         });
+        let bands = create_signal(HashMap::new());
+        let layout = workspace.layout();
+        let areas = create_memo(move || {
+            displays.with(|displays: &Vec<Rect>| {
+                let Some(first) = displays.first().map(|first| first.min) else {
+                    return Vec::new();
+                };
+                displays
+                    .iter()
+                    .enumerate()
+                    .map(|(at, display)| {
+                        let whole = Rect::from_min_size(Pos2::ZERO, display.size());
+                        let inside = match at {
+                            0 => Some(layout.area()),
+                            _ => bands.with(|bands: &HashMap<u32, Rect>| {
+                                bands.get(&(at as u32)).copied()
+                            }),
+                        };
+                        let inside = inside.filter(|inside| inside.is_positive());
+                        match (at, inside) {
+                            (0, Some(inside)) => inside,
+                            (_, inside) => inside.unwrap_or(whole).translate(display.min - first),
+                        }
+                    })
+                    .collect()
+            })
+        });
         Self {
             workspace,
             placeholders,
+            manager: WindowManager::new(workspace, areas),
             all,
-            tabs,
             displays,
-            hidden,
-            showing,
+            bands,
         }
+    }
+
+    pub(crate) fn report_area(&self, display: u32, area: Memo<Rect>) {
+        let bands = self.bands;
+        create_effect(move || {
+            let area = area.get();
+            bands.update(|bands| {
+                bands.insert(display, area);
+            });
+        });
+        on_cleanup(move || {
+            if bands.is_alive() {
+                bands.update(|bands| {
+                    bands.remove(&display);
+                });
+            }
+        });
     }
 
     pub(crate) fn displays(&self) -> Vec<Rect> {
         self.displays.get()
-    }
-
-    pub(crate) fn block_windows(&self) -> Memo<Vec<TabId>> {
-        let tabs = self.tabs;
-        let hidden = self.hidden;
-        create_memo(move || {
-            let mut shown = tabs.get();
-            hidden.with(|hidden| shown.retain(|tab| !hidden.contains(tab)));
-            shown
-        })
     }
 
     fn chips(&self, display: Option<u32>) -> Memo<Vec<ChipKey>> {
@@ -187,26 +195,14 @@ impl DeskWindows {
     }
 
     fn move_to(&self, chip: ChipKey, display: u32) {
-        let layout = self.workspace.layout();
-        let tab = self.tab(chip);
-        let Some(rect) = untrack(|| layout.window_rect(&tab)) else {
-            return;
-        };
-        let from = untrack(|| self.display_of(chip));
-        let placed = self.displays.with_untracked(|displays| {
-            let first = displays.first()?.min.to_vec2();
-            let from = *displays.get(from as usize)?;
-            let to = *displays.get(display as usize)?;
-            Some(moved_onto(rect.translate(first), from, to) - first)
-        });
-        if let Some(placed) = placed {
-            layout.move_window(&tab, placed);
-        }
+        self.manager
+            .move_to_display(self.tab(chip), display as usize);
     }
 
     fn tab(&self, chip: ChipKey) -> TabId {
         match chip {
             ChipKey::Window(id) => self.workspace.window_tab_of(id),
+            ChipKey::Placeholder(key) => window_tab(key),
             ChipKey::Block(tab) => tab,
         }
     }
@@ -217,7 +213,8 @@ impl DeskWindows {
                 .workspace
                 .entries()
                 .with(|entries| entries.iter().any(|entry| entry.id == id && entry.shown)),
-            ChipKey::Block(tab) => self.hidden.with(|hidden| !hidden.contains(&tab)),
+            ChipKey::Placeholder(_) => true,
+            ChipKey::Block(tab) => !self.workspace.is_hidden(tab),
         }
     }
 
@@ -226,6 +223,10 @@ impl DeskWindows {
     }
 
     fn choose(&self, chip: ChipKey) {
+        if let ChipKey::Placeholder(key) = chip {
+            self.workspace.layout().show(&window_tab(key));
+            return;
+        }
         match untrack(|| self.focused(chip)) {
             true => self.hide(chip),
             false => self.show(chip),
@@ -233,62 +234,16 @@ impl DeskWindows {
     }
 
     fn show(&self, chip: ChipKey) {
-        let hidden = untrack(|| !self.shown(chip));
         match chip {
-            ChipKey::Window(id) => self.workspace.editor().act(move || {
-                if hidden {
-                    desktop::windows::request(WindowAction::Show(id)).detach();
-                }
-                desktop::windows::request(WindowAction::Focus(id)).detach();
-            }),
-            ChipKey::Block(tab) if hidden => {
-                self.hidden
-                    .update(|hidden| hidden.retain(|held| *held != tab));
-                self.showing.set(Some(tab));
-            }
-            ChipKey::Block(tab) => self.workspace.layout().show(&tab),
+            ChipKey::Placeholder(key) => self.workspace.layout().show(&window_tab(key)),
+            _ => self.workspace.show(self.tab(chip)),
         }
     }
 
     fn hide(&self, chip: ChipKey) {
-        let next = untrack(|| self.next_after(chip));
-        let layout = self.workspace.layout();
-        match chip {
-            ChipKey::Window(id) => {
-                self.workspace
-                    .editor()
-                    .act(move || desktop::windows::request(WindowAction::Hide(id)).detach());
-                if let Some(next) = next {
-                    layout.show(&next);
-                }
-            }
-            ChipKey::Block(tab) => {
-                if let Some(next) = next {
-                    layout.show(&next);
-                }
-                self.hidden.update(|hidden| {
-                    if !hidden.contains(&tab) {
-                        hidden.push(tab);
-                    }
-                });
-            }
+        if !matches!(chip, ChipKey::Placeholder(_)) {
+            self.manager.hide(self.tab(chip));
         }
-    }
-
-    fn next_after(&self, chip: ChipKey) -> Option<TabId> {
-        let own = self.tab(chip);
-        let others: Vec<TabId> = self
-            .all
-            .get()
-            .into_iter()
-            .filter(|other| *other != chip && self.shown(*other))
-            .map(|other| self.tab(other))
-            .collect();
-        self.workspace
-            .layout()
-            .recent()
-            .into_iter()
-            .find(|tab| *tab != own && others.contains(tab))
     }
 
     fn close(&self, chip: ChipKey) {
@@ -297,6 +252,7 @@ impl DeskWindows {
                 .workspace
                 .editor()
                 .act(move || desktop::windows::request(WindowAction::Close(id)).detach()),
+            ChipKey::Placeholder(key) => self.placeholders.dismiss(key),
             ChipKey::Block(tab) => self.workspace.close(tab),
         }
     }
@@ -320,6 +276,7 @@ pub(crate) fn WindowChips(
     let spacing = use_space(CHIP_SPACING);
     let count = create_memo(move || chips.with(Vec::len));
     let listed = create_memo(move || count.get() > 0);
+    let empty = create_memo(move || !listed.get() && !waiting.get() && !vertical.get());
     let gaps = move || spacing.get() * count.get().saturating_sub(1) as f32;
     let wanted = create_memo(move || match vertical.get() {
         true => Extent::INTRINSIC,
@@ -366,6 +323,15 @@ pub(crate) fn WindowChips(
                     </Layers>
                 </Scroll>
             </Show>
+            <Show condition={empty}>
+                <Frame
+                    width={Length::Size(CHIP_WIDTH)}
+                    align=Align::Center
+                    @test_id={"desktop.windows.none"}
+                >
+                    <Text size=TextSize::Sm color=TextColor::Muted>"No windows"</Text>
+                </Frame>
+            </Show>
         </List>
     }
 }
@@ -392,6 +358,26 @@ fn RestoreChip(placeholders: Placeholders, vertical: Memo<bool>) -> NodeId {
     }
 }
 
+fn bell_flash(rung: Memo<u64>) -> ReadSignal<bool> {
+    let ringing = create_signal(false);
+    let quiet = create_timer(move || {
+        ringing.set(false);
+        None
+    });
+    let heard = StoredCell::new(rung.get_untracked());
+    create_effect(move || {
+        let count = rung.get();
+        if count > heard.get() {
+            untrack(|| {
+                ringing.set(true);
+                quiet.start(BELL_FLASH);
+            });
+        }
+        heard.set(count);
+    });
+    ringing.read_only()
+}
+
 #[component]
 fn WindowChip(
     windows: DeskWindows,
@@ -405,15 +391,24 @@ fn WindowChip(
         ChipKey::Window(id) => {
             entries.with(|entries| entries.iter().find(|entry| entry.id == id).cloned())
         }
-        ChipKey::Block(_) => None,
+        ChipKey::Placeholder(_) | ChipKey::Block(_) => None,
     });
     let block = match chip {
         ChipKey::Block(tab) => Some((workspace.tab_title(tab), workspace.tab_glyph(tab))),
-        ChipKey::Window(_) => None,
+        ChipKey::Window(_) | ChipKey::Placeholder(_) => None,
     };
-    let title = create_memo(move || match block {
-        Some((title, _)) => title.get(),
-        None => entry
+    let kept = match chip {
+        ChipKey::Placeholder(key) => Some((key, windows.placeholders.shown(key))),
+        ChipKey::Window(_) | ChipKey::Block(_) => None,
+    };
+    let waiting = kept.is_some();
+    let title = create_memo(move || match (block, kept) {
+        (Some((title, _)), _) => title.get(),
+        (None, Some((key, _))) => workspace
+            .placeholder(key)
+            .map(|kept| kept.window_name())
+            .unwrap_or_default(),
+        (None, None) => entry
             .with(|entry| {
                 let entry = entry.as_ref()?;
                 let parent = entry.parent.and_then(|parent| {
@@ -436,16 +431,23 @@ fn WindowChip(
         (None, true) => Some(ICON_MONITOR),
         (None, false) => Some(ICON_APP_WINDOW),
     });
-    let image = create_memo(move || {
-        entry.with(|entry| entry.as_ref()?.icon.as_ref().and_then(window_picture))
+    let image = create_memo(move || match kept {
+        Some((_, shown)) => shown.picture.get(),
+        None => entry.with(|entry| entry.as_ref()?.icon.as_ref().and_then(window_picture)),
     });
     let shown = create_memo(move || windows.shown(chip));
     let focused = create_memo(move || windows.focused(chip));
-    let hollow = create_memo(move || !shown.get());
-    let closable = create_memo(move || !display.get());
-    let variant = create_memo(move || match shown.get() {
-        true => ButtonVariant::Secondary,
-        false => ButtonVariant::Ghost,
+    let hollow = create_memo(move || waiting || !shown.get());
+    let running = create_memo(move || !waiting);
+    let closable = create_memo(move || !waiting && !display.get());
+    let unopenable = create_memo(move || kept.is_some_and(|(_, shown)| !shown.openable.get()));
+    let ringing = bell_flash(create_memo(move || {
+        entry.with(|entry| entry.as_ref().map_or(0, |entry| entry.rung))
+    }));
+    let variant = create_memo(move || match (ringing.get(), shown.get()) {
+        (true, _) => ButtonVariant::Primary,
+        (false, true) => ButtonVariant::Secondary,
+        (false, false) => ButtonVariant::Ghost,
     });
     let visibility = create_memo(move || match shown.get() {
         true => "Hide".to_owned(),
@@ -454,6 +456,19 @@ fn WindowChip(
     let visibility_glyph = create_memo(move || match shown.get() {
         true => Some(ICON_EYE_OFF),
         false => Some(ICON_EYE),
+    });
+    let accessibility = create_memo(move || {
+        let mut node = Node::new(Role::Button);
+        node.set_toggled(Toggled::from(focused.get()));
+        let state = match (waiting, shown.get()) {
+            (true, _) => Some("Not running"),
+            (false, false) => Some("Hidden"),
+            (false, true) => None,
+        };
+        if let Some(state) = state {
+            node.set_description(state);
+        }
+        node
     });
     let face = NodeRef::new();
     create_effect(move || {
@@ -465,21 +480,45 @@ fn WindowChip(
     });
     let prefix = chip.test_id();
     let close_id = format!("{prefix}.close");
+    let visibility_id = format!("{prefix}.visibility");
+    let open_id = format!("{prefix}.open");
+    let dismiss_id = format!("{prefix}.dismiss");
     let targets = windows.targets(chip);
     let display_prefix = prefix.clone();
     view! {
         <ContextMenu
             bounds={bar_bounds()}
             items={view! {
-                <MenuItem
-                    label={visibility}
-                    glyph={visibility_glyph}
-                    row_test_id={format!("{prefix}.visibility")}
-                    on_click={move || match shown.get_untracked() {
-                        true => windows.hide(chip),
-                        false => windows.show(chip),
-                    }}
-                />
+                <Show condition={running}>
+                    <MenuItem
+                        label={visibility}
+                        glyph={visibility_glyph}
+                        row_test_id={visibility_id.clone()}
+                        on_click={move || match shown.get_untracked() {
+                            true => windows.hide(chip),
+                            false => windows.show(chip),
+                        }}
+                    />
+                </Show>
+                <Show condition=waiting>
+                    <MenuItem
+                        label="Open"
+                        glyph=ICON_EXTERNAL_LINK
+                        disabled={unopenable}
+                        row_test_id={open_id.clone()}
+                        on_click={move || {
+                            if let Some((key, _)) = kept {
+                                windows.placeholders.open(key);
+                            }
+                        }}
+                    />
+                    <MenuItem
+                        label="Dismiss"
+                        glyph=ICON_X
+                        row_test_id={dismiss_id.clone()}
+                        on_click={move || windows.close(chip)}
+                    />
+                </Show>
                 <ForEach keys={targets}>|target: u32|
                     <MenuItem
                         label={format!("Move to display {}", target + 1)}
@@ -503,6 +542,7 @@ fn WindowChip(
                 glyph
                 icon_only={icons}
                 press_focus=false
+                accessibility
                 @node_ref=&face
                 @test_id={prefix.clone()}
                 on_click={move || windows.choose(chip)}

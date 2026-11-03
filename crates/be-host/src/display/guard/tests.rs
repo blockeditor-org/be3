@@ -11,9 +11,11 @@ mod a_synced_mode_is_asked_about_the_first_time_this_device_shows_it;
 mod a_turned_screen_is_not_asked_about;
 mod an_untried_fastest_default_falls_back_to_the_preferred_mode;
 mod another_change_while_asking_asks_again_with_the_full_time;
+mod changing_the_main_display_waits_to_be_kept;
 mod keeping_a_mode_leaves_a_lower_layers_rotation_alone;
 mod reverting_a_change_leaves_monitors_that_are_not_connected_alone;
 mod reverting_a_change_restores_the_mode_before_it;
+mod reverting_a_display_turned_off_turns_it_back_on;
 mod reverting_a_synced_mode_keeps_the_fallback_on_this_device;
 
 const MONITOR: &str = "DEL|U2723QE|1234";
@@ -63,8 +65,8 @@ fn saved(mode: Option<DisplayMode>) -> DisplaySettings {
     )
 }
 
-fn change(mode: Option<DisplayMode>) -> ModeChange {
-    ModeChange::new(MONITOR, mode)
+fn change(mode: Option<DisplayMode>) -> Change {
+    Change::Mode(ModeChange::new(MONITOR, mode))
 }
 
 fn showing(screen: Screen, settings: DisplaySettings) -> Guard {

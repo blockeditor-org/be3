@@ -58,6 +58,7 @@ pub struct InputSettings {
     pub repeat_rate: Option<RepeatRate>,
     pub every_pointer: PointerSettings,
     pub pointers: Map<InputDevice, PointerSettings>,
+    pub displays: Map<InputDevice, String>,
     pub middle_click_paste: Option<bool>,
     pub remapper: Option<RemapperChoice>,
 }
@@ -131,6 +132,16 @@ impl InputSettings {
 
     pub fn set_device_pointer(&self, device: &InputDevice, setting: PointerSetting) -> Edit {
         Self::store_pointer(device, self.device_pointer(device).with(setting)).into()
+    }
+
+    pub fn display(&self, device: &InputDevice) -> Option<&str> {
+        self.displays.get(device).map(String::as_str)
+    }
+
+    pub fn set_display(device: &InputDevice, display: Option<&str>) -> Edit {
+        Self::DISPLAYS
+            .put(ObjectId::ROOT, device, display.map(str::to_owned).as_ref())
+            .into()
     }
 
     fn store_pointer(device: &InputDevice, pointer: PointerSettings) -> Change {
@@ -261,6 +272,19 @@ impl InputSettings {
         })
     }
 
+    pub fn display_setting(device: InputDevice) -> Setting<Self, String> {
+        let read = device.clone();
+        Setting::new(
+            format!(
+                "pointer.{}.{}.{}.display",
+                device.name, device.vendor, device.product
+            ),
+            "Display",
+            move |settings: &Self| settings.display(&read).map(str::to_owned),
+            move |_, display: Option<String>| Self::set_display(&device, display.as_deref()),
+        )
+    }
+
     pub fn pointer_setting(
         device: Option<InputDevice>,
         field: PointerField,
@@ -335,6 +359,13 @@ impl Layered for InputSettings {
             repeat_rate: self.repeat_rate.or(lower.repeat_rate),
             every_pointer: self.every_pointer.or(lower.every_pointer),
             pointers,
+            displays: lower
+                .displays
+                .iter()
+                .filter(|(device, _)| !self.displays.contains_key(*device))
+                .chain(self.displays.iter())
+                .map(|(device, display)| (device.clone(), display.clone()))
+                .collect(),
             middle_click_paste: self.middle_click_paste.or(lower.middle_click_paste),
             remapper: self.remapper.or(lower.remapper),
         }

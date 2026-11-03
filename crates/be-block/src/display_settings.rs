@@ -47,10 +47,24 @@ impl LockAfter {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum ScreenUse {
+    #[default]
+    Desktop,
+    Mirror {
+        of: String,
+    },
+    Off,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct ScreenSettings {
     pub mode: Option<DisplayMode>,
     pub rotation: Option<Rotation>,
+    #[serde(default)]
+    pub scale_percent: Option<u32>,
+    #[serde(default)]
+    pub used: Option<ScreenUse>,
 }
 
 impl ScreenSettings {
@@ -58,7 +72,31 @@ impl ScreenSettings {
         Self {
             mode: self.mode.or(lower.mode),
             rotation: self.rotation.or(lower.rotation),
+            scale_percent: self.scale_percent.or(lower.scale_percent),
+            used: self.used.or(lower.used),
         }
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct Arrangement {
+    pub main: Option<String>,
+    pub places: Vec<ScreenPlace>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct ScreenPlace {
+    pub id: String,
+    pub x: i32,
+    pub y: i32,
+}
+
+impl Arrangement {
+    pub fn place(&self, id: &str) -> Option<(i32, i32)> {
+        self.places
+            .iter()
+            .find(|place| place.id == id)
+            .map(|place| (place.x, place.y))
     }
 }
 
@@ -75,11 +113,13 @@ pub struct DisplaySettings {
     pub keyboard_percent: Option<u32>,
     pub docks: Map<String, String>,
     pub keyboard_in_bar: Option<bool>,
+    pub arrangement: Option<Arrangement>,
 }
 
 impl DisplaySettings {
     pub const SCALES: [u32; 9] = [75, 90, 100, 110, 125, 150, 175, 200, 250];
     pub const DEFAULT_SCALE: u32 = 100;
+    pub const SCREEN_SCALES: [u32; 9] = [100, 125, 150, 175, 200, 225, 250, 275, 300];
     pub const KEYBOARD_HEIGHTS: [u32; 7] = [20, 25, 30, 35, 40, 45, 50];
     pub const DEFAULT_KEYBOARD_HEIGHT: u32 = 35;
 
@@ -124,7 +164,19 @@ impl DisplaySettings {
     }
 
     pub fn screen(&self, id: &str) -> ScreenSettings {
-        self.screens.get(id).copied().unwrap_or_default()
+        self.screens.get(id).cloned().unwrap_or_default()
+    }
+
+    pub fn used(&self, id: &str) -> ScreenUse {
+        self.screen(id).used.unwrap_or_default()
+    }
+
+    pub fn arrangement(&self) -> Arrangement {
+        self.arrangement.clone().unwrap_or_default()
+    }
+
+    pub fn main_screen(&self) -> Option<String> {
+        self.arrangement().main
     }
 
     pub fn mode(&self, id: &str) -> Option<DisplayMode> {
@@ -133,6 +185,13 @@ impl DisplaySettings {
 
     pub fn rotation(&self, id: &str) -> Rotation {
         self.screen(id).rotation.unwrap_or_default()
+    }
+
+    pub fn screen_scale(&self, id: &str) -> Option<f32> {
+        self.screen(id)
+            .scale_percent
+            .filter(|percent| *percent > 0)
+            .map(|percent| percent as f32 / 100.0)
     }
 
     pub fn rotate_in_bar(&self) -> bool {
@@ -185,6 +244,30 @@ impl DisplaySettings {
                 ..self.screen(id)
             },
         )
+    }
+
+    pub fn set_screen_scale(&self, id: &str, scale_percent: Option<u32>) -> Edit {
+        self.store_screen(
+            id,
+            ScreenSettings {
+                scale_percent,
+                ..self.screen(id)
+            },
+        )
+    }
+
+    pub fn set_used(&self, id: &str, used: Option<ScreenUse>) -> Edit {
+        self.store_screen(
+            id,
+            ScreenSettings {
+                used,
+                ..self.screen(id)
+            },
+        )
+    }
+
+    pub fn set_arrangement(arrangement: Option<Arrangement>) -> Edit {
+        Self::ARRANGEMENT.set(ObjectId::ROOT, &arrangement).into()
     }
 
     fn store_screen(&self, id: &str, screen: ScreenSettings) -> Edit {
@@ -316,6 +399,39 @@ impl DisplaySettings {
         .with_default(Some(Rotation::Normal))
         .only_on_this_device(Self::keyed_by_connector(id))
     }
+
+    pub fn used_setting(id: &str) -> Setting<Self, ScreenUse> {
+        let (read, write) = (id.to_owned(), id.to_owned());
+        Setting::new(
+            format!("screen.{id}.use"),
+            "Use",
+            move |settings: &Self| settings.screen(&read).used,
+            move |own: &Self, used| own.set_used(&write, used),
+        )
+        .with_default(Some(ScreenUse::Desktop))
+        .only_on_this_device(true)
+    }
+
+    pub fn arrangement_setting() -> Setting<Self, Arrangement> {
+        Setting::field(
+            "arrangement",
+            "Arrangement",
+            Self::ARRANGEMENT,
+            |settings| settings.arrangement.clone(),
+        )
+        .only_on_this_device(true)
+    }
+
+    pub fn screen_scale_setting(id: &str) -> Setting<Self, u32> {
+        let (read, write) = (id.to_owned(), id.to_owned());
+        Setting::new(
+            format!("screen.{id}.scale"),
+            "Display scale",
+            move |settings: &Self| settings.screen(&read).scale_percent,
+            move |own: &Self, percent| own.set_screen_scale(&write, percent),
+        )
+        .only_on_this_device(Self::keyed_by_connector(id))
+    }
 }
 
 impl Layered for DisplaySettings {
@@ -340,6 +456,7 @@ impl Layered for DisplaySettings {
             keyboard_percent: self.keyboard_percent.or(lower.keyboard_percent),
             docks: union(&self.docks, &lower.docks),
             keyboard_in_bar: self.keyboard_in_bar.or(lower.keyboard_in_bar),
+            arrangement: self.arrangement.clone().or(lower.arrangement.clone()),
         }
     }
 }

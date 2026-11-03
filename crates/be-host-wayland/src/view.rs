@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use beui::KeyAt;
 use beui::native::with_document;
 use beui::reactive::*;
@@ -5,27 +7,45 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{ForwardedInput, Key, NodeId, Rect, Vec2, WindowPlacement, WindowReport, WindowRole};
 
-use crate::state::WindowId;
+use crate::state::{Grab, WindowId};
 use crate::windows::Windows;
 use beui::native::draw_gpu;
+
+#[derive(Clone)]
+pub struct Carrier {
+    pub begin: Rc<dyn Fn(Grab) -> bool>,
+    pub steer: Rc<dyn Fn(ForwardedInput) -> ForwardedInput>,
+}
 
 #[component]
 pub fn WindowView(
     windows: Windows,
     id: WindowId,
     #[prop(default = Vec::new())] occluders: Prop<Vec<Rect>>,
+    #[prop(default = None)] carrier: Option<Carrier>,
 ) -> NodeId {
     let Some(signals) = windows.signals(id) else {
         return view! {
             <Frame />
         };
     };
+    let owner = signals.owner.clone();
+    on_cleanup(move || drop(owner));
+    let (begin, steer) = carrier.map_or((None, None), |carrier| {
+        (Some(carrier.begin), Some(carrier.steer))
+    });
     let rect_held = create_signal(Rect::ZERO);
     let rect = rect_held.read_only();
     let catcher = NodeRef::new();
     let popup_catcher = NodeRef::new();
     let shown_in = use_window().map(WindowHandle::real);
     windows.mounted(id);
+    let scope = owner_scope();
+    let on_focus_change =
+        move |focused: bool| match focused || scope.as_ref().is_some_and(ScopeContext::is_alive) {
+            true => windows.focus(id, focused),
+            false => windows.unmounted_focused(id),
+        };
     create_effect(move || {
         let origin = shown_in
             .and_then(|real| real.get())
@@ -43,6 +63,13 @@ pub fn WindowView(
                 .any(|info| info.id == id && info.inhibits_shortcuts)
         })
     });
+    let pointer_locked = create_memo(move || {
+        list.with(|list| {
+            list.iter().any(|info| {
+                info.id == id && info.pointer == Some(crate::pointer::HeldPointer::Locked)
+            })
+        })
+    });
     let dim = create_memo(move || {
         let responding = list.with(|list| {
             list.iter()
@@ -55,6 +82,7 @@ pub fn WindowView(
         }
     });
     let cursor = windows.cursor();
+    let cursor_image = windows.cursor_image();
     let asks = signals.typing;
     let typing = create_memo(move || asks.get().is_some());
     let takes = create_memo(move || {
@@ -86,6 +114,7 @@ pub fn WindowView(
         windows.forward(id, input);
     };
     let popup_cursor = windows.cursor();
+    let popup_cursor_image = windows.cursor_image();
     let areas = signals.popups;
     let on_popup = create_memo(move || {
         areas.with(|popups| {
@@ -104,10 +133,20 @@ pub fn WindowView(
                 @node_ref={&catcher}
                 focusable=true
                 @test_id={format!("wayland.window.{}", id.0)}
-                on_focus_change={move |focused: bool| windows.focus(id, focused)}
+                on_focus_change={on_focus_change}
                 cursor
-                on_forward={move |input: ForwardedInput| windows.forward(id, input)}
+                cursor_image
+                on_forward={move |input: ForwardedInput| {
+                    let input = match &steer {
+                        Some(steer) => steer(input),
+                        None => input,
+                    };
+                    if !input.events.is_empty() {
+                        windows.forward(id, input);
+                    }
+                }}
                 inhibits_shortcuts={inhibits}
+                pointer_locked
                 ime={typing}
                 keyboard={create_memo(move || asks.get().map_or(beui::SoftKeyboard::OnFocus, |asks| beui::SoftKeyboard::Shown { asks }))}
                 hit_area={takes}
@@ -146,6 +185,7 @@ pub fn WindowView(
                                 tab_stop=false
                                 @test_id={format!("wayland.popups.{}", id.0)}
                                 cursor={popup_cursor}
+                                cursor_image={popup_cursor_image}
                                 on_forward={into_window}
                                 hit_area={on_popup}
                             >
@@ -163,6 +203,17 @@ pub fn WindowView(
             }</ForEach>
         </Layers>
     };
+    let grabs = signals.grabs;
+    let carried = StoredCell::new(grabs.get_untracked().0);
+    create_effect(move || {
+        let (asked, grab) = grabs.get();
+        if carried.replace(asked) == asked {
+            return;
+        }
+        if let (Some(begin), Some(grab)) = (&begin, grab) {
+            begin(grab);
+        }
+    });
     let asks = signals.asks;
     let answered = signals.answered.clone();
     create_effect(move || {
@@ -192,7 +243,7 @@ pub fn register_restore_shortcuts(windows: Windows) {
     let inhibiting = create_memo(move || {
         list.with(|list| {
             list.iter().any(|info| {
-                info.inhibits_shortcuts
+                (info.inhibits_shortcuts || info.pointer.is_some())
                     && windows
                         .signals(info.id)
                         .is_some_and(|signals| signals.focused.get())
@@ -201,7 +252,7 @@ pub fn register_restore_shortcuts(windows: Windows) {
     });
     Action::new(
         "wayland.restore_shortcuts",
-        "Restore keyboard shortcuts",
+        "Take back the keyboard shortcuts and the pointer",
         move || windows.restore_shortcuts(),
     )
     .shortcut(RESTORE_SHORTCUTS)

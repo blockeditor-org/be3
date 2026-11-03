@@ -49,8 +49,13 @@ fn volume_steps_stop_at_full_and_at_silence() {
         "setting the volume keeps the balance"
     );
     assert_eq!(
-        set(&[FULL / 2], 1.5),
-        vec![FULL],
-        "the volume is set no louder than full"
+        set(&[FULL / 2], 1.2),
+        vec![(FULL as f32 * 1.2).round() as u32],
+        "the volume may be set louder than full"
+    );
+    assert_eq!(
+        set(&[FULL / 2], 4.0),
+        vec![FULL * 3 / 2],
+        "the volume is set no louder than the loudest"
     );
 }

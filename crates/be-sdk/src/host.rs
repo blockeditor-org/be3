@@ -518,6 +518,7 @@ pub struct EditorHost {
     dialog_closes: Rc<RefCell<Vec<DialogAnswer>>>,
     dismiss_requested: Rc<Cell<bool>>,
     child_dismissals: Rc<RefCell<Vec<ChildId>>>,
+    keyboard_gifts: Rc<RefCell<Vec<ChildId>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
     showing: Rc<Cell<Option<be_sdk_api::View>>>,
     drops: Rc<RefCell<HashMap<ViewId, ViewDrops>>>,
@@ -2072,6 +2073,11 @@ impl EditorHost {
         self.changed();
     }
 
+    pub fn focus_child(&self, child: ChildId) {
+        self.keyboard_gifts.borrow_mut().push(child);
+        self.changed();
+    }
+
     pub(crate) fn request_dismiss(&self) {
         self.dismiss_requested.set(true);
         self.changed();
@@ -2276,6 +2282,10 @@ impl EditorHost {
 
     pub(crate) fn take_child_dismissals(&self) -> Vec<ChildId> {
         std::mem::take(&mut self.child_dismissals.borrow_mut())
+    }
+
+    pub(crate) fn take_keyboard_gifts(&self) -> Vec<ChildId> {
+        std::mem::take(&mut self.keyboard_gifts.borrow_mut())
     }
 
     pub(crate) fn take_performance(&self) -> Vec<(String, Vec<PerformanceMeasurement>)> {

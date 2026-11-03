@@ -35,9 +35,10 @@ pub(crate) fn panel_hidden(panel: HostPanel) {
 pub(crate) fn command(command: DebugCommand) {
     match command {
         DebugCommand::KillApp(app_id) => be_host_runtime::kill(&app_id),
-        DebugCommand::CrashApp(app_id) => {
-            be_host_runtime::crash(&app_id, "It was crashed from the Apps panel.".to_owned())
-        }
+        DebugCommand::CrashApp(app_id) => be_host_runtime::crash(
+            &app_id,
+            "It was crashed from be-host's Running Apps panel.".to_owned(),
+        ),
     }
 }
 

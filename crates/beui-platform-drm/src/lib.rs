@@ -1,5 +1,6 @@
 mod arrow;
 mod cursors;
+mod density;
 mod display;
 mod displays;
 mod epaper;
@@ -14,6 +15,8 @@ mod modes;
 mod output;
 mod outputs;
 mod pacing;
+mod plan;
+mod pointing;
 mod problems;
 mod recovery;
 mod rotation;
@@ -23,14 +26,14 @@ mod swapchain;
 mod theme;
 mod wake;
 
-pub use display::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
+pub use display::{DisplayConfig, DisplayControl, DisplayMode, DisplayUse, Monitor};
 pub use displays::{Display, Displays};
 pub use epaper::Epaper;
 pub use flips::{Flip, Flips};
 pub use gpu::{CursorImage, SoftwareCursor};
 pub use input::{
     InputConfig, InputControl, InputDevice, InputFilter, PointerDevice, PointerSettings,
-    PointerSpeed, RawInput, SharedFilter,
+    PointerSpeed, Pointing, RawInput, SharedFilter,
 };
 pub use problems::Problems;
 pub use rotation::Rotation;

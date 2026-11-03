@@ -1,8 +1,4 @@
-use std::time::Duration;
-
-use be_sdk_api::{PowerAction, PowerAvailability};
-
-pub(crate) const GRACE: Duration = Duration::from_secs(5);
+use be_sdk_api::{EndingAnswer, PowerAction, PowerAvailability, SessionEnd};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum LogindCall {
@@ -46,27 +42,31 @@ pub(crate) trait SessionControl {
 
 #[derive(Clone, Copy, Debug)]
 struct Ending {
-    action: PowerAction,
-    deadline: Duration,
+    end: SessionEnd,
+    asked: bool,
+    forced: bool,
     called: Option<LogindCall>,
 }
 
 #[derive(Debug, Default)]
 pub(crate) struct Power {
     abilities: LogindAbilities,
+    logged_in: bool,
     ending: Option<Ending>,
+    exiting: bool,
 }
 
 impl Power {
     pub(crate) fn availability(&self) -> PowerAvailability {
-        let idle = self.ending.is_none();
+        let idle = self.ending.is_none() && !self.exiting;
         PowerAvailability {
             lock: false,
             suspend: idle && self.abilities.suspend,
             restart: idle && self.abilities.reboot,
             power_off: idle && self.abilities.power_off,
-            log_out: idle,
-            ending: !idle,
+            log_out: idle && self.logged_in,
+            session: self.logged_in,
+            ending: self.ending.map(|ending| ending.end),
         }
     }
 
@@ -74,52 +74,100 @@ impl Power {
         self.abilities = abilities;
     }
 
-    pub(crate) fn request(
-        &mut self,
-        action: PowerAction,
-        now: Duration,
-        control: &mut impl SessionControl,
-    ) -> Option<Duration> {
-        if !self.availability().allows(action) {
-            return None;
-        }
-        if action == PowerAction::Suspend {
-            control.call(LogindCall::Suspend);
-            return None;
-        }
-        control.close_windows();
-        self.ending = Some(Ending {
-            action,
-            deadline: now + GRACE,
-            called: None,
-        });
-        self.frame(now, control)
+    pub(crate) fn log_in(&mut self) {
+        self.logged_in = true;
     }
 
-    pub(crate) fn frame(
-        &mut self,
-        now: Duration,
-        control: &mut impl SessionControl,
-    ) -> Option<Duration> {
-        let ending = self.ending.as_mut()?;
+    pub(crate) fn request(&mut self, action: PowerAction, control: &mut impl SessionControl) {
+        if !self.availability().allows(action) {
+            return;
+        }
+        let end = match action {
+            PowerAction::Lock => return,
+            PowerAction::Suspend => {
+                control.call(LogindCall::Suspend);
+                return;
+            }
+            PowerAction::LogOut => SessionEnd::LogOut,
+            PowerAction::Restart => SessionEnd::Restart,
+            PowerAction::PowerOff => SessionEnd::PowerOff,
+        };
+        self.begin(end);
+    }
+
+    pub(crate) fn close(&mut self, control: &mut impl SessionControl) -> bool {
+        if self.exiting {
+            return true;
+        }
+        if self.ending.is_some() {
+            return false;
+        }
+        if control.windows() == 0 {
+            return true;
+        }
+        self.begin(match self.logged_in {
+            true => SessionEnd::LogOut,
+            false => SessionEnd::Close,
+        });
+        false
+    }
+
+    pub(crate) fn stay(&mut self) {
+        self.exiting = false;
+    }
+
+    fn begin(&mut self, end: SessionEnd) {
+        self.ending = Some(Ending {
+            end,
+            asked: false,
+            forced: false,
+            called: None,
+        });
+    }
+
+    pub(crate) fn answer(&mut self, answer: EndingAnswer) {
+        let Some(ending) = self.ending.as_mut() else {
+            return;
+        };
         if ending.called.is_some() {
-            return None;
+            return;
         }
-        if control.windows() > 0 && now < ending.deadline {
-            return Some(ending.deadline - now);
+        match answer {
+            EndingAnswer::Cancel => self.ending = None,
+            EndingAnswer::EndNow => ending.forced = true,
         }
-        let call = match ending.action {
-            PowerAction::Restart => LogindCall::Reboot,
-            PowerAction::PowerOff => LogindCall::PowerOff,
-            PowerAction::LogOut | PowerAction::Suspend | PowerAction::Lock => {
-                self.ending = None;
-                control.exit();
-                return None;
+    }
+
+    pub(crate) fn frame(&mut self, control: &mut impl SessionControl) {
+        let Some(ending) = self.ending.as_mut() else {
+            return;
+        };
+        if ending.called.is_some() {
+            return;
+        }
+        if !ending.asked {
+            ending.asked = true;
+            control.close_windows();
+        }
+        if control.windows() > 0 && !ending.forced {
+            return;
+        }
+        let call = match ending.end {
+            SessionEnd::Restart => LogindCall::Reboot,
+            SessionEnd::PowerOff => LogindCall::PowerOff,
+            SessionEnd::LogOut | SessionEnd::Close => {
+                self.end(control);
+                return;
             }
         };
         ending.called = Some(call);
         control.call(call);
-        None
+    }
+
+    fn end(&mut self, control: &mut impl SessionControl) {
+        self.ending = None;
+        self.exiting = true;
+        control.exit();
     }
 
     pub(crate) fn called(
@@ -128,16 +176,18 @@ impl Power {
         result: Result<(), String>,
         control: &mut impl SessionControl,
     ) {
-        let ending = self
+        let ours = self
             .ending
             .is_some_and(|ending| ending.called == Some(call));
-        if ending {
-            self.ending = None;
-        }
         match result {
-            Ok(()) if ending => control.exit(),
+            Ok(()) if ours => self.end(control),
             Ok(()) => {}
-            Err(problem) => control.report(format!("Could not {}: {problem}", call.doing())),
+            Err(problem) => {
+                if ours {
+                    self.ending = None;
+                }
+                control.report(format!("Could not {}: {problem}", call.doing()));
+            }
         }
     }
 }

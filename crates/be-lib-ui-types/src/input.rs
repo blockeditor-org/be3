@@ -1,6 +1,6 @@
 pub use crate::types::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Keyboard, Keystroke, Pen,
-    PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
+    PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase, TouchpadGesture,
 };
 pub use be_lib_ui_keys::{Key, KeyChord, KeyPress, Modifiers};
 
@@ -104,6 +104,15 @@ impl CursorIcon {
 #[cfg(test)]
 mod tests;
 
+impl TouchpadGesture {
+    pub fn scaled(mut self, factor: f32) -> Self {
+        if let Self::Swiped(by) | Self::Pinched { delta: by, .. } = &mut self {
+            *by *= factor;
+        }
+        self
+    }
+}
+
 impl Input {
     pub fn translated(mut self, by: Vec2) -> Self {
         match &mut self {
@@ -125,6 +134,7 @@ impl Input {
             | Self::Touch { pos, .. }
             | Self::Pen { pos, .. } => *pos = Pos2::new(pos.x * factor, pos.y * factor),
             Self::PointerMotion(by) | Self::Scroll(ScrollDelta::Pixels(by)) => *by *= factor,
+            Self::Touchpad(gesture) => *gesture = gesture.scaled(factor),
             _ => {}
         }
         self

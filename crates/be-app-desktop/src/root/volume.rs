@@ -33,6 +33,8 @@ pub(crate) fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                 <Slider
                     @sizing=ItemSize::Percent(100.0)
                     value={Binding::new(volume, move |level: f32| editor.act(move || desktop::media::request(MediaRequest::SetVolume(level)).detach()))}
+                    max={MediaLevel::LOUDEST}
+                    mark=1.0
                     label="Volume"
                     @test_id={"desktop.volume.level"}
                 />

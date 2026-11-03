@@ -22,7 +22,7 @@ use beui::{NodeId, Rect};
 use crate::programs::ProgramSource;
 
 #[cfg(target_os = "linux")]
-pub use linux::{Linux as Host, set_keyboard};
+pub use linux::{Linux as Host, set_keyboard, set_layout};
 #[cfg(windows)]
 pub use win32::Win32 as Host;
 

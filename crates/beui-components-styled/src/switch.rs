@@ -90,13 +90,13 @@ fn track_fill(disabled: bool, on: bool, hovered: bool) -> ColorRole {
     if disabled {
         return match on {
             true => ColorRole::AccentSoft,
-            false => ColorRole::Surface,
+            false => ColorRole::Border,
         };
     }
     match (on, hovered) {
         (true, false) => ColorRole::Accent,
         (true, true) => ColorRole::AccentHover,
-        (false, false) => ColorRole::SurfaceRaised,
-        (false, true) => ColorRole::Pressed,
+        (false, false) => ColorRole::Track,
+        (false, true) => ColorRole::TrackHover,
     }
 }

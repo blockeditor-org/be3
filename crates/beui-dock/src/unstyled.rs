@@ -63,7 +63,7 @@ pub use docking::{
     DockBar, DockBarMove, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog,
     DockDeclaredTab, DockDialog, DockDragStage, DockEntry, DockGroup, DockHostEvent, DockHostLink,
     DockHostSlot, DockHosted, DockJoin, DockKeeper, DockKept, DockKey, DockNode, DockPane,
-    DockRequest, DockSplit, DockTab, DockWindow, Docking, DockingLayout, DockingSnapshot,
+    DockRequest, DockSnap, DockSplit, DockTab, DockWindow, Docking, DockingLayout, DockingSnapshot,
     OwnedDockingLayout, use_dock_join,
 };
 pub use documents::{
@@ -86,7 +86,7 @@ use switch::DockSwitchView;
 pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 
 const EDGE_ZONE: f32 = 0.22;
-const HANDLE_REACH: f32 = 8.0;
+pub const HANDLE_REACH: f32 = 8.0;
 const GRIP_CORNER: f32 = 24.0;
 const SPLIT_STEP: f32 = 0.02;
 const SIDEBAR_STEP: f32 = 16.0;
@@ -441,6 +441,16 @@ impl DockTabControl {
         });
     }
 
+    pub fn window_size(&self) -> Option<Vec2> {
+        let tab = self.tab;
+        let dock = self.dock()?;
+        dock.state.with_untracked(|state| {
+            let surface = state.find(tab)?.surface;
+            (state.surface_tabs(surface) == [tab]).then_some(())?;
+            state.window_rect(surface).map(|rect| rect.size())
+        })
+    }
+
     pub fn resize_window(&self, size: Vec2) {
         let tab = self.tab;
         let Some(dock) = self.dock() else {
@@ -544,6 +554,7 @@ struct State {
     icon: Func<TabId, Option<Glyph>>,
     picture: Func<TabId, Option<Image>>,
     closable: Func<TabId, bool>,
+    back_closes: Func<TabId, bool>,
     menu: MenuStyle,
     drag_modifier: Memo<Option<Modifiers>>,
     menus: Signal<DockMenus>,
@@ -565,6 +576,7 @@ struct State {
     placements: Signal<HashMap<SurfaceId, WindowPlacement>>,
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
     windows: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
+    stacked: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
     fullscreen_layer: NodeRef,
     fullscreen_window: NodeRef,
     bars: Stored<RefCell<HashMap<LeafId, TabBar>>>,
@@ -600,6 +612,7 @@ struct State {
     dialog_focus: Signal<Option<TabId>>,
     attention: Signal<(u64, Option<TabId>)>,
     given: Signal<(u64, Option<TabId>)>,
+    forward: Signal<(u64, Option<TabId>)>,
     remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
     bar_panels: Stored<BarPanels>,
     bodies: Stored<RefCell<HashMap<LeafId, (NodeRef, NodeRef)>>>,
@@ -806,6 +819,25 @@ impl State {
         for fullscreen in [self.fullscreen_layer, self.fullscreen_window] {
             if let Some(fullscreen) = fullscreen.try_get().filter(|_| in_front) {
                 fullscreen.raise_overlay();
+            }
+        }
+    }
+
+    fn restack(&self, from: SurfaceId) {
+        let order = self.state.with_untracked(DockState::windows);
+        let Some(at) = order.iter().position(|surface| *surface == from) else {
+            return;
+        };
+        let raised: Vec<(SurfaceId, NodeRef)> = self
+            .stacked
+            .value()
+            .borrow()
+            .iter()
+            .map(|(surface, overlay)| (*surface, *overlay))
+            .collect();
+        for surface in &order[at..] {
+            if let Some((_, overlay)) = raised.iter().find(|(held, _)| held == surface) {
+                self.raise_window_of(*overlay, Some(*surface));
             }
         }
     }
@@ -1042,7 +1074,7 @@ impl State {
     }
 
     fn closes_going_back(&self, visit: DockVisit) -> bool {
-        visit.opened && self.closable.call(visit.to)
+        visit.opened && self.closable.call(visit.to) && self.back_closes.call(visit.to)
     }
 
     fn go_back(&self) {
@@ -1676,6 +1708,7 @@ pub(crate) struct DockConfig {
     pub(crate) icon: Func<TabId, Option<Glyph>>,
     pub(crate) picture: Func<TabId, Option<Image>>,
     pub(crate) closable: Func<TabId, bool>,
+    pub(crate) back_closes: Func<TabId, bool>,
     pub(crate) menu: MenuStyle,
     pub(crate) stack_below: f32,
     pub(crate) short_below: f32,
@@ -1737,6 +1770,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         icon,
         picture,
         closable,
+        back_closes,
         menu,
         stack_below,
         short_below,
@@ -1807,6 +1841,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let dialog_focus = create_signal(None);
     let attention = create_signal((0, None));
     let given = create_signal((0, None));
+    let forward = create_signal((0, None));
     let menus = create_signal(DockMenus::default());
     let notices = create_signal(DockNotices::default());
     let offers = create_signal(HashMap::default());
@@ -1814,6 +1849,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let dock = State {
         state,
         windows: store(RefCell::default()),
+        stacked: store(RefCell::default()),
         fullscreen_layer: NodeRef::new(),
         fullscreen_window: NodeRef::new(),
         panels: store(RefCell::default()),
@@ -1827,6 +1863,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         icon,
         picture,
         closable,
+        back_closes,
         menu,
         drag_modifier: create_memo(move || drag_modifier.get()),
         menus,
@@ -1849,6 +1886,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_focus,
         attention,
         given,
+        forward,
         remembered: store(RefCell::default()),
         bar_panels: store(RefCell::default()),
         bodies: store(RefCell::default()),
@@ -1952,6 +1990,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         }),
     };
     dock.start_lifting();
+    dock.bring_forward_when_shown();
     api.fill(DockApi(dock));
     on_shortcut(move |press: KeyPress| {
         if !press.pressed || press.key != Key::Tab || !press.modifiers.ctrl || press.modifiers.alt {
@@ -2387,7 +2426,11 @@ fn closing_switcher(nodes: Vec<MenuNode>, switching: Signal<bool>) -> Vec<MenuNo
 fn DockTiles(dock: State) -> NodeId {
     let current = dock.state;
     let main = create_memo(move || current.with(DockState::main));
-    let windows = create_memo(move || current.with(DockState::windows));
+    let windows = create_memo(move || {
+        let mut windows = current.with(DockState::windows);
+        windows.sort();
+        windows
+    });
     view! {
         <DropTarget
             on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
@@ -3002,6 +3045,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
             })}
             kind=ChoiceKind::Tabs
             direction
+            shrink={create_memo(move || entries.with(Vec::len) == 1)}
             spacing={dock.tab_spacing}
         >|handle: ChoiceOptionHandle| {
             let dock = dock;
@@ -3725,12 +3769,25 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     });
     let menu = dock.leaf_menu(hoisted);
     let closable = dock.all_closable(contents);
+    let lone_tab = create_memo(move || {
+        !icons_only.get()
+            && state.with(|state| match state.leaves(surface)[..] {
+                [leaf] => matches!(state.entries(leaf)[..], [Entry::Tab(_)]),
+                _ => false,
+            })
+    });
+    let bar_closable = create_memo(move || closable.get() && !lone_tab.get());
     let overlay = NodeRef::new();
+    dock.stacked.value().borrow_mut().insert(surface, overlay);
+    on_cleanup(move || {
+        dock.stacked
+            .try_with(|stacked| stacked.borrow_mut().remove(&surface));
+    });
     let shows = dock.state;
     create_effect(move || {
         shows.with(DockState::shows);
         if focused.get() {
-            untrack(|| dock.raise_window_of(overlay, Some(surface)));
+            untrack(|| dock.restack(surface));
         }
     });
     let claimed = modifier_claims(dock.drag_modifier);
@@ -3938,7 +3995,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                     tabs,
                                                                     title,
                                                                     vacant,
-                                                                    closable,
+                                                                    closable: bar_closable,
                                                                     menu,
                                                                     close,
                                                                     test_prefix: hoisted.map_or_else(
@@ -4026,7 +4083,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             .child()
         }</Window>
     };
-    create_effect(move || untrack(|| dock.raise_window(overlay)));
+    create_effect(move || untrack(|| dock.restack(surface)));
     view
 }
 

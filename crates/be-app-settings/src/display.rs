@@ -6,6 +6,7 @@ use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{Editor, LayeredSettings};
 
 mod appearance;
+mod arrangement;
 pub(crate) mod modes;
 mod power;
 mod screens;

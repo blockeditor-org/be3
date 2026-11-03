@@ -1,6 +1,7 @@
 use crate::{
-    DecodeError, HostImage, HostTrayItem, NotificationCloseReason, NotificationUrgency,
-    PlayerCommand, PowerAction, PowerAvailability, ProgramAction, TrayMenuItem, TrayStatus,
+    DecodeError, EndingAnswer, HostImage, HostTrayItem, MediaLevel, NotificationCloseReason,
+    NotificationUrgency, PlayerCommand, PowerAction, PowerAvailability, ProgramAction, SessionEnd,
+    TrayMenuItem, TrayStatus,
 };
 
 impl HostImage {
@@ -29,6 +30,18 @@ impl PowerAvailability {
             PowerAction::LogOut => self.log_out,
         }
     }
+}
+
+impl SessionEnd {
+    pub const ALL: [Self; 4] = [Self::Close, Self::LogOut, Self::Restart, Self::PowerOff];
+}
+
+impl EndingAnswer {
+    pub const ALL: [Self; 2] = [Self::Cancel, Self::EndNow];
+}
+
+impl MediaLevel {
+    pub const LOUDEST: f32 = 1.5;
 }
 
 impl PlayerCommand {

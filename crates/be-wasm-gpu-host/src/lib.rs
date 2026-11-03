@@ -28,6 +28,8 @@ const SURFACE_USAGE: wgpu::TextureUsages = wgpu::TextureUsages::RENDER_ATTACHMEN
     .union(wgpu::TextureUsages::TEXTURE_BINDING)
     .union(wgpu::TextureUsages::COPY_SRC);
 
+static GENERATIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 pub type Imports = Arc<Mutex<HashMap<u64, wgpu::Texture>>>;
 
 pub struct Gpu {
@@ -60,7 +62,6 @@ pub struct Gpu {
     surfaces: HashMap<u32, Surface>,
     imports: Imports,
     presented: Vec<u32>,
-    generation: u64,
     error: Option<String>,
 }
 
@@ -145,7 +146,6 @@ impl Gpu {
             surfaces: HashMap::new(),
             imports: Imports::default(),
             presented: Vec::new(),
-            generation: 0,
             error: None,
         }
     }
@@ -185,8 +185,8 @@ impl Gpu {
         let textures: Vec<(wgpu::Texture, u64)> = textures
             .into_iter()
             .map(|texture| {
-                self.generation += 1;
-                (texture, self.generation)
+                let generation = GENERATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                (texture, generation)
             })
             .collect();
         let ages = Ages::new(textures.len());

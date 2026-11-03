@@ -383,6 +383,7 @@ pub struct Shared {
     pub parked: Option<Option<Duration>>,
     pub reached: bool,
     pub draining: bool,
+    pub leaving: bool,
     pub error: Option<String>,
     pub module_error: Option<(Uuid, String)>,
     pub conflicts: HashMap<Uuid, Vec<Conflict>>,

@@ -134,7 +134,11 @@ fn described(screens: &BTreeSet<String>) -> Vec<Described> {
         mode.name = format!("{}, {screen}", mode.name);
         let mut turned = display(DisplaySettings::rotation_setting(id), rotation);
         turned.name = format!("{}, {screen}", turned.name);
-        rows.extend([mode, turned]);
+        let mut scaled = display(DisplaySettings::screen_scale_setting(id), |percent| {
+            format!("{percent}%")
+        });
+        scaled.name = format!("{}, {screen}", scaled.name);
+        rows.extend([mode, turned, scaled]);
     }
     rows.extend([
         input(InputSettings::layout_setting(), |value: &String| {

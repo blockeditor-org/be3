@@ -39,7 +39,7 @@ pub use color::{
 };
 pub use drag::DragPoint;
 pub use forward::{Aim, Forwarded, ForwardedInput, Over, Replay, Replayed};
-pub use image::{Image, ImageFit, ImageId, Thumbhash};
+pub use image::{CursorImage, Image, ImageFit, ImageId, Thumbhash};
 pub use input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DragGesture, ImeEvent, ImeText, Key,
     KeyPhase, KeyPress, Modifiers, PointerButton, PointerId, PointerInput, PointerPress,
@@ -48,7 +48,7 @@ pub use input::{
 };
 pub use input::{
     DroppedFile, Event, FileDrag, Input, KeyChord, Keyboard, Keystroke, Pen, PenPhase,
-    PointerEvent, PointerPhase, ScrollDelta, TouchId, TouchPhase,
+    PointerEvent, PointerPhase, ScrollDelta, TouchId, TouchPhase, TouchpadGesture,
 };
 pub use keys::{KeyAt, KeyEvent, KeyInput, KeyTarget};
 pub use layer::{
@@ -70,6 +70,6 @@ pub use text::{
     WrapAt, handle_center, toolbar_anchor,
 };
 pub use window::{
-    HostPlacement, ImeArea, SystemBars, WindowEdge, WindowId, WindowPlacement, WindowReport,
-    WindowRequest, WindowRole, WindowSpec,
+    HostPlacement, ImeArea, SystemBars, WindowEdge, WindowId, WindowLevel, WindowPlacement,
+    WindowReport, WindowRequest, WindowRole, WindowSpec,
 };

@@ -221,6 +221,9 @@ fn SubregionView(
     if let Some(link) = link {
         crate::docked::bridge_child_dock(editor, link, state, docked_tab);
     }
+    if let Some(tab) = beui::dock::unstyled::use_dock_tab() {
+        follow_tab_keyboard(editor, tab, state, placed, mode);
+    }
     let preview = create_memo(move || state.with(|state| state.preview));
     let pictured = create_memo(move || {
         mode.get() == ChildMode::Preview || preview.get() != ChildPreview::Hosted
@@ -261,6 +264,44 @@ fn SubregionView(
     view! {
         <Embed slot={slot} punch={punch} rotation={turn} radius={radius} children={Some(inner)} />
     }
+}
+
+fn follow_tab_keyboard(
+    editor: Editor,
+    tab: beui::dock::unstyled::DockTabControl,
+    state: ReadSignal<ChildState>,
+    placed: Memo<Option<SubregionContent>>,
+    mode: Memo<ChildMode>,
+) {
+    let given = create_memo(move || {
+        let given = tab.keyboard().map(|count| (false, count));
+        let forward = tab.brought_forward().map(|count| (true, count));
+        given.into_iter().chain(forward).collect::<Vec<_>>()
+    });
+    let child = create_memo(move || state.with(|state| state.child));
+    let interactive = create_memo(move || {
+        matches!(mode.get(), ChildMode::Active | ChildMode::Live)
+            && placed.with(|placed| {
+                matches!(
+                    placed,
+                    Some(SubregionContent::Block(_) | SubregionContent::DockTab(_))
+                )
+            })
+    });
+    let asked = StoredCell::new(Vec::<(bool, u64)>::new());
+    create_effect(move || {
+        let given = given.get();
+        let (Some(child), true) = (child.get(), interactive.get()) else {
+            return;
+        };
+        let held = asked.replace(given.clone());
+        let trapped = editor.popped().with_untracked(Option::is_some)
+            || beui::native::try_with_document(|document| document.layers().takes_keyboard())
+                .unwrap_or(false);
+        if !trapped && given.iter().any(|given| !held.contains(given)) {
+            untrack(|| editor.host().focus_child(child));
+        }
+    });
 }
 
 #[component]

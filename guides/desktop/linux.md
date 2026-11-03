@@ -14,8 +14,8 @@ whose shell is the desktop app. Two ways to run it are Linux's alone:
   Log out (see below) logs out, Ctrl+Alt+Backspace quits at once, as does holding four fingers on a
   touchscreen for three seconds, and Ctrl+Alt+F<n> switches terminals. guides/pinenote.md covers
   an e-paper tablet. It shows one window per display (see Displays, below); `BEUI_SCALE` sets
-  every display's scale.
-- `--install-login-session [PREFIX]`: see Installing it as a login session, below.
+  every display's default scale.
+- `--install-login-session [PREFIX]` and `--uninstall-login-session [PREFIX]`: see Installing it as a login session, below.
 
 Under `--desktop` on Linux programs open as windows inside the shell, as they do in any windowed
 run. What needs the displays and input devices themselves, such as display modes, pointer
@@ -25,18 +25,31 @@ not running: the power actions start only when the DRM seat provides its `Displa
 ## Program windows
 
 be-host-wayland (`crates/be-host-wayland`) is the compositor; a program's toplevel is a `WindowView`, a
-forwarding catcher the shell places like any other node. A floating window (every window under
+forwarding catcher the shell places like any other node. The catcher's focus is the window's keyboard
+focus (`Windows::focus`), and so the desktop app's `WindowsWatch` `focused`. A view built again
+elsewhere, as when the desktop moves a window into or out of fullscreen in another of its windows,
+takes the focus back if the view it replaces had it (`Windows::unmounted_focused`, answered through
+the same `asks` as a raise) and no other window has been focused in between. A floating window (every window under
 the desktop shell) and every dialog own their size: a new one is configured 0×0,
 `WindowInfo::size` is the size it last chose for itself (a commit that is not the answer to a
 size the compositor asked for), a floating window follows that size through
 `DockTabControl::resize_window` and a dialog's card through its `DockDialog` size, and a window
-shown at its own size is never told a size, so it stays free to resize itself. Only when the person resizes it, or it is docked, is it configured
+shown at its own size is never told a size, so it stays free to resize itself. `WindowInfo`
+carries the least and greatest size the program asks for: `xdg_toplevel.set_min_size` and
+`set_max_size`, or an X11 window's `WM_NORMAL_HINTS` (`State::size_limits`). Only when the person resizes it, or it is docked, is it configured
 with a size, and then with the tiled states too. A 1×1 placeholder, which Firefox commits for its
 server-side-decorated windows and never grows on its own, opens at a default size instead.
 
 Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the monitor their window
 is mostly on, not to the window, as the protocol intends, and are drawn and take input in a floating
-overlay above the document, so a menu can reach past its window's edge.
+overlay above the document, so a menu can reach past its window's edge. A popup that grabs
+(`XdgShellHandler::grab` in `state.rs`) holds the keyboard until it is dismissed or destroyed;
+when it is destroyed the keyboard goes back to its parent menu, or its window, at once, before
+the client's next request is answered, as mutter does. Qt and GTK switch from one menubar menu to
+the next by destroying the first and grabbing again with the serial of the click that opened it,
+and Qt closes every menu if a `wl_display.sync` returns while none of its surfaces has the
+keyboard. Smithay's popup pointer grab, when replaced, lets go of a keyboard grab with its
+serial, so `grab` lets go of the keyboard grab itself before it replaces the pointer grab.
 
 ## Displays
 
@@ -48,14 +61,36 @@ first display's window holds the host's whole UI (`ui::Root`: sign-in, the shell
 display's window holds its own lock screen and display-settings prompt (`DisplayChrome`), and the
 host's toasts stand in the first's. Their test ids repeat from one display's window to the next:
 `drive click ID in WINDOW` (guides/running/drive.md) finds a target among one window's
-nodes. Every display has its own scale: `BEUI_SCALE`, or what
-`DisplayConfig::scales` names for its monitor. Elsewhere (a window, headless, the web, Android)
+nodes. Every display has its own scale: the one chosen for it in Settings > Display (a
+`ScreenSettings::scale_percent`, keyed by `HostDisplay::id` like its mode and rotation, which
+`display/linux.rs` hands the platform as `DisplayConfig::scales`), or else its default,
+`HostDisplay::default_scale`: `BEUI_SCALE` when set, or else one that suits its size and resolution
+(beui-platform-drm's `density.rs`: its pixels per inch over 110, or over 150 for a panel held in
+the hand, one on a DSI or DPI connector, to the nearest quarter, from 1 to 3; 1 when it reports no
+believable size).
+
+With more than one display, Settings > Display arranges them (`display/arrangement.rs` in
+be-app-settings): an Arrangement row draws the displays on the desktop to scale, and dragging one
+drops it where `touching::settle` puts it, edge to edge with the others, and saves every display's
+place in points and the main display as `DisplaySettings::arrangement`; each display's Use
+(`ScreenSettings::used`: part of the desktop, the same as another display, or off) and its Main
+display switch sit in its own section. Both are kept on this device, and `display/linux.rs` hands
+them to the platform as `DisplayConfig`'s `uses`, `main` and `places` (guides/beui.md, Displays
+under beui-platform-drm). A new main display, or a display's use changed, waits to be kept like a
+new mode (`display/guard.rs`): reverting puts back the uses and arrangement before it. Elsewhere (a window, headless, the web, Android)
 there are no displays and the UI is the main window's, as it always was.
 
 be-host-wayland advertises one `wl_output` per display (`Compositor::set_monitors`, from the same
-handle; `heads.rs`), at its desktop position and its scale rounded up, and keeps every window
-entered into the output of the display it mostly covers (`wl_surface.enter`/`leave` and the
-preferred buffer scale follow it as it moves), sends its frame callbacks and presentation feedback
+handle; `heads.rs`), at its desktop position, with one mode, its size in pixels at its scale
+(a changed display drops the old mode), and its scale rounded up for programs that know only
+integer scales. It keeps every window entered into the output of the display it mostly covers
+(`wl_surface.enter`/`leave`, the preferred buffer scale and the `wp_fractional_scale_v1`
+preferred scale follow it as it moves, and a display's new scale reaches the windows on it at
+once), so a program with fractional scaling and viewporter draws a buffer of exactly the pixels
+it is shown at; `render.rs` puts each surface on whole pixels. The shell sizes a program's pane
+from its content (`WINDOW_CHROME`), and when the pane's chrome snaps to the pixel grid and takes
+a fraction of a point from the content, grows the pane by that much (`snapped_short` in
+be-sdk-shell's `window.rs`), so the window is shown, and configured, at its own size. It sends its frame callbacks and presentation feedback
 through that output, and honours the output named in `xdg_toplevel.set_fullscreen` by making the
 window fullscreen on that display. Xwayland binds the same outputs, so X11 programs see the same
 monitors. A `WindowView` reports its rect in desktop coordinates (its window's origin added). In a
@@ -71,8 +106,7 @@ and takes no file descriptors, the "wayland watch" thread (`Server::watch`) poll
 
     ./scripts/buck run //crates/be-host:install-login-session [-- PREFIX]
 
-installs be-host with its apps in `PREFIX/lib/be-host` (`/usr/local` by default, asking
-sudo when it needs root), links `PREFIX/bin/be-host` to it and writes
+installs be-host with its apps in `PREFIX/lib/be-host` (`/usr/local` by default), links `PREFIX/bin/be-host` to it and writes
 `/usr/share/wayland-sessions/be-host.desktop` (from `src/login_session/be-host.desktop`), which
 runs it as `env BEUI_PLATFORM=drm PREFIX/lib/be-host/be-host --desktop`, whatever the prefix: GDM, SDDM (older ones read nothing else) and
 LightDM all read that directory, and LightDM (Mint's slick-greeter) never reads
@@ -80,15 +114,41 @@ LightDM all read that directory, and LightDM (Mint's slick-greeter) never reads
 `/etc/lightdm/lightdm.conf`) leaves that directory out, the entry also goes in the first one it
 lists; `X-LightDM-Session-Type=wayland` makes LightDM run it as Wayland from any directory. The
 login screen then offers Block on its session menu, where it can be picked and remembered as
-the default. Running it again replaces the install, and removes an entry an older install left
-in `PREFIX/share/wayland-sessions`. greetd's greeters (gtkgreet, regreet) list the commands in
+the default. greetd's greeters (gtkgreet, regreet) list the commands in
 `/etc/greetd/environments` instead, so when that file exists the same command, with the installed link, is
 added to it once, and a line `LINK --session` an install from before `--desktop` left there is removed.
+`/etc/pam.d/be-host` is written unless one is there (Lock screen, below).
+
+It installs exactly the files the build put beside be-host, which `buck/program/stage.sh` lists
+in `program-files.txt` for every program with an executable, and refuses a directory without that
+list, with a listed file missing, or without `apps.json` and the apps it names: files that only sit
+beside be-host stay where they are. `src/login_session/install.rs` plans every change first and
+`install/changes.rs` checks that each destination can be written before anything is; as someone
+other than root it names each destination it cannot write, and then a prefix that needs root (the default) runs the whole install again under sudo, and with a prefix
+of one's own (`~/.local`) be-host is copied in as its user and sudo writes only the files outside it
+(`--apply-login-session-changes`, which reads them on stdin). Nothing in `$HOME` is ever written as
+root, and root refuses to write into a directory another user owns. When sudo cannot ask for a
+password (no terminal and no cached sudo) it refuses before copying anything, and when root's part
+fails the staged copy is removed, so a failed install leaves nothing behind. Running it again
+replaces the install (staged as `lib/be-host.new` and swapped in), and removes an entry an older
+install left in `PREFIX/share/wayland-sessions` or a sessions directory LightDM no longer reads.
+
+The install records what it placed in `PREFIX/lib/be-host/installed.json`, and
+
+    PREFIX/bin/be-host --uninstall-login-session [PREFIX]
+
+removes exactly that, with the same privilege handling: the entries, the link, the PAM service and
+greetd's line unless someone changed them since, and the listed files, then the directories they
+leave empty. A file someone else put in `PREFIX/lib/be-host` stays.
 
 In a login session stdout and stderr, and so every `eprintln!`, every panic with its backtrace
 and the output of every program be-host starts, go to `$XDG_STATE_HOME/block/login-session.log`
-(`~/.local/state/block/login-session.log`); the previous login session's is kept beside it as
-`login-session.previous.log`. The directory is the app id in lower case (`blockdev` for a build
+(`~/.local/state/block/login-session.log`). The log stays under 4 MiB: an inotify watch on it
+(`log.rs`, `Cap`) moves everything after its first 256 KiB, its start, to `login-session.1.log`
+when it passes that, shifting the part before to `login-session.2.log` and dropping the one before
+that, and truncates the log in place, which every writer appends to, so the start of the session
+and its latest output, a crash's included, are always in the log itself. The previous login
+session's log and parts are kept beside it as `login-session.previous.log` and so on. The directory is the app id in lower case (`blockdev` for a build
 without bundle metadata). The error that ends a login session is also written to the stderr be-host
 started with, so a login session run by systemd or greetd shows it in the journal. Problems a person should see at once also show as toasts in the
 corner of the screen: `beui_platform_drm::Problems` carries the display and input ones,
@@ -140,15 +200,57 @@ comes back or a display is plugged in or out.
 
 The power row in the Status bar's Quick settings locks, suspends, restarts, powers off or logs out. The desktop
 app watches `PowerWatch` for what it may offer and sends `power::request(PowerAction)`;
-`src/login_session/power.rs` decides what happens (programs are asked to close, and are given five
-seconds before the session ends or logind is asked to restart or power off) and
-`src/login_session/logind.rs` talks to `org.freedesktop.login1`, including its `PrepareForSleep`
+`src/login_session/power.rs` (`Power`, which `HostCore` keeps on Linux whether or not it is a login
+session) decides what happens. Logging out, restarting, powering off, and closing be-host's window
+(its Close, `drive close`, the shell closing itself) while programs are open, which in a login
+session is logging out, start an ending: `PowerAvailability::ending` names it
+(`SessionEnd`), and only once it is published are the programs asked to close, so the shell has
+kept their windows before any goes (see "Windows kept across restarts"). There is no time limit:
+the session ends, or logind is asked to restart or power off, once every window has gone. Meanwhile
+the desktop app's ending bar (`root/ending.rs`, at the top of the windows' area, above the
+windows and not modal, so a program's own "Save changes?" stays usable) names the programs still
+open and answers with `power::answer_ending`: `Cancel` stops the ending, leaving those programs
+open, and `EndNow` ends with them open. A Restart or PowerOff logind refuses is reported and ends
+the ending as `Cancel` does; once logind is asked, the ending can no longer be cancelled. When the
+ending's own exit is refused after all (be-host asks about unsent changes), `Power::stay` lets a
+later close start a new one. `src/login_session/logind.rs` talks to `org.freedesktop.login1`, including its `PrepareForSleep`
 signal. Logging out closes be-host the way closing its window does; `beui-platform-drm`'s
 `Session::end` then drops be-host, the outputs, the input devices, the DRM device (which
-puts back what the console showed) and, last, the seat. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn` runs a
-future there and `dbus::system()` is the shared system bus connection. A task hands what it
-learns back through a `host::mailbox` (guides/desktop.md), which wakes the event loop, so
-nothing on the UI thread waits on the bus. `dbus::session()` is the shared session bus connection.
+puts back what the console showed) and, last, the seat. Every D-Bus conversation runs on one thread, be-host-services' `src/dbus.rs`: `dbus::spawn` runs a
+future there. A task hands what it learns back through a `host::mailbox` (guides/desktop.md),
+which wakes the event loop, so nothing on the UI thread waits on the bus.
+
+`dbus::SYSTEM` and `dbus::SESSION` are the two buses, each a `dbus::Bus` that shares one
+connection and opens a new one once that closes. Either bus can go away and come back while
+be-host runs (the session bus is restarted, the system bus was not up yet at login), so every
+service runs once per connection: `bus.connected()` waits for an open connection, and
+`dbus::until_closed(&connection, service)` runs the service until it ends or the connection
+closes, then the loop takes the next connection. The service returns `ControlFlow::Break` only
+when the desktop no longer wants it (its request channel closed), and `Continue` when it cannot
+work on this connection (another notification server owns the name), which waits for the next
+one. State that outlives a connection, such as the request channel, notification ids or logind's
+sleep inhibitor, lives outside the per-connection future; what a service showed from the bus
+(tray items, Wi-Fi, the player media keys go to) is cleared by a guard dropped with that future. Notifications, the tray,
+media players and the session environment use the session bus; Wi-Fi, the backlight and logind
+(be-host's `src/login_session/logind.rs`, which answers power requests with an error while the
+bus is away) use the system bus. While a bus is unreachable `connected()` watches the directory
+of its socket with inotify and tries again once something is created there, and also after a
+backoff from 1 to 30 seconds, because the socket can exist before the daemon listens on it and an
+address can name no socket file at all (an abstract socket, TCP).
+
+Build every connection with `dbus::build`, as the buses and the tests' private bus
+(`dbus::test_bus`) do. It sets `dbus::METHOD_TIMEOUT` (10 s), so a peer that never answers fails
+its call instead of holding the task that waits for it; calls to programs that can be slow, like
+tray items, run in their own `dbus::spawn` task, and media keys are sent without waiting for a
+reply. zbus starts a connection's object server only when the first object is served, and drops a
+method call that arrives before that server is listening. Serving an object right before taking a
+name, as notifications and the tray watcher do, then loses a client's first call now and then.
+`dbus::build` serves `ObjectManager` at `/` while it connects, so the server is listening before
+the connection is returned.
+
+Tests run services on a private bus, `dbus::test_bus::PrivateBus`, whose `kill` and
+`start_again` restart it at the same address to check that services come back, and wait with
+`test_bus::next` and `test_bus::within`, which fail after 30 seconds instead of hanging.
 
 
 ## Notifications
@@ -173,10 +275,16 @@ five seconds, 0 and critical urgency never), actions, `resident` and `transient`
 100 kept, and the reason every close carries; `markup.rs` turns the body into plain text. A
 toast whose time is up only hides: the notification stays until it is dismissed, an action
 is taken or its program closes it, which is the `persistence` capability, except a transient
-one, which closes as expired. The toasts are a `beui::styled::Toasts` (title, picture and
-action buttons; clicking the body is the `default` action) in the corner of the first display's
-windows' area nearest its Status bar (guides/desktop.md, The bars), with ids from `TOAST_IDS` up so other toasts can share the stack.
-They make way while the clock's panel, with the list of notifications, is open.
+one, which closes as expired. The toasts are a `beui::styled::Toasts` (a muted line with
+the app's name and the time, the title, picture and action buttons; clicking the body is the
+`default` action) in the corner of the first display's windows' area nearest its Status bar
+(guides/desktop.md, The bars), with ids from `TOAST_IDS` up so other toasts can share the stack.
+A notification with neither summary nor body is titled with its app's name; one with nothing at
+all to show (no app name, summary, body or picture) is kept for its program but neither toasted
+nor listed. They make way while the clock's panel, with the list of notifications, is open, and
+the stack's "N more" card opens that panel. The clock's badge counts the listed notifications
+not yet seen: opening the list sees them all, as it does any that arrive while it is open, and
+one replaced in place is new again.
 
 To try it, start a session bus of its own (`dbus-daemon --session --fork --print-address`
 prints its address; `notify-send` is in the `libnotify-bin` package), and run `:dev` and
@@ -196,7 +304,7 @@ returns.
 ## The tray
 
 Programs such as Discord, Steam and Nextcloud show tray icons as StatusNotifierItems. The
-desktop shell serves `org.kde.StatusNotifierWatcher` on the session bus from be-host's
+desktop shell serves `org.kde.StatusNotifierWatcher` on the session bus from be-host-services'
 `src/tray/` and is its `StatusNotifierHost`; under another desktop whose watcher already owns
 the name it registers with that one as a host instead. `client.rs` is one task on the D-Bus
 thread that every change reaches as an `Event`: registrations, `NameOwnerChanged` (an item
@@ -219,7 +327,15 @@ item that is not `Passive` as a `MenuButton` with a picture face in the Status b
 the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click is
 `SecondaryActivate` and the wheel `Scroll`s, 120 to a notch. Opening the menu sends
 `MenuOpened`, which the host turns into `AboutToShow` and the `opened` event, or into the item's
-own `ContextMenu` when it has no dbusmenu; choosing an entry is the `clicked` event.
+own `ContextMenu` when it has no dbusmenu; choosing an entry is the `clicked` event. Check and
+radio entries are the menu's `checked` items, which say whether they are on to accessibility.
+`Activate`, `SecondaryActivate` and `MenuOpened` carry a `TrayClick`, where the pointer was in
+desktop points, which are the compositor's global coordinates and so the screen's to X11
+programs; the host passes it as the methods' `x` and `y`. Many items, every libappindicator
+one among them (Discord, Steam, Nextcloud), have no `Activate`. As Plasma and waybar do, the host
+publishes such an item as `item_is_menu`: when its introspection lists no `Activate` when it is
+first read, or when an `Activate` fails with `UnknownMethod`. The shell opens the menu when an
+item it has just asked to activate becomes `item_is_menu`, so the first click shows it too.
 
 The tests run a private bus with the test runtime's `dbus-daemon` (`BE3_DBUS_DAEMON`). To try it
 under `:dev`, start a bus as for notifications and run a tray program against it with the
@@ -234,8 +350,10 @@ The desktop app binds the volume, mute, mic mute, brightness and media transport
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
 and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
 `editor.act`), and a volume, mute or brightness key shows `LevelOsd` (`root/osd.rs`), an icon and
-a `styled::Progress` bar on every display (one card in each display's view, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
-(`editor.watch::<MediaWatch>()`). The Status bar's status button shows
+a level bar on every display (one card in each display's view, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
+(`editor.watch::<MediaWatch>()`). A volume past 100% stretches the bar to 150% (or the level) and draws
+the part past full in `ColorRole::Warning`; a level the host does not report shows its icon and
+"No audio device", "No microphone" or "No backlight" instead of a bar. The Status bar's status button shows
 the output's volume icon while the host reports one, and Quick settings (`root/volume.rs`) sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
 host lists in `MediaLevels::outputs`.
@@ -244,13 +362,17 @@ be-host-services does what an app cannot: `src/media.rs` starts its backends onc
 the levels or the shell asks for something, carries out the shell's requests only, and reports
 the levels back. The backends run as tasks on the D-Bus thread:
 - `media/audio.rs`: volume steps up to 100%, set volume, mute and mic mute on the default sink
-  and source, the list of sinks and choosing the default one, over the PulseAudio protocol (the `pulseaudio` crate's protocol layer, pure Rust),
+  and source (named by `GetServerInfo` and looked up in the sink and source lists, falling back to
+  the first sink or the first source that is not a monitor while the server's default names none of them), the list of sinks and choosing the default one, over the PulseAudio protocol (the `pulseaudio` crate's protocol layer, pure Rust),
   which pipewire-pulse serves on `$XDG_RUNTIME_DIR/pulse/native`. It subscribes to the server's
-  sink, source and server events and reports every change.
+  sink, source and server events and reports every change. A server it cannot reach is logged once
+  per distinct error, not on every key.
 - `media/backlight.rs`: brightness steps through logind's `Session.SetBrightness` on
   `/sys/class/backlight`'s device (firmware before platform before raw).
-- `media/players.rs`: play/pause, next, previous and stop to the MPRIS player that most
-  recently started playing, or the first one listed, on the session bus.
+- `media/players.rs`: play/pause, next, previous and stop to the MPRIS player that is playing
+  (of several, the one that started last), else the one that played last, else the first one
+  listed, on the session bus. It reads each player's `PlaybackStatus` when it appears and follows
+  every player's `PropertiesChanged`; `run_on` takes any connection, so tests run it on a private bus.
 
 To try them under `:dev -- --desktop`, run `pipewire`, `wireplumber` and `pipewire-pulse`
 with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for be-host, and press them with
@@ -265,23 +387,55 @@ The Status bar's status button shows a Wi-Fi icon, and Quick settings a Wi-Fi ti
 reports a Wi-Fi device (`WifiStatus::available` in `WifiWatch`'s value): the icon is the joined
 network's strength, and the tile opens the network list (the desktop app's `root/wifi.rs`),
 which turns Wi-Fi on and off, lists the networks in range and joins or leaves one with
-`WifiRequest`s. Opening the list asks for a scan. A saved or open network is joined at
-once; a protected one asks for its password first, and asks again when the host reports that
-joining it `failed`. Enterprise and WEP networks (`WifiSecurity::Unsupported`) can only be joined
-from a connection saved elsewhere.
+`WifiRequest`s. Opening the list asks for a scan. The list keeps one height whether Wi-Fi is on or
+off, so the switch stays under the pointer, and puts the network joined or being joined first.
+Each row shows its strength, a lock when the network is protected, and is named for screen
+readers by all of it. A saved or open network is joined at once; a WPA one asks for its password
+first and a WEP one for its key (`WifiSecurity::Wep`), and asks again when the host reports that
+joining it `failed`. An enterprise network (`WifiSecurity::Enterprise`) can only be joined from a
+connection saved elsewhere. "Other network…" joins a hidden network by its name, security and
+password (`WifiRequest::JoinHidden`).
 
-be-host's `src/wifi/` starts once an app watches `Wifi` and talks to NetworkManager on the
+be-host-services' `src/wifi/` starts once an app watches `Wifi` and talks to NetworkManager on the
 system bus (`network_manager.rs`, a task on the D-Bus thread). It reads the first Wi-Fi device,
 its access points and the saved Wi-Fi connections again after every signal NetworkManager sends,
 so a change made elsewhere (`nmcli`, another program) shows at once. A saved network is joined
-with `ActivateConnection`; anything else with `AddAndActivateConnection`, which saves it. A new
-connection that fails to come up is deleted again, and one made with a new password replaces the
-saved ones for that network once it is up. `model.rs` is the pure part and where to test it:
-security from the access point's flags, the list (hidden networks left out, each name once at its
-strongest), how a network is joined, and when an attempt has connected or failed. The test
-`wifi_on_a_private_bus_lists_networks_and_connects` runs a fake NetworkManager on a private bus.
+with `ActivateConnection`; anything else with `AddAndActivateConnection`, which saves it (a hidden
+one with `hidden` set). A new connection that fails to come up is deleted again, and one made with
+a new password replaces the saved ones for that network once it is up. `model.rs` is the pure
+part and where to test it: security from the access point's flags, which passwords and keys each
+takes, the list (hidden networks left out unless joined, then named by the connection; each name
+once at its strongest), how a network is joined, and when an attempt has connected or failed. The
+test `wifi_on_a_private_bus_lists_networks_and_connects` runs a fake NetworkManager on a private
+bus.
 
-The VM has no Wi-Fi device, so under `:dev -- --desktop` neither the icon nor the tile shows.
+The VM has no Wi-Fi device, so under `:dev -- --desktop` neither the icon nor the tile shows. To see
+them, run python-dbusmock's NetworkManager template on a bus of its own (`python3 -m dbusmock
+--system --template networkmanager` with `DBUS_SYSTEM_BUS_ADDRESS` set to a `dbus-daemon` you
+started), add a device and access points through its `AddWiFiDevice` and `AddAccessPoint`, and
+start `:dev` with the same `DBUS_SYSTEM_BUS_ADDRESS`. The mock does not signal a property it sets,
+so after the switch is flipped call its `EmitSignal` for the list to catch up.
+
+## Keyboard layouts
+
+Settings > Input > Layout takes several layouts at once ("us,de", with variants as "dvorak,"),
+which compile into one xkb keymap, one group per layout, for the programs (be-host-wayland's
+`State::set_keyboard`) and under DRM for the seat's keyboards and so be3's own text
+(beui-platform-drm's `Keyboard`). be-host's `input/linux.rs` keeps which group is active and
+publishes `KeyboardLayoutsWatch` (be-host-wayland's `named_layouts`: each group's name from the keymap,
+its label the `shortDescription` of its layout, or of its variant, in xkb's `rules/evdev.xml`,
+upper case and numbered where two share one) wherever the keymap takes effect. The desktop's
+`switch-layout` call makes another group active: the compositor locks it on its xkb state
+(`Compositor::set_layout`), which reaches every program as `wl_keyboard.modifiers`' `group`, X11
+programs through Xwayland too, and so the on-screen keyboard's keys are found in it; under DRM the seat's
+`InputConfig::active_layout` sets it on the keyboard be3's own text comes from. Settings applied
+again keep the active group while it is still there. A keymap that does not compile keeps the last
+one and says so in a toast, once per change (under DRM the seat's own report is that toast).
+In a window be3's own text comes from the outer desktop's keyboard, so only the programs switch.
+The Status bar shows the active layout's label (`desktop.layout`, `root/layouts.rs`) while there is
+more than one; it opens a menu of their names that switches, and Super+Space (`desktop.layout.next`,
+captured from programs too) moves to the next. A group an xkb option switches (`grp:alt_shift_toggle`)
+is not followed by the indicator.
 
 ## The on-screen keyboard
 
@@ -296,9 +450,17 @@ method protocol, since the keyboard is the compositor's own): a text input is en
 with the keyboard focus, and while one of the focused window's is enabled the window's
 `WindowView` is a field that takes text (`ime`) with the number of enables so far as its
 `keyboard` (`SoftKeyboard::Shown { asks }`), so a program enabling its field again, as GTK does when a focused entry is tapped,
-asks for the keyboard again. Keys reach a program as any key does, by scan code; text no key types
-(é, π, an emoji) reaches it as `commit_string`, and a program without an enabled text input never
-gets it. X11 programs, and programs such as foot that use no text input, take the keyboard's keys
+asks for the keyboard again. Its keys have no physical place (`Event::Key`'s `evdev` is `None`, as
+drive's are), so be-host-wayland types each one with the key that makes it in the active keymap
+(`layout.rs`): the character the key typed, or for a shortcut its letter, is looked up on every key
+of the active layout at each of its Shift, AltGr and level-5 levels, and sent from the first key that
+makes it, with a `wl_keyboard.modifiers` of that level just around the press, so a German layout's
+y comes from the key a US layout calls z and @ from AltGr+Q, and the caps stay QWERTY whatever the
+layout. A shortcut whose letter no key makes (Ctrl+C on a Russian layout) is
+sent from its US place, as programs match Latin shortcuts there; a modifier or a named key (Enter,
+the arrows) always is. Text no key of the layout types (é on a US layout, a Latin letter on a Russian
+one, π, an emoji) reaches the program as `commit_string`, and a program without an enabled text
+input never gets it. X11 programs, and programs such as foot that use no text input, take the keyboard's keys
 but never open it by themselves, so a button is how it comes up over them: the Status bar's
 (`desktop.keyboard`, there while the display settings' `keyboard_in_bar` is on, by default on the
 Tablet and E-paper tablet classes), which leaves the focus where it was, or the Quick settings
@@ -413,13 +575,13 @@ program can also be started against a driven be-host directly: it hands the same
 `drive env` (`Program::environment`), so `drive exec foot` runs `foot` inside it, and
 `eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
 
-A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A window with a parent (`xdg_toplevel.set_parent`) instead hangs from its parent's tab as a dock dialog, the anchored card guides/desktop.md describes (Program windows), showing and hiding with it; its header names the program from the desktop entry it was launched from, else the one its program id names. `xdg-dialog-v1` (be-host-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-host-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
+A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A toplevel that unmaps (commits with no buffer attached) leaves the window list, and its tab or dock window with it, until it maps again, when it is listed afresh, as xdg-shell defines (be-host-wayland's `ServerEvent::Unmapped`). A window with a parent (`xdg_toplevel.set_parent`) instead hangs from its parent's tab as a dock dialog, the anchored card guides/desktop.md describes (Program windows), showing and hiding with it; its header names the program from the desktop entry it was launched from, else the one its program id names. `xdg-dialog-v1` (be-host-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-host-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
 window (the desktop app's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). A window's
 tab menu offers the same (`FloatingWindow` offers fullscreen on its tab; workspace-ui's
 `WindowTab` does not, since nothing there would take it back out). Under `--desktop`, Super+drag anywhere on a floating window, its bar
 included, moves the window, and Super+right-drag resizes it from its nearest edge or corner,
-or moves the split beside a docked one. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
+or moves the split beside a docked one. The desktop shell's other window keys (Alt+F4, Super+arrows, Super+D, ...) are in guides/desktop.md, Window keys. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
 windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
 raises the chosen one and Alt+Escape stays where it was. To drive it, hold Alt across the
 presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
@@ -427,7 +589,8 @@ presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 Each window is a `be_host_wayland::WindowView`, a forwarding catcher like an app's view (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
-`wl_keyboard` events, keys by their evdev codes (`Event::Key`'s `evdev`) and buttons by theirs: a
+`wl_keyboard` events, keys by their evdev codes (`Event::Key`'s `evdev`; a key with none, from the
+on-screen keyboard or drive, by the key that makes it in the active layout) and buttons by theirs: a
 button beyond beui's five is `PointerButton::Other` carrying its evdev code, which the DRM platform
 reads from libinput and the window gets unchanged (`drive down TARGET button:0x115`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the view's
@@ -441,6 +604,19 @@ are `BTN_STYLUS` and `BTN_STYLUS2`. A program that never asked for a tablet seat
 click, decided when the pen comes over it and kept while the tip is down. In a login session the
 DRM platform reads libinput's tablet tools over the area of every display, as it does an absolute
 pointer, and moves the cursor with them; with one display both turn with its rotation (below).
+
+A program can hold the pointer (`zwp_pointer_constraints_v1`, `src/pointer.rs`): a locked or
+confined pointer is honoured only while its surface has the pointer and its window has the
+keyboard, and is let go the moment either moves. A lock sets `pointer_locked` on the window's
+`WindowView`, so the platform holds the cursor still and hides it (winit grabs the outer
+window's cursor; guides/beui.md) and its raw motion reaches the window as relative motion;
+letting go of the lock moves the program's pointer to the cursor position hint it set. A
+confined pointer keeps moving on the host, but the window hears it only inside its region and
+never hears it leave; a press on another window lets it go. Super+Escape lets go of either too,
+until the window is pressed again. `zwp_relative_pointer_manager_v1` reports a lock's raw motion
+and, otherwise, each move of the pointer over a surface as one relative move, and
+`zwp_pointer_gestures_v1` carries `Input::Touchpad` gestures (guides/beui.md) to the window under
+the pointer.
 
 A finger (`Event::Touch`) reaches a window as a `wl_touch` point (`src/touch.rs`), in the
 coordinates of the surface, sub-surface or popup it went down on, where it stays until it lifts,
@@ -465,9 +641,17 @@ an unturned screen copies), the software pointer and the damage clips with it
 (`rotation.rs`). It never asks the plane to rotate, which most display devices, the e-paper
 panel's included, cannot do. Absolute input arrives in the panel's own orientation
 (libinput's calibration matrix lines a touchscreen up with the panel unturned) and is turned
-back (`layout::absolute`), before beui or a window sees it: touch onto the first display, an absolute pointer or a pen onto the
-one display when there is one and across all of them unturned otherwise, and a pen's tilt
-with it. A relative pointer is already in the picture's terms. A rotation applies live, rebuilding
+back (`layout::absolute`) onto the display the device belongs to, before beui or a window sees
+it, and a pen's tilt with it. `pointing.rs` picks that display for each touchscreen and tablet
+when it is added and whenever the displays or the settings change: the one chosen for it in
+Settings > Input (`InputSettings::displays`, keyed by `InputDevice` and holding the display's
+id), else the connector or id in the device's udev `WL_OUTPUT` property, else the only display,
+else the display whose physical size (EDID millimetres) matches the device's (libinput's
+`size`, either way round, a built-in panel first among equals); else a touchscreen goes to the
+built-in panel (eDP, LVDS or DSI) or the first display, and a tablet with no screen spans every
+display unturned, as an absolute pointer does. The host reports each such device with the
+display it picks by itself (`HostInputDevice::pointing`), which the Display choice names as
+Automatic. A relative pointer is already in the picture's terms. A rotation applies live, rebuilding
 the output's `Screen` as a mode change does, and never asks to be kept.
 
 The rotation is picked with `be_sdk_beui::RotationPicker`, which both the Display page
@@ -482,16 +666,40 @@ as it does an edit from the Display page.
 A window's tab shows the icon its program set with `xdg-toplevel-icon-v1`: be-host-wayland
 reads the pixels it was handed (the smallest at least 64 pixels, shrunk to 64) or looks the
 name up in the icon theme, and it reaches the shell as `HostWindow::icon` beside the title,
-which be-sdk-shell's `WindowTab` hands the dock as its `DockTab` `picture`. Without one the
-tab shows a generic glyph. `xdg-foreign` v2 lets a program parent its window to another
+which be-sdk-shell's `WindowTab` hands the dock as its `DockTab` `picture`. Without one, be-host-desktop's
+`linux.rs` gives it the `Icon=` of the desktop entry the window was launched from, else of the one its
+program id names (`Environment::entry_of_window`: the app id or X11 `WM_CLASS` as an entry's name, as
+is or lowercased, then as an entry's `StartupWMClass`), which also names it; with neither the tab
+shows a generic glyph. An X11 window's `_NET_WM_ICON` is not read (smithay does not expose it).
+`programs::load_icon` reads PNG, SVG and XPM; an SVG with text draws it with the system fonts (loaded
+once, the first time one is needed) and beui's bundled Inter and Hack for any generic family the
+system lacks, and an icon that draws nothing counts as none, so the glyph shows instead. `xdg-foreign` v2 lets a program parent its window to another
 program's, as a portal does with its file chooser: the child's `HostWindow::parent` is the
-exported window, and it is shown as that window's child like any other dialog. The xdg shell offers only the
-fullscreen capability (`wm_capabilities`): a tab has nowhere to minimize to, and its size is
+exported window, and it is shown as that window's child like any other dialog. The xdg shell offers the
+fullscreen, minimize and window menu capabilities (`wm_capabilities`), but not maximize: a window's size is
 the dock's, so maximizing would change nothing (a request to maximize is still answered
-with the maximized state, for programs that ask anyway). GTK ignores those capabilities
+with the maximized state, for programs that ask anyway). A program that draws its own title bar
+asks to move or resize its window from it (`xdg_toplevel.move` and `resize`, an X11 window's
+`_NET_WM_MOVERESIZE`); be-host-wayland honours an ask only while the press it names is still held
+(`ServerEvent::Grabbed`): the pointer's grab, or a finger still down on the window whose touch down
+carried that serial (any finger on the window for an X11 ask, which names none), and the window's `WindowView` hands it to the `Carrier` it was given:
+be-host's `AppView` gives one to the views of a floating window (`be_host_desktop::carrier`), which
+begins the same gesture the window's own bar would (`compositor/desktop.rs`'s `begin`) and steers
+the window's pointer input through it until the button or finger that pressed is let go; the other
+pointers' input passes by. A window docked in a pane has no
+carrier, so it does not move. `show_window_menu` reaches the shell as `HostWindow::menu` (a count of
+asks and the point, from the window's top left), where be-sdk-shell's `WindowPanel` opens a menu
+there with Hide, Full screen and Close; minimizing (`xdg_toplevel.set_minimized`, an X11 window's
+iconify) hides the window as its chip's Hide does. A hidden window shown again comes back where
+it was: be-sdk-shell's `FloatingWindow` keeps the rect its dock window last had for as long as the
+host lists the window. While hidden, the window is told so, so its program can stop drawing:
+be-host-desktop passes Hide and Show to `Windows::set_hidden`, which reconfigures it with
+`xdg_toplevel`'s `suspended` state (`xdg_wm_base` v6) or, for an X11 window,
+`_NET_WM_STATE_HIDDEN`. An X11 window's `WM_STATE` stays `NormalState`: smithay writes
+`IconicState` only by unmapping the window's frame, which takes its surface away. GTK ignores those capabilities
 before 4.20 and from then on only greys the buttons out; its header bar lays out its window
 buttons from GSettings' `org.gnome.desktop.wm.preferences button-layout`. So the compositor
-(`src/gtk_settings.rs`) writes a dconf profile into `be-host-wayland` in its runtime directory: the
+(`src/gtk_settings.rs`) writes a dconf profile into `be-wayland` in its runtime directory: the
 profile dconf would otherwise use, plus a database of its own that sets and locks that key to
 `appmenu:` (no window buttons); the lock makes it win over the user's own value. Programs
 it launches get it as `DCONF_PROFILE` (`Compositor::environment`), so they read and write
@@ -508,7 +716,7 @@ keyboard: the window's `WindowView` sets `inhibits_shortcuts`, and beui keeps ev
 window listener - capturing actions, taps and F6 - from it (guides/beui_keyboard.md). Two chords always work, as host actions:
 Super+L locks the screen, and Super+Escape (`register_restore_shortcuts`, registered by
 be-host's `WindowActions`) takes the shortcuts back from the focused window until it
-loses the keyboard and gets it again. The inhibitor is told it is active only while its
+loses the keyboard and gets it again, and lets go of a pointer it holds (`zwp_pointer_constraints_v1`, above). The inhibitor is told it is active only while its
 window has the keyboard.
 
 In a login session the DRM platform draws the pointer into each output's frame, redrawing only the
@@ -517,13 +725,34 @@ name) come from the XCursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`, `XCURSOR_PAT
 icon directories, following `Inherits`), looked up by CSS name and then the old X11 names
 (`cursors.rs`), at the size the scale needs; without a theme the built-in arrow is drawn. Over a
 window, a `wp_cursor_shape_v1` shape becomes the window's `CursorIcon` (`Windows::cursor`, which
-the winit backend shows too), and a `wl_pointer.set_cursor` surface reaches the platform through
-`beui_platform_drm::SoftwareCursor` (be-host-desktop's `desktop_host/linux.rs`), redrawn whenever the client
-commits to it; a null cursor hides the pointer. Under a layer that opens windows (`BEUI_LAYERS=space`)
+the winit backend shows too), and a `wl_pointer.set_cursor` surface (Xwayland's X11 cursors too)
+reaches the DRM platform through `beui_platform_drm::SoftwareCursor` (be-host-desktop's
+`desktop_host/linux.rs`) as the surface's texture, redrawn whenever the client commits to it.
+Every other platform gets it as the window's `cursor_image` (`Windows::cursor_image`, read on
+each commit from the surface's `wl_shm` buffer by `render::pixels`; a dmabuf cursor shows the
+default arrow there): winit as a custom cursor, headless in `drive state`. A null cursor hides
+the pointer. Under a layer that opens windows (`BEUI_LAYERS=space`)
 the platform offers no `SoftwareCursor`, since its pointer is not where the layer's is: the layer
 draws its own cursor from the window's `CursorIcon`.
 
-In a login session be-host runs a frame only when an output has flipped since the last one (`beui-platform-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the display it mostly covers, with the flip's time, refresh and sequence: the platform reports each flip through `beui_platform_drm::Flips`, which be-host hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
+In a login session be-host runs a frame only when an output has flipped since the last one (`beui-platform-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the display it mostly covers, with the flip's time, refresh and sequence: the platform reports each flip through `beui_platform_drm::Flips`, which be-host hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time; while nothing presents be-host (a headless run, or a window that is occluded, `Context::seen` false), a window that drew and is shown is answered on the next frame without being painted, so a program such as GTK, which handles input and draws only once its last frame was answered, keeps working when driven headless.
+
+`wp_fifo_v1` and `wp_commit_timing_v1` pace a program's commits against the same presentation
+(be-host-wayland's `pacing.rs`, over smithay's managed blockers). A fifo barrier a commit sets is
+cleared when that window is presented, or at once while the window is not shown (a hidden tab, or
+off every display), so a FIFO swapchain never stalls behind a window nobody sees. A commit with a
+target time is held until the frame clock, plus the last flip's refresh, reaches it, and be-host
+asks for a frame at the earliest target it holds. `wp_alpha_modifier_v1` multiplies a surface's
+alpha when it is drawn (`Layer::alpha`, the texture quad's opacity and the painting's vertex
+alpha), leaving its sub-surfaces as they are.
+
+`ext_foreign_toplevel_list_v1` (`toplevel_list.rs`) lists every window that has drawn something,
+with its title and app id and an identifier that lasts as long as the window, to any client, as
+compositors without a security context do; it is brought up to date at the end of each dispatch.
+`xdg_system_bell_v1` (`bell.rs`): a ring on a surface counts up its window's `Windows::rung`, which
+reaches the shell as `HostWindow::rung`, and the desktop app flashes that window's chip
+(guides/desktop.md, Shown and hidden entries). A ring on no surface is ignored, and no sound is
+played yet.
 
 A `WindowView` that changes size configures its client with the new size in that same frame.
 Until the client commits a buffer of that size, its last one is drawn at its own size from the
@@ -552,7 +781,10 @@ the dock has no way yet to mark a tab as wanting attention.
 A desktop session keeps its program windows: the next time it is opened with none of them
 running, as after the computer restarts, each one's tab is where the window was and shows a
 placeholder instead, with the program's icon and name, the window's old title, Open and
-Dismiss, and the Windows bar's Restore chip opens them all. be-sdk-shell's `Workspace` (with `keeps_windows`,
+Dismiss, stacked as the windows were with the one that had the focus on top. Each placeholder
+has a chip in the Windows bar after the running windows' (outlined, with a muted label, as
+`ButtonFace`'s `placeholder`) whose click brings it in front and whose menu offers Open and
+Dismiss, and the Restore chip leading the bar opens them all. be-sdk-shell's `Workspace` (with `keeps_windows`,
 which only the desktop app sets) saves a `KeptWindow` per top-level window beside the dock layout
 in its `layout` view state. Each window tab is keyed by a kept key that outlives the window
 (`window_tab(key)`), and `kept.rs` binds live windows to keys: a window a record names is bound
@@ -560,8 +792,12 @@ to its key (a shell started again over the same compositor keeps every window), 
 appears after the restore takes the placeholder it was launched from, else the oldest unbound
 one with its program id, and any other window is its own key. The dock never sees a binding change:
 `WindowTab` shows the bound window's `WindowPanel`, or the placeholder the desktop app hands it
-when none is bound. While the host's `PowerAvailability` says the session is `ending`, nothing
-is saved, so the programs closing as it ends stay kept.
+when none is bound. When the host's `PowerAvailability` says the session is `ending`, the
+workspace (`keep_through_ending`, `kept::ending`) first makes a record of every window open then,
+and while it ends a window that closes becomes a placeholder rather than being forgotten, saved as
+usual. So whether the session ends, is cancelled or a restart fails, nothing open at that moment
+is lost: cancelled, the person has the programs that stayed open and a placeholder for each one
+that closed.
 
 Window ids start from the compositor's start time in microseconds, so an id never names two
 windows across runs: a saved record's window id is only ever adopted by that window, and a new
@@ -584,7 +820,7 @@ tab of whichever shell opened it, the workspace-ui inside the desktop app includ
 `programs` reads `MimeType` (`DesktopEntry::mime_types`) and turns MIME types into extensions with
 shared-mime-info's `mime/globs2` and `mime/aliases` in the XDG data dirs (`MimeGlobs`).
 
-be-host's `src/programs.rs` scans the programs once the compositor runs and adds one
+be-host-desktop's `src/programs.rs` scans the programs once the compositor runs and adds one
 `EditorDescriptor` per program that opens anything to the catalog every app gets: `Edits::Any`,
 the program's name, and `extensions` (shell.wit's `editor-descriptor`). Its editor id is `programs::editor_id`, `program\0` in the
 high half and a hash of the desktop id in the low, so a tab saved with it names the same program
@@ -635,15 +871,25 @@ To try it, give a program a `.desktop` entry in `/usr/local/share/applications` 
 
 ### X11 programs
 
-`be_host_wayland::Server::start_xwayland`, which be-host calls once the server is up, starts
-`Xwayland` (the `xwayland` package; without it X11 programs just do not run) on the first free
-display, with smithay's `X11Wm` as its window manager (`crates/be-host-wayland/src/xwayland.rs`).
+`be_host_wayland::Server::start_xwayland` starts `Xwayland` on the first free display, with
+smithay's `X11Wm` as its window manager (`crates/be-host-wayland/src/xwayland.rs`). be-host calls it
+once the server is up, and again before every launch and whenever it hands out its programs'
+environment (`Host::environment`, which `drive env` and `drive exec` read). So once a missing piece is
+fixed, the next program started from the Apps panel or `drive exec` brings it up, with no restart.
+While it is running, or after it gave up, the call does nothing. Before spawning, it checks that `Xwayland` is
+on `PATH` (the `xwayland` package) and that `/tmp/.X11-unix` is a directory it can write to, making
+it with mode 1777 when it is missing, as X servers do. Each failure (not installed, that directory
+missing and unmakeable, not writable or not a directory, no free display from :0 to :32) is logged
+once with what to fix, as `be-wayland: Xwayland did not start ...`; the same failure again is
+not logged again.
+
 It starts with the compositor rather than when an X11 client first connects: smithay creates
 the Xwayland client and its X11 sockets only inside `XWayland::spawn`, which starts the server
 at once. Programs the compositor launches get `DISPLAY`, and in a login session both it and
 `WAYLAND_DISPLAY` go to D-Bus's activation environment and systemd's user manager
 (`src/login_session/environment.rs`). If Xwayland dies, its windows close and it starts again on the
-same display, up to three times. To try it under `:dev`, be-host's log names the display:
+same display, up to three times, after which it stays stopped until be-host restarts. To try it under `:dev`, install `xwayland`
+(`apt-get install xwayland`); the log names the display:
 
     DISPLAY=:0 xterm
     DISPLAY=:0 GDK_BACKEND=x11 xfce4-terminal --disable-server
@@ -673,10 +919,28 @@ be-host's clipboard (beui's, through the runner's `PlatformServices`) and the Wa
 through `wl_data_device` or the data-control protocols (`ext-data-control-v1` and
 `zwlr-data-control-v1`, which clipboard managers, `wl-copy` and `wl-paste` use), is asked for its
 text, which the compositor reads without blocking and hands to be-host with `Context::copy_text`;
-the program's own selection stays, with all its types. Everything be-host copies
-(`Context::watch_copies`) becomes a selection the compositor serves as text. Apps paste
+the program's own selection stays, with all its types. Otherwise the selection is the host's
+clipboard (`HostClipboard`): offered as text from the start and whenever be-host copies
+(`Context::watch_copies`), and read from the platform (`Context::read_clipboard`) only when a
+program pastes, so whatever the outer desktop copied, in a windowed `--desktop`, is what a
+program gets. A platform cannot say when its clipboard changes, so a program's selection gives
+way to the host's when be-host's window is focused again (`Event::Focus(true)`) and the
+platform's text is no longer the program's. Apps paste
 through the host's `request_paste`, so both work in a session, where the platform's clipboard is
 the DRM platform's own. A selection that only offers images is not handed to be-host.
+
+X11 programs share the same clipboard and, while middle-click paste is on, the same primary
+selection, through smithay's `X11Wm` (the selection callbacks of `XwmHandler` in `xwayland.rs`,
+and `Owner` in `selection.rs`). Whatever a Wayland program or be-host selects is announced to
+Xwayland with its types (`State::announce_x11_selection`), the window manager owns the X11
+selection, and an X11 program reading it is answered by the program that owns it or with be-host's
+text (`State::x11_paste`); smithay names `UTF8_STRING` `text/plain;charset=utf-8` and `TEXT`
+`text/plain`, and passes other targets by their atom's name. An X11 program that takes the
+selection makes the compositor set one of its own (`Owner::X11`, `State::x11_selected`), which is
+read from Xwayland for Wayland programs and for be-host, and dropped when that X11 program gives it
+up or Xwayland stops. Of an X11 selection's targets, Wayland sees the two text ones and those whose names hold a `/`.
+smithay's `X11Wm::new_selection` does not flush its X connection, so an overlay
+(`third-party/rust/overlays/smithay/xwm.rs`) does.
 
 Middle-click paste (`zwp_primary_selection_device_manager_v1`, and the primary selection of the
 data-control protocols) is off unless the input settings' "Middle-click paste" is on. The globals are always
@@ -686,16 +950,24 @@ just stays empty: `selection/primary.rs` drops every `set_selection` on a primar
 `set_primary_selection` on a data-control device, so no one is offered it. It never cancels the
 source: a program whose source is cancelled has lost its selection, and a terminal then clears
 the text it just highlighted. Switching the setting off clears the current one, so it takes
-effect at once in running programs. X11 programs keep
-their own `PRIMARY` in Xwayland, which nothing bridges to Wayland, so they can still
+effect at once in running programs. While it is off X11 programs keep
+their own `PRIMARY` in Xwayland, which is not bridged to Wayland, so they can still
 middle-click paste among themselves.
 
-To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package) with
+To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package), and `xclip -i` and
+`xclip -o -selection clipboard` with `DISPLAY` from `drive env`, with
 `drive exec`, and copy or paste in the host with `drive key ctrl+c`
-and `ctrl+v`.
+and `ctrl+v`. `drive clipboard TEXT` is a copy in the outer desktop; between `drive blur` and
+`drive focus` it also takes the selection from a program.
 
 A window's drag (`wl_data_device.start_drag`) goes to the window under the pointer: the press
 stays with the window it began in, and while the drag lasts the compositor moves it to the
 window beui finds under the pointer (`over` on each `Forwarded::Pointer`). Only a shown window can be dropped on: a
 dock tab does not switch under a drag, and the drag's icon is not drawn (BE3-296).
+
+Files dragged in from the platform (`Event::FileHovered`, `FileDropped`; `drive grab FILE` and
+`drive drop`) become the compositor's own drag (`selection/files.rs`, smithay's `start_dnd`),
+offering `text/uri-list` and `text/plain;charset=utf-8` (the paths, one a line). It enters
+whichever window the pointer is over, as a window's drag does, and drops there; files dropped
+off every window, or taken back (`FileHoverCancelled`), cancel it.
 

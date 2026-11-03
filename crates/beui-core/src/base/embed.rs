@@ -20,6 +20,7 @@ pub struct EmbedPlacement {
 }
 
 type PlaceListener = Box<dyn Fn(Option<EmbedPlacement>)>;
+type InertListener = Box<dyn Fn(bool)>;
 
 #[derive(Default)]
 pub struct EmbedState {
@@ -27,6 +28,8 @@ pub struct EmbedState {
     placement: Cell<Option<EmbedPlacement>>,
     concealed: Cell<bool>,
     listener: RefCell<Option<PlaceListener>>,
+    inert: Cell<bool>,
+    inert_listener: RefCell<Option<InertListener>>,
 }
 
 impl EmbedState {
@@ -48,6 +51,15 @@ impl EmbedState {
                 raster,
                 ..placement
             }));
+        }
+    }
+
+    fn make_inert(&self, inert: bool) {
+        if self.inert.replace(inert) == inert {
+            return;
+        }
+        if let Some(listener) = self.inert_listener.borrow().as_ref() {
+            listener(inert);
         }
     }
 
@@ -94,6 +106,16 @@ impl EmbedSlot {
         let state = self.0.value();
         *state.listener.borrow_mut() = Some(Box::new(listener));
         on_cleanup(move || drop(state.listener.take()));
+    }
+
+    pub fn inert(&self) -> bool {
+        self.0.with(|state| state.inert.get())
+    }
+
+    pub fn on_inert(&self, listener: impl Fn(bool) + 'static) {
+        let state = self.0.value();
+        *state.inert_listener.borrow_mut() = Some(Box::new(listener));
+        on_cleanup(move || drop(state.inert_listener.take()));
     }
 }
 
@@ -232,6 +254,19 @@ impl Document {
         for embed in embeds {
             if let Some(node) = embed.node.get().filter(|node| self.contains(*node)) {
                 embed.rerasterise(self.raster_of(node));
+            }
+        }
+    }
+
+    pub(crate) fn refresh_inert_embeds(&mut self) {
+        let embeds: Vec<Rc<EmbedState>> = self
+            .embeds
+            .iter()
+            .filter_map(std::rc::Weak::upgrade)
+            .collect();
+        for embed in embeds {
+            if let Some(node) = embed.node.get().filter(|node| self.contains(*node)) {
+                embed.make_inert(self.inert(node));
             }
         }
     }

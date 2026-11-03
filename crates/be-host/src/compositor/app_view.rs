@@ -22,6 +22,7 @@ use uuid::Uuid;
 
 use super::anchored::AnchoredViews;
 use crate::surfaces::CrashNotice;
+use be_host_desktop::carrier::{Carried, Carrier, Carry};
 use be_host_desktop::host_item::HostItem;
 use be_host_desktop::host_item::HostItemFace;
 use be_host_desktop::occlusion::{Occlusion, occlusion};
@@ -99,6 +100,16 @@ struct Enclosing(Memo<Option<NodeRef>>);
 
 #[derive(Clone, Copy)]
 pub(crate) struct GivenKeyboard(pub(crate) Memo<bool>);
+
+#[derive(Clone, Copy)]
+struct AskedFocus {
+    asked: Memo<bool>,
+    placer: Placer,
+    child: ChildId,
+}
+
+#[derive(Clone, Copy)]
+struct ChildFocus(Option<AskedFocus>);
 
 #[derive(Clone, Copy)]
 pub(crate) struct Rounded(pub(crate) Memo<f32>);
@@ -336,6 +347,23 @@ pub(crate) fn AppView(
     });
     provide_context(super::anchored::AnchorBounds(anchor_bounds));
     let stored_key = store(floated_key.clone());
+    provide_context(Carried(floated_key.is_some().then(|| Carrier {
+        begin: Rc::new(move |carry: Carry| {
+            stored_key.with(|key| {
+                key.as_ref()
+                    .is_some_and(|key| super::desktop::begin(key, gesture_of(carry)))
+            })
+        }),
+        steer: Rc::new(move |input: ForwardedInput| {
+            let origin = place.map_or(beui::Vec2::ZERO, |place| {
+                place.display.get_untracked().min.to_vec2()
+            });
+            match stored_key.with(Clone::clone) {
+                Some(key) => super::desktop::follow(&key, input, origin),
+                None => input,
+            }
+        }),
+    })));
     let windowed = windowing.is_some();
     let placer = Callback::new(move |placement: Option<EmbedPlacement>| match placement {
         Some(placement) => be_host_runtime::place_view(
@@ -365,6 +393,18 @@ pub(crate) fn AppView(
     slot.on_place(move |placement| {
         placed.with(|placed| placed.set(placement));
         placer.call(placement);
+        if placement.is_some() {
+            be_host_runtime::set_view_inert(
+                &app_id.value(),
+                instance,
+                region.id,
+                mount,
+                slot.inert(),
+            );
+        }
+    });
+    slot.on_inert(move |inert| {
+        be_host_runtime::set_view_inert(&app_id.value(), instance, region.id, mount, inert);
     });
     if let Some(at) = opens_at.map(|at| at.get_untracked())
         && at.is_positive()
@@ -630,6 +670,8 @@ pub(crate) fn AppView(
     provide_context(Enclosing(encloses));
     let given = use_context::<GivenKeyboard>().map(|GivenKeyboard(given)| given);
     provide_context(GivenKeyboard(create_memo(|| false)));
+    let asked = use_context::<ChildFocus>().and_then(|ChildFocus(asked)| asked);
+    provide_context(ChildFocus(None));
     super::intercept::intercept_keys(app_id, instance, region.id, intercepted, move || {
         primary.get_untracked()
             && (hosts_windows
@@ -639,6 +681,14 @@ pub(crate) fn AppView(
     focus_when_presenting(presenting, presented, &catcher, primary);
     toggle_keyboard_when_asked(state, primary);
     focus_when_asked(revision, app_id, instance, region, &catcher, primary);
+    focus_when_given(
+        asked,
+        (app_id, instance),
+        state,
+        revision,
+        &catcher,
+        primary,
+    );
     let catcher_zoom = zoom;
     create_effect(move || {
         revision.get();
@@ -665,6 +715,11 @@ pub(crate) fn AppView(
     on_cleanup(move || {
         if let Some(node) = catcher.try_get() {
             super::desktop::forget_catcher(node);
+            try_with_document(|document| {
+                if document.focused_node() == Some(node) {
+                    document.blur();
+                }
+            });
         }
     });
     super::anchored::register(super::anchored::AnchorOwner {
@@ -1111,6 +1166,7 @@ fn Scrims(state: Memo<PlacedView>) -> NodeId {
 fn DesktopWindows(editor: ViewEditor, state: Memo<PlacedView>, rect: Memo<Rect>) -> NodeId {
     let place = super::desktop::place().unwrap_or_else(|| {
         let display = create_memo(move || Rect::from_min_size(Pos2::ZERO, rect.get().size()));
+        super::desktop::hold_window_display(display);
         super::desktop::DesktopPlace {
             display,
             displays: create_memo(move || vec![display.get()]),
@@ -1371,6 +1427,24 @@ fn follow_panel_asks(panel: Memo<Option<(Vec2, super::desktop::Panel)>>, handle:
     });
 }
 
+fn gesture_of(carry: Carry) -> be_sdk_window_stack::Gesture {
+    use be_sdk_api::WindowEdge as Edge;
+    use beui::WindowEdge;
+    match carry {
+        Carry::Move => be_sdk_window_stack::Gesture::Move,
+        Carry::Resize(edge) => be_sdk_window_stack::Gesture::Resize(match edge {
+            WindowEdge::Top => Edge::Top,
+            WindowEdge::Bottom => Edge::Bottom,
+            WindowEdge::Left => Edge::Left,
+            WindowEdge::Right => Edge::Right,
+            WindowEdge::TopLeft => Edge::TopLeft,
+            WindowEdge::TopRight => Edge::TopRight,
+            WindowEdge::BottomLeft => Edge::BottomLeft,
+            WindowEdge::BottomRight => Edge::BottomRight,
+        }),
+    }
+}
+
 fn edge_of(edge: be_sdk_api::WindowEdge) -> beui::WindowEdge {
     use be_sdk_api::WindowEdge as Edge;
     match edge {
@@ -1420,6 +1494,88 @@ fn focus_when_asked(
             }
         });
     });
+}
+
+fn focus_when_given(
+    asked: Option<AskedFocus>,
+    (app, own): (Stored<String>, EditorInstanceId),
+    state: Memo<PlacedView>,
+    revision: beui::reactive::ReadSignal<u64>,
+    catcher: &NodeRef,
+    primary: Memo<bool>,
+) {
+    let Some(asked) = asked else {
+        return;
+    };
+    let catcher = *catcher;
+    let passing = create_signal(false);
+    create_effect(move || {
+        let filling = state.with(filling_child);
+        let (true, Some(filling), Some(node)) = (passing.get(), filling, catcher.try_get()) else {
+            return;
+        };
+        untrack(|| {
+            passing.set(false);
+            let held = try_with_document(|document| document.focused_node());
+            if held.flatten() == Some(node) {
+                be_host_runtime::pass_child_focus(&app.value(), own, filling);
+            }
+        });
+    });
+    create_effect(move || {
+        revision.get();
+        if !asked.asked.get() || !primary.get() {
+            return;
+        }
+        untrack(|| {
+            let Some(node) = catcher.try_get() else {
+                return;
+            };
+            let AskedFocus { placer, child, .. } = asked;
+            if !be_host_runtime::take_child_focus(&placer.app.value(), placer.instance, child) {
+                return;
+            }
+            if WANTING_KEYBOARD.with_borrow(|views| !views.is_empty()) {
+                return;
+            }
+            try_with_document(|document| {
+                let held = document.focused_node();
+                let inside = held.is_some_and(|held| {
+                    super::desktop::shown_within(held, |view, catcher| {
+                        view == node || (catcher.instance == own && catcher.app == *app.value())
+                    })
+                });
+                if document.focus_is_within(node) || inside {
+                    return;
+                }
+                let placing = placer.app.value();
+                let placer_holds = held.is_none_or(|held| {
+                    super::desktop::catchers_of(&placing, placer.instance)
+                        .into_iter()
+                        .any(|view| document.focus_is_within(view))
+                        || super::desktop::shown_within(held, |_, catcher| {
+                            catcher.instance == placer.instance && catcher.app == *placing
+                        })
+                });
+                if placer_holds {
+                    document.focus_focusable(node);
+                    passing.set(true);
+                }
+            });
+        });
+    });
+}
+
+fn filling_child(view: &PlacedView) -> Option<ChildId> {
+    let live = |child: &&HostChild| {
+        child.anchored.is_none() && child.own_frame && child.mode == be_sdk_api::ChildMode::Live
+    };
+    let [child] = view.children.iter().filter(live).collect::<Vec<_>>()[..] else {
+        return None;
+    };
+    let shown = child.clip.intersect(view.rect);
+    let area = |rect: Rect| rect.width() * rect.height();
+    (area(shown) >= area(view.rect) * 0.8).then_some(child.child)
 }
 
 fn focus_when_presenting(
@@ -1753,6 +1909,13 @@ impl ChildNodes {
             let encloses = create_memo(move || following().and_then(|view| view.encloses.get()));
             provide_context(super::anchored::HostOfAnchors(anchors));
             provide_context(Enclosing(encloses));
+            provide_context(ChildFocus(Some(AskedFocus {
+                asked: create_memo(move || {
+                    child.with(|child| child.as_ref().is_some_and(|child| child.focus_asked))
+                }),
+                placer,
+                child: key,
+            })));
             let node = child_view.with(|view| view(key, child, rect));
             (node, holder)
         };

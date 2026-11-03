@@ -5,6 +5,7 @@ mod dialogs;
 mod host_panel;
 mod kept;
 mod linked;
+mod manager;
 mod menu;
 mod panel;
 mod phone;
@@ -22,6 +23,7 @@ mod workspace;
 
 pub use dialogs::WorkspaceDialogs;
 pub use kept::KeptWindow;
+pub use manager::{WindowActions, WindowManager};
 pub use picker_view::PickerView;
 pub use picking::Picker;
 pub use rename::RenameView;

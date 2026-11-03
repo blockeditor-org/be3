@@ -153,7 +153,7 @@ pub struct Document {
     anchor_shift: f32,
     pinned_to_end: Option<beui_types::Direction>,
     pub(crate) reveals: NodeMap<NodeId>,
-    viewport: Option<(Context, Rect, f32)>,
+    pub(crate) viewport: Option<(Context, Rect, f32)>,
     pub(crate) hidden: bool,
     pub(crate) embeds: Vec<std::rc::Weak<crate::base::embed::EmbedState>>,
     fonts_generation: u64,
@@ -1133,16 +1133,17 @@ impl Document {
         let rects = Rc::clone(&self.rects);
         self.drop_placement(id, &rects, &mut dropped);
         let returning = self.returns_on_removal(id);
-        if self
-            .focused
-            .is_some_and(|focused| self.is_within(focused, id))
-        {
+        let unfocused = self.focused.filter(|focused| self.is_within(*focused, id));
+        if unfocused.is_some() {
             self.set_focused(None);
         }
         let mut removed = Vec::new();
         self.detach_subtree(id, &mut removed);
         for node in dropped {
             self.release_placement(node);
+        }
+        if let Some(survivor) = unfocused.filter(|node| self.arena.contains(*node)) {
+            self.set_focusable_focused(survivor, false);
         }
         if let Some(returning) = returning {
             self.return_removed_focus(returning);
@@ -1471,6 +1472,7 @@ impl Document {
                 self.update_layout(ctx, rect)
             });
         self.sync_escapes();
+        crate::current::run_in(self, Document::refresh_inert_embeds);
         self.ask_for_windows(ctx);
         let layers = self.layers();
         let keyboard_window = match self.focused {

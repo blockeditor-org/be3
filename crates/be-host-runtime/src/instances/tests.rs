@@ -406,6 +406,7 @@ mod a_child_placed_in_an_anchored_view_is_shown_in_host_coordinates_inside_it;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
+mod a_key_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard;
 mod a_key_intercepted_for_an_app_reaches_it_with_its_modifiers;
 mod a_listing_the_host_could_not_load_reaches_the_app_as_failed;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
@@ -445,6 +446,7 @@ mod input_is_withheld_from_screens_the_app_no_longer_has;
 mod input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points;
 mod revision_history_editors_cannot_mutate_any_block;
 mod the_contacts_reach_only_the_shell;
+mod the_program_windows_reach_only_the_shell;
 mod the_view_a_screen_is_given_carries_its_scale;
 
 fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {

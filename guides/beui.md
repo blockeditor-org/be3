@@ -67,7 +67,8 @@ because they only take a component whose output implements `BuildsNode`.
 `checked` state (`Some` makes it a check box item, or a radio item with
 `radio`, ticked when true; an `action`'s own tick by default), a
 disabled and a danger flag, a separator above it, an `on_click` and its
-own submenu or page items, so a menu is written as tags and each row follows
+own submenu or page items (`MenuNodes` ticks a submenu row with no glyph of its own that holds radio
+items as chosen while one inside it is), so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
 options of a tab bar, a listbox, a radio group and a select. Declare the type
 with `value_child_type!`, which makes it a `ChildValue` and says how a run of it
@@ -376,7 +377,7 @@ hooks the higher crates fill in:
   shows for the program is one `beui_core::window::WindowState`: its `requests`
   (`be_lib_ui_types::WindowRequests`: the cursor, pointer lock, back handling, wanting
   the keyboard, intercepted keys, the paste kinds the focus takes, the IME
-  area and keyboard toggles, the same type an app sends its host), `typed`
+  area and keyboard toggles, the same type an app sends its host), `cursor_image`, `typed`
   and `appearance`, which the
   `Context` fills during a frame and the main window's `WindowOutput::window` carries. While
   `Context::touch_emulation` is on its cursor is `CursorIcon::Touch`
@@ -386,7 +387,12 @@ hooks the higher crates fill in:
   call (the mouse simulation's cursor). Every other icon is drawn, for hosts that
   draw their own cursor (the mouse simulation, space), by
   `beui_core::drawn_cursor::paint`: an icon-font glyph with its hotspot on the
-  point, or an I-beam for text. An app region passes it to its host
+  point, or an I-beam for text. `cursor_image` is a picture shown in place of the icon
+  (`beui_types::CursorImage`: straight-alpha RGBA pixels, their size and hotspot in points),
+  from the hovered `Interactive`'s `cursor_image`, which wins over its `cursor`; the icon
+  stays what platforms that show no pictures (the web, Android, space) and touch emulation
+  show. winit makes it a custom cursor and `drive state` prints its size and hotspot; it is
+  not part of the app protocol. An app region passes its icon to its host
   unchanged (the protocol's `CursorIcon` is beui's, from `be-lib-ui-types`), and a platform with no custom cursors
   falls back to `CursorIcon::Touch.name()`, a crosshair. The runner hands it to `Platform::show_window` with the state it
   showed before, only when they differ, so a platform compares just the
@@ -438,7 +444,11 @@ hooks the higher crates fill in:
   an app through the shell interface's `copy-image`, the headless
   `Simulation`, which pastes it back as `Pasted::Image`; Android and DRM drop
   it). `Context::watch_copies` hears every text copy (which is how be-host-wayland hands the
-  program's copies to Wayland programs), and a paste is the only way to read it.
+  program's copies to Wayland programs). A paste is how the focus reads it;
+  `Context::read_clipboard` reads its text for the program itself, outside any focus (the
+  runner asks `Platform::paste` for text and calls the answer at the start of a later frame,
+  with `None` when there is no text), which is how be-host-wayland serves the platform's
+  clipboard to Wayland programs.
   The focus says what it takes: an `Interactive`'s `pastes` lists the
   `PasteKind`s (text, image) in the order it prefers them, and one with only
   `on_text` takes text. `request_paste` (a Paste menu) and Ctrl+V, which the
@@ -492,7 +502,14 @@ hooks the higher crates fill in:
   `PINCH_SPEED` per pixel) or Safari's `gesturechange`, whose scale over the last one's
   is the factor; the web platform ignores a gesture while fingers are down,
   since those touches pinch already, and prevents the default of all of them
-  so the browser never zooms the page. Fingers touching a trackpad push
+  so the browser never zooms the page. Touchpad gestures also arrive whole as
+  `Input::Touchpad` (`TouchpadGesture`: a swipe, pinch or hold beginning with
+  its number of fingers, updating and ending, cancelled or not), from libinput
+  under drm and from winit's `PinchGesture`, `PanGesture`, `RotationGesture`
+  and `HoldGesture` (`beui-platform-winit`'s `touchpad.rs`; winit reports no
+  swipes). The document routes each to the forwarding node under the pointer,
+  as it does the wheel, and no other node reads them: they are for whatever a
+  node forwards to, a Wayland window in be-host-wayland. Fingers touching a trackpad push
   `Input::ScrollStarted` and lifting them `Input::ScrollEnded`, which an app's
   host forwards unchanged. Between the two,
   `ScrollGesture::held` is set and a `Scroll` follows the fingers as a touch drag
@@ -906,6 +923,10 @@ alignment, `overflow`, `line_height`, `line_padding`, `marks`, `glyphs` and
 - `Ellipsis` keeps a label to one line, cut to its width with an ellipsis. A
   newline or a `Break` still starts a new line, and each line is cut on its
   own.
+
+`Text`'s `on_truncated` hears whether an `Ellipsis` or `max_lines` text is cut
+short, after the layout that changed it, so a component can show the whole
+text another way, as the tiles of `styled::SearchList` do with a tooltip.
 - `Visible` lays each line out unbroken at its natural width and paints it
   whole, for text inside something that scrolls or clips for it: a text
   area with wrapping off, a terminal's screen rows, a map label.
@@ -1210,6 +1231,9 @@ under the pointer. The unstyled module contains
 `PanZoom`, `PointerLock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
 `Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea`, `ColorWheel` and `Picture`.
 Code outside beui uses `styled::Picture`, whose `radius` is a `Radius`, and
+can hand it an image larger than it is drawn, such as a 64-pixel icon in a 16-point chip: the wgpu
+renderer uploads each `Image` with its mipmaps and samples the level its drawn size calls for, and
+the painting rasterizer does the same, so it is averaged rather than aliased. It
 reaches the ones that draw nothing of their own (`Draggable`, `DropTarget`,
 `Floating`, `PointerLock`) through `beui::styled`, which re-exports them. `Draggable` and `DropTarget` meet on
 `unstyled::drag_board()`, one `Board` per document that also carries drags no
@@ -1956,9 +1980,13 @@ view! {
 An icon-only button needs no wrapper: `unstyled::Button` and `unstyled::Toggle`
 take `icon_only`, and their handle's `tooltip` is the label (with the action's
 shortcut) while the button is icon-only and nothing it opened is showing, and
-empty otherwise. The styled faces wrap themselves in a `Tooltip` of that text,
+empty otherwise. A button's `description` (why it is disabled, say) is its
+accessibility description and a line of the tooltip under that label, shown on
+any button. The styled faces wrap themselves in a `Tooltip` of that text,
 so the `label` a button publishes to a screen reader is the text the bubble
-shows, and a menu button's tooltip goes away while its menu is open. Wrap anything else whose meaning is not
+shows, and a menu button's tooltip goes away while its menu is open. A styled
+icon-only button is at least `Size::Md` square however small its glyph, so it is
+never a smaller target than that. Wrap anything else whose meaning is not
 on screen - a bare glyph in a row, a truncated cell - in a `Tooltip` of its
 own.
 
@@ -2135,7 +2163,14 @@ Each layer has one `policy` (`LayerPolicy`):
 
 - `BlocksAll` (the default) - a menu, a select popup, a dialog. Its content
   takes the pointer, and a press anywhere else is shut out: it asks the layer
-  to close and goes no further, and nothing beneath it is hovered.
+  to close and goes no further, and nothing beneath it is hovered. One that
+  dims what lies beneath (a scrim, as `Modal` and `ModalSheet` draw) or locks
+  the session (`LayerLevel::Lock`) is modal to assistive technology too
+  (`Layer::modal`, `Document::inert`): what it covers is a `hidden` node with
+  nothing under it, actions aimed into it are refused, and an `Embed` beneath it
+  hears it is inert (`EmbedSlot::on_inert`), so a host leaves the app shown
+  there out of its description, as be-host does. A menu, with no scrim, leaves
+  the rest to assistive technology.
 - `Pass` - a window, a toast, a popover. Its content takes the pointer where it
   actually is, so a press on it does not land on what is underneath, and
   everything around it stays live.
@@ -2143,7 +2178,8 @@ Each layer has one `policy` (`LayerPolicy`):
   is shut out and asks the layer to close, the focus cannot enter it (Tab skips
   it, and focusing something inside it focuses the layer's first focusable
   instead), and everything else stays live. Assistive technology skips the node
-  too (natively it is `hidden` in accesskit, on the HTML core `inert`), while the
+  too (natively it is `hidden` in accesskit with nothing under it, on the HTML
+  core `inert`), while the
   layer itself, blocking only part of the program, is not `aria-modal`. A modal
   `DockDialog` is one.
 - `Inert` - a tooltip, a drag preview. It takes no input at all, so the
@@ -2222,6 +2258,10 @@ own with `Document::push_focus_scope(holder)` and pops it with
 `pop_focus_scope(holder)`, which refocuses what had the focus only if the focus
 is still inside `holder`; be-host's region does that when an app asks for
 the keyboard.
+A layer that does not trap the focus (the toasts) gives it back the same way
+when the focused part of it is removed while the layer stays open: answering
+one toast from the keyboard returns the focus to where it was before Tab took
+it into the stack.
 
 Focus asked for beneath the topmost layer that traps it never lands there, so
 nothing beneath hears it gained the focus. It is remembered until the next
@@ -2496,9 +2536,12 @@ corner of a display above its bar. A toast goes after its `duration` unless it i
 `danger`: an error stays until it is dismissed, so it cannot be missed. All of that is
 `unstyled::Toasts`: the overlay at an `edge` that lets input through, the stack, each
 toast's timer on the frame clock, and a live region (a `Log`, with each toast a `Status`,
-or an assertive `Alert` when it is `danger`); the styled one passes its width, margin and
-spacing and draws each card from a `ToastHandle` (the `Toast`, `dismiss`, `activate` and
-`act`).
+or an assertive `Alert` when it is `danger`). It shows only the newest `limit` toasts
+(`TOAST_LIMIT`, 3) and draws `more` with the count of the rest in their place; a hidden toast's
+timer starts once it shows. The stack scrolls inside its anchor when it is still taller. The
+styled one passes its width, margin and spacing, draws the count, and draws each card from a
+`ToastHandle` (the `Toast`, `dismiss`, `activate` and `act`), cutting the title to two lines and
+the message to four; the desktop's notification list shows them whole.
 be-host's keep-changes prompt and lock screen are one card in a `Modal` that
 fills (or centres in) its window; be-host puts one in each display's window.
 The desktop app's `LevelOsd` is one card in an inert `Fill` overlay, shown in each
@@ -2619,6 +2662,11 @@ bar names its controls after the pane's `id`: `dock.grip.<id>`, and under the
 prefix `dock.<id>` its More button (`dock.<id>.menu`, its items
 `dock.<id>.menu.<item>`), pinned actions (`dock.<id>.pin.<action>`) and close
 button (`dock.<id>.close`), so two panes showing the same actions stay apart. A
+pane or window holding one tab shows only that tab's close button, and its one tab
+shrinks to fit its bar, ellipsising its title, where several tabs scroll. A
+window is never narrower than `MIN_WINDOW_SIZE.x`, whatever its tab asks for
+(`DockTabControl::resize_window`), so a tiny program's window is framed wide
+enough for its bar. A
 pane the user made has no `id` and the bare prefix `dock`, as has the one bar of
 a stacked dock (`dock.menu`, `dock.pin.<action>`).
 
@@ -2756,7 +2804,10 @@ Every change of the focused tab is a `DockVisit` in `DockState::history`,
 saved with the layout: the tab it came from, the tab it went to, and whether
 that tab was `opened` by it, which is its first time shown since it joined the
 dock. `back` is the last visit to the tab on show. Going back undoes it: a tab
-the visit opened is closed through its `on_close` when it has one, and closing
+the visit opened is closed through its `on_close` when it has one, unless the
+`DockTab` says `back_closes=false` (be-sdk-shell's `WindowTab` does, since
+closing a program's window ends the program; the app protocol's `dock-tab`
+carries it as `back-closes`), and closing
 the tab on show, in either mode, shows the tab its last visit came from;
 otherwise `go_back` shows that tab and drops the visit and every one after it.
 A tab that leaves the dock hands the visits that left it to the tab it was
@@ -2815,11 +2866,15 @@ another's bar or pane lands there. A tab or pane dropped where no window is (a
 `Draggable`'s `on_drop_outside`, below) floats into a new window opened
 `AtPointer`; without a host that drop keeps its old meaning.
 
-How the windows stack is the document's layer order alone (`Document::layers()`),
-not anything in `DockState`: a press on a window, the focus moving into one and
+`DockState` keeps its windows bottom to top (`DockState::windows`), and a saved layout
+keeps that order: a window opens on top, and the focus moving into one puts it on top,
+so the focused window is always the topmost. The document's layer order
+(`Document::layers()`) follows it: a window raises its layer and those of the windows
+above it when it is created (so a restored layout stacks as it was saved, whatever order
+its windows are built in), and a press on a window, the focus moving into one and
 showing a tab of the window that has the focus (`DockState::show`, so a host can bring
 back a window something else covered) raise its layer (over a fullscreen tab too, unless
-the focus is in that tab), and a drop
+the focus is in that tab). A drop
 target is looked for in the window whose layer is on top at the pointer, never
 in one covered there by a layer that is not the dock's (a menu, a dialog, the
 fullscreen tab).
@@ -3026,6 +3081,12 @@ whose panel has the focus, the dock remembers where it was and gives the
 keyboard to the tab shown in its place. Each time the dock gives a tab the
 keyboard, `DockTabControl::keyboard` changes, so content whose keyboard lives
 in another document, such as a program's window, can take it there.
+`DockTabControl::brought_forward` changes each time a tab in a floating window
+comes to the front (opened, shown, switched to, or left in front by a close;
+not while the dock is built or restored), without moving the focus. A block placed in a tab
+(`ChildBlock`, `Subregion`) follows both and asks the host to give it the
+keyboard (`focus_child`, guides/adding_an_app.md), which is how a block window
+the desktop opens or brings forward takes the keys.
 
 `drag_modifier` (none unless asked for) makes the dock a window manager while
 those modifiers are held. A primary drag anywhere in a floating window - its
@@ -3105,7 +3166,10 @@ centred ones moving aside only as far as the others need, and bars at one alignm
 along the edge, so a bar at the start sits right after another; the styled Docking draws the
 band with `bar_band`, which is handed the whole band: its fill and one line on the side facing
 the body), or `Window { edge, origin }`, popped out into a dock window sized to
-the bar, `origin` being relative to the dock. A bar shows only while its tab
+the bar, `origin` being relative to the dock; where the host shows windows, that window asks
+for `WindowLevel::Above` while `bar_level` is `Raised` (a `Window`'s `level` maps any level
+above `Normal` to it), so the host keeps it in front of the app's normal windows, and opens it
+again at `Normal` when a fullscreen window covers the bars. A bar shows only while its tab
 is shown, wherever that tab goes, since its placement is relative to whatever
 pane shows the tab; in a stacked dock a popped-out bar floats over the body at
 its edge. Several bars at one placement of a pane's edge come in an order, which
@@ -3171,11 +3235,11 @@ and in its place the moment it is let go. A bar popped out by being dropped away
 opens its window where it was let go, with no spring. The bars floating over an edge are kept clear together
 (`keep_clear` on their list). The menu docks a popped-out bar again. The styled `DockBarGrip`
 (`dock.bar.<bar>.grip`) is such a handle: a grip that drags the bar and opens
-its menu when clicked or pressed with Enter, never on the release of a press that
+its menu when clicked, pressed with Enter or given a secondary click or long press, never on the release of a press that
 dragged it, wherever the drag went (its rows are `grip.dock.bar.` and
 `DockBarPlacement::name()`: `over.top`, `beside.left`, `window`, and in the
 submenus `grip.dock.bar.over.ends` and `grip.dock.bar.beside.ends` the ends of each edge,
-`over.top.left`, `beside.bottom.right`; then `grip.dock.bar.hide`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
+`over.top.left`, `beside.bottom.right`, the submenu row ticked while the bar sits at one of its ends; then `grip.dock.bar.hide`). A bar's body draws on the styled `DockBarSurface`, a `ToolPill` along the
 bar's direction that is a pill while the bar floats or is popped out and the
 band's fill while it is docked beside an edge (a joined bar's body is cut out
 of the root's band, so it draws the fill itself). A bar declared by a `Docking` that
@@ -3265,6 +3329,13 @@ background), so it covers the tab bars, the other panes, the dock's windows
 document stays live. Leaving puts the panel back in its pane without rebuilding
 it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
 as the demo's Escape does. Fullscreen is not part of the saved layout.
+
+A floating window can be snapped: `DockingLayout::snap_window(key, DockSnap, area)` gives it the
+left or right half of `area` (in the dock's window points, as `window_rect`), or all of it
+(`DockSnap::Fill`, maximized), remembering the rect it had before its first snap;
+`unsnap_window` puts that rect back, and `window_snap` says how it is snapped, reactively,
+for as long as it stays at the rect it was snapped to (moved or resized away, it is not snapped
+and has nothing to go back to). Snaps are not part of the saved layout.
 Showing or focusing the fullscreen tab (`DockingLayout::show`, the switcher, a press anywhere on
 its content) raises the fullscreen overlay above the floating windows, its own pane's window
 included, so a window brought in front of it and then left goes behind it again. Where a host
@@ -3536,7 +3607,8 @@ Beui does not hold the pointer itself - it asks. `PointerLock` sets
 `Interactive` in it asks as `WindowRequests::pointer_locked`, and whoever is showing the document does
 it: the winit runner locks the cursor and hides it, and an app region passes
 it to the host in its `WindowRequests` (guides/adding_an_app.md). A
-platform reads raw motion only while `Runner::window()`, the state it was
+platform reads raw, unaccelerated motion (winit's `DeviceEvent::PointerMotion`, libinput's
+unaccelerated deltas under drm) only while `Runner::window()`, the state it was
 shown, holds the pointer, and while it does sends no absolute `PointerMoved`
 (winit, web and drm alike), since a held pointer's position means nothing.
 The winit platform lets the grab go itself the moment its window loses focus
@@ -4196,14 +4268,28 @@ and reports the window's `Resized`, `Moved` (the display's position) and `Scaled
 first is drawn crisp from its second frame). It reports no placement for any
 window, so a dock never reopens one, and any other `Window` is an overlay in the
 window it was opened in. A display with no window shows its clear colour.
-The desktop puts the displays side by side, left to right, along their bottom
-edges, each `size` its physical mode over its scale; the main window is the
-first display's size at its scale, which is also the context's.
+Each display's `size` is its physical mode over its scale. `DisplayConfig` arranges them
+(`plan.rs`, then `layout::arrange`): `uses` puts each on the desktop (the default), shows
+another display's picture on it (`DisplayUse::Mirror`: the platform draws that display's window
+on it too, at the scale that fits it, from its top-left corner) or turns it off (darkened as the
+screens are when blanked, keeping its connector and CRTC); a display mirroring one that is not on
+the desktop is on the desktop itself, and with none left on the desktop the main one is (or else
+the first found), so a session always has one. `main` names the first display, which `displays()`
+lists first, then the others on the desktop in the order they were found; mirrors and displays
+turned off are not in `displays()` and take no pointer. `places` puts each display's top-left
+corner in the desktop's points; be-lib-geometry's `touching::arrange` keeps it there while it
+shares an edge with a display placed before it and overlaps none, and otherwise moves it to the
+nearest place that does (`settle`), one with no place going right of the rest along their bottom
+edges. The arrangement is then moved so its top-left corner is the origin. The main window is
+the first display's size at its scale, which is also the context's.
 Pointer input goes to the window of the display under the pointer, in that
 window's points (`Units::Points`), and a press focuses the window it lands in
 (`WindowReport::Focused`); a press held in one window goes on as the pointer
-crosses into another, by the rules above. Each display's scale is `BEUI_SCALE`
-(1 when unset) unless `DisplayConfig::scales` names one for its monitor id.
+crosses into another, by the rules above. Each display's scale is what
+`DisplayConfig::scales` names for its monitor id, or else `BEUI_SCALE`, or else
+one that suits the display's physical size and its mode (`density.rs`), which
+`Monitor::default_scale` reports. `Monitor`s list every connected display, those
+off and mirroring included, in the same order.
 `Displays::new` makes a handle with displays of a test's own, and
 `Displays::set` changes them.
 
@@ -4891,9 +4977,10 @@ nothing, except where it is a window of its own (`Context::keyboard_in_a_window`
 where windows open, which only space sets): there the person put it somewhere,
 so it stays open until its close button or a toggle closes it. Its close button (`close_keyboard()`) closes it until a field asks
 again, so tapping a field brings it back. Its keys reach the program as a keyboard
-would: the engine makes `Input::Key`s with evdev codes and real modifier
-presses (`beui_core::input::typing`, which `drive type` and `drive key`
-use too) and `Input::Text` for what no key types, `Context::type_events` puts
+would: the engine makes `Input::Key`s with real modifier presses and no
+physical place (`evdev` is `None`; `beui_core::input::typing`, which `drive type` and `drive key`
+use too, so a Wayland program gets the key that makes each character in its own layout,
+guides/desktop/linux.md) and `Input::Text` for what no key types, `Context::type_events` puts
 them in `FrameOutput::typed`, and the runner pushes them as the next frame's
 input, so a beui field, an app and a Wayland program all take them
 the same way. Paste as plain text asks for a `PasteRequest::Typed`, whose
@@ -5795,9 +5882,11 @@ built on it.
 
 A pick among pictures is a row of `TileButton`s: a square tile (`size`, `Xl` by
 default) around any child, filled `AccentSoft` and ringed in the accent when
-`selected`, with `outlined` for a hairline border at rest and `radio=true` for
-radio semantics (`description` reads after the label). The rename card's icons
-and the display settings' rotation picker use it. A colour pick is a row of
+`selected`, with `outlined` for a hairline border at rest, `radio=true` for
+radio semantics and `toggle=true` for a tile that reads as pressed while `selected`
+(the desktop's Wi-Fi tile); without either, `selected` is only drawn, for a tile that
+only acts (`description` reads after the label). The rename card's icons
+and the display settings' rotation picker are radio tiles. A colour pick is a row of
 `SwatchButton`s.
 
 `Banner` is an inline bar across an editor that says what failed (an import,

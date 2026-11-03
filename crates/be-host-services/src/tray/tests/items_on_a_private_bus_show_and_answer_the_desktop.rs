@@ -1,16 +1,16 @@
 use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 
-use be_sdk_api::{HostTrayItem, TrayRequest};
+use be_sdk_api::{HostTrayItem, TrayClick, TrayRequest};
 use futures_util::StreamExt;
 use tokio::sync::mpsc::unbounded_channel;
 use zbus::object_server::SignalEmitter;
 use zbus::zvariant::OwnedObjectPath;
 use zbus::{MatchRule, MessageStream};
 
-use super::super::client::{Event, run_on};
+use super::super::client::{Event, serve};
 use super::*;
-use crate::dbus::test_bus::Bus;
+use crate::dbus::test_bus::{PrivateBus, next, within};
 
 const MENU_PATH: &str = "/MenuBar";
 
@@ -128,9 +128,7 @@ fn until(
     done: impl Fn(&[HostTrayItem]) -> bool,
 ) -> Vec<HostTrayItem> {
     loop {
-        let items = published
-            .recv()
-            .unwrap_or_else(|_| panic!("the tray shows {what}"));
+        let items = next(published, &format!("the tray shows {what}"));
         if done(&items) {
             return items;
         }
@@ -138,20 +136,17 @@ fn until(
 }
 
 fn heard(heard: &Receiver<String>, what: &str) {
-    let got = heard
-        .recv()
-        .unwrap_or_else(|_| panic!("the item hears {what}"));
+    let got = next(heard, &format!("the item hears {what}"));
     assert_eq!(got, what);
 }
 
 #[test]
 fn items_on_a_private_bus_show_and_answer_the_desktop() {
-    let bus = Bus::start();
+    let bus = PrivateBus::start();
     let (published_sender, published) = std::sync::mpsc::channel();
     let (heard_sender, heard_by_item) = sync_channel(16);
     let (events, events_heard) = unbounded_channel();
     zbus::block_on(async {
-        let host = bus.connect().await;
         let item = bus.connect().await;
         let watcher_rule = MatchRule::builder()
             .msg_type(zbus::message::Type::Signal)
@@ -163,10 +158,15 @@ fn items_on_a_private_bus_show_and_answer_the_desktop() {
         let mut watcher_up = MessageStream::for_match_rule(watcher_rule, &item, None)
             .await
             .expect("the item can watch for the watcher");
-        crate::dbus::spawn(run_on(host, events.clone(), events_heard, move |items| {
-            let _ = published_sender.send(items);
-        }));
-        watcher_up.next().await;
+        let shared = bus.shared();
+        let sender = events.clone();
+        crate::dbus::spawn(async move {
+            serve(&shared, sender, events_heard, move |items| {
+                let _ = published_sender.send(items);
+            })
+            .await;
+        });
+        within("the watcher comes up", watcher_up.next()).await;
 
         item.object_server()
             .at(
@@ -212,15 +212,24 @@ fn items_on_a_private_bus_show_and_answer_the_desktop() {
         assert_eq!((icon.width, icon.height), (2, 2));
         assert_eq!(&icon.rgba[..4], &[0x58, 0x65, 0xf2, 0xff]);
 
-        let _ = events.send(Event::Request(TrayRequest::Activate(key.clone())));
-        heard(&heard_by_item, "Activate 0 0");
+        let click = TrayClick {
+            item: key.clone(),
+            x: 1890,
+            y: 1060,
+        };
+        assert!(
+            !items[0].item_is_menu,
+            "an item with Activate is not only a menu"
+        );
+        let _ = events.send(Event::Request(TrayRequest::Activate(click.clone())));
+        heard(&heard_by_item, "Activate 1890 1060");
         let _ = events.send(Event::Request(TrayRequest::Scroll {
             item: key.clone(),
             delta: -120,
             horizontal: false,
         }));
         heard(&heard_by_item, "Scroll -120 vertical");
-        let _ = events.send(Event::Request(TrayRequest::MenuOpened(key.clone())));
+        let _ = events.send(Event::Request(TrayRequest::MenuOpened(click)));
         heard(&heard_by_item, "AboutToShow 0");
         heard(&heard_by_item, "Event 0 opened");
         let _ = events.send(Event::Request(TrayRequest::MenuChosen {

@@ -48,8 +48,8 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
     assert!(fixture.test.host_key(Modifiers::NONE, Key::BrightnessUp));
     fixture.settle();
     assert!(
-        !fixture.test.shown("desktop.osd.0"),
-        "a brightness the host has not reported shows nothing"
+        fixture.test.shown("desktop.osd.0") && fixture.says("No backlight"),
+        "a brightness key with no backlight to change says so"
     );
 
     assert!(fixture.test.host_key(Modifiers::NONE, Key::VolumeMute));

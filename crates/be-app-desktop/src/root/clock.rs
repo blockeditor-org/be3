@@ -1,10 +1,11 @@
-use be_sdk_beui::Editor;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::popover::PANEL_PADDING;
 use be_sdk_beui::beui::styled::*;
 
-use super::calendar::{CALENDAR_WIDTH, DesktopCalendar, SCREEN_SHARE};
+use be_sdk_shell::Workspace;
+
+use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
 use super::notifications::{DesktopNotifications, LIST_HEIGHT, NotificationList};
 use super::popup::BarPopup;
 use beui::{Align, Direction};
@@ -14,9 +15,7 @@ const COUNT_SPACING: Space = Space::Sm;
 const COUNT_PADDING: Padding = Padding::symmetric(Space::Sm, Space::None);
 const HISTORY: Size = Size::Popover;
 const BESIDE_WIDTH: f32 = CALENDAR_WIDTH + HISTORY.px() + SPACING.px() + 2.0 * PANEL_PADDING.px();
-const STACKED_CALENDAR_SHARE: f32 = 0.45;
-const STACKED_HISTORY_SHARE: f32 = 0.2;
-const BESIDE_HISTORY_SHARE: f32 = 0.6;
+const HISTORY_SHARE: f32 = 0.6;
 
 fn hour_and_minute(shown: &str) -> (&str, &str) {
     shown.split_once(':').unwrap_or((shown, ""))
@@ -24,7 +23,7 @@ fn hour_and_minute(shown: &str) -> (&str, &str) {
 
 #[component]
 pub(crate) fn ClockButton(
-    editor: Editor,
+    workspace: Workspace,
     notifications: DesktopNotifications,
     clock: ReadSignal<String>,
     #[prop(default = Direction::Horizontal)] direction: Prop<Direction>,
@@ -34,18 +33,18 @@ pub(crate) fn ClockButton(
     let down = create_memo(move || direction.get() == Direction::Vertical);
     let hours = create_memo(move || clock.with(|shown| hour_and_minute(shown).0.to_owned()));
     let minutes = create_memo(move || clock.with(|shown| hour_and_minute(shown).1.to_owned()));
-    let listed = notifications.listed();
+    let unread = notifications.unread();
     let offered = notifications.offered;
     let count = create_memo(move || match offered.get() {
-        true => listed.with(Vec::len),
+        true => unread.get(),
         false => 0,
     });
     let unread = create_memo(move || count.get() > 0);
     let counted = create_memo(move || count.get().to_string());
     let label = create_memo(move || match count.get() {
         0 => clock.get(),
-        1 => format!("{}, 1 notification", clock.get()),
-        count => format!("{}, {count} notifications", clock.get()),
+        1 => format!("{}, 1 new notification", clock.get()),
+        count => format!("{}, {count} new notifications", clock.get()),
     });
     let screen = container_size();
     let room = create_memo(move || screen.as_ref().map(|screen| screen.get()));
@@ -91,7 +90,7 @@ pub(crate) fn ClockButton(
             }}
         >|handle: PopoverHandle|
             <ClockPanel
-                editor={editor}
+                workspace={workspace}
                 notifications={notifications}
                 beside={beside}
                 room={room}
@@ -103,7 +102,7 @@ pub(crate) fn ClockButton(
 
 #[component]
 fn ClockPanel(
-    editor: Editor,
+    workspace: Workspace,
     notifications: DesktopNotifications,
     beside: Memo<bool>,
     room: Memo<Option<beui::Vec2>>,
@@ -111,23 +110,14 @@ fn ClockPanel(
 ) -> NodeId {
     let offered = notifications.offered;
     let listed = notifications.listed();
-    let stacked = create_memo(move || offered.get() && !beside.get());
     let direction = create_memo(move || match beside.get() {
         true => Direction::Horizontal,
         false => Direction::Vertical,
     });
-    let share = create_memo(move || match stacked.get() {
-        true => STACKED_CALENDAR_SHARE,
-        false => SCREEN_SHARE,
-    });
     let height = create_memo(move || {
         let tall = room.get().map_or(0.0, |room| room.y);
-        let share = match stacked.get() {
-            true => STACKED_HISTORY_SHARE,
-            false => BESIDE_HISTORY_SHARE,
-        };
         match tall > 0.0 {
-            true => LIST_HEIGHT.min(tall * share),
+            true => LIST_HEIGHT.min(tall * HISTORY_SHARE),
             false => LIST_HEIGHT,
         }
     });
@@ -137,7 +127,7 @@ fn ClockPanel(
     });
     view! {
         <List direction={direction} align=Align::Start spacing=SPACING>
-            <DesktopCalendar editor={editor} share={share} />
+            <DesktopCalendar workspace={workspace} popover={popover} />
             <Show condition={offered}>
                 <Frame width={history_width}>
                     <NotificationList

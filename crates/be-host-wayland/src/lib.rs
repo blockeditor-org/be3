@@ -1,4 +1,6 @@
 mod activation;
+mod alpha;
+mod bell;
 mod compositor;
 mod content_type;
 mod decoration;
@@ -9,6 +11,10 @@ mod gtk_settings;
 mod heads;
 mod held_view;
 mod idle;
+mod layout;
+mod layout_names;
+mod pacing;
+mod pointer;
 mod presentation;
 pub mod programs;
 mod render;
@@ -22,16 +28,20 @@ mod tablet;
 mod tearing;
 mod text_input;
 mod toplevel_icon;
+mod toplevel_list;
 mod touch;
 mod view;
 mod windows;
 mod xwayland;
 
 pub use compositor::{Compositor, CursorImage, Monitor};
+pub use layout_names::{NamedLayout, named_layouts};
+pub use pointer::HeldPointer;
 pub use presentation::Presented;
 pub use server::Server;
-pub use state::{KeyboardConfig, WindowId};
-pub use view::{WindowView, register_restore_shortcuts};
+pub use state::{Grab, KeyboardConfig, WindowId};
+pub use toplevel_icon::ICON_PIXELS;
+pub use view::{Carrier, WindowView, register_restore_shortcuts};
 pub use windows::{Launch, Popups, WindowInfo, Windows};
 
 #[cfg(test)]

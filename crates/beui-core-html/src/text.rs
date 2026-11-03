@@ -528,3 +528,27 @@ pub fn byte_at<D>(stops: &[Stop<D>], same: impl Fn(&D) -> bool, utf16: u32) -> O
 
 #[cfg(test)]
 mod tests;
+
+pub fn report_truncated(node: NodeId, on_truncated: beui_tree::callback::Callback<bool>) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let truncated = Cell::new(false);
+        crate::frame::on_layout(Rc::new(move || {
+            let Some(element) = crate::dom::element(node) else {
+                return false;
+            };
+            if !element.is_connected() {
+                return false;
+            }
+            let cut = element.scroll_width() > element.client_width()
+                || element.scroll_height() > element.client_height();
+            if truncated.replace(cut) == cut {
+                return false;
+            }
+            on_truncated.call(cut);
+            true
+        }));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (node, on_truncated);
+}

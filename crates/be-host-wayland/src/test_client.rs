@@ -33,7 +33,9 @@ use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1, zwp_idle_inhibitor_v1,
 };
 
+mod pointer;
 mod protocols;
+pub(crate) use pointer::PointerSeen;
 pub(crate) use protocols::{PenSeen, TouchSeen};
 use wayland_protocols::wp::presentation_time::client::{wp_presentation, wp_presentation_feedback};
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
@@ -46,7 +48,10 @@ pub(crate) enum Seen {
     Button(wl_surface::WlSurface, bool),
     Key(wl_surface::WlSurface, u32),
     PopupDone(xdg_popup::XdgPopup),
+    Synced(Option<wl_surface::WlSurface>),
 }
+
+pub(crate) struct Sync;
 
 #[derive(Default)]
 pub(crate) struct Received {
@@ -55,9 +60,12 @@ pub(crate) struct Received {
     pub(crate) removed: Vec<u32>,
     pub(crate) output_names: Vec<(u32, String)>,
     pub(crate) outputs: Vec<(u32, wl_output::WlOutput)>,
+    pub(crate) output_modes: Vec<(u32, i32, i32, bool)>,
+    pub(crate) output_scales: Vec<(u32, i32)>,
     pub(crate) configured: Option<u32>,
     pub(crate) size: Option<(i32, i32)>,
     pub(crate) activated: bool,
+    pub(crate) suspended: bool,
     pub(crate) fullscreen: bool,
     pub(crate) maximized: bool,
     pub(crate) keyboard_entered: bool,
@@ -65,9 +73,13 @@ pub(crate) struct Received {
     pub(crate) serial: Option<u32>,
     pub(crate) seen: Vec<Seen>,
     pub(crate) keys: Vec<(u32, bool)>,
+    pub(crate) depressed: u32,
+    pub(crate) group: u32,
+    pub(crate) leveled: Vec<(u32, u32)>,
     pub(crate) keymaps: usize,
     pub(crate) repeat: Option<(i32, i32)>,
     pub(crate) pointer_entered: Option<(f64, f64)>,
+    pub(crate) pointer_at: Option<(f64, f64)>,
     pub(crate) pointer_surface: Option<wl_surface::WlSurface>,
     pub(crate) pointer_serial: Option<u32>,
     pub(crate) buttons: Vec<(u32, bool)>,
@@ -155,7 +167,7 @@ impl TestClient {
         client.exchange(server);
         client.compositor = Some(client.bind("wl_compositor", 5));
         client.shm = Some(client.bind("wl_shm", 1));
-        client.wm_base = Some(client.bind("xdg_wm_base", 5));
+        client.wm_base = Some(client.bind("xdg_wm_base", 6));
         client.seat = Some(client.bind("wl_seat", 7));
         client.exchange(server);
         client
@@ -341,6 +353,10 @@ impl TestClient {
     pub(crate) fn activate(&self, token: &str, surface: &wl_surface::WlSurface) {
         let activation: xdg_activation_v1::XdgActivationV1 = self.bind("xdg_activation_v1", 1);
         activation.activate(token.to_owned(), surface);
+    }
+
+    pub(crate) fn sync(&self) {
+        self.connection.display().sync(&self.handle, Sync);
     }
 
     pub(crate) fn flush(&mut self) {
@@ -667,6 +683,7 @@ impl Dispatch<xdg_toplevel::XdgToplevel, ()> for Received {
                 .collect();
             let has = |which: xdg_toplevel::State| states.contains(&(which as u32));
             state.activated = has(xdg_toplevel::State::Activated);
+            state.suspended = has(xdg_toplevel::State::Suspended);
             state.fullscreen = has(xdg_toplevel::State::Fullscreen);
             state.maximized = has(xdg_toplevel::State::Maximized);
         } else if let xdg_toplevel::Event::WmCapabilities { capabilities } = event {
@@ -709,11 +726,20 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Received {
                 let pressed = pressed == wl_keyboard::KeyState::Pressed;
                 state.keys.push((key, pressed));
                 if pressed {
+                    state.leveled.push((key, state.depressed));
                     state.serial = Some(serial);
                     if let Some(surface) = state.keyboard_surface.clone() {
                         state.seen.push(Seen::Key(surface, key));
                     }
                 }
+            }
+            wl_keyboard::Event::Modifiers {
+                mods_depressed,
+                group,
+                ..
+            } => {
+                state.depressed = mods_depressed;
+                state.group = group;
             }
             wl_keyboard::Event::Keymap { .. } => state.keymaps += 1,
             wl_keyboard::Event::RepeatInfo { rate, delay } => state.repeat = Some((rate, delay)),
@@ -739,10 +765,16 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Received {
                 surface_y,
             } => {
                 state.pointer_entered = Some((surface_x, surface_y));
+                state.pointer_at = Some((surface_x, surface_y));
                 state.pointer_serial = Some(serial);
                 state.pointer_surface = Some(surface);
             }
             wl_pointer::Event::Leave { .. } => state.pointer_surface = None,
+            wl_pointer::Event::Motion {
+                surface_x,
+                surface_y,
+                ..
+            } => state.pointer_at = Some((surface_x, surface_y)),
             wl_pointer::Event::Button {
                 button,
                 state: WEnum::Value(pressed),
@@ -779,6 +811,23 @@ impl Dispatch<wl_callback::WlCallback, ()> for Received {
     }
 }
 
+impl Dispatch<wl_callback::WlCallback, Sync> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wl_callback::WlCallback,
+        event: wl_callback::Event,
+        _: &Sync,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wl_callback::Event::Done { .. } = event {
+            state
+                .seen
+                .push(Seen::Synced(state.keyboard_surface.clone()));
+        }
+    }
+}
+
 wayland_client::delegate_noop!(Received: ignore wl_compositor::WlCompositor);
 impl Dispatch<wl_output::WlOutput, u32> for Received {
     fn event(
@@ -789,9 +838,28 @@ impl Dispatch<wl_output::WlOutput, u32> for Received {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        if let wl_output::Event::Name { name } = event {
-            state.output_names.retain(|(held, _)| held != global);
-            state.output_names.push((*global, name));
+        match event {
+            wl_output::Event::Name { name } => {
+                state.output_names.retain(|(held, _)| held != global);
+                state.output_names.push((*global, name));
+            }
+            wl_output::Event::Mode {
+                flags,
+                width,
+                height,
+                ..
+            } => {
+                let current = matches!(
+                    flags,
+                    WEnum::Value(flags) if flags.contains(wl_output::Mode::Current)
+                );
+                state.output_modes.push((*global, width, height, current));
+            }
+            wl_output::Event::Scale { factor } => {
+                state.output_scales.retain(|(held, _)| held != global);
+                state.output_scales.push((*global, factor));
+            }
+            _ => {}
         }
     }
 }

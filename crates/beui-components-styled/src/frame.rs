@@ -37,6 +37,7 @@ pub enum ColorRole {
     ScrollThumbHover,
     ScrollThumbActive,
     Track,
+    TrackHover,
     Knob,
     ControlOutline,
     KnobOutline,
@@ -48,7 +49,7 @@ pub enum ColorRole {
 }
 
 impl ColorRole {
-    pub const ROLES: [ColorRole; 33] = [
+    pub const ROLES: [ColorRole; 34] = [
         ColorRole::Background,
         ColorRole::Surface,
         ColorRole::SurfaceRaised,
@@ -75,6 +76,7 @@ impl ColorRole {
         ColorRole::ScrollThumbHover,
         ColorRole::ScrollThumbActive,
         ColorRole::Track,
+        ColorRole::TrackHover,
         ColorRole::Knob,
         ColorRole::ControlOutline,
         ColorRole::KnobOutline,
@@ -113,6 +115,7 @@ impl ColorRole {
             ColorRole::ScrollThumbHover => theme.scroll_thumb_hover.get(),
             ColorRole::ScrollThumbActive => theme.scroll_thumb_active.get(),
             ColorRole::Track => theme.track.get(),
+            ColorRole::TrackHover => theme.track_hover.get(),
             ColorRole::Knob => theme.knob.get(),
             ColorRole::ControlOutline => theme.control_outline.get().unwrap_or(Color::TRANSPARENT),
             ColorRole::KnobOutline => theme.knob_outline.get().unwrap_or(Color::TRANSPARENT),
@@ -153,6 +156,7 @@ impl ColorRole {
             ColorRole::ScrollThumbHover => "scroll thumb hover",
             ColorRole::ScrollThumbActive => "scroll thumb active",
             ColorRole::Track => "track",
+            ColorRole::TrackHover => "track hover",
             ColorRole::Knob => "knob",
             ColorRole::ControlOutline => "control outline",
             ColorRole::KnobOutline => "knob outline",

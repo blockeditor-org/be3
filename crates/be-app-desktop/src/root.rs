@@ -1,8 +1,10 @@
 mod bar;
 mod calendar;
 mod clock;
+mod ending;
 mod fullscreen;
 mod launcher;
+mod layouts;
 pub(crate) mod media;
 mod notifications;
 pub(crate) mod osd;
@@ -17,6 +19,7 @@ mod switcher;
 mod tray;
 mod volume;
 mod wifi;
+mod window_keys;
 mod windows;
 
 use be_sdk_beui::beui::dock::styled::{
@@ -25,7 +28,7 @@ use be_sdk_beui::beui::dock::styled::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
-use be_sdk_beui::{DisplaysWatch, MediaWatch, PowerWatch, WindowsWatch};
+use be_sdk_beui::{DisplaysWatch, MediaWatch, WindowsWatch};
 use be_sdk_beui::{Editor, Loaded};
 use be_sdk_beui::{HostPanel, HostWindowId};
 use be_sdk_shell::{
@@ -41,6 +44,7 @@ use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
 use placeholders::{Placeholder, Placeholders};
 use programs_panel::{ProgramsPanel, ProgramsPanelKey, ProgramsPanelOverlay};
+use window_keys::WindowShortcuts;
 use windows::DeskWindows;
 
 const WINDOW_ORIGIN: f32 = 48.0;
@@ -130,6 +134,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
     cover_under_fullscreen(editor, layout, display);
     let launches = shell.programs_panel.launches();
     let area = windows_area(layout, region_area());
+    shell.windows.report_area(display, area);
     provide_context(bar::BarArea(area));
     let bars = Bars::of(display);
     view! {
@@ -187,15 +192,14 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     workspace.editor().content(&surface);
     let layout = workspace.layout();
     switcher::bind_window_switcher(layout);
-    fullscreen::bind_fullscreen(workspace.editor());
     let failure = workspace.error();
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
     let desk = workspace.desk();
     let placeholders = Placeholders::new(workspace);
     let windows = DeskWindows::new(workspace, placeholders);
-    let block_windows = windows.block_windows();
-    hold_saving_while_ending(workspace);
+    let block_windows = workspace.shown_block_tabs();
+    ending::keep_windows_through_ending(workspace);
     let placeholder = RenderFn::new(move |key: HostWindowId| {
         view! {
             <Placeholder placeholders key />
@@ -219,7 +223,9 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let corner = create_memo(move || bar::toast_corner(status.get()));
     let toasts = create_memo(move || bar::clear_of_status(layout, status.get(), area.get()));
     let osd = media::Osd::new(editor);
-    let shell = Shell::new(workspace, notifications, programs_panel, windows);
+    let layouts = layouts::Layouts::new(editor);
+    let several_layouts = layouts.several;
+    let shell = Shell::new(workspace, notifications, programs_panel, windows, layouts);
     publish(editor.block_id(), Desktop { shell, osd });
     view! {
         <Frame @node_ref={&surface}>
@@ -255,15 +261,21 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     </DockBar>
                 </Docking>
                 <WorkspaceDialogs workspace />
+                <bar::UnreadableBarsDialog editor />
                 <Show condition={keyed}>
                     <MediaKeys editor osd />
                 </Show>
+                <Show condition={several_layouts}>
+                    <layouts::LayoutKey layouts />
+                </Show>
+                <WindowShortcuts editor manager={windows.manager} />
                 <media::LevelDisplay osd area display=0 />
                 <Show condition={launches}>
                     <ProgramsPanelKey programs_panel windows layout />
                 </Show>
                 <ProgramsPanelOverlay programs_panel display=0 layout area />
                 <DesktopToasts notifications area={toasts} corner />
+                <ending::EndingBar workspace area />
             </List>
         </Frame>
     }
@@ -308,15 +320,6 @@ fn windows_area(layout: DockingLayout<TabId>, region: Memo<Rect>) -> Memo<Rect> 
             false => region.get(),
         }
     })
-}
-
-fn hold_saving_while_ending(workspace: Workspace) {
-    let power = workspace.editor().watch::<PowerWatch>();
-    let ending = create_memo(move || power.with(|power| power.ending));
-    create_effect(move || {
-        let ending = ending.get();
-        untrack(|| workspace.hold_saving(ending));
-    });
 }
 
 fn block_window(tab: TabId, area: Vec2) -> Rect {

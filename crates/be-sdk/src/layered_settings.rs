@@ -46,13 +46,8 @@ where
         self.blocks.borrow().layer_blocks(graph, client)
     }
 
-    pub fn ensure(
-        &self,
-        graph: &dyn SettingsGraph,
-        layers: Layers,
-        layer: SettingsLayer,
-    ) -> Option<Uuid> {
-        layers
+    pub fn ensure(&self, graph: &dyn SettingsGraph, layer: SettingsLayer) -> Option<Uuid> {
+        self.layer_blocks(graph)
             .block(layer)
             .or_else(|| self.create(graph, layer, Document::new(&R::default())))
     }
@@ -70,24 +65,46 @@ where
         block
     }
 
-    pub fn write<V: Clone>(
+    pub fn write<V: Clone + 'static>(
         &self,
         graph: &dyn SettingsGraph,
-        layers: Layers,
         layer: SettingsLayer,
         setting: &Setting<R, V>,
         value: Option<V>,
     ) {
+        let setting = setting.clone();
+        let edit: KeptEdit<R> = Rc::new(move |own: &R| setting.set(own, value.clone()));
+        self.write_all(graph, layer, &[edit]);
+    }
+
+    pub fn write_all(
+        &self,
+        graph: &dyn SettingsGraph,
+        layer: SettingsLayer,
+        edits: &[KeptEdit<R>],
+    ) {
+        let layers = self.layer_blocks(graph);
         if let Some(block) = layers.block(layer) {
-            self.write_block(block, setting, value);
+            self.edit_block(block, edits);
             return;
         }
         let mut content = Document::new(&R::default());
-        content.apply(&setting.set(&R::default(), value.clone()));
+        for edit in edits {
+            let made = edit(&content.root());
+            content.apply(&made);
+        }
         if self.create(graph, layer, content).is_none()
             && let Some(block) = layers.top()
         {
-            self.write_block(block, setting, value);
+            self.edit_block(block, edits);
+        }
+    }
+
+    fn edit_block(&self, block: Uuid, edits: &[KeptEdit<R>]) {
+        let content = self.core.content_of::<Document<R>>(block);
+        for edit in edits {
+            let own = content.read(|content| content.root()).unwrap_or_default();
+            content.operate(edit(&own));
         }
     }
 
@@ -104,21 +121,32 @@ pub enum SettingsAnswer {
     Undo,
 }
 
-struct SettingsChange {
+pub type KeptEdit<R> = Rc<dyn Fn(&R) -> be_block::Edit>;
+
+struct SettingsChange<R> {
     key: String,
     name: String,
     undo: Rc<dyn Fn()>,
-    keep: Rc<dyn Fn()>,
+    here: KeptEdit<R>,
 }
 
-#[derive(Default)]
-pub struct SettingsChangeLog {
-    changes: RefCell<Vec<SettingsChange>>,
+pub struct SettingsChangeLog<R> {
+    changes: RefCell<Vec<SettingsChange<R>>>,
     round: Cell<u64>,
     changed: Callbacks<(), dyn Fn()>,
 }
 
-impl SettingsChangeLog {
+impl<R> Default for SettingsChangeLog<R> {
+    fn default() -> Self {
+        Self {
+            changes: RefCell::default(),
+            round: Cell::default(),
+            changed: Callbacks::default(),
+        }
+    }
+}
+
+impl<R> SettingsChangeLog<R> {
     pub fn on_change(&self, run: impl Fn() + 'static) -> Subscription {
         self.changed.add((), Rc::new(run))
     }
@@ -141,7 +169,7 @@ impl SettingsChangeLog {
         key: &str,
         name: &str,
         undo: impl Fn() + 'static,
-        keep: impl Fn() + 'static,
+        here: impl Fn(&R) -> be_block::Edit + 'static,
     ) {
         if self.noted(key) {
             return;
@@ -150,7 +178,7 @@ impl SettingsChangeLog {
             key: key.to_owned(),
             name: name.to_owned(),
             undo: Rc::new(undo),
-            keep: Rc::new(keep),
+            here: Rc::new(here),
         });
         self.changed();
     }
@@ -175,15 +203,19 @@ impl SettingsChangeLog {
         self.changed();
     }
 
-    pub fn answer(&self, answer: SettingsAnswer) {
+    pub fn answer(&self, answer: SettingsAnswer, keep_here: impl FnOnce(&[KeptEdit<R>])) {
         let answered = std::mem::take(&mut *self.changes.borrow_mut());
         self.round.set(self.round.get() + 1);
         self.changed();
+        if answer == SettingsAnswer::KeepOnThisDevice {
+            let kept: Vec<KeptEdit<R>> = answered
+                .iter()
+                .map(|changed| Rc::clone(&changed.here))
+                .collect();
+            keep_here(&kept);
+        }
         for changed in answered {
-            match answer {
-                SettingsAnswer::KeepOnThisDevice => (changed.keep)(),
-                SettingsAnswer::Undo => (changed.undo)(),
-            }
+            (changed.undo)();
         }
     }
 }

@@ -22,6 +22,7 @@ fn a_window_opened_again_over_another_moves_there_at_its_new_size() {
         },
         size,
         role: WindowRole::Normal,
+        level: beui_types::WindowLevel::Normal,
     });
     let incoming = send(&mut space, now, []);
     let main = main(&space).clone();

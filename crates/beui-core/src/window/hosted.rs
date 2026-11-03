@@ -25,7 +25,7 @@ pub(crate) struct Windows {
     asked: Vec<WindowId>,
     wanted: HashMap<WindowId, Vec2>,
     hung: HashMap<WindowId, beui_types::WindowPlacement>,
-    roles: HashMap<WindowId, beui_types::WindowRole>,
+    casts: HashMap<WindowId, (beui_types::WindowRole, beui_types::WindowLevel)>,
     closed_by_host: HashSet<WindowId>,
     requests: Vec<WindowRequest>,
     shown: HashMap<WindowId, Vec2>,
@@ -48,7 +48,7 @@ impl Default for Windows {
             asked: Vec::new(),
             wanted: HashMap::default(),
             hung: HashMap::default(),
-            roles: HashMap::default(),
+            casts: HashMap::default(),
             closed_by_host: HashSet::default(),
             requests: Vec::new(),
             shown: HashMap::default(),
@@ -506,13 +506,13 @@ impl Document {
             .retain(|window, _| asked.contains(window));
         self.windows.hung.retain(|window, _| asked.contains(window));
         self.windows
-            .roles
+            .casts
             .retain(|window, _| asked.contains(window));
         for window in &open {
-            let Some((size, placement, role)) = self
+            let Some((size, placement, role, level)) = self
                 .window_node(*window)
                 .and_then(|node| self.overlay_window(node))
-                .map(|spec| (spec.size, spec.placement.clone(), spec.role))
+                .map(|spec| (spec.size, spec.placement.clone(), spec.role, spec.level))
             else {
                 continue;
             };
@@ -522,21 +522,22 @@ impl Document {
                     placement: placement.clone(),
                     size,
                     role,
+                    level,
                 });
                 self.windows.asked.push(*window);
                 self.windows.wanted.insert(*window, size);
-                self.windows.roles.insert(*window, role);
+                self.windows.casts.insert(*window, (role, level));
                 if role == beui_types::WindowRole::Popup {
                     self.windows.hung.insert(*window, placement);
                 }
                 continue;
             }
-            let recast = self.windows.roles.get(window) != Some(&role);
+            let recast = self.windows.casts.get(window) != Some(&(role, level));
             if recast
                 || (role == beui_types::WindowRole::Popup
                     && self.windows.hung.get(window) != Some(&placement))
             {
-                self.windows.roles.insert(*window, role);
+                self.windows.casts.insert(*window, (role, level));
                 match role {
                     beui_types::WindowRole::Popup => {
                         self.windows.hung.insert(*window, placement.clone());
@@ -551,6 +552,7 @@ impl Document {
                     placement,
                     size,
                     role,
+                    level,
                 });
                 continue;
             }

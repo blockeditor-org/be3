@@ -221,6 +221,11 @@ impl SplitSize {
 }
 pub const MIN_PANE_LENGTH: f32 = 120.0;
 pub const MIN_WINDOW_SIZE: Vec2 = Vec2::new(200.0, 140.0);
+pub(crate) fn framed(rect: Rect) -> Rect {
+    let width = rect.width().max(MIN_WINDOW_SIZE.x);
+    Rect::from_min_size(rect.min, Vec2::new(width, rect.height()))
+}
+
 pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
 pub const SIDEBAR_WIDTH: f32 = 180.0;
 pub const MIN_SIDEBAR_WIDTH: f32 = 80.0;
@@ -765,7 +770,7 @@ impl DockState {
         if let Some(surface) = self.surface_mut(surface)
             && surface.window.is_some()
         {
-            surface.window = Some(rect);
+            surface.window = Some(framed(rect));
         }
     }
 
@@ -781,7 +786,7 @@ impl DockState {
         self.surfaces.push(Surface {
             id,
             root: Node::Leaf(leaf),
-            window: Some(rect),
+            window: Some(framed(rect)),
             key: None,
         });
         self.focus = Some(focus);
@@ -1124,7 +1129,26 @@ impl DockState {
             .or_else(|| self.recent_tabs().first().copied())
     }
 
+    fn lift_focused(&mut self) {
+        let Some(surface) = self.focus.and_then(|leaf| self.surface_of(leaf)) else {
+            return;
+        };
+        let Some(at) = self
+            .surfaces
+            .iter()
+            .position(|held| held.id == surface && held.window.is_some())
+        else {
+            return;
+        };
+        if at + 1 == self.surfaces.len() {
+            return;
+        }
+        let lifted = self.surfaces.remove(at);
+        self.surfaces.push(lifted);
+    }
+
     fn remember_focus(&mut self) {
+        self.lift_focused();
         let Some(tab) = self.focused_tab() else {
             return;
         };
@@ -1164,6 +1188,11 @@ impl DockState {
         self.focus(position.leaf);
         self.shows += 1;
         self.reveal_gathered(tab);
+    }
+
+    pub fn in_window(&self, tab: TabId) -> bool {
+        self.find(tab)
+            .is_some_and(|found| self.window_rect(found.surface).is_some())
     }
 
     pub fn shows(&self) -> u64 {

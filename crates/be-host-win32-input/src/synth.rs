@@ -1,3 +1,4 @@
+use beui_types::input::typing::character;
 use beui_types::input::{Keystroke, PointerButton, ScrollDelta};
 use beui_types::input::{SCROLL_LINE, scrolled};
 use beui_types::{Pos2, Vec2};
@@ -158,17 +159,53 @@ pub fn text(text: &str) -> Vec<Synth> {
     synths
 }
 
-pub fn keystroke(stroke: &Keystroke) -> Vec<Synth> {
-    let evdev = stroke
-        .evdev
-        .or_else(|| stroke.key.and_then(|key| key.evdev()));
-    if let Some(synth) = evdev.and_then(|evdev| key(evdev, stroke.pressed)) {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LayoutKey {
+    pub vk: u16,
+    pub scan: u16,
+}
+
+pub fn keystroke(stroke: &Keystroke, layout: &dyn Fn(char) -> Option<LayoutKey>) -> Vec<Synth> {
+    let up = match stroke.pressed {
+        true => 0,
+        false => flags::KEY_UP,
+    };
+    if let Some(synth) = stroke.evdev.and_then(|evdev| key(evdev, stroke.pressed)) {
         return vec![synth];
     }
-    match (stroke.pressed, &stroke.text) {
-        (true, Some(typed)) => text(typed),
-        _ => Vec::new(),
+    let typed = |typed: &str| match stroke.pressed {
+        true => text(typed),
+        false => Vec::new(),
+    };
+    let printable = stroke
+        .text
+        .as_deref()
+        .filter(|text| !text.chars().any(char::is_control));
+    if let Some(printable) = printable {
+        return typed(printable);
     }
+    let Some(key_) = stroke.key else {
+        return stroke.text.as_deref().map(typed).unwrap_or_default();
+    };
+    if let Some(wanted) = character(key_) {
+        let placed = layout(wanted).or_else(|| {
+            wanted.is_ascii_alphanumeric().then(|| LayoutKey {
+                vk: wanted.to_ascii_uppercase() as u16,
+                scan: 0,
+            })
+        });
+        if let Some(LayoutKey { vk, scan }) = placed {
+            return vec![Synth::Key {
+                vk,
+                scan,
+                flags: up,
+            }];
+        }
+    }
+    if let Some(synth) = key_.evdev().and_then(|evdev| key(evdev, stroke.pressed)) {
+        return vec![synth];
+    }
+    stroke.text.as_deref().map(typed).unwrap_or_default()
 }
 
 #[derive(Clone, Debug)]
@@ -184,7 +221,13 @@ pub struct Planned {
     pub synths: Vec<Synth>,
 }
 
-pub fn plan(desktop: PixelRect, frame: PixelRect, size: Vec2, event: &Event) -> Planned {
+pub fn plan(
+    desktop: PixelRect,
+    frame: PixelRect,
+    size: Vec2,
+    event: &Event,
+    layout: &dyn Fn(char) -> Option<LayoutKey>,
+) -> Planned {
     match event {
         Event::Pointer { at, action } => {
             let point = frame.point_at(size, *at);
@@ -195,7 +238,7 @@ pub fn plan(desktop: PixelRect, frame: PixelRect, size: Vec2, event: &Event) -> 
         }
         Event::Key(stroke) => Planned {
             cursor: None,
-            synths: keystroke(stroke),
+            synths: keystroke(stroke, layout),
         },
         Event::Text(typed) => Planned {
             cursor: None,

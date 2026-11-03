@@ -29,10 +29,26 @@ impl Keyboard {
             Some(config.options.clone()).filter(|options| !options.is_empty()),
             xkb::KEYMAP_COMPILE_NO_FLAGS,
         )?;
-        Some(Self {
+        let mut keyboard = Self {
             state: xkb::State::new(&keymap),
             modifiers: Modifiers::NONE,
-        })
+        };
+        keyboard.set_layout(config.active_layout);
+        Some(keyboard)
+    }
+
+    pub fn set_layout(&mut self, index: u32) {
+        if index >= self.state.get_keymap().num_layouts() {
+            return;
+        }
+        let mods = |kind| self.state.serialize_mods(kind);
+        let (depressed, latched, locked) = (
+            mods(xkb::STATE_MODS_DEPRESSED),
+            mods(xkb::STATE_MODS_LATCHED),
+            mods(xkb::STATE_MODS_LOCKED),
+        );
+        self.state
+            .update_mask(depressed, latched, locked, 0, 0, index);
     }
 
     pub fn modifiers(&self) -> Modifiers {

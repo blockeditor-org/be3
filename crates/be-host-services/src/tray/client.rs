@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::ops::ControlFlow;
 use std::sync::{Arc, PoisonError};
 
-use be_sdk_api::{HostImage, HostTrayItem, TrayMenuItem, TrayRequest};
+use be_sdk_api::{HostImage, HostTrayItem, TrayClick, TrayMenuItem, TrayRequest};
 use futures_util::StreamExt;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use zbus::fdo::{RequestNameFlags, RequestNameReply};
@@ -11,14 +12,19 @@ use zbus::zvariant::{OwnedValue, Value};
 use zbus::{Connection, MatchRule, Message, MessageStream};
 
 use super::icons::Icons;
-use super::model::{Address, Items, Properties, menu, properties, raw_entry};
+use super::model::{
+    Address, Items, Properties, introspected_activates, menu, properties, raw_entry,
+};
 use super::watcher::{self, Registered, Watcher};
+use crate::dbus::Bus;
 
 const ITEM: &str = "org.kde.StatusNotifierItem";
 const MENU: &str = "com.canonical.dbusmenu";
 const PROPERTIES: &str = "org.freedesktop.DBus.Properties";
 const BUS: &str = "org.freedesktop.DBus";
 const BUS_PATH: &str = "/org/freedesktop/DBus";
+const INTROSPECTABLE: &str = "org.freedesktop.DBus.Introspectable";
+const UNKNOWN_METHOD: &str = "org.freedesktop.DBus.Error.UnknownMethod";
 
 pub enum Event {
     Registered {
@@ -45,6 +51,7 @@ pub enum Event {
         owner: Option<String>,
         properties: Box<Properties>,
         icon: Option<HostImage>,
+        activates: Option<bool>,
     },
     Laid {
         key: String,
@@ -52,6 +59,7 @@ pub enum Event {
         menu: Vec<TrayMenuItem>,
     },
     Request(TrayRequest),
+    Unactivated(String),
 }
 
 struct Client {
@@ -62,28 +70,46 @@ struct Client {
     serving: Option<Registered>,
 }
 
-pub async fn run(
-    sender: UnboundedSender<Event>,
-    events: UnboundedReceiver<Event>,
-    publish: impl FnMut(Vec<HostTrayItem>) + Send + 'static,
-) {
-    let Some(connection) = crate::dbus::session().await else {
-        return;
-    };
-    run_on(connection, sender, events, publish).await;
-}
-
-pub async fn run_on(
-    connection: Connection,
+pub async fn serve(
+    bus: &Bus,
     sender: UnboundedSender<Event>,
     mut events: UnboundedReceiver<Event>,
-    mut publish: impl FnMut(Vec<HostTrayItem>) + Send + 'static,
+    publish: impl FnMut(Vec<HostTrayItem>) + Send + 'static,
 ) {
-    if let Err(error) = listen(&connection, &sender).await {
-        eprintln!("be-host: tray items cannot be watched: {error}");
-        return;
+    let mut published = Published(Box::new(publish));
+    loop {
+        let connection = bus.connected().await;
+        let serving = run_on(connection.clone(), &sender, &mut events, &mut published);
+        if crate::dbus::until_closed(&connection, serving)
+            .await
+            .is_break()
+        {
+            return;
+        }
     }
-    let serving = serve(&connection, &sender).await;
+}
+
+struct Published(Box<dyn FnMut(Vec<HostTrayItem>) + Send>);
+
+struct Shown<'a>(&'a mut Published);
+
+impl Drop for Shown<'_> {
+    fn drop(&mut self) {
+        (self.0.0)(Vec::new());
+    }
+}
+
+async fn run_on(
+    connection: Connection,
+    sender: &UnboundedSender<Event>,
+    events: &mut UnboundedReceiver<Event>,
+    published: &mut Published,
+) -> ControlFlow<()> {
+    if let Err(error) = listen(&connection, sender).await {
+        eprintln!("be-host: tray items cannot be watched: {error}");
+        return ControlFlow::Continue(());
+    }
+    let serving = serve_watcher(&connection, sender).await;
     let host = format!("org.kde.StatusNotifierHost-{}", std::process::id());
     if let Err(error) = connection
         .request_name_with_flags(host.as_str(), RequestNameFlags::DoNotQueue.into())
@@ -98,26 +124,31 @@ pub async fn run_on(
             }
         }
         None => {
-            if let Err(error) = join_watcher(&connection, &sender, &host).await {
+            if let Err(error) = join_watcher(&connection, sender, &host).await {
                 eprintln!("be-host: the running tray watcher cannot be used: {error}");
             }
         }
     }
     let mut client = Client {
         connection,
-        events: sender,
+        events: sender.clone(),
         icons: Arc::new(Icons::new()),
         items: Items::default(),
         serving,
     };
+    let shown = Shown(published);
     while let Some(event) = events.recv().await {
         if client.handle(event).await {
-            publish(client.items.published());
+            (shown.0.0)(client.items.published());
         }
     }
+    ControlFlow::Break(())
 }
 
-async fn serve(connection: &Connection, events: &UnboundedSender<Event>) -> Option<Registered> {
+async fn serve_watcher(
+    connection: &Connection,
+    events: &UnboundedSender<Event>,
+) -> Option<Registered> {
     let registered = Registered::default();
     let watcher = Watcher {
         events: events.clone(),
@@ -329,12 +360,16 @@ impl Client {
                 owner,
                 properties,
                 icon,
+                activates,
             } => {
                 let Some(item) = self.items.get_mut(&key) else {
                     return false;
                 };
                 if item.asked != ticket {
                     return false;
+                }
+                if item.activates.is_none() {
+                    item.activates = activates;
                 }
                 if let Some(owner) = owner {
                     item.owner = owner;
@@ -365,6 +400,10 @@ impl Client {
                 self.request(request);
                 false
             }
+            Event::Unactivated(key) => self
+                .items
+                .get_mut(&key)
+                .is_some_and(|item| item.activates.replace(false) != Some(false)),
         }
     }
 
@@ -397,6 +436,7 @@ impl Client {
         };
         item.asked += 1;
         let ticket = item.asked;
+        let introspect = item.activates.is_none();
         let (bus, owner, path) = (
             item.address.bus.clone(),
             item.owner.clone(),
@@ -432,6 +472,10 @@ impl Client {
                     return;
                 }
             };
+            let activates = match introspect {
+                true => Some(activates(&connection, destination, &path).await),
+                false => None,
+            };
             let properties = properties(&map);
             let icon = icons.icon(&properties);
             let _ = events.send(Event::Fetched {
@@ -440,6 +484,7 @@ impl Client {
                 owner: resolved,
                 properties: Box::new(properties),
                 icon,
+                activates,
             });
         });
     }
@@ -493,11 +538,12 @@ impl Client {
 
     fn request(&self, request: TrayRequest) {
         let key = match &request {
-            TrayRequest::Activate(key)
-            | TrayRequest::SecondaryActivate(key)
-            | TrayRequest::MenuOpened(key)
-            | TrayRequest::MenuClosed(key) => key,
-            TrayRequest::Scroll { item, .. } | TrayRequest::MenuChosen { item, .. } => item,
+            TrayRequest::MenuClosed(key) => key,
+            TrayRequest::Activate(TrayClick { item, .. })
+            | TrayRequest::SecondaryActivate(TrayClick { item, .. })
+            | TrayRequest::MenuOpened(TrayClick { item, .. })
+            | TrayRequest::Scroll { item, .. }
+            | TrayRequest::MenuChosen { item, .. } => item,
         };
         let Some(item) = self.items.get(key) else {
             return;
@@ -506,6 +552,7 @@ impl Client {
         let path = item.address.path.clone();
         let menu = item.menu_path().map(str::to_owned);
         let owner = item.owner.clone();
+        let key = key.clone();
         let (connection, events) = (self.connection.clone(), self.events.clone());
         crate::dbus::spawn(async move {
             let on = Target {
@@ -513,12 +560,14 @@ impl Client {
                 destination: &destination,
             };
             match (request, menu) {
-                (TrayRequest::Activate(_), _) => {
-                    on.call(&path, ITEM, "Activate", &(0_i32, 0_i32)).await;
+                (TrayRequest::Activate(TrayClick { x, y, .. }), _) => {
+                    let taken = on.call(&path, ITEM, "Activate", &(x, y)).await;
+                    if taken.is_err_and(|error| unknown_method(&error)) {
+                        let _ = events.send(Event::Unactivated(key));
+                    }
                 }
-                (TrayRequest::SecondaryActivate(_), _) => {
-                    on.call(&path, ITEM, "SecondaryActivate", &(0_i32, 0_i32))
-                        .await;
+                (TrayRequest::SecondaryActivate(TrayClick { x, y, .. }), _) => {
+                    let _ = on.call(&path, ITEM, "SecondaryActivate", &(x, y)).await;
                 }
                 (
                     TrayRequest::Scroll {
@@ -530,15 +579,16 @@ impl Client {
                         true => "horizontal",
                         false => "vertical",
                     };
-                    on.call(&path, ITEM, "Scroll", &(delta, orientation)).await;
+                    let _ = on.call(&path, ITEM, "Scroll", &(delta, orientation)).await;
                 }
-                (TrayRequest::MenuOpened(_), None) => {
-                    on.call(&path, ITEM, "ContextMenu", &(0_i32, 0_i32)).await;
+                (TrayRequest::MenuOpened(TrayClick { x, y, .. }), None) => {
+                    let _ = on.call(&path, ITEM, "ContextMenu", &(x, y)).await;
                 }
                 (TrayRequest::MenuOpened(_), Some(menu)) => {
                     let stale = on
                         .call(&menu, MENU, "AboutToShow", &(0_i32,))
                         .await
+                        .ok()
                         .and_then(|reply| reply.body().deserialize::<bool>().ok())
                         .unwrap_or(false);
                     if stale {
@@ -567,7 +617,13 @@ struct Target<'a> {
 }
 
 impl Target<'_> {
-    async fn call<B>(&self, path: &str, interface: &str, method: &str, body: &B) -> Option<Message>
+    async fn call<B>(
+        &self,
+        path: &str,
+        interface: &str,
+        method: &str,
+        body: &B,
+    ) -> zbus::Result<Message>
     where
         B: serde::Serialize + zbus::zvariant::DynamicType,
     {
@@ -578,12 +634,38 @@ impl Target<'_> {
         if let Err(error) = &sent {
             eprintln!("be-host: the tray item did not take {method}: {error}");
         }
-        sent.ok()
+        sent
     }
 
     async fn event(&self, menu: &str, id: i32, event: &str) {
-        self.call(menu, MENU, "Event", &(id, event, Value::from(0_i32), 0_u32))
+        let _ = self
+            .call(menu, MENU, "Event", &(id, event, Value::from(0_i32), 0_u32))
             .await;
+    }
+}
+
+fn unknown_method(error: &zbus::Error) -> bool {
+    match error {
+        zbus::Error::MethodError(name, _, _) => name.as_str() == UNKNOWN_METHOD,
+        zbus::Error::FDO(error) => matches!(**error, zbus::fdo::Error::UnknownMethod(_)),
+        _ => false,
+    }
+}
+
+async fn activates(connection: &Connection, destination: &str, path: &str) -> bool {
+    let xml = connection
+        .call_method(
+            Some(destination),
+            path,
+            Some(INTROSPECTABLE),
+            "Introspect",
+            &(),
+        )
+        .await
+        .and_then(|reply| reply.body().deserialize::<String>());
+    match xml {
+        Ok(xml) => introspected_activates(&xml).unwrap_or(true),
+        Err(_) => true,
     }
 }
 

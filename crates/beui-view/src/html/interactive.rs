@@ -47,6 +47,7 @@ pub(crate) fn interactive(
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
     cursor: Prop<Option<CursorIcon>>,
+    cursor_image: Prop<Option<beui_types::CursorImage>>,
     pointer_locked: Prop<bool>,
     key_active: Prop<bool>,
     capture_presses: Prop<Area>,
@@ -101,6 +102,7 @@ pub(crate) fn interactive(
             }
         });
     }
+    drop(cursor_image);
     bind(cursor, move |cursor| {
         set_style(
             node,

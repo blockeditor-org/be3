@@ -1,6 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use beui::Pos2;
 use beui::native::Waker;
 
 use crate::rotation::Rotation;
@@ -17,6 +18,15 @@ pub struct Monitor {
     pub preferred: DisplayMode,
     pub current: DisplayMode,
     pub rotation: Rotation,
+    pub default_scale: f32,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum DisplayUse {
+    #[default]
+    Desktop,
+    Mirror(String),
+    Off,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -24,9 +34,31 @@ pub struct DisplayConfig {
     pub modes: Vec<(String, DisplayMode)>,
     pub rotations: Vec<(String, Rotation)>,
     pub scales: Vec<(String, f32)>,
+    pub uses: Vec<(String, DisplayUse)>,
+    pub main: Option<String>,
+    pub places: Vec<(String, Pos2)>,
 }
 
 impl DisplayConfig {
+    pub(crate) fn used(&self, monitor: &str) -> DisplayUse {
+        self.uses
+            .iter()
+            .find(|(id, _)| id == monitor)
+            .map(|(_, used)| used.clone())
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn place(&self, monitor: &str) -> Option<Pos2> {
+        self.places
+            .iter()
+            .find(|(id, place)| id == monitor && place.x.is_finite() && place.y.is_finite())
+            .map(|(_, place)| *place)
+    }
+
+    pub(crate) fn same_arrangement(&self, other: &Self) -> bool {
+        self.uses == other.uses && self.main == other.main && self.places == other.places
+    }
+
     pub(crate) fn mode(&self, monitor: &str) -> Option<DisplayMode> {
         self.modes
             .iter()

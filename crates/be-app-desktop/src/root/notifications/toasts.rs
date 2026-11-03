@@ -12,6 +12,7 @@ pub(crate) fn DesktopToasts(
 ) -> NodeId {
     let anchor = create_memo(move || OverlayAnchor::Rect(area.get()));
     let toasts = notifications.toasts();
+    let browsing = notifications.browsing();
     view! {
         <Toasts
             anchor={anchor}
@@ -32,6 +33,7 @@ pub(crate) fn DesktopToasts(
                     notifications.activate(id);
                 }
             }}
+            on_more={move || browsing.set(true)}
         />
     }
 }

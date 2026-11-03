@@ -6,9 +6,9 @@ use tokio::sync::mpsc::unbounded_channel;
 use zbus::object_server::{InterfaceRef, SignalEmitter};
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
-use super::super::network_manager::{PATH, SERVICE, SETTINGS_PATH, run_on};
+use super::super::network_manager::{PATH, SERVICE, SETTINGS_PATH, serve};
 use super::*;
-use crate::dbus::test_bus::Bus;
+use crate::dbus::test_bus::{PrivateBus, next};
 
 const DEVICE_PATH: &str = "/org/freedesktop/NetworkManager/Devices/1";
 const ACTIVE_PATH: &str = "/org/freedesktop/NetworkManager/ActiveConnection/1";
@@ -66,6 +66,7 @@ fn setting(settings: &Settings, group: &str, key: &str) -> String {
     };
     match value {
         Some(Value::Str(text)) => text.as_str().to_owned(),
+        Some(Value::Bool(flag)) => flag.to_string(),
         Some(Value::Array(bytes)) => bytes
             .inner()
             .iter()
@@ -124,9 +125,11 @@ impl FakeManager {
         store.listed.push(index);
         store.ssids.insert(index, ssid.clone().into_bytes());
         self.heard.hear(format!(
-            "Add {ssid} {} {} {} {}",
+            "Add {ssid} {} {} {} {} {} {}",
             setting(&settings, "802-11-wireless-security", "key-mgmt"),
             setting(&settings, "802-11-wireless-security", "psk"),
+            setting(&settings, "802-11-wireless-security", "wep-key0"),
+            setting(&settings, "802-11-wireless", "hidden"),
             device.as_str(),
             specific.as_str()
         ));
@@ -167,13 +170,15 @@ impl FakeDevice {
     ) -> zbus::Result<()>;
 }
 
-struct FakeWireless;
+struct FakeWireless {
+    point: OwnedObjectPath,
+}
 
 #[zbus::interface(name = "org.freedesktop.NetworkManager.Device.Wireless")]
 impl FakeWireless {
     #[zbus(property)]
     fn active_access_point(&self) -> OwnedObjectPath {
-        none()
+        self.point.clone()
     }
 
     fn get_all_access_points(&self) -> Vec<OwnedObjectPath> {
@@ -186,6 +191,7 @@ impl FakeWireless {
 struct FakePoint {
     ssid: &'static str,
     strength: u8,
+    privacy: bool,
     rsn: u32,
 }
 
@@ -203,7 +209,7 @@ impl FakePoint {
 
     #[zbus(property)]
     fn flags(&self) -> u32 {
-        u32::from(self.rsn != 0)
+        u32::from(self.privacy)
     }
 
     #[zbus(property)]
@@ -287,9 +293,7 @@ async fn moved(device: &InterfaceRef<FakeDevice>, new: u32, old: u32) {
 
 fn until(published: &Receiver<WifiStatus>, what: &str, done: impl Fn(&WifiStatus) -> bool) {
     loop {
-        let status = published
-            .recv()
-            .unwrap_or_else(|_| panic!("the status shows {what}"));
+        let status = next(published, &format!("the status shows {what}"));
         if done(&status) {
             return;
         }
@@ -297,15 +301,13 @@ fn until(published: &Receiver<WifiStatus>, what: &str, done: impl Fn(&WifiStatus
 }
 
 fn heard(heard: &Receiver<String>, what: &str) {
-    let got = heard
-        .recv()
-        .unwrap_or_else(|_| panic!("NetworkManager hears {what}"));
+    let got = next(heard, &format!("NetworkManager hears {what}"));
     assert_eq!(got, what);
 }
 
 #[test]
 fn wifi_on_a_private_bus_lists_networks_and_connects() {
-    let bus = Bus::start();
+    let bus = PrivateBus::start();
     let (published_sender, published) = std::sync::mpsc::channel();
     let (heard_sender, heard_by_manager) = sync_channel(16);
     let (requests, requested) = unbounded_channel();
@@ -315,7 +317,6 @@ fn wifi_on_a_private_bus_lists_networks_and_connects() {
         ssids: HashMap::from([(1, b"Home".to_vec())]),
     }));
     zbus::block_on(async {
-        let host = bus.connect().await;
         let manager = bus.connect().await;
         let server = manager.object_server();
         server
@@ -340,13 +341,13 @@ fn wifi_on_a_private_bus_lists_networks_and_connects() {
             .await
             .expect("the device is served");
         server
-            .at(DEVICE_PATH, FakeWireless)
+            .at(DEVICE_PATH, FakeWireless { point: none() })
             .await
             .expect("the device's Wi-Fi is served");
-        for (at, ssid, strength, rsn) in [
-            (HOME_POINT, "Home", 72, PSK),
-            (CAFE_POINT, "Cafe", 41, 0),
-            (HIDDEN_POINT, "", 90, PSK),
+        for (at, ssid, strength, privacy, rsn) in [
+            (HOME_POINT, "Home", 72, true, PSK),
+            (CAFE_POINT, "Cafe", 41, false, 0),
+            (HIDDEN_POINT, "", 90, true, 0),
         ] {
             server
                 .at(
@@ -354,6 +355,7 @@ fn wifi_on_a_private_bus_lists_networks_and_connects() {
                     FakePoint {
                         ssid,
                         strength,
+                        privacy,
                         rsn,
                     },
                 )
@@ -396,9 +398,13 @@ fn wifi_on_a_private_bus_lists_networks_and_connects() {
             .await
             .expect("the fake owns NetworkManager's name");
 
-        crate::dbus::spawn(run_on(host, requested, move |status| {
-            let _ = published_sender.send(status);
-        }));
+        let shared = bus.shared();
+        crate::dbus::spawn(async move {
+            serve(&shared, requested, move |status| {
+                let _ = published_sender.send(status);
+            })
+            .await;
+        });
         until(&published, "the networks in range", |status| {
             status.available
                 && status.enabled
@@ -449,7 +455,7 @@ fn wifi_on_a_private_bus_lists_networks_and_connects() {
         });
         heard(
             &heard_by_manager,
-            &format!("Add Cafe - - {DEVICE_PATH} {CAFE_POINT}"),
+            &format!("Add Cafe - - - - {DEVICE_PATH} {CAFE_POINT}"),
         );
         moved(&device, model::DISCONNECTED, model::ACTIVATED).await;
         moved(&device, model::PREPARE, model::DISCONNECTED).await;
@@ -473,7 +479,7 @@ fn wifi_on_a_private_bus_lists_networks_and_connects() {
         });
         heard(
             &heard_by_manager,
-            &format!("Add Home wpa-psk correct horse {DEVICE_PATH} {HOME_POINT}"),
+            &format!("Add Home wpa-psk correct horse - - {DEVICE_PATH} {HOME_POINT}"),
         );
         until(
             &published,
@@ -503,6 +509,49 @@ fn wifi_on_a_private_bus_lists_networks_and_connects() {
             store.lock().unwrap_or_else(PoisonError::into_inner).listed,
             vec![2],
             "the new connection replaces the one saved before"
+        );
+
+        let _ = requests.send(WifiRequest::JoinHidden {
+            ssid: "Attic".to_owned(),
+            security: WifiSecurity::Wep,
+            password: Some("abcde".to_owned()),
+        });
+        heard(
+            &heard_by_manager,
+            &format!("Add Attic none - abcde true {DEVICE_PATH} /"),
+        );
+        server
+            .interface::<_, FakeActive>(ACTIVE_PATH)
+            .await
+            .expect("the active connection is served")
+            .get_mut()
+            .await
+            .connection = path(&connection_path(1));
+        server
+            .interface::<_, FakeWireless>(DEVICE_PATH)
+            .await
+            .expect("the device's Wi-Fi is served")
+            .get_mut()
+            .await
+            .point = path(HIDDEN_POINT);
+        moved(&device, model::PREPARE, model::ACTIVATED).await;
+        until(&published, "the hidden network being joined", |status| {
+            status.link == WifiLink::Connecting("Attic".to_owned())
+        });
+        moved(&device, model::ACTIVATED, model::PREPARE).await;
+        until(
+            &published,
+            "the hidden network joined and listed by its name",
+            |status| {
+                status.link == WifiLink::Connected("Attic".to_owned())
+                    && status.networks.first()
+                        == Some(&WifiNetwork {
+                            ssid: "Attic".to_owned(),
+                            strength: 90,
+                            security: WifiSecurity::Wep,
+                            saved: true,
+                        })
+            },
         );
 
         let _ = requests.send(WifiRequest::SetEnabled(false));

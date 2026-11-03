@@ -1,8 +1,10 @@
 use smithay::output::{Mode, Output, PhysicalProperties, Scale, Subpixel};
 use smithay::reexports::wayland_server::backend::GlobalId;
 use smithay::reexports::wayland_server::protocol::wl_output::WlOutput;
+use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::utils::{Logical, Rectangle, Transform};
-use smithay::wayland::compositor::send_surface_state;
+use smithay::wayland::compositor::{SurfaceData, send_surface_state};
+use smithay::wayland::fractional_scale::with_fractional_scale;
 
 use crate::state::{State, WindowId};
 
@@ -11,7 +13,20 @@ pub(crate) struct HeadSpec {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) rect: Rectangle<i32, Logical>,
-    pub(crate) scale: i32,
+    pub(crate) scale: f64,
+}
+
+pub(crate) fn wire_scale(scale: f64) -> f64 {
+    ((scale * 120.0).round() / 120.0).max(1.0 / 120.0)
+}
+
+pub(crate) fn integer_scale(scale: f64) -> i32 {
+    scale.ceil().max(1.0) as i32
+}
+
+pub(crate) fn tell_scale(surface: &WlSurface, data: &SurfaceData, scale: f64) {
+    send_surface_state(surface, data, integer_scale(scale), Transform::Normal);
+    with_fractional_scale(data, |fractional| fractional.set_preferred_scale(scale));
 }
 
 pub(crate) struct Head {
@@ -44,13 +59,26 @@ impl Head {
     fn show(&self) {
         let HeadSpec { rect, scale, .. } = self.monitor;
         let mode = Mode {
-            size: (rect.size.w.max(1) * scale, rect.size.h.max(1) * scale).into(),
+            size: (
+                (f64::from(rect.size.w.max(1)) * scale).round() as i32,
+                (f64::from(rect.size.h.max(1)) * scale).round() as i32,
+            )
+                .into(),
             refresh: 60_000,
+        };
+        for old in self.output.modes() {
+            if old != mode {
+                self.output.delete_mode(old);
+            }
+        }
+        let scale = match integer_scale(scale) {
+            whole if f64::from(whole) == scale => Scale::Integer(whole),
+            _ => Scale::Fractional(scale),
         };
         self.output.change_current_state(
             Some(mode),
             Some(Transform::Normal),
-            Some(Scale::Integer(scale)),
+            Some(scale),
             Some(rect.loc),
         );
         self.output.set_preferred(mode);
@@ -76,6 +104,7 @@ impl State {
             let head = self.heads.remove(index);
             self.handle.remove_global::<State>(head.global);
         }
+        let mut rescaled = false;
         for (index, monitor) in monitors.into_iter().enumerate() {
             match self
                 .heads
@@ -84,6 +113,7 @@ impl State {
             {
                 Some(at) => {
                     if self.heads[at].monitor != monitor {
+                        rescaled |= self.heads[at].monitor.scale != monitor.scale;
                         self.heads[at].monitor = monitor;
                         self.heads[at].show();
                     }
@@ -97,6 +127,21 @@ impl State {
             }
         }
         self.follow_heads();
+        if rescaled {
+            let ids: Vec<WindowId> = self.windows.iter().map(|window| window.id).collect();
+            for id in ids {
+                self.tell_scale_of(id);
+            }
+        }
+    }
+
+    fn tell_scale_of(&self, id: WindowId) {
+        let scale = self.scale_of(id);
+        if let Some(window) = self.find(id) {
+            window
+                .window
+                .with_surfaces(|surface, data| tell_scale(surface, data, scale));
+        }
     }
 
     pub(crate) fn screen_of(&self, window: Rectangle<i32, Logical>) -> Rectangle<i32, Logical> {
@@ -130,8 +175,9 @@ impl State {
         self.head_of_window(id).map(|head| head.output.clone())
     }
 
-    pub(crate) fn scale_of(&self, id: WindowId) -> i32 {
-        self.head_of_window(id).map_or(1, |head| head.monitor.scale)
+    pub(crate) fn scale_of(&self, id: WindowId) -> f64 {
+        self.head_of_window(id)
+            .map_or(1.0, |head| head.monitor.scale)
     }
 
     pub(crate) fn head_named(&self, output: &WlOutput) -> Option<Rectangle<i32, Logical>> {
@@ -165,7 +211,7 @@ impl State {
     }
 
     fn enter(&mut self, id: WindowId, head: Option<String>) {
-        let outputs: Vec<(String, Output, i32)> = self
+        let outputs: Vec<(String, Output, f64)> = self
             .heads
             .iter()
             .map(|head| {
@@ -194,7 +240,7 @@ impl State {
             }
             if let Some((output, scale)) = &entered {
                 output.enter(surface);
-                send_surface_state(surface, data, *scale, Transform::Normal);
+                tell_scale(surface, data, *scale);
             }
         });
     }

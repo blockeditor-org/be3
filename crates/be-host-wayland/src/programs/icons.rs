@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 
 use beui::Image;
+use resvg::usvg::fontdb;
 
 use super::Environment;
 
 const FALLBACK_THEME: &str = "hicolor";
 const DEFAULT_THEMES: [&str; 2] = ["Adwaita", "breeze"];
-const EXTENSIONS: [&str; 2] = ["png", "svg"];
+const EXTENSIONS: [&str; 3] = ["png", "svg", "xpm"];
 const MAX_INHERITED: usize = 16;
 const MAX_ICON_BYTES: u64 = 8 * 1024 * 1024;
 
@@ -144,6 +146,28 @@ impl IconThemes {
     }
 }
 
+#[derive(Default)]
+pub struct NamedIcons {
+    themes: Option<IconThemes>,
+    loaded: HashMap<String, Option<Image>>,
+}
+
+impl NamedIcons {
+    pub fn get(&mut self, name: &str, pixels: u32) -> Option<Image> {
+        if let Some(found) = self.loaded.get(name) {
+            return found.clone();
+        }
+        let themes = self
+            .themes
+            .get_or_insert_with(|| IconThemes::new(&super::Environment::from_env()));
+        let found = themes
+            .find(name, pixels)
+            .and_then(|path| load_icon(&path, pixels));
+        self.loaded.insert(name.to_owned(), found.clone());
+        found
+    }
+}
+
 struct Index {
     inherits: Vec<String>,
     groups: HashMap<String, HashMap<String, String>>,
@@ -256,24 +280,97 @@ pub fn load_icon(path: &Path, pixels: u32) -> Option<Image> {
         &mut data,
     )
     .ok()?;
-    match path.extension().and_then(|extension| extension.to_str()) {
-        Some("svg") => render_svg(&data, pixels),
-        _ => {
-            let decoded =
-                image::load_from_memory_with_format(&data, image::ImageFormat::Png).ok()?;
-            let decoded = match decoded.width().max(decoded.height()) > pixels * 2 {
-                true => decoded.resize(pixels, pixels, image::imageops::FilterType::Triangle),
-                false => decoded,
-            };
-            let rgba = decoded.into_rgba8();
-            let (width, height) = rgba.dimensions();
-            (width > 0 && height > 0).then(|| Image::from_rgba(width, height, rgba.into_raw()))
+    let image = match path.extension().and_then(|extension| extension.to_str()) {
+        Some("svg") => render_svg(&data, pixels, svg_fonts)?,
+        Some("xpm") => fitted(super::xpm::decode(&data)?, pixels),
+        _ => fitted(
+            image::load_from_memory_with_format(&data, image::ImageFormat::Png)
+                .ok()?
+                .into_rgba8(),
+            pixels,
+        ),
+    };
+    image
+        .pixels()
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .any(|pixel| pixel[3] != 0)
+        .then_some(image)
+}
+
+fn fitted(decoded: image::RgbaImage, pixels: u32) -> Image {
+    let decoded = match decoded.width().max(decoded.height()) > pixels * 2 {
+        true => {
+            let scale = pixels as f32 / decoded.width().max(decoded.height()) as f32;
+            image::imageops::resize(
+                &decoded,
+                ((decoded.width() as f32 * scale).round() as u32).max(1),
+                ((decoded.height() as f32 * scale).round() as u32).max(1),
+                image::imageops::FilterType::Triangle,
+            )
         }
+        false => decoded,
+    };
+    let (width, height) = decoded.dimensions();
+    Image::from_rgba(width, height, decoded.into_raw())
+}
+
+#[cfg(test)]
+pub(super) fn bundled_fonts() -> fontdb::Database {
+    let mut fonts = fontdb::Database::new();
+    with_bundled(&mut fonts);
+    fonts
+}
+
+fn with_bundled(fonts: &mut fontdb::Database) {
+    fonts.load_font_data(beui_fonts::INTER_REGULAR.to_vec());
+    fonts.load_font_data(beui_fonts::HACK_REGULAR.to_vec());
+    let missing = |fonts: &fontdb::Database, family: fontdb::Family| {
+        let name = fonts.family_name(&family);
+        !fonts
+            .faces()
+            .any(|face| face.families.iter().any(|(named, _)| named == name))
+    };
+    if missing(fonts, fontdb::Family::Serif) {
+        fonts.set_serif_family("Inter");
+    }
+    if missing(fonts, fontdb::Family::SansSerif) {
+        fonts.set_sans_serif_family("Inter");
+    }
+    if missing(fonts, fontdb::Family::Cursive) {
+        fonts.set_cursive_family("Inter");
+    }
+    if missing(fonts, fontdb::Family::Fantasy) {
+        fonts.set_fantasy_family("Inter");
+    }
+    if missing(fonts, fontdb::Family::Monospace) {
+        fonts.set_monospace_family("Hack");
     }
 }
 
-fn render_svg(data: &[u8], pixels: u32) -> Option<Image> {
-    let tree = resvg::usvg::Tree::from_data(data, &resvg::usvg::Options::default()).ok()?;
+fn svg_fonts() -> Arc<fontdb::Database> {
+    static FONTS: OnceLock<Arc<fontdb::Database>> = OnceLock::new();
+    FONTS
+        .get_or_init(|| {
+            let mut fonts = fontdb::Database::new();
+            fonts.load_system_fonts();
+            with_bundled(&mut fonts);
+            Arc::new(fonts)
+        })
+        .clone()
+}
+
+pub(super) fn render_svg(
+    data: &[u8],
+    pixels: u32,
+    fonts: impl FnOnce() -> Arc<fontdb::Database>,
+) -> Option<Image> {
+    let mut options = resvg::usvg::Options::default();
+    if data.windows(5).any(|window| window == b"<text") {
+        options.fontdb = fonts();
+    }
+    let tree = resvg::usvg::Tree::from_data(data, &options).ok()?;
     let size = tree.size();
     let scale = pixels as f32 / size.width().max(size.height());
     let width = ((size.width() * scale).round() as u32).max(1);

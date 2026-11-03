@@ -439,6 +439,10 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
                 lift_latched(doc, frame, event);
             }
         }
+        PointerPhase::Touchpad(_) => {
+            let sink = wheel_sink(doc, frame, event.window, event.pos);
+            doc.pointers.route(sink);
+        }
         PointerPhase::Zoom(factor) => {
             let path = hit(doc, frame.rects, event.window, event.pos, false).path;
             let sink = match gesture_claimant(doc, frame.rects, &path, event.pos) {
@@ -729,9 +733,17 @@ fn focus_target(doc: &Document, rects: &Rects, reached: &[NodeId], pos: Pos2) ->
     {
         return doc.focused_node();
     }
-    reached.iter().copied().find(|id| {
+    let target = reached.iter().copied().find(|id| {
         interactive(doc, *id).is_some_and(|node| node.focus.is_some()) && over(rects, *id, pos)
-    })
+    });
+    let yields = target
+        .and_then(|id| interactive(doc, id))
+        .and_then(|node| node.focus.as_ref())
+        .is_some_and(|focus| focus.yields_tab_stop && !focus.tab_stop);
+    match yields {
+        true => doc.focused_node(),
+        false => target,
+    }
 }
 
 fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Option<NodeId>) {
@@ -786,6 +798,7 @@ fn drag(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2) {
 
 fn secondary(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Option<NodeId>) {
     let pos = session.pos;
+    doc.set_focus_visible(false);
     session.owners = match claimant {
         Some(claimant) => vec![claimant],
         None => session
@@ -1608,17 +1621,23 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
 }
 
 fn cursor(doc: &Document, frame: &Frame) {
-    let grabbed = grab::grabber(doc).and_then(|id| interactive(doc, id)?.cursor);
-    let held = doc
-        .pointers
-        .sessions
-        .iter()
-        .filter(|session| session.kind.shows_cursor && session.role == Role::Press)
-        .flat_map(|session| session.owners.iter())
-        .chain(doc.pointers.hovered.iter())
-        .find_map(|id| interactive(doc, *id).and_then(|node| node.cursor));
-    if let Some(cursor) = grabbed.or(held) {
-        frame.ctx.set_cursor_icon(cursor);
+    let shown = |id: NodeId| {
+        let node = interactive(doc, id)?;
+        (node.cursor.is_some() || node.cursor_image.is_some()).then_some(node)
+    };
+    let grabbed = grab::grabber(doc).and_then(shown);
+    let held = || {
+        doc.pointers
+            .sessions
+            .iter()
+            .filter(|session| session.kind.shows_cursor && session.role == Role::Press)
+            .flat_map(|session| session.owners.iter())
+            .chain(doc.pointers.hovered.iter())
+            .find_map(|id| shown(*id))
+    };
+    if let Some(node) = grabbed.or_else(held) {
+        frame.ctx.set_cursor_icon(node.cursor.unwrap_or_default());
+        frame.ctx.set_cursor_image(node.cursor_image.clone());
     }
 }
 

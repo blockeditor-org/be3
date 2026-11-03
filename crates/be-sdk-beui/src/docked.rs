@@ -1117,6 +1117,7 @@ pub(crate) fn declaration_to_api(
                         .map(|icon| icon.as_str().to_owned())
                         .unwrap_or_default(),
                     closable: tab.closable,
+                    back_closes: tab.back_closes,
                     menu: Vec::new(),
                 })
             })
@@ -1250,6 +1251,7 @@ fn declaration_from_api(
             icon: Glyph::from_codepoint(&tab.glyph),
             picture: None,
             closable: tab.closable,
+            back_closes: tab.back_closes,
         })
         .collect();
     let dialogs = declaration
@@ -1328,6 +1330,22 @@ impl SavedDockLayout {
         tabs.sort();
         tabs.dedup();
         DockingSnapshot::new(state, tabs.into_iter().map(|tab| (tab, tab)))
+    }
+
+    pub fn map_tabs(&self, map: impl Fn(TabId) -> TabId) -> Self {
+        let spec = layout_to_spec(&self.layout, &mut |path| {
+            path.is_own().then(|| map(TabId::new(path.tab)))
+        });
+        let mapped = |tab: u64| map(TabId::new(tab)).value();
+        Self {
+            layout: spec_to_layout(&spec, &own_path),
+            recent: self.recent.iter().map(|&tab| mapped(tab)).collect(),
+            history: self
+                .history
+                .iter()
+                .map(|&(from, to, opened)| (mapped(from), mapped(to), opened))
+                .collect(),
+        }
     }
 }
 

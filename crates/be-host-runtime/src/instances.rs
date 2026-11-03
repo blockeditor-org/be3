@@ -106,6 +106,7 @@ struct Instance {
     artifact: ArtifactState,
     dialog: DialogStatus,
     child_dismissals: Vec<ChildId>,
+    child_focus: Vec<ChildId>,
     created: Option<Result<Uuid, String>>,
     screens: HashMap<ViewId, Screen>,
     anchored: Vec<AnchoredScreen>,
@@ -256,6 +257,7 @@ impl Instance {
             artifact: ArtifactState::default(),
             dialog: DialogStatus::default(),
             child_dismissals: Vec::new(),
+            child_focus: Vec::new(),
             created: None,
             screens: HashMap::default(),
             anchored: Vec::new(),
@@ -1241,6 +1243,7 @@ impl Instances {
             .get_mut(&instance)
             .and_then(|entry| entry.screens.get_mut(&region))
             .filter(|screen| announced.contains(&screen.request.screen))
+            .filter(|screen| press.is_none() || !screen.input.focused())
         else {
             return Vec::new();
         };
@@ -1281,6 +1284,13 @@ impl Instances {
             events: vec![be_sdk_api::Input::InterceptedTap(key).into()],
             dismissed: Vec::new(),
         })]
+    }
+
+    pub(super) fn has_keyboard(&self, instance: EditorInstanceId, region: ViewId) -> bool {
+        self.entries
+            .get(&instance)
+            .and_then(|entry| entry.screens.get(&region))
+            .is_some_and(|screen| screen.input.focused())
     }
 
     pub(super) fn mounted(&self, instance: EditorInstanceId, region: ViewId) -> bool {
@@ -1489,6 +1499,21 @@ impl Instances {
             .into_iter()
             .map(|layer| (layer.id, layer.rect, layer.bounds))
             .collect()
+    }
+
+    fn view_focused(&self, instance: EditorInstanceId, view: ViewId) -> bool {
+        let Some(entry) = self.entries.get(&instance) else {
+            return false;
+        };
+        if let Some(screen) = entry.screens.get(&view) {
+            return screen.input.focused();
+        }
+        entry
+            .anchored
+            .iter()
+            .find(|held| held.view == view)
+            .and_then(|held| entry.screens.get(&held.root))
+            .is_some_and(|root| root.input.focused())
     }
 
     fn is_anchored_screen(&self, screen: ScreenId) -> bool {
@@ -2596,6 +2621,10 @@ impl Instances {
                 }),
                 sheet: layer.is_some_and(|layer| layer.edge),
                 anchor,
+                focus_asked: self
+                    .entries
+                    .get(&instance)
+                    .is_some_and(|entry| entry.child_focus.contains(&child.child)),
             });
         }
         (children, holes)
@@ -2781,6 +2810,23 @@ impl Instances {
             .get_mut(&instance)
             .map(|entry| std::mem::take(&mut entry.child_dismissals))
             .unwrap_or_default()
+    }
+
+    pub(super) fn ask_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) {
+        if let Some(entry) = self.entries.get_mut(&instance)
+            && !entry.child_focus.contains(&child)
+        {
+            entry.child_focus.push(child);
+        }
+    }
+
+    pub(super) fn take_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) -> bool {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        let asked = entry.child_focus.contains(&child);
+        entry.child_focus.retain(|asked| *asked != child);
+        asked
     }
 
     pub(super) fn take_child_commits(&mut self, instance: EditorInstanceId) -> Vec<ChildCommit> {
@@ -2990,12 +3036,13 @@ impl Instances {
         instance: EditorInstanceId,
         region: ViewId,
     ) -> Option<Described<'_>> {
+        let focused = self.view_focused(instance, region);
         let screen = self.any_screen_mut(instance, region)?;
         let description = screen.report.as_ref()?.description.as_ref()?;
         Some(Described {
             screen: screen.request.screen,
             actions: &description.actions,
-            focused: screen.input.focused(),
+            focused,
             tree: &mut screen.accessibility,
         })
     }
@@ -3259,12 +3306,13 @@ impl Instances {
         started: be_sdk_api::ops::Started,
     ) -> bool {
         let op = started.op;
+        let shell = self.shell == Some(instance);
         let queued = self.entries.get_mut(&instance).is_some_and(|entry| {
             let preview = entry
                 .role
                 .block()
                 .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
-            !preview && entry.published.call(started)
+            !preview && entry.published.call(started, shell)
         });
         let outcome = match queued {
             true => Outcome::returned(&()),
@@ -3456,6 +3504,10 @@ impl Instances {
             ShellCall::DismissChild { reply, child, .. } => {
                 ack(reply);
                 entry.child_dismissals.push(child);
+            }
+            ShellCall::FocusChild { reply, child, .. } => {
+                ack(reply);
+                self.ask_child_focus(instance, child);
             }
             ShellCall::ShowCard { reply, card, .. } => {
                 ack(reply);

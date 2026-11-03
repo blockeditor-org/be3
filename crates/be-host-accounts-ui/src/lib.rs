@@ -124,7 +124,7 @@ fn AccountCard(
                         }}
                         items={view! {
                             <MenuItem
-                                label={create_memo(move || if account.get().local { "Close account" } else { "Log out" }.to_owned())}
+                                label={create_memo(move || leave_label(account.get().local).to_owned())}
                             />
                         }}
                     />
@@ -182,6 +182,13 @@ pub fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
                 <Text style=TextStyle::CAPTION>{seen_by}</Text>
             </Show>
         </List>
+    }
+}
+
+pub fn leave_label(local: bool) -> &'static str {
+    match local {
+        true => "Remove account…",
+        false => "Log out",
     }
 }
 

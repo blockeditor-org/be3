@@ -177,6 +177,7 @@ pub struct OverlayNode {
     bounds: Option<Rect>,
     anchored: Option<Rect>,
     pub(crate) anchor_rect: Option<Rect>,
+    pub(crate) placed_in: Option<Rect>,
     escaped: Option<(LayerSpace, Vec2, Zoom)>,
     pinned: Option<Pin>,
     pointer: Option<NodeRef>,
@@ -209,6 +210,7 @@ impl OverlayNode {
             bounds: None,
             anchored: None,
             anchor_rect: None,
+            placed_in: None,
             escaped: None,
             pinned: None,
             pointer: None,
@@ -281,6 +283,7 @@ impl OverlayNode {
         };
         let space = doc.escape_space(self.placement, doc.viewport_window());
         let outer = space.map_or(viewport, |space| space.area());
+        self.placed_in = self.window.is_none().then_some(outer);
         let centred = space.is_some() && self.placement == Placement::Center;
         let window_anchor = match &self.anchor {
             _ if centred => viewport,
@@ -345,7 +348,7 @@ impl OverlayNode {
         };
         let rect = beui_types::layer::resolve_rect(area, anchor_rect, placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
-        self.stand_off(doc, painter, content, rect, anchor_rect, out);
+        self.stand_off(doc, painter, content, rect, anchor_rect, area, out);
         self.point_at(doc, painter, anchor_rect, out);
         let painter = outer_painter;
         if self.policy == LayerPolicy::BlocksParent
@@ -370,6 +373,7 @@ impl OverlayNode {
         content: NodeId,
         rect: Rect,
         anchor: Rect,
+        area: Rect,
         out: &Rects,
     ) {
         if !matches!(self.placement, Placement::Popover { .. }) {
@@ -386,6 +390,10 @@ impl OverlayNode {
             (true, _) => rect.top() - frame.top(),
             (false, true) => rect.bottom() - frame.bottom(),
             (false, false) => 0.0,
+        };
+        let shift = match rect.height() <= area.height() {
+            true => shift.clamp(area.top() - rect.top(), area.bottom() - rect.bottom()),
+            false => 0.0,
         };
         if shift != 0.0 {
             crate::layout::layout(doc, painter, content, rect.translate(vec2(0.0, shift)), out);
@@ -493,6 +501,7 @@ impl Element for OverlayNode {
             let rect = painter
                 .ctx()
                 .keyboard_trimmed(window.id, Rect::from_min_size(Pos2::ZERO, size));
+            self.placed_in = None;
             let outer = doc.swap_window_viewport(Some((window.id, rect)));
             crate::layout::layout(doc, painter, content, rect, out);
             doc.swap_window_viewport(outer);

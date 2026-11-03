@@ -309,6 +309,8 @@ pub fn host_window(
         parent: entry.parent.map(window_id),
         modal: entry.modal,
         size: Vec2::new(width as f32 / scale, height as f32 / scale),
+        min_size: Vec2::ZERO,
+        max_size: Vec2::ZERO,
         fullscreen,
         responding: entry.responding,
         focused: entry.focused,
@@ -318,6 +320,7 @@ pub fn host_window(
             rgba: icon.rgba.clone(),
         }),
         raised: entry.raised,
+        rung: 0,
         kind: match entry.kind {
             EntryKind::Window => WindowKind::Window,
             EntryKind::Display => WindowKind::Display,
@@ -329,6 +332,7 @@ pub fn host_window(
             launch: entry.origin.launch,
         },
         note: notes.note(entry),
+        menu: None,
     }
 }
 
@@ -360,7 +364,8 @@ pub fn power_availability(
         restart: available.restart,
         power_off: available.power_off,
         log_out: available.log_out,
-        ending: false,
+        session: true,
+        ending: None,
     }
 }
 

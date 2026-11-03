@@ -772,6 +772,7 @@ impl Space {
                                 | Input::ScrollStarted
                                 | Input::ScrollEnded
                                 | Input::Zoom(_)
+                                | Input::Touchpad(_)
                                 | Input::PointerMotion(_)
                         ) {
                             out.push(Incoming::new(units, input));
@@ -1285,6 +1286,7 @@ impl Space {
                 placement,
                 size,
                 role,
+                ..
             } => self.open(*window, placement, *size, *role),
             WindowRequest::BeginMove(window) => {
                 if let Some(pointer) = self.pressing(*window) {
@@ -1715,6 +1717,7 @@ impl Space {
             true => CursorIcon::None,
             false => icon,
         };
+        state.cursor_image = None;
         state.requests.pointer_locked = grabbed;
         state.requests.ime = None;
         state.appearance.clear_color = SKY;

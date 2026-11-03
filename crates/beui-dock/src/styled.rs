@@ -11,8 +11,8 @@ use crate::unstyled as dock;
 pub use crate::unstyled::{
     DockAlign, DockApi, DockBar, DockBarControl, DockBarPlacement, DockDialog, DockDocument,
     DockDocumentBody, DockDocumentTabs, DockDocuments, DockEdge, DockEntry, DockMode, DockNode,
-    DockPane, DockSlot, DockSplit, DockTab, DockWindow, DockingLayout, DockingSnapshot, SplitSize,
-    TabId, dock_menu, use_dock_bar, use_dock_tab,
+    DockPane, DockSlot, DockSnap, DockSplit, DockTab, DockWindow, DockingLayout, DockingSnapshot,
+    SplitSize, TabId, dock_menu, use_dock_bar, use_dock_tab,
 };
 use crate::unstyled::{
     DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
@@ -393,8 +393,8 @@ fn DockTabChrome(
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
     let pictured = create_memo(move || !grouped && !shows_picture.get() && icon.get().is_some());
     let title_size = match vertical {
-        true => ItemSize::Percent(100.0),
-        false => ItemSize::Intrinsic,
+        true => ItemSize::Percent(100.0).into(),
+        false => ItemSize::Intrinsic.shrink(1.0),
     };
     view! {
         <Frame
@@ -818,7 +818,7 @@ fn DockStrip(handle: DockStripHandle) -> NodeId {
         },
     };
     view! {
-        <Scroll direction>{strip}</Scroll>
+        <Scroll direction>{strip} @sizing={ItemSize::Intrinsic.shrink(1.0)}</Scroll>
     }
 }
 
@@ -1029,6 +1029,7 @@ pub fn DockBarGrip(
                 open
                 bounds
                 click_opens=false
+                secondary_opens=true
                 on_click={move || {
                     if !moved.get() {
                         open.update(|open| *open = !*open);

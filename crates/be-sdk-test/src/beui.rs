@@ -653,6 +653,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
+    pub fn take_child_focus(&mut self) -> Vec<ChildId> {
+        self.take_calls(|call| match call {
+            ShellCall::FocusChild { child, .. } => Some(*child),
+            _ => None,
+        })
+    }
+
     pub fn take_child_dismissals(&mut self) -> Vec<ChildId> {
         self.take_calls(|call| match call {
             ShellCall::DismissChild { child, .. } => Some(*child),
@@ -1860,6 +1867,18 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .accessibility
             .get(&node)?
             .label()
+            .map(str::to_owned)
+    }
+
+    pub fn accessible_description(&self, test_id: &str) -> Option<String> {
+        let document = self.document();
+        let node = document
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
+        document
+            .accessibility
+            .get(&node)?
+            .description()
             .map(str::to_owned)
     }
 

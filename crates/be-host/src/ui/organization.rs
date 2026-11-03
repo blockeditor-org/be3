@@ -193,6 +193,7 @@ fn HostMenu(
             on_click={move || pick(UiCommand::SwitchOrganization)}
         />
         <MenuItem
+            row_test_id={"host.menu.recovery-phrase".to_owned()}
             label="New recovery phrase"
             glyph=ICON_KEY
             on_click={move || pick(UiCommand::NewRecoveryPhrase)}
@@ -229,6 +230,7 @@ fn HostMenu(
             />
         </ForEach>
         <MenuItem
+            row_test_id={"host.menu.inspector".to_owned()}
             label="Inspector"
             glyph=ICON_BUG
             on_click={move || pick(UiCommand::OpenInspector)}
@@ -278,9 +280,7 @@ fn HostMenu(
         });
     }
     view! {
-        <Scroll>
-            <Frame align={beui::Align2::START}>{rows}</Frame>
-        </Scroll>
+        <Frame align={beui::Align2::START}>{rows}</Frame>
     }
 }
 

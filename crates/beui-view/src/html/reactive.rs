@@ -68,6 +68,10 @@ pub(crate) fn focus_ring(focused: Prop<bool>) -> Memo<bool> {
     beui_core_html::focus::focus_ring(create_memo(move || focused.get()))
 }
 
+pub(crate) fn focus_visible() -> bool {
+    beui_core_html::focus::focus_visible()
+}
+
 pub(crate) fn holds_focus(node: NodeRef) -> Memo<bool> {
     beui_core_html::focus::holds_focus(node)
 }

@@ -6,7 +6,7 @@ use crate::focus::Focus;
 use crate::painter::Painter;
 use beui_types::Direction;
 use beui_types::region::{Area, Claim};
-use beui_types::{CursorIcon, Modifiers};
+use beui_types::{CursorIcon, CursorImage, Modifiers};
 use beui_types::{PointerInput, PointerPress, TouchDrags, WheelInput};
 use beui_types::{Pos2, Rect, Vec2};
 
@@ -19,6 +19,7 @@ pub struct InteractiveNode {
     pub child: Option<NodeId>,
     pub focus: Option<Focus>,
     pub cursor: Option<CursorIcon>,
+    pub cursor_image: Option<CursorImage>,
     pub locks_pointer: bool,
     pub grabs_pointer: bool,
     pub captures: Area,
@@ -69,6 +70,7 @@ impl InteractiveNode {
             child: None,
             focus: None,
             cursor: None,
+            cursor_image: None,
             locks_pointer: false,
             grabs_pointer: false,
             captures: Area::Nowhere,
@@ -349,8 +351,14 @@ impl Element for InteractiveNode {
             ("focus", focus),
             (
                 "cursor",
-                self.cursor
-                    .map_or_else(|| "default".to_owned(), |cursor| format!("{cursor:?}")),
+                match (&self.cursor_image, self.cursor) {
+                    (Some(image), _) => format!(
+                        "image {}x{} at {},{}",
+                        image.size.x, image.size.y, image.hotspot.x, image.hotspot.y
+                    ),
+                    (None, Some(cursor)) => format!("{cursor:?}"),
+                    (None, None) => "default".to_owned(),
+                },
             ),
             ("handlers", list(handlers)),
             ("state", list(states)),
@@ -387,6 +395,16 @@ impl Document {
     ) {
         if self.arena.get_as::<InteractiveNode>(id).cursor != cursor {
             self.arena.touch_mut_as::<InteractiveNode>(id).cursor = cursor;
+        }
+    }
+
+    pub fn set_interactive_cursor_image(
+        &mut self,
+        id: NodeOf<InteractiveNode>,
+        image: Option<CursorImage>,
+    ) {
+        if self.arena.get_as::<InteractiveNode>(id).cursor_image != image {
+            self.arena.touch_mut_as::<InteractiveNode>(id).cursor_image = image;
         }
     }
 

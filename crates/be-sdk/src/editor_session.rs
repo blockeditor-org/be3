@@ -465,6 +465,9 @@ impl EditorSession {
         for child in self.host.take_child_dismissals() {
             shell::dismiss_child(instance, child).detach();
         }
+        for child in self.host.take_keyboard_gifts() {
+            shell::focus_child(instance, child).detach();
+        }
         if let Some(artifact) = &mut self.artifact {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {
                 artifact.described = Some(artifact.data.clone());

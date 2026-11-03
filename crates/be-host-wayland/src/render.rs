@@ -68,6 +68,7 @@ pub struct Textures {
     gpu: Option<Rc<Gpu>>,
     surfaces: HashMap<WlSurface, Current>,
     dmabufs: HashMap<WeakDmabuf, Rc<SurfaceTexture>>,
+    written: bool,
 }
 
 impl Textures {
@@ -83,6 +84,15 @@ impl Textures {
 
     pub fn get(&self, surface: &WlSurface) -> Option<Current> {
         self.surfaces.get(surface).cloned()
+    }
+
+    pub fn submit(&mut self) {
+        if !std::mem::take(&mut self.written) {
+            return;
+        }
+        if let Some(gpu) = &self.gpu {
+            gpu.queue.submit([]);
+        }
     }
 
     pub fn prune(&mut self) {
@@ -176,6 +186,7 @@ impl Textures {
                 },
                 size,
             );
+            self.written = true;
             self.surfaces.insert(
                 surface.clone(),
                 Current {
@@ -236,6 +247,7 @@ impl Textures {
             );
             Some(texture)
         });
+        self.written = true;
         match uploaded.ok().flatten() {
             Some(texture) => {
                 self.surfaces.insert(
@@ -338,8 +350,8 @@ fn place(
     at: &DrawAt,
 ) -> Quad {
     let scale = at.pixels_per_point;
-    let left = at.rect[0] + rect.loc.x as f32 * scale;
-    let top = at.rect[1] + rect.loc.y as f32 * scale;
+    let left = (at.rect[0] + rect.loc.x as f32 * scale).round();
+    let top = (at.rect[1] + rect.loc.y as f32 * scale).round();
     let (width, height) = (
         buffer.w.max(f64::MIN_POSITIVE),
         buffer.h.max(f64::MIN_POSITIVE),
@@ -348,8 +360,8 @@ fn place(
         rect: [
             left,
             top,
-            left + rect.size.w as f32 * scale,
-            top + rect.size.h as f32 * scale,
+            left + (rect.size.w as f32 * scale).round(),
+            top + (rect.size.h as f32 * scale).round(),
         ],
         uv: [
             (source.loc.x / width) as f32,
@@ -382,6 +394,7 @@ impl Draw for WindowDraw {
             .map(|(texture, layer)| {
                 let quad = Quad {
                     opaque: texture.opaque,
+                    opacity: layer.alpha,
                     ..place(layer.rect, layer.source, layer.buffer, &at)
                 };
                 (&texture.bound, quad)
@@ -440,10 +453,11 @@ impl Paints for WindowDraw {
             let v0 = (layer.source.loc.y / height) as f32;
             let u1 = ((layer.source.loc.x + layer.source.size.w) / width) as f32;
             let v1 = ((layer.source.loc.y + layer.source.size.h) / height) as f32;
+            let alpha = (layer.alpha.clamp(0.0, 1.0) * 255.0).round() as u8;
             let corner = |x: f32, y: f32, u: f32, v: f32| PaintVertex {
                 pos: [x, y],
                 uv: [u, v],
-                color: [255; 4],
+                color: [255, 255, 255, alpha],
             };
             let (a, b, c, d) = (
                 corner(left, top, u0, v0),
@@ -490,3 +504,45 @@ impl Drop for WindowDraw {
 
 #[cfg(test)]
 mod tests;
+
+pub fn pixels(surface: &WlSurface) -> Option<beui::Image> {
+    let buffer = with_renderer_surface_state(surface, |state| state.buffer().cloned()).flatten()?;
+    if let Some((rgba, _)) = crate::single_pixel::color(&buffer) {
+        return Some(beui::Image::from_rgba(1, 1, unpremultiplied(rgba).to_vec()));
+    }
+    with_buffer_contents(&buffer, |pointer, length, data| {
+        let order: fn([u8; 4]) -> [u8; 4] = match data.format {
+            wl_shm::Format::Argb8888 => |[b, g, r, a]| [r, g, b, a],
+            wl_shm::Format::Xrgb8888 => |[b, g, r, _]| [r, g, b, 255],
+            wl_shm::Format::Abgr8888 => |rgba| rgba,
+            wl_shm::Format::Xbgr8888 => |[r, g, b, _]| [r, g, b, 255],
+            _ => return None,
+        };
+        let (width, height) = (data.width.max(1) as usize, data.height.max(1) as usize);
+        let (offset, stride) = (data.offset.max(0) as usize, data.stride.max(0) as usize);
+        if stride < width * 4 || offset + stride * (height - 1) + width * 4 > length {
+            return None;
+        }
+        // unsafe(ffi)
+        let bytes = unsafe { std::slice::from_raw_parts(pointer.add(offset), length - offset) };
+        let mut rgba = Vec::with_capacity(width * height * 4);
+        for row in bytes.chunks(stride).take(height) {
+            for pixel in row[..width * 4].chunks_exact(4) {
+                let pixel = order([pixel[0], pixel[1], pixel[2], pixel[3]]);
+                rgba.extend_from_slice(&unpremultiplied(pixel));
+            }
+        }
+        Some(beui::Image::from_rgba(width as u32, height as u32, rgba))
+    })
+    .ok()
+    .flatten()
+}
+
+fn unpremultiplied([r, g, b, a]: [u8; 4]) -> [u8; 4] {
+    if a == 0 || a == 255 {
+        return [r, g, b, a];
+    }
+    let channel =
+        |value: u8| ((u32::from(value) * 255 + u32::from(a) / 2) / u32::from(a)).min(255) as u8;
+    [channel(r), channel(g), channel(b), a]
+}

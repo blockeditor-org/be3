@@ -174,11 +174,6 @@ pub(crate) fn ReferenceMenu(
     containing: Memo<Option<Uuid>>,
     named: String,
 ) -> NodeId {
-    let refs = create_memo(move || {
-        let mut sorted = refs.get();
-        sorted.list.sort_by_key(|reference| reference.deleted);
-        sorted
-    });
     let label = create_memo(move || {
         refs.with(|refs| {
             let deleted = refs
