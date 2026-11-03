@@ -437,70 +437,115 @@ jobs:
       - name: Upload the previews
         env:
           BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_PREVIEWS_STORAGE_KEY }}
+        shell: node {0}
         run: |
-          set -euo pipefail
-          shopt -s nullglob
-          export store='https://ny.storage.bunnycdn.com/be-previews'
-          export previews="$RUNNER_TEMP/previews"
-          export began=$(date +%s)
+          const fs = require('node:fs/promises');
+          const path = require('node:path');
+          const store = 'https://ny.storage.bunnycdn.com/be-previews';
+          const previews = path.join(process.env.RUNNER_TEMP, 'previews');
+          const types = {
+            '.webp': 'image/webp',
+            '.png': 'image/png',
+            '.json': 'application/json',
+            '.html': 'text/html',
+            '.js': 'text/javascript',
+            '.wasm': 'application/wasm',
+            '.ttf': 'font/ttf',
+          };
+          const began = Date.now();
+          const since = (start) => `${((Date.now() - start) / 1000).toFixed(1)}s`;
 
-          upload() {
-            local index=$1 file=$2 type start
-            case "$file" in
-              *.webp) type='image/webp' ;;
-              *.png) type='image/png' ;;
-              *.json) type='application/json' ;;
-              *.html) type='text/html' ;;
-              *.js) type='text/javascript' ;;
-              *.wasm) type='application/wasm' ;;
-              *.ttf) type='font/ttf' ;;
-              *) type='application/octet-stream' ;;
-            esac
-            start=$(date +%s)
-            curl --fail --silent --show-error --retry 3 --output /dev/null \
-              --request PUT \
-              --header "AccessKey: $BUNNY_STORAGE_KEY" \
-              --header "Content-Type: $type" \
-              --upload-file "$previews/$file" \
-              "$store/$file"
-            echo "[$index/$total] $file ($(stat --format=%s "$previews/$file") bytes," \
-              "$(($(date +%s) - start))s, $(($(date +%s) - began))s so far)"
+          async function request(name, options = {}) {
+            for (let attempt = 1; ; attempt++) {
+              try {
+                const response = await fetch(`${store}/${name}`, {
+                  ...options,
+                  headers: { AccessKey: process.env.BUNNY_STORAGE_KEY, ...options.headers },
+                });
+                if (attempt === 4 || (response.status < 500 && response.status !== 429)) {
+                  return response;
+                }
+                await response.body?.cancel();
+              } catch (error) {
+                if (attempt === 4) throw error;
+              }
+              await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+            }
           }
-          export -f upload
 
-          curl --fail --silent --show-error --retry 3 \
-            --header "AccessKey: $BUNNY_STORAGE_KEY" "$store/" |
-            jq --raw-output '.[] | select(.IsDirectory | not) | .ObjectName' > "$RUNNER_TEMP/stored"
-          declare -A stored
-          while read -r name; do stored[$name]=1; done < "$RUNNER_TEMP/stored"
-          files=()
-          made=0
-          for file in "$previews"/*.webp "$previews"/*.png "$previews"/*.json; do
-            name=$(basename "$file")
-            made=$((made + 1))
-            [[ -v stored[$name] ]] || files+=("$name")
-          done
-          echo "$((made - ${#files[@]})) of $made images and data files are already uploaded"
-          indexes=()
-          for site in "$previews"/site/*/; do
-            site="site/$(basename "$site")"
-            if curl --fail --silent --output /dev/null \
-              --header "AccessKey: $BUNNY_STORAGE_KEY" "$store/$site/index.html"; then
-              echo "$site is already uploaded"
-              continue
-            fi
-            mapfile -t -O "${#files[@]}" files < <(cd "$previews" && find "$site" -type f ! -name index.html)
-            indexes+=("$site/index.html")
-          done
-
-          export total=$((${#files[@]} + ${#indexes[@]}))
-          echo "Uploading $total files, $(cd "$previews" && du --summarize --bytes --total "${files[@]}" "${indexes[@]}" /dev/null | tail -n 1 | cut -f 1) bytes"
-          upload_all() {
-            nl -w 1 -s ' ' -v "$1" | xargs --no-run-if-empty -P 8 -L 1 bash -c 'set -euo pipefail; upload "$@"' _
+          async function filesIn(dir) {
+            const entries = await fs.readdir(path.join(previews, dir), { withFileTypes: true });
+            const nested = await Promise.all(entries.map((entry) => {
+              const name = path.posix.join(dir, entry.name);
+              return entry.isDirectory() ? filesIn(name) : [name];
+            }));
+            return nested.flat();
           }
-          printf '%s\n' "${files[@]}" | upload_all 1
-          printf '%s\n' "${indexes[@]}" | upload_all $((${#files[@]} + 1))
-          echo "Uploaded everything in $(($(date +%s) - began))s"
+
+          async function main() {
+            const listing = await request('');
+            if (!listing.ok) throw new Error(`listing the store: ${listing.status} ${await listing.text()}`);
+            const stored = new Set((await listing.json()).filter((o) => !o.IsDirectory).map((o) => o.ObjectName));
+
+            const made = (await fs.readdir(previews)).filter((name) => /\.(webp|png|json)$/.test(name));
+            const files = made.filter((name) => !stored.has(name));
+            console.log(`${made.length - files.length} of ${made.length} images and data files are already uploaded`);
+
+            const indexes = [];
+            const sites = await fs.readdir(path.join(previews, 'site')).catch(() => []);
+            for (const site of sites.map((name) => `site/${name}`)) {
+              const response = await request(`${site}/index.html`);
+              await response.body?.cancel();
+              if (response.ok) {
+                console.log(`${site} is already uploaded`);
+                continue;
+              }
+              const index = `${site}/index.html`;
+              files.push(...(await filesIn(site)).filter((name) => name !== index));
+              indexes.push(index);
+            }
+
+            const total = files.length + indexes.length;
+            const sizes = new Map();
+            for (const name of [...files, ...indexes]) {
+              sizes.set(name, (await fs.stat(path.join(previews, name))).size);
+            }
+            const bytes = [...sizes.values()].reduce((a, b) => a + b, 0);
+            console.log(`Uploading ${total} files, ${(bytes / 1e6).toFixed(1)} MB`);
+
+            let done = 0;
+            let failed = 0;
+            async function uploadAll(names) {
+              let next = 0;
+              await Promise.all(Array.from({ length: 8 }, async () => {
+                while (next < names.length) {
+                  const name = names[next++];
+                  const start = Date.now();
+                  try {
+                    const response = await request(name, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': types[path.extname(name)] ?? 'application/octet-stream' },
+                      body: await fs.readFile(path.join(previews, name)),
+                    });
+                    if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+                    console.log(`[${++done}/${total}] ${name} (${(sizes.get(name) / 1e3).toFixed(0)} KB, ${since(start)}, ${since(began)} so far)`);
+                  } catch (error) {
+                    failed++;
+                    console.log(`::error::uploading ${name}: ${error.message}`);
+                  }
+                }
+              }));
+              if (failed) throw new Error(`${failed} uploads failed`);
+            }
+            await uploadAll(files);
+            await uploadAll(indexes);
+            console.log(`Uploaded everything in ${since(began)}`);
+          }
+
+          main().catch((error) => {
+            console.log(`::error::${error.message}`);
+            process.exit(1);
+          });
 
       - name: Comment
         env:
