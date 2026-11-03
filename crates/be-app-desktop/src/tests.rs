@@ -9,11 +9,12 @@ use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
 use be_sdk_beui::{
     AudioOutput, BlockInfo, BlockParent, ChildContent, DisplaysWatch, EditorHost, EndingAnswer,
     EpaperWatch, HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId,
-    IncomingNotification, MediaLevel, MediaLevels, MediaRequest, MediaWatch, NotificationInbox,
-    NotificationRequest, NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand,
-    PowerAction, PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch,
-    SessionEnd, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch,
-    WindowAction, WindowKind, WindowOrigin, WindowsWatch, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch,
+    IncomingNotification, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, MediaLevel,
+    MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
+    NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, SessionEnd,
+    WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction,
+    WindowKind, WindowOrigin, WindowsWatch,
 };
 
 use be_sdk_beui::be_block::{EditorView, EditorViewContent};
@@ -40,15 +41,6 @@ mod a_display_plugged_in_later_starts_from_the_first_displays_bars;
 mod a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_floating_bar_dragged_by_its_grip_follows_to_the_end_and_lands_where_let_go;
-mod alt_f4_closes_the_focused_window_its_focused_dialog_or_a_block_window;
-mod super_arrows_snap_maximize_and_restore_the_focused_window;
-mod super_d_hides_every_window_and_brings_them_back;
-mod super_shift_arrows_move_the_focused_window_to_the_next_display;
-mod super_backtick_switches_between_one_programs_windows;
-mod the_window_keys_answer_nothing_while_the_screen_is_locked;
-mod a_super_chord_does_not_open_the_apps_panel;
-mod the_window_keys_use_ctrl_alt_where_the_system_keeps_super;
-mod the_window_keys_are_listed_in_the_command_palette;
 mod a_fullscreen_window_covers_the_bars;
 mod a_fullscreen_window_on_the_second_display_covers_only_that_displays_bars;
 mod a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen;
@@ -73,6 +65,7 @@ mod a_query_no_program_matches_runs_as_a_command;
 mod a_restored_desktop_stacks_its_windows_as_they_were_with_the_focused_one_on_top;
 mod a_session_chosen_from_the_apps_panel_opens_in_a_window_and_choosing_it_again_focuses_it;
 mod a_session_opened_over_program_windows_opens_in_front_of_them;
+mod a_super_chord_does_not_open_the_apps_panel;
 mod a_super_tap_toggles_the_apps_panel_even_from_a_program_with_the_keyboard;
 mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;
 mod a_toast_names_its_app_and_lines_its_text_up_with_the_others;
@@ -89,6 +82,7 @@ mod a_windows_tab_dragged_onto_a_window_on_another_display_joins_it;
 mod a_windows_tab_dragged_onto_another_windows_bar_joins_it;
 mod a_windows_tab_menu_makes_it_full_screen;
 mod a_windows_tab_menu_shows_whole_past_its_window;
+mod alt_f4_closes_the_focused_window_its_focused_dialog_or_a_block_window;
 mod alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod arrow_keys_walk_the_status_bar_item_by_item;
@@ -106,8 +100,12 @@ mod picking_a_turned_screen_writes_its_rotation_into_this_devices_display_settin
 mod power_actions_the_host_cannot_take_say_why;
 mod quick_settings_offers_the_keyboard_rotation_and_refresh_the_screen_has;
 mod reopening_the_apps_panel_highlights_its_first_program_again;
+mod super_arrows_snap_maximize_and_restore_the_focused_window;
+mod super_backtick_switches_between_one_programs_windows;
+mod super_d_hides_every_window_and_brings_them_back;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars;
+mod super_shift_arrows_move_the_focused_window_to_the_next_display;
 mod the_apps_button_is_named_apps;
 mod the_apps_button_opens_a_grid_of_the_programs_the_host_lists;
 mod the_calendar_popup_fits_a_narrow_screen;
@@ -137,6 +135,9 @@ mod the_volume_shows_on_every_monitor;
 mod the_volume_slider_reaches_past_full;
 mod the_wifi_list_asks_the_host_to_connect;
 mod the_wifi_tile_lists_the_networks_the_host_reports;
+mod the_window_keys_answer_nothing_while_the_screen_is_locked;
+mod the_window_keys_are_listed_in_the_command_palette;
+mod the_window_keys_use_ctrl_alt_where_the_system_keeps_super;
 mod the_windows_bar_shares_its_length_between_many_chips;
 mod the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it;
 mod typing_in_the_apps_panel_keeps_its_search_field_still;

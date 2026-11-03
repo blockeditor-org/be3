@@ -60,8 +60,5 @@ fn super_d_hides_every_window_and_brings_them_back() {
         2,
         "a second Super+D shows them all again: {shown:?}"
     );
-    assert!(
-        !fixture.placed_blocks().is_empty(),
-        "the block window too"
-    );
+    assert!(!fixture.placed_blocks().is_empty(), "the block window too");
 }

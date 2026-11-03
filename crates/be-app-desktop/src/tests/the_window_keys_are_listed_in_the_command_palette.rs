@@ -3,7 +3,13 @@ use super::*;
 #[test]
 fn the_window_keys_are_listed_in_the_command_palette() {
     let mut fixture = Fixture::with_windows(&[1, 2]);
-    fixture.test.key(Key::P, Modifiers { shift: true, ..Modifiers::CTRL });
+    fixture.test.key(
+        Key::P,
+        Modifiers {
+            shift: true,
+            ..Modifiers::CTRL
+        },
+    );
     fixture.settle();
     fixture.test.type_text("window");
     fixture.settle();
@@ -17,5 +23,7 @@ fn the_window_keys_are_listed_in_the_command_palette() {
         assert!(fixture.says(label), "the palette lists {label}");
         assert!(fixture.says(keys), "with its key, {keys}");
     }
-    fixture.test.snapshot("the_window_keys_in_the_command_palette");
+    fixture
+        .test
+        .snapshot("the_window_keys_in_the_command_palette");
 }

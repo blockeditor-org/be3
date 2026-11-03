@@ -31,7 +31,8 @@ pub(crate) struct Snapped {
 }
 
 fn same(left: Rect, right: Rect) -> bool {
-    let near = |a: Pos2, b: Pos2| (a.x - b.x).abs() <= SNAP_SLACK && (a.y - b.y).abs() <= SNAP_SLACK;
+    let near =
+        |a: Pos2, b: Pos2| (a.x - b.x).abs() <= SNAP_SLACK && (a.y - b.y).abs() <= SNAP_SLACK;
     near(left.min, right.min) && near(left.max, right.max)
 }
 
@@ -90,8 +91,7 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     fn kept_snap(&self, tab: TabId) -> Option<Snapped> {
-        self.snaps
-            .with_untracked(|snaps| snaps.get(&tab).copied())
+        self.snaps.with_untracked(|snaps| snaps.get(&tab).copied())
     }
 
     pub(super) fn place_window(&self, tab: TabId, rect: Rect) {

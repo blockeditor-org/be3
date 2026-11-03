@@ -13,7 +13,13 @@ fn super_shift_arrows_move_the_focused_window_to_the_next_display() {
     assert!(left.contains_rect(was));
 
     assert!(
-        fixture.test.host_key(Modifiers { shift: true, ..Modifiers::LOGO }, Key::ArrowRight),
+        fixture.test.host_key(
+            Modifiers {
+                shift: true,
+                ..Modifiers::LOGO
+            },
+            Key::ArrowRight
+        ),
         "the desktop takes Super+Shift+Right before the program that has the keyboard"
     );
     fixture.settle();
@@ -32,11 +38,13 @@ fn super_shift_arrows_move_the_focused_window_to_the_next_display() {
         "snapping keeps to the display the window is on: {snapped:?}"
     );
 
-    assert!(
-        fixture
-            .test
-            .host_key(Modifiers { shift: true, ..Modifiers::LOGO }, Key::ArrowLeft)
-    );
+    assert!(fixture.test.host_key(
+        Modifiers {
+            shift: true,
+            ..Modifiers::LOGO
+        },
+        Key::ArrowLeft
+    ));
     fixture.settle();
     let back = fixture.test.desk_windows()[0];
     assert!(
