@@ -4553,3 +4553,104 @@ fn DemoToolBar(name: &'static str, tools: Vec<(&'static str, Glyph)>) -> NodeId 
         </DockBarSurface>
     }
 }
+
+const DESK_WINDOWS: [(u64, &str, &str, beui::Pos2); 3] = [
+    (1, "Notes", "notes", beui::pos2(24.0, 24.0)),
+    (2, "More notes", "notes", beui::pos2(64.0, 260.0)),
+    (3, "Sketch", "sketch", beui::pos2(380.0, 60.0)),
+];
+
+const DESK_WINDOW_SIZE: beui::Vec2 = beui::Vec2::new(300.0, 200.0);
+
+#[sample]
+#[component]
+pub(crate) fn WindowManagerPage() -> NodeId {
+    let layout = DockingLayout::<u64>::new();
+    create_effect(move || {
+        let area = layout.area();
+        let middle = (area.min.x + area.width() / 2.0).round();
+        let halves = vec![
+            Rect::from_min_max(area.min, beui::pos2(middle, area.max.y)),
+            Rect::from_min_max(beui::pos2(middle, area.min.y), area.max),
+        ];
+        untrack(|| layout.set_areas(halves));
+    });
+    let actions = layout.window_actions(create_memo(|| false));
+    let nodes: Vec<MenuNode> = [
+        actions.close,
+        actions.hide,
+        actions.snap_left,
+        actions.snap_right,
+        actions.maximize,
+        actions.restore,
+        actions.fullscreen,
+        actions.show_desktop,
+        actions.next_area,
+        actions.previous_area,
+        actions.next_of_group,
+        actions.switch_next,
+        actions.switch_previous,
+    ]
+    .into_iter()
+    .map(|action| MenuNode::action(&action.detached()))
+    .collect();
+    let closed = create_signal(Vec::<u64>::new());
+    let open = create_memo(move || {
+        DESK_WINDOWS
+            .iter()
+            .map(|window| window.0)
+            .filter(|window| !closed.with(|closed| closed.contains(window)))
+            .collect::<Vec<u64>>()
+    });
+    view! {
+        <List spacing=Space::None>
+            <Frame padding=PAGE_PADDING>
+                <List spacing=SECTION_SPACING>
+                    <MenuButton
+                        @test_id="wm.menu"
+                        label="Window"
+                        glyph={Some(ICON_APP_WINDOW)}
+                        items={view! {
+                            <MenuNodes nodes test_prefix="wm.menu" />
+                        }}
+                    />
+                    <Text style=TextStyle::PARAGRAPH color=TextColor::Muted>
+                        "Below is a Docking of its own that joins no dock around it, split into \
+                         two areas side by side the way a desktop's dock spans two displays. The \
+                         Window menu holds the dock's window actions, which act on the focused \
+                         window: close it, hide it, snap it to half of its area, fill its area, \
+                         move it to the other area keeping its place, or switch to the next \
+                         window of its group (the two notes). Show desktop hides every window and \
+                         brings them back. A shell binds its own keys to the same actions."
+                    </Text>
+                </List>
+            </Frame>
+            <Docking @sizing=ItemSize::Percent(100.0) layout joins=false>
+                <DockPane id="desk" bare=true></DockPane>
+                <ForEach keys={open}>|id: u64| {
+                    let (_, title, group, at) = DESK_WINDOWS[id as usize - 1];
+                    view! {
+                    <DockWindow
+                        id={format!("wm.window.{id}")}
+                        rect={Rect::from_min_size(at, DESK_WINDOW_SIZE)}
+                    >
+                        <DockPane id={format!("wm.pane.{id}")}>
+                            <DockTab
+                                id
+                                title
+                                icon=ICON_APP_WINDOW
+                                group={Some(group.to_owned())}
+                                on_close={move || closed.update(|closed| closed.push(id))}
+                            >
+                                <Frame @test_id={format!("wm.window.{id}")} padding=PAGE_PADDING>
+                                    <Text>{format!("{title}, of the {group} group")}</Text>
+                                </Frame>
+                            </DockTab>
+                        </DockPane>
+                    </DockWindow>
+                    }
+                }</ForEach>
+            </Docking>
+        </List>
+    }
+}

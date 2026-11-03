@@ -90,6 +90,7 @@ pub fn Docking<K>(
     layout: DockingLayout<K>,
     #[prop(default = None)] focus: Prop<Option<K>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
+    #[prop(default = true)] joins: bool,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -106,6 +107,7 @@ where
     view! {
         <dock::Docking
             layout
+            joins
             stack_below=NARROW_WIDTH
             short_below=SHORT_HEIGHT
             short_narrower_than=PHONE_LANDSCAPE_WIDTH

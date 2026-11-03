@@ -1627,6 +1627,7 @@ pub fn Docking<K>(
     #[prop(default = 0.0)] short_narrower_than: f32,
     #[prop(default = None)] focus: Prop<Option<K>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
+    #[prop(default = true)] joins: bool,
     menu: MenuStyle,
     splitter_thickness: f32,
     #[prop(default = 0.0)] splitter_reach: f32,
@@ -1701,8 +1702,9 @@ where
             _ => body,
         }
     });
-    let slot = use_context::<DockHostSlot>();
-    let link = match use_dock_join().and_then(|join| join.claim()) {
+    let slot = use_context::<DockHostSlot>().filter(|_| joins);
+    let join = use_dock_join().filter(|_| joins);
+    let link = match join.and_then(|join| join.claim()) {
         Some(link) => Some((link, false)),
         None => slot
             .as_ref()
