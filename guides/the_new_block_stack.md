@@ -494,6 +494,13 @@ commit, heartbeats `clean_at`, and tells the followers with
 reconcile runs the resume decision and merges when it has to. Only the owner
 seals or reconciles; a follower's edits are saved by the owner.
 
+A follower keeps at most one edit in flight. What it types before the owner
+confirms that edit waits in the replica's `unsent` queue, where
+`LiveEdit::absorb_operation` folds it together (typing forward becomes one
+insert, backspacing one delete; `SeqOp::absorb` for a sequence), and goes out
+as one edit when the confirmation arrives. Merging stops before the encoded
+size would pass the relay limit, so a run of large pastes goes out in pieces.
+
 A follower's `head` is right only because of `Sealed`, and ownership depends on
 it. A follower that takes over carries on from the head the last owner sealed:
 it keeps the old sequence numbering so the other followers keep applying what
@@ -608,16 +615,71 @@ it references. A field is one of ten things:
   An object projection re-reads with `Model::reread`, which hands a `Series`
   what it read last, so it decodes only past the fragments that are unchanged.
 
-Text positions: client `0` (`be_lib_sequence::LOADED`) belongs to the initial
-buffer, and edits cannot allocate positions under it. The text editor anchors
-each boundary before one byte, including deleted bytes through their
-tombstones. Its end anchor is `Pos { client: 0, offset: sequence.next_offset(0) }`,
-the position just past the initial buffer, a virtual sentinel that resolves to
-the current visible length without adding a byte to the sequence or its saved
-text. `Position` wraps only that `Pos`, and the end depends on the sequence, so
-it is built through the document; there is no constant for it. IME composition
-tracks its last byte separately so text inserted after that byte stays outside
-the composition.
+### Sequences
+
+`Text`, `RichText`, `Series` and `List` all sit on `be_lib_sequence::Sequence`,
+the one ordered sequence of the live session (its design choices are in
+`decisions/sequence_*` and `decisions/text_*`).
+
+- **Positions.** A position (`Pos`) is `(client, offset)`. Each client appends
+  everything it inserts in a session to one buffer of its own, wherever in the
+  document it types, so offsets are unique without coordination. The content
+  the session loaded is client `0` (`be_lib_sequence::LOADED`), and edits
+  cannot allocate positions under it; the server numbers real clients from 1.
+  `ClientId` is per connection, so a reconnect starts a new buffer.
+- **Structure.** The order is a list of fragments, each a slice of one client's
+  buffer with a visible flag (false is a tombstone). An insert that continues
+  the fragment before it, in the document and in id, extends that fragment, so
+  typing stays one fragment; fragments split by deletes are not joined back up
+  until the session ends. Fragments are kept in chunks (`CHUNK`, 64; 2 in test
+  and fuzzing builds, so the multi-chunk paths run constantly) with visible
+  counts, and an index from each fragment's first position to its chunk.
+- **Operations** (`SeqOp`); applying one reports the visible splices it made,
+  so an editor gets exact ranges rather than diffing:
+  - `Insert { after, client, start, items }` lands right after `after` (or at
+    the start); of two inserts after the same element, the later-ordered one is
+    first. It is refused unless `start` is the next offset of that client's
+    buffer, or when its anchor is unknown. An insert or replace with the right
+    `start` uses up its offsets even when refused for another reason, so the
+    client's later inserts, numbered as if it had applied, still land.
+  - `Delete { spans }` hides exactly the positions the deleter saw; text
+    another peer inserted inside them at the same time survives.
+  - `Undelete { spans, items }` shows them again with their original ids: the
+    undo of a delete and the redo of an insert, so anchors on restored text
+    keep working. It carries the bytes it shows.
+  - `Replace { spans, client, start, items }` is all-or-nothing: it applies only
+    if every span is still visible, then hides them and inserts after the last.
+    The editor asks for it with `DocumentEdit::replace_atomically` (toggling a
+    markdown checkbox); typing over a selection stays a delete and an insert.
+  - `Swap { hide, show, items }` applies only if everything in `hide` is visible
+    and everything in `show` hidden: the undo and redo of a replace.
+  - `Move { first, last, after }` moves the range between two positions,
+    tombstones and concurrent inserts inside it included. A range whose ends
+    are out of order, or a destination inside the range, changes nothing.
+- **Undo.** An insert's undo deletes its span, a delete's undoes it, a
+  replace's swaps back, and a move's moves the range back after the element
+  that preceded it. A move's undo is unconditional (it moves the range back
+  even if someone moved it since), for lists too. History keeps
+  `HISTORY_STEPS` (200) steps.
+- **Lists.** A `List` holds `Items`, a `Sequence<ObjectId>` with a map from each
+  id to its slot, one slot per object (see "Live editing" below).
+- **Text editor anchors.** The text editor anchors each boundary before one
+  byte, including deleted bytes through their tombstones. Its end anchor is
+  `Pos { client: 0, offset: sequence.next_offset(0) }`, a virtual sentinel just
+  past the initial buffer that resolves to the current visible length without
+  adding a byte. `Position` wraps only that `Pos`, and the end depends on the
+  sequence, so it is built through the document; there is no constant for it.
+  IME composition tracks its last byte separately so text inserted after that
+  byte stays outside the composition.
+- **Fuzzing.** `be_lib_sequence::fuzz::sequence` (the crate's `fuzzing`
+  feature) reads a byte string as a script of three clients editing through a
+  sequencer and checks every operation against a naive reference model, every
+  replica against the sequence's invariants, and each `SeqOp::absorb` merge
+  against its parts; `crates/be-lib-sequence/fuzz/sequence.rs` is its libFuzzer
+  target. `be_block_model::fuzz::lists` (`//crates/be-block-model:fuzz-lists`)
+  does the same for a board of columns and cards. `./scripts/buck run //:fuzz`
+  runs every target in turn until stopped; a crash it finds becomes a test in
+  `crates/be-lib-sequence/src/tests`.
 
 ### The stored form
 
