@@ -404,7 +404,9 @@ jobs:
   # two runs both drew is stored once. The same goes for the review page's
   # data, <hash>.json, and for the review page itself
   # (crates/be-tool-paint-review-web), site/<hash>/, named by the hash of all
-  # of its files; a site already there is not uploaded again. The page uses
+  # of its files; a site already there is not uploaded again, and neither is a
+  # file the zone's listing already holds. Uploads run eight at a time, each
+  # site's index.html after all of its other files. The page uses
   # shared wasm memory, so the pull zone must send
   # Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy:
   # require-corp on /site/*, an edge rule in the pull zone's settings rather
@@ -438,11 +440,13 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          store='https://ny.storage.bunnycdn.com/be-previews'
-          previews="$RUNNER_TEMP/previews"
+          export store='https://ny.storage.bunnycdn.com/be-previews'
+          export previews="$RUNNER_TEMP/previews"
+          export began=$(date +%s)
 
           upload() {
-            case "$1" in
+            local index=$1 file=$2 type start
+            case "$file" in
               *.webp) type='image/webp' ;;
               *.png) type='image/png' ;;
               *.json) type='application/json' ;;
@@ -452,27 +456,32 @@ jobs:
               *.ttf) type='font/ttf' ;;
               *) type='application/octet-stream' ;;
             esac
-            uploaded=$((uploaded + 1))
-            size=$(stat --format=%s "$previews/$1")
-            start=$SECONDS
+            start=$(date +%s)
             curl --fail --silent --show-error --retry 3 --output /dev/null \
               --request PUT \
               --header "AccessKey: $BUNNY_STORAGE_KEY" \
               --header "Content-Type: $type" \
-              --upload-file "$previews/$1" \
-              "$store/$1"
-            echo "[$uploaded/$total] $1 ($size bytes, $((SECONDS - start))s, $((SECONDS - began))s so far)"
+              --upload-file "$previews/$file" \
+              "$store/$file"
+            echo "[$index/$total] $file ($(stat --format=%s "$previews/$file") bytes," \
+              "$(($(date +%s) - start))s, $(($(date +%s) - began))s so far)"
           }
+          export -f upload
 
-          began=$SECONDS
-          uploaded=0
-          files=("$previews"/*.webp "$previews"/*.png "$previews"/*.json)
-          total=${#files[@]}
-          echo "Uploading $total images and data files, $(du --summarize --bytes --total "${files[@]}" /dev/null | tail -n 1 | cut -f 1) bytes"
-          for file in "${files[@]}"; do
-            upload "$(basename "$file")"
+          curl --fail --silent --show-error --retry 3 \
+            --header "AccessKey: $BUNNY_STORAGE_KEY" "$store/" |
+            jq --raw-output '.[] | select(.IsDirectory | not) | .ObjectName' > "$RUNNER_TEMP/stored"
+          declare -A stored
+          while read -r name; do stored[$name]=1; done < "$RUNNER_TEMP/stored"
+          files=()
+          made=0
+          for file in "$previews"/*.webp "$previews"/*.png "$previews"/*.json; do
+            name=$(basename "$file")
+            made=$((made + 1))
+            [[ -v stored[$name] ]] || files+=("$name")
           done
-
+          echo "$((made - ${#files[@]})) of $made images and data files are already uploaded"
+          indexes=()
           for site in "$previews"/site/*/; do
             site="site/$(basename "$site")"
             if curl --fail --silent --output /dev/null \
@@ -480,16 +489,18 @@ jobs:
               echo "$site is already uploaded"
               continue
             fi
-            mapfile -t site_files < <(cd "$previews" && find "$site" -type f ! -name index.html)
-            uploaded=0
-            total=$((${#site_files[@]} + 1))
-            echo "Uploading $site, $total files"
-            for file in "${site_files[@]}"; do
-              upload "$file"
-            done
-            upload "$site/index.html"
+            mapfile -t -O "${#files[@]}" files < <(cd "$previews" && find "$site" -type f ! -name index.html)
+            indexes+=("$site/index.html")
           done
-          echo "Uploaded everything in $((SECONDS - began))s"
+
+          export total=$((${#files[@]} + ${#indexes[@]}))
+          echo "Uploading $total files, $(cd "$previews" && du --summarize --bytes --total "${files[@]}" "${indexes[@]}" /dev/null | tail -n 1 | cut -f 1) bytes"
+          upload_all() {
+            nl -w 1 -s ' ' -v "$1" | xargs --no-run-if-empty -P 8 -L 1 bash -c 'set -euo pipefail; upload "$@"' _
+          }
+          printf '%s\n' "${files[@]}" | upload_all 1
+          printf '%s\n' "${indexes[@]}" | upload_all $((${#files[@]} + 1))
+          echo "Uploaded everything in $(($(date +%s) - began))s"
 
       - name: Comment
         env:
