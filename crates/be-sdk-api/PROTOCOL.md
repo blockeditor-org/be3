@@ -852,7 +852,17 @@ The host answers with a status per child: whether the block could be opened
 at all, the size and shape its editor asks for, whether the pointer is over
 it, whether it is being given input, whether its own editor is live or only
 previewed until it is asked for, which of rotation, aspect ratio and pan-and-zoom
-it allows, how it may be resized, and why it is unavailable when it is. A block
+it allows, how it may be resized, and why it is unavailable when it is. A
+status also carries what any child may say about itself for the tab, chip or
+header its placer shows it in: its title, icon and group (the children of one
+app, which the placer cycles together), what the host wants said about it now
+(`notice`), whether it asks to be full screen, and counters that count up each
+time it asks to be brought forward (`raised`, the placer shows its tab), asks
+for attention (`rung`, the placer flashes its tab) or asks for its tab's menu
+at a point (`menu-asked`). A block editor reports none of these yet; the host
+fills them for a program window. A placement's `fullscreen` says the placer
+shows the child full screen, and `close-child` says the person asked to close
+it, which closes a program window and does nothing yet for any other child. A block
 already open above the instance is refused, so an editor cannot be nested inside
 itself. The host bounds how many children of one view it will run as editors and
 falls back to preview rendering for the rest.

@@ -4,7 +4,7 @@ package be3:app@0.1.0;
 /// actions of its bar and the children it places.
 interface shell-types {
     use be3:manifest/types@0.1.0.{interaction-mode, editor-capabilities, resize-mode, block-type-descriptor, template-category, edits};
-    use types.{block-pick, child-id, editor-id, editor-instance-id, menu-check, menu-command, menu-heading, menu-item, menu-item-kind, menu-pin, size, view-id, web-view-id};
+    use types.{block-pick, child-id, editor-id, editor-instance-id, menu-check, menu-command, menu-heading, menu-item, menu-ask, menu-item-kind, menu-pin, picture, size, view-id, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
     use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
 
@@ -130,6 +130,30 @@ interface shell-types {
         picked: option<block-pick>,
         /// Whether a picker child shows a card its placer frames.
         card: bool,
+        /// The child's own name for its tab, chip and header. For a program
+        /// window, the host's name for it.
+        title: option<string>,
+        /// The child's icon. For a program window, the program's icon.
+        icon: option<picture>,
+        /// Which children are one app's: the placer cycles a group's
+        /// children together. For a program window, its program id.
+        group: option<string>,
+        /// Counts up each time the child asks to be brought forward (a
+        /// program activating its window, a press on it). The placer shows
+        /// the child's tab.
+        raised: u64,
+        /// Counts up each time the child asks for attention (a program's
+        /// bell). The placer flashes its tab and chip.
+        rung: u64,
+        /// Whether the child asks to be shown full screen. The placer shows
+        /// its tab full screen while it is set.
+        fullscreen: bool,
+        /// What the host wants said about the child right now; the placer
+        /// shows it with the tab's title.
+        notice: option<string>,
+        /// The child's last ask for its tab's menu. The placer opens the
+        /// tab's menu there.
+        menu-asked: option<menu-ask>,
     }
 
     record template-descriptor {
@@ -331,6 +355,12 @@ interface shell {
     /// children they show, or a view that takes the keyboard (a dialog, a
     /// popover) is open, it does nothing.
     focus-child: async func(instance: editor-instance-id, child: child-id);
+
+    /// The person asked to close a child the editor placed, as closing its
+    /// tab. For a program window the host asks its program to close it (or
+    /// force-closes one that does not respond); the window leaves the list
+    /// when it closes. For any other child it does nothing yet.
+    close-child: async func(instance: editor-instance-id, child: child-id);
 
     /// The user created the block of a creation dialog the editor placed as a child.
     commit-child: async func(

@@ -61,7 +61,7 @@ pub use runtime::{
     report_child_focus, report_children, request_painting, resized, revoke_frame_child, running,
     set_artifact_states, set_focus, set_presence_visible, set_presented, set_shell, settle,
     show_block, show_dialog, show_panel, start_frames, take_artifact_outcome, take_artifact_watch,
-    take_bar_actions, take_child_commits, take_child_dismissals, take_child_focus,
+    take_bar_actions, take_child_closes, take_child_commits, take_child_dismissals, take_child_focus,
     take_child_menu_picks, take_created, take_focus_report, take_leaving, take_steps, take_stopped,
     take_view_changes, view_placement_of, view_size, warm,
 };
@@ -137,6 +137,7 @@ pub struct HostChild {
     pub sheet: bool,
     pub anchor: Option<Rect>,
     pub focus_asked: bool,
+    pub fullscreen: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -293,6 +294,14 @@ pub struct HostChildStatus {
     pub dialog: be_sdk_api::DialogStatus,
     pub picked: Option<be_sdk_api::BlockPick>,
     pub card: bool,
+    pub title: Option<String>,
+    pub icon: Option<be_sdk_api::Picture>,
+    pub group: Option<String>,
+    pub raised: u64,
+    pub rung: u64,
+    pub fullscreen: bool,
+    pub notice: Option<String>,
+    pub menu_asked: Option<be_sdk_api::MenuAsk>,
 }
 
 #[derive(Clone, Debug)]

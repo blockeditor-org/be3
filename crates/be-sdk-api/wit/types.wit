@@ -120,6 +120,22 @@ interface types {
         height: f32,
     }
 
+    /// A picture as rows of rgba pixels, `width * height * 4` bytes.
+    record picture {
+        width: u32,
+        height: u32,
+        rgba: list<u8>,
+    }
+
+    /// A child's ask for its tab's menu.
+    record menu-ask {
+        /// Counts up each time the child asks, so a placer tells a new ask
+        /// from the one it already answered.
+        asked: u64,
+        /// Where to open the menu, in the child's points.
+        at: pos2,
+    }
+
     enum surface-support {
         none,
         texture,
@@ -470,6 +486,9 @@ interface types {
         /// when nothing of it is visible (a fullscreen tab). The host passes
         /// it on as the child's `frame-spec.anchor`.
         anchor: option<rect>,
+        /// The placer shows the child full screen. The host tells a program
+        /// window it is full screen while this is set.
+        fullscreen: bool,
     }
 
     /// A rectangle that hides the children placed before it.

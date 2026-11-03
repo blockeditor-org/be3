@@ -100,6 +100,7 @@ fn anchored_views_and_their_children_round_trip() {
                 dialog: None,
                 docks: None,
                 anchor: None,
+                fullscreen: false,
             }],
             occluders: Vec::new(),
         }],

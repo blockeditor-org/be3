@@ -293,6 +293,8 @@ impl Editors {
         }
     }
 
+    pub(crate) fn close_children(&self, _parent: Uuid, _children: &[ChildId]) {}
+
     pub(crate) fn commit_creations(&self, parent: Uuid, commits: Vec<ChildCommit>) {
         let state = self.0.value();
         let mut creations = state.creations.borrow_mut();
@@ -1982,6 +1984,14 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         dialog: DialogStatus::default(),
         picked: None,
         card: false,
+        title: None,
+        icon: None,
+        group: None,
+        raised: 0,
+        rung: 0,
+        fullscreen: false,
+        notice: None,
+        menu_asked: None,
         menu: match available && child.frame_owner {
             true => frame_menu(editors, block),
             false => Vec::new(),

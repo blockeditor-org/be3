@@ -47,6 +47,14 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
             dialog: Default::default(),
             picked: None,
             card: false,
+            title: None,
+            icon: None,
+            group: None,
+            raised: 0,
+            rung: 0,
+            fullscreen: false,
+            notice: None,
+            menu_asked: None,
         });
         editor.run();
     };

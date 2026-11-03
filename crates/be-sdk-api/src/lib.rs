@@ -36,7 +36,7 @@ be_wasm_ops_bindgen::generate!({
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "program-catalog", "tray-toggle", "tray-menu-item", "host-tray-item",
-        "dialog-status", "dialog-frame", "window-kind", "insets",
+        "dialog-status", "dialog-frame", "window-kind", "insets", "picture",
     ],
     inline: [
         "artifact-command", "unlink-command",
@@ -73,8 +73,8 @@ pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
     ChildPlacements, DialogFrame, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameReport,
     FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets,
-    LayoutCommit, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, PresentCommit,
-    PresentedFrame, PressClaim, ScreenDamage, ScreenLayout, ScreenPlacement, ScreenRequest,
+    LayoutCommit, MenuAsk, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, PresentCommit,
+    Picture, PresentedFrame, PressClaim, ScreenDamage, ScreenLayout, ScreenPlacement, ScreenRequest,
     ScreenWindow, Scrim, Size, SurfaceFormat, SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput,
     TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize, ViewportMetrics,
 };

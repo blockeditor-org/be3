@@ -106,6 +106,7 @@ struct Instance {
     artifact: ArtifactState,
     dialog: DialogStatus,
     child_dismissals: Vec<ChildId>,
+    child_closes: Vec<ChildId>,
     child_focus: Vec<ChildId>,
     created: Option<Result<Uuid, String>>,
     screens: HashMap<ViewId, Screen>,
@@ -257,6 +258,7 @@ impl Instance {
             artifact: ArtifactState::default(),
             dialog: DialogStatus::default(),
             child_dismissals: Vec::new(),
+            child_closes: Vec::new(),
             child_focus: Vec::new(),
             created: None,
             screens: HashMap::default(),
@@ -2625,6 +2627,7 @@ impl Instances {
                     .entries
                     .get(&instance)
                     .is_some_and(|entry| entry.child_focus.contains(&child.child)),
+                fullscreen: child.fullscreen,
             });
         }
         (children, holes)
@@ -2776,6 +2779,14 @@ impl Instances {
                 dialog: status.dialog,
                 picked: status.picked.clone(),
                 card: status.card,
+                title: status.title,
+                icon: status.icon,
+                group: status.group,
+                raised: status.raised,
+                rung: status.rung,
+                fullscreen: status.fullscreen,
+                notice: status.notice,
+                menu_asked: status.menu_asked,
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;
@@ -2809,6 +2820,13 @@ impl Instances {
         self.entries
             .get_mut(&instance)
             .map(|entry| std::mem::take(&mut entry.child_dismissals))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn take_child_closes(&mut self, instance: EditorInstanceId) -> Vec<ChildId> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.child_closes))
             .unwrap_or_default()
     }
 
@@ -3504,6 +3522,10 @@ impl Instances {
             ShellCall::DismissChild { reply, child, .. } => {
                 ack(reply);
                 entry.child_dismissals.push(child);
+            }
+            ShellCall::CloseChild { reply, child, .. } => {
+                ack(reply);
+                entry.child_closes.push(child);
             }
             ShellCall::FocusChild { reply, child, .. } => {
                 ack(reply);

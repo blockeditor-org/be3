@@ -2484,6 +2484,10 @@ impl HostCore {
             if !dismissed.is_empty() {
                 self.editors.dismiss_creations(*id, &dismissed);
             }
+            let closed = be_host_runtime::take_child_closes(&source.app_id, source.instance);
+            if !closed.is_empty() {
+                self.editors.close_children(*id, &closed);
+            }
         }
         self.editors.forget_hidden_settings();
     }

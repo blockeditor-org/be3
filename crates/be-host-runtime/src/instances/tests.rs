@@ -166,6 +166,7 @@ fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
             dialog: None,
             docks: None,
             anchor: None,
+            fullscreen: false,
         }],
         occluders: Vec::new(),
     }
@@ -402,6 +403,7 @@ fn shown_rects(instances: &Instances) -> Vec<Rect> {
 
 mod a_block_is_named_after_its_content_until_someone_names_it;
 mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
+mod a_child_asked_full_screen_or_closed_reaches_the_host;
 mod a_child_placed_in_an_anchored_view_is_shown_in_host_coordinates_inside_it;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;

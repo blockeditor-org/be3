@@ -584,6 +584,14 @@ fn report_creation_dialog<A: be_sdk_beui::BeuiRoot>(
             dialog,
             picked: None,
             card: false,
+            title: None,
+            icon: None,
+            group: None,
+            raised: 0,
+            rung: 0,
+            fullscreen: false,
+            notice: None,
+            menu_asked: None,
         });
     fixture.settle();
 }

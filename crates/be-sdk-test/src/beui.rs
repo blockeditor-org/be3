@@ -660,6 +660,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
+    pub fn take_child_closes(&mut self) -> Vec<ChildId> {
+        self.take_calls(|call| match call {
+            ShellCall::CloseChild { child, .. } => Some(*child),
+            _ => None,
+        })
+    }
+
     pub fn take_child_dismissals(&mut self) -> Vec<ChildId> {
         self.take_calls(|call| match call {
             ShellCall::DismissChild { child, .. } => Some(*child),
@@ -970,25 +977,26 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn available_children(&mut self) {
         let view = self.view().id;
-        self.report_children(|placement| ChildStatus {
-            instance: INSTANCE,
-            view,
-            child: placement.child,
-            available: true,
-            intrinsic: None,
-            aspect_ratio: None,
-            active: false,
-            interaction: be_sdk_beui::InteractionMode::Preview,
-            capabilities: be_sdk_beui::EditorCapabilities::default(),
-            resize: be_sdk_beui::ResizeMode::None,
-            error: None,
-            menu: Vec::new(),
-            creation: None,
-            preview: Default::default(),
-            dialog: Default::default(),
-            picked: None,
-            card: false,
+        self.report_children(|placement| available_status(view, placement));
+    }
+
+    pub fn report_child(&mut self, child: ChildId, change: impl FnOnce(&mut ChildStatus)) {
+        let view = self.view().id;
+        let placement = self
+            .children
+            .iter()
+            .find(|placement| placement.child == child)
+            .expect("the editor placed the child to report on");
+        let mut status = available_status(view, placement);
+        change(&mut status);
+        self.child_statuses.change(&mut self.connection, |held| {
+            let mut held = held.unwrap_or_default();
+            held.retain(|held| held.child != child);
+            held.push(status);
+            held
         });
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
     }
 
     pub fn rect(&self) -> Rect {
@@ -1482,6 +1490,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
             dialog: Default::default(),
             picked: (placement.child == picker).then(|| pick.clone()),
             card: false,
+            title: None,
+            icon: None,
+            group: None,
+            raised: 0,
+            rung: 0,
+            fullscreen: false,
+            notice: None,
+            menu_asked: None,
         });
         self.run();
     }
@@ -1515,6 +1531,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 dialog: Default::default(),
                 picked: None,
                 card: shown && card,
+                title: None,
+                icon: None,
+                group: None,
+                raised: 0,
+                rung: 0,
+                fullscreen: false,
+                notice: None,
+                menu_asked: None,
             }
         });
         self.run();
@@ -2372,4 +2396,34 @@ fn published(method: be_sdk_api::ops::MethodId) -> Option<be_sdk_api::ops::Watch
                 && be_sdk_api::is_published(watching.interface)
         })
         .copied()
+}
+
+fn available_status(view: ViewId, placement: &ChildPlacement) -> ChildStatus {
+    ChildStatus {
+        instance: INSTANCE,
+        view,
+        child: placement.child,
+        available: true,
+        intrinsic: None,
+        aspect_ratio: None,
+        active: false,
+        interaction: be_sdk_beui::InteractionMode::Preview,
+        capabilities: be_sdk_beui::EditorCapabilities::default(),
+        resize: be_sdk_beui::ResizeMode::None,
+        error: None,
+        menu: Vec::new(),
+        creation: None,
+        preview: Default::default(),
+        dialog: Default::default(),
+        picked: None,
+        card: false,
+        title: None,
+        icon: None,
+        group: None,
+        raised: 0,
+        rung: 0,
+        fullscreen: false,
+        notice: None,
+        menu_asked: None,
+    }
 }

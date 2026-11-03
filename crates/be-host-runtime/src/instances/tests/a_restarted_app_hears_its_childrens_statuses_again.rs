@@ -34,6 +34,14 @@ fn a_restarted_app_hears_its_childrens_statuses_again() {
         dialog: Default::default(),
         picked: None,
         card: false,
+        title: None,
+        icon: None,
+        group: None,
+        raised: 0,
+        rung: 0,
+        fullscreen: false,
+        notice: None,
+        menu_asked: None,
     };
     assert_eq!(
         statuses_sent(&instances.set_child_statuses(INSTANCE, REGION, vec![status.clone()])),
