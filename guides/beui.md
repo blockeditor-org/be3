@@ -267,7 +267,7 @@ The rest depend on each other in one direction:
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's fonts through a canvas; unused so far |
 | `beui-view` | the API both cores share: `beui::reactive` (beui-tree plus actions, timers, `NodeRef`, `measure`, the node functions and `Inspect`), `beui::primitives` (`Frame`, `List`, `Text`, ..., declared in `src/components/` with a body per core in `src/native/` and `src/html/`), `CORE`, and under HTML `running` (`beui::html`) |
-| `beui-core-html` | the HTML core (plans/html_core.md), used by beui-view under `cfg(beui_html)`: an arena from `NodeId` to a `beui-html` element, `tree`, inline CSS (`css`), the frame loop, clock and timers (`frame`), measurement, containers (`scroll`, `rows`, `canvas`, `overlay`, `portal`), `text`, browser focus and keys, the hidden IME text agent, page preferences, `run`, `hydrate`, `render_to_string`, and `automate`, which answers `drive` in a browser |
+| `beui-core-html` | the HTML core ([Cores](#cores)), used by beui-view under `cfg(beui_html)`: an arena from `NodeId` to a `beui-html` element, `tree`, inline CSS (`css`), the frame loop, clock and timers (`frame`), measurement, containers (`scroll`, `rows`, `canvas`, `overlay`, `portal`), `text`, browser focus and keys, the hidden IME text agent, page preferences, `run`, `hydrate`, `render_to_string`, and `automate`, which answers `drive` in a browser |
 | `beui-web-input` | what both web cores read from the browser: keys (`key`, `keystroke`, `prevents_default`), wheel deltas and pinches, `ImeMirror`, the hidden text agent |
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
 | `beui-components-styled` | `beui::styled`: themes, styled controls, the styled `Frame`, `Text`, `Span` and `Icon`, and every primitive with no styled version re-exported unchanged |
@@ -572,7 +572,8 @@ lays out, focuses, hit-tests and paints retained nodes itself (with wgpu), on
 every native platform and in be-host's web build. The HTML core,
 `beui-core-html`, makes each primitive a DOM element and lets the browser lay
 out, focus, select and paint. beui-view holds both behind one API, and
-unstyled, styled and everything above are the same source on both.
+unstyled, styled and everything above are the same source on both
+([decision](../decisions/beui_has_an_html_core_on_the_web.md)).
 
 `--cfg beui_html` picks the core at compile time; the buck platforms
 `wasi_html` (browser) and `linux_x86_64_html` (host, for server rendering and
@@ -668,7 +669,7 @@ Bodies are in `beui-view/src/html/`, larger parts in `beui-core-html`
 callback into an SVG `Painter` (`beui-core-html`'s `drawing.rs`) and sets the
 result as its element's markup (`beui_html::Node::set_markup`), rebuilding only
 that SVG when the callback, its measured size or a resolved colour changes
-([decision](../decisions/beui_html_drawing_renders_svg.md)). The callback gets
+([decision](../decisions/beui_drawing_is_inline_svg_on_html.md)). The callback gets
 the measured size, or its `size` before measurement, so a drawing with neither
 (one that fills its parent) draws nothing in a server-rendered page.
 
@@ -1565,7 +1566,7 @@ for all of it, or a `HitRegion`). While the `canvas_touch` preference is
 long press, scroll or pinch, for that node or any around it) until it lifts. A
 pen, a mouse, a touchpad, and a finger on anything the drawing surface doesn't
 hold (its floating chrome among them) are unaffected. It is a user-set switch,
-not palm rejection ([decision](../decisions/beui_canvas_touch_switch_not_palm_rejection.md)).
+not palm rejection ([decision](../decisions/touch_off_toggle_instead_of_palm_rejection.md)).
 `Document::drawing_rects` lists the `drawing` rectangles, which an app reports
 to its host (`FrameReport::drawing`) so the host keeps the finger from the app
 and from its own pan and zoom.
