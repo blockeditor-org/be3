@@ -331,6 +331,7 @@ impl ModuleRunner {
                 window,
                 placement,
                 size,
+                level,
                 ..
             } => {
                 let opener = match &placement {
@@ -369,6 +370,7 @@ impl ModuleRunner {
                         opener,
                         placement,
                         size: to_region(size),
+                        level,
                     }),
                 ));
             }

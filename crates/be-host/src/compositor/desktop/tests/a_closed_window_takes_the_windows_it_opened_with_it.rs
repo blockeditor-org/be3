@@ -22,6 +22,7 @@ fn open(window: u64, opener: View) -> WindowRequest {
             width: 80.0,
             height: 40.0,
         },
+        level: be_sdk_api::WindowLevel::Normal,
     })
 }
 

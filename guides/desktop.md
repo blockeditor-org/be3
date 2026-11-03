@@ -307,6 +307,11 @@ bars are among those floating layers, as on other desktops, so a window carried 
 passes beneath it and the bar still takes presses (beui-dock's `DockBarBand` marks its band
 `AboveEmbeds::Paints` while `bar_level` is `Raised`, so the view's frame report lists it in
 `floating` and `floating-painted`), and drop beneath a fullscreen window as `bar_level` does.
+A bar popped out into a window of its own opens at `WindowLevel::Above` (the window-open's
+`level`) while `bar_level` is `Raised`: be-sdk-window-stack's `settle`, run after every open and
+raise, keeps such windows and the windows opened over them after the normal ones in the list, so a
+raised program window passes beneath the bar, still under the view's floating layers and the
+lock screen; a fullscreen window drops the bar to `Normal` and so covers it once raised.
 Each window is a `AppView` of
 its window view placed at its rect less the display's corner, whose children are the program
 windows and block editors the shell placed in it. A window opens where the app asked: at a

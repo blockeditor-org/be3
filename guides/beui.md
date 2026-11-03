@@ -3160,7 +3160,10 @@ centred ones moving aside only as far as the others need, and bars at one alignm
 along the edge, so a bar at the start sits right after another; the styled Docking draws the
 band with `bar_band`, which is handed the whole band: its fill and one line on the side facing
 the body), or `Window { edge, origin }`, popped out into a dock window sized to
-the bar, `origin` being relative to the dock. A bar shows only while its tab
+the bar, `origin` being relative to the dock; where the host shows windows, that window asks
+for `WindowLevel::Above` while `bar_level` is `Raised` (a `Window`'s `level` maps any level
+above `Normal` to it), so the host keeps it in front of the app's normal windows, and opens it
+again at `Normal` when a fullscreen window covers the bars. A bar shows only while its tab
 is shown, wherever that tab goes, since its placement is relative to whatever
 pane shows the tab; in a stacked dock a popped-out bar floats over the body at
 its edge. Several bars at one placement of a pane's edge come in an order, which

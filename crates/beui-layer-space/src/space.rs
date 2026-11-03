@@ -1286,6 +1286,7 @@ impl Space {
                 placement,
                 size,
                 role,
+                ..
             } => self.open(*window, placement, *size, *role),
             WindowRequest::BeginMove(window) => {
                 if let Some(pointer) = self.pressing(*window) {
