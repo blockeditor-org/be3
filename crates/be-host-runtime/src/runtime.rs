@@ -1551,8 +1551,15 @@ pub fn card(app_id: &str, instance: EditorInstanceId) -> bool {
     with(app_id, |runtime| runtime.instances.card(instance)).unwrap_or(false)
 }
 
-pub fn take_child_focus(app_id: &str, instance: EditorInstanceId, child: be_sdk_api::ChildId) -> bool {
-    with(app_id, |runtime| runtime.instances.take_child_focus(instance, child)).unwrap_or(false)
+pub fn take_child_focus(
+    app_id: &str,
+    instance: EditorInstanceId,
+    child: be_sdk_api::ChildId,
+) -> bool {
+    with(app_id, |runtime| {
+        runtime.instances.take_child_focus(instance, child)
+    })
+    .unwrap_or(false)
 }
 
 pub fn take_child_dismissals(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::ChildId> {

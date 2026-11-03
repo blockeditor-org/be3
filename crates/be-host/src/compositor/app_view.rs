@@ -1509,9 +1509,8 @@ fn focus_when_given(
             }
             try_with_document(|document| {
                 let held = document.focused_node();
-                let inside = held.is_some_and(|held| {
-                    super::desktop::shown_within(held, |view, _| view == node)
-                });
+                let inside = held
+                    .is_some_and(|held| super::desktop::shown_within(held, |view, _| view == node));
                 if document.focus_is_within(node) || inside {
                     return;
                 }
@@ -1864,9 +1863,9 @@ impl ChildNodes {
             provide_context(super::anchored::HostOfAnchors(anchors));
             provide_context(Enclosing(encloses));
             provide_context(ChildFocus(Some(AskedFocus {
-                asked: create_memo(move || child.with(|child| {
-                    child.as_ref().is_some_and(|child| child.focus_asked)
-                })),
+                asked: create_memo(move || {
+                    child.with(|child| child.as_ref().is_some_and(|child| child.focus_asked))
+                }),
                 placer,
                 child: key,
             })));

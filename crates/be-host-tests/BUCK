@@ -83,7 +83,6 @@ APPS = {
     "the_canvas_zoom_bar_floats_at_any_corner_and_stays_there": ["infinite-canvas"],
     "the_desktop_shell_opens_and_closes_cleanly": ["desktop"],
     "the_desktops_bars_hold_their_place_empty_and_their_grips_open_their_menu": ["desktop"],
-    "typing_after_a_new_session_opens_reaches_the_session": ["desktop"],
     "the_files_new_menu_row_loses_its_highlight_when_the_pointer_leaves": [],
     "the_host_menu_opens_under_its_button": [],
     "the_host_opens_its_files_and_closes_cleanly": [],
@@ -97,6 +96,7 @@ APPS = {
     "the_text_settings_point_at_the_tab_from_its_menu_and_the_palette": ["text"],
     "the_workspace_splitter_reaches_over_the_files_and_its_tabs_scroll_with_the_wheel": [],
     "two_canvas_tabs_share_one_popped_out_tool_bar_that_follows_the_tab_shown": ["infinite-canvas"],
+    "typing_after_a_new_session_opens_reaches_the_session": ["desktop"],
     "typing_after_a_pause_undoes_as_its_own_step": ["text"],
     "typing_in_the_add_menu_from_the_files_reaches_it_straight_away": ["checklist"],
 }
