@@ -1133,9 +1133,7 @@ impl Document {
         let rects = Rc::clone(&self.rects);
         self.drop_placement(id, &rects, &mut dropped);
         let returning = self.returns_on_removal(id);
-        let unfocused = self
-            .focused
-            .filter(|focused| self.is_within(*focused, id));
+        let unfocused = self.focused.filter(|focused| self.is_within(*focused, id));
         if unfocused.is_some() {
             self.set_focused(None);
         }

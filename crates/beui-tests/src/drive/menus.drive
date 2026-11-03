@@ -18,8 +18,6 @@ click 'MenuItem "Email"'
 wait 'value="Chose Email fruit Some(0)"'
 gone 'MenuItem "Copy"'
 key Enter
-wait 'MenuItem "Copy"'
-key down
 wait 'MenuItem "Copy" focused'
 key Enter
 wait 'value="Chose Copy fruit Some(0)"'
