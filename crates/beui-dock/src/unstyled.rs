@@ -554,6 +554,7 @@ struct State {
     icon: Func<TabId, Option<Glyph>>,
     picture: Func<TabId, Option<Image>>,
     closable: Func<TabId, bool>,
+    back_closes: Func<TabId, bool>,
     menu: MenuStyle,
     drag_modifier: Memo<Option<Modifiers>>,
     menus: Signal<DockMenus>,
@@ -1072,7 +1073,7 @@ impl State {
     }
 
     fn closes_going_back(&self, visit: DockVisit) -> bool {
-        visit.opened && self.closable.call(visit.to)
+        visit.opened && self.closable.call(visit.to) && self.back_closes.call(visit.to)
     }
 
     fn go_back(&self) {
@@ -1706,6 +1707,7 @@ pub(crate) struct DockConfig {
     pub(crate) icon: Func<TabId, Option<Glyph>>,
     pub(crate) picture: Func<TabId, Option<Image>>,
     pub(crate) closable: Func<TabId, bool>,
+    pub(crate) back_closes: Func<TabId, bool>,
     pub(crate) menu: MenuStyle,
     pub(crate) stack_below: f32,
     pub(crate) short_below: f32,
@@ -1767,6 +1769,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         icon,
         picture,
         closable,
+        back_closes,
         menu,
         stack_below,
         short_below,
@@ -1858,6 +1861,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         icon,
         picture,
         closable,
+        back_closes,
         menu,
         drag_modifier: create_memo(move || drag_modifier.get()),
         menus,

@@ -121,6 +121,7 @@ enum EntryKind<K: 'static> {
         icon: Memo<Option<Glyph>>,
         picture: Memo<Option<Image>>,
         on_close: Option<ClickCallback>,
+        back_closes: bool,
         see_through: bool,
         content: RenderFn<()>,
     },
@@ -259,6 +260,7 @@ pub fn DockTab<K>(
     #[prop(default = None)] icon: Prop<Option<Glyph>>,
     #[prop(default = None)] picture: Prop<Option<Image>>,
     on_close: Option<ClickCallback>,
+    #[prop(default = true)] back_closes: bool,
     #[prop(default = false)] see_through: bool,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockEntry<K>
@@ -272,6 +274,7 @@ where
             icon: create_memo(move || icon.get()),
             picture: create_memo(move || picture.get()),
             on_close,
+            back_closes,
             see_through,
             content,
         },
@@ -1448,6 +1451,7 @@ impl<K: DockKey> Found<K> {
                     icon,
                     picture,
                     on_close,
+                    back_closes,
                     ..
                 } => Some(DockDeclaredTab {
                     tab: *tab,
@@ -1456,6 +1460,7 @@ impl<K: DockKey> Found<K> {
                     icon: icon.get(),
                     picture: picture.get(),
                     closable: on_close.is_some(),
+                    back_closes: *back_closes,
                 }),
                 EntryKind::Group { .. } => None,
             })
@@ -1524,6 +1529,18 @@ impl<K: DockKey> Found<K> {
             } => Some(read(title, icon, on_close, content)),
             EntryKind::Group { .. } => None,
         }
+    }
+
+    fn back_closes(&self, tab: TabId) -> bool {
+        self.tabs.get(&tab).is_none_or(|entry| {
+            !matches!(
+                entry.kind,
+                EntryKind::Tab {
+                    back_closes: false,
+                    ..
+                }
+            )
+        })
     }
 
     fn see_through(&self, tab: TabId) -> bool {
@@ -1750,6 +1767,12 @@ where
             .with(|found| found.tab(tab, |_, _, on_close, _| on_close.is_some()))
             .unwrap_or(false)
     });
+    let back_closes = Func::new(move |tab: TabId| {
+        if let Some(declared) = declared(tab) {
+            return declared.back_closes;
+        }
+        found.with(|found| found.back_closes(tab))
+    });
     let place = RenderFn::new(move |tab: TabId| {
         let join = |host: TabId| DockJoin {
             host,
@@ -1893,6 +1916,7 @@ where
                 icon,
                 picture,
                 closable,
+                back_closes,
                 menu,
                 stack_below,
                 short_below,
