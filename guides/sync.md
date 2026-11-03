@@ -17,7 +17,7 @@ format: every block's file form comes from its type module
 `sync` and `watch`. be-host's files opened in programs use the same requests
 (`to-file` to write a block out and `from-file` to take a program's save back,
 guides/desktop/linux.md), and a folder export in the host (plans/daily_driver.md,
-phase 7) can too, with no mapping of its own.
+"The notes app itself") can too, with no mapping of its own.
 
 ## What becomes what
 

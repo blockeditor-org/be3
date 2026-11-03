@@ -31,7 +31,7 @@ constraint_value(
     visibility = ["PUBLIC"],
 )
 
-# Which core beui's view layer builds on (plans/html_core.md): the native one,
+# Which core beui's view layer builds on (guides/beui.md, Cores): the native one,
 # which lays out and paints itself, without this value, and the HTML one, which
 # hands both to the browser, with it. A constraint rather than a cargo feature,
 # since the wasi plan merges features across apps: wasi_html and
