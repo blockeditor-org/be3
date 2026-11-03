@@ -10,7 +10,7 @@ fn window_in_sidebar(fixture: &Fixture, id: u64) -> Option<bool> {
 #[test]
 fn a_window_tab_is_locked_to_the_blocks_area_like_a_block_tab() {
     let (mut fixture, _) = editor_sized(Some(WIDE));
-    fixture.host.set_watched::<WindowsWatch>(&vec![
+    fixture.show_windows(&[
         window(7, "Terminal", None),
         window(8, "Firefox", None),
     ]);

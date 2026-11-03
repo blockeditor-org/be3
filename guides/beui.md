@@ -2805,7 +2805,7 @@ saved with the layout: the tab it came from, the tab it went to, and whether
 that tab was `opened` by it, which is its first time shown since it joined the
 dock. `back` is the last visit to the tab on show. Going back undoes it: a tab
 the visit opened is closed through its `on_close` when it has one, unless the
-`DockTab` says `back_closes=false` (be-sdk-shell's `WindowTab` does, since
+`DockTab` says `back_closes=false` (be-sdk-shell's `ProgramTab` does, since
 closing a program's window ends the program; the app protocol's `dock-tab`
 carries it as `back-closes`), and closing
 the tab on show, in either mode, shows the tab its last visit came from;

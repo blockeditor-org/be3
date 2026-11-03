@@ -30,16 +30,6 @@ fn now_label(end: SessionEnd) -> &'static str {
     }
 }
 
-pub(crate) fn waiting_for(workspace: Workspace) -> Vec<String> {
-    let mut names: Vec<String> = Vec::new();
-    for name in workspace.running_titles() {
-        if !name.is_empty() && !names.contains(&name) {
-            names.push(name);
-        }
-    }
-    names
-}
-
 pub(crate) fn said(names: &[String]) -> String {
     let shown: Vec<&str> = names.iter().take(NAMED).map(String::as_str).collect();
     let listed = match (shown.as_slice(), names.len().saturating_sub(NAMED)) {
@@ -70,7 +60,7 @@ pub(crate) fn EndingBar(workspace: Workspace, area: Memo<Rect>) -> NodeId {
     let power = editor.watch::<PowerWatch>();
     let ending = create_memo(move || power.with(|power| power.ending));
     let open = create_memo(move || ending.get().is_some());
-    let names = create_memo(move || waiting_for(workspace));
+    let names = create_memo(move || workspace.running_names());
     let heading = create_memo(move || ending.get().map(title).unwrap_or_default().to_owned());
     let detail = create_memo(move || names.with(|names| said(names)));
     let now = create_memo(move || ending.get().map(now_label).unwrap_or_default().to_owned());

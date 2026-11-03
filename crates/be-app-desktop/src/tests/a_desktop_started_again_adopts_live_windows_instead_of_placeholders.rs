@@ -6,13 +6,14 @@ fn a_desktop_started_again_adopts_live_windows_instead_of_placeholders() {
     before.settle();
     before.show_windows(&[foot(1), notes(2)]);
     let places = [1, 2].map(|id| before.window_rect(id).expect("the window is placed"));
+    let tabs = [1, 2].map(|id| before.tab_of(id));
 
     let mut again = Fixture::holding(before.saved());
     again.show_windows(&[foot(1), notes(2)]);
     again.settle();
-    for (id, place) in [1, 2].into_iter().zip(places) {
+    for ((id, place), tab) in [1, 2].into_iter().zip(places).zip(tabs) {
         assert!(
-            again.placeholder_rect(id).is_none(),
+            again.placeholder_rect(tab).is_none(),
             "a window still open is not shown as a placeholder too"
         );
         assert_eq!(
@@ -24,11 +25,11 @@ fn a_desktop_started_again_adopts_live_windows_instead_of_placeholders() {
     assert!(!again.test.shown("desktop.windows.restore"));
 
     let mut late = Fixture::resumed(before.saved());
-    assert!(late.placeholder_rect(1).is_some());
+    assert!(late.placeholder_rect(tabs[0]).is_some());
     late.show_windows(&[foot(1), notes(2)]);
-    for (id, place) in [1, 2].into_iter().zip(places) {
+    for ((id, place), tab) in [1, 2].into_iter().zip(places).zip(tabs) {
         assert!(
-            late.placeholder_rect(id).is_none(),
+            late.placeholder_rect(tab).is_none(),
             "windows the host still had replace their placeholders once they are listed"
         );
         assert_eq!(late.window_rect(id).map(|rect| rect.min), Some(place.min));

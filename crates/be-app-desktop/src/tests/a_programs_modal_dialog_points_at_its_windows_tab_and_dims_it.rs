@@ -22,7 +22,7 @@ fn a_programs_modal_dialog_points_at_its_windows_tab_and_dims_it() {
 
     let header = fixture
         .test
-        .rect_of(&format!("dock.dialog.{}.header", fixture.tab_of(2)));
+        .rect_of(&format!("dock.dialog.{}.header", dialog_tab(2)));
     let tab = fixture.test.rect_of(&format!("dock.tab.{}", fixture.tab_of(1)));
     assert!(
         header.top() > tab.bottom()

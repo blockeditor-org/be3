@@ -118,12 +118,11 @@ belongs to the nearest (`be_sdk_window_stack::home`) and is brought wholly into 
 window being moved or resized is let go first, and kept once released. Under DRM the displays are
 `display::shown()`; in a window or headless they are one, be-host's window, which the shell's main
 view holds (`desktop::hold_window_display`). The shell opens a program's window, and a restored
-placeholder, on a cascade inside its dock's area (`cascaded` in be-sdk-shell's `window.rs`), with
-fewer steps when the window leaves little room. A window opens within the least and greatest size
-its program asks for (`min-size` and `max-size` on `host-window`, `within_limits`), shrunk to the
-dock's area, at its origin, when the least does not fit. Only the opening size honours them: the
-person may resize the window past them, and the window does not follow a size its program commits
-that is only those limits applied to the size it was given (`followed_size`).
+placeholder, on a cascade inside its dock's area (`cascaded` in be-sdk-shell's `program.rs`), with
+fewer steps when the window leaves little room: at a placeholder's size first, then once, when its
+window child first reports its `intrinsic` size (the size its program drew), at that size, shrunk
+to the area. There is no size negotiation and no least or greatest size: after that the dock sizes
+the window frame as it likes and the host fits the program to it (Program windows, below).
 
 The Status bar holds the tray, the keyboard layout indicator (`desktop.layout`, guides/desktop/linux.md),
 the device tools (the on-screen keyboard, `desktop.keyboard`,
@@ -175,41 +174,83 @@ drive like any other run (guides/running/drive.md).
 
 ## Program windows
 
-Only the shell sees the program windows: the host answers `WindowsWatch` and takes its
-`windows::request` only from the shell instance, so a session opened inside the desktop is a block
-window and shows none of them. Where the host opens windows (`opens_windows()`, true only in space), every toplevel is a
-window, and so a panel, of its own: be-sdk-shell's `Workspace` shows each top program window as a
-floating dock window (`FloatingWindow`) instead of a tab, as the desktop app always does. A program's dialog
-(a toplevel with a parent: an xdg toplevel's parent or xdg-dialog, an X11 transient, a Windows owned
-window) is never a window of its own in either shell: be-sdk-shell's `WindowDialog` declares it as a
-`DockDialog` of its parent's tab, which the dock draws as the same anchored card as be-host's
-own dialogs, its beak on the parent's tab in that tab's strip (or, for a dialog of a dialog, on
-the parent dialog's header), escaping its pane as a layer, in space and outside it alike. A
-parent can come and go after the window shows (GTK 3 sets it after the first commit), and the
-dialog moves between being a window and a card with it. A parent that is not listed (a toplevel
+Only the shell sees the program windows: the host answers `WindowsWatch` only to the shell
+instance, so a session opened inside the desktop is a block window and shows none of them. Each
+entry (`host-window`) holds only what a shell needs to place the window and match it to a tab:
+its id, kind, parent, modal, program id and origin. Everything else about a window is its child's
+`child-status`, and the shell asks things of it as of any child (below).
+
+A program window is a tab like a block's. be-sdk-shell's `Workspace` has one tab model: a tab's
+content is a block or a program (`program.rs`: `Program { window, record }`, the `ProgramRecord`
+being what the tab saves to be a placeholder after a restart: the window it last held, program
+id, desktop entry, command and title). Program tabs take keys from the same counter as block tabs
+and are saved with the dock layout in the `layout` view state (`saved::SavedProgram`, restored only
+by a workspace with `keeps_windows`, the desktop). A parentless window in the list goes to the tab
+whose key is its `origin.launch`, else a waiting tab that last held this window id for the same
+program (a shell started again over the same host), else the oldest waiting tab of its program id,
+else a new tab (`program::place`). A window that leaves the list closes its tab, except while the
+session is ending (`Workspace::keep_through_ending`), when a window its program can be started
+again for leaves its tab as a placeholder. The desktop app puts each program tab in a floating
+dock window of its own (`ProgramWindow`); workspace-ui puts them in its editors pane, or floating
+where the host opens windows (`opens_windows()`, true only in space). The person can dock either
+anywhere after. A display entry (`kind: display`, Windows) opens hidden.
+
+A program's dialog (a toplevel with a parent: an xdg toplevel's parent or xdg-dialog, an X11
+transient, a Windows owned window) is never a tab: be-sdk-shell's `WindowDialog` declares it as a
+`DockDialog` of its parent's tab (`dialog_tab(window)`), which the dock draws as the same anchored
+card as be-host's own dialogs, its beak on the parent's tab in that tab's strip (or, for a dialog
+of a dialog, on the parent dialog's header), escaping its pane as a layer, in space and outside it
+alike. A parent can come and go after the window shows (GTK 3 sets it after the first commit), and
+the dialog moves between being a tab and a card with it. A parent that is not listed (a toplevel
 that never drew, such as `gtk3-demo --run`'s hidden main window) does not count: be-host-wayland
-reports the nearest shown ancestor (`State::parent`), and `shown_windows` drops a parent missing
-from the list, so such a window is a window of its own. Its
-header, like a program window's tab and its chip, is `be_host_desktop::naming::window_name` (be-sdk-shell's
-`window_name` is a copy the shells use until they read the window child's `title`), the one way to name
-a host window: the program's name (`program_name`: `HostWindow::name`, else the parent's, else the
-program id's last part made readable, its path and `.exe` or a package's `_publisher!App` dropped),
-then " — " and the window's title when it says more (not the name or program id, a trailing
-" - name" cut off). Both hosts first name a window after the program the desktop launched it from
-(`origin.program`). Otherwise the Linux host fills `name` from the desktop entry named by the window's program id
-(`Environment::entry`), and the Windows host from the Start menu program whose AppUserModelID or
-shortcut target is the window's program id or command (guides/desktop/windows.md). A placeholder keeps
-the name (`KeptWindow::name`, `KeptWindow::window_name`), and the "not responding" banner says
-only the program's name. It is the size the program drew (`HostWindow::size`, followed as the
-program resizes itself) and can be dragged off by its header, which drops its beak. While it is
-modal, a scrim dims its parent's panel (rounded as the card when the parent is a dialog) and a press there flashes the dialog and gives it the
-keyboard (see the dock in guides/beui.md); the parent's tab shows its waiting dot. A toplevel's
-popups are a `Window` of the `WindowView` (`WindowRole::Popup`, so the toplevel keeps the keyboard
-and the popup its grab), placed `Over` the window the toplevel is in where the overlay would be,
-and opened again whenever the popups' corner moves, as when a submenu grows them leftward or
-upward. The compositor still places each toplevel at its rectangle in its own window's
-coordinates, and the keyboard follows the document's focus as anywhere. Outside space top windows
-stay tabs, as above.
+reports the nearest shown ancestor (`State::parent`), and the workspace drops a parent missing
+from the list (`listed_windows`), so such a window is a tab of its own. A dialog's card is the size
+its child reports as `intrinsic` and can be dragged off by its header, which drops its beak. While
+it is modal, a scrim dims its parent's panel (rounded as the card when the parent is a dialog) and
+a press there flashes the dialog and gives it the keyboard (see the dock in guides/beui.md); the
+parent's tab shows its waiting dot. A toplevel's popups are a `Window` of the `WindowView`
+(`WindowRole::Popup`, so the toplevel keeps the keyboard and the popup its grab), placed `Over`
+the window the toplevel is in where the overlay would be, and opened again whenever the popups'
+corner moves, as when a submenu grows them leftward or upward. The compositor still places each
+toplevel at its rectangle in its own window's coordinates, and the keyboard follows the
+document's focus as anywhere.
+
+The tab's body places `SubregionContent::Window(id)` and maps the child's status onto the dock tab
+(`program::WindowBody`, `Workspace::hear`): `title` and `icon` onto the tab, the desktop's chip
+and a dialog's header; `group` onto `DockTab::group` (`program:` and the group); a count up of
+`raised` shows the tab (bringing its window in front) and gives the child the keyboard
+(`focus-child`); `fullscreen` turning on or off takes the tab in or out of full screen, and the
+tab's full screen is the child's `child-placement.fullscreen` (`<Subregion fullscreen>`); `rung`
+flashes its chip; `notice` is the tab's notice (`DockTabControl::show_notice`), shown in place of
+its title; and a new `menu-asked` opens the tab's menu (Hide, Full screen, Close) at that point.
+Closing the tab, from its cross, Close or the window keys, is `close-child`; the tab stays until
+the window leaves the list. Showing the tab gives the program the keyboard: be-sdk-beui's
+`Subregion` sends `focus-child` when the tab is given the keyboard or brought forward, as for a
+block. A child reports its status only while it is placed, and a hidden dock window's tab, or a
+tab not shown in its pane, is not placed, so the workspace keeps the last status each tab heard
+(`Heard`) and its title in the tab's record, and the tab, its chip and the Restore chip keep
+showing them; a program's raise or bell while its tab is hidden is not heard. A tab closed while
+it is not placed is shown first, so its child can be asked to close.
+
+A program tab with no window is a placeholder: be-sdk-shell draws "X is not running"
+(`workspace.placeholder.TAB`), with the program's icon and name from `ProgramsWatch` when the host
+lists it, the window's last title, Open and Dismiss. Open launches the program with the tab's key
+as the launch id (`ProgramAction::Launch { program, launch: Some(key) }`, or `Exec` with the
+command it was started with), so the window it opens fills the tab; Dismiss closes the tab. A
+window whose program cannot be started again (no desktop entry, command or listed program) leaves
+no placeholder.
+
+The tab's title, like a dialog's header and the window's chip, is the child's `title`, which the
+host names with `be_host_desktop::naming::window_name`, the one way to name a host window: the
+program's name (`program_name`: the desktop entry's or Start menu program's name, else the
+parent's, else the program id's last part made readable, its path and `.exe` or a package's
+`_publisher!App` dropped), then " — " and the window's title when it says more (not the name or
+program id, a trailing " - name" cut off). Both hosts first name a window after the program the
+desktop launched it from (`origin.program`). Otherwise the Linux host takes the name from the
+desktop entry named by the window's program id (`Environment::entry`), and the Windows host from
+the Start menu program whose AppUserModelID or shortcut target is the window's program id or
+command (guides/desktop/windows.md). The host keeps what it knows of each window in
+be-host-desktop's `KnownWindow` and publishes only its `listed()` part.
 
 A placed `SubregionContent::Window` child, and a program opened to edit a block (Files opened in
 programs, below), is drawn by be-host-desktop's `PlacedWindow`: the platform's `WindowSurface` inside
@@ -219,8 +260,8 @@ than the program's least size, and draws "{name} is not responding" with Wait an
 (`host.window.not_responding`, `host.window.wait`, `host.window.force_close`) over the body. The
 child's status comes from `DesktopHost::window_status` (`WindowStatus`): its title (the name
 above), icon, group (its program id), raised, rung, fullscreen (the program asks), notice, menu-asked
-and intrinsic (the size the program picked). be-host's `close-child` closes the window as
-`window-action.close` does, a change of `child-placement.fullscreen` asks the program to enter or
+and intrinsic (the size the program picked). be-host's `close-child` asks the program to close the
+window (force-closing one that does not respond), a change of `child-placement.fullscreen` asks the program to enter or
 leave full screen, and the keyboard the placer gives the child, or its `focus-child`, gives the
 window the keyboard (`follow_window` in be-host's `compositor/editors.rs`).
 
@@ -256,25 +297,27 @@ bar is hidden, it is centred over the windows' area instead (`ProgramsPanelOverl
 
 ## Notes
 
-`HostWindow::note` is what the host wants said about a window right now, framework-neutral text.
-be-sdk-shell's `WindowPanel` hands it to its dock tab (`DockTabControl::show_notice`), so the
-window's tab or dialog header shows it in place of the title while it is set; nothing is drawn
-over the window's content for it. The Windows host sets it for focus mode, hovering and refused
+A window child's `notice` is what the host wants said about the window right now,
+framework-neutral text. be-sdk-shell hands it to the child's dock tab
+(`DockTabControl::show_notice`), so the window's tab or dialog header shows it in place of the
+title while it is set; nothing is drawn over the window's content for it. The Windows host sets it for focus mode, hovering and refused
 input (guides/desktop/windows.md); the Linux host sets none.
 
 ## Shown and hidden entries
 
 `WindowsWatch` lists every entry the host could show: program windows (`kind: window`) and, on a
-host that captures them (Windows), whole displays (`kind: display`, `size` the display's, `title`
-its name). Each has `shown`, which the host keeps, so a shell started again shows what was shown.
-The shells draw only shown entries: be-sdk-shell's `Workspace` keeps the whole list
-(`Workspace::entries`) and lays out `shown_windows` of it, so a hidden window is no tab, no
-floating window and no saved window, and a dialog whose toplevel is hidden is hidden with it.
+host that captures them (Windows), whole displays (`kind: display`). The host keeps no shown
+state: whether an entry shows is the dock's. A hidden dock window (`DockingLayout::hide_window`,
+from a chip, Super+Down or Super+D) places none of its tabs, so its window child is placed nowhere
+and the host suspends the program (Linux) or stops capturing it (Windows); a dialog hides with its
+window. A hidden window shown again comes back where it was.
+
 The desktop app's Windows bar has a row of window chips (`WindowChips`, `desktop.windows`,
-`root/windows.rs`): one chip per toplevel entry, displays first and then windows in the host's
-order, then the block windows the shell opened itself (sessions and shown blocks), each with its
-icon (the window's own, else a display, block or window glyph) and its `window_name` (the program
-first, so a long title is what the ellipsis cuts) ellipsised (icon only with the name as tooltip when the row is given `Direction::Vertical`). Along a horizontal bar the chips share the
+`root/windows.rs`), built from the dock's tabs and their children's statuses: one chip per program
+tab, displays first, then windows, then placeholders, each in tab order, then the block windows
+the shell opened itself (sessions and shown blocks), each with its icon (the tab's picture, else a
+display, block or window glyph) and its title (the program first, so a long title is what the
+ellipsis cuts) ellipsised (icon only with the name as tooltip when the row is given `Direction::Vertical`). Along a horizontal bar the chips share the
 length the band gives the bar, like a taskbar's: the row asks for `CHIP_WIDTH` (`Size::Menu`) a
 chip, so the band gives it room as if every title were long, and the chips split what they get
 evenly up to that width, their titles ellipsised; once a chip would be narrower than `CHIP_LEAST`
@@ -283,22 +326,22 @@ every chip shows only its icon, and past that the chips scroll inside the row (t
 chip count or the icon-only switch changes. The row measures the room it was given
 (`measure` on the chip list), never its own content, so switching to icons does not shrink the
 room it asks for. Down a side the chips are icons already, and they scroll inside the row the same way, the grip staying at the top. The focused chip (the dock's
-focused tab) is drawn pressed and a hidden one hollow. A click shows a hidden entry (`show`) and
-focuses it (`focus`); a click on the focused chip hides it (`hide`; a block window's tab goes into the
-`Workspace`'s hidden set, `Workspace::hide`, and the shell stops declaring it, and
-`Workspace::show` or opening its block again, from the Apps panel or a show request, shows it) and the next shown window in the dock's focus order takes the focus. Each chip
+focused tab) is drawn pressed and a hidden one hollow. A click shows a hidden window and brings
+it in front with the keyboard (`Workspace::show`); a click on the focused chip hides it
+(`Workspace::hide`) and the next shown window in the dock's focus order takes the focus. Each chip
 has a context menu (secondary click, long press or Shift+F10): Hide or Show, and Close for a
-window (`close`). A chip is drawn as a primary button for `BELL_FLASH` each time its window's program rings the bell (`HostWindow::rung` counts up). With no chip and nothing to restore, a horizontal row shows a muted "No windows" a chip wide
-(`desktop.windows.none`), so an empty bar keeps a taskbar's length. While placeholders from last time wait, a Restore chip
-(`desktop.windows.restore`) leads the row and launches them all. `WindowChips` takes a `display`
+window (`close-child`). A chip is drawn as a primary button for `BELL_FLASH` each time its window's
+`rung` counts up. A placeholder's chip, after the running windows' (outlined, with a muted label,
+as `ButtonFace`'s `placeholder`), brings it in front, and its menu offers Open and Dismiss. With no
+chip and nothing to restore, a horizontal row shows a muted "No windows" a chip wide
+(`desktop.windows.none`), so an empty bar keeps a taskbar's length. While placeholder tabs wait
+and the host offers `ProgramsWatch`, a Restore chip (`desktop.windows.restore`) leads the row and
+opens them all (`Workspace::open_placeholders`). `WindowChips` takes a `display`
 to list only the windows mostly on that display (`display_of`: the display holding most of the
 window's rect in the dock, which follows each window's reported `origin`, Displays below; a hidden
 window, which has no rect, is listed on the first display), and with more than one display a
 shown floating window's chip menu adds "Move to display N" for each other display (Displays,
-below). On Linux it is a window switcher too. be-host's Wayland host opens every window shown and lists no displays; `hide`
-only stops the shells drawing it (the client keeps running and connected), and the shown state
-lives in `be-host-desktop/src/desktop_host/shown.rs` for as long as be-host runs, forgotten when the window closes.
-A hidden window shown again opens at its default place, not where it was.
+below). On Linux it is a window switcher too.
 
 ## Displays
 
@@ -389,12 +432,9 @@ The window manager is beui-dock's (guides/beui.md, the dock's window actions), o
 dock and each display's work area in the main dock's points: `DeskWindows` gives display 0 the
 dock's `area()` and every further display its `Display` view's area (`DeskWindows::report_area`)
 and passes them to `DockingLayout::set_areas`. It acts on program and block windows alike, as
-floating dock windows. be-sdk-shell's `BlockTab` and `WindowTab` give their tabs a `group`
-(`block:` and the block type, `program:` and the program id) for the app's next window, and
-`Workspace::hide` and `show` go through the dock. Until program windows are the host's children
-(plans/program_windows.md), the host still keeps whether a program window is shown:
-`Workspace::mirror_shown` keeps the dock's hidden windows and the host's `shown` in step both ways
-(the desktop lists hidden program windows too, `listed_windows`, so their dock windows stay). The
+floating dock windows. be-sdk-shell's `BlockTab` and `ProgramTab` give their tabs a `group`
+(`block:` and the block type, `program:` and the window child's group) for the app's next window, and
+`Workspace::hide` and `show` go through the dock. The
 desktop app binds keys to the dock's `window_actions`, disabled while `ScreenLockedWatch` is set
 (`root/window_keys.rs`, at `KeyAt::Window` and capturing, so they work over programs and are listed
 in the command palette); workspace-ui binds none, since its windows are its own:
@@ -432,8 +472,8 @@ the keyboard, the pointer, held buttons and popups from them, drops any input me
 and pings every client each `PING_TIMEOUT`, so one that froze meanwhile is listed as not
 responding. The lock screen is the host's and works throughout. The new shell sees the
 windows in `WindowsWatch` and shows them as it shows any window; the desktop app's saved layout
-names window tabs by `HostWindowId`, which the host keeps, so a restored layout puts
-each window back where it was, fullscreen and dialogs included. To try it, open be-host's
+keeps the `HostWindowId` each program tab last held, which the host keeps, so a restored layout
+puts each window back in its tab where it was, and dialogs over it. To try it, open be-host's
 menu (the Apps panel's Menu row), choose Running Apps, be-host's debug panel of the apps it runs,
 and press Crash or Kill beside `be3.desktop`.
 

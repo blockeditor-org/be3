@@ -81,6 +81,7 @@ mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_volume_louder_than_full_shows_how_much_louder;
 mod a_window_dragged_over_the_bars_passes_beneath_them;
 mod a_window_holding_one_tab_closes_from_its_tab_and_its_bar;
+mod a_window_its_program_raises_comes_in_front_with_the_keyboard;
 mod a_window_launched_from_a_placeholder_takes_its_place;
 mod a_window_moved_to_a_display_at_another_scale_keeps_its_size_in_points_above_its_bars;
 mod a_window_moved_to_another_display_lists_its_chip_on_that_displays_bar;
@@ -1069,6 +1070,10 @@ fn ending(end: SessionEnd) -> PowerAvailability {
         ending: Some(end),
         ..PowerAvailability::default()
     }
+}
+
+fn dialog_tab(window: u64) -> u64 {
+    be_sdk_shell::dialog_tab(HostWindowId(window)).value()
 }
 
 fn kept_keys(fixture: &Fixture) -> Vec<u64> {

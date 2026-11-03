@@ -37,7 +37,6 @@ pub struct ProgramRecord {
     pub program_id: String,
     pub program: Option<String>,
     pub command: Vec<String>,
-    pub name: String,
     pub title: String,
     #[serde(default)]
     pub display: bool,
@@ -275,29 +274,39 @@ pub(crate) fn launch_action(
     }
 }
 
+const NAME_END: &str = " \u{2014} ";
+
 pub(crate) fn program_name(record: &ProgramRecord, program: Option<&HostProgram>) -> String {
     if let Some(program) = program {
         return program.name.clone();
     }
-    if !record.name.trim().is_empty() {
-        return record.name.trim().to_owned();
-    }
-    let command = record.command.first().map(|command| {
-        command
-            .rsplit('/')
-            .next()
-            .unwrap_or(command.as_str())
-            .to_owned()
-    });
-    let entry = record
-        .program
-        .as_deref()
-        .map(|entry| entry.trim_end_matches(".desktop").to_owned());
-    command
-        .or(entry)
+    let named = record
+        .title
+        .split(NAME_END)
+        .next()
+        .map(str::trim)
         .filter(|name| !name.is_empty())
-        .or_else(|| Some(record.title.clone()).filter(|title| !title.is_empty()))
+        .map(str::to_owned);
+    let command = || {
+        record.command.first().map(|command| {
+            command
+                .rsplit('/')
+                .next()
+                .unwrap_or(command.as_str())
+                .to_owned()
+        })
+    };
+    named
+        .or_else(command)
+        .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "Program".to_owned())
+}
+
+pub(crate) fn window_title(record: &ProgramRecord) -> String {
+    match record.title.split_once(NAME_END) {
+        Some((_, title)) => title.trim().to_owned(),
+        None => String::new(),
+    }
 }
 
 impl Workspace {
@@ -349,19 +358,18 @@ impl Workspace {
         })
     }
 
-    pub fn running_titles(&self) -> Vec<String> {
-        let running: Vec<TabId> = self.programs.with(|programs| {
-            programs
-                .iter()
-                .filter(|(_, program)| program.window.is_some())
-                .map(|(tab, _)| *tab)
-                .collect()
-        });
-        self.titles.with(|titles| {
-            running
-                .iter()
-                .filter_map(|tab| titles.get(tab).cloned())
-                .collect()
+    pub fn running_names(&self) -> Vec<String> {
+        self.programs.with(|programs| {
+            self.catalog.with(|catalog| {
+                let mut names: Vec<String> = Vec::new();
+                for program in programs.values().filter(|program| program.window.is_some()) {
+                    let name = program_name(&program.record, program_for(&program.record, catalog));
+                    if !names.contains(&name) {
+                        names.push(name);
+                    }
+                }
+                names
+            })
         })
     }
 
@@ -483,10 +491,24 @@ impl Workspace {
         if next.fullscreen != held.fullscreen && !self.is_dialog(tab) {
             let layout = self.layout();
             let shown = layout.fullscreen() == Some(tab);
-            if shown != next.fullscreen {
-                layout.toggle_window_fullscreen(&tab);
+            match (shown, next.fullscreen) {
+                (false, true) => layout.enter_fullscreen(&tab, self.screen_of(tab)),
+                (true, false) => layout.leave_fullscreen(),
+                _ => {}
             }
         }
+    }
+
+    fn screen_of(&self, tab: TabId) -> Option<Rect> {
+        let screens = self.screens.get_untracked();
+        let first = screens.first()?.min;
+        let screens: Vec<Rect> = screens
+            .iter()
+            .map(|screen| screen.translate(Pos2::ZERO - first))
+            .collect();
+        let held = self.layout().window_rect(&tab)?;
+        let at = be_sdk_beui::beui::dock::unstyled::holding_area(held, &screens)?;
+        screens.get(at).copied()
     }
 
     fn is_dialog(&self, tab: TabId) -> bool {
@@ -635,7 +657,7 @@ pub fn ProgramTab(
 ) -> DockEntry<TabId> {
     let title = workspace.tab_title(tab);
     let picture = workspace.tab_picture(tab);
-    let glyph = match workspace.is_display(tab) {
+    let glyph = match untrack(|| workspace.is_display(tab)) {
         true => ICON_MONITOR,
         false => ICON_APP_WINDOW,
     };
@@ -683,7 +705,7 @@ pub fn ProgramWindow(workspace: Workspace, tab: TabId) -> DockNode<TabId> {
     let area = untrack(|| layout.area()).size();
     let area = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area - reach);
     let rect = cascaded(tab.value(), PLACEHOLDER_SIZE + WINDOW_CHROME, area);
-    if workspace.is_display(tab) && workspace.needs_size(tab) {
+    if untrack(|| workspace.is_display(tab)) && workspace.needs_size(tab) {
         create_effect(move || {
             if layout.window_rect(&tab).is_some() {
                 untrack(|| {
@@ -762,14 +784,19 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
             let Some(size) = intrinsic.get().filter(|size| size.x > 1.0 && size.y > 1.0) else {
                 return;
             };
+            let placed = floating && layout.window_rect(&tab).is_some();
             untrack(|| {
                 if !workspace.needs_size(tab) {
                     return;
                 }
-                workspace.sized(tab);
-                if !floating || control.window_size().is_none() {
+                if !floating {
+                    workspace.sized(tab);
                     return;
                 }
+                if !placed || control.window_size().is_none() {
+                    return;
+                }
+                workspace.sized(tab);
                 let area = layout.area();
                 let local = Rect::from_min_size(Pos2::ZERO, area.size());
                 let rect = cascaded(tab.value(), size + WINDOW_CHROME, local);
@@ -785,16 +812,26 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
         if now <= seen_raise.replace(now) {
             return;
         }
-        untrack(|| {
-            match control {
-                Some(control) => control.show(),
-                None => layout.show(&tab),
-            }
-            if let Some(child) = heard.with(|heard| heard.child) {
-                workspace.host().focus_child(child);
+        untrack(|| match control {
+            Some(control) => control.show(),
+            None => {
+                layout.show(&tab);
+                if let Some(child) = heard.with(|heard| heard.child) {
+                    workspace.host().focus_child(child);
+                }
             }
         });
     });
+    if let Some(control) = control {
+        let called = create_memo(move || control.attention());
+        create_effect(move || {
+            if called.get().is_some()
+                && let Some(child) = untrack(|| heard.with(|heard| heard.child))
+            {
+                untrack(|| workspace.host().focus_child(child));
+            }
+        });
+    }
     let panel = NodeRef::new();
     let menu_at = create_signal(None::<Pos2>);
     let asked = create_memo(move || heard.with(|heard| heard.menu));
@@ -875,10 +912,7 @@ fn Placeholder(workspace: Workspace, tab: TabId) -> NodeId {
     });
     let heading = create_memo(move || format!("{} is not running", name.get()));
     let title = create_memo(move || {
-        let title = record.with(|record| record.as_ref().map(|record| record.title.clone()));
-        title
-            .filter(|title| !title.is_empty() && *title != name.get())
-            .unwrap_or_default()
+        record.with(|record| record.as_ref().map(window_title).unwrap_or_default())
     });
     let picture = create_memo(move || workspace.placeholder_picture(tab));
     let pictured = create_memo(move || picture.with(Option::is_some));

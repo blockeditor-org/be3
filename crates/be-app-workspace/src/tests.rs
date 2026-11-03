@@ -4,7 +4,10 @@ use be_type_workspace::{FolderContent, WorkspaceContent};
 use be_sdk_beui::beui::{NodeId, Rect, ScrollDelta, Vec2};
 
 use be_sdk_beui::beui::native::Document;
-use be_sdk_beui::{BlockParent, ChildContent, EditorHost, OwnedEditor, WindowAction, WindowsWatch};
+use be_sdk_beui::{
+    BlockParent, ChildContent, ChildId, EditorHost, HostWindowId, OwnedEditor, Picture, WindowsWatch,
+};
+use std::collections::HashMap;
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
@@ -25,7 +28,6 @@ mod a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from;
 mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
 mod a_file_with_no_editor_of_its_own_opens_in_the_program_for_its_extension;
 mod a_folder_chosen_on_the_location_page_holds_the_block_made_there;
-mod a_hidden_window_and_its_dialog_have_no_tab_until_shown;
 mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
 mod a_modal_window_sends_presses_on_its_parent_to_itself;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;
@@ -33,7 +35,6 @@ mod a_presentation_offers_its_slide_templates_first;
 mod a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them;
 mod a_programs_dialog_that_resizes_itself_still_points_at_its_tab;
 mod a_programs_modal_dialog_points_at_its_tab_and_dims_its_window;
-mod a_programs_window_is_named_after_its_program_then_its_title;
 mod a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown;
 mod a_reopened_tab_shows_its_saved_title_before_its_block_is_known;
 mod a_reopened_workspace_with_no_file_open_says_so;
@@ -43,9 +44,7 @@ mod a_template_of_the_workspace_is_copied_into_place;
 mod a_template_without_a_dialog_is_created_and_answers_the_pick;
 mod a_window_tab_is_locked_to_the_blocks_area_like_a_block_tab;
 mod a_window_tab_shows_the_icon_its_program_set;
-mod a_window_that_stops_responding_offers_to_wait_or_force_close;
 mod a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves;
-mod a_window_the_host_raises_brings_its_hidden_tab_forward;
 mod a_window_the_host_runs_gets_a_tab_until_its_program_closes_it;
 mod a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it;
 mod a_workspace_opens_on_its_landing_page;
@@ -100,11 +99,113 @@ const TEMPLATE_TYPE: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d74_7970_6531
 struct Fixture<A: be_sdk_beui::BeuiRoot = WorkspaceUiRoot> {
     test: BeuiTest<A>,
     host: EditorHost,
+    windows: Vec<TestWindow>,
+    reported: HashMap<ChildId, TestWindow>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct TestWindow {
+    id: u64,
+    title: String,
+    program_id: String,
+    parent: Option<u64>,
+    modal: bool,
+    size: Vec2,
+    fullscreen: bool,
+    icon: Option<Picture>,
+    raised: u64,
+}
+
+impl TestWindow {
+    fn listed(&self) -> be_sdk_beui::HostWindow {
+        be_sdk_beui::HostWindow {
+            id: HostWindowId(self.id),
+            kind: be_sdk_beui::WindowKind::Window,
+            parent: self.parent.map(HostWindowId),
+            modal: self.modal,
+            program_id: self.program_id.clone(),
+            origin: Default::default(),
+        }
+    }
 }
 
 impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
+    fn new(test: BeuiTest<A>, host: EditorHost) -> Self {
+        Self {
+            test,
+            host,
+            windows: Vec::new(),
+            reported: HashMap::new(),
+        }
+    }
+
     fn settle(&mut self) {
         self.test.run();
+        for _ in 0..4 {
+            if !self.report_windows() {
+                break;
+            }
+            self.test.run();
+        }
+    }
+
+    fn show_windows(&mut self, windows: &[TestWindow]) {
+        self.windows = windows.to_vec();
+        let listed: Vec<be_sdk_beui::HostWindow> =
+            windows.iter().map(TestWindow::listed).collect();
+        self.host.set_watched::<WindowsWatch>(&listed);
+        self.settle();
+    }
+
+    fn report_windows(&mut self) -> bool {
+        let placed: Vec<(ChildId, u64)> = self
+            .test
+            .children()
+            .iter()
+            .filter_map(|placement| match placement.content {
+                ChildContent::Window(window) => Some((placement.child, window.0)),
+                _ => None,
+            })
+            .collect();
+        let mut reported = false;
+        for (child, id) in placed {
+            let Some(window) = self.windows.iter().find(|held| held.id == id).cloned() else {
+                continue;
+            };
+            if self.reported.get(&child) == Some(&window) {
+                continue;
+            }
+            self.reported.insert(child, window.clone());
+            self.test.report_child(child, move |status| {
+                status.title = Some(window.title);
+                status.icon = window.icon;
+                status.group = Some(window.program_id).filter(|id| !id.is_empty());
+                status.raised = window.raised;
+                status.fullscreen = window.fullscreen;
+                status.intrinsic = Some(be_sdk_beui::Size {
+                    width: window.size.x,
+                    height: window.size.y,
+                });
+            });
+            reported = true;
+        }
+        reported
+    }
+
+    fn focused_windows(&mut self) -> Vec<u64> {
+        let given = self.test.take_child_focus();
+        given
+            .into_iter()
+            .filter_map(|child| self.reported.get(&child).map(|window| window.id))
+            .collect()
+    }
+
+    fn closed_windows(&mut self) -> Vec<u64> {
+        let closes = self.test.take_child_closes();
+        closes
+            .into_iter()
+            .filter_map(|child| self.reported.get(&child).map(|window| window.id))
+            .collect()
     }
 
     fn shown(&self) -> Vec<Uuid> {
@@ -223,35 +324,24 @@ const PROGRAMS: [(&str, &str); 5] = [
     ("org.gnome.Totem", "Videos"),
 ];
 
-fn window(id: u64, title: &str, parent: Option<u64>) -> be_sdk_beui::HostWindow {
-    let (program_id, name) = match parent {
+fn window(id: u64, title: &str, parent: Option<u64>) -> TestWindow {
+    let (program_id, _) = match parent {
         Some(_) => ("", ""),
         None => PROGRAMS
             .into_iter()
             .find(|(_, name)| title == *name || title.ends_with(&format!(" - {name}")))
             .unwrap_or(("", "")),
     };
-    be_sdk_beui::HostWindow {
-        id: be_sdk_beui::HostWindowId(id),
-        kind: be_sdk_beui::WindowKind::Window,
-        shown: true,
+    TestWindow {
+        id,
         title: title.to_owned(),
         program_id: program_id.to_owned(),
-        name: name.to_owned(),
-        parent: parent.map(be_sdk_beui::HostWindowId),
+        parent,
         modal: false,
-        size: be_sdk_beui::beui::Vec2::new(320.0, 200.0),
-        min_size: Vec2::ZERO,
-        max_size: Vec2::ZERO,
-        fullscreen: None,
-        responding: true,
-        focused: false,
+        size: Vec2::new(320.0, 200.0),
+        fullscreen: false,
         icon: None,
         raised: 0,
-        rung: 0,
-        origin: Default::default(),
-        note: None,
-        menu: None,
     }
 }
 
@@ -300,13 +390,11 @@ fn open_editor(size: Option<Vec2>, profile: Option<EditorViewContent>) -> (Fixtu
         host.set_view_block(Some(workspace));
     }
     let editor = OwnedEditor::new(host.clone(), workspace);
-    let mut fixture = Fixture {
-        test: match size {
-            Some(size) => BeuiTest::new(editor).with_size(size),
-            None => BeuiTest::new(editor),
-        },
-        host,
+    let test = match size {
+        Some(size) => BeuiTest::new(editor).with_size(size),
+        None => BeuiTest::new(editor),
     };
+    let mut fixture = Fixture::new(test, host);
     if let Some(profile) = profile {
         fixture.test.hold(None, profile);
     }
@@ -371,7 +459,7 @@ fn picking_with(
     };
     let test =
         BeuiTest::picker_beside(&beside.test, host.clone(), request).with_size(beside.test.size());
-    let mut fixture = Fixture { test, host };
+    let mut fixture = Fixture::new(test, host);
     fixture.settle();
     fixture
 }
@@ -384,7 +472,7 @@ fn renaming(beside: &Fixture, block: Uuid) -> Fixture<RenameRoot> {
     host.set_organization_id(beside.host.organization_id());
     let test = BeuiTest::rename_beside(&beside.test, host.clone(), block)
         .with_size(Vec2::new(392.0, 560.0));
-    let mut fixture = Fixture { test, host };
+    let mut fixture = Fixture::new(test, host);
     fixture.settle();
     fixture
 }

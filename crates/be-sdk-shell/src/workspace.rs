@@ -18,7 +18,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
-    AccessLevel, BlockFilter, ChildState, ContactsWatch, Editor, EditorHost, Failure, FocusedBlock,
+    AccessLevel, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost, Failure, FocusedBlock,
     HostPanel, HostProgram, HostWindow, HostWindowId, PickAnchor, PickedBlock, ProgramsWatch,
     Pushed, ShellDialog, WindowsWatch,
 };
@@ -90,6 +90,7 @@ pub struct Workspace {
     pub(crate) ending: Signal<bool>,
     pub(crate) catalog: Memo<Vec<HostProgram>>,
     pub(crate) launchable: Memo<bool>,
+    pub(crate) screens: Memo<Vec<Rect>>,
     unreadable: Signal<Option<String>>,
     panels: Signal<Vec<HostPanel>>,
     landing_for: Signal<Option<Uuid>>,
@@ -115,6 +116,10 @@ impl Workspace {
         let windows = create_memo(move || entries.with(|entries| listed_windows(entries)));
         let listing = editor.watch::<ProgramsWatch>();
         let catalog = create_memo(move || listing.with(|listing| listing.programs.clone()));
+        let displays = editor.watch::<DisplaysWatch>();
+        let screens = create_memo(move || {
+            displays.with(|displays| displays.iter().map(|display| display.rect).collect())
+        });
         let default_editors = editor.effective_settings::<EditorSettings>();
         let workspace = Self {
             revisions: super::revisions::RevisionHistory::new(editor),
@@ -153,6 +158,7 @@ impl Workspace {
             ending: create_signal(false),
             catalog,
             launchable: editor.offered::<ProgramsWatch>(),
+            screens,
             unreadable: create_signal(None),
             panels,
             landing_for: create_signal(None),
@@ -545,6 +551,9 @@ impl Workspace {
             return;
         }
         let Some(view) = self.editor.view_content() else {
+            if self.editor.view_block().is_none() {
+                self.ready.set(true);
+            }
             return;
         };
         let Ok((layout, titles)) = view.read(|held| {

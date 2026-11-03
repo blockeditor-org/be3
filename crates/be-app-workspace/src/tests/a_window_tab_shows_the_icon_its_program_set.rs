@@ -1,8 +1,8 @@
 use super::*;
 
-use be_sdk_beui::HostImage;
+use be_sdk_beui::Picture;
 
-fn icon() -> HostImage {
+fn icon() -> Picture {
     const SIDE: u32 = 32;
     let rgba = (0..SIDE * SIDE)
         .flat_map(|at| {
@@ -15,7 +15,7 @@ fn icon() -> HostImage {
             }
         })
         .collect();
-    HostImage {
+    Picture {
         width: SIDE,
         height: SIDE,
         rgba,
@@ -25,13 +25,11 @@ fn icon() -> HostImage {
 #[test]
 fn a_window_tab_shows_the_icon_its_program_set() {
     let (mut fixture, _) = editor();
-    let iconed = be_sdk_beui::HostWindow {
+    let iconed = TestWindow {
         icon: Some(icon()),
         ..window(5, "Pinta", None)
     };
-    fixture
-        .host
-        .set_watched::<WindowsWatch>(&vec![iconed, window(6, "Terminal", None)]);
+    fixture.show_windows(&[iconed, window(6, "Terminal", None)]);
     fixture.settle();
 
     assert!(fixture.says("Pinta"));

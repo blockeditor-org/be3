@@ -7,6 +7,7 @@ fn windows_that_closed_before_a_cancel_come_back_as_placeholders() {
         fixture.settle();
         fixture.allow_power(EVERYTHING);
         fixture.show_windows(&[foot(1), notes(2), host_window(3, true)]);
+        let tabs = [1, 2, 3].map(|id| fixture.tab_of(id));
 
         fixture.allow_power(ending(end));
         fixture.show_windows(&[host_window(3, true)]);
@@ -15,11 +16,11 @@ fn windows_that_closed_before_a_cancel_come_back_as_placeholders() {
 
         assert_eq!(
             kept_keys(&fixture),
-            vec![1, 2, 3],
+            tabs.to_vec(),
             "cancelling, or a restart that failed, loses nothing: {end:?}"
         );
         assert!(
-            fixture.placeholder_rect(1).is_some() && fixture.placeholder_rect(2).is_some(),
+            fixture.placeholder_rect(tabs[0]).is_some() && fixture.placeholder_rect(tabs[1]).is_some(),
             "the windows that closed wait as placeholders to be opened again"
         );
         assert!(
@@ -30,7 +31,7 @@ fn windows_that_closed_before_a_cancel_come_back_as_placeholders() {
         fixture.show_windows(&[]);
         assert_eq!(
             kept_keys(&fixture),
-            vec![1, 2],
+            tabs[..2].to_vec(),
             "once the session goes on, closing a window is closing it"
         );
     }

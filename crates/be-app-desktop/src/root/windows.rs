@@ -373,7 +373,7 @@ fn WindowChip(
     let waiting = matches!(chip, ChipKey::Placeholder(_));
     let title = workspace.tab_title(tab);
     let display = match chip {
-        ChipKey::Window(tab, _) => workspace.is_display(tab),
+        ChipKey::Window(tab, _) => untrack(|| workspace.is_display(tab)),
         ChipKey::Placeholder(_) | ChipKey::Block(_) => false,
     };
     let tab_glyph = workspace.tab_glyph(tab);

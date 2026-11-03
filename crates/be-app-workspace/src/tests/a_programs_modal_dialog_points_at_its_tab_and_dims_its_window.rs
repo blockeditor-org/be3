@@ -3,18 +3,15 @@ use super::*;
 #[test]
 fn a_programs_modal_dialog_points_at_its_tab_and_dims_its_window() {
     let (mut fixture, _) = editor();
-    let drawing = |id: u64, title: &str, parent: Option<u64>| be_sdk_beui::HostWindow {
+    let drawing = |id: u64, title: &str, parent: Option<u64>| TestWindow {
         program_id: "com.github.maoschanz.drawing".to_owned(),
-        name: "Drawing".to_owned(),
         ..window(id, title, parent)
     };
-    let dialog = be_sdk_beui::HostWindow {
+    let dialog = TestWindow {
         modal: true,
         ..drawing(2, "com.github.maoschanz.drawing", Some(1))
     };
-    fixture
-        .host
-        .set_watched::<WindowsWatch>(&vec![drawing(1, "Untitled image", None), dialog]);
+    fixture.show_windows(&[drawing(1, "Untitled image", None), dialog]);
     fixture.settle();
 
     let tab = (1u64 << 41) + 2;

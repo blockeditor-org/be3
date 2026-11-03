@@ -5,10 +5,10 @@ fn a_window_the_host_focuses_leads_the_window_switcher() {
     let mut fixture = Fixture::with_windows(&[1, 2, 3]);
     let windows = [1, 2, 3].map(|id| host_window(id, id == 1)).to_vec();
     fixture.show_windows(&windows);
-    fixture.settle();
-    assert!(
-        fixture.focused_windows().is_empty(),
-        "a window that already has the keyboard is not given it again"
+    assert_eq!(
+        fixture.focused_windows(),
+        [HostWindowId(1)],
+        "a window its program raises is given the keyboard"
     );
 
     assert!(fixture.test.host_key(Modifiers::ALT, Key::Tab));
