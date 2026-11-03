@@ -44,7 +44,8 @@ pub fn epaper_refresh(started: &Started) -> Option<()> {
 }
 
 pub fn switch_layout(started: &Started) -> Option<u32> {
-    args::<DesktopInputSwitchLayoutArgs>(started, DESKTOP_INPUT_SWITCH_LAYOUT).map(|args| args.index)
+    args::<DesktopInputSwitchLayoutArgs>(started, DESKTOP_INPUT_SWITCH_LAYOUT)
+        .map(|args| args.index)
 }
 
 pub fn notification_report(started: &Started) -> Option<NotificationReport> {
