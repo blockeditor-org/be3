@@ -1580,7 +1580,10 @@ pub fn take_child_dismissals(app_id: &str, instance: EditorInstanceId) -> Vec<be
 }
 
 pub fn take_child_closes(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::ChildId> {
-    with(app_id, |runtime| runtime.instances.take_child_closes(instance)).unwrap_or_default()
+    with(app_id, |runtime| {
+        runtime.instances.take_child_closes(instance)
+    })
+    .unwrap_or_default()
 }
 
 pub fn take_child_commits(app_id: &str, instance: EditorInstanceId) -> Vec<super::ChildCommit> {

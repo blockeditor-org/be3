@@ -38,7 +38,10 @@ fn a_placed_window_hears_its_status_and_is_asked_to_close() {
         [placement] => placement.clone(),
         children => panic!("expected one placed child, got {}", children.len()),
     };
-    assert!(placement.fullscreen, "the placement says it is shown full screen");
+    assert!(
+        placement.fullscreen,
+        "the placement says it is shown full screen"
+    );
 
     let icon = Picture {
         width: 1,
