@@ -11,6 +11,7 @@ Guides:
 - guides/beui.md
 - guides/beui_keyboard.md
 - guides/buck2.md
+- guides/canvas.md: the infinite canvas app and its block type: the model and raster layers, profiles, line binding, hand-drawn and freehand drawing, gestures, device input, export, and its tests and bench
 - guides/common_commands.md: for people too: running things as a person (a window, the VR simulator and an XR headset, the displays and the login session, an Android device) and as an agent (headless `:dev`, `drive`), and every buck2 target
 - guides/build_server.md
 - guides/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
