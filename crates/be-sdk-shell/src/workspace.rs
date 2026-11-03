@@ -34,8 +34,8 @@ use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
-    WindowPanel, floating_window, kept_window, listed_windows, program_name, shown_size, tab_window,
-    window_name, window_picture, window_tab,
+    WindowPanel, floating_window, kept_window, listed_windows, program_name, shown_size,
+    tab_window, window_name, window_picture, window_tab,
 };
 use beui::ItemSize;
 

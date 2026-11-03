@@ -41,7 +41,10 @@ fn acts_on_the_focused_window() {
         Some(area.shrink(HANDLE_REACH)),
         "maximize fills the focused window's area"
     );
-    assert!(!hide.is_enabled(), "a snapped window is restored before it hides");
+    assert!(
+        !hide.is_enabled(),
+        "a snapped window is restored before it hides"
+    );
     assert!(restore.run());
     assert_eq!(layout.window_rect(&tab(4)), Some(rect));
     assert!(hide.run());
@@ -68,6 +71,10 @@ fn acts_on_the_focused_window() {
 
     locked.set(true);
     for action in [&maximize, &hide, &switch_next, &fullscreen] {
-        assert!(!action.is_enabled(), "{} is off while disabled", action.id());
+        assert!(
+            !action.is_enabled(),
+            "{} is off while disabled",
+            action.id()
+        );
     }
 }

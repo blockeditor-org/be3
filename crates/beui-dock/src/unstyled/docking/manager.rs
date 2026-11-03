@@ -229,7 +229,9 @@ impl<K: DockKey> DockingLayout<K> {
         let tab = self.tab_of(key)?;
         let declared = self.inner().declared_by.get()?;
         let found = declared.found;
-        found.is_alive().then(|| found.with(|found| found.group(tab)))?
+        found
+            .is_alive()
+            .then(|| found.with(|found| found.group(tab)))?
     }
 
     fn group_mates(&self, key: &K) -> Vec<K> {
@@ -380,15 +382,11 @@ impl<K: DockKey> DockingLayout<K> {
             }
         };
         DockWindowActions {
-            close: Action::new(
-                "dock.window.close",
-                "Close window",
-                move || {
-                    if let Some(key) = focused.get_untracked() {
-                        layout.close_tab(&key);
-                    }
-                },
-            )
+            close: Action::new("dock.window.close", "Close window", move || {
+                if let Some(key) = focused.get_untracked() {
+                    layout.close_tab(&key);
+                }
+            })
             .glyph(ICON_X)
             .enabled(has_focus),
             hide: Action::new(
@@ -489,11 +487,9 @@ impl<K: DockKey> DockingLayout<K> {
             )
             .glyph(ICON_BRING_TO_FRONT)
             .enabled(switchable),
-            switch_cancel: Action::new(
-                "dock.switch.cancel",
-                "Stop switching windows",
-                move || layout.cancel_switch(),
-            )
+            switch_cancel: Action::new("dock.switch.cancel", "Stop switching windows", move || {
+                layout.cancel_switch()
+            })
             .glyph(ICON_CIRCLE_X)
             .enabled(switching),
         }

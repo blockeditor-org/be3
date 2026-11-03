@@ -19,7 +19,9 @@ fn a_hidden_window_places_no_tab_hands_the_focus_on_and_comes_back_when_shown() 
 
     layout.hide_window(&tab(3));
     assert!(layout.is_hidden(&tab(3)));
-    let shown = layout.state().with(|state| state.is_shown(tab(3), DockMode::Tiled));
+    let shown = layout
+        .state()
+        .with(|state| state.is_shown(tab(3), DockMode::Tiled));
     assert!(!shown, "a hidden window's tab is not placed");
     assert_eq!(
         layout.focused(),
@@ -38,7 +40,10 @@ fn a_hidden_window_places_no_tab_hands_the_focus_on_and_comes_back_when_shown() 
     );
 
     layout.show(&tab(3));
-    assert!(!layout.is_hidden(&tab(3)), "showing its tab shows the window");
+    assert!(
+        !layout.is_hidden(&tab(3)),
+        "showing its tab shows the window"
+    );
     assert_eq!(layout.focused(), Some(tab(3)), "with the focus");
 
     layout.hide_window(&tab(2));

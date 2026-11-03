@@ -4630,24 +4630,27 @@ pub(crate) fn WindowManagerPage() -> NodeId {
                 <ForEach keys={open}>|id: u64| {
                     let (_, title, group, at) = DESK_WINDOWS[id as usize - 1];
                     view! {
-                    <DockWindow
-                        id={format!("wm.window.{id}")}
-                        rect={Rect::from_min_size(at, DESK_WINDOW_SIZE)}
-                    >
-                        <DockPane id={format!("wm.pane.{id}")}>
-                            <DockTab
-                                id
-                                title
-                                icon=ICON_APP_WINDOW
-                                group={Some(group.to_owned())}
-                                on_close={move || closed.update(|closed| closed.push(id))}
-                            >
-                                <Frame @test_id={format!("wm.window.{id}")} padding=PAGE_PADDING>
-                                    <Text>{format!("{title}, of the {group} group")}</Text>
-                                </Frame>
-                            </DockTab>
-                        </DockPane>
-                    </DockWindow>
+                        <DockWindow
+                            id={format!("wm.window.{id}")}
+                            rect={Rect::from_min_size(at, DESK_WINDOW_SIZE)}
+                        >
+                            <DockPane id={format!("wm.pane.{id}")}>
+                                <DockTab
+                                    id
+                                    title
+                                    icon=ICON_APP_WINDOW
+                                    group={Some(group.to_owned())}
+                                    on_close={move || closed.update(|closed| closed.push(id))}
+                                >
+                                    <Frame
+                                        @test_id={format!("wm.window.{id}")}
+                                        padding=PAGE_PADDING
+                                    >
+                                        <Text>{format!("{title}, of the {group} group")}</Text>
+                                    </Frame>
+                                </DockTab>
+                            </DockPane>
+                        </DockWindow>
                     }
                 }</ForEach>
             </Docking>
