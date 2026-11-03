@@ -16,7 +16,6 @@ use super::screen::{Damage, Frame, Screen};
 use be_host_dmabuf::{Usage, Vulkan};
 
 use crate::density::natural_scale;
-use crate::pointing;
 use crate::display::{DisplayConfig, DisplayMode, Monitor};
 use crate::gpu::{Gpu, Submitted};
 use crate::modes::{
@@ -24,6 +23,7 @@ use crate::modes::{
     preferred_mode, refresh_millihertz,
 };
 use crate::pacing::{Lane, refresh_interval};
+use crate::pointing;
 use crate::rotation::Rotation;
 use crate::swapchain::Swapchain;
 
