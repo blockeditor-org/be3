@@ -1724,10 +1724,9 @@ where
                 .collect::<Vec<_>>()
         })
     });
-    let dialog =
-        Func::new(move |tab: TabId| {
-            found.with_untracked(|found| found.parts.get(&tab).copied().filter(DialogParts::alive))
-        });
+    let dialog = Func::new(move |tab: TabId| {
+        found.with_untracked(|found| found.parts.get(&tab).copied().filter(DialogParts::alive))
+    });
     let declared = move |tab: TabId| -> Option<DockDeclaredTab> {
         found.with(|found| {
             let (joined, inner) = found.foreign.get(&tab)?;
