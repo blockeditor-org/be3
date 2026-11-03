@@ -7,6 +7,7 @@ fn shown_windows(fixture: &Fixture) -> Vec<u64> {
 fn raised(id: u64, title: &str, times: u64) -> be_sdk_beui::HostWindow {
     be_sdk_beui::HostWindow {
         raised: times,
+        rung: 0,
         ..window(id, title, None)
     }
 }

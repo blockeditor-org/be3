@@ -29,6 +29,18 @@ use wayland_protocols::xdg::toplevel_icon::v1::client::{
     xdg_toplevel_icon_manager_v1, xdg_toplevel_icon_v1,
 };
 
+use wayland_protocols::ext::foreign_toplevel_list::v1::client::{
+    ext_foreign_toplevel_handle_v1, ext_foreign_toplevel_list_v1,
+};
+use wayland_protocols::wp::alpha_modifier::v1::client::{
+    wp_alpha_modifier_surface_v1, wp_alpha_modifier_v1,
+};
+use wayland_protocols::wp::commit_timing::v1::client::{
+    wp_commit_timer_v1, wp_commit_timing_manager_v1,
+};
+use wayland_protocols::wp::fifo::v1::client::{wp_fifo_manager_v1, wp_fifo_v1};
+use wayland_protocols::xdg::system_bell::v1::client::xdg_system_bell_v1;
+
 use super::{Received, TestClient, TestWindow};
 
 #[derive(Default)]
@@ -43,6 +55,17 @@ pub(crate) struct Protocols {
     pub(crate) touch: Vec<TouchSeen>,
     pub(crate) seat_capabilities: Option<wl_seat::Capability>,
     pub(crate) preferred_scale: Option<u32>,
+    pub(crate) toplevels: Vec<ListedToplevel>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ListedToplevel {
+    pub(crate) handle: ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1,
+    pub(crate) identifier: String,
+    pub(crate) title: String,
+    pub(crate) app_id: String,
+    pub(crate) done: usize,
+    pub(crate) closed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -68,6 +91,37 @@ pub(crate) enum PenSeen {
 }
 
 impl TestClient {
+    pub(crate) fn bell(&self) -> xdg_system_bell_v1::XdgSystemBellV1 {
+        self.bind("xdg_system_bell_v1", 1)
+    }
+
+    pub(crate) fn alpha_modifier(
+        &self,
+        surface: &wl_surface::WlSurface,
+    ) -> wp_alpha_modifier_surface_v1::WpAlphaModifierSurfaceV1 {
+        let manager: wp_alpha_modifier_v1::WpAlphaModifierV1 =
+            self.bind("wp_alpha_modifier_v1", 1);
+        manager.get_surface(surface, &self.handle, ())
+    }
+
+    pub(crate) fn fifo(&self, surface: &wl_surface::WlSurface) -> wp_fifo_v1::WpFifoV1 {
+        let manager: wp_fifo_manager_v1::WpFifoManagerV1 = self.bind("wp_fifo_manager_v1", 1);
+        manager.get_fifo(surface, &self.handle, ())
+    }
+
+    pub(crate) fn commit_timer(
+        &self,
+        surface: &wl_surface::WlSurface,
+    ) -> wp_commit_timer_v1::WpCommitTimerV1 {
+        let manager: wp_commit_timing_manager_v1::WpCommitTimingManagerV1 =
+            self.bind("wp_commit_timing_manager_v1", 1);
+        manager.get_timer(surface, &self.handle, ())
+    }
+
+    pub(crate) fn toplevel_list(&self) -> ext_foreign_toplevel_list_v1::ExtForeignToplevelListV1 {
+        self.bind("ext_foreign_toplevel_list_v1", 1)
+    }
+
     pub(crate) fn subsurface(
         &self,
         parent: &wl_surface::WlSurface,
@@ -386,5 +440,69 @@ impl Dispatch<wl_touch::WlTouch, ()> for Received {
             _ => return,
         };
         state.protocols.touch.push(seen);
+    }
+}
+
+wayland_client::delegate_noop!(Received: ignore xdg_system_bell_v1::XdgSystemBellV1);
+wayland_client::delegate_noop!(Received: ignore wp_alpha_modifier_v1::WpAlphaModifierV1);
+wayland_client::delegate_noop!(Received: ignore wp_alpha_modifier_surface_v1::WpAlphaModifierSurfaceV1);
+wayland_client::delegate_noop!(Received: ignore wp_fifo_manager_v1::WpFifoManagerV1);
+wayland_client::delegate_noop!(Received: ignore wp_fifo_v1::WpFifoV1);
+wayland_client::delegate_noop!(Received: ignore wp_commit_timing_manager_v1::WpCommitTimingManagerV1);
+wayland_client::delegate_noop!(Received: ignore wp_commit_timer_v1::WpCommitTimerV1);
+
+impl Dispatch<ext_foreign_toplevel_list_v1::ExtForeignToplevelListV1, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &ext_foreign_toplevel_list_v1::ExtForeignToplevelListV1,
+        event: ext_foreign_toplevel_list_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let ext_foreign_toplevel_list_v1::Event::Toplevel { toplevel } = event {
+            state.protocols.toplevels.push(ListedToplevel {
+                handle: toplevel,
+                identifier: String::new(),
+                title: String::new(),
+                app_id: String::new(),
+                done: 0,
+                closed: false,
+            });
+        }
+    }
+
+    wayland_client::event_created_child!(Received, ext_foreign_toplevel_list_v1::ExtForeignToplevelListV1, [
+        ext_foreign_toplevel_list_v1::EVT_TOPLEVEL_OPCODE => (ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1, ()),
+    ]);
+}
+
+impl Dispatch<ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1, ()> for Received {
+    fn event(
+        state: &mut Self,
+        handle: &ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1,
+        event: ext_foreign_toplevel_handle_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        let Some(listed) = state
+            .protocols
+            .toplevels
+            .iter_mut()
+            .find(|listed| listed.handle == *handle)
+        else {
+            return;
+        };
+        match event {
+            ext_foreign_toplevel_handle_v1::Event::Identifier { identifier } => {
+                listed.identifier = identifier;
+            }
+            ext_foreign_toplevel_handle_v1::Event::Title { title } => listed.title = title,
+            ext_foreign_toplevel_handle_v1::Event::AppId { app_id } => listed.app_id = app_id,
+            ext_foreign_toplevel_handle_v1::Event::Done => listed.done += 1,
+            ext_foreign_toplevel_handle_v1::Event::Closed => listed.closed = true,
+            _ => {}
+        }
     }
 }

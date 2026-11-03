@@ -75,6 +75,9 @@ interface windows {
         icon: option<host-image>,
         /// Counts up each time the host raises the window.
         raised: u64,
+        /// Counts up each time the window's program rings the bell
+        /// (`xdg_system_bell_v1`); the shell flashes the window's entry.
+        rung: u64,
         origin: window-origin,
         /// What the host wants said about the window right now, such as how
         /// to come back from it; the shell shows it with the window's title

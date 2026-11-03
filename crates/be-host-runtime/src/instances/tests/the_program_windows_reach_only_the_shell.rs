@@ -24,6 +24,7 @@ fn the_program_windows_reach_only_the_shell() {
         focused: true,
         icon: None,
         raised: 0,
+        rung: 0,
         origin: WindowOrigin::default(),
         note: None,
         menu: None,

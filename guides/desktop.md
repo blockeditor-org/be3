@@ -260,7 +260,7 @@ focuses it (`focus`); a click on the focused chip hides it (`hide`; a block wind
 `Workspace`'s hidden set, `Workspace::hide`, and the shell stops declaring it, and
 `Workspace::show` or opening its block again, from the Apps panel or a show request, shows it) and the next shown window in the dock's focus order takes the focus. Each chip
 has a context menu (secondary click, long press or Shift+F10): Hide or Show, and Close for a
-window (`close`). With no chip and nothing to restore, a horizontal row shows a muted "No windows" a chip wide
+window (`close`). A chip is drawn as a primary button for `BELL_FLASH` each time its window's program rings the bell (`HostWindow::rung` counts up). With no chip and nothing to restore, a horizontal row shows a muted "No windows" a chip wide
 (`desktop.windows.none`), so an empty bar keeps a taskbar's length. While placeholders from last time wait, a Restore chip
 (`desktop.windows.restore`) leads the row and launches them all. `WindowChips` takes a `display`
 to list only the windows mostly on that display (`display_of`: the display holding most of the
