@@ -114,6 +114,17 @@ pub fn focus_ancestry() -> Vec<NodeId> {
 }
 
 #[cfg(target_arch = "wasm32")]
+fn show_focus(visible: bool) {
+    use beui_reactive::Set;
+
+    let signal = signals().visible;
+    if signal.get_untracked() != visible {
+        signal.set(visible);
+        beui_reactive::flush();
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
 pub(crate) fn watch_document(document: &web_sys::Document) -> Vec<crate::dom::Listener> {
     use beui_reactive::Set;
     use wasm_bindgen::JsCast;
@@ -139,6 +150,23 @@ pub(crate) fn watch_document(document: &web_sys::Document) -> Vec<crate::dom::Li
             "focusin",
             true,
             move |event: web_sys::FocusEvent| update(event.target()),
+        ),
+        crate::dom::listen(
+            document.as_ref(),
+            "keydown",
+            true,
+            move |event: web_sys::KeyboardEvent| {
+                let modifier = beui_web_input::keys::key(&event).is_some_and(|key| key.is_modifier());
+                if !modifier && !event.ctrl_key() && !event.alt_key() && !event.meta_key() {
+                    show_focus(true);
+                }
+            },
+        ),
+        crate::dom::listen(
+            document.as_ref(),
+            "pointerdown",
+            true,
+            move |_: web_sys::PointerEvent| show_focus(false),
         ),
         crate::dom::listen(
             document.as_ref(),
