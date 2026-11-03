@@ -126,7 +126,7 @@ pub use guest::desktop::{
     screen_lock::ScreenLockedWatch,
     tray::TrayWatch,
     wifi::WifiWatch,
-    windows::WindowsWatch,
+    windows::{SuperKeptWatch, WindowsWatch},
 };
 
 mod accesskit_mirror;

@@ -1,5 +1,6 @@
 use beui_view::types::icons::Glyph;
 mod host;
+mod snap;
 mod switch;
 
 use be_lib_stable_hash::{HashMap, HashSet};
@@ -41,6 +42,8 @@ pub use host::{
     DockKept, DockRequest, use_dock_join,
 };
 use host::{Joined, Registry};
+pub use snap::DockSnap;
+use snap::Snapped;
 
 pub trait DockKey: Clone + Eq + Hash + 'static {
     fn key(&self) -> String;
@@ -370,6 +373,7 @@ pub struct DockingLayout<K: 'static> {
     floats: Signal<BarFloats>,
     covered: Signal<bool>,
     area: Signal<Rect>,
+    snaps: Signal<HashMap<TabId, Snapped>>,
     inner: Stored<LayoutInner<K>>,
 }
 
@@ -438,6 +442,7 @@ impl<K: DockKey> DockingLayout<K> {
         let floats = create_signal(BarFloats::default());
         let covered = create_signal(false);
         let area = create_signal(Rect::ZERO);
+        let snaps = create_signal(HashMap::default());
         let registry = Rc::new(Registry {
             covers,
             version: create_signal(0),
@@ -470,6 +475,7 @@ impl<K: DockKey> DockingLayout<K> {
             floats,
             covered,
             area,
+            snaps,
             inner,
         };
         (layout, inner)
@@ -683,21 +689,12 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn move_window(&self, key: &K, to: Pos2) {
-        let Some(tab) = self.tab_of(key) else {
+        let Some(rect) = untrack(|| self.window_rect(key)) else {
             return;
         };
-        let at = to - self.area.get_untracked().min.to_vec2();
-        self.state.update(|state| {
-            let Some(surface) = state
-                .find(standing_in(state, tab))
-                .map(|found| found.surface)
-            else {
-                return;
-            };
-            if let Some(rect) = state.window_rect(surface) {
-                state.set_window_rect(surface, Rect::from_min_size(at, rect.size()));
-            }
-        });
+        if let Some(tab) = untrack(|| self.tab_of(key)) {
+            self.place_window(tab, Rect::from_min_size(to, rect.size()));
+        }
     }
 
     fn outermost(&self, tab: TabId) -> TabId {

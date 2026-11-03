@@ -19,6 +19,7 @@ mod switcher;
 mod tray;
 mod volume;
 mod wifi;
+mod window_keys;
 mod windows;
 
 use be_sdk_beui::beui::dock::styled::{
@@ -43,6 +44,7 @@ use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
 use placeholders::{Placeholder, Placeholders};
 use programs_panel::{ProgramsPanel, ProgramsPanelKey, ProgramsPanelOverlay};
+use window_keys::WindowShortcuts;
 use windows::DeskWindows;
 
 const WINDOW_ORIGIN: f32 = 48.0;
@@ -132,6 +134,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
     cover_under_fullscreen(editor, layout, display);
     let launches = shell.programs_panel.launches();
     let area = windows_area(layout, region_area());
+    shell.windows.report_area(display, area);
     provide_context(bar::BarArea(area));
     let bars = Bars::of(display);
     view! {
@@ -189,7 +192,6 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     workspace.editor().content(&surface);
     let layout = workspace.layout();
     switcher::bind_window_switcher(layout);
-    fullscreen::bind_fullscreen(workspace.editor());
     let failure = workspace.error();
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
@@ -265,6 +267,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 <Show condition={several_layouts}>
                     <layouts::LayoutKey layouts />
                 </Show>
+                <WindowShortcuts editor manager={windows.manager} />
                 <media::LevelDisplay osd area display=0 />
                 <Show condition={launches}>
                     <ProgramsPanelKey programs_panel windows layout />

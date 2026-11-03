@@ -913,6 +913,8 @@ impl HostCore {
     fn run_as_desktop(&mut self) {
         self.root_settings = RootSettings::new(be_block::DESKTOP_EDITOR);
         be_host_base::watches::publish::<be_sdk_api::DesktopBarWatch>(&true);
+        #[cfg(windows)]
+        be_host_base::watches::publish::<be_sdk_api::SuperKeptWatch>(&true);
         #[cfg(target_os = "linux")]
         {
             self.start_screen_lock();

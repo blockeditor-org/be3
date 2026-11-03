@@ -107,6 +107,13 @@ interface windows {
         next: async func() -> list<host-window>;
     }
 
+    /// Whether the system keeps Super's chords for itself, as Windows does, so the
+    /// shell's window keys use Ctrl+Alt in their place; answered only where it does.
+    resource super-kept-watch {
+        constructor();
+        next: async func() -> bool;
+    }
+
     request: async func(action: window-action);
 }
 

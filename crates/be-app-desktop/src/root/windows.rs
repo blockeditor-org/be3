@@ -8,10 +8,11 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::button::ButtonFace;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::unstyled;
-use be_sdk_beui::beui::{Align, Direction, Extent, ItemSize, NodeId, Pos2, Rect, Sizing, Vec2};
+use be_sdk_beui::beui::{Align, Direction, Extent, ItemSize, NodeId, Pos2, Rect, Sizing};
 use be_sdk_beui::desktop;
 use be_sdk_beui::{DisplaysWatch, HostWindow, HostWindowId, WindowAction, WindowKind};
-use be_sdk_shell::{Workspace, window_name, window_picture, window_tab};
+use be_sdk_shell::{WindowManager, Workspace, window_name, window_picture, window_tab};
+use std::collections::HashMap;
 
 use super::bar::bar_bounds;
 use super::placeholders::Placeholders;
@@ -67,30 +68,14 @@ pub(crate) fn holder(window: Option<Rect>, displays: &[Rect]) -> u32 {
     best.0
 }
 
-pub(crate) fn moved_onto(window: Rect, from: Rect, to: Rect) -> Pos2 {
-    let along = |offset: f32, length: f32| match length > 0.0 {
-        true => offset / length,
-        false => 0.0,
-    };
-    let offset = window.min - from.min;
-    let wanted = to.min
-        + Vec2::new(
-            along(offset.x, from.width()) * to.width(),
-            along(offset.y, from.height()) * to.height(),
-        );
-    let room = to.max - window.size();
-    Pos2::new(
-        wanted.x.min(room.x).max(to.min.x),
-        wanted.y.min(room.y).max(to.min.y),
-    )
-}
-
 #[derive(Clone, Copy)]
 pub(crate) struct DeskWindows {
     workspace: Workspace,
     pub(crate) placeholders: Placeholders,
+    pub(crate) manager: WindowManager,
     all: Memo<Vec<ChipKey>>,
     displays: Memo<Vec<Rect>>,
+    bands: Signal<HashMap<u32, Rect>>,
 }
 
 impl DeskWindows {
@@ -111,12 +96,60 @@ impl DeskWindows {
         let displays = create_memo(move || {
             watched.with(|displays| displays.iter().map(|shown| shown.rect).collect())
         });
+        let bands = create_signal(HashMap::new());
+        let layout = workspace.layout();
+        let areas = create_memo(move || {
+            displays.with(|displays: &Vec<Rect>| {
+                let Some(first) = displays.first().map(|first| first.min) else {
+                    return Vec::new();
+                };
+                displays
+                    .iter()
+                    .enumerate()
+                    .map(|(at, display)| {
+                        let whole = Rect::from_min_size(Pos2::ZERO, display.size());
+                        let inside = match at {
+                            0 => Some(layout.area()),
+                            _ => bands.with(|bands: &HashMap<u32, Rect>| {
+                                bands.get(&(at as u32)).copied()
+                            }),
+                        };
+                        let inside = inside.filter(|inside| inside.is_positive());
+                        match (at, inside) {
+                            (0, Some(inside)) => inside,
+                            (_, inside) => inside
+                                .unwrap_or(whole)
+                                .translate(display.min - first),
+                        }
+                    })
+                    .collect()
+            })
+        });
         Self {
             workspace,
             placeholders,
+            manager: WindowManager::new(workspace, areas),
             all,
             displays,
+            bands,
         }
+    }
+
+    pub(crate) fn report_area(&self, display: u32, area: Memo<Rect>) {
+        let bands = self.bands;
+        create_effect(move || {
+            let area = area.get();
+            bands.update(|bands| {
+                bands.insert(display, area);
+            });
+        });
+        on_cleanup(move || {
+            if bands.is_alive() {
+                bands.update(|bands| {
+                    bands.remove(&display);
+                });
+            }
+        });
     }
 
     pub(crate) fn displays(&self) -> Vec<Rect> {
@@ -164,21 +197,7 @@ impl DeskWindows {
     }
 
     fn move_to(&self, chip: ChipKey, display: u32) {
-        let layout = self.workspace.layout();
-        let tab = self.tab(chip);
-        let Some(rect) = untrack(|| layout.window_rect(&tab)) else {
-            return;
-        };
-        let from = untrack(|| self.display_of(chip));
-        let placed = self.displays.with_untracked(|displays| {
-            let first = displays.first()?.min.to_vec2();
-            let from = *displays.get(from as usize)?;
-            let to = *displays.get(display as usize)?;
-            Some(moved_onto(rect.translate(first), from, to) - first)
-        });
-        if let Some(placed) = placed {
-            layout.move_window(&tab, placed);
-        }
+        self.manager.move_to_display(self.tab(chip), display as usize);
     }
 
     fn tab(&self, chip: ChipKey) -> TabId {
@@ -216,55 +235,16 @@ impl DeskWindows {
     }
 
     fn show(&self, chip: ChipKey) {
-        let hidden = untrack(|| !self.shown(chip));
         match chip {
-            ChipKey::Window(id) => self.workspace.editor().act(move || {
-                if hidden {
-                    desktop::windows::request(WindowAction::Show(id)).detach();
-                }
-                desktop::windows::request(WindowAction::Focus(id)).detach();
-            }),
             ChipKey::Placeholder(key) => self.workspace.layout().show(&window_tab(key)),
-            ChipKey::Block(tab) => self.workspace.show(tab),
+            _ => self.workspace.show(self.tab(chip)),
         }
     }
 
     fn hide(&self, chip: ChipKey) {
-        let next = untrack(|| self.next_after(chip));
-        let layout = self.workspace.layout();
-        match chip {
-            ChipKey::Window(id) => {
-                self.workspace
-                    .editor()
-                    .act(move || desktop::windows::request(WindowAction::Hide(id)).detach());
-                if let Some(next) = next {
-                    layout.show(&next);
-                }
-            }
-            ChipKey::Placeholder(_) => {}
-            ChipKey::Block(tab) => {
-                if let Some(next) = next {
-                    layout.show(&next);
-                }
-                self.workspace.hide(tab);
-            }
+        if !matches!(chip, ChipKey::Placeholder(_)) {
+            self.manager.hide(self.tab(chip));
         }
-    }
-
-    fn next_after(&self, chip: ChipKey) -> Option<TabId> {
-        let own = self.tab(chip);
-        let others: Vec<TabId> = self
-            .all
-            .get()
-            .into_iter()
-            .filter(|other| *other != chip && self.shown(*other))
-            .map(|other| self.tab(other))
-            .collect();
-        self.workspace
-            .layout()
-            .recent()
-            .into_iter()
-            .find(|tab| *tab != own && others.contains(tab))
     }
 
     fn close(&self, chip: ChipKey) {
