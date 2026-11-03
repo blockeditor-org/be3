@@ -1,21 +1,21 @@
 # VR
 
 What remains of the plan that took the space layer (`crates/beui-layer-space`,
-`BEUI_LAYERS=space`; guides/beui.md, "Space: the VR simulator layer") from a
+`BEUI_LAYERS=space`; guides/beui.md covers it) from a
 simulator on a flat screen to OpenXR headsets. The first headset is the
 Bigscreen Beyond on Windows through SteamVR, driven with a mouse and keyboard
 (no tracked controllers), then SteamVR and Monado on Linux. Items marked
 **(ask)** need a decision from the user during the work.
 
-guides/beui.md ("Space: the VR simulator layer", "Headsets", "Lasers") and
-guides/desktop.md ("Program windows") describe what is built. The simulator
+guides/beui.md (the space layer, headsets and controller lasers) and
+guides/desktop.md (program windows) describe what is built. The simulator
 stays a first-class backend throughout: every space test keeps running without
 a headset.
 
 ## OpenXR follow-ups
 
 `BEUI_LAYERS=xr` shows space on a headset through `crates/beui-layer-xr` on Linux
-and Windows (guides/beui.md, "Headsets"), checked in CI against Monado's null
+and Windows (guides/beui.md covers headsets), checked in CI against Monado's null
 compositor and compiled for Windows by `./scripts/verify`. What remains:
 
 - **Hardware.** Untried on a real headset: SteamVR on Windows with the
