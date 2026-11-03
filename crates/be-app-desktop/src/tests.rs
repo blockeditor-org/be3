@@ -28,6 +28,7 @@ use crate::root::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 mod a_bar_menu_and_its_submenu_fit_the_work_area_of_a_short_window;
 mod a_bar_moved_on_one_display_stays_put_on_the_others;
 mod a_bar_panel_opens_just_past_its_bar_on_any_edge;
+mod a_hidden_window_shown_again_returns_where_it_was_moved;
 mod a_bar_panel_too_tall_for_the_work_area_scrolls_inside_it;
 mod a_bar_thrown_up_from_its_band_floats_over_the_top;
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
