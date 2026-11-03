@@ -23,6 +23,9 @@ fn choosing_a_display_scale_stores_it_and_the_default_suits_the_display() {
     assert_eq!(root.mode(MONITOR), None, "the mode stays unset");
 
     settings.reset(DISPLAY_SCALE);
-    assert_eq!(settings.content().root().screen(MONITOR).scale_percent, None);
+    assert_eq!(
+        settings.content().root().screen(MONITOR).scale_percent,
+        None
+    );
     assert_eq!(settings.content().root().screen_scale(MONITOR), None);
 }

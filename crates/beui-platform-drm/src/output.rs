@@ -214,7 +214,9 @@ impl Output {
         };
         let fencing = syncobj && !buffers.imported && !swapchain.is_legacy();
         let mut screen = Screen::new(gpu, size_of(&mode), config.rotation(&id));
-        let millimetres = info.size().filter(|(width, height)| *width > 0 && *height > 0);
+        let millimetres = info
+            .size()
+            .filter(|(width, height)| *width > 0 && *height > 0);
         screen.scale = config.scale(&id).unwrap_or_else(|| {
             forced_scale.unwrap_or_else(|| natural_scale(size_of(&mode), millimetres))
         });
