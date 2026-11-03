@@ -1743,249 +1743,376 @@ The account switcher picks an account, the Organizations screen one of its
 organizations (it opens the only one by itself), and everything below happens
 inside that one organization. A workspace is any root block
 (`BlockParent::Root`) that is not a system block
-(`be_sdk_beui::sections::is_workspace`); its name is its `NAME` and its
-members are the grants on it. New ones are of the workspace type
+(`be_sdk_beui::sections::is_workspace`); its name is its `NAME` and its members
+are the grants on it. New ones are of the workspace type
 (`be_block::WORKSPACE_TYPE`, whose format, shaped like a folder's, an ordered
 list of children, is `workspace_ui_types::Workspace`), made blank by its type
-module. Only workspaces and an account's own
-`Settings` belong at the root: nothing places another block there, and a block
-deleted from the root that cannot hold children is restored into My files. The
-server still accepts any block at the root, so an older one left there shows
-as a workspace. Opening an organization makes sure the account has a "My files"
+module. Only workspaces and an account's own `Settings` are put at the root:
+nothing in the host places another block there, and a block deleted from the
+root that cannot hold children is restored into My files. The server still
+accepts any block at the root, so an older one left there shows as a
+workspace. Opening an organization makes sure the account has a "My files"
 workspace it authored, marked with the `MY_FILES` metadata key
 (`RootSettings::ensure_my_files`, beside the settings it ensures).
 
 The files pane (crates/be-app-file-tree) shows a section per workspace the
 account can see (My files first, then by name; another account's My files is
-never listed), then Shared with me (`BlockQuery::Shared`), then Recently Deleted, then
-System: the account's own internal root blocks, the content types in
-`SYSTEM_TYPES` (today `Settings` and settings profiles), which open in their
-editors and expand to what they hold; another account's are never listed. It is
-there for debugging: settings are reached from the workspace's Settings tab,
-beside Files, which shows the account's `Settings` block in the settings editor,
-a list whose rows open each kind (or, behind Devices and profiles, each profile) in a
-tab of the editors pane. A
-section's header has its own menu (add, rename, share, delete, and leave on a
-workspace someone else made), as every row's menu has Add; rows show no add
-button of their own. One toolbar, the same on a desktop and a phone, sits over
-the tree whenever the frame's chrome shows: a filter field filling the width,
-New, and the account button. At the top level New is a menu listing
-New in each workspace the account may add to, in tree order, which opens the
-add picker there anchored to New, then New workspace, which makes one at the
-root and names it in place. The field shows only the rows already listed whose
-name holds its text, with the rows that hold them, highlights the match, counts
-the matches above the rows, and clears on Escape; it never changes which rows
-are open. Every picker places a new block in a workspace, My files when nothing
-else is named.
-A block moves between workspaces with the host's `move_block`, by dragging it
-or from its Move to menu. A phone shows the same toolbar and tree with taller rows.
-Pressing a folder, a workspace or one of the other sections zooms into it rather
-than opening it: the tree then holds only what it holds, the field filters only
-inside it, and the toolbar gains a second line with Up, the ancestors (each
-zooming out to itself) and the zoomed block's name; on a phone a swipe goes back
-too. New is then a primary button that adds straight into the zoomed block
-where the account may, and a disabled menu where it may not. Every row's menu has Zoom in too, so a block that holds
-others without being a folder, a text block with a subtree, can be zoomed
-into as well. The folder editor (crates/be-app-workspace-index) still edits
-folders and workspaces wherever they are embedded, and opens from Open with.
+never listed), then Shared with me (`BlockQuery::Shared`), then Recently
+Deleted, then System: the account's own internal root blocks, the content
+types in `SYSTEM_TYPES` (`Settings` and settings profiles), which open in their
+editors and expand to what they hold; another account's are never listed.
+System is there for debugging: settings are reached from the workspace's
+Settings tab, beside Files, which shows the account's `Settings` block in the
+settings editor, a list whose rows open each kind (or, behind Devices and
+profiles, each profile) in a tab of the editors pane.
+
+- A section's header has its own menu (add, rename, share, delete, and leave on
+  a workspace someone else made), as every row's menu has Add; rows show no add
+  button of their own.
+- One toolbar, the same on a desktop and a phone, sits over the tree whenever
+  the frame's chrome shows: a filter field filling the width, New, and the
+  account button. At the top level New is a menu listing New in each workspace
+  the account may add to, in tree order, which opens the add picker there
+  anchored to New, then New workspace, which makes one at the root and names it
+  in place. The field shows only the rows already listed whose name holds its
+  text, with the rows that hold them, highlights the match, counts the matches
+  above the rows, and clears on Escape; it never changes which rows are open.
+  A phone shows the same toolbar and tree with taller rows.
+- Every picker places a new block in a workspace, My files when nothing else
+  is named. A block moves between workspaces with the host's `move_block`, by
+  dragging it or from its Move to menu.
+- Pressing a folder, a workspace or one of the other sections zooms into it
+  rather than opening it: the tree then holds only what it holds, the field
+  filters only inside it, and the toolbar gains a second line with Up, the
+  ancestors (each zooming out to itself) and the zoomed block's name; on a
+  phone a swipe goes back too. New is then a primary button that adds straight
+  into the zoomed block where the account may, and a disabled menu where it may
+  not. Every row's menu has Zoom in too, so a block that holds others without
+  being a folder (a text block with a subtree) can be zoomed into as well.
+- The folder editor (crates/be-app-workspace-index) still edits folders and
+  workspaces wherever they are embedded, and opens from Open with.
 
 ### Settings, settings profiles and sessions
 
 Each account keeps what is its own in an organization under one top-level
-`Settings` block it authored. Every reader finds it by its author: an organization
-administrator can see every block, including other accounts' `Settings`, and
-nothing may pick those up. `root_settings::own_settings_blocks` (apps) and
-`RootSettings::owned` (be-host) list the account's own, and when two devices
-each made one before seeing the other's, both are read as one
+`Settings` block it authored. Every reader finds it by its author: an
+organization administrator can see every block, including other accounts'
+`Settings`, and those are not the reader's own. `root_settings::own_settings_blocks`
+(apps) and `RootSettings::owned` (be-host) list the account's own, and when two
+devices each made one before seeing the other's, both are read as one
 (`Settings::merged`, the lowest id winning a clash) and written through the
 lowest. The settings editor shows someone else's `Settings` or settings profile
-with a notice, and makes and changes nothing in it. The editors of the kinds lay out
-their pages with beui's `SettingsPage`, `SettingsSection` and `SettingsRow`: a
-card of rows per section, each a label and description beside its control,
-stacked once the row is narrow, and a section runs edge to edge once it is. A
-`modified` row has an accent bar at its edge; given `menu` items, a "More" menu button
-at its end holds what can be done to the setting, resetting it included (rows have no
-other reset), and a `note` is a small accent caption under its description. A `SettingsLink` is a row that opens a page of its own (a block,
-in a tab): its label and description, a chevron where a control would be, and the
-hover a button has, inset and rounded so it stays inside the card, marked when
-`modified`. A reset that deletes the block a link opens belongs to the setting that
-chose the block, whose menu asks first (the Remapper row asks before it deletes the remaps).
-A page shows a section only where the host can back it: the settings app's
-Display page (`be-app-settings`, `display`) always has Appearance, but a
-section per screen only once the host offers `Displays` (its mode and its
-rotation: four tiles, each a little screen drawn turned by that rotation less the
-one the host reports now, so the tile that looks upright to the person holding the
-device is the one to pick, named Landscape, Portrait and their flipped turns from
-whether the panel is wider than tall; `be_sdk_beui::RotationPicker`, shared
-with the desktop app's bar), a Screens section with the switches for the bar's rotate
-and on-screen keyboard buttons (`display.rotate-in-bar`, `display.keyboard-in-bar`) once the host offers `Displays`, and Power and lock only
-once it offers `Power`, which only a login session publishes. Its Input page
-(`input`) shows its sections only once the host offers `InputDevices`, which
-likewise only a login session publishes, and says so otherwise.
+with a notice, and makes and changes nothing in it.
 
-Each kind of setting (`InputSettings`, `DisplaySettings`,
-`EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:
+#### Kinds and layers
+
+Each kind of setting (`InputSettings`, `DisplaySettings`, `EditorSettings`, the
+logic hotbar) is a block of its own, read through layers:
 
 - The `Settings` block's `kinds` map a kind's content type to the block that
   holds it for every device.
 - A settings profile is a `SettingsProfile` block, a child of the `Settings`
-  block listed in its `profiles`, with `kinds` of its own and a `class`, the kind
-  of device (`DeviceClass`: Desktop, Phone, Tablet, E-paper tablet). Each device
-  (`device_profiles`, keyed by the client id) uses one, and be-host makes one
-  the first time a device opens the organization, named after its class ("Browser"
-  on the web).
+  block listed in its `profiles`, with `kinds` of its own and a `class`, the
+  kind of device (`DeviceClass`: Desktop, Phone, Tablet, E-paper tablet). Each
+  device (`device_profiles`, keyed by the client id) uses one, and be-host makes
+  one the first time a device opens the organization, named after its class
+  ("Browser" on the web).
 
 `Settings::layers(kind, profile)` names a kind's two blocks (`Layers`: every
-device, this device), and `be_block::layered` folds their contents with the kind's
-`Layered::over`: what the profile sets wins field by field, and what it leaves unset
-falls through to the settings for every device, then to the built-in default. Every
-field of a layered kind is an `Option` for this. `Editor::effective_settings` gives what
-every layer resolves to, which is how workspace-ui reads `EditorSettings`: the default
-editor of each block type, keyed by the editor ids the host's catalog lists (see
-guides/adding_an_app.md), and `Editor::inherited_settings` what the layers
-below an editor's block resolve to.
+device, this device), and `be_block::layered` folds their contents with the
+kind's `Layered::over`: what the profile sets wins field by field, and what it
+leaves unset falls through to the settings for every device, then to the
+built-in default, which is why every field of a layered kind is an `Option`.
+`Editor::effective_settings` gives what every layer resolves to, which is how
+workspace-ui reads `EditorSettings`: the default editor of each block type,
+keyed by the editor ids the host's catalog lists (see guides/adding_an_app.md).
+`Editor::inherited_settings` gives what the layers below an editor's block
+resolve to. The hotbar is not merged: the logic editors use the topmost layer
+that has one, and make one for every device when there is none yet
+(`RootSetting::ensure`).
 
-A block may have settings too, which apply to everything inside it: a workspace's,
-a folder's, a game world's. They are a `Settings` block whose parent is that block,
-pointed to by the block's `SETTINGS` metadata (a `BlockRef`, so the block holds it),
-with one child block per kind in its `kinds` like the user's. Only a manager of the
-block makes, changes or lets go of them (be-block-graph's `level_below`, be-server's
-`require_parent_of` and `require_keeping_settings`). Each kind declares on `Layered`
-its `NAME`, whether it follows the block or the viewer (`FOLLOWS`: theme and input
-follow the viewer and never read a block's settings; the logic hotbar follows the
-block), whether a block's value is a default the user's layers override or a policy
-that fixes what it sets (`RULE`), and who may read it (`VISIBILITY`). Resolution
-(`be_block::Resolution::resolve`) stacks, from the bottom: the organization's defaults,
-the nearest block with settings for that kind, the every-device block, this device's,
-then whatever is a policy (a block's, for a policy kind, and the organization's), and
-says which layer set a field (`source_of`, `locked_by`). `Editor::kinds_above(block)`
-walks a block and its ancestors, stopping at the first the viewer can't view, and keeps
-the nearest kind blocks per block for the editor's life; `Editor::resolved_settings`
-keeps the resolution per block and kind; `Editor::effective_settings` is the resolution
-for the editor's own block; `Editor::organization_layers` is where the organization's
-two layers will come from, and gives none yet. `Editor::ensure_block_kind` makes the
-settings block and the kind, and `LayeredSettingsRow` says "Set by your organization"
-or "Set in *Folder*" for a field another layer fixes. A kind block granted View for
-the pseudo-account `be_block_graph::ANYONE_INSIDE` is readable by anyone who can view a block
-inside the settings' owner, not only by its members (`BlockGraph::views_inside`); the
-settings editor switches that grant per kind. Past the first ancestor the viewer can't
-view, the walk takes those from `BlockQuery::OpenSettings(block)` (the server's
-`Listing::OpenSettings`: the nearest open kind of each type above), and a `SetKind`
-found there names its settings block as its owner, since the owner is hidden.
+#### Settings on a block
 
-Two kinds change with `Edit` on their block rather than `Manage`, since anyone who
-adds a database or tags a block in a workspace changes them: `PrefixRegistry` (which
-databases use each row id prefix) and `Tags` (the tag definitions). A settings block's
-`kinds` only a manager writes, so these are children of the block itself instead,
-each pointed to by a metadata key of its own (`be_block::edit_kind_key(kind)`:
-`PREFIXES`, `TAG_DEFINITIONS`), which holds it; `kinds_above` reads both places, the
-file tree and the picker never list them, since metadata references aren't children,
-and `Editor::ensure_block_kind` makes either. Both default to anyone inside. A tag is
-a block of its own (`Tag`: a name and a `TagColor`) listed by `Tags`; a block carries
-the tags put on it as `TAGGED` metadata (references, so "every block with this tag" is
-`BlockQuery::Backrefs` on the tag), and the user's own tags are a `Tags` kind in their
-settings, resolved together with the workspace's (`Editor::available_tags`). `Home`
-(a manager's kind) holds a workspace's landing page, which workspace-ui opens when the
-workspace is shown, its pinned blocks, which the file tree lists first, and its
-templates, which the new-block menu copies (`HostRequest::CopyBlocks`). Which editor
-opens a block stays the viewer's choice (`EditorSettings`, no workspace layer), except
-that a block may keep its own (`PREFERRED_EDITOR` metadata, from Opens in in Files),
-which wins over the viewer's default.
+A block may have settings too, which apply to everything inside it: a
+workspace's, a folder's, a game world's. They are a `Settings` block whose
+parent is that block, pointed to by the block's `SETTINGS` metadata (a
+`BlockRef`, so the block holds it), with one child block per kind in its
+`kinds` like the user's. Only a manager of the block makes, changes or lets go
+of them (be-block-graph's `level_below`, be-server's `require_parent_of` and
+`require_keeping_settings`).
 
-A change syncs by default: it is written to the every-device block. A setting is
-kept on this device exactly when this device's profile block sets it; then changes
-go there and the other devices' value no longer reaches it. Nothing else is stored to
-say so. A screen known only by its connector (no EDID serial) is always this device's
-alone. Each field is described once as a `be_block::Setting` (a key, a name, how to
-read it from a layer and write it on a layer's own content, and its default), such as
-`DisplaySettings::theme_setting()` or `mode_setting(id)`, and `Setting::layer` is the
-rule. Every write goes through it: in an app through
-`be_sdk_beui::LayeredSettings` (`this_device(editor)`, or `page(editor)` for a
-kind's editor, which acts on this device when opened on the every-device block and on
-just its own block when opened on a profile's), which makes the every-device or
-profile block when it is missing; in be-host through `display::keep` and `revert`.
-Its `LayeredSettingsRow` gives every row a menu (`<id>.menu`) with Keep on this device
-(`<id>.keep`, a checked item that copies the value in use, or the default, into the
-profile, or deletes it there) and Reset to default (`<id>.reset`, which clears the
-layer the setting would be written to), and a "Kept on this device" or "This device
-only" note; on a profile's own page its one item is Stop keeping in this profile
-(`<id>.reset`, clearing it in that block), with a "Kept in this profile" note. A row whose
-value the inspector overrides says so instead (`overridden`, from the `PreferenceSources` host
-value, which also gives the system's theme and motion that an unset one shows as its
-default). Menu items
-carry icons (`ICON_PIN`, `ICON_ROTATE_CCW`, `ICON_PIN_OFF`). `ChangesToast` shows
-one toast per visit to a page naming what now applies on every device ("Theme, scale
-and 1 more now apply on your devices") with Keep on this device only, which moves those
-values into the profile and puts the every-device ones back, and Undo.
+Each kind declares on `Layered` its `NAME`, whether it follows the block or the
+viewer (`FOLLOWS`: theme and input follow the viewer and never read a block's
+settings; the logic hotbar follows the block), whether a block's value is a
+default the user's layers override or a policy that fixes what it sets
+(`RULE`), and who may read it (`VISIBILITY`). Resolution
+(`be_block::Resolution::resolve`) stacks, from the bottom: the organization's
+defaults, the nearest block with settings for that kind, the every-device
+block, this device's, then whatever is a policy (a block's, for a policy kind,
+and the organization's), and says which layer set a field (`source_of`,
+`locked_by`).
+
+- `Editor::kinds_above(block)` walks a block and its ancestors, stopping at the
+  first the viewer can't view, and keeps the nearest kind blocks per block for
+  the editor's life. Past that ancestor the walk takes them from
+  `BlockQuery::OpenSettings(block)` (the server's `Listing::OpenSettings`: the
+  nearest open kind of each type above), and a `SetKind` found there names its
+  settings block as its owner, since the owner is hidden.
+- `Editor::resolved_settings` keeps the resolution per block and kind;
+  `Editor::effective_settings` is the resolution for the editor's own block;
+  `Editor::organization_layers` is where the organization's two layers will
+  come from, and gives none yet.
+- `Editor::ensure_block_kind` makes the settings block and the kind, and
+  `LayeredSettingsRow` says "Set by your organization" or "Set in *Folder*" for
+  a field another layer fixes.
+- A kind block granted View for the pseudo-account
+  `be_block_graph::ANYONE_INSIDE` is readable by anyone who can view a block
+  inside the settings' owner, not only by its members
+  (`BlockGraph::views_inside`); the settings editor switches that grant per
+  kind.
+
+Two kinds change with `Edit` on their block rather than `Manage`, since anyone
+who adds a database or tags a block in a workspace changes them:
+`PrefixRegistry` (which databases use each row id prefix) and `Tags` (the tag
+definitions). A settings block's `kinds` only a manager writes, so these are
+children of the block itself instead, each pointed to by a metadata key of its
+own (`be_block::edit_kind_key(kind)`: `PREFIXES`, `TAG_DEFINITIONS`), which
+holds it; `kinds_above` reads both places, the file tree and the picker never
+list them, since metadata references aren't children, and
+`Editor::ensure_block_kind` makes either. Both default to anyone inside.
+
+- A tag is a block of its own (`Tag`: a name and a `TagColor`) listed by
+  `Tags`; a block carries the tags put on it as `TAGGED` metadata (references,
+  so "every block with this tag" is `BlockQuery::Backrefs` on the tag), and the
+  user's own tags are a `Tags` kind in their settings, resolved together with
+  the workspace's (`Editor::available_tags`).
+- `Home` (a manager's kind) holds a workspace's landing page, which
+  workspace-ui opens when the workspace is shown, its pinned blocks, which the
+  file tree lists first, and its templates, which the new-block menu copies
+  (`HostRequest::CopyBlocks`).
+- Which editor opens a block stays the viewer's choice (`EditorSettings`, no
+  workspace layer), except that a block may keep its own (`PREFERRED_EDITOR`
+  metadata, from Opens in in Files), which wins over the viewer's default.
+
+#### Writing a layered setting
+
+A change syncs by default: it is written to the every-device block. A setting
+is kept on this device exactly when this device's profile block sets it; then
+changes go there and the other devices' value no longer reaches it. Nothing
+else is stored to say so. A screen known only by its connector (no EDID serial)
+is always this device's alone.
+
+Each field is described once as a `be_block::Setting` (a key, a name, how to
+read it from a layer and write it on a layer's own content, and its default),
+such as `DisplaySettings::theme_setting()` or `mode_setting(id)`, and
+`Setting::layer` is the rule for which layer a write goes to. Every write goes
+through it: in an app through `be_sdk_beui::LayeredSettings`
+(`this_device(editor)`, or `page(editor)` for a kind's editor, which acts on
+this device when opened on the every-device block and on just its own block
+when opened on a profile's), which makes the every-device or profile block when
+it is missing; in be-host through `display::keep` and `revert`.
+
+`LayeredSettingsRow` gives every row a menu (`<id>.menu`) with Keep on this
+device (`<id>.keep`, a checked item that copies the value in use, or the
+default, into the profile, or deletes it there) and Reset to default
+(`<id>.reset`, which clears the layer the setting would be written to), and a
+"Kept on this device" or "This device only" note; on a profile's own page its
+one item is Stop keeping in this profile (`<id>.reset`, clearing it in that
+block), with a "Kept in this profile" note. A row whose value the inspector
+overrides says so instead (`overridden`, from the `PreferenceSources` host
+value, which also gives the system's theme and motion that an unset one shows
+as its default). Menu items carry icons (`ICON_PIN`, `ICON_ROTATE_CCW`,
+`ICON_PIN_OFF`). `ChangesToast` shows one toast per visit to a page naming
+what now applies on every device ("Theme, scale and 1 more now apply on your
+devices") with Keep on this device only, which moves those values into the
+profile and puts the every-device ones back, and Undo.
+
+#### Device classes and setup
 
 A device's class is known before its profile is made: be-host's
-`root_settings::device_class` says E-paper tablet when the session found an e-paper
-panel, Phone on Android, and Desktop otherwise; Tablet is only ever picked by hand.
-A class may have defaults, kept on the device: each settings type lists them in one
-place (`DeviceClass::display_defaults`: the touch classes Tablet and E-paper tablet put the
-rotate and keyboard buttons on the bar, and the E-paper tablet adds its E-paper theme and instant
-motion, but no scale, since the panel's own default scale already suits a panel held in the hand; Desktop and Phone have none, since a phone never shows the desktop's bar
-and a default there would open its setup for nothing; never when the screens go off, nor a rotation).
-`ensure_profile` writes a new profile's class and its defaults into the profile's own
-blocks, and when there are any the host asks the shell to open the profile. Its page
-(the settings app's `SettingsProfileView`, `root/setup.rs`) leads with the name and
-"Kind of device", and lists in "Where this device differs" each default it still keeps
-that differs from every device's value, with "Use my usual settings", which deletes
-those from the profile. Nothing is stored to say a profile was set up: while the
-profile is this device's and that list is not empty, the page opens as "Set up this
-device", with Done (which only closes the setup for this visit) in place of the rest of
-the page. Picking another kind writes that kind's defaults and deletes the old kind's
-that are still at their default values (`DeviceClass::display_edits`).
+`root_settings::device_class` says E-paper tablet when the session found an
+e-paper panel, Phone on Android, and Desktop otherwise; Tablet is only ever
+picked by hand. A class may have defaults, kept on the device, listed per
+settings type in one place (`DeviceClass::display_defaults`):
 
-The workspace's Settings tab opens the account's `Settings` block on this device's
-settings: Display, Input and Default editors open the every-device blocks (making any
-that is missing), and Devices and profiles (`settings.devices`) lists the settings
-profiles, each of which opens on its own blocks. Above that list, a table (settings app
-`root/devices.rs`) puts the display and input settings down the side and All devices and
-each profile across, with only the rows some profile keeps: a kept cell shows its value,
-"kept since setup" while it still holds its class default (`ClassDefault::holds`) and
-"kept on device" otherwise; any other cell says "same". It reads each profile's own blocks.
-The hotbar is not merged:
-the logic editors use the topmost layer that has one, and make one for every
-device when there is none yet (`RootSetting::ensure`).
+- Tablet and E-paper tablet put the rotate and keyboard buttons on the bar.
+- E-paper tablet adds its E-paper theme and instant motion, but no scale, since
+  the panel's own default scale already suits a panel held in the hand.
+- Desktop and Phone have none: a phone never shows the desktop's bar, and a
+  default there would open its setup for nothing.
+- No class sets when the screens go off, or a rotation.
+
+`ensure_profile` writes a new profile's class and its defaults into the
+profile's own blocks, and when there are any the host asks the shell to open
+the profile. Its page (the settings app's `SettingsProfileView`,
+`root/setup.rs`) leads with the name and "Kind of device", and lists in "Where
+this device differs" each default it still keeps that differs from every
+device's value, with "Use my usual settings", which deletes those from the
+profile. Nothing is stored to say a profile was set up: while the profile is
+this device's and that list is not empty, the page opens as "Set up this
+device", with Done (which only closes the setup for this visit) in place of the
+rest of the page. Picking another kind writes that kind's defaults and deletes
+the old kind's that are still at their default values
+(`DeviceClass::display_edits`).
+
+#### The settings app
+
+The workspace's Settings tab opens the account's `Settings` block on this
+device's settings: Display, Input and Default editors open the every-device
+blocks (making any that is missing), and Devices and profiles
+(`settings.devices`) lists the settings profiles, each of which opens on its
+own blocks. Above that list, a table (settings app `root/devices.rs`) puts the
+display and input settings down the side and All devices and each profile
+across, with only the rows some profile keeps: a kept cell shows its value,
+"kept since setup" while it still holds its class default
+(`ClassDefault::holds`) and "kept on device" otherwise; any other cell says
+"same". It reads each profile's own blocks.
+
+The kinds' editors lay out their pages with beui's `SettingsPage`,
+`SettingsSection` and `SettingsRow`: a card of rows per section, each a label
+and description beside its control, stacked once the row is narrow, and a
+section runs edge to edge once it is. A `modified` row has an accent bar at its
+edge; given `menu` items, a "More" menu button at its end holds what can be
+done to the setting, resetting it included (rows have no other reset), and a
+`note` is a small accent caption under its description. A `SettingsLink` is a
+row that opens a page of its own (a block, in a tab): its label and
+description, a chevron where a control would be, and the hover a button has,
+inset and rounded so it stays inside the card, marked when `modified`. A reset
+that deletes the block a link opens belongs to the setting that chose the
+block, whose menu asks first (the Remapper row asks before it deletes the
+remaps).
+
+A page shows a section only where the host can back it. The Display page
+(`be-app-settings`, `display`) always has Appearance; a section per screen
+once the host offers `Displays` (its mode and its rotation, through
+`be_sdk_beui::RotationPicker`, shared with the desktop app's bar: four tiles,
+each a little screen drawn turned by that rotation less the one the host
+reports now, so the tile that looks upright to the person holding the device is
+the one to pick, named Landscape, Portrait and their flipped turns from whether
+the panel is wider than tall); a Screens section with the switches for the
+bar's rotate and on-screen keyboard buttons (`display.rotate-in-bar`,
+`display.keyboard-in-bar`) once the host offers `Displays`; and Power and lock
+only once it offers `Power`, which only a login session publishes. The Input
+page (`input`) shows its sections only once the host offers `InputDevices`,
+which likewise only a login session publishes, and says so otherwise.
+
+#### Settings the host applies itself
+
+The host reads some settings blocks itself, holding them with
+`be_host_stack::hold`. A kind of setting the host applies implements
+`local_settings::LocalSettings` and is kept by a `SettingsSync`; its `apply`
+answers whether the settings may be saved now.
+
+- `sync_local_settings` hands the input settings (keymap, key repeat, and
+  pointer settings for every pointer with per-device overrides) to the login
+  session's seat through `beui_platform_drm::InputControl` and to the nested
+  Wayland clients' keyboard, and the display settings to the host and the seat.
+- `DisplaySettings` is one block for everything about what the device shows:
+  the theme, motion and scale, which `sync_ui_settings` takes from the display
+  settings last applied (the theme, motion and canvas touch are the host's
+  layer of beui's preferences, so an unset one follows the system's,
+  guides/beui.md; canvas touch, which a canvas's dock turns off, is kept on
+  this device only; the scale is beui's zoom factor, multiplied into the
+  screen's own pixels per point); a `ScreenSettings` per screen (a mode and a
+  rotation, keyed by the monitor's EDID make, model and serial, or by its
+  connector when it has no EDID), whose modes and rotations go to the seat's
+  outputs through `beui_platform_drm::DisplayControl`, which switches both live
+  (guides/desktop/linux.md says how a screen is turned) and reports each
+  monitor's applied rotation with its modes; whether the bar shows a rotate
+  button; and when the screens turn off and lock.
+- Every setting is an `Option`, and an unset one means the default: libinput's
+  own for a pointer setting, which the seat reports per device and an editor
+  reads as the `InputDevices` host value, and for a monitor its preferred
+  resolution at the fastest refresh rate it offers there, which the seat
+  reports with the monitor's modes and an editor reads as the `Displays` host
+  value (guides/adding_an_app.md says how host values reach an app). The seat,
+  the stored settings and those host values share one set of types from
+  `be-lib-ui-preferences` (`DisplayMode`, `Rotation`, `InputDevice`,
+  `PointerSettings`), so nothing converts between them.
+- The seat runs before anyone signs in, so the host keeps a copy of the last
+  settings of each kind it applied in `host_state` and applies that at
+  startup, the theme and scale with it; the block stays the source of truth.
+
+Display settings may not be saved until someone keeps them. A change of mode
+that moves what a connected monitor shows (a rotation applies and saves at
+once), or a monitor showing a mode other than its preferred one that this
+device never kept it at (an untried fastest default, or a mode another device
+chose for that monitor), opens the host's "Keep these display settings?"
+prompt (be-host's `ui/keep_changes.rs`, an alert on every screen) in
+`display::guard`. The prompt is the host's because it has to work before any
+shell app runs.
+
+- Each change is a round (`Guard::prompt`): another change while asking starts
+  a new round and a full countdown, and an answer counts only for the round it
+  was given in.
+- Keep saves, storing a kept default as the monitor's mode; Revert, Escape or
+  15 seconds of the frame clock, which the guard counts itself, put back the
+  earlier modes, or the preferred mode for an untried one. The modes each
+  monitor showed once answered are this device's own memory (`host_state`'s
+  `tried_display_modes`), not a setting.
+- The guard answers with modes per screen, which `display::keep` and
+  `display::revert` write by the layer rule above (a fallback from a mode
+  another device chose goes to this device's profile, so it leaves the others
+  alone), each as an edit on that layer's own content (`SettingsSync::layers`),
+  so a screen's register in a block never picks up a rotation it only
+  inherits, and `SettingsSync::commit` applies them to their layers and layers
+  the result again. It writes those edits into the block too, holding them
+  until its content is loaded and reading the block with them on top until a
+  revision holds them.
+
+#### Sessions
 
 A session is what a person has open, and is separate from the settings, so
 starting a new one keeps them. It is a view block (below) of a shell editor:
-workspace-ui (`WORKSPACE_EDITOR`), or the desktop app (`DESKTOP_EDITOR`) for
-a client run as the desktop with `be-host --desktop`. `Settings::sessions`
-lists every session, and `Settings::session(shell, client)` is the one this
-client uses for that shell, so the desktop and the workspace shell each keep their own while
-sharing the device's settings profile. The host opens the shell on that session,
-creating one named after the device when the client has none, and reopens the
-shell when it changes. be-host's sessions screen (the organization list's
-dropdown, or Sessions and profiles in the host's menu) picks the device's settings
-profile and its session, or starts a new one of either. A shell keeps its dock
-layout and recents in the session's state; every tab, and the file tree, is a
-view block child of the session that the layout references, naming the editor
-the tab shows it in, and closing a tab detaches its view. A tab on a block that is
-itself a view block (a session) uses it as its view and opens the editor it
-names, so a workspace-ui session opened on the desktop keeps its tabs in its own
-session and closing it leaves that session alone.
+workspace-ui (`WORKSPACE_EDITOR`), or the desktop app (`DESKTOP_EDITOR`) for a
+client run as the desktop with `be-host --desktop`. `Settings::sessions` lists
+every session, and `Settings::session(shell, client)` is the one this client
+uses for that shell, so the desktop and the workspace shell each keep their own
+while sharing the device's settings profile. The host opens the shell on that
+session, creating one named after the device when the client has none, and
+reopens the shell when it changes. be-host's sessions screen (the organization
+list's dropdown, or Sessions and profiles in the host's menu) picks the
+device's settings profile and its session, or starts a new one of either.
+
+A shell keeps its dock layout and recents in the session's state; every tab,
+and the file tree, is a view block child of the session that the layout
+references, naming the editor the tab shows it in, and closing a tab detaches
+its view. A tab on a block that is itself a view block (a session) uses it as
+its view and opens the editor it names, so a workspace-ui session opened on the
+desktop keeps its tabs in its own session and closing it leaves that session
+alone.
 
 ### View state
 
 What a person has open is blocks too, view blocks. A view block is a block
-whose defined metadata names the editor that draws it in `VIEW_EDITOR` (the `id`
-its manifest gives it, never a block type): whoever makes one sets it with
+whose defined metadata names the editor that draws it in `VIEW_EDITOR` (the
+`id` its manifest gives it, not a block type): whoever makes one sets it with
 `BlockMetadata::view(editor, name)`, and that key, a host concept, is all
 anyone reads to know which editor opens the view (the host's
 `RootSettings::session_editor`, be-sdk-shell's `editor_of`, the desktop app's
-session list) or that a block is a view at all (the host skips `DELETED_FROM` for
-one, and a block's places leave out the views that show it). A view made before
-the key, which names no editor, opens as a session in the shell asking and as a
-tab in its content's default editor. The content is the `EditorView` type workspace-ui's type module serves
-(`be_block::EditorView { content, state }`, its id
-`be_block::VIEW_TYPE`, which the host names only to create a session): the block
-it shows (none for the file tree or workspace-ui itself), and a `LatestMap` of
-opaque `ViewState { bytes, refs }` the editor owns. `refs` are the blocks an
-entry points at; `references()` is `content` plus every entry's refs, and a
-deleted or replaced child is blanked or repointed in place, so the bytes can
-index into `refs`.
+session list) or that a block is a view at all (the host skips `DELETED_FROM`
+for one, and a block's places leave out the views that show it). A view made
+before the key, which names no editor, opens as a session in the shell asking
+and as a tab in its content's default editor.
+
+The content is the `EditorView` type workspace-ui's type module serves
+(`be_block::EditorView { content, state }`, its id `be_block::VIEW_TYPE`, which
+the host names only to create a session): the block it shows (none for the file
+tree or workspace-ui itself), and a `LatestMap` of opaque
+`ViewState { bytes, refs }` the editor owns. `refs` are the blocks an entry
+points at; `references()` is `content` plus every entry's refs, and a deleted
+or replaced child is blanked or repointed in place, so the bytes can index into
+`refs`.
+
+An editor learns its view block from `Open { view_block }`, which a parent sets
+with `ChildTarget::viewed_by(view)`. `editor.view_state(key)` and
+`editor.set_view_state(key, state)` read and write it; writes skip the block's
+editability, since view state is the viewer's own. An editor on no content (the
+file tree, workspace-ui) is opened on its own view block: its manifest names no
+`edits`, so it is nobody's built-in editor and Open with never offers it, and
+the host opens it only when a parent names it for a block it places as its own
+view (`ChildTarget::viewed_by` the block itself), as the host does the shell on
+its session. `be_block::profile` holds the ids of the shells and the file tree.
 
 Both shells are built from `crates/be-sdk-shell`, which holds the tabs, their
 views, the saved layout, picks, dialogs, host panels and program windows;
@@ -1993,27 +2120,16 @@ workspace-ui lays them out as Files beside a pane of tabs, and the desktop app
 floats every block in a window of its own over an empty main pane, with a bar
 along the bottom for the host's menu, the sessions to open and the time.
 
-The shell's layout is the `layout` view state of its session (`saved::SavedLayout`,
-postcard). One that does not decode is never replaced silently: `Workspace` builds
-nothing from it, saves nothing (`unreadable_layout()` holds the report), and
-`WorkspaceDialogs` shows an alert (`workspace.layout`) with Copy report, Exit and
-Reset layout. Reset starts a fresh layout and saves it over the old bytes. Exit
-(`Workspace::exit`) sends `close-editor` for the shell's own block: be-host
-closes for the session it shows itself (logging out in a login
-session), and for a session shown in a window of another shell routes
-`shell-dialog::close` to that shell, which closes the tab. Either way the saved
-bytes stay for a build that can read them.
-
-An editor learns its view block from `Open { view_block }`, which a parent sets
-with `ChildTarget::viewed_by(view)`. `editor.view_state(key)` and
-`editor.set_view_state(key, state)` read and write it; writes skip the block's
-editability, since view state is the viewer's own. An editor on no content (the
-file tree, workspace-ui) is opened on its own view block: its manifest names no
-`edits`, so it is nobody's built-in editor and Open with never offers it, and the
-host opens it only when a parent names it for a block it places as its own view
-(`ChildTarget::viewed_by` the block itself), as the host does the shell on its
-session.
-`be_block::profile` holds the ids of the shells and the file tree.
+The shell's layout is the `layout` view state of its session
+(`saved::SavedLayout`, postcard). One that does not decode is kept rather than
+replaced: `Workspace` builds nothing from it, saves nothing
+(`unreadable_layout()` holds the report), and `WorkspaceDialogs` shows an alert
+(`workspace.layout`) with Copy report, Exit and Reset layout. Reset starts a
+fresh layout and saves it over the old bytes. Exit (`Workspace::exit`) sends
+`close-editor` for the shell's own block: be-host closes for the session it
+shows itself (logging out in a login session), and for a session shown in a
+window of another shell routes `shell-dialog::close` to that shell, which
+closes the tab. Either way the saved bytes stay for a build that can read them.
 
 ### Keys
 
