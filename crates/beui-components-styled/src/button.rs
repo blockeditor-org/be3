@@ -22,6 +22,7 @@ const MIN_HIT: Size = Size::Md;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum ButtonSize {
+    Inline,
     Small,
     Compact,
     #[default]
@@ -32,8 +33,8 @@ pub enum ButtonSize {
 impl ButtonSize {
     fn padding(self, icon_only: bool) -> Padding {
         let (horizontal, vertical) = match (self, icon_only) {
-            (ButtonSize::Small, true) => (Space::Xs2, Space::Xs2),
-            (ButtonSize::Small, false) => (Space::Sm, Space::Xs2),
+            (ButtonSize::Inline | ButtonSize::Small, true) => (Space::Xs2, Space::Xs2),
+            (ButtonSize::Inline | ButtonSize::Small, false) => (Space::Sm, Space::Xs2),
             (ButtonSize::Compact, true) => (Space::Sm, Space::Sm),
             (ButtonSize::Compact, false) => (Space::Lg, Space::Sm),
             (ButtonSize::Regular, true) => (Space::Md, Space::Md),
@@ -47,6 +48,7 @@ impl ButtonSize {
     fn width(self, icon_only: bool) -> Length {
         match (self, icon_only) {
             (ButtonSize::Toolbar, true) => Length::Size(Size::Toolbar),
+            (ButtonSize::Inline, _) => Length::INTRINSIC,
             (_, true) => Length::AtLeast(MIN_HIT),
             (_, false) => Length::INTRINSIC,
         }
@@ -55,6 +57,7 @@ impl ButtonSize {
     fn height(self, icon_only: bool) -> Length {
         match (self, icon_only) {
             (ButtonSize::Toolbar, _) => Length::Size(Size::Toolbar),
+            (ButtonSize::Inline, _) => Length::INTRINSIC,
             (_, true) => Length::AtLeast(MIN_HIT),
             (_, false) => Length::INTRINSIC,
         }
@@ -69,21 +72,21 @@ impl ButtonSize {
 
     fn radius(self) -> Radius {
         match self {
-            ButtonSize::Small | ButtonSize::Regular => Radius::Md,
+            ButtonSize::Inline | ButtonSize::Small | ButtonSize::Regular => Radius::Md,
             ButtonSize::Compact | ButtonSize::Toolbar => Radius::Tab,
         }
     }
 
     fn text(self) -> TextSize {
         match self {
-            ButtonSize::Small => TextSize::Xs,
+            ButtonSize::Inline | ButtonSize::Small => TextSize::Xs,
             _ => TextSize::Base,
         }
     }
 
     fn focus_ring_offset(self) -> Stroke {
         match self {
-            ButtonSize::Small => Stroke::Hairline,
+            ButtonSize::Inline | ButtonSize::Small => Stroke::Hairline,
             _ => Stroke::Focus,
         }
     }

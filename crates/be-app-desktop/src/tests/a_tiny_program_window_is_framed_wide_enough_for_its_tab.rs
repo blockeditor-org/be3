@@ -30,14 +30,15 @@ fn a_tiny_program_window_is_framed_wide_enough_for_its_tab() {
         .collect();
     assert_eq!(
         closes.len(),
-        1,
-        "the window has one close button: {closes:?}"
+        2,
+        "the window has its tab's close button and its own: {closes:?}"
     );
-    let close = closes[0];
-    assert!(
-        close.min.x >= window.min.x && close.max.x <= window.max.x,
-        "the close button is inside the window: {close:?} in {window:?}"
-    );
+    for close in closes {
+        assert!(
+            close.min.x >= window.min.x && close.max.x <= window.max.x,
+            "the close button is inside the window: {close:?} in {window:?}"
+        );
+    }
     fixture
         .test
         .desk_snapshot("a_tiny_program_window_is_framed_wide_enough_for_its_tab", 0);

@@ -236,7 +236,7 @@ fn DialogBodyFace(
                                     glyph=ICON_X
                                     label="Close"
                                     variant=ButtonVariant::Ghost
-                                    size=ButtonSize::Small
+                                    size=ButtonSize::Inline
                                     @test_id={named(id, "close")}
                                     on_click={dismiss}
                                 />
