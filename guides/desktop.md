@@ -190,7 +190,8 @@ dialog moves between being a window and a card with it. A parent that is not lis
 that never drew, such as `gtk3-demo --run`'s hidden main window) does not count: be-host-wayland
 reports the nearest shown ancestor (`State::parent`), and `shown_windows` drops a parent missing
 from the list, so such a window is a window of its own. Its
-header, like a program window's tab and its chip, is `be_sdk_shell::window_name`, the one way to name
+header, like a program window's tab and its chip, is `be_host_desktop::naming::window_name` (be-sdk-shell's
+`window_name` is a copy the shells use until they read the window child's `title`), the one way to name
 a host window: the program's name (`program_name`: `HostWindow::name`, else the parent's, else the
 program id's last part made readable, its path and `.exe` or a package's `_publisher!App` dropped),
 then " — " and the window's title when it says more (not the name or program id, a trailing
@@ -209,6 +210,19 @@ and opened again whenever the popups' corner moves, as when a submenu grows them
 upward. The compositor still places each toplevel at its rectangle in its own window's
 coordinates, and the keyboard follows the document's focus as anywhere. Outside space top windows
 stay tabs, as above.
+
+A placed `SubregionContent::Window` child, and a program opened to edit a block (Files opened in
+programs, below), is drawn by be-host-desktop's `PlacedWindow`: the platform's `WindowSurface` inside
+`WindowBody` (`window_body.rs`), which fades the edges where the program's latest buffer reaches past
+the child's rect (beui's scroll fade), says "Too small for" the program while the rect is smaller
+than the program's least size, and draws "{name} is not responding" with Wait and Force close
+(`host.window.not_responding`, `host.window.wait`, `host.window.force_close`) over the body. The
+child's status comes from `DesktopHost::window_status` (`WindowStatus`): its title (the name
+above), icon, group (its program id), raised, rung, fullscreen (the program asks), notice, menu-asked
+and intrinsic (the size the program picked). be-host's `close-child` closes the window as
+`window-action.close` does, a change of `child-placement.fullscreen` asks the program to enter or
+leave full screen, and the keyboard the placer gives the child, or its `focus-child`, gives the
+window the keyboard (`follow_window` in be-host's `compositor/editors.rs`).
 
 A window's and its popups' drawings paint too (`Paints` on `WindowDraw`, which reads each surface's
 texture back, opaque), so paintings and `drive paint` show what programs drew.

@@ -89,16 +89,20 @@ be-host's one window), stay unsupported, so the shell hides what they back.
   show an owned window as the anchored card guides/desktop.md describes (Program windows). The
   Windows host leaves `HostWindow::name` empty, so the card's header falls back to the title.
 - Sizes (`desktop_host/win32_shape.rs`, `Shaping`, tested on Linux), as guides/desktop/linux.md
-  does for floating windows: `HostWindow::size` is the size the window last chose itself (its
-  frame bounds in its monitor's points), not one it took because be-host asked, so a window
-  shown at its own size keeps following its own size. When a panel's placed size differs from
-  where the window is heading (by more than 2 px), because the person resized the panel or docked
-  it, the host asks for it: `be_host_win32::resize_window` (frame size in physical pixels, the panel's
+  does: `HostWindow::size` is the size the window last chose itself (its frame bounds in its
+  monitor's points), not one it took because be-host asked; it is the window child's
+  `intrinsic`. `WindowSurface` draws the capture top-left at the window's frame size
+  (`win32_map::drawn_size`, in a clipping `Canvas`, input mapped within that), and whenever its
+  panel's size or the window's frame changes and the frame differs from where the window is
+  heading (by more than 2 px), the host asks for the panel's size, so a window that resizes itself
+  is sized back to its panel: `be_host_win32::resize_window` (frame size in physical pixels, the panel's
   points times the monitor's scale; it adds the invisible borders, the window rect less the DWM
   frame bounds, and calls `SetWindowPos` with `SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE |
   SWP_ASYNCWINDOWPOS` on a per-monitor-aware thread context). The last few sizes asked are kept,
   and a frame matching one is that answer; any other frame is the window's own choice and clears
-  them. Displays, minimized, maximized, fullscreen and elevated windows are never resized.
+  them. A window that never takes the size is drawn top-left with empty room beside it. Windows
+  has no least size to read and no suspended state: a window placed nowhere is not captured.
+  Displays, minimized, maximized, fullscreen and elevated windows are never resized.
 - Fullscreen: Windows has no request for another program's window to go fullscreen, so the
   `fullscreen` action maximizes it (`be_host_win32::set_maximized`, `ShowWindowAsync`, which also
   activates it) and leaving restores it. `HostWindow::fullscreen` is the area the shell is shown

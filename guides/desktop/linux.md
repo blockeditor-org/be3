@@ -30,15 +30,17 @@ forwarding catcher the shell places like any other node. The catcher's focus is 
 focus (`Windows::focus`), and so the desktop app's `WindowsWatch` `focused`. A view built again
 elsewhere, as when the desktop moves a window into or out of fullscreen in another of its windows,
 takes the focus back if the view it replaces had it (`Windows::unmounted_focused`, answered through
-the same `asks` as a raise) and no other window has been focused in between. A floating window (every window under
-the desktop shell) and every dialog own their size: a new one is configured 0×0,
-`WindowInfo::size` is the size it last chose for itself (a commit that is not the answer to a
-size the compositor asked for), a floating window follows that size through
-`DockTabControl::resize_window` and a dialog's card through its `DockDialog` size, and a window
-shown at its own size is never told a size, so it stays free to resize itself. `WindowInfo`
-carries the least and greatest size the program asks for: `xdg_toplevel.set_min_size` and
-`set_max_size`, or an X11 window's `WM_NORMAL_HINTS` (`State::size_limits`). Only when the person resizes it, or it is docked, is it configured
-with a size, and then with the tiled states too. A 1×1 placeholder, which Firefox commits for its
+the same `asks` as a raise) and no other window has been focused in between. A window is configured to the rect
+its view is placed at, always, with the tiled states, and drawn top-left at the size it last drew,
+clipped to that rect. Until it is first placed it is configured 0×0, so it picks a size of its
+own: `WindowInfo::size` is the size it last chose for itself (a commit that is not the answer to a
+size the compositor asked for), which be-host passes on as the window child's `intrinsic`, and
+`WindowInfo::drawn` is the size of its latest buffer. `WindowInfo` also carries the least and
+greatest size the program asks for: `xdg_toplevel.set_min_size` and `set_max_size`, or an X11
+window's `WM_NORMAL_HINTS` (`State::size_limits`). A window once placed whose last view is gone is
+told it is suspended (`Windows::suspended`), as is one the old interface hides
+(`Windows::set_hidden`). A view's `focus` counter gives its window the keyboard each time it counts
+up; be-host counts it up when the placer gives the window child the keyboard or asks `focus-child`. A 1×1 placeholder, which Firefox commits for its
 server-side-decorated windows and never grows on its own, opens at a default size instead.
 
 Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the monitor their window
