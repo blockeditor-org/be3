@@ -2,8 +2,7 @@
 
 This guide is for people as well as agents. It sorts the ways to run things by who can use them:
 a person at a machine with displays, a device or a headset, and an agent in a container with
-none of them. AGENTS.md's Commands section has the everyday ones (`./scripts/verify`,
-`./scripts/test`, `:dev`, `rasterize`); guides/running/ says how to run and drive each platform.
+none of them, then lists every target. guides/running/ says how to run and drive each platform.
 `./scripts/buck run` passes the environment on to the program, so a `BEUI_*` variable before it
 reaches the program.
 
@@ -73,8 +72,7 @@ BEUI_LAYERS=space ./scripts/buck run //crates/be-host:dev
 ./scripts/buck run //crates/be-host:android
 ```
 
-Tests and paintings are how an agent shows a visual change: `./scripts/test NAME --update` and
-`rasterize` (AGENTS.md), guides/testing_a_gui.md.
+An agent shows a visual change with a painting (guides/testing_a_gui.md).
 
 ## Every target
 

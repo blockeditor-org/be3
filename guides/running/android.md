@@ -4,13 +4,11 @@ The Android emulator needs KVM. Check before anything else:
 
     test -r /dev/kvm && test -w /dev/kvm && echo ok
 
-If that does not print `ok`, give up on the emulator: do not install the SDK, boot the
-emulator without acceleration, or try to work around it. Without KVM the system image
-never becomes usable. Say in your handoff message that the change was not run on Android.
-
-Claude Code's cloud containers have no KVM: `/dev/kvm` does not exist and the CPU does not
-expose `vmx`/`svm` to the guest, so there the emulator cannot run. Only building the APK
-works.
+Without KVM the emulator's system image never becomes usable, even booted without
+acceleration, so if that does not print `ok`, installing the SDK or working around it is wasted
+time: only building the APK works, and the handoff message should say the change was not run on
+Android. Claude Code's cloud containers have no KVM: `/dev/kvm` does not exist and the CPU does
+not expose `vmx`/`svm` to the guest.
 
 ## APK identities
 
@@ -39,7 +37,8 @@ emulator if it is not running, installs the APK if it changed, launches be-host,
 It exits non-zero if be-host died. It writes `logcat.txt`, `app.log` and `screen.png` to
 `/tmp/be3-android`. `--apk PATH` installs a different APK, which is how to compare a
 branch against main. The runner defaults to the dev package; for a CI or
-deployed APK also pass `--package com.be3.block.ci` or `--package com.be3.block`. `./scripts/android-emulator stop` shuts the emulator down.
+deployed APK also pass `--package com.be3.block.ci` or `--package com.be3.block`.
+`./scripts/android-emulator stop` shuts the emulator down.
 
 The APK only carries arm64 code, and the emulator is x86_64, so be-host runs under
 Android's arm64 translation. A native crash's backtrace stops at the translation layer
@@ -87,11 +86,11 @@ One touch moves TalkBack's focus to the node under it, and two in a row within o
 through `adb` is not reliable, so run it a few times before concluding it is broken, and
 compare against main with `--apk`.
 
-## Local APK finalization
+## Signing the APK
 
 Both APKs require Android 7 (API 24), matching the native toolchain, and are
-signed with APK Signature Scheme v2 alone: v2 covers every version from API 24,
-and v3 only adds key rotation. `target_sdk` remains 35. Buck builds aligned,
+signed with APK Signature Scheme v2 alone (decisions/android_apks_signed_with_v2_only.md).
+`target_sdk` is 35. Buck builds aligned,
 unsigned templates without build metadata for every Android variant. `buck run`
 adds `assets/build-info.json` and signs locally, writing
 `target/android/be-host.apk` or `target/android/be-launcher.apk`.
@@ -112,9 +111,9 @@ ci` reads `BE3_ANDROID_CI_KEYSTORE` or `buck/android/ci-keystore.base64`; the
 build helper passes CI's key as `--keystore` instead. Release reads
 `BE3_ANDROID_RELEASE_KEYSTORE` or
 `~/.config/be3/android-release-keystore.base64` (under `XDG_CONFIG_HOME` when
-set), asking at a terminal to generate or import a key when missing. Existing
-keys and certificates must be retained so installed apps accept updates.
-No key is a Buck attribute or action input.
+set), asking at a terminal to generate or import a key when missing. An installed
+app accepts an update only when it is signed with the same key, so losing an existing key or
+certificate means its installs cannot be updated. No key is a Buck attribute or action input.
 
 `./scripts/buck run //crates/be-tool-local:bin -- apk-sign --in INPUT.apk --out OUTPUT.apk --keystore KEYSTORE`
 finalizes a template directly. `--build-info FILE` appends metadata before
