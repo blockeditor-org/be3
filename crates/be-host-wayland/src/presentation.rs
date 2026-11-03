@@ -120,6 +120,16 @@ impl Presentation {
         }
     }
 
+    pub(crate) fn shown_unpainted(&mut self, id: WindowId) {
+        if !self.paced && self.drawn.contains_key(&id) {
+            self.painted(id);
+        }
+    }
+
+    pub(crate) fn awaits_frame(&self, shown: impl Fn(WindowId) -> bool) -> bool {
+        !self.paced && self.drawn.keys().any(|id| shown(*id))
+    }
+
     pub(crate) fn forget_closed(&mut self, open: &[WindowId]) {
         let closed: Vec<_> = self
             .drawn

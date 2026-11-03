@@ -102,7 +102,7 @@ enum NodeKind<K: 'static> {
     },
     Dialog {
         id: K,
-        parent: K,
+        parent: Memo<K>,
         parts: DialogParts,
     },
     Bar {
@@ -206,7 +206,7 @@ where
 #[component]
 pub fn DockDialog<K>(
     id: K,
-    parent: K,
+    parent: Prop<K>,
     title: Prop<String>,
     #[prop(default = None)] icon: Prop<Option<Glyph>>,
     size: Prop<Vec2>,
@@ -221,7 +221,7 @@ where
     DockNode {
         kind: NodeKind::Dialog {
             id,
-            parent,
+            parent: create_memo(move || parent.get()),
             parts: DialogParts {
                 title: create_memo(move || title.get()),
                 icon: create_memo(move || icon.get()),
@@ -1110,7 +1110,7 @@ impl<K: DockKey> DockingLayout<K> {
                 if found.dialogs.iter().any(|(held, _)| *held == dialog) {
                     continue;
                 }
-                let parent = self.mint(parent);
+                let parent = parent.with(|parent| self.mint(parent));
                 found.dialogs.push((dialog, parent));
                 found.parts.insert(dialog, *parts);
             }
@@ -1725,7 +1725,9 @@ where
         })
     });
     let dialog =
-        Func::new(move |tab: TabId| found.with_untracked(|found| found.parts.get(&tab).cloned()));
+        Func::new(move |tab: TabId| {
+            found.with_untracked(|found| found.parts.get(&tab).copied().filter(DialogParts::alive))
+        });
     let declared = move |tab: TabId| -> Option<DockDeclaredTab> {
         found.with(|found| {
             let (joined, inner) = found.foreign.get(&tab)?;

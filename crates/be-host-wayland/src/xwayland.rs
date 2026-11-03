@@ -366,6 +366,7 @@ impl State {
             position: Point::default(),
             chosen: None,
             entered: None,
+            mapped: false,
         });
         self.events.push(ServerEvent::Opened(id));
         self.events.push(ServerEvent::Titled(id, title));
