@@ -2662,6 +2662,11 @@ bar names its controls after the pane's `id`: `dock.grip.<id>`, and under the
 prefix `dock.<id>` its More button (`dock.<id>.menu`, its items
 `dock.<id>.menu.<item>`), pinned actions (`dock.<id>.pin.<action>`) and close
 button (`dock.<id>.close`), so two panes showing the same actions stay apart. A
+pane or window holding one tab shows only that tab's close button, and its one tab
+shrinks to fit its bar, ellipsising its title, where several tabs scroll. A
+window is never narrower than `MIN_WINDOW_SIZE.x`, whatever its tab asks for
+(`DockTabControl::resize_window`), so a tiny program's window is framed wide
+enough for its bar. A
 pane the user made has no `id` and the bare prefix `dock`, as has the one bar of
 a stacked dock (`dock.menu`, `dock.pin.<action>`).
 

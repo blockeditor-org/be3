@@ -393,8 +393,8 @@ fn DockTabChrome(
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
     let pictured = create_memo(move || !grouped && !shows_picture.get() && icon.get().is_some());
     let title_size = match vertical {
-        true => ItemSize::Percent(100.0),
-        false => ItemSize::Intrinsic,
+        true => ItemSize::Percent(100.0).into(),
+        false => ItemSize::Intrinsic.shrink(1.0),
     };
     view! {
         <Frame
@@ -818,7 +818,7 @@ fn DockStrip(handle: DockStripHandle) -> NodeId {
         },
     };
     view! {
-        <Scroll direction>{strip}</Scroll>
+        <Scroll direction>{strip} @sizing={ItemSize::Intrinsic.shrink(1.0)}</Scroll>
     }
 }
 
