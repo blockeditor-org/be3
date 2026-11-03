@@ -2529,10 +2529,11 @@ impl Instances {
                 ChildContent::Rename(block) => super::HostContent::Rename(Uuid::from_bytes(*block)),
                 ChildContent::WebView(_) => continue,
             };
-            if !child.rect.is_positive() {
+            if !child.rect.is_positive() && child.mode != ChildMode::Hidden {
                 continue;
             }
             let requested = match (region, child.mode) {
+                (_, ChildMode::Hidden) => ChildMode::Hidden,
                 (ViewId::PREVIEW, _) => ChildMode::Preview,
                 (_, ChildMode::Active) if screen.revoked.contains(&child.child) => {
                     ChildMode::Passive
@@ -2540,7 +2541,7 @@ impl Instances {
                 (_, mode) => mode,
             };
             let mode = match requested {
-                ChildMode::Preview => ChildMode::Preview,
+                ChildMode::Preview | ChildMode::Hidden => requested,
                 mode => {
                     live += 1;
                     match live > MAX_LIVE_CHILDREN {
@@ -2784,6 +2785,7 @@ impl Instances {
                 group: status.group,
                 raised: status.raised,
                 rung: status.rung,
+                minimized: status.minimized,
                 fullscreen: status.fullscreen,
                 notice: status.notice,
                 menu_asked: status.menu_asked,

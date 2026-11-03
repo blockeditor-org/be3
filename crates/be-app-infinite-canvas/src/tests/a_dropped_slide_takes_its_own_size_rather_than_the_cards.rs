@@ -52,6 +52,7 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
             group: None,
             raised: 0,
             rung: 0,
+            minimized: 0,
             fullscreen: false,
             notice: None,
             menu_asked: None,

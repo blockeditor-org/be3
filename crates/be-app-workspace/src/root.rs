@@ -15,8 +15,8 @@ use be_sdk_beui::{
     TopBar,
 };
 use be_sdk_shell::{
-    BlockTab, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, TabParts, WindowDialog,
-    Workspace, WorkspaceDialogs,
+    BlockTab, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, TabParts,
+    UnshownWindows, WindowDialog, Workspace, WorkspaceDialogs,
 };
 use beui::{Align, ItemSize};
 use uuid::Uuid;
@@ -216,6 +216,7 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
                 </Docking>
                 <WorkspaceDialogs workspace />
                 <DetailsSheet workspace sheet={shell.sheet} />
+                <UnshownWindows workspace />
             </List>
         </Frame>
     }

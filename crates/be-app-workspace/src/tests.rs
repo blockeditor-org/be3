@@ -44,6 +44,7 @@ mod a_shown_block_is_reported_as_focused;
 mod a_template_of_the_workspace_is_copied_into_place;
 mod a_template_without_a_dialog_is_created_and_answers_the_pick;
 mod a_window_tab_is_locked_to_the_blocks_area_like_a_block_tab;
+mod a_window_tab_never_shown_is_named_and_shown_when_its_program_raises_it;
 mod a_window_tab_shows_the_icon_its_program_set;
 mod a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves;
 mod a_window_the_host_runs_gets_a_tab_until_its_program_closes_it;
@@ -701,6 +702,7 @@ fn report_creation_dialog<A: be_sdk_beui::BeuiRoot>(
             group: None,
             raised: 0,
             rung: 0,
+            minimized: 0,
             fullscreen: false,
             notice: None,
             menu_asked: None,

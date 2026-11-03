@@ -145,6 +145,9 @@ interface shell-types {
         /// Counts up each time the child asks for attention (a program's
         /// bell). The placer flashes its tab and chip.
         rung: u64,
+        /// Counts up each time the child asks to be hidden (a program
+        /// minimizing its window). The placer hides the child's window.
+        minimized: u64,
         /// Whether the child asks to be shown full screen. The placer shows
         /// its tab full screen while it is set.
         fullscreen: bool,

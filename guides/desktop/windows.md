@@ -69,9 +69,11 @@ be-host's one window), stay unsupported, so the shell hides what they back.
   `win32_map::known_window` reads (each window's `name` that of its Start menu program (`win32_map::ProgramNames`: the program the desktop launched it from, else the one
   whose shortcut's AppUserModelID or target is its program id or first command word, ignoring case and
   slash direction), known once the programs have been listed (the Apps panel asks for them), its
-  title, icon, raises and note) is its window child's status (`window_status`). The desktop opens a
+  title, icon, raises, minimizes and note) is its window child's status (`window_status`); a window
+  that goes from shown to minimized on its own counts up `Entry::minimizes`, the child's
+  `minimized`, and the shell hides its tab's dock window. The desktop opens a
   tab for every window and a hidden one for every display. `WindowSurface` starts a capture of its entry when it is mounted, which the
-  shells do only for placed entries, and stops it when unmounted; a display entry draws its
+  shells do only for shown entries (one placed hidden mounts none), and stops it when unmounted; a display entry draws its
   monitor's capture. Each capture's notify wakes the UI, and `before` hands the newest `Frame`
   to every surface showing it (`beui::native::texture_quad::TextureDraw::keeping` draws it and keeps the `Frame` alive
   while drawn). The frames' format follows the surface (srgb or not). A capture that reports

@@ -325,6 +325,7 @@ pub fn known_window(
         }),
         raised: entry.raised,
         rung: 0,
+        minimized: entry.minimizes,
         kind: match entry.kind {
             EntryKind::Window => WindowKind::Window,
             EntryKind::Display => WindowKind::Display,

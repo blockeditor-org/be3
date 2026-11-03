@@ -203,9 +203,6 @@ impl DesktopHost for Linux {
             running.compositor.set_monitors(monitors);
             running.compositor.before(context, rect);
         });
-        if let Some(windows) = windows() {
-            windows.take_minimized();
-        }
     }
 
     fn after(context: &Context, document: &mut Document) {
@@ -453,6 +450,7 @@ fn known_window(
         }),
         raised: windows.raised(info.id),
         rung: windows.rung(info.id),
+        minimized: windows.minimized(info.id),
         menu: windows.menu(info.id).map(|(asked, at)| MenuAsk {
             asked,
             at: beui::Pos2::ZERO + at,

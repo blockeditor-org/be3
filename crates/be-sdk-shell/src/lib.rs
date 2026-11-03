@@ -18,7 +18,8 @@ pub use menu::{BlockAction, Permissions, apply, permissions};
 pub use panel::{Deleted, Refs, TabInfo, Watched, read_info};
 pub use parts::TabParts;
 pub use program::{
-    ProgramRecord, ProgramTab, ProgramWindow, WindowDialog, dialog_tab, picture_image,
+    ProgramRecord, ProgramTab, ProgramWindow, UnshownWindows, WindowDialog, dialog_tab,
+    picture_image,
 };
 pub use saved::{SavedProgram, saved_programs};
 pub use tab::TabItem;

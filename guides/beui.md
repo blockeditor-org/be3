@@ -3347,7 +3347,7 @@ most (`area_of_window`, `holding_area`), `snap_in_area` snaps it within that are
 `move_to_area`/`step_area` move it to another keeping its place in proportion, inside the area,
 and keep a snapped window snapped there. A floating window can be hidden (`hide_window`,
 `is_hidden`, `DockState::hide_window`/`show_window`): it keeps its place but is not drawn, its
-tabs are not placed (`is_shown` is false for them, so its dialogs go with it), the focus goes to
+tabs are not placed (`is_shown` is false for them, a tracked read on `DockingLayout` too, so its dialogs go with it), the focus goes to
 the tab shown before it, and the switcher skips it; showing or focusing any of its tabs
 (`show`, `DockState::focus`) shows it again. Hidden windows are not part of the saved layout.
 `show_desktop` hides every shown window, and pressed again while none has been shown since

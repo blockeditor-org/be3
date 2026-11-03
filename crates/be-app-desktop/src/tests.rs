@@ -49,7 +49,9 @@ mod a_fullscreen_window_on_the_second_display_covers_only_that_displays_bars;
 mod a_held_volume_key_keeps_turning_the_volume;
 mod a_hidden_bar_stays_hidden_and_the_apps_panel_shows_it_again;
 mod a_hidden_session_chosen_from_the_apps_panel_comes_back_in_front_with_the_focus;
+mod a_hidden_window_is_still_heard_and_its_programs_raise_brings_it_back;
 mod a_hidden_window_shown_again_returns_where_it_was_moved;
+mod a_hidden_window_that_rings_the_bell_flashes_its_chip;
 mod a_key_with_nothing_to_change_says_so;
 mod a_locked_screen_shows_no_notification_toasts;
 mod a_long_window_title_ends_inside_the_window_switcher;
@@ -80,6 +82,7 @@ mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_volume_louder_than_full_shows_how_much_louder;
 mod a_window_dragged_over_the_bars_passes_beneath_them;
 mod a_window_holding_one_tab_closes_from_its_tab_and_its_bar;
+mod a_window_its_program_minimizes_is_hidden;
 mod a_window_its_program_raises_comes_in_front_with_the_keyboard;
 mod a_window_launched_from_a_placeholder_takes_its_place;
 mod a_window_moved_to_a_display_at_another_scale_keeps_its_size_in_points_above_its_bars;
@@ -203,6 +206,7 @@ struct TestWindow {
     icon: Option<HostImage>,
     raised: u64,
     rung: u64,
+    minimized: u64,
     origin: WindowOrigin,
     note: Option<String>,
     menu: Option<WindowMenu>,
@@ -221,6 +225,7 @@ struct Reported {
     group: String,
     raised: u64,
     rung: u64,
+    minimized: u64,
     fullscreen: bool,
     notice: Option<String>,
     menu: Option<MenuAsk>,
@@ -333,6 +338,7 @@ impl Fixture {
             group: window.program_id.clone(),
             raised: window.raised + self.raises.get(&window.id.0).copied().unwrap_or_default(),
             rung: window.rung,
+            minimized: window.minimized,
             fullscreen: window.fullscreen.is_some(),
             notice: window.note.clone(),
             menu: window.menu.map(|menu| MenuAsk {
@@ -369,6 +375,7 @@ impl Fixture {
                 held.group = Some(status.group);
                 held.raised = status.raised;
                 held.rung = status.rung;
+                held.minimized = status.minimized;
                 held.fullscreen = status.fullscreen;
                 held.notice = status.notice;
                 held.menu_asked = status.menu;
@@ -896,6 +903,7 @@ fn host_window(id: u64, focused: bool) -> TestWindow {
         icon: None,
         raised: 0,
         rung: 0,
+        minimized: 0,
         origin: Default::default(),
         note: None,
         menu: None,

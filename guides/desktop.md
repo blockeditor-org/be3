@@ -226,11 +226,16 @@ its title; and a new `menu-asked` opens the tab's menu (Hide, Full screen, Close
 Closing the tab, from its cross, Close or the window keys, is `close-child`; the tab stays until
 the window leaves the list. Showing the tab gives the program the keyboard: be-sdk-beui's
 `Subregion` sends `focus-child` when the tab is given the keyboard or brought forward, as for a
-block. A child reports its status only while it is placed, and a hidden dock window's tab, or a
-tab not shown in its pane, is not placed, so the workspace keeps the last status each tab heard
-(`Heard`) and its title in the tab's record, and the tab, its chip and the Restore chip keep
-showing them; a program's raise or bell while its tab is hidden is not heard. A tab closed while
-it is not placed is shown first, so its child can be asked to close.
+block. A count up of `minimized` (the program asked to be minimized) hides the tab's dock window
+(`DockingLayout::hide_window`; a tab in a pane, as in workspace-ui, stays). A hidden dock window's
+tab, or a tab not shown in its pane, places no body, so `UnshownWindows` (which both shells place
+beside `WorkspaceDialogs`) keeps every listed window whose tab (a dialog's: its window's) the dock
+does not place (`DockingLayout::is_shown`) placed with `ChildMode::Hidden`: it takes no room and the host draws nothing of it and suspends
+it, but its status keeps arriving. So a hidden tab's title, icon and bell are heard (`Heard`, the
+latest status of each tab, with the title also kept in the tab's record for a placeholder), and a
+count up of `raised` from the program shows the tab and its dock window again; the first status
+heard is taken as it stands, so a shell started again shows none. A tab closed while it is not
+placed is shown first, so its child can be asked to close.
 
 A program tab with no window is a placeholder: be-sdk-shell draws "X is not running"
 (`workspace.placeholder.TAB`), with the program's icon and name from `ProgramsWatch` when the host
@@ -259,8 +264,10 @@ the child's rect (beui's scroll fade), says "Too small for" the program while th
 than the program's least size, and draws "{name} is not responding" with Wait and Force close
 (`host.window.not_responding`, `host.window.wait`, `host.window.force_close`) over the body. The
 child's status comes from `DesktopHost::window_status` (`WindowStatus`): its title (the name
-above), icon, group (its program id), raised, rung, fullscreen (the program asks), notice, menu-asked
-and intrinsic (the size the program picked). be-host's `close-child` asks the program to close the
+above), icon, group (its program id), raised, rung, minimized, fullscreen (the program asks),
+notice, menu-asked and intrinsic (the size the program picked). A window child placed hidden
+(`ChildMode::Hidden`, `Kind::HiddenWindow`) reports that status and is closed by `close-child` as a
+placed one is, but draws no `PlacedWindow`, so the program counts as placed nowhere. be-host's `close-child` asks the program to close the
 window (force-closing one that does not respond), a change of `child-placement.fullscreen` asks the program to enter or
 leave full screen, and the keyboard the placer gives the child, or its `focus-child`, gives the
 window the keyboard (`follow_window` in be-host's `compositor/editors.rs`).
@@ -308,9 +315,9 @@ input (guides/desktop/windows.md); the Linux host sets none.
 `WindowsWatch` lists every entry the host could show: program windows (`kind: window`) and, on a
 host that captures them (Windows), whole displays (`kind: display`). The host keeps no shown
 state: whether an entry shows is the dock's. A hidden dock window (`DockingLayout::hide_window`,
-from a chip, Super+Down or Super+D) places none of its tabs, so its window child is placed nowhere
-and the host suspends the program (Linux) or stops capturing it (Windows); a dialog hides with its
-window. A hidden window shown again comes back where it was.
+from a chip, Super+Down or Super+D, or the program minimizing itself) shows none of its tabs, so
+its window child is placed only hidden and the host suspends the program (Linux) or stops
+capturing it (Windows); a dialog hides with its window. A hidden window shown again comes back where it was.
 
 The desktop app's Windows bar has a row of window chips (`WindowChips`, `desktop.windows`,
 `root/windows.rs`), built from the dock's tabs and their children's statuses: one chip per program

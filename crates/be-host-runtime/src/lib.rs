@@ -299,6 +299,7 @@ pub struct HostChildStatus {
     pub group: Option<String>,
     pub raised: u64,
     pub rung: u64,
+    pub minimized: u64,
     pub fullscreen: bool,
     pub notice: Option<String>,
     pub menu_asked: Option<be_sdk_api::MenuAsk>,

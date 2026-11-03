@@ -83,8 +83,7 @@ struct Inner {
     raised: RefCell<HashMap<WindowId, u64>>,
     rung: RefCell<HashMap<WindowId, u64>>,
     menus: RefCell<HashMap<WindowId, (u64, Vec2)>>,
-    minimized: RefCell<Vec<WindowId>>,
-    hidden: RefCell<Vec<WindowId>>,
+    minimized: RefCell<HashMap<WindowId, u64>>,
     placed: RefCell<Vec<WindowId>>,
     list: Signal<Vec<WindowInfo>>,
     revision: Signal<u64>,
@@ -116,8 +115,7 @@ impl Windows {
             raised: RefCell::new(HashMap::new()),
             rung: RefCell::new(HashMap::new()),
             menus: RefCell::new(HashMap::new()),
-            minimized: RefCell::new(Vec::new()),
-            hidden: RefCell::new(Vec::new()),
+            minimized: RefCell::new(HashMap::new()),
             placed: RefCell::new(Vec::new()),
             list,
             revision,
@@ -253,38 +251,27 @@ impl Windows {
     }
 
     pub(crate) fn minimize(&self, id: WindowId) {
+        if self.signals(id).is_none() {
+            return;
+        }
         let inner = self.0.value();
-        inner.minimized.borrow_mut().push(id);
+        *inner.minimized.borrow_mut().entry(id).or_default() += 1;
         self.changed();
     }
 
-    pub fn set_hidden(&self, id: WindowId, hidden: bool) {
+    pub fn minimized(&self, id: WindowId) -> u64 {
         let inner = self.0.value();
-        let mut held = inner.hidden.borrow_mut();
-        if held.contains(&id) == hidden {
-            return;
-        }
-        match hidden {
-            true => held.push(id),
-            false => held.retain(|held| *held != id),
-        }
-        drop(held);
-        self.push(Command::Configure(id));
-    }
-
-    pub fn hidden(&self, id: WindowId) -> bool {
-        self.0.value().hidden.borrow().contains(&id)
+        inner
+            .minimized
+            .borrow()
+            .get(&id)
+            .copied()
+            .unwrap_or_default()
     }
 
     pub fn suspended(&self, id: WindowId) -> bool {
         let inner = self.0.value();
-        self.hidden(id)
-            || (inner.placed.borrow().contains(&id) && !inner.views.borrow().contains_key(&id))
-    }
-
-    pub fn take_minimized(&self) -> Vec<WindowId> {
-        let inner = self.0.value();
-        std::mem::take(&mut *inner.minimized.borrow_mut())
+        inner.placed.borrow().contains(&id) && !inner.views.borrow().contains_key(&id)
     }
 
     pub fn blocked_by(&self, id: WindowId) -> Option<WindowId> {
@@ -365,8 +352,7 @@ impl Windows {
         inner.raised.borrow_mut().remove(&id);
         inner.rung.borrow_mut().remove(&id);
         inner.menus.borrow_mut().remove(&id);
-        inner.minimized.borrow_mut().retain(|held| *held != id);
-        inner.hidden.borrow_mut().retain(|held| *held != id);
+        inner.minimized.borrow_mut().remove(&id);
         inner.placed.borrow_mut().retain(|held| *held != id);
         if inner.focused.get() == Some(id) {
             inner.focused.set(None);

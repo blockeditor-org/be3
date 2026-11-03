@@ -52,6 +52,7 @@ fn on_a_phone_tapping_a_files_name_runs_its_rename() {
         group: None,
         raised: 0,
         rung: 0,
+        minimized: 0,
         fullscreen: false,
         notice: None,
         menu_asked: None,

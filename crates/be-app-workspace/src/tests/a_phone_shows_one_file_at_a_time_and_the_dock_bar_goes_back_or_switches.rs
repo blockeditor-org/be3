@@ -150,6 +150,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         group: None,
         raised: 0,
         rung: 0,
+        minimized: 0,
         fullscreen: false,
         notice: None,
         menu_asked: None,

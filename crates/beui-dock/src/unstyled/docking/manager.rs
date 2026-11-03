@@ -143,6 +143,14 @@ impl<K: DockKey> DockingLayout<K> {
         })
     }
 
+    pub fn is_shown(&self, key: &K) -> bool {
+        let Some(tab) = self.tab_of(key) else {
+            return false;
+        };
+        let mode = self.mode.get();
+        self.state.with(|state| state.is_shown(tab, mode))
+    }
+
     pub fn hide_window(&self, key: &K) {
         let Some(tab) = untrack(|| self.tab_of(key)) else {
             return;

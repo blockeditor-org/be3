@@ -29,7 +29,8 @@ use be_sdk_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
 use be_sdk_beui::{Editor, Loaded};
 use be_sdk_beui::{HostPanel, HostWindowId};
 use be_sdk_shell::{
-    BlockTab, Failure, PanelWindow, ProgramWindow, WindowDialog, Workspace, WorkspaceDialogs,
+    BlockTab, Failure, PanelWindow, ProgramWindow, UnshownWindows, WindowDialog, Workspace,
+    WorkspaceDialogs,
 };
 use uuid::Uuid;
 
@@ -250,6 +251,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     </DockBar>
                 </Docking>
                 <WorkspaceDialogs workspace />
+                <UnshownWindows workspace />
                 <bar::UnreadableBarsDialog editor />
                 <Show condition={keyed}>
                     <MediaKeys editor osd />

@@ -81,8 +81,10 @@ pub(crate) struct Heard {
     pub(crate) title: Option<String>,
     pub(crate) icon: Option<Picture>,
     pub(crate) group: Option<String>,
+    pub(crate) reported: bool,
     pub(crate) raised: u64,
     pub(crate) rung: u64,
+    pub(crate) minimized: u64,
     pub(crate) fullscreen: bool,
     pub(crate) notice: Option<String>,
     pub(crate) menu: Option<MenuAsk>,
@@ -487,15 +489,17 @@ impl Workspace {
         let mut next = held.clone();
         next.child = state.child;
         if state.child.is_some() && state.available {
-            next.title = state.title.clone().or(next.title);
-            next.icon = state.icon.clone().or(next.icon);
-            next.group = state.group.clone().or(next.group);
+            next.reported = true;
+            next.title.clone_from(&state.title);
+            next.icon.clone_from(&state.icon);
+            next.group.clone_from(&state.group);
             next.raised = state.raised;
             next.rung = state.rung;
+            next.minimized = state.minimized;
             next.fullscreen = state.fullscreen;
             next.notice.clone_from(&state.notice);
             next.menu = state.menu_asked;
-            next.intrinsic = state.intrinsic_size.or(next.intrinsic);
+            next.intrinsic = state.intrinsic_size;
         }
         let close = next.closing && next.child.is_some();
         if close {
@@ -656,6 +660,22 @@ impl Workspace {
         for tab in waiting {
             self.open_placeholder(tab);
         }
+    }
+
+    fn unshown(&self) -> Memo<Vec<(HostWindowId, TabId)>> {
+        let workspace = *self;
+        create_memo(move || {
+            if !workspace.ready.get() {
+                return Vec::new();
+            }
+            let layout = workspace.layout();
+            let windows = workspace.windows.get();
+            windows
+                .iter()
+                .map(|window| (window.id, workspace.window_tab_of(window.id)))
+                .filter(|(_, tab)| !layout.is_shown(&workspace.root_tab(*tab)))
+                .collect()
+        })
     }
 
     fn forget_child(&self, tab: TabId) {
@@ -870,6 +890,14 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
         });
     }
     on_cleanup(move || workspace.forget_child(tab));
+    let minimized = create_memo(move || heard.with(|heard| heard.minimized));
+    let seen_minimize = StoredCell::new(minimized.get_untracked());
+    create_effect(move || {
+        let now = minimized.get();
+        if now > seen_minimize.replace(now) {
+            untrack(|| layout.hide_window(&workspace.root_tab(tab)));
+        }
+    });
     let raised = create_memo(move || heard.with(|heard| heard.raised));
     let seen_raise = StoredCell::new(raised.get_untracked());
     create_effect(move || {
@@ -961,6 +989,56 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                 @node_ref=&panel
             />
         </Layers>
+    }
+}
+
+#[component]
+pub fn UnshownWindows(workspace: Workspace) -> NodeId {
+    let unshown = workspace.unshown();
+    view! {
+        <Frame width={Size::Custom(0.0)} height={Size::Custom(0.0)}>
+            <Layers>
+                <ForEach keys={unshown}>|(window, tab): (HostWindowId, TabId)|
+                    <UnshownWindow workspace window tab />
+                </ForEach>
+            </Layers>
+        </Frame>
+    }
+}
+
+#[component]
+fn UnshownWindow(workspace: Workspace, window: HostWindowId, tab: TabId) -> NodeId {
+    let editor = workspace.editor();
+    let layout = workspace.layout();
+    let heard = workspace.heard_of(tab);
+    on_cleanup(move || workspace.forget_child(tab));
+    let raised = create_memo(move || heard.with(|heard| heard.reported.then_some(heard.raised)));
+    let seen = StoredCell::new(raised.get_untracked());
+    create_effect(move || {
+        let Some(now) = raised.get() else {
+            return;
+        };
+        let before = seen.replace(Some(now));
+        if before.is_none_or(|before| now <= before) {
+            return;
+        }
+        untrack(|| {
+            let root = workspace.root_tab(tab);
+            layout.show(&root);
+            if root != tab {
+                layout.show(&tab);
+            }
+        });
+    });
+    view! {
+        <Subregion
+            editor={editor}
+            placed={Some(SubregionContent::Window(window))}
+            mode=ChildMode::Hidden
+            punch=false
+            on_state={Callback::new(move |state: ChildState| workspace.hear(tab, &state))}
+            @test_id={format!("workspace.window.{}.unshown", window.0)}
+        />
     }
 }
 

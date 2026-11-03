@@ -1455,6 +1455,7 @@ enum Kind {
     Embedded,
     Panel(HostPanel),
     Window(HostWindowId),
+    HiddenWindow(HostWindowId),
     Program(Uuid),
     Creation,
     ArtifactSettings(Uuid),
@@ -1526,17 +1527,22 @@ fn HostedChild(
         editors.forget_picker(&creation_key);
         editors.hide_settings(&creation_key);
     });
+    let hidden = create_memo(move || {
+        child.with(|child| {
+            child
+                .as_ref()
+                .is_some_and(|child| child.mode == ChildMode::Hidden)
+        })
+    });
     let kind = create_memo(move || {
         any.get();
         let (id, block_type, view_block, editor) = match content.get() {
             None => return Kind::Missing,
-            Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
             Some(HostContent::Window(window)) => {
-                return match super::shell().get() == Some(parent) {
-                    true => Kind::Window(window),
-                    false => Kind::Unavailable,
-                };
+                return window_kind(window, super::shell().get() == Some(parent), hidden.get());
             }
+            Some(_) if hidden.get() => return Kind::Unavailable,
+            Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
             Some(HostContent::DockTab { block, tab }) => {
                 let shown = child.with(|child| {
                     child
@@ -1612,7 +1618,6 @@ fn HostedChild(
         }
     });
     let placed_window = create_memo(move || match kind.get() {
-        Kind::Window(window) => Some(window),
         Kind::Program(block) => {
             any.get();
             match be_host_desktop::programs::shown(block) {
@@ -1620,7 +1625,7 @@ fn HostedChild(
                 _ => None,
             }
         }
-        _ => None,
+        kind => heard_window(kind),
     });
     create_effect(move || editors.place_window(parent, key, placed_window.get()));
     on_cleanup(move || editors.place_window(parent, key, None));
@@ -1739,7 +1744,7 @@ fn HostedChild(
                         })));
                         let reporter = reporter_for(parent, region, key, within);
                         match kind {
-                            Kind::Missing | Kind::Unavailable | Kind::NoPicker => view! {
+                            Kind::Missing | Kind::Unavailable | Kind::NoPicker | Kind::HiddenWindow(_) => view! {
                                 <Frame />
                             },
                             Kind::Picker => match editors.picker_view(&creation_key) {
@@ -1854,6 +1859,21 @@ fn HostedChild(
                 </Layers>
             </CanvasItem>
         </Canvas>
+    }
+}
+
+fn window_kind(window: HostWindowId, by_shell: bool, hidden: bool) -> Kind {
+    match (by_shell, hidden) {
+        (true, false) => Kind::Window(window),
+        (true, true) => Kind::HiddenWindow(window),
+        (false, _) => Kind::Unavailable,
+    }
+}
+
+fn heard_window(kind: Kind) -> Option<HostWindowId> {
+    match kind {
+        Kind::Window(window) | Kind::HiddenWindow(window) => Some(window),
+        _ => None,
     }
 }
 
@@ -2081,6 +2101,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         group: None,
         raised: 0,
         rung: 0,
+        minimized: 0,
         fullscreen: false,
         notice: None,
         menu_asked: None,
@@ -2098,6 +2119,7 @@ fn with_window(status: &mut HostChildStatus, shown: WindowStatus) {
     status.group = Some(shown.group).filter(|group| !group.is_empty());
     status.raised = shown.raised;
     status.rung = shown.rung;
+    status.minimized = shown.minimized;
     status.fullscreen = shown.fullscreen;
     status.notice = shown.notice;
     status.menu_asked = shown.menu;

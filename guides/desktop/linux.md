@@ -38,8 +38,8 @@ size the compositor asked for), which be-host passes on as the window child's `i
 `WindowInfo::drawn` is the size of its latest buffer. `WindowInfo` also carries the least and
 greatest size the program asks for: `xdg_toplevel.set_min_size` and `set_max_size`, or an X11
 window's `WM_NORMAL_HINTS` (`State::size_limits`). A window once placed whose last view is gone is
-told it is suspended (`Windows::suspended`), as is one the old interface hides
-(`Windows::set_hidden`). A view's `focus` counter gives its window the keyboard each time it counts
+told it is suspended (`Windows::suspended`); a shell keeps a window it does not show placed
+hidden, which mounts no view, so it is suspended too. A view's `focus` counter gives its window the keyboard each time it counts
 up; be-host counts it up when the placer gives the window child the keyboard or asks `focus-child`. A 1×1 placeholder, which Firefox commits for its
 server-side-decorated windows and never grows on its own, opens at a default size instead.
 
@@ -691,7 +691,8 @@ pointers' input passes by. A window docked in a pane has no
 carrier, so it does not move. `show_window_menu` reaches the shell as its window child's `menu-asked` (a count of
 asks and the point, from the window's top left), where be-sdk-shell's `WindowBody` opens a menu
 there with Hide, Full screen and Close. Minimizing (`xdg_toplevel.set_minimized`, an X11 window's
-iconify) is ignored: the shell alone hides windows, and the protocol has no way for a program to ask it.
+iconify, both `ServerEvent::Minimized`) counts up the window's `Windows::minimized`, which reaches
+the shell as its window child's `minimized`, and the shell hides the tab's dock window.
 A hidden window shown again comes back where it was: its dock window keeps its rect while hidden.
 While its tab is placed nowhere, the window is told so, so its program can stop drawing:
 be-host-wayland reconfigures it with `xdg_toplevel`'s `suspended` state (`xdg_wm_base` v6) or,
@@ -773,8 +774,8 @@ keyboard is still where it was when the token was made. Every program the compos
 (`Windows::run`, which the Apps panel's Run row sends as `ProgramAction::Run`) gets a fresh token of the
 compositor's own as `XDG_ACTIVATION_TOKEN` and `DESKTOP_STARTUP_ID`, honoured whatever has the
 keyboard. An honoured request goes through `Windows::activate`, which bumps the window's `raised`
-count, reported in its child's status, so the shell shows its tab and gives it the keyboard (a tab
-that is hidden is not placed, so it does not hear the raise). Anything else is ignored;
+count, reported in its child's status, so the shell shows its tab and gives it the keyboard (a
+hidden tab's window is placed hidden, so it hears the raise too). Anything else is ignored;
 the dock has no way yet to mark a tab as wanting attention.
 
 ### Windows kept across restarts

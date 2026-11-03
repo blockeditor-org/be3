@@ -41,6 +41,7 @@ pub struct Entry {
     pub focused: bool,
     pub icon: Option<Arc<Image>>,
     pub raised: u64,
+    pub minimizes: u64,
     pub control: Control,
     pub origin: Origin,
     pub popups: Vec<Popup>,
@@ -80,6 +81,7 @@ pub struct Model {
     program_ids: HashMap<Handle, Option<String>>,
     processes: HashMap<u32, Process>,
     raised: HashMap<EntryId, u64>,
+    minimizes: HashMap<EntryId, u64>,
     foreground: Option<EntryId>,
     launches: Launches,
     own: Option<(u32, Option<IntegrityLevel>)>,
@@ -304,6 +306,14 @@ impl Model {
                         .origin(window.process_id, process.exe.as_deref())
                 })
                 .clone();
+            let minimized_now = window.minimized
+                && self
+                    .snapshot
+                    .entry(id)
+                    .is_some_and(|before| !before.minimized);
+            if minimized_now {
+                *self.minimizes.entry(id).or_default() += 1;
+            }
             let owner = index.visible_owner(window);
             let parent = owner
                 .and_then(|owner| root(owner))
@@ -324,6 +334,7 @@ impl Model {
                 focused: focused == Some(id),
                 icon,
                 raised: self.raised.get(&id).copied().unwrap_or_default(),
+                minimizes: self.minimizes.get(&id).copied().unwrap_or_default(),
                 control: control(own_integrity, process.integrity),
                 origin,
                 popups: popups.remove(&id).unwrap_or_default(),
@@ -339,6 +350,7 @@ impl Model {
             .chain(self.known.values().map(|known| known.id))
             .collect();
         self.raised.retain(|id, _| present.contains(id));
+        self.minimizes.retain(|id, _| present.contains(id));
 
         let current = &self.snapshot;
         if current.entries == entries

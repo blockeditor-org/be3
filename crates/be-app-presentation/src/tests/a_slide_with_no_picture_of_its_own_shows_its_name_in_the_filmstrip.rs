@@ -67,6 +67,7 @@ fn a_slide_with_no_picture_of_its_own_shows_its_name_in_the_filmstrip() {
         group: None,
         raised: 0,
         rung: 0,
+        minimized: 0,
         fullscreen: false,
         notice: None,
         menu_asked: None,

@@ -49,6 +49,7 @@ fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clic
             group: None,
             raised: 0,
             rung: 0,
+            minimized: 0,
             fullscreen: false,
             notice: None,
             menu_asked: None,

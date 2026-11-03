@@ -862,15 +862,19 @@ header its placer shows it in: its title, icon and group (the children of one
 app, which the placer cycles together), what the host wants said about it now
 (`notice`), whether it asks to be full screen, and counters that count up each
 time it asks to be brought forward (`raised`, the placer shows its tab), asks
-for attention (`rung`, the placer flashes its tab) or asks for its tab's menu
-at a point (`menu-asked`). A block editor reports none of these yet; the host
-fills them for a program window, and a child reports them only while it is
-placed, so a placer keeps the last it heard for a tab it hides. A placement's
+for attention (`rung`, the placer flashes its tab), asks to be hidden
+(`minimized`, the placer hides its window) or asks for its tab's menu at a
+point (`menu-asked`). A block editor reports none of these yet; the host fills
+them for a program window. A child reports its status only while it is placed,
+so a placer that hides a window child keeps it placed with the `hidden` mode:
+it takes no room, the host draws nothing of it and treats the window as placed
+nowhere, and its status keeps arriving, so a raise or bell of a hidden window
+is heard. Any other child placed hidden is unavailable. A placement's
 `fullscreen` says the placer shows the child full screen, `close-child` says the
 person asked to close it, which closes a program window and does nothing yet for
 any other child, and `focus-child` or the keyboard the host gives the view that
 shows the child gives a program window the keyboard. A program window placed
-nowhere is suspended. A block
+nowhere, or only hidden, is suspended. A block
 already open above the instance is refused, so an editor cannot be nested inside
 itself. The host bounds how many children of one view it will run as editors and
 falls back to preview rendering for the rest.

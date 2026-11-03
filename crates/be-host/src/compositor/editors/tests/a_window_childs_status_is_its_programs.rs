@@ -22,6 +22,7 @@ fn a_window_childs_status_is_its_programs() {
         group: None,
         raised: 0,
         rung: 0,
+        minimized: 0,
         fullscreen: false,
         notice: None,
         menu_asked: None,
@@ -38,6 +39,7 @@ fn a_window_childs_status_is_its_programs() {
         group: "org.gnome.Nautilus".to_owned(),
         raised: 3,
         rung: 2,
+        minimized: 4,
         fullscreen: true,
         responding: true,
         notice: Some("Press Super+Escape to take the keyboard back".to_owned()),
@@ -53,7 +55,7 @@ fn a_window_childs_status_is_its_programs() {
     assert_eq!(status.title.as_deref(), Some("Files \u{2014} Downloads"));
     assert_eq!(status.icon, shown.icon);
     assert_eq!(status.group.as_deref(), Some("org.gnome.Nautilus"));
-    assert_eq!((status.raised, status.rung), (3, 2));
+    assert_eq!((status.raised, status.rung, status.minimized), (3, 2, 4));
     assert!(status.fullscreen);
     assert_eq!(status.notice, shown.notice);
     assert_eq!(status.menu_asked, shown.menu);

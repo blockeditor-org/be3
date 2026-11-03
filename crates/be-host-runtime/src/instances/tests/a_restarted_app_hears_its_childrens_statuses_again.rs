@@ -39,6 +39,7 @@ fn a_restarted_app_hears_its_childrens_statuses_again() {
         group: None,
         raised: 0,
         rung: 0,
+        minimized: 0,
         fullscreen: false,
         notice: None,
         menu_asked: None,

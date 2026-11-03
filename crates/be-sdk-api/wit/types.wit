@@ -375,6 +375,13 @@ interface types {
         active,
         live,
         in-place,
+        /// Kept placed but not shown: the child takes no room, the host draws
+        /// nothing of it and treats it as not shown (a program window is
+        /// suspended), and it keeps reporting the child's status. A placer
+        /// places a child it hides this way to keep hearing it. Only a
+        /// program window reports a status while hidden yet; any other
+        /// child placed hidden is unavailable.
+        hidden,
     }
 
     record block-child {

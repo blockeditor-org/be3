@@ -47,6 +47,7 @@ fn child_statuses_round_trip() {
             group: None,
             raised: 0,
             rung: 0,
+            minimized: 0,
             fullscreen: false,
             notice: None,
             menu_asked: None,
@@ -78,6 +79,7 @@ fn child_statuses_round_trip() {
             group: Some("org.example.Terminal".into()),
             raised: 3,
             rung: 1,
+            minimized: 1,
             fullscreen: true,
             notice: Some("Not responding".into()),
             menu_asked: Some(MenuAsk {

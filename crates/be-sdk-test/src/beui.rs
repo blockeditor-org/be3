@@ -16,9 +16,9 @@ use be_sdk_beui::FromEditor;
 use be_sdk_beui::be_block::{LiveEdit, Merge};
 use be_sdk_beui::headless::{Adopted, HeadlessApp};
 use be_sdk_beui::{
-    Artifacts, BeuiRoot, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
-    Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence, ViewChange, WebViewCommand,
-    WebViewId,
+    Artifacts, BeuiRoot, ChildMode, ChildPlacement, ChildStatus, Creation, EditorHost,
+    EditorInstanceId, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence,
+    ViewChange, WebViewCommand, WebViewId,
 };
 use beui::native::Document;
 use beui::{
@@ -1212,8 +1212,24 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .filter(|placements| placements.view == view)
             .last()
         {
-            self.children = placements.children;
-            self.occluders = placements.occluders;
+            let hidden = |placement: &ChildPlacement| placement.mode == ChildMode::Hidden;
+            self.occluders = placements
+                .occluders
+                .into_iter()
+                .map(|occluder| Occluder {
+                    after: placements.children
+                        [..(occluder.after as usize).min(placements.children.len())]
+                        .iter()
+                        .filter(|placement| !hidden(placement))
+                        .count() as u32,
+                    ..occluder
+                })
+                .collect();
+            self.children = placements
+                .children
+                .into_iter()
+                .filter(|placement| !hidden(placement))
+                .collect();
         }
         if let Some(report) = commit
             .reports
@@ -1514,6 +1530,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             group: None,
             raised: 0,
             rung: 0,
+            minimized: 0,
             fullscreen: false,
             notice: None,
             menu_asked: None,
@@ -1555,6 +1572,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 group: None,
                 raised: 0,
                 rung: 0,
+                minimized: 0,
                 fullscreen: false,
                 notice: None,
                 menu_asked: None,
@@ -2441,6 +2459,7 @@ fn available_status(view: ViewId, placement: &ChildPlacement) -> ChildStatus {
         group: None,
         raised: 0,
         rung: 0,
+        minimized: 0,
         fullscreen: false,
         notice: None,
         menu_asked: None,
