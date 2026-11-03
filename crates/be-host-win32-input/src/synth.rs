@@ -1,5 +1,5 @@
-use beui_types::input::{Keystroke, PointerButton, ScrollDelta};
 use beui_types::input::typing::character;
+use beui_types::input::{Keystroke, PointerButton, ScrollDelta};
 use beui_types::input::{SCROLL_LINE, scrolled};
 use beui_types::{Pos2, Vec2};
 

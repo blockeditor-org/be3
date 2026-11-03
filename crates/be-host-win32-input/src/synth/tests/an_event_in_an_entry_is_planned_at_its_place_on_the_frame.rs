@@ -20,7 +20,9 @@ fn an_event_in_an_entry_is_planned_at_its_place_on_the_frame() {
         planned.synths,
         pointer(DESKTOP, point, PointerAction::Press(PointerButton::Primary))
     );
-    let typed = plan(DESKTOP, frame, size, &Event::Text("hi".to_owned()), &|_| None);
+    let typed = plan(DESKTOP, frame, size, &Event::Text("hi".to_owned()), &|_| {
+        None
+    });
     assert_eq!(typed.cursor, None);
     assert_eq!(typed.synths, text("hi"));
 }
