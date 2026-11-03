@@ -681,7 +681,14 @@ pub(crate) fn AppView(
     focus_when_presenting(presenting, presented, &catcher, primary);
     toggle_keyboard_when_asked(state, primary);
     focus_when_asked(revision, app_id, instance, region, &catcher, primary);
-    focus_when_given(asked, (app_id, instance), state, revision, &catcher, primary);
+    focus_when_given(
+        asked,
+        (app_id, instance),
+        state,
+        revision,
+        &catcher,
+        primary,
+    );
     let catcher_zoom = zoom;
     create_effect(move || {
         revision.get();

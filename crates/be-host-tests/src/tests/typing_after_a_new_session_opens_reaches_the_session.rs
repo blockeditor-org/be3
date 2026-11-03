@@ -9,7 +9,10 @@ fn typing_after_a_new_session_opens_reaches_the_session() {
     host.run(&["settle"]);
     host.key("Tab");
     let tree = host.tree();
-    let focused: Vec<&str> = tree.lines().filter(|line| line.contains(" focused")).collect();
+    let focused: Vec<&str> = tree
+        .lines()
+        .filter(|line| line.contains(" focused"))
+        .collect();
     assert!(
         focused
             .iter()
