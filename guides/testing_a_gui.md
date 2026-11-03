@@ -208,15 +208,19 @@ way for the test to fail.
   fails on them instead. A single editor's test run leaves the folder alone.
 - A changed painting is for a person to review, not for you. They review it on the pull
   request: its summary comment links to a page (crates/be-tool-paint-review, served on the web by
-  crates/be-tool-paint-review-web) that lists every painting the pull request added, removed or
-  changed, and flips each frame between before and after. The comment also shows up to 30
-  frames inline, with before, after and highlighted changes, inside one collapsed disclosure.
-  The review page uses tiled
-  docking on desktop and stacked docking below 700 points: select a painting to open
-  its view, then use the dock back button to return. Images fit the stage initially;
-  pinch, scroll or middle-drag to inspect them, and use Fit or 100% to reset the view.
-  At 100%, each image pixel occupies one UI point (one CSS pixel on the web), regardless
-  of the screen’s device pixel ratio.
+  crates/be-tool-paint-review-web) that shows every painting the pull request added, removed or
+  changed as a thumbnail in a grid, largest change first (the most pixels that differ; an added
+  or removed frame counts all of its pixels). Hovering a thumbnail shows that painting at 100%,
+  centred over the grid, and fetches the full images of its neighbours too; holding Space shows
+  every painting as it was before, and holding Shift the changes in magenta, where a painting
+  with no image on that side says it was added or removed. Clicking one opens it with a line to
+  drag between before and after; pinch, scroll or middle-drag to inspect it, and use Fit or 100%
+  to reset the view. At 100%, each image pixel occupies one UI point (one CSS pixel on the
+  web), regardless of the screen's device pixel ratio. The comment lists the paintings in the
+  same order and shows up to 30 frames inline, as thumbnails linking to the full images, inside
+  one collapsed disclosure. Images are lossless WebP, named by their hash, beside a thumbnail of
+  each (crates/be-tool-local's previews.rs) and uploaded by .github/workflows/ci.yml's
+  publish-summary job.
 - snapshot(name), and every record() before it, also fails on what the frame shows out of
   bounds (beui-core's `Document::overflows`): a node cut off by a clip that no scroll,
   pannable canvas or canvas its owner scrolls across (`Canvas scrolls_across`, as a single-line

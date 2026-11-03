@@ -2,7 +2,8 @@ use super::*;
 
 #[test]
 fn a_missing_image_says_why() {
-    let mut review = Review::with(Manifest {
+    let mut review = Review::open(Some("missing"));
+    review.load(Manifest {
         paintings: vec![changed("missing")],
     });
     review.deliver();
