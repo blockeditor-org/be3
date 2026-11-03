@@ -1541,7 +1541,7 @@ pub fn WindowDialog(
     view! {
         <DockDialog
             id={window_tab(window)}
-            parent={window_tab(workspace.window_key(parent))}
+            parent={create_memo(move || workspace.window_tab_of(parent))}
             title={title}
             size
             modal

@@ -32,6 +32,16 @@ pub(crate) struct DialogParts {
     pub(crate) content: RenderFn<()>,
 }
 
+impl DialogParts {
+    pub(crate) fn alive(&self) -> bool {
+        self.title.is_alive()
+            && self.icon.is_alive()
+            && self.size.is_alive()
+            && self.modal.is_alive()
+            && self.dismiss_on_outside_press.is_alive()
+    }
+}
+
 pub struct DockDialogHandle {
     pub tab: TabId,
     pub title: Memo<String>,

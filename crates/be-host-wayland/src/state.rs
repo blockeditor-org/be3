@@ -93,6 +93,7 @@ pub enum ServerEvent {
     Titled(WindowId, String),
     Changed(WindowId),
     Committed(WindowId),
+    Unmapped(WindowId),
     Fullscreen(WindowId, bool),
     Activated(WindowId),
     Grabbed(WindowId, Grab),
@@ -126,6 +127,7 @@ pub(crate) struct ClientWindow {
     pub(crate) position: Point<i32, Logical>,
     pub(crate) chosen: Option<Size<i32, Logical>>,
     pub(crate) entered: Option<String>,
+    pub(crate) mapped: bool,
 }
 
 #[derive(Default)]
@@ -1097,6 +1099,7 @@ impl State {
             position: Point::default(),
             chosen: None,
             entered: None,
+            mapped: false,
         });
         self.events.push(ServerEvent::Opened(id));
     }
@@ -1151,6 +1154,20 @@ impl State {
                 window.chosen = Some(chosen);
             }
             self.events.push(ServerEvent::Changed(id));
+        }
+        let mapped = !self.layers(id).is_empty();
+        let window = self
+            .windows
+            .iter_mut()
+            .find(|window| window.id == id)
+            .expect("the window committed");
+        let unmapped = window.mapped && !mapped;
+        window.mapped = mapped;
+        if unmapped {
+            window.fullscreen = false;
+            window.maximized = false;
+            window.chosen = None;
+            self.events.push(ServerEvent::Unmapped(id));
         }
         if !self.events.contains(&ServerEvent::Committed(id)) {
             self.events.push(ServerEvent::Committed(id));

@@ -26,6 +26,7 @@ const BUTTON_MIDDLE: u32 = 0x112;
 const BUTTON_SIDE: u32 = 0x113;
 const BUTTON_EXTRA: u32 = 0x114;
 const MAX_ANCESTORS: usize = 32;
+const UNSEEN_REFRESH: Duration = Duration::from_micros(16_667);
 
 pub struct CursorImage {
     pub texture: wgpu::Texture,
@@ -405,6 +406,15 @@ impl Compositor {
                 ServerEvent::Menu(id, at) => windows.ask_menu(id, at),
                 ServerEvent::Minimized(id) => windows.minimize(id),
                 ServerEvent::Rang(id) => windows.ring(id),
+                ServerEvent::Unmapped(id) => {
+                    windows.forget(id);
+                    windows.open(id);
+                    self.configured.remove(&id);
+                    if self.fullscreen.is_some_and(|(shown, _)| shown == id) {
+                        self.fullscreen = None;
+                    }
+                    changed = true;
+                }
                 ServerEvent::Committed(id) => {
                     if !windows.listed(id) {
                         changed = true;
@@ -1028,9 +1038,16 @@ impl Compositor {
 
     fn show_painted(&mut self, context: &Context) {
         let open = self.server.state.windows();
+        let unpainted: Vec<_> = match context.seen() {
+            true => Vec::new(),
+            false => open.iter().copied().filter(|id| self.shown(*id)).collect(),
+        };
         let presentation = &mut self.server.state.presentation;
         for id in self.windows.take_painted() {
             presentation.painted(id);
+        }
+        for id in unpainted {
+            presentation.shown_unpainted(id);
         }
         presentation.forget_closed(&open);
         let places: Vec<_> = open.iter().map(|id| (*id, self.place_of(*id))).collect();
@@ -1158,6 +1175,10 @@ impl Compositor {
         self.watch_pings(context);
         if std::mem::take(&mut self.forced) || self.windows.revision() != self.listed {
             context.request_repaint();
+        }
+        let awaits = (self.server.state.presentation).awaits_frame(|id| self.shown(id));
+        if !context.seen() && awaits {
+            context.request_repaint_after(context.refresh_interval().unwrap_or(UNSEEN_REFRESH));
         }
         if let Some(watch) = &self.watch {
             watch.resume();
