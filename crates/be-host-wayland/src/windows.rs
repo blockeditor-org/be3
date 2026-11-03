@@ -80,6 +80,7 @@ struct Inner {
     focused: Cell<Option<WindowId>>,
     handover: Cell<Option<WindowId>>,
     raised: RefCell<HashMap<WindowId, u64>>,
+    rung: RefCell<HashMap<WindowId, u64>>,
     menus: RefCell<HashMap<WindowId, (u64, Vec2)>>,
     minimized: RefCell<Vec<WindowId>>,
     list: Signal<Vec<WindowInfo>>,
@@ -109,6 +110,7 @@ impl Windows {
             focused: Cell::new(None),
             handover: Cell::new(None),
             raised: RefCell::new(HashMap::new()),
+            rung: RefCell::new(HashMap::new()),
             menus: RefCell::new(HashMap::new()),
             minimized: RefCell::new(Vec::new()),
             list,
@@ -200,6 +202,17 @@ impl Windows {
     pub fn raised(&self, id: WindowId) -> u64 {
         let inner = self.0.value();
         inner.raised.borrow().get(&id).copied().unwrap_or_default()
+    }
+
+    pub(crate) fn ring(&self, id: WindowId) {
+        let inner = self.0.value();
+        *inner.rung.borrow_mut().entry(id).or_default() += 1;
+        inner.revision.set(inner.revision.get() + 1);
+    }
+
+    pub fn rung(&self, id: WindowId) -> u64 {
+        let inner = self.0.value();
+        inner.rung.borrow().get(&id).copied().unwrap_or_default()
     }
 
     pub(crate) fn grab(&self, id: WindowId, grab: Grab) {
@@ -310,6 +323,7 @@ impl Windows {
         inner.windows.borrow_mut().remove(&id);
         inner.views.borrow_mut().remove(&id);
         inner.raised.borrow_mut().remove(&id);
+        inner.rung.borrow_mut().remove(&id);
         inner.menus.borrow_mut().remove(&id);
         inner.minimized.borrow_mut().retain(|held| *held != id);
         if inner.focused.get() == Some(id) {

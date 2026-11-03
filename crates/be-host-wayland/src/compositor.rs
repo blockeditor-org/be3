@@ -404,6 +404,7 @@ impl Compositor {
                 ServerEvent::Grabbed(id, grab) => windows.grab(id, grab),
                 ServerEvent::Menu(id, at) => windows.ask_menu(id, at),
                 ServerEvent::Minimized(id) => windows.minimize(id),
+                ServerEvent::Rang(id) => windows.ring(id),
                 ServerEvent::Committed(id) => {
                     if !windows.listed(id) {
                         changed = true;
@@ -1044,7 +1045,22 @@ impl Compositor {
                     .map_or(Place::Anywhere, |(_, place)| *place)
             });
         for shown in shown {
+            let id = shown.id;
             self.server.state.present(shown);
+            self.server.state.release_fifo(id);
+        }
+        for id in open {
+            if !self.shown(id) {
+                self.server.state.release_fifo(id);
+            }
+        }
+        let now = context.now();
+        let presentation = &self.server.state.presentation;
+        let interval = presentation.refresh();
+        let until = presentation.monotonic(now) + interval;
+        if let Some(next) = self.server.state.release_timed(until) {
+            let due = next.saturating_sub(until);
+            context.request_repaint_after(due);
         }
     }
 

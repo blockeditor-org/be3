@@ -105,6 +105,7 @@ impl Server {
         self.state.release_blockers();
         self.state.fetch_selection();
         self.state.cleanup();
+        self.state.publish_toplevels();
         self.flush();
     }
 

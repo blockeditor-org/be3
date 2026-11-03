@@ -706,6 +706,23 @@ draws its own cursor from the window's `CursorIcon`.
 
 In a login session be-host runs a frame only when an output has flipped since the last one (`beui-platform-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the display it mostly covers, with the flip's time, refresh and sequence: the platform reports each flip through `beui_platform_drm::Flips`, which be-host hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
 
+`wp_fifo_v1` and `wp_commit_timing_v1` pace a program's commits against the same presentation
+(be-host-wayland's `pacing.rs`, over smithay's managed blockers). A fifo barrier a commit sets is
+cleared when that window is presented, or at once while the window is not shown (a hidden tab, or
+off every display), so a FIFO swapchain never stalls behind a window nobody sees. A commit with a
+target time is held until the frame clock, plus the last flip's refresh, reaches it, and be-host
+asks for a frame at the earliest target it holds. `wp_alpha_modifier_v1` multiplies a surface's
+alpha when it is drawn (`Layer::alpha`, the texture quad's opacity and the painting's vertex
+alpha), leaving its sub-surfaces as they are.
+
+`ext_foreign_toplevel_list_v1` (`toplevel_list.rs`) lists every window that has drawn something,
+with its title and app id and an identifier that lasts as long as the window, to any client, as
+compositors without a security context do; it is brought up to date at the end of each dispatch.
+`xdg_system_bell_v1` (`bell.rs`): a ring on a surface counts up its window's `Windows::rung`, which
+reaches the shell as `HostWindow::rung`, and the desktop app flashes that window's chip
+(guides/desktop.md, Shown and hidden entries). A ring on no surface is ignored, and no sound is
+played yet.
+
 A `WindowView` that changes size configures its client with the new size in that same frame.
 Until the client commits a buffer of that size, its last one is drawn at its own size from the
 view's top-left corner, clipped to the view, never stretched to fit; the size a surface is

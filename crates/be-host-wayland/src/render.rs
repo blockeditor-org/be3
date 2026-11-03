@@ -394,6 +394,7 @@ impl Draw for WindowDraw {
             .map(|(texture, layer)| {
                 let quad = Quad {
                     opaque: texture.opaque,
+                    opacity: layer.alpha,
                     ..place(layer.rect, layer.source, layer.buffer, &at)
                 };
                 (&texture.bound, quad)
@@ -452,10 +453,11 @@ impl Paints for WindowDraw {
             let v0 = (layer.source.loc.y / height) as f32;
             let u1 = ((layer.source.loc.x + layer.source.size.w) / width) as f32;
             let v1 = ((layer.source.loc.y + layer.source.size.h) / height) as f32;
+            let alpha = (layer.alpha.clamp(0.0, 1.0) * 255.0).round() as u8;
             let corner = |x: f32, y: f32, u: f32, v: f32| PaintVertex {
                 pos: [x, y],
                 uv: [u, v],
-                color: [255; 4],
+                color: [255, 255, 255, alpha],
             };
             let (a, b, c, d) = (
                 corner(left, top, u0, v0),

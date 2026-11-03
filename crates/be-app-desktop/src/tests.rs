@@ -74,6 +74,7 @@ mod a_window_dragged_over_the_bars_passes_beneath_them;
 mod a_window_launched_from_a_placeholder_takes_its_place;
 mod a_window_moved_to_another_display_lists_its_chip_on_that_displays_bar;
 mod a_window_on_the_second_display_is_kept_above_its_bars;
+mod a_window_that_rings_the_bell_flashes_its_chip;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod a_windows_note_shows_in_its_tab_in_place_of_its_title;
 mod a_windows_tab_dragged_onto_a_window_on_another_display_joins_it;
@@ -659,6 +660,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         focused,
         icon: None,
         raised: 0,
+        rung: 0,
         origin: Default::default(),
         note: None,
         menu: None,

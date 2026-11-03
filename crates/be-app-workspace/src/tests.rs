@@ -248,6 +248,7 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> be_sdk_beui::HostWindow 
         focused: false,
         icon: None,
         raised: 0,
+        rung: 0,
         origin: Default::default(),
         note: None,
         menu: None,
