@@ -18,9 +18,9 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
-    AccessLevel, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost, Failure, FocusedBlock,
-    HostPanel, HostProgram, HostWindow, HostWindowId, PickAnchor, PickedBlock, ProgramsWatch,
-    Pushed, ShellDialog, WindowsWatch,
+    AccessLevel, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost,
+    Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, PickAnchor,
+    PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch,
 };
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -621,7 +621,13 @@ impl Workspace {
                 .next_tab
                 .max(FIRST_BLOCK_TAB)
                 .max(tabs.keys().map(|tab| tab.value() + 1).max().unwrap_or(0))
-                .max(programs.keys().map(|tab| tab.value() + 1).max().unwrap_or(0));
+                .max(
+                    programs
+                        .keys()
+                        .map(|tab| tab.value() + 1)
+                        .max()
+                        .unwrap_or(0),
+                );
             let opened = self.tabs.get_untracked();
             let mut opened_views = self.views.get_untracked();
             for (tab, item) in opened {
@@ -657,17 +663,25 @@ impl Workspace {
         let views = self.views.get();
         let titles = self.titles.get();
         let files = self.files.get();
-        let programs: Vec<(TabId, super::program::ProgramRecord)> = self.programs.with(|programs| {
-            programs
-                .iter()
-                .map(|(tab, program)| (*tab, program.record.clone()))
-                .collect()
-        });
+        let programs: Vec<(TabId, super::program::ProgramRecord)> =
+            self.programs.with(|programs| {
+                programs
+                    .iter()
+                    .map(|(tab, program)| (*tab, program.record.clone()))
+                    .collect()
+            });
         let unreadable = self.unreadable.with(Option::is_some);
         if !inner.restored.get() || unreadable {
             return;
         }
-        let state = saved::save(&layout, inner.next_tab.get(), files, &tabs, &views, programs);
+        let state = saved::save(
+            &layout,
+            inner.next_tab.get(),
+            files,
+            &tabs,
+            &views,
+            programs,
+        );
         let titles = saved::save_titles(&titles);
         untrack(|| {
             self.editor.set_view_state(LAYOUT, Some(&state));
@@ -692,7 +706,9 @@ impl Workspace {
                 })
                 .collect()
         });
-        let programs: Vec<TabId> = self.programs.with(|programs| programs.keys().copied().collect());
+        let programs: Vec<TabId> = self
+            .programs
+            .with(|programs| programs.keys().copied().collect());
         for tab in programs {
             if let Some(title) = self.program_title(tab) {
                 titles.insert(tab, title);

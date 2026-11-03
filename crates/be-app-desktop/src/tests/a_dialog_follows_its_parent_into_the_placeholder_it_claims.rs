@@ -27,12 +27,10 @@ fn a_dialog_follows_its_parent_into_the_placeholder_it_claims() {
         resumed.placeholder_rect(second).is_none(),
         "the window that stopped being a dialog claims the other placeholder"
     );
-    let header = resumed
-        .test
-        .rect_of(&format!(
-            "dock.dialog.{}.header",
-            be_sdk_shell::dialog_tab(HostWindowId(42)).value()
-        ));
+    let header = resumed.test.rect_of(&format!(
+        "dock.dialog.{}.header",
+        be_sdk_shell::dialog_tab(HostWindowId(42)).value()
+    ));
     let tab = resumed.test.rect_of(&format!("dock.tab.{second}"));
     assert!(
         header.top() > tab.bottom()

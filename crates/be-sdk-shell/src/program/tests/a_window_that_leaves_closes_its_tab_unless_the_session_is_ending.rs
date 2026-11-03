@@ -31,7 +31,13 @@ fn a_window_that_leaves_closes_its_tab_unless_the_session_is_ending() {
         vec![TabId::new(3)],
         "a window with no way to start it again leaves no placeholder"
     );
-    place(&mut programs, &[window(4, "foot", None)], false, &mut next, |_| true);
+    place(
+        &mut programs,
+        &[window(4, "foot", None)],
+        false,
+        &mut next,
+        |_| true,
+    );
     let gone = place(&mut programs, &[], true, &mut next, |_| true);
     assert!(gone.is_empty());
     assert_eq!(

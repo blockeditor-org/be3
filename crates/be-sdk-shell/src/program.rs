@@ -172,9 +172,11 @@ pub(crate) fn place(
             continue;
         }
         let waiting = |program: &Program| program.window.is_none();
-        let launched = window.origin.launch.map(TabId::new).filter(|tab| {
-            programs.get(tab).is_some_and(waiting)
-        });
+        let launched = window
+            .origin
+            .launch
+            .map(TabId::new)
+            .filter(|tab| programs.get(tab).is_some_and(waiting));
         let remembered = || {
             programs
                 .iter()
@@ -455,7 +457,9 @@ impl Workspace {
     }
 
     fn placeholder_picture(&self, tab: TabId) -> Option<Image> {
-        let program = self.program(tab).filter(|program| program.window.is_none())?;
+        let program = self
+            .program(tab)
+            .filter(|program| program.window.is_none())?;
         self.catalog.with(|catalog| {
             let icon = program_for(&program.record, catalog)?.icon.as_ref()?;
             icon.is_whole()
@@ -857,7 +861,8 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                 workspace.sized(tab);
                 let area = layout.area();
                 let reach = Vec2::splat(be_sdk_beui::beui::dock::unstyled::HANDLE_REACH);
-                let local = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area.size() - reach);
+                let local =
+                    Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area.size() - reach);
                 let rect = cascaded(tab.value(), size + WINDOW_CHROME, local);
                 control.resize_window(rect.size());
                 layout.move_window(&tab, rect.min + area.min.to_vec2());

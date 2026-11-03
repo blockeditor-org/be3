@@ -19,7 +19,9 @@ fn a_programs_dialog_that_resizes_itself_still_points_at_its_windows_tab() {
         (420.0, 260.0),
         "the dialog follows the size its program chose"
     );
-    let tab = fixture.test.rect_of(&format!("dock.tab.{}", fixture.tab_of(1)));
+    let tab = fixture
+        .test
+        .rect_of(&format!("dock.tab.{}", fixture.tab_of(1)));
     assert!(
         placed.top() > tab.bottom()
             && placed.left() <= tab.center().x

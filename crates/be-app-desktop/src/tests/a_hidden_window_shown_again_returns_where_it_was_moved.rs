@@ -18,9 +18,10 @@ fn a_hidden_window_shown_again_returns_where_it_was_moved() {
     let moved = fixture.window_rect(1).expect("the moved window is drawn");
     assert_ne!(moved.min, opened.min, "dragging the grip moves the window");
 
-    fixture
-        .test
-        .click_with("desktop.windows.1", be_sdk_beui::beui::PointerButton::Secondary);
+    fixture.test.click_with(
+        "desktop.windows.1",
+        be_sdk_beui::beui::PointerButton::Secondary,
+    );
     fixture.settle();
     fixture.test.click("desktop.windows.1.visibility");
     fixture.settle();
@@ -41,5 +42,8 @@ fn a_hidden_window_shown_again_returns_where_it_was_moved() {
         opened.size(),
         "a window that closed and comes back under the same id opens afresh"
     );
-    assert_ne!(reopened.min, moved.min, "not where the closed one was moved");
+    assert_ne!(
+        reopened.min, moved.min,
+        "not where the closed one was moved"
+    );
 }

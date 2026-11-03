@@ -19,13 +19,13 @@ mod wifi;
 mod window_keys;
 mod windows;
 
+use be_sdk_beui::MediaWatch;
 use be_sdk_beui::beui::dock::styled::{
     DockBar, DockNode, DockPane, DockWindow, Docking, DockingLayout, TabId,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
-use be_sdk_beui::MediaWatch;
 use be_sdk_beui::{Editor, Loaded};
 use be_sdk_beui::{HostPanel, HostWindowId};
 use be_sdk_shell::{

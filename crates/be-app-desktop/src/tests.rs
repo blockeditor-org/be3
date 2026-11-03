@@ -10,17 +10,17 @@ use be_sdk_beui::{
     AudioOutput, BlockInfo, BlockParent, ChildContent, ChildId, DisplaysWatch, EditorHost,
     EndingAnswer, EpaperWatch, HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId,
     IncomingNotification, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, MediaLevel,
-    MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
-    NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
+    MediaLevels, MediaRequest, MediaWatch, MenuAsk, NotificationInbox, NotificationRequest,
+    NotificationSignal, NotificationsWatch, OwnedEditor, Picture, PlayerCommand, PowerAction,
     PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, SessionEnd,
-    MenuAsk, Picture, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch,
-    WindowKind, WindowOrigin, WindowsWatch,
+    WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowKind,
+    WindowOrigin, WindowsWatch,
 };
 
 use be_sdk_beui::be_block::{EditorView, EditorViewContent};
 use be_sdk_shell::{SHELL_BARS, SavedProgram, saved_programs};
-use std::collections::HashMap;
 use be_sdk_test::BeuiTest;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::root::DesktopRoot;
@@ -286,9 +286,7 @@ impl Fixture {
     }
 
     fn block_chip(&self) -> String {
-        self.block_chips()
-            .pop()
-            .expect("a block window has a chip")
+        self.block_chips().pop().expect("a block window has a chip")
     }
 
     fn tab_of(&self, window: u64) -> u64 {
@@ -916,9 +914,8 @@ fn readable_id(program_id: &str) -> String {
 
 fn window_name(window: &TestWindow, parent: Option<&TestWindow>) -> String {
     let named = |window: &TestWindow| Some(window.name.clone()).filter(|name| !name.is_empty());
-    let read = |window: &TestWindow| {
-        Some(readable_id(&window.program_id)).filter(|name| !name.is_empty())
-    };
+    let read =
+        |window: &TestWindow| Some(readable_id(&window.program_id)).filter(|name| !name.is_empty());
     let name = named(window)
         .or_else(|| parent.and_then(named))
         .or_else(|| read(window))

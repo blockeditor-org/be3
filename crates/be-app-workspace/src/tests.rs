@@ -5,10 +5,11 @@ use be_sdk_beui::beui::{NodeId, Rect, ScrollDelta, Vec2};
 
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::{
-    BlockParent, ChildContent, ChildId, EditorHost, HostWindowId, OwnedEditor, Picture, WindowsWatch,
+    BlockParent, ChildContent, ChildId, EditorHost, HostWindowId, OwnedEditor, Picture,
+    WindowsWatch,
 };
-use std::collections::HashMap;
 use be_sdk_test::BeuiTest;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::picker::PickerRoot;
@@ -170,8 +171,7 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
 
     fn show_windows(&mut self, windows: &[TestWindow]) {
         self.windows = windows.to_vec();
-        let listed: Vec<be_sdk_beui::HostWindow> =
-            windows.iter().map(TestWindow::listed).collect();
+        let listed: Vec<be_sdk_beui::HostWindow> = windows.iter().map(TestWindow::listed).collect();
         self.host.set_watched::<WindowsWatch>(&listed);
         self.settle();
     }

@@ -27,7 +27,8 @@ fn windows_that_close_as_the_session_ends_are_kept() {
         "the programs closing because the session ends are still there to bring back"
     );
     assert!(
-        tabs.iter().all(|tab| fixture.placeholder_rect(*tab).is_some()),
+        tabs.iter()
+            .all(|tab| fixture.placeholder_rect(*tab).is_some()),
         "as placeholders"
     );
 }

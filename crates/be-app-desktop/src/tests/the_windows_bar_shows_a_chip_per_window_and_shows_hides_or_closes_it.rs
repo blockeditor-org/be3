@@ -44,7 +44,10 @@ fn the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it() {
     let block = block
         .iter()
         .map(|(id, _)| id)
-        .find_map(|id| id.strip_prefix("desktop.windows.block.").filter(|rest| !rest.contains('.')))
+        .find_map(|id| {
+            id.strip_prefix("desktop.windows.block.")
+                .filter(|rest| !rest.contains('.'))
+        })
         .expect("the block has a chip")
         .to_owned();
 
@@ -110,19 +113,26 @@ fn the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it() {
     fixture.test.key(Key::Escape, Modifiers::NONE);
     fixture.settle();
 
+    fixture.test.click_with(
+        &format!("desktop.windows.block.{block}"),
+        PointerButton::Secondary,
+    );
+    fixture.settle();
     fixture
         .test
-        .click_with(&format!("desktop.windows.block.{block}"), PointerButton::Secondary);
-    fixture.settle();
-    fixture.test.click(&format!("desktop.windows.block.{block}.close"));
+        .click(&format!("desktop.windows.block.{block}.close"));
     fixture.settle();
     assert!(
-        !fixture.test.shown(&format!("desktop.windows.block.{block}")),
+        !fixture
+            .test
+            .shown(&format!("desktop.windows.block.{block}")),
         "closing a block's window from its chip closes it"
     );
     assert!(fixture.placed_blocks().is_empty());
 
-    fixture.test.click_with("desktop.windows.2", PointerButton::Secondary);
+    fixture
+        .test
+        .click_with("desktop.windows.2", PointerButton::Secondary);
     fixture.settle();
     fixture.test.click("desktop.windows.2.close");
     fixture.settle();

@@ -20,7 +20,8 @@ fn windows_that_closed_before_a_cancel_come_back_as_placeholders() {
             "cancelling, or a restart that failed, loses nothing: {end:?}"
         );
         assert!(
-            fixture.placeholder_rect(tabs[0]).is_some() && fixture.placeholder_rect(tabs[1]).is_some(),
+            fixture.placeholder_rect(tabs[0]).is_some()
+                && fixture.placeholder_rect(tabs[1]).is_some(),
             "the windows that closed wait as placeholders to be opened again"
         );
         assert!(

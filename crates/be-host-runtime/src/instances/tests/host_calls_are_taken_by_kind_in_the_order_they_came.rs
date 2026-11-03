@@ -1,9 +1,8 @@
 use super::*;
 
 use be_sdk_api::{
-    MediaRequest, MediaWatch, NotificationReport, NotificationSignal,
-    NotificationsWatch, PlayerCommand, PowerAction, PowerWatch, ProgramAction, ProgramsWatch,
-    requested,
+    MediaRequest, MediaWatch, NotificationReport, NotificationSignal, NotificationsWatch,
+    PlayerCommand, PowerAction, PowerWatch, ProgramAction, ProgramsWatch, requested,
 };
 
 #[test]

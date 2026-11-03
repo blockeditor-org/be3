@@ -367,7 +367,8 @@ impl DesktopHost for Win32 {
             SHAPING.with_borrow(|shaping| {
                 NOTES.with_borrow(|notes| {
                     NAMES.with_borrow(|names| {
-                        let record = win32_map::known_window(snapshot, entry, shaping, notes, names);
+                        let record =
+                            win32_map::known_window(snapshot, entry, shaping, notes, names);
                         let parent = parent.map(|parent| {
                             win32_map::known_window(snapshot, parent, shaping, notes, names)
                         });

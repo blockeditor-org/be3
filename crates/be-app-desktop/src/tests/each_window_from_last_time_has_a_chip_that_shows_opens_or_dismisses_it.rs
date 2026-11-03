@@ -25,7 +25,8 @@ fn each_window_from_last_time_has_a_chip_that_shows_opens_or_dismisses_it() {
     assert!(overlap.is_positive(), "the windows overlap");
     let saved = before.saved();
     let [kept_terminal, kept_list] = [1, 6].map(|id| before.tab_of(id));
-    let [kept_foot, kept_notes] = [kept_terminal, kept_list].map(|tab| format!("placeholder.{tab}"));
+    let [kept_foot, kept_notes] =
+        [kept_terminal, kept_list].map(|tab| format!("placeholder.{tab}"));
 
     let mut resumed = Fixture::resumed(saved.clone());
     resumed.show_windows(&[host_window(9, true)]);
@@ -51,19 +52,24 @@ fn each_window_from_last_time_has_a_chip_that_shows_opens_or_dismisses_it() {
         .snapshot("the_windows_bar_with_windows_from_last_time");
 
     resumed.test.clear_calls();
-    resumed
-        .test
-        .click_with(&format!("desktop.windows.{kept_foot}"), PointerButton::Secondary);
+    resumed.test.click_with(
+        &format!("desktop.windows.{kept_foot}"),
+        PointerButton::Secondary,
+    );
     resumed.settle();
     assert!(
         !resumed
             .test
             .shown(&format!("desktop.windows.{kept_foot}.visibility"))
-            && !resumed.test.shown(&format!("desktop.windows.{kept_foot}.close")),
+            && !resumed
+                .test
+                .shown(&format!("desktop.windows.{kept_foot}.close")),
         "a window that is not running cannot be hidden or closed"
     );
     resumed.test.snapshot("the_menu_of_a_window_from_last_time");
-    resumed.test.click(&format!("desktop.windows.{kept_foot}.open"));
+    resumed
+        .test
+        .click(&format!("desktop.windows.{kept_foot}.open"));
     resumed.settle();
     assert_eq!(
         resumed
@@ -76,11 +82,14 @@ fn each_window_from_last_time_has_a_chip_that_shows_opens_or_dismisses_it() {
         "its menu's Open starts the program"
     );
 
+    resumed.test.click_with(
+        &format!("desktop.windows.{kept_notes}"),
+        PointerButton::Secondary,
+    );
+    resumed.settle();
     resumed
         .test
-        .click_with(&format!("desktop.windows.{kept_notes}"), PointerButton::Secondary);
-    resumed.settle();
-    resumed.test.click(&format!("desktop.windows.{kept_notes}.dismiss"));
+        .click(&format!("desktop.windows.{kept_notes}.dismiss"));
     resumed.settle();
     assert!(
         !resumed.test.shown(&format!("desktop.windows.{kept_notes}"))

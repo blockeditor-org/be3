@@ -53,8 +53,9 @@ pub fn label(name: &str, title: &str, program_id: &str) -> String {
 pub fn program_name(window: &KnownWindow, parent: Option<&KnownWindow>) -> String {
     let named =
         |window: &KnownWindow| Some(window.name.trim().to_owned()).filter(|name| !name.is_empty());
-    let read =
-        |window: &KnownWindow| Some(readable_id(&window.program_id)).filter(|name| !name.is_empty());
+    let read = |window: &KnownWindow| {
+        Some(readable_id(&window.program_id)).filter(|name| !name.is_empty())
+    };
     named(window)
         .or_else(|| parent.and_then(named))
         .or_else(|| read(window))

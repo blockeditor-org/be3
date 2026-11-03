@@ -24,9 +24,7 @@ fn a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it() {
         (320.0, 200.0),
         "the dialog is the size it drew rather than filling a pane"
     );
-    let parent_tab = fixture
-        .test
-        .rect_of("dock.tab.2");
+    let parent_tab = fixture.test.rect_of("dock.tab.2");
     assert!(
         dialog.top() > parent_tab.bottom()
             && dialog.left() <= parent_tab.center().x

@@ -34,9 +34,10 @@ fn window_chips_and_toasts_tell_a_screen_reader_their_state() {
             ..notes(2)
         },
     ]);
-    fixture
-        .test
-        .click_with("desktop.windows.3", be_sdk_beui::beui::PointerButton::Secondary);
+    fixture.test.click_with(
+        "desktop.windows.3",
+        be_sdk_beui::beui::PointerButton::Secondary,
+    );
     fixture.settle();
     fixture.test.click("desktop.windows.3.visibility");
     fixture.settle();

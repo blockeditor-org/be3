@@ -17,9 +17,7 @@ fn a_programs_modal_dialog_points_at_its_tab_and_dims_its_window() {
 
     let tab = (1u64 << 41) + 2;
     let header = fixture.test.rect_of(&format!("dock.dialog.{tab}.header"));
-    let parent_tab = fixture
-        .test
-        .rect_of("dock.tab.2");
+    let parent_tab = fixture.test.rect_of("dock.tab.2");
     assert!(
         header.top() > parent_tab.bottom()
             && header.left() <= parent_tab.center().x

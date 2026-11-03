@@ -1,10 +1,10 @@
 use crate::__args::{
     DESKTOP_EPAPER_REFRESH, DESKTOP_INPUT_SWITCH_LAYOUT, DESKTOP_MEDIA_REQUEST,
     DESKTOP_NOTIFICATIONS_REPORT, DESKTOP_POWER_ANSWER_ENDING, DESKTOP_POWER_REQUEST,
-    DESKTOP_PROGRAMS_REQUEST, DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST,
-    DesktopEpaperRefreshArgs, DesktopInputSwitchLayoutArgs, DesktopMediaRequestArgs,
-    DesktopNotificationsReportArgs, DesktopPowerAnswerEndingArgs, DesktopPowerRequestArgs,
-    DesktopProgramsRequestArgs, DesktopTrayRequestArgs, DesktopWifiRequestArgs,
+    DESKTOP_PROGRAMS_REQUEST, DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST, DesktopEpaperRefreshArgs,
+    DesktopInputSwitchLayoutArgs, DesktopMediaRequestArgs, DesktopNotificationsReportArgs,
+    DesktopPowerAnswerEndingArgs, DesktopPowerRequestArgs, DesktopProgramsRequestArgs,
+    DesktopTrayRequestArgs, DesktopWifiRequestArgs,
 };
 use crate::ops::{MethodId, Started, decode};
 use crate::{
