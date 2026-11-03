@@ -27,6 +27,7 @@ decisions/canvas_profile_belongs_to_the_viewer.md,
 decisions/canvas_prototyping_has_no_snapping.md,
 decisions/touch_off_toggle_instead_of_palm_rejection.md and
 decisions/canvas_raster_layers_replace_the_pixel_art_editor.md record why.
+guides/canvas.md describes what is built.
 
 The canvas is not a frozen format yet (guides/frozen_formats.md), so its model
 can change freely until step 4.
