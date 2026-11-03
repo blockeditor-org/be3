@@ -215,7 +215,7 @@ when the desktop no longer wants it (its request channel closed), and `Continue`
 work on this connection (another notification server owns the name), which waits for the next
 one. State that outlives a connection, such as the request channel, notification ids or logind's
 sleep inhibitor, lives outside the per-connection future; what a service showed from the bus
-(tray items, Wi-Fi) is cleared by a guard dropped with that future. Notifications, the tray,
+(tray items, Wi-Fi, the player media keys go to) is cleared by a guard dropped with that future. Notifications, the tray,
 media players and the session environment use the session bus; Wi-Fi, the backlight and logind
 (be-host's `src/login_session/logind.rs`, which answers power requests with an error while the
 bus is away) use the system bus. While a bus is unreachable `connected()` watches the directory
