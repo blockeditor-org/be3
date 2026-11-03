@@ -321,7 +321,7 @@ has a plan for each.
 
 `wasi_html` and `linux_x86_64_html` are `wasi` and Linux x86_64 with the `html`
 constraint (`buck/constraints`), which picks beui's HTML core
-(plans/html_core.md). Their plans, `wasi-html` and `linux-x86_64-html`, are
+(guides/beui.md, on the two cores). Their plans, `wasi-html` and `linux-x86_64-html`, are
 cargo's for the crates `html_packages` in `buck/cargo/buckify.sh` names (beui
 and the crates under it, and the crates built only on the HTML core;
 `browser_packages` adds the ones built only for the browser, which only the
