@@ -1,22 +1,18 @@
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
-use beui_view::types::Overflow;
 
 use crate::unstyled::{DockSwitchHandle, DockSwitchRowHandle, TabId};
 use beui_components_styled::List;
 use beui_components_styled::list_row::ListRow;
-use beui_components_styled::text::{Icon, Text, TextColor};
-use beui_components_styled::tokens::{Padding, Size, Space};
+use beui_components_styled::row::RowSize;
+use beui_components_styled::text::TextColor;
+use beui_components_styled::tokens::{Size, Space};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::TextAlign;
-use beui_view::types::{Align, Direction};
 
 const PANEL_WIDTH: Size = Size::Dialog;
 const PANEL_PADDING: Space = Space::Sm;
 const ROW_SPACING: Space = Space::Xs2;
-const ROW_PADDING: Space = Space::Sm;
-const ICON_SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn DockSwitchPanel(handle: DockSwitchHandle) -> NodeId {
@@ -49,15 +45,14 @@ fn DockSwitchRow(handle: DockSwitchRowHandle) -> NodeId {
         ..
     } = handle;
     view! {
-        <ListRow @test_id={format!("dock.switch.{test_key}")} selected={chosen} on_click={pick}>
-            <Frame padding={Padding::vertical(ROW_PADDING)}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
-                    <Text color=TextColor::Accent align=TextAlign::Center>
-                        <Icon glyph={icon} />
-                    </Text>
-                    <Text overflow=Overflow::Ellipsis>{title}</Text>
-                </List>
-            </Frame>
-        </ListRow>
+        <ListRow
+            @test_id={format!("dock.switch.{test_key}")}
+            label={title}
+            glyph={icon}
+            glyph_color={Some(TextColor::Accent)}
+            size=RowSize::Large
+            selected={chosen}
+            on_click={pick}
+        />
     }
 }

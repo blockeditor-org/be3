@@ -1133,16 +1133,19 @@ impl Document {
         let rects = Rc::clone(&self.rects);
         self.drop_placement(id, &rects, &mut dropped);
         let returning = self.returns_on_removal(id);
-        if self
+        let unfocused = self
             .focused
-            .is_some_and(|focused| self.is_within(focused, id))
-        {
+            .filter(|focused| self.is_within(*focused, id));
+        if unfocused.is_some() {
             self.set_focused(None);
         }
         let mut removed = Vec::new();
         self.detach_subtree(id, &mut removed);
         for node in dropped {
             self.release_placement(node);
+        }
+        if let Some(survivor) = unfocused.filter(|node| self.arena.contains(*node)) {
+            self.set_focusable_focused(survivor, false);
         }
         if let Some(returning) = returning {
             self.return_removed_focus(returning);

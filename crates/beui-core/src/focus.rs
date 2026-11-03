@@ -725,7 +725,7 @@ impl Document {
         }
     }
 
-    fn set_focusable_focused(&mut self, id: NodeId, focused: bool) {
+    pub(crate) fn set_focusable_focused(&mut self, id: NodeId, focused: bool) {
         if !self.contains(id) {
             return;
         }
