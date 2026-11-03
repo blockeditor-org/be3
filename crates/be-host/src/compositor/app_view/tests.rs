@@ -25,6 +25,7 @@ pub(super) fn child(clip: Rect) -> HostChild {
         keyboard: false,
         sheet: false,
         anchor: None,
+        focus_asked: false,
     }
 }
 

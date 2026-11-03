@@ -324,6 +324,13 @@ interface shell {
     /// that does not handle dismissal.
     dismiss-child: async func(instance: editor-instance-id, child: child-id);
 
+    /// Gives a child the editor placed the keyboard, as the person opening
+    /// it or bringing it forward would: the view that shows the child takes
+    /// the keyboard once the child shows. It only moves the keyboard within
+    /// the editor: while the keyboard is outside the editor's views and the
+    /// children they show, it does nothing.
+    focus-child: async func(instance: editor-instance-id, child: child-id);
+
     /// The user created the block of a creation dialog the editor placed as a child.
     commit-child: async func(
         instance: editor-instance-id,

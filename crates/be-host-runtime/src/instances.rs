@@ -106,6 +106,7 @@ struct Instance {
     artifact: ArtifactState,
     dialog: DialogStatus,
     child_dismissals: Vec<ChildId>,
+    child_focus: Vec<ChildId>,
     created: Option<Result<Uuid, String>>,
     screens: HashMap<ViewId, Screen>,
     anchored: Vec<AnchoredScreen>,
@@ -256,6 +257,7 @@ impl Instance {
             artifact: ArtifactState::default(),
             dialog: DialogStatus::default(),
             child_dismissals: Vec::new(),
+            child_focus: Vec::new(),
             created: None,
             screens: HashMap::default(),
             anchored: Vec::new(),
@@ -2619,6 +2621,10 @@ impl Instances {
                 }),
                 sheet: layer.is_some_and(|layer| layer.edge),
                 anchor,
+                focus_asked: self
+                    .entries
+                    .get(&instance)
+                    .is_some_and(|entry| entry.child_focus.contains(&child.child)),
             });
         }
         (children, holes)
@@ -2804,6 +2810,15 @@ impl Instances {
             .get_mut(&instance)
             .map(|entry| std::mem::take(&mut entry.child_dismissals))
             .unwrap_or_default()
+    }
+
+    pub(super) fn take_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) -> bool {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        let asked = entry.child_focus.contains(&child);
+        entry.child_focus.retain(|asked| *asked != child);
+        asked
     }
 
     pub(super) fn take_child_commits(&mut self, instance: EditorInstanceId) -> Vec<ChildCommit> {
@@ -3481,6 +3496,12 @@ impl Instances {
             ShellCall::DismissChild { reply, child, .. } => {
                 ack(reply);
                 entry.child_dismissals.push(child);
+            }
+            ShellCall::FocusChild { reply, child, .. } => {
+                ack(reply);
+                if !entry.child_focus.contains(&child) {
+                    entry.child_focus.push(child);
+                }
             }
             ShellCall::ShowCard { reply, card, .. } => {
                 ack(reply);

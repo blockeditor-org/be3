@@ -102,6 +102,16 @@ struct Enclosing(Memo<Option<NodeRef>>);
 pub(crate) struct GivenKeyboard(pub(crate) Memo<bool>);
 
 #[derive(Clone, Copy)]
+struct AskedFocus {
+    asked: Memo<bool>,
+    placer: Placer,
+    child: ChildId,
+}
+
+#[derive(Clone, Copy)]
+struct ChildFocus(Option<AskedFocus>);
+
+#[derive(Clone, Copy)]
 pub(crate) struct Rounded(pub(crate) Memo<f32>);
 
 #[derive(Clone, Copy)]
@@ -660,6 +670,8 @@ pub(crate) fn AppView(
     provide_context(Enclosing(encloses));
     let given = use_context::<GivenKeyboard>().map(|GivenKeyboard(given)| given);
     provide_context(GivenKeyboard(create_memo(|| false)));
+    let asked = use_context::<ChildFocus>().and_then(|ChildFocus(asked)| asked);
+    provide_context(ChildFocus(None));
     super::intercept::intercept_keys(app_id, instance, region.id, intercepted, move || {
         primary.get_untracked()
             && (hosts_windows
@@ -669,6 +681,7 @@ pub(crate) fn AppView(
     focus_when_presenting(presenting, presented, &catcher, primary);
     toggle_keyboard_when_asked(state, primary);
     focus_when_asked(revision, app_id, instance, region, &catcher, primary);
+    focus_when_given(asked, revision, &catcher, primary);
     let catcher_zoom = zoom;
     create_effect(move || {
         revision.get();
@@ -1471,6 +1484,54 @@ fn focus_when_asked(
     });
 }
 
+fn focus_when_given(
+    asked: Option<AskedFocus>,
+    revision: beui::reactive::ReadSignal<u64>,
+    catcher: &NodeRef,
+    primary: Memo<bool>,
+) {
+    let Some(asked) = asked else {
+        return;
+    };
+    let catcher = *catcher;
+    create_effect(move || {
+        revision.get();
+        if !asked.asked.get() || !primary.get() {
+            return;
+        }
+        untrack(|| {
+            let Some(node) = catcher.try_get() else {
+                return;
+            };
+            let AskedFocus { placer, child, .. } = asked;
+            if !be_host_runtime::take_child_focus(&placer.app.value(), placer.instance, child) {
+                return;
+            }
+            try_with_document(|document| {
+                let held = document.focused_node();
+                let inside = held.is_some_and(|held| {
+                    super::desktop::shown_within(held, |view, _| view == node)
+                });
+                if document.focus_is_within(node) || inside {
+                    return;
+                }
+                let app = placer.app.value();
+                let placer_holds = held.is_none_or(|held| {
+                    super::desktop::catchers_of(&app, placer.instance)
+                        .into_iter()
+                        .any(|view| document.focus_is_within(view))
+                        || super::desktop::shown_within(held, |_, catcher| {
+                            catcher.instance == placer.instance && catcher.app == *app
+                        })
+                });
+                if placer_holds {
+                    document.focus_focusable(node);
+                }
+            });
+        });
+    });
+}
+
 fn focus_when_presenting(
     presenting: Memo<bool>,
     presented: Memo<bool>,
@@ -1802,6 +1863,13 @@ impl ChildNodes {
             let encloses = create_memo(move || following().and_then(|view| view.encloses.get()));
             provide_context(super::anchored::HostOfAnchors(anchors));
             provide_context(Enclosing(encloses));
+            provide_context(ChildFocus(Some(AskedFocus {
+                asked: create_memo(move || child.with(|child| {
+                    child.as_ref().is_some_and(|child| child.focus_asked)
+                })),
+                placer,
+                child: key,
+            })));
             let node = child_view.with(|view| view(key, child, rect));
             (node, holder)
         };

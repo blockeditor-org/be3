@@ -338,6 +338,33 @@ pub(crate) fn forget_catcher(node: NodeId) {
     CATCHERS.with(|catchers| catchers.borrow_mut().remove(&node));
 }
 
+pub(crate) fn catchers_of(app: &str, instance: EditorInstanceId) -> Vec<NodeId> {
+    CATCHERS.with(|catchers| {
+        catchers
+            .borrow()
+            .iter()
+            .filter(|(_, catcher)| catcher.instance == instance && catcher.app == app)
+            .map(|(node, _)| *node)
+            .collect()
+    })
+}
+
+pub(crate) fn shown_within(node: NodeId, within: impl Fn(NodeId, &Catcher) -> bool) -> bool {
+    let mut at = Some(node);
+    let mut seen = Vec::new();
+    while let Some(node) = at.filter(|node| !seen.contains(node)) {
+        seen.push(node);
+        let Some(catcher) = catcher(node) else {
+            return false;
+        };
+        if within(node, &catcher) {
+            return true;
+        }
+        at = catcher.parent;
+    }
+    false
+}
+
 pub(crate) fn catcher(node: NodeId) -> Option<Catcher> {
     CATCHERS.with(|catchers| catchers.borrow().get(&node).cloned())
 }

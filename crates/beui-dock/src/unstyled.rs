@@ -1987,6 +1987,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         }),
     };
     dock.start_lifting();
+    dock.give_keyboard_when_shown();
     api.fill(DockApi(dock));
     on_shortcut(move |press: KeyPress| {
         if !press.pressed || press.key != Key::Tab || !press.modifiers.ctrl || press.modifiers.alt {
