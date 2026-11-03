@@ -18,23 +18,28 @@ marked **(ask)** need a decision from the user during the work.
   `active_actions_from(focus_path)` lists the ones live where the focus is,
   innermost first, deduplicated by id. `styled::CommandPalette` takes its rows
   from that list when it opens, unless it is handed `PaletteItems::list(..)`.
-- **One focused instance in the host.** be-host keeps a single
-  `host.focus: Option<Target>` (`be-host/src/host.rs`). Key, text and IME
-  events go only to that instance (`app_host/input.rs`). The host also knows
-  every child instance's parent, which is how `report_child_bars`
-  (`app_host/runtime.rs`) sends a child's `BarAction` to the app that
-  placed it.
+- **The frame menu already reaches the host.** An editor sends its frame
+  menu's actions to the host as a tree of `MenuEntry` values (label, glyph,
+  enabled, first shortcut, check) whenever an entry changes, and runs the
+  command whose id the host sends back (`MenuPick`); guides/adding_an_app.md
+  describes it. Actions not in the menu do not cross.
+- **Keyboard focus in the host.** be-host-runtime tracks which instance has
+  the keyboard (`crates/be-host-runtime/src/input.rs`, `instances.rs`); key,
+  text and IME events go only to it. The host knows every child instance's
+  parent, which is how `report_child_bars` (`be-host-runtime/src/runtime.rs`)
+  sends a child's `BarAction` to the app that placed it.
 - **An app-to-host message with an echo to the parent.** `BarAction` goes
-  guest `EditorHost::bar_action` → `editor_session.rs` → `instances.rs` →
-  `editors/app.rs`. From there it reaches either the parent app as
-  `EditorMessage::ChildBar`, or the host. A new message follows the same path
-  and touches the same files: `be-sdk-api` (`lib.rs` variant,
-  `instance()`, `direction()`, and `block_ids.rs`), `be-sdk`
-  (`host.rs`, `editor_session.rs`, `screens.rs`), `be-host` (`instances.rs`,
-  `runtime.rs`, `editors/app.rs`, `editors.rs`) and the `be-sdk-test`
-  harness.
-- **Host-level keys.** be-host takes F6/Shift+F6 and Escape before apps
-  (`host::consume_key`), so it can take Ctrl+Shift+P the same way.
+  guest `EditorHost::bar_action` (`be-sdk/src/host.rs`) →
+  `be-sdk/src/editor_session.rs` → `be-host-runtime` (`instances.rs`,
+  `runtime.rs`, as `ChildBar` to the parent app) → `be-host/src/compositor/editors.rs`.
+  A new message follows the same path, plus `be-sdk-api` and the
+  `be-sdk-test` harness.
+- **Intercepted keys.** An instance's intercepting actions name chords the
+  host offers it ahead of whatever is focused (`Input::InterceptedKey`,
+  guides/beui_keyboard.md), so the host already routes chosen chords to an
+  instance that does not have the focus.
+- **A reactive focus signal.** `Document::watch_focused()` exists, so the
+  guest mirror can re-run when the focus moves rather than polling.
 
 ## The design
 
@@ -52,14 +57,12 @@ framework: an app written without beui can publish actions the same way.
   - The app sends it whenever the list or any field in it changes. It is a
     snapshot, not a diff; an app rarely has more than about 50 actions.
   - The list is what `active_actions()` returns, so it follows the app's
-    own focus. That needs a reactive focus signal on `Document`
-    (`watch_focused()`), so the mirror effect re-runs when the focus moves
-    rather than polling for it.
+    own focus (`watch_focused()`).
 - `EditorMessage::RunAction { instance, id }`, host to app. The guest looks
   the id up among its live actions and runs it if it is still enabled. It does
   nothing when the action is gone or disabled, because the list the palette
   showed may be a frame old.
-- A capability flag in the frame spec, like `panes_offered`, says the host
+- A capability flag in the frame spec says the host
   draws the palette. When it is set, `BeuiFrame` does not register its own
   Ctrl+Shift+P, so a frame still has a palette in app tests and in hosts
   that do not draw one.
@@ -126,7 +129,7 @@ Recommend 1, limited to keys with Ctrl or Alt (**ask**).
 ## Tests
 
 - `be-sdk-api`: `Actions` and `RunAction` round-trip, as
-  `bar_actions_round_trip` does.
+  the other messages do in `be-sdk-api`'s tests.
 - `be-sdk-test`: a `BeuiTest` reports an app's published actions, follows
   a change in an action's enabled state, and runs an action from a
   `RunAction`.
