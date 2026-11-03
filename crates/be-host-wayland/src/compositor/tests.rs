@@ -27,6 +27,7 @@ mod a_launched_program_is_given_a_token_that_brings_a_window_forward;
 mod a_locked_pointer_holds_still_and_moves_by_the_platforms_raw_motion_until_the_host_loses_focus;
 mod a_locked_session_gives_no_window_the_keyboard_or_the_pointer;
 mod a_maximized_window_keeps_its_place_and_is_told_it_is_maximized;
+mod a_move_asked_from_a_finger_held_on_the_window_begins_one;
 mod a_menubar_moving_to_its_next_menu_keeps_the_keyboard_on_it;
 mod a_modal_dialog_keeps_presses_and_keys_from_its_parent;
 mod a_pen_over_a_window_reaches_it_as_a_tablet_tool_with_its_pressure;
@@ -120,6 +121,41 @@ use crate::view::WindowView;
 use beui::{LayerLevel, Placement};
 use beui_host::native::build;
 use smithay::wayland::selection::SelectionTarget;
+
+thread_local! {
+    static BEGUN: std::cell::RefCell<Vec<crate::state::Grab>> = const { std::cell::RefCell::new(Vec::new()) };
+    static STEERED: std::cell::RefCell<usize> = const { std::cell::RefCell::new(0) };
+}
+
+#[component]
+fn Carried(windows: Windows) -> NodeId {
+    let ids = create_memo(clone_list(&windows));
+    view! {
+        <Layers>
+            <ForEach keys={ids}>|id: WindowId| {
+                let carrier = crate::view::Carrier {
+                    begin: std::rc::Rc::new(|grab| {
+                        BEGUN.with(|begun| begun.borrow_mut().push(grab));
+                        true
+                    }),
+                    steer: std::rc::Rc::new(|input| {
+                        STEERED.with(|steered| *steered.borrow_mut() += input.events.len());
+                        input
+                    }),
+                };
+                view! {
+                    <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
+                        <WindowView windows id carrier={Some(carrier)} />
+                    </Frame>
+                }
+            }</ForEach>
+        </Layers>
+    }
+}
+
+fn begun() -> Vec<crate::state::Grab> {
+    BEGUN.with(|begun| std::mem::take(&mut *begun.borrow_mut()))
+}
 
 const SCREEN: Vec2 = Vec2::new(1000.0, 700.0);
 const SHOWN: Vec2 = Vec2::new(400.0, 300.0);

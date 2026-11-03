@@ -8,7 +8,9 @@ use be_sdk_api::{
 use beui::animation::{create_animation, motion};
 use beui::reactive::*;
 use beui::unstyled::rubber_band::{Band, WINDOW_SPRING};
-use beui::{Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, Vec2, pos2, vec2};
+use beui::{
+    Forwarded, ForwardedInput, NodeId, PointerId, PointerPhase, Pos2, Rect, Vec2, pos2, vec2,
+};
 
 use be_host_runtime::HostChildStatus;
 use be_sdk_window_stack::{Gesture as Kind, Host, Stacked};
@@ -109,6 +111,14 @@ struct Gesture {
     kind: Kind,
     began_on: Option<usize>,
     start: Option<(Pos2, Rect)>,
+    pointer: Option<PointerId>,
+}
+
+struct Pressed {
+    key: FloatedKey,
+    at: Pos2,
+    rect: Rect,
+    pointer: PointerId,
 }
 
 type StatusKey = (String, EditorInstanceId, ViewId);
@@ -118,7 +128,7 @@ thread_local! {
     static GESTURE: Cell<Option<Signal<Option<Gesture>>>> = const { Cell::new(None) };
     static WORK_AREAS: Cell<Option<Signal<Vec<(StatusKey, Rect)>>>> = const { Cell::new(None) };
     static WINDOW_DISPLAY: Cell<Option<Signal<Option<Rect>>>> = const { Cell::new(None) };
-    static PRESSED: RefCell<Option<(FloatedKey, Pos2, Rect)>> = const { RefCell::new(None) };
+    static PRESSED: RefCell<Option<Pressed>> = const { RefCell::new(None) };
     static POINTER: Cell<Pos2> = const { Cell::new(Pos2::ZERO) };
     static ORIGINS: RefCell<HashMap<(String, EditorInstanceId, ViewId), Pos2>> =
         RefCell::new(HashMap::new());
@@ -408,11 +418,13 @@ fn begin_on(window: &mut Floated, kind: Kind) -> Option<Gesture> {
         (Some(panel), Kind::Move) => panel.moves += 1,
         (Some(panel), Kind::Resize(edge)) => panel.resizes = (panel.resizes.0 + 1, edge),
         (None, kind) => {
+            let pressed = pressed_on(&window.key);
             return Some(Gesture {
                 key: window.key.clone(),
                 kind,
                 began_on: None,
-                start: pressed_on(&window.key),
+                start: pressed.map(|(at, rect, _)| (at, rect)),
+                pointer: pressed.map(|(_, _, pointer)| pointer),
             });
         }
     }
@@ -514,13 +526,13 @@ impl Host<Floated> for Opener<'_> {
     }
 }
 
-fn pressed_on(key: &FloatedKey) -> Option<(Pos2, Rect)> {
+fn pressed_on(key: &FloatedKey) -> Option<(Pos2, Rect, PointerId)> {
     PRESSED.with(|pressed| {
         pressed
             .borrow()
             .as_ref()
-            .filter(|(held, _, _)| held == key)
-            .map(|(_, at, rect)| (*at, *rect))
+            .filter(|pressed| pressed.key == *key)
+            .map(|pressed| (pressed.at, pressed.rect, pressed.pointer))
     })
 }
 
@@ -871,10 +883,21 @@ pub(crate) fn follow(key: &FloatedKey, input: ForwardedInput, origin: Vec2) -> F
                     .map(|window| window.rect)
             });
             if let Some(rect) = rect {
-                PRESSED.with(|pressed| *pressed.borrow_mut() = Some((key.clone(), at, rect)));
+                PRESSED.with(|pressed| {
+                    *pressed.borrow_mut() = Some(Pressed {
+                        key: key.clone(),
+                        at,
+                        rect,
+                        pointer: event.pointer,
+                    })
+                });
             }
         }
-        let held = gesture.with_untracked(|held| held.clone().filter(|held| held.key == *key));
+        let held = gesture.with_untracked(|held| {
+            held.clone().filter(|held| {
+                held.key == *key && held.pointer.is_none_or(|pointer| pointer == event.pointer)
+            })
+        });
         let Some(mut held) = held else {
             events.push(forwarded);
             continue;

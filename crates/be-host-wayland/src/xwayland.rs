@@ -554,10 +554,10 @@ impl State {
     }
 
     fn x11_grab(&mut self, surface: &X11Surface, grab: Grab) {
-        if !self.buttons_held() {
+        let Some(id) = self.x11_window_of(surface) else {
             return;
-        }
-        if let Some(id) = self.x11_window_of(surface) {
+        };
+        if self.buttons_held() || self.touch_held_on(id) {
             self.events.push(ServerEvent::Grabbed(id, grab));
         }
     }
