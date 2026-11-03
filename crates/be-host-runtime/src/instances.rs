@@ -3024,19 +3024,6 @@ impl Instances {
         })
     }
 
-    pub(super) fn app_focus(
-        &self,
-        instance: EditorInstanceId,
-        region: ViewId,
-    ) -> Option<beui::accesskit::NodeId> {
-        let screen = self.entries.get(&instance)?.screens.get(&region)?;
-        screen
-            .input
-            .focused()
-            .then(|| screen.accessibility.focus())
-            .flatten()
-    }
-
     pub(super) fn request_focus(&mut self, screen: ScreenId) {
         for entry in self.entries.values_mut() {
             for placed in entry.screens.values_mut() {

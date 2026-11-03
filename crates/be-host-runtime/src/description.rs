@@ -53,7 +53,7 @@ pub fn describe(context: &beui::native::Context) {
                     placed.rect,
                     placed.clip,
                     placed.zoom,
-                    None,
+                    false,
                     placed.inert,
                 )
             })
@@ -65,16 +65,12 @@ pub fn describe(context: &beui::native::Context) {
                     .instances
                     .anchored_views(*instance, *region)
                     .into_iter()
-                    .map(|(view, rect, bounds)| {
-                        (*instance, view, rect, bounds, 1.0, Some(*region), *inert)
-                    })
+                    .map(|(view, rect, bounds)| (*instance, view, rect, bounds, 1.0, true, *inert))
             })
             .collect();
-        for (instance, region, rect, clip, zoom, owner, inert) in
+        for (instance, region, rect, clip, zoom, anchored, inert) in
             placements.into_iter().chain(anchored)
         {
-            let anchored = owner.is_some();
-            let lent = owner.and_then(|owner| runtime.instances.app_focus(instance, owner));
             let title =
                 (!anchored && !super::docks::is_bar(instance, region.0)).then_some(name.as_str());
             let Some(described) = runtime.instances.described(instance, region) else {
@@ -99,7 +95,7 @@ pub fn describe(context: &beui::native::Context) {
                 rect.intersect(clip),
                 rect.min.to_vec2(),
                 zoom,
-                lent.or_else(|| described.focused.then(|| described.tree.focus()).flatten()),
+                described.focused,
                 !context.accessibility_known(document),
             );
             let actions = ActionGroup {
