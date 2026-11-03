@@ -24,7 +24,11 @@ fn the_toplevel_list_follows_windows_opening_retitled_and_closing() {
     let _list = harness.client.toplevel_list();
     let unmapped = harness.client.toplevel();
     harness.settle();
-    assert_eq!(listed(&harness), Vec::new(), "a window with nothing drawn is not listed");
+    assert_eq!(
+        listed(&harness),
+        Vec::new(),
+        "a window with nothing drawn is not listed"
+    );
     unmapped.destroy();
     harness.settle();
 
@@ -52,7 +56,10 @@ fn the_toplevel_list_follows_windows_opening_retitled_and_closing() {
     harness.settle();
     let toplevels = &harness.client.received.protocols.toplevels;
     assert_eq!(toplevels[0].title, "Notes — draft");
-    assert_eq!(toplevels[0].identifier, identifier, "a new title keeps the identifier");
+    assert_eq!(
+        toplevels[0].identifier, identifier,
+        "a new title keeps the identifier"
+    );
     assert_eq!(toplevels[0].done, done + 1, "the change ends with one done");
 
     notes.destroy();
@@ -60,8 +67,16 @@ fn the_toplevel_list_follows_windows_opening_retitled_and_closing() {
     assert_eq!(
         listed(&harness),
         vec![
-            ("Notes — draft".to_owned(), "org.example.Notes".to_owned(), true),
-            ("Terminal".to_owned(), "org.example.Terminal".to_owned(), false),
+            (
+                "Notes — draft".to_owned(),
+                "org.example.Notes".to_owned(),
+                true
+            ),
+            (
+                "Terminal".to_owned(),
+                "org.example.Terminal".to_owned(),
+                false
+            ),
         ]
     );
 }

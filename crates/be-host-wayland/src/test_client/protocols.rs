@@ -100,8 +100,7 @@ impl TestClient {
         &self,
         surface: &wl_surface::WlSurface,
     ) -> wp_alpha_modifier_surface_v1::WpAlphaModifierSurfaceV1 {
-        let manager: wp_alpha_modifier_v1::WpAlphaModifierV1 =
-            self.bind("wp_alpha_modifier_v1", 1);
+        let manager: wp_alpha_modifier_v1::WpAlphaModifierV1 = self.bind("wp_alpha_modifier_v1", 1);
         manager.get_surface(surface, &self.handle, ())
     }
 
