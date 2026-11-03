@@ -103,6 +103,8 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
     fn conflict(_: &Arc<Mutex<Self>>, _: Uuid, _: Conflict) {}
 
     fn counted(_: &Arc<Mutex<Self>>, _: usize, _: usize) {}
+
+    fn leaving(_: &Arc<Mutex<Self>>, _: bool) {}
 }
 
 pub enum Woken {
