@@ -81,7 +81,7 @@ fn devices_and_profiles_shows_only_what_a_profile_keeps() {
     assert_eq!(settings.label("devices.scale.all"), "not set");
     assert_eq!(
         settings.label(&format!("devices.scale.{tablet}")),
-        "150% kept since setup"
+        "same"
     );
     assert_eq!(
         settings.label(&format!("devices.scale.{desktop}")),

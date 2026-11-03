@@ -65,10 +65,10 @@ use crate::input::{
 };
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, clamp, mirrored_scale, moved};
-use crate::plan::plan;
 use crate::output::{Buffers, Output, connected, wait_for};
 use crate::outputs::{DisplayRenderer, Outputs};
 use crate::pacing::{Lane, Pacer, Wait};
+use crate::plan::plan;
 use crate::pointing::{self, Kind, Pointer, Target};
 use crate::problems::Problems;
 use crate::recovery::{Card, Recovery};

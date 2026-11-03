@@ -98,7 +98,9 @@ impl Outputs {
     }
 
     fn lit(&self) -> impl Iterator<Item = &Output> {
-        self.outputs.iter().filter(|output| output.shows().is_some())
+        self.outputs
+            .iter()
+            .filter(|output| output.shows().is_some())
     }
 
     pub fn moved_pointer(&mut self) {
