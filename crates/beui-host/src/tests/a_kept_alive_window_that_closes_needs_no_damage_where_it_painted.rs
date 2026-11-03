@@ -8,7 +8,12 @@ fn a_kept_alive_window_that_closes_needs_no_damage_where_it_painted() {
     let open = create_signal(true);
     let document = build_node(move || {
         view! {
-            <Window id={window} size={vec2(120.0, 80.0)} open={open} keep_alive={true}>|_: WindowHandle|
+            <Window
+                id={window}
+                size={vec2(120.0, 80.0)}
+                open={open}
+                keep_alive={true}
+            >|_: WindowHandle|
                 <Frame fill={Color32::WHITE} />
             </Window>
         }
