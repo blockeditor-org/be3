@@ -138,5 +138,6 @@ fn display(id: &str, name: &str, connector: &str) -> HostDisplay {
         rotation: Rotation::Normal,
         rect: be_sdk_beui::Rect::ZERO,
         scale: 1.0,
+        default_scale: 1.0,
     }
 }
