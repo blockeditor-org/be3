@@ -9,32 +9,6 @@ To add a block type, read `guides/adding_a_block.md` first; it is the short
 version of "Adding a content type" below. This guide is for work on the stack
 itself and on how the host holds it.
 
-## Why the stack looks like this
-
-It replaced an older block system whose `Block` trait fused five separable
-things into one type: the durable representation, the live-edit operation, undo
-history, the reference graph, and child manipulation. `const CRDT: bool` then
-made a single choice that governed live merge, offline merge and the wire
-protocol together. Most of what went wrong followed from that coupling, and
-each of these is something not to bring back.
-
-- **The operation log never compacted.** Reading a block replayed every
-  operation it had ever received, and it could not be fixed in place:
-  operations were ciphertext to the server, and compaction needs understanding.
-  An append-only operation log and end-to-end encryption are incompatible.
-- **References cost an organization per keystroke.** The client replayed pending
-  operations to diff the full reference set, and the server rewrote every
-  reference row in the organization on every update. Under a CRDT the delta was
-  also wrong, because it was computed against an optimistic local state rather
-  than the converged one.
-- **There was no local persistence.** Unsent work lived in memory, so closing
-  the process lost it.
-- **Bulk data was in band.** An image was base64'd into JSON, wrapped in a
-  snapshot, and shipped whole on every replace.
-- **The layering was inverted.** Version control was a content-addressed blob
-  store with commits and branches, built as block types on top of the block
-  system. The thing that should be the substrate was a guest.
-
 ## Goals
 
 1. Durable state is bytes. A block's persistent form is a byte string, stored as
@@ -49,24 +23,27 @@ each of these is something not to bring back.
    and understands only the last three.
 6. Reclamation is reference counting, not tracing.
 
+Why the stack is split this way, and what the block system before it got
+wrong, is in `decisions/block_stack_separates_durable_bytes.md`.
+
 ## The layers
 
 ```
-be-block-store     objects, chunking, encryption        client + server
-be-block-commit    commit DAG, retention, merge         client + server
-be-block-session   ownership lease, sequencer, resume   client + server
-be-block-graph     parents, edges, access, refcounts    server
+be-block-store     objects, chunking, encryption         client + server
+be-block-commit    commit DAG, retention, merge          client + server
+be-block-session   ownership lease, sequencer, resume    client + server
+be-block-graph     parents, edges, access, refcounts     server
 be-block-protocol  the wire format (WIT be3:server)      client + server
 be-block-model     objects with ids, merge, undo, derive client
-be-block     content traits and content types     client
+be-block           content traits and content types      client
 be-block-vcs       snapshot trees, diff, tree merge      client
-be-block-client    a peer: local store, blocks, relay   client
+be-block-client    a peer: local store, blocks, relay    client
 be-block-sync      a folder <-> a directory on disk      client (native)
-be-server    the always-online peer               server
-be-server-bin the executable, with its portal       server
+be-server          the always-online peer                server
+be-server-bin      the executable, with its portal       server
 ```
 
-The server is one more peer that never decrypts. That is why most crates are
+The server is one more peer that never decrypts, which is why most crates are
 shared: a client is a peer with a local store and a UI, a server is a peer with
 a big store, no UI, and the session registry.
 
@@ -75,30 +52,30 @@ a big store, no UI, and the session registry.
 Content-addressed, encrypted object storage.
 
 - `Hash` is the SHA-256 of the **ciphertext**, so a server can verify what it
-  holds without being able to read it.
+  holds without being able to read it. A hash is a CBOR byte string.
 - `chunker::split` is a gear-hash content-defined chunker. An edit in the middle
   of a large file re-uploads one chunk, and the chunks either side resynchronise.
-- `Vault` seals with a key it is named by id from its `Keyring`, and opens by
-  the id the sealed bytes carry (see Keys). Sealing derives its nonce from the
-  key and the plaintext. That is deliberate: it makes identical content
-  deduplicate under one key, and share nothing across keys. Do not replace it
-  with a random nonce without replacing the deduplication story too.
+- `Vault` seals with a key it names by id from its `Keyring`, and opens by the
+  id the sealed bytes carry (see Keys). Sealing derives its nonce from the key
+  and the plaintext, so identical content deduplicates under one key and shares
+  nothing across keys; a random nonce would lose that deduplication
+  (`decisions/deterministic_seal_nonce.md`).
 - `Manifest` is `{content_type, length, chunks}`. `Vault::read_range` and
   `chunks_in_range` are the streaming primitives.
-- `ObjectStore` is `MemoryStore` or `FileStore`. It is synchronous on purpose;
-  network fetching is explicit (see `Peer::fetch`), so nothing blocks inside it.
+- `ObjectStore` is `MemoryStore` or `FileStore`. It is synchronous; network
+  fetching is explicit (see `Peer::fetch`), so nothing blocks inside it.
   `FileStore::put` writes atomically (a temporary file renamed into place) but
   does not wait for the disk; `sync` makes everything put so far durable at
-  once (one `syncfs` on Linux and Android). Call it before telling anyone else
-  an object exists: `Peer::push` syncs before it uploads, and the server syncs
-  a `PutObjects` before it answers. A torn object left by a crash fails its
-  hash on reading and is dropped.
+  once (one `syncfs` on Linux and Android). An object has to be synced before
+  anyone else is told it exists, or a crash can lose an object others already
+  name: `Peer::push` syncs before it uploads, and the server syncs a
+  `PutObjects` before it answers. A torn object left by a crash fails its hash
+  on reading and is dropped.
 - `Vault::put_value` stores a value (a commit, a version-control tree) as a
   CBOR map by field name (`encode_value`), so a later build can add a field to
   one, with `#[serde(default)]`, without a migration. Commits are encrypted, so
-  only a client could ever rewrite one, and rewriting one changes its hash and
-  every id that names it: an encrypted format is read as it was written,
-  forever. A hash is a CBOR byte string.
+  only a client could rewrite one, and rewriting one changes its hash and every
+  id that names it: an encrypted format is read as it was written, forever.
 
 ### be-block-commit
 
@@ -107,37 +84,40 @@ Content-addressed, encrypted object storage.
   means a merge. `Publish` also tells the server the parents in plaintext, so
   the server knows the history graph of every block without reading a commit.
 - `references` is the edge set derived from the **sealed** state, recorded once
-  per commit. This is what makes the reference graph correct: it always describes
-  content that was actually stored.
+  per commit, so the reference graph always describes content that was
+  actually stored.
 - `CommitStore` walks the DAG and tolerates pruned history: a missing commit
   truncates a chain instead of breaking it, so `first_parent_chain`, `ancestry`
-  and `common_ancestor` all keep working after retention runs.
+  and `common_ancestor` keep working after retention runs.
 - `retention::plan` thins history. It pins bookmarks, keeps everything inside
   `keep_all_within`, and then thins by widening age buckets, preferring within
-  each bucket the commit with the longest **quiet interval** after it. A state
+  each bucket the commit with the longest **quiet interval** after it: a state
   someone left alone for an hour outranks the keystroke bursts around it.
+  Retention runs only when a client calls `Peer::prune`.
 - `merge` is diff3. `merge_slices` walks the base indices that both sides left
   equal; the regions between those anchors take whichever side changed, or
-  conflict when both did. `merge_lines` and `render_conflicts` are
-  built on it.
+  conflict when both did. `merge_lines` and `render_conflicts` are built on it.
 
 ### be-block-session
 
 - `Lease` is ownership. The first participant owns the session; a claim succeeds
   only against the generation the claimant last saw, and only when the lease has
-  expired or the owner is gone. Generation numbers stop a stale claim from
-  stomping a newer owner. A heartbeat (`ReportClean`) renews the lease: the
-  owner sends one after every seal and, while it holds the session, every
-  `HEARTBEAT_INTERVAL` (half of `LEASE_MILLISECONDS`) on its replica's own
-  timer (`wake_at`), with `clean_at` set only while it has nothing unsealed. Its length is `ServerConfig::lease`; tests that claim pass zero
-  (be-host's `Harness::lapsing`, `Lease::lasting(0)` in the replica's `Sim`)
-  so a claim never waits on the clock.
+  expired or the owner is gone, so a stale claim cannot stomp a newer owner. A
+  heartbeat (`ReportClean`) renews the lease: the owner sends one after every
+  seal and, while it holds the session, every `HEARTBEAT_INTERVAL` (half of
+  `LEASE_MILLISECONDS`) on its replica's own timer (`wake_at`), with `clean_at`
+  set only while it has nothing unsealed. The lease's length is
+  `ServerConfig::lease`; tests that claim pass zero (be-host's
+  `Harness::lapsing`, `Lease::lasting(0)` in the replica's `Sim`) so a claim
+  never waits on the clock.
 - `clean_at` is the commit the owner last reported its state durable at. It
   outlives the session going empty (see `sessions::forgettable`), so a peer
   taking over an abandoned session can tell whether anything was unpublished.
-- `resume` decides whether a returning peer merges, and the answer comes from
-  history, not from having been away: an ancestor head fast-forwards, a
-  descendant head publishes, and only genuine divergence merges.
+  An empty session is remembered while it carries a `clean_at`, so the registry
+  grows with the number of blocks ever edited live.
+- `resume` decides whether a returning peer merges, from history rather than
+  from having been away: an ancestor head fast-forwards, a descendant head
+  publishes, and only genuine divergence merges.
 - `Sequencer` and `Follower` are the two ends of the ordering. Operations carry
   an `OpId`, so work a peer submitted before losing its connection is
   deduplicated on the way back in rather than applied twice.
@@ -156,55 +136,58 @@ for navigation and access, and keeps nothing alive. `BlockGraph::deleted_roots`
 are the blocks whose own link does not hold; `deleted_root` finds the one a
 block is deleted under.
 
-Each block still has one parent, so liveness is a walk up one chain, and that is
-what makes reclamation reference counting rather than tracing: a block holds
-its commits, a commit holds its chunk hashes, and `ObjectRefs` deletes an
-object when the last holder releases it. There is no cycle to trace and no mark
-and sweep. Do not reintroduce one.
+Each block has one parent, so liveness is a walk up one chain, and reclamation
+is reference counting with no tracing or mark and sweep: a block holds its
+commits, a commit holds its chunk hashes, and `ObjectRefs` deletes an object
+when the last holder releases it
+(`decisions/block_reclamation_by_reference_counting.md`).
 
 Every content type therefore lists the blocks it is the parent of among its
 references, and whatever makes a child under a parent also adds it to the
 parent's content. Until that edit is saved the child shows in the trash for
-the parent's other viewers; the host hides the window on its own side by
+the parent's other viewers; the host hides that window on its own side by
 treating the block as being placed (`Graph::placing`) until the parent lists it.
 
 ### be-server
 
-SQLite for metadata, a `FileStore` for objects, and a websocket carrying
-postcard frames. Where a websocket cannot get through (a proxy that refuses the
-upgrade), `POST .../http` carries the same frames (`http.rs`): the first body is
-the greeting, whose answer names a session in a `Be3-Session` header; each
-later post with that header carries client frames, answered in order with the
-frames the server has for the client then; a body is frames each after a
-four-byte big-endian length. The client sends whatever is queued in one post,
-and `Peer::fetch` asks for every missing object at once. A
-session is a connection like a websocket's, kept until it is idle for the same
-time, so notifications wait for the next post.
+SQLite for metadata, a `FileStore` for objects, and postcard frames over a
+websocket.
 
-- The database's schema is a list of `CREATE` statements (`schema.rs`), and
-  `be_block_sqlite_schema::ensure` checks a database against it on open: it adds a
-  missing table or index and a missing column that has a default, and refuses
-  anything else (a column gone, retyped or unknown), so a schema only grows.
-  Values that may grow (a role, an access level, a parent kind) have no `CHECK`,
-  since SQLite rebuilds a table to change one. The host's own `host.sqlite3`
-  is checked the same way, and recreated (signing the device out) when it
-  does not match.
-- A connection starts with a greeting outside the protocol: each side sends
-  `be_block_protocol::hello` with its build id (`be_lib_build_id::current()`, read from the
-  `build-info.json` file beside the executable, or `--build-info-file`), and the server
-  closes the connection when the ids differ (`ClientError::Incompatible` on the
-  client). A program with no id is an error, not a wildcard: the client fails
-  with `ClientError::NoBuild`, the server does not start, and a test installs
-  one with `be_lib_build_id::install`. Server and clients are upgraded
-  together from one commit, so the protocol itself is postcard and never
-  versioned.
-- After the greeting every frame is a be-wasm-ops frame (guides/type_modules.md,
-  "Operations and WIT"): the protocol is the WIT package `be3:server`
-  (`crates/be-block-protocol/wit`), generated with `network: true`, so each call is
-  an op and its id the only correlation; there are no request ids. A function
-  answers `result<T, error>`, whose `error` (an `ErrorCode` and a message)
-  `be_block_client::ClientError::Refused` carries; `be_block_client::ask` turns a call's
-  `Pending` into a `Result<T, ClientError>`, so client code is
+- **HTTP fallback.** Where a websocket cannot get through (a proxy that refuses
+  the upgrade), `POST .../http` carries the same frames (`http.rs`): the first
+  body is the greeting, whose answer names a session in a `Be3-Session` header;
+  each later post with that header carries client frames, answered in order
+  with the frames the server has for the client then. A body is frames each
+  after a four-byte big-endian length. The client sends whatever is queued in
+  one post, and `Peer::fetch` asks for every missing object at once. A session
+  is kept like a websocket connection, until it is idle for the same time, so
+  notifications wait for the next post.
+- **Schema.** The database's schema is a list of `CREATE` statements
+  (`schema.rs`), and `be_block_sqlite_schema::ensure` checks a database against
+  it on open: it adds a missing table or index and a missing column that has a
+  default, and refuses anything else (a column gone, retyped or unknown), so a
+  schema only grows. Values that may grow (a role, an access level, a parent
+  kind) have no `CHECK`, since SQLite rebuilds a table to change one. The
+  host's own `host.sqlite3` is checked the same way, and recreated (signing the
+  device out) when it does not match.
+- **Greeting.** A connection starts with a greeting outside the protocol: each
+  side sends `be_block_protocol::hello` with its build id
+  (`be_lib_build_id::current()`, read from the `build-info.json` file beside
+  the executable, or `--build-info-file`), and the server closes the connection
+  when the ids differ (`ClientError::Incompatible` on the client). A program
+  with no id is an error, not a wildcard: the client fails with
+  `ClientError::NoBuild`, the server does not start, and a test installs one
+  with `be_lib_build_id::install`. Server and clients are upgraded together
+  from one commit, so the protocol is never versioned
+  (`decisions/server_protocol_is_unversioned.md`).
+- **Calls and streams.** After the greeting every frame is a be-wasm-ops frame
+  (guides/type_modules.md, "Operations and WIT"): the protocol is the WIT
+  package `be3:server` (`crates/be-block-protocol/wit`), generated with
+  `network: true`, so each call is an op and its id the only correlation; there
+  are no request ids. A function answers `result<T, error>`, whose `error` (an
+  `ErrorCode` and a message) `be_block_client::ClientError::Refused` carries;
+  `be_block_client::ask` turns a call's `Pending` into a
+  `Result<T, ClientError>`, so client code is
   `client::blocks::read_block(&connection, block).await??` or
   `ask(...).await?`. What the server pushes is a stream: `blocks.changes` (the
   graph announcements below), `blocks.watch(block)` (head moves and the
@@ -214,145 +197,144 @@ time, so notifications wait for the next post.
   starts with `joined` or `refused` and carries the session's changes and
   relayed messages; dropping it leaves the session, and claims, heartbeats and
   relays are its methods. `finish-browser-login` waits until the browser
-  approves or denies the code; a client that loses its connection calls it again
-  on the next one.
-- The server runs each connection as a `be_wasm_ops::net::Peer` (`Side::Host`,
-  `be-server/src/client.rs`): it takes the Start frames in the order they
-  arrived and answers each call before the next, except a call that waits
-  (`finish-browser-login`), which a task answers and hands back to the
+  approves or denies the code; a client that loses its connection calls it
+  again on the next one.
+- **The server's side of a connection** is a `be_wasm_ops::net::Peer`
+  (`Side::Host`, `be-server/src/client.rs`): it takes the Start frames in the
+  order they arrived and answers each call before the next, except a call that
+  waits (`finish-browser-login`), which a task answers and hands back to the
   connection's loop when it must change the connection's state (`Late`). The
   hub (`WatchHub`) sends each connection `Push`es, which it writes to the
-  matching open streams, all held in one `be_wasm_ops::Outlets` keyed by a `Route`. A stream sends while its consumer has granted credit
-  and keeps up to `STREAM_BUFFER` (4096) items beyond that; a client that lets
-  one fill up is disconnected, as is one whose hub queue fills. The loop takes
-  no new frame while more than `OUTBOUND_FRAMES` frames wait to be written, so
-  a client that does not read its socket is slowed rather than buffered.
-- The client runs its `Connection` as a `be_wasm_ops::net::Peer` (`Side::Guest`)
-  that `Connection` implements `Caller` around, so the generated
-  `be_block_protocol::client::<interface>` functions take `&connection`. It opens
-  the connection-wide streams on the first `subscribe()` and the per-block ones
-  as `watch` and `join_session` are called, and pumps every stream into one
-  `broadcast` of `be_block_client::Event` in the connection's worker, which the host's
-  loop and `be` follow; a receiver that falls behind it re-lists what it wants
-  and joins its sessions again, as after a reconnect.
-- A publish is a compare-and-swap on the head. A publish against a stale head
-  comes back `Rejected` with the head to merge against, rather than being
-  silently ordered after it.
-- A publish writes one head update, the handful of edge rows the commit
-  declares, and refcounts for chunks it actually introduced. It does not rewrite
-  the organization.
-- The tenant is an organization (`organizations`, everything keyed by
-  `organization_id`): one block graph, its members and its administrators.
-  Its `kind` is `company`, made with `CreateOrganization` by an administrator,
-  or `personal`, the server's one organization everyone may share, which
-  `ServerStore::personal_organization` makes on demand; registering joins it
-  as an editor, and nobody administers it.
-- Access is computed per member (`Visibility` in `blocks.rs`), as
+  matching open streams, all held in one `be_wasm_ops::Outlets` keyed by a
+  `Route`. A stream sends while its consumer has granted credit and keeps up to
+  `STREAM_BUFFER` (4096) items beyond that; a client that lets one fill up is
+  disconnected, as is one whose hub queue fills. The loop takes no new frame
+  while more than `OUTBOUND_FRAMES` frames wait to be written, so a client that
+  does not read its socket is slowed rather than buffered.
+- **The client's side** is its `Connection`, a `be_wasm_ops::net::Peer`
+  (`Side::Guest`) that `Connection` implements `Caller` around, so the
+  generated `be_block_protocol::client::<interface>` functions take
+  `&connection`. It opens the connection-wide streams on the first
+  `subscribe()` and the per-block ones as `watch` and `join_session` are
+  called, and pumps every stream into one `broadcast` of
+  `be_block_client::Event` in the connection's worker, which the host's loop
+  and `be` follow; a receiver that falls behind it re-lists what it wants and
+  joins its sessions again, as after a reconnect.
+- **Publishing** is a compare-and-swap on the head. A publish against a stale
+  head comes back `Rejected` with the head to merge against, rather than being
+  silently ordered after it. A publish writes one head update, the handful of
+  edge rows the commit declares, and refcounts for the chunks it introduced.
+- **Organizations.** The tenant is an organization (`organizations`,
+  everything keyed by `organization_id`): one block graph, its members and its
+  administrators. Its `kind` is `company`, made with `CreateOrganization` by an
+  administrator, or `personal`, the server's one organization everyone may
+  share, which `ServerStore::personal_organization` makes on demand;
+  registering joins it as an editor, and nobody administers it. An
+  administrator lists the members (`ListMembers`), changes a role (`SetRole`)
+  and removes a member (`RemoveMember`, which revokes their grants and drops
+  their wrapped keys); the organization always keeps one administrator, and the
+  affected account's connections to it are closed (`WatchHub::drop_member`), so
+  they reconnect with what they now are.
+- **Access** is computed per member (`Visibility` in `blocks.rs`), as
   `None < KnowExists < View < Edit < Manage`. An organization administrator
   manages everything. Anyone else gets the best grant on the block or an
   ancestor (a grant that can view is inherited down, and a lower grant never
   reduces it), and `Manage` on what they authored when its parent is `Root` or
   `Detached` or they can view its parent, so a member taken off a workspace
-  loses what they wrote inside it. A settings block (`be_block_graph::SETTINGS_TYPE`)
-  whose parent is a block is the exception: it is `Manage` to whoever manages
-  its parent, at most `View` to whoever can view the parent, and its own
-  grants never raise that, so changing, adding or moving in a block's
-  settings needs `Manage` on the block. The kinds an editor changes
-  (`be_block_graph::EDIT_KINDS`: the prefix registry and tag definitions) are not in
-  the settings block but are children of the block itself, so they inherit
-  `Edit` like any child, though a grant on one never raises it above its
-  parent's. Below a settings block or such a kind, every block has exactly
-  the access of its parent: neither authorship nor a grant raises it. Who
-  reads a kind is a manager's choice; the editor who made an edit kind may
-  only open it to anyone inside once, as it is made (its default).
-  Moving a block (`SetParent`) needs `Edit` on it and on the new parent, and
-  `Manage` on it to move a workspace (a root block) or to move it into another
-  workspace (`BlockGraph::move_refusal`); without `Manage` a move is also
-  refused if it would raise the mover's own access to the block (into a folder
-  they manage, say). An author manages what they made, so moving one's own
-  block anywhere one may edit is fine.
-  A block they can view references gives them `KnowExists` on it, and on
-  nothing that block references in turn. Of a block they may only know exists
-  they are told its id, content type and access and nothing else
-  (`BlockSummary::no_access`: no author, parent, head, version, references,
-  metadata, key or scope), and are served none of its keys or objects. Ancestors
-  are not shown: a block someone can see whose parent they cannot is an entry
-  point, which the host lists under Shared with me. `SetAccess` grants, and only
-  someone who manages a block may grant on it or list its access; a grant above `None` must also
-  name a member of the organization who is a contact of the granter (see
-  Contacts). Anyone may revoke their own grant (leaving a block). `ListAccess`
-  lists the block's author, grantees and viewers and the caller's contacts who
-  are members, never the rest of the membership, and marks a grantee still
-  `waiting` for the block's scope key. An administrator lists the members
-  (`ListMembers`), changes a role (`SetRole`) and removes a member
-  (`RemoveMember`, which revokes their grants and drops their wrapped keys);
-  the organization always keeps one administrator, and the affected account's
-  connections to it are closed (`WatchHub::drop_member`), so they reconnect
-  with what they now are.
-- Nothing that runs per request or per publish maps the whole graph.
-  `BlockGraph` indexes children by parent and blocks by the accounts that
-  authored them or hold a grant on them (their entry points).
-  `BlockGraph::inherited` walks up from one block, which answers every edit
-  and view check; `visible` walks down from an account's entry points to list
-  what it knows of; `audience` names the accounts that may know a block: the
-  authors and viewers of its parent chain, its own grants and the viewers of
-  what references it. A move or a grant changes what is below the block only
-  for accounts in its audience before or after, so nothing walks the subtree
-  to find them.
-- Graph announcements are per member too: when a block changes, each connected
+  loses what they wrote inside it.
+  - A settings block (`be_block_graph::SETTINGS_TYPE`) whose parent is a block
+    is `Manage` to whoever manages its parent, at most `View` to whoever can
+    view the parent, and its own grants never raise that, so changing, adding
+    or moving in a block's settings needs `Manage` on the block. The kinds an
+    editor changes (`be_block_graph::EDIT_KINDS`: the prefix registry and tag
+    definitions) are children of the block itself rather than of its settings
+    block, so they inherit `Edit` like any child, though a grant on one never
+    raises it above its parent's. Below a settings block or such a kind, every
+    block has exactly the access of its parent: neither authorship nor a grant
+    raises it. Who reads a kind is a manager's choice; the editor who made an
+    edit kind may open it to anyone inside only as it is made (its default).
+  - Moving a block (`SetParent`) needs `Edit` on it and on the new parent, and
+    `Manage` on it to move a workspace (a root block) or to move it into
+    another workspace (`BlockGraph::move_refusal`); without `Manage` a move is
+    also refused if it would raise the mover's own access to the block (into a
+    folder they manage, say). An author manages what they made, so moving one's
+    own block anywhere one may edit is allowed.
+  - A block they can view references gives them `KnowExists` on it, and on
+    nothing that block references in turn. Of such a block they are told its
+    id, content type and access and nothing else (`BlockSummary::no_access`: no
+    author, parent, head, version, references, metadata, key or scope), and are
+    served none of its keys or objects. Ancestors are not shown: a block someone
+    can see whose parent they cannot is an entry point, which the host lists
+    under Shared with me.
+  - `SetAccess` grants; only someone who manages a block may grant on it or
+    list its access, and a grant above `None` must name a member of the
+    organization who is a contact of the granter (see Contacts). Anyone may
+    revoke their own grant (leaving a block). `ListAccess` lists the block's
+    author, grantees and viewers and the caller's contacts who are members,
+    never the rest of the membership, and marks a grantee still `waiting` for
+    the block's scope key.
+- **Graph indexing.** No per-request or per-publish check maps the whole
+  graph. `BlockGraph` indexes children by parent and blocks by the accounts
+  that authored them or hold a grant on them (their entry points).
+  `BlockGraph::inherited` walks up from one block, which answers every edit and
+  view check; `visible` walks down from an account's entry points to list what
+  it knows of; `audience` names the accounts that may know a block: the authors
+  and viewers of its parent chain, its own grants and the viewers of what
+  references it. A move or a grant changes what is below the block only for
+  accounts in its audience before or after, so nothing walks the subtree to
+  find them. The graph is cached per organization in memory and dropped on any
+  error so it reloads from the database rather than drifting.
+- **Announcements** are per member: when a block changes, each connected
   client whose account is in the block's audience before or after the change
   (and every administrator) is sent the `BlockChanged` its own access lets it
   see, or a `BlockRemoved` when it no longer does. The blocks a changed block
   references, and those a publish stopped referencing, are announced with it,
   since who may know they exist changed too; an id no block has (one linked
-  before it is made) is never announced. `WatchHub` indexes clients
-  by organization and account, so this never scans every connection.
-- A connection hears only of what it listed. `list-blocks` (a `Listing`: a
+  before it is made) is never announced. `WatchHub` indexes clients by
+  organization and account, so this never scans every connection.
+- **A connection hears only of what it listed.** `list-blocks` (a `Listing`: a
   parent's children, the shared blocks, a block's backrefs or references) and
-  `read-block` each register their `Listing` with `WatchHub`
-  before reading (so nothing changed during the read is missed), and the hub
-  remembers each block a connection has been told of. A change is sent when a
-  listing matches the block as it now is (its parent, its own id, an entry point
-  under `Shared`, a reference to a backrefs target, being referenced by a
-  block whose references are listed, as the connection last heard of that
-  block) or when the connection was
-  told of it before, so a block moving out of a listed folder is still
-  announced, and then forgotten. `unlist` drops a listing and the blocks only it
-  matched; a refused listing stays until then, so a block read before it is
-  made is announced once it is.
-- Every `BlockSummary` and `BlockRemoved` carries the `revision` it was read
-  at: `ServerStore::with_graph` advances one counter on each call, under the
-  lock every graph read and change takes, so a larger revision is always a
-  later view. Announcements and replies can reach a client out of order (a
-  reply overtakes the announcements queued before it, and two requests'
-  announcements interleave), and the revision is how the client puts them back
-  in order. The counter restarts with the server, which a client sees as a
-  reconnect and a reload.
-- Accounts live here. Remote password authentication and verified registration use
-  the `/auth` portal. The protocol uses browser sign-in handoff, `Authenticate`
-  with a token, header authentication, and `Logout`; organizations are created
-  through it, and an administrator can `Invite` an email under an id the
-  inviting client picks. Accepting an invitation makes inviter and invitee
-  contacts. Only an account with that email can read the
-  invitation (`GetInvitation`) or join with it (`AcceptInvitation`), once;
-  inviting the same email again replaces it. There is no list of an account's
-  invitations: the id only reaches the invitee in the link (see Keys).
-  Remote accounts register and sign in through the server’s `/auth` portal;
-  registration verifies email ownership before creating the account. Password
-  checks run off the database lock, a few at a time, and an email with five
-  failed sign-ins in a row is locked out for a time that doubles with each
-  further failure.
-  The server never reads `Be3-Gateway-Authorization`, which is left to a gateway in front
-  of it. A member's `CreateAgent` makes an agent in either organization kind: an
-  editor account with no password, with the recovery public key the caller made
-  for it, and a token, answered once (guides/tracker.md); the agent and its
-  creator become contacts. Only the creator can list or remove that agent.
-- An object is served only to a member who can view a block that holds it, by
-  a commit (`commit_objects`) or by `HoldObjects`; anything else reads as
-  missing. A merge commit holds its extra parents' objects, so a `stash` that
-  was never a head stays readable.
-- The graph is cached per organization in memory and dropped on any error so it
-  reloads from the database rather than drifting.
+  `read-block` each register their `Listing` with `WatchHub` before reading (so
+  nothing changed during the read is missed), and the hub remembers each block
+  a connection has been told of. A change is sent when a listing matches the
+  block as it now is (its parent, its own id, an entry point under `Shared`, a
+  reference to a backrefs target, being referenced by a block whose references
+  are listed, as the connection last heard of that block) or when the
+  connection was told of it before, so a block moving out of a listed folder is
+  still announced, and then forgotten. `unlist` drops a listing and the blocks
+  only it matched; a refused listing stays until then, so a block read before
+  it is made is announced once it is.
+- **Revisions.** Every `BlockSummary` and `BlockRemoved` carries the `revision`
+  it was read at: `ServerStore::with_graph` advances one counter on each call,
+  under the lock every graph read and change takes, so a larger revision is
+  always a later view. Announcements and replies can reach a client out of
+  order (a reply overtakes the announcements queued before it, and two
+  requests' announcements interleave), and the revision is how the client puts
+  them back in order. The counter restarts with the server, which a client sees
+  as a reconnect and a reload.
+- **Accounts** live here. Remote accounts register and sign in through the
+  `/auth` portal, and registration verifies email ownership before creating
+  the account. The protocol uses browser sign-in handoff, `Authenticate` with a
+  token, header authentication, and `Logout`. Password checks run off the
+  database lock, a few at a time, and an email with five failed sign-ins in a
+  row is locked out for a time that doubles with each further failure. The
+  server never reads `Be3-Gateway-Authorization`, which is left to a gateway in
+  front of it.
+  - Organizations are created through the protocol, and an administrator can
+    `Invite` an email under an id the inviting client picks. Only an account
+    with that email can read the invitation (`GetInvitation`) or join with it
+    (`AcceptInvitation`), once; inviting the same email again replaces it.
+    There is no list of an account's invitations: the id only reaches the
+    invitee in the link (see Keys). Accepting an invitation makes inviter and
+    invitee contacts.
+  - A member's `CreateAgent` makes an agent in either organization kind: an
+    editor account with no password, with the recovery public key the caller
+    made for it, and a token, answered once (guides/tracker.md); the agent and
+    its creator become contacts. Only the creator can list or remove that agent.
+- **Objects.** An object is served only to a member who can view a block that
+  holds it, by a commit (`commit_objects`) or by `HoldObjects`; anything else
+  reads as missing. A merge commit holds its extra parents' objects, so a
+  `stash` that was never a head stays readable.
 
 ### be-block
 
@@ -393,46 +375,46 @@ trait Streamed: BlockContent {          // optional: header plus payload
 ```
 
 History and child manipulation are not part of the durable form. Undo is
-client-local and against a sequencer it emits an inverse operation rather than
+client-local, and against a sequencer it emits an inverse operation rather than
 rewinding state; a child change is an ordinary operation that
-`LiveEdit::child_operations` answers for. `Undo::step` is taken from the state before an
-operation, and `revert` and `reapply` turn a step into operations against the
-state as it is *now*, so an undo leaves alone whatever someone else changed
-since: a database undoes a rename without moving a row another peer
+`LiveEdit::child_operations` answers for. `Undo::step` is taken from the state
+before an operation, and `revert` and `reapply` turn a step into operations
+against the state as it is *now*, so an undo leaves alone whatever someone else
+changed since: a database undoes a rename without moving a row another peer
 rescheduled.
 
-`Streamed` types encode as `[u32 header length][header][payload]`, which is what
-lets a reader take the header and then a byte range. Every `Blob` (below) is
-streamed.
+`Streamed` types encode as `[u32 header length][header][payload]`, which lets a
+reader take the header and then a byte range. Every `Blob` (below) is streamed.
 
 `references_in` is `references` for one organization, and it is what the peer
 calls when it records a commit's references (`Root::references_in` for a
-document). Text uses it: a block URL names its organization, and a URL pasted from
-another organization is a link, not a reference.
-The URL format itself lives in `be_block::block_url`: a block URL is
-`<base>#block/<organization>/<block>`, where the base is the URL of the server the
-organization is on (the `LinkBase` host value), sub-path and all, or nothing for
-the device's own server. Text stores these bytes, so the format is read
-forever: a reference is found by its fragment alone, whatever host comes before
-it, and the link it belongs to starts at the `http://` or `https://` directly
-before the `#`.
+document). Text uses it: a block URL names its organization, and a URL pasted
+from another organization is a link, not a reference. The URL format lives in
+`be_block::block_url`: a block URL is `<base>#block/<organization>/<block>`,
+where the base is the URL of the server the organization is on (the `LinkBase`
+host value), sub-path and all, or nothing for the device's own server. Text
+stores these bytes, so the format is read forever: a reference is found by its
+fragment alone, whatever host comes before it, and the link it belongs to
+starts at the `http://` or `https://` directly before the `#`.
 
 ### be-block-client
 
-`Peer` is a local object store plus a connection. `transport/` is what makes
-that connection portable: a `Writer` and a `Reader` per platform - tokio and
-tokio-tungstenite natively, the browser's own `WebSocket` in `web.rs` - plus the
+`Peer` is a local object store plus a connection. `transport/` makes that
+connection portable: a `Writer` and a `Reader` per platform (tokio and
+tokio-tungstenite natively, the browser's own `WebSocket` in `web.rs`) plus the
 `spawn` each one's executor wants. Natively, an `http(s)://` URL (`http_url`)
-takes the server's HTTP posts instead of a websocket (`transport/native/http.rs`),
-and both go through `HTTPS_PROXY`. `be_block_client::authorize` registers an
-`Be3-Gateway-Authorization` header for a server's origin, which every native connection to
-it sends; a browser cannot add one to a websocket. `Connection` above it is the same code
+takes the server's HTTP posts instead of a websocket
+(`transport/native/http.rs`), and both go through `HTTPS_PROXY`.
+`be_block_client::authorize` registers a `Be3-Gateway-Authorization` header for
+a server's origin, which every native connection to it sends; a browser cannot
+add one to a websocket. `Connection` above the transport is the same code
 everywhere, and it waits on its command channel and its socket rather than
 polling either.
 
 `Connection` also decides when the server is gone, because a socket can stay
 open with nothing behind it (a laptop that slept, a Wi-Fi hop, a proxy that
 stopped forwarding) and the transport never says so:
+
 - Connecting, the socket plus the greeting, gives up after `CONNECT_TIMEOUT`
   (15 s) with `ClientError::TimedOut`. Once connected, no request has a
   deadline of its own: every one is answered or fails with `Disconnected` when
@@ -444,101 +426,107 @@ stopped forwarding) and the transport never says so:
   (`serve_socket`) and answers a ping's Start frame (and a websocket ping) at
   once, ahead of the calls queued for its answering loop, so a slow call does
   not make the client think the server is gone.
-  `PONG_WAIT` (20 s) after the ping was actually written, with still nothing
+- `PONG_WAIT` (20 s) after the ping was actually written, with still nothing
   heard, the connection closes itself, and everything waiting on it sees a
   disconnect. Only an unanswered ping closes it: a process that was suspended
-  or starved for longer than both pings when it wakes and keeps a live
-  connection. The timer only wins when no frame and no command is waiting, and
-  the worker alternates between reading frames and writing queued commands, so
-  neither a flood of requests nor of events stops the other side. It keeps
-  reading frames while a write is under way, and a write still stuck
-  `PONG_WAIT` after the ping fell due (a server that stopped reading, so the
-  socket's send buffer is full) closes the connection too.
-  `Connection::due()` watches the clock time at which the connection next acts
-  on silence (pings or gives up), so a test with a manual clock can advance
-  straight to it.
+  or starved for longer than both keeps a live connection when it wakes. The
+  timer only wins when no frame and no command is waiting, and the worker
+  alternates between reading frames and writing queued commands, so neither a
+  flood of requests nor of events stops the other side. It keeps reading
+  frames while a write is under way, and a write still stuck `PONG_WAIT` after
+  the ping fell due (a server that stopped reading, so the socket's send buffer
+  is full) closes the connection too.
 - Each deadline is read from a `be_block_client::Clock`, passed to
   `Connection::connect`: `Clock::real()` everywhere but tests, which pass
-  `Clock::manual()` and `advance` it, so none of this needs sleeping in a test.
-  `crates/be-block-fault-relay` is the other half of those tests: a TCP relay between a
-  client and a server that can `stall` its connections (read, count what it
-  heard and forward nothing, a half-open socket), `stall_at_next_request` (the
-  same, from the next bytes the client sends, so a test can silence the server
-  just as the client asks something), `cut` them, or `hold_new` ones it accepts
-  without ever reaching the server, or `jam_at_next_request` (stop reading
-  altogether, so the client's writes back up; it accepts with a 64 KiB receive
-  buffer so that takes megabytes, not tens of them). `count(predicate)` counts
-  the calls the client starts whose method id matches from then on (a `watch`
-  of the count; the ids are `be_block_protocol::__args::<INTERFACE>_<FUNCTION>`), so
-  a test waits for a ping or a heartbeat to be sent. The be-host
-  `Harness::miss_a_ping` advances the manual clock to each `Connection::due()`
-  until the connection gives up.
+  `Clock::manual()` and `advance` it. `Connection::due()` watches the clock time
+  at which the connection next acts on silence (pings or gives up), so a test
+  can advance straight to it; be-host's `Harness::miss_a_ping` advances to each
+  `due()` until the connection gives up.
+
+`crates/be-block-fault-relay` is the other half of those tests: a TCP relay
+between a client and a server that can `stall` its connections (read, count
+what it heard and forward nothing: a half-open socket),
+`stall_at_next_request` (the same, from the next bytes the client sends, so a
+test can silence the server just as the client asks something), `cut` them,
+`hold_new` ones it accepts without ever reaching the server, or
+`jam_at_next_request` (stop reading altogether, so the client's writes back up;
+it accepts with a 64 KiB receive buffer so that takes megabytes, not tens of
+them). `count(predicate)` counts the calls the client starts whose method id
+matches from then on (a `watch` of the count; the ids are
+`be_block_protocol::__args::<INTERFACE>_<FUNCTION>`), so a test waits for a ping
+or a heartbeat to be sent.
+
+Reading and writing:
 
 - `open` reads the head commit and its chunks with one `ReadContents` and decodes.
 - `save` chunks the content and publishes against the head it read, carrying in
-  the `Publish` the commit and the chunks that head lacks, so a save is one round
-  trip. A merge, or new objects over half a frame, are uploaded first instead:
-  only what `MissingObjects` says the server lacks, in `PutObjects` of up to
-  2 MiB each.
-- There is no batch request. The server takes a connection's calls in
-  order and both transports send whatever is queued together (the HTTP one in
-  one post), so independent requests go out without awaiting each other; only a
-  chain where each request needs the last one's answer is worth a request of its
-  own.
-- `fetch` verifies that bytes the server returns hash to the hash that was asked
-  for. The server is not trusted with content, so do not drop this check.
+  the `Publish` the commit and the chunks that head lacks, so a save is one
+  round trip. A merge, or new objects over half a frame, are uploaded first
+  instead: only what `MissingObjects` says the server lacks, in `PutObjects` of
+  up to 2 MiB each.
+- There is no batch request. The server takes a connection's calls in order
+  and both transports send whatever is queued together (the HTTP one in one
+  post), so independent requests go out without awaiting each other; only a
+  chain where each request needs the last one's answer costs a round trip per
+  request.
+- `fetch` verifies that the bytes the server returns hash to the hash that was
+  asked for. The server is not trusted with content, and this check is what
+  stops it substituting any.
 - `fetch_history` walks a commit's parents into the local store. Anything that
-  asks history a question (`resume`, `common_ancestor`) needs this first, or an
+  asks history a question (`resume`, `common_ancestor`) needs it first, or an
   unfetched ancestor looks like a divergence.
 - `stream_header` and `stream_range` read a `Streamed` type without the payload.
 
+### Live sessions
+
 A block being edited is in a session, which each device holds in its type
 module's replica (`be-sdk-type-guest`, guides/type_modules.md); the peer only
-relays, seals and stores for it. A relay goes on the connection in order without
-waiting for the server's answer to the one before (`Peer::relay` returns it, and
-be-block-type-host waits for it apart), so a pen stroke's thousands of operations cost no more
-round trips before the seal than one does. The owner sequences and broadcasts; a follower
-applies its own edit immediately, rebases it against operations that arrive in
-between, and reconciles against the owner's echo. A replica keeps `confirmed`
+relays, seals and stores for it. A relay goes on the connection in order
+without waiting for the server's answer to the one before (`Peer::relay`
+returns it, and be-block-type-host waits for it apart), so a pen stroke's
+thousands of operations cost no more round trips before the seal than one does.
+The owner sequences and broadcasts; a follower applies its own edit
+immediately, rebases it against operations that arrive in between, and
+reconciles against the owner's echo. A replica keeps `confirmed`
 (server-ordered) and `visible` (`confirmed` plus pending). A seal writes a
 commit, heartbeats `clean_at`, and tells the followers with
 `SessionMessage::Sealed` which commit now holds which sequence number. A
-reconcile runs the resume decision and merges when it has to.
+reconcile runs the resume decision and merges when it has to. Only the owner
+seals or reconciles; a follower's edits are saved by the owner.
 
-A follower's `head` is only right because of `Sealed`, and ownership depends on
-it being right. A follower that takes over carries on from the head the last
-owner sealed: it keeps the old sequence numbering so the other followers keep
-applying what it accepts, it accepts the operations it had pending as its own,
-and it owes a seal for whatever the old owner accepted after its last one.
-Get the head wrong and the new owner's first save is refused, and the resume
-decision reads its unsaved work as something to fast-forward over. A reconcile
-merges unsaved work into anything it fast-forwards or merges onto, and when
-it changes the owner's content outside the operation stream, the next `Sealed`
-tells the followers to reload the head. Only an owner ever seals or reconciles:
-a follower's edits are the owner's to save.
+A follower's `head` is right only because of `Sealed`, and ownership depends on
+it. A follower that takes over carries on from the head the last owner sealed:
+it keeps the old sequence numbering so the other followers keep applying what
+it accepts, it accepts the operations it had pending as its own, and it owes a
+seal for whatever the old owner accepted after its last one. With the head
+wrong, the new owner's first save is refused, and the resume decision reads its
+unsaved work as something to fast-forward over. A reconcile merges unsaved work
+into anything it fast-forwards or merges onto, and when it changes the owner's
+content outside the operation stream, the next `Sealed` tells the followers to
+reload the head.
 
 Ownership also moves while the old owner is still there: a host's
 `Event::Claim` takes a lapsed lease (a terminal host takes the block from the
-viewer that opened it first; a replica only claims on its own when the owner
+viewer that opened it first; a replica claims on its own only when the owner
 has left). The old owner learns of it from the next `Lease` and becomes a
 follower that has applied everything it sequenced, so its status stops saying
 owner and it stops sealing. What it accepted before it heard reaches the new
 owner as `Accepted` from a non-owner: `Sequencer::inherit` keeps it when it
 continues the new owner's numbering, and otherwise the new owner applies it,
-owes a seal and makes that seal reload every follower, which is what reconciles
-the two numberings. A follower is catching up from loading until the owner's
-`Snapshot` arrives, and re-sends its `Catchup` to each new owner meanwhile; a
+owes a seal and makes that seal reload every follower, which reconciles the two
+numberings. A follower is catching up from loading until the owner's
+`Snapshot` arrives, and re-sends its `Catchup` to each new owner meanwhile. A
 replica ignores `Event::Claim` while it is catching up, because an owner that
 never heard the snapshot would number from where it joined and lose the old
-owner's unsaved operations. A follower promoted while catching up, by the owner
-leaving, makes its first seal a reload for the same reason.
+owner's unsaved operations; for the same reason a follower promoted while
+catching up, by the owner leaving, makes its first seal a reload.
 
 A merge that conflicts first writes the owner's unsaved side as a commit of its
-own (`Command::Stash`), so the merge commit has both sides as parents and neither
-is lost, and reports a `be_block_type_host::Conflict` to its host. be-host keeps
-it per block (`be_host_stack::conflicts`) and shows a notice on the block whose "See both
-versions" previews the two sides as revision previews; keeping the merge or
-restoring one side clears it. A session message
+own (`Command::Stash`), so the merge commit has both sides as parents and
+neither is lost, and reports a `be_block_type_host::Conflict` to its host.
+be-host keeps it per block (`be_host_stack::conflicts`) and shows a notice on
+the block whose "See both versions" previews the two sides as revision
+previews; keeping the merge or restoring one side clears it. A session message
 or operation this version cannot decode marks the session incompatible. On a
 follower that also marks it diverged, because its copy may now be wrong, and a
 diverged session refuses to edit or seal.
