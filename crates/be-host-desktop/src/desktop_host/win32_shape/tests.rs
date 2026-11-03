@@ -34,7 +34,7 @@ fn window(id: u64, frame: Rect) -> Entry {
 }
 
 mod a_resized_panel_resizes_its_window_and_the_answer_is_not_its_own_size;
-mod a_window_that_resizes_itself_keeps_that_as_its_own_size;
 mod a_window_that_resizes_itself_is_resized_back_to_its_panel;
+mod a_window_that_resizes_itself_keeps_that_as_its_own_size;
 mod displays_minimized_maximized_and_elevated_windows_are_never_resized;
 mod fullscreen_maximizes_and_ends_when_the_window_is_restored;

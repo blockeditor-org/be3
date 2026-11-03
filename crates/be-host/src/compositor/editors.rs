@@ -1865,9 +1865,8 @@ fn follow_window(
 ) -> Memo<u64> {
     let editors = editors();
     let asks = create_signal(0u64);
-    let given = create_memo(move || {
-        child.with(|child| child.as_ref().is_some_and(|child| child.keyboard))
-    });
+    let given =
+        create_memo(move || child.with(|child| child.as_ref().is_some_and(|child| child.keyboard)));
     let held = StoredCell::new(false);
     create_effect(move || {
         let given = given.get() && window.get().is_some();

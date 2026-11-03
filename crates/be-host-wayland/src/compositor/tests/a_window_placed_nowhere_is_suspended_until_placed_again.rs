@@ -12,13 +12,13 @@ fn Placeable(windows: Windows) -> NodeId {
     view! {
         <Layers>
             <Show condition={placed}>
-            <List spacing=Space::None>
-                <ForEach keys={ids}>|id: WindowId|
-                    <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
-                        <WindowView windows id />
-                    </Frame>
-                </ForEach>
-            </List>
+                <List spacing=Space::None>
+                    <ForEach keys={ids}>|id: WindowId|
+                        <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
+                            <WindowView windows id />
+                        </Frame>
+                    </ForEach>
+                </List>
             </Show>
         </Layers>
     }

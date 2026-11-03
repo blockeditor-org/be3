@@ -91,9 +91,9 @@ pub fn WindowBody(
     let fade = create_memo(move || {
         let shown = shown.get();
         status.with(|status| {
-            status
-                .as_ref()
-                .map_or(Sides::default(), |status| clipped_edges(status.drawn, shown))
+            status.as_ref().map_or(Sides::default(), |status| {
+                clipped_edges(status.drawn, shown)
+            })
         })
     });
     let cramped = create_memo(move || {
@@ -144,11 +144,7 @@ pub fn WindowBody(
             </Show>
             <Show condition={banner}>
                 <Frame align={Align2::new(Align::Center, Align::Start)}>
-                    <NotResponding
-                        name
-                        on_wait={move || waited.set(true)}
-                        on_force_close
-                    />
+                    <NotResponding name on_wait={move || waited.set(true)} on_force_close />
                 </Frame>
             </Show>
         </Layers>

@@ -50,5 +50,8 @@ fn a_window_that_picks_its_own_size_reports_it_and_is_told_the_size_it_is_placed
         Vec2::new(300.0, 200.0),
         "answering keeps the size it picked as its own"
     );
-    assert_eq!(answered.drawn, SHOWN, "and it is drawn at the size it answered");
+    assert_eq!(
+        answered.drawn, SHOWN,
+        "and it is drawn at the size it answered"
+    );
 }

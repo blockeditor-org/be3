@@ -76,6 +76,9 @@ fn settle(stepped: &mut Stepped<Showing>) {
 
 impl Shown {
     fn has(&mut self, test_id: &str) -> bool {
-        self.stepped.frame(Vec::new()).test_id_rect(test_id).is_some()
+        self.stepped
+            .frame(Vec::new())
+            .test_id_rect(test_id)
+            .is_some()
     }
 }

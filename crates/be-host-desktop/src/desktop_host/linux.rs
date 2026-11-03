@@ -435,7 +435,11 @@ impl DesktopHost for Linux {
     }
 }
 
-fn host_window(windows: Windows, info: be_host_wayland::WindowInfo, opening: &[WindowId]) -> HostWindow {
+fn host_window(
+    windows: Windows,
+    info: be_host_wayland::WindowInfo,
+    opening: &[WindowId],
+) -> HostWindow {
     let launched = launched(info.launch);
     let known = match launched.program.is_some() {
         true => Known::default(),
