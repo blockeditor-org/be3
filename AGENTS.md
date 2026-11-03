@@ -36,10 +36,11 @@ Guides:
 - guides/the_new_block_stack.md: the `be-*` crates every block lives in
 - guides/tracker.md: the issue tracker in be-host, and `be`, the command line tool agents use to read and change it
 - guides/type_modules.md: block types as app wasm modules: the host-to-type protocol (`be-sdk-type-api`) and the replica library types link (`be-sdk-type-guest`)
+- decisions/: one file per decision: what was decided, why, and what was rejected. Check it before re-proposing something it records as rejected.
 
 Commands (builds run on the build server; see guides/buck2.md and guides/build_server.md):
 - `./scripts/verify`: the check, and the compile check: always run it before you finish. It compiles every first-party target on Linux and the apps' wasm, applies autofixes, accepts new and changed snapshots, and runs every lint and test. Use it instead of cargo, which no longer builds the workspace. Use a 10-minute timeout. CI runs the same thing on pull requests and pushes what it changes.
-  - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), deletes comments and doc comments, splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
+  - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
 - `./scripts/test NAME`: runs the tests whose full names (module path and function, such as `media::tests::plays::plays`) contain NAME, so NAME may also be a module path like `media::tests`, and prints all their output, passing or failing. It finds their crates and runs each on the build server, natively or as wasm, and downloads only their output. `--update` accepts the paintings they make.
 - `./scripts/buck run //crates/be-tool-local:bin -- rasterize CRATE_DIR/snapshots/NAME.paint OUT.png [FRAME|all]`: turns a painting, or frames of a recording, into a PNG to look at.
 - `./scripts/buck run //crates/be-host:dev`: run be-host headless, signed in with a workspace open, then `source ~/.cache/be3/dev/env` and drive it with `drive` (guides/running/drive.md). `-c be3.apps=checklist,file-tree` before the target stages only those apps and the workspace, which downloads and builds less. beui-demo and be-launcher have a `:dev` too.

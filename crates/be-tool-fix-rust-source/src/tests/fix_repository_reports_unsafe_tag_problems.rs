@@ -29,7 +29,6 @@ pub fn prose() {}
     assert!(error.contains("unsafe tag stale: crates/widget/src/lib.rs:6"));
     assert!(error.contains("unsafe tag malformed: crates/widget/src/lib.rs:8"));
     assert!(error.contains("send-sync: unsafe impl Send"));
-    assert!(!error.contains("comments: crates/widget/src/lib.rs"));
 
     fs::remove_dir_all(root).unwrap();
 }

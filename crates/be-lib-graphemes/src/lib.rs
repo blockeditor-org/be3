@@ -1,4 +1,4 @@
-/* @yeskeep
+/*
 Extended grapheme clusters (UAX #29, https://www.unicode.org/reports/tr29/) at
 the Unicode version of icu_properties. This is the only grapheme segmenter:
 text-editor-core's cursor stops and beui-core's galley cursors both use it.
@@ -69,11 +69,11 @@ fn previous(bytes: &[u8], index: &mut usize) -> Option<char> {
 
 pub fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
     assert!(index <= bytes.len());
-    // GB1, GB2: break at the start and end of text. @yeskeep
+    // GB1, GB2: break at the start and end of text.
     if index == 0 || index == bytes.len() {
         return true;
     }
-    // Between two ASCII bytes only GB3 can apply. @yeskeep
+    // Between two ASCII bytes only GB3 can apply.
     if bytes[index - 1].is_ascii() && bytes[index].is_ascii() {
         return bytes[index - 1] != b'\r' || bytes[index] != b'\n';
     }
@@ -88,22 +88,22 @@ pub fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
     let left = previous(bytes, &mut before).unwrap();
     let right = decode(bytes, index).0;
     let (l, r) = (gcb(left), gcb(right));
-    // GB3: CR × LF @yeskeep
+    // GB3: CR × LF
     if l == Gcb::CR && r == Gcb::LF {
         return false;
     }
-    // GB4: (Control | CR | LF) ÷, GB5: ÷ (Control | CR | LF) @yeskeep
+    // GB4: (Control | CR | LF) ÷, GB5: ÷ (Control | CR | LF)
     if matches!(l, Gcb::Control | Gcb::CR | Gcb::LF)
         || matches!(r, Gcb::Control | Gcb::CR | Gcb::LF)
     {
         return true;
     }
-    // GB6: L × (L | V | LV | LVT) @yeskeep
-    // GB7: (LV | V) × (V | T) @yeskeep
-    // GB8: (LVT | T) × T @yeskeep
-    // GB9: × (Extend | ZWJ) @yeskeep
-    // GB9a: × SpacingMark @yeskeep
-    // GB9b: Prepend × @yeskeep
+    // GB6: L × (L | V | LV | LVT)
+    // GB7: (LV | V) × (V | T)
+    // GB8: (LVT | T) × T
+    // GB9: × (Extend | ZWJ)
+    // GB9a: × SpacingMark
+    // GB9b: Prepend ×
     if l == Gcb::L && matches!(r, Gcb::L | Gcb::V | Gcb::LV | Gcb::LVT)
         || matches!(l, Gcb::LV | Gcb::V) && matches!(r, Gcb::V | Gcb::T)
         || matches!(l, Gcb::LVT | Gcb::T) && r == Gcb::T
@@ -112,7 +112,7 @@ pub fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
     {
         return false;
     }
-    // GB9c: \p{InCB=Linker} \p{InCB=Extend}* × \p{InCB=Consonant} @yeskeep
+    // GB9c: \p{InCB=Linker} \p{InCB=Extend}* × \p{InCB=Consonant}
     if incb(right) == Incb::Consonant {
         let mut cursor = index;
         while let Some(c) = previous(bytes, &mut cursor) {
@@ -123,7 +123,7 @@ pub fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
             }
         }
     }
-    // GB11: \p{Extended_Pictographic} Extend* ZWJ × \p{Extended_Pictographic} @yeskeep
+    // GB11: \p{Extended_Pictographic} Extend* ZWJ × \p{Extended_Pictographic}
     if l == Gcb::ZWJ && pictographic(right) {
         let mut cursor = before;
         while let Some(c) = previous(bytes, &mut cursor) {
@@ -136,7 +136,7 @@ pub fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
             break;
         }
     }
-    // GB12: sot (RI RI)* RI × RI, GB13: [^RI] (RI RI)* RI × RI @yeskeep
+    // GB12: sot (RI RI)* RI × RI, GB13: [^RI] (RI RI)* RI × RI
     if l == Gcb::RegionalIndicator && r == Gcb::RegionalIndicator {
         let mut cursor = before;
         let mut odd = true;
@@ -148,7 +148,7 @@ pub fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
         }
         return !odd;
     }
-    // GB999: Any ÷ Any @yeskeep
+    // GB999: Any ÷ Any
     true
 }
 
