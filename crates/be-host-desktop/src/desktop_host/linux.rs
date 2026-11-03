@@ -483,6 +483,9 @@ pub fn set_layout(index: u32) {
 }
 
 fn set_shown(window: HostWindowId, shown: bool) {
+    if let Some(windows) = windows() {
+        windows.set_hidden(WindowId(window.0), !shown);
+    }
     if SHOWN.with(|kept| kept.borrow_mut().set(window, shown)) {
         be_host_base::host::wake();
     }

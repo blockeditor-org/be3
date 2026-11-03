@@ -1438,6 +1438,10 @@ impl<K: 'static> PartialEq for Found<K> {
 }
 
 impl<K: DockKey> Found<K> {
+    fn live_parts(&self, tab: TabId) -> Option<DialogParts> {
+        self.parts.get(&tab).copied().filter(DialogParts::alive)
+    }
+
     fn declared_tabs(&self) -> Vec<DockDeclaredTab> {
         self.tabs
             .iter()
@@ -1627,7 +1631,7 @@ where
             None => Ok(found
                 .tab(tab, |_, _, on_close, _| *on_close)
                 .flatten()
-                .or_else(|| found.parts.get(&tab).and_then(|parts| parts.on_close))),
+                .or_else(|| found.live_parts(tab).and_then(|parts| parts.on_close))),
         });
         match close {
             Ok(Some(close)) => close.call(),
@@ -1642,7 +1646,7 @@ where
         let content = found.with_untracked(|found| found.tab(tab, |_, _, _, content| *content));
         let Some(content) = content else {
             let dialog =
-                found.with_untracked(|found| found.parts.get(&tab).map(|parts| parts.content));
+                found.with_untracked(|found| found.live_parts(tab).map(|parts| parts.content));
             return match dialog {
                 Some(dialog) => dialog.call(()),
                 None => view! {
@@ -1724,9 +1728,8 @@ where
                 .collect::<Vec<_>>()
         })
     });
-    let dialog = Func::new(move |tab: TabId| {
-        found.with_untracked(|found| found.parts.get(&tab).copied().filter(DialogParts::alive))
-    });
+    let dialog =
+        Func::new(move |tab: TabId| found.with_untracked(|found| found.live_parts(tab)));
     let declared = move |tab: TabId| -> Option<DockDeclaredTab> {
         found.with(|found| {
             let (joined, inner) = found.foreign.get(&tab)?;

@@ -363,6 +363,7 @@ impl State {
             title: title.clone(),
             fullscreen: false,
             maximized: false,
+            hidden: false,
             position: Point::default(),
             chosen: None,
             entered: None,
@@ -387,6 +388,7 @@ impl State {
         let _ = surface.set_activated(activated);
         let _ = surface.set_fullscreen(window.fullscreen);
         let _ = surface.set_maximized(window.maximized);
+        let _ = surface.set_suspended(window.hidden);
         let size = size.unwrap_or(surface.geometry().size);
         let _ = surface.configure(Rectangle::new(window.position, size));
     }

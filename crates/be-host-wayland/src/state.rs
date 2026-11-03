@@ -124,6 +124,7 @@ pub(crate) struct ClientWindow {
     pub(crate) title: String,
     pub(crate) fullscreen: bool,
     pub(crate) maximized: bool,
+    pub(crate) hidden: bool,
     pub(crate) position: Point<i32, Logical>,
     pub(crate) chosen: Option<Size<i32, Logical>>,
     pub(crate) entered: Option<String>,
@@ -633,6 +634,16 @@ impl State {
         }
     }
 
+    pub fn set_hidden(&mut self, id: WindowId, hidden: bool) {
+        if let Some(window) = self.windows.iter_mut().find(|window| window.id == id) {
+            window.hidden = hidden;
+        }
+    }
+
+    pub fn hidden(&self, id: WindowId) -> bool {
+        self.find(id).is_some_and(|window| window.hidden)
+    }
+
     pub fn maximized(&self, id: WindowId) -> bool {
         self.find(id).is_some_and(|window| window.maximized)
     }
@@ -689,6 +700,7 @@ impl State {
             return;
         };
         let (fullscreen, maximized) = (self.fullscreen(id), self.maximized(id));
+        let hidden = self.hidden(id);
         let screen = self
             .find(id)
             .map(|window| {
@@ -718,6 +730,7 @@ impl State {
                 set_state(state, tiled, state.size.is_some());
             }
             set_state(state, xdg_toplevel::State::Activated, activated);
+            set_state(state, xdg_toplevel::State::Suspended, hidden);
         });
         if toplevel.is_initial_configure_sent() {
             toplevel.send_pending_configure();
@@ -1096,6 +1109,7 @@ impl State {
             title: String::new(),
             fullscreen: false,
             maximized: false,
+            hidden: false,
             position: Point::default(),
             chosen: None,
             entered: None,

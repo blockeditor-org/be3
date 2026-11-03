@@ -83,6 +83,7 @@ struct Inner {
     rung: RefCell<HashMap<WindowId, u64>>,
     menus: RefCell<HashMap<WindowId, (u64, Vec2)>>,
     minimized: RefCell<Vec<WindowId>>,
+    hidden: RefCell<Vec<WindowId>>,
     list: Signal<Vec<WindowInfo>>,
     revision: Cell<u64>,
     cursor: Signal<CursorIcon>,
@@ -113,6 +114,7 @@ impl Windows {
             rung: RefCell::new(HashMap::new()),
             menus: RefCell::new(HashMap::new()),
             minimized: RefCell::new(Vec::new()),
+            hidden: RefCell::new(Vec::new()),
             list,
             revision: Cell::new(0),
             cursor,
@@ -242,6 +244,24 @@ impl Windows {
         inner.revision.set(inner.revision.get() + 1);
     }
 
+    pub fn set_hidden(&self, id: WindowId, hidden: bool) {
+        let inner = self.0.value();
+        let mut held = inner.hidden.borrow_mut();
+        if held.contains(&id) == hidden {
+            return;
+        }
+        match hidden {
+            true => held.push(id),
+            false => held.retain(|held| *held != id),
+        }
+        drop(held);
+        self.push(Command::Configure(id));
+    }
+
+    pub fn hidden(&self, id: WindowId) -> bool {
+        self.0.value().hidden.borrow().contains(&id)
+    }
+
     pub fn take_minimized(&self) -> Vec<WindowId> {
         let inner = self.0.value();
         std::mem::take(&mut *inner.minimized.borrow_mut())
@@ -326,6 +346,7 @@ impl Windows {
         inner.rung.borrow_mut().remove(&id);
         inner.menus.borrow_mut().remove(&id);
         inner.minimized.borrow_mut().retain(|held| *held != id);
+        inner.hidden.borrow_mut().retain(|held| *held != id);
         if inner.focused.get() == Some(id) {
             inner.focused.set(None);
         }
