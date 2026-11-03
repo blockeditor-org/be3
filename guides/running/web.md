@@ -59,7 +59,7 @@ the launcher's browser.
 
 ## beui's HTML core in a browser
 
-A crate built on beui's HTML core (plans/html_core.md) runs its pages as DOM elements rather
+A crate built on beui's HTML core (guides/beui.md, its cores; decisions/beui_has_an_html_core_on_the_web.md) runs its pages as DOM elements rather
 than drawing them. Its bundle answers the reading commands of `drive` through
 `beui::html::automate(words)` (beui-core-html's `automate`): `tree` and `ids` in the native
 drive layer's line format, `find`, `reveal` and `shown` (where a target shows, once a scroll that cuts it
