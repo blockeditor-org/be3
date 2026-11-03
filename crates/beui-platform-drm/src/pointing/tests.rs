@@ -4,9 +4,9 @@ use super::*;
 
 mod a_chosen_display_wins_over_every_hint;
 mod a_pen_display_lands_on_its_own_screen_turned_with_it;
+mod a_tablet_that_matches_no_display_spans_them_all;
 mod a_touchscreen_lands_on_the_display_its_size_matches;
 mod an_integrated_touchscreen_lands_on_the_built_in_panel;
-mod a_tablet_that_matches_no_display_spans_them_all;
 mod the_udev_output_hint_names_the_display;
 
 fn laptop() -> Screen {

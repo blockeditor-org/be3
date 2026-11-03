@@ -15,8 +15,13 @@ fn a_touchscreen_is_put_on_the_display_chosen_for_it() {
         middle_click_paste: true,
     });
     let mut editor = open(host);
-    let chosen =
-        |editor: &BeuiTest<InputSettingsRoot>| content(editor).root().displays.get(&touchscreen_identity()).cloned();
+    let chosen = |editor: &BeuiTest<InputSettingsRoot>| {
+        content(editor)
+            .root()
+            .displays
+            .get(&touchscreen_identity())
+            .cloned()
+    };
 
     choose_pointer(&mut editor, 1);
     assert!(

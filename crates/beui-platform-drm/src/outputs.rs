@@ -9,12 +9,12 @@ use beui::{
 use beui_host::{native::GpuSetup, native::Repainting};
 use beui_runner::renderer::Renderer;
 
-use crate::pointing;
-use crate::rotation::Rotation;
 use crate::cursors::{Cursors, Shape};
 use crate::flips::Flips;
 use crate::gpu::{Gpu, SoftwareCursor};
 use crate::output::Output;
+use crate::pointing;
+use crate::rotation::Rotation;
 use crate::screen::{FORMAT, Frame, Pointer};
 use crate::theme::Theme;
 
