@@ -1,7 +1,7 @@
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN_LEFT, ICON_ARROW_UP_RIGHT, ICON_EYE};
 use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::{AccessLevel, BlockInfo, BlockParent, label_glyph};
+use be_sdk_beui::{AccessLevel, BlockParent, label_glyph};
 
 use super::panel::{Info, Refs};
 use super::tab::TabItem;
@@ -48,10 +48,9 @@ fn related(
 ) -> Option<MenuNode> {
     refs.state.as_ref().ok()?;
     let types = workspace.types();
-    let mut listed: Vec<&BlockInfo> = refs.list.iter().collect();
-    listed.sort_by_key(|reference| reference.deleted);
-    let items = listed
-        .into_iter()
+    let items = refs
+        .list
+        .iter()
         .map(|reference| {
             let label = reference.label(types.as_ref());
             let glyph = label_glyph(&label);

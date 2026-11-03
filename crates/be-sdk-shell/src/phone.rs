@@ -212,12 +212,7 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
 fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: String) -> NodeId {
     let ids = create_memo(move || {
         refs.with(|refs| {
-            let mut listed = refs.list.iter().collect::<Vec<_>>();
-            listed.sort_by_key(|info| info.deleted);
-            listed
-                .into_iter()
-                .map(|info| info.id)
-                .collect::<Vec<Uuid>>()
+            refs.list.iter().map(|info| info.id).collect::<Vec<Uuid>>()
         })
     });
     let some = create_memo(move || !ids.get().is_empty());
