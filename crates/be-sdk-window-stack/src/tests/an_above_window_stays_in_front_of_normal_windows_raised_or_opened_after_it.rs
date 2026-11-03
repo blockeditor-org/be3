@@ -45,7 +45,13 @@ impl Host<Shown> for Desk {
         at
     }
 
-    fn open(&mut self, open: &WindowOpen, rect: Rect, _: Option<&Shown>, opener: Option<&Shown>) -> Shown {
+    fn open(
+        &mut self,
+        open: &WindowOpen,
+        rect: Rect,
+        _: Option<&Shown>,
+        opener: Option<&Shown>,
+    ) -> Shown {
         Shown {
             view: open.view,
             rect,
