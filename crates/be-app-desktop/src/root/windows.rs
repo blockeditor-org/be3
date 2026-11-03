@@ -1,6 +1,6 @@
 use be_sdk_beui::beui::accesskit::{Node, Role, Toggled};
-use be_sdk_beui::beui::dock::styled::TabId;
-use be_sdk_beui::beui::dock::unstyled::holding_area;
+use be_sdk_beui::beui::dock::TabId;
+use be_sdk_beui::beui::dock_host::unstyled::holding_area;
 use be_sdk_beui::beui::icons::{
     ICON_APP_WINDOW, ICON_ARCHIVE_RESTORE, ICON_EXTERNAL_LINK, ICON_EYE, ICON_EYE_OFF,
     ICON_MONITOR, ICON_X,
@@ -92,7 +92,7 @@ impl DeskWindows {
             watched.with(|displays| displays.iter().map(|shown| shown.rect).collect())
         });
         let bands = create_signal(HashMap::new());
-        let layout = workspace.layout();
+        let host = workspace.dock_host();
         let areas = create_memo(move || {
             displays.with(|displays: &Vec<Rect>| {
                 let Some(first) = displays.first().map(|first| first.min) else {
@@ -104,7 +104,7 @@ impl DeskWindows {
                     .map(|(at, display)| {
                         let whole = Rect::from_min_size(Pos2::ZERO, display.size());
                         let inside = match at {
-                            0 => Some(layout.area()),
+                            0 => Some(host.area()),
                             _ => bands.with(|bands: &HashMap<u32, Rect>| {
                                 bands.get(&(at as u32)).copied()
                             }),
@@ -120,7 +120,7 @@ impl DeskWindows {
         });
         create_effect(move || {
             let areas = areas.get();
-            untrack(|| layout.set_areas(areas));
+            untrack(|| host.set_areas(areas));
         });
         Self {
             workspace,
@@ -167,7 +167,7 @@ impl DeskWindows {
 
     fn display_of(&self, chip: ChipKey) -> u32 {
         let rect = match self.shown(chip) {
-            true => self.workspace.layout().window_rect(&self.tab(chip)),
+            true => self.workspace.window_rect(self.tab(chip)),
             false => None,
         };
         self.displays.with(|displays| holder(rect, displays))
@@ -177,12 +177,8 @@ impl DeskWindows {
         let windows = *self;
         create_memo(move || {
             let count = windows.displays.with(Vec::len) as u32;
-            let floating = windows.shown(chip)
-                && windows
-                    .workspace
-                    .layout()
-                    .window_rect(&windows.tab(chip))
-                    .is_some();
+            let floating =
+                windows.shown(chip) && windows.workspace.window_rect(windows.tab(chip)).is_some();
             if count < 2 || !floating {
                 return Vec::new();
             }
@@ -192,9 +188,9 @@ impl DeskWindows {
     }
 
     fn move_to(&self, chip: ChipKey, display: u32) {
-        self.workspace
-            .layout()
-            .move_to_area(&self.tab(chip), display as usize);
+        self.workspace.on_dock_host(self.tab(chip), |host, tab| {
+            host.move_to_area(tab, display as usize);
+        });
     }
 
     fn tab(&self, chip: ChipKey) -> TabId {

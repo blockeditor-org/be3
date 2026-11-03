@@ -4,8 +4,8 @@ use be_sdk_api::{
     DockItemKind, DockLayout, DockMessage, DockOutside, DockOutsidePlace, DockPane, DockPlacedBar,
     DockTabPath, DockTree, DockUpdate, Rect, ViewId,
 };
-use beui::dock::styled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
-use beui::dock::unstyled::DockOutsidePlace as Outside;
+use beui::dock::DockOutsidePlace as Outside;
+use beui::dock::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
 use std::collections::HashMap;
 
 fn declared(test: &mut BeuiTest<StandaloneRoot>) -> HashMap<String, u64> {
@@ -108,8 +108,8 @@ fn a_layout_kept_while_joined_comes_back_in_a_standalone_dock() {
     let spec = layout.state().get_untracked().spec();
     let windowed = spec.windows.iter().find(|held| {
         held.root.as_ref().is_some_and(|root| {
-            matches!(root, beui::dock::unstyled::DockSpecNode::Pane(pane)
-                if pane.entries.contains(&beui::dock::unstyled::DockSpecEntry::Tab(notes)))
+            matches!(root, beui::dock::DockSpecNode::Pane(pane)
+                if pane.entries.contains(&beui::dock::DockSpecEntry::Tab(notes)))
         })
     });
     assert_eq!(

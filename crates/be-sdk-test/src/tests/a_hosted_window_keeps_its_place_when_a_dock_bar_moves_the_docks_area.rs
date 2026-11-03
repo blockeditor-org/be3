@@ -1,14 +1,18 @@
 use super::*;
-use beui::dock::styled::{
-    DockAlign, DockBar, DockBarPlacement, DockBarSurface, DockEdge, DockPane, DockTab, DockWindow,
-    Docking, DockingLayout,
+use beui::dock::TabId;
+use beui::dock::styled::DockBarSurface;
+use beui::dock::{
+    DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockTab, DockWindow, Docking,
+    DockingLayout,
 };
+use beui::dock_host::styled::{DockHost, DockHostLayout};
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
 const DISPLAY: Vec2 = vec2(900.0, 600.0);
 
 thread_local! {
     static LAYOUT: std::cell::Cell<Option<DockingLayout<u64>>> = const { std::cell::Cell::new(None) };
+    static HOST: std::cell::Cell<Option<DockHostLayout>> = const { std::cell::Cell::new(None) };
 }
 
 struct HostedRoot;
@@ -20,33 +24,37 @@ impl BeuiRoot for HostedRoot {
         let _ = editor;
         let layout = DockingLayout::<u64>::new();
         LAYOUT.with(|held| held.set(Some(layout)));
+        let host = DockHostLayout::new();
+        HOST.with(|held| held.set(Some(host)));
         view! {
             <Root>
-                <Docking layout>
-                    <DockPane id="main">
-                        <DockTab id=1u64 title="Main">
-                            <Frame />
-                        </DockTab>
-                    </DockPane>
-                    <DockWindow
-                        id="window"
-                        rect={Rect::from_min_size(pos2(200.0, 150.0), vec2(300.0, 200.0))}
-                    >
-                        <DockPane id="window">
-                            <DockTab id=4u64 title="Window">
+                <DockHost layout=host>
+                    <Docking layout>
+                        <DockPane id="main">
+                            <DockTab id=1u64 title="Main">
                                 <Frame />
                             </DockTab>
                         </DockPane>
-                    </DockWindow>
-                    <DockBar
-                        id=9u64
-                        placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center)}
-                    >
-                        <DockBarSurface>
-                            <Button label="Bar" />
-                        </DockBarSurface>
-                    </DockBar>
-                </Docking>
+                        <DockWindow
+                            id="window"
+                            rect={Rect::from_min_size(pos2(200.0, 150.0), vec2(300.0, 200.0))}
+                        >
+                            <DockPane id="window">
+                                <DockTab id=4u64 title="Window">
+                                    <Frame />
+                                </DockTab>
+                            </DockPane>
+                        </DockWindow>
+                        <DockBar
+                            id=9u64
+                            placement={DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center)}
+                        >
+                            <DockBarSurface>
+                                <Button label="Bar" />
+                            </DockBarSurface>
+                        </DockBar>
+                    </Docking>
+                </DockHost>
             </Root>
         }
     }
@@ -61,7 +69,10 @@ fn a_hosted_window_keeps_its_place_when_a_dock_bar_moves_the_docks_area() {
     let layout = LAYOUT
         .with(std::cell::Cell::get)
         .expect("the app made its dock");
-    let was = layout.window_rect(&4).expect("the window is open");
+    let host = HOST
+        .with(std::cell::Cell::get)
+        .expect("the app made its dock");
+    let was = host.window_rect(TabId::new(4)).expect("the window is open");
     let shown = test.desk_windows();
     assert!(
         matches!(shown[..], [window] if window.contains_rect(was)),
@@ -80,7 +91,7 @@ fn a_hosted_window_keeps_its_place_when_a_dock_bar_moves_the_docks_area() {
         "the host's window stays where it was when the dock's band moves to the top"
     );
     assert_eq!(
-        layout.window_rect(&4),
+        host.window_rect(TabId::new(4)),
         Some(was),
         "and the dock still knows where it is, though its own area moved down under the band"
     );

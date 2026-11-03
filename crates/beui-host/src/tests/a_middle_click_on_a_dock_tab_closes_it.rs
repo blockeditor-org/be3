@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, TabId};
+use crate::dock::TabId;
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn a_middle_click_on_a_dock_tab_closes_it() {

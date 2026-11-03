@@ -1,5 +1,5 @@
 use super::*;
-use beui::dock::styled::{DockAlign, DockBarPlacement, DockEdge};
+use beui::dock::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
 fn a_standalone_docks_layout_is_kept_on_this_device_and_every_instance_follows_it() {

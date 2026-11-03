@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
+use crate::dock::{DockPane, DockTab, DockWindow, DockingLayout};
+use crate::dock_host::unstyled::DockApi;
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -15,26 +16,28 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
             let keys = create_signal(vec![1u64, 2]);
             *setter.borrow_mut() = Some(keys);
             view! {
-                <dock::styled::Docking @node_ref=&dock layout drag_modifier={Some(Modifiers::LOGO)}>
-                    <DockPane
-                        id="desktop"
-                        empty={|| view! {
-                            <Frame />
-                        }}
-                    />
-                    <DockWindow
-                        id="window"
-                        rect={Rect::from_min_size(pos2(100.0, 80.0), vec2(360.0, 240.0))}
-                    >
-                        <DockPane id="program">
-                            <ForEach keys>|id: u64|
-                                <DockTab id title={format!("Tab {id}")}>
-                                    <Panel id />
-                                </DockTab>
-                            </ForEach>
-                        </DockPane>
-                    </DockWindow>
-                </dock::styled::Docking>
+                <dock_host::styled::DockHost drag_modifier={Some(Modifiers::LOGO)} @node_ref=&dock>
+                    <dock::Docking layout>
+                        <DockPane
+                            id="desktop"
+                            empty={|| view! {
+                                <Frame />
+                            }}
+                        />
+                        <DockWindow
+                            id="window"
+                            rect={Rect::from_min_size(pos2(100.0, 80.0), vec2(360.0, 240.0))}
+                        >
+                            <DockPane id="program">
+                                <ForEach keys>|id: u64|
+                                    <DockTab id title={format!("Tab {id}")}>
+                                        <Panel id />
+                                    </DockTab>
+                                </ForEach>
+                            </DockPane>
+                        </DockWindow>
+                    </dock::Docking>
+                </dock_host::styled::DockHost>
             }
         })
     };

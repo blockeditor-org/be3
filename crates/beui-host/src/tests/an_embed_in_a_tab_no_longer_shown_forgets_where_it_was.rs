@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
+use crate::dock::{DockGroup, DockPane, DockTab, DockingLayout};
 
 #[test]
 fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
@@ -11,23 +11,25 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
     let document = build_node(move || {
         let (first, second) = slots;
         view! {
-            <dock::styled::Docking layout focus=1u64>
-                <DockPane id="main">
-                    <DockTab id=1u64 title="Tab 1">
-                        <Embed slot={first} />
-                    </DockTab>
-                    <DockGroup id="group">
-                        <DockPane id="grouped" active=3u64>
-                            <DockTab id=2u64 title="Tab 2">
-                                <Embed slot={second} />
-                            </DockTab>
-                            <DockTab id=3u64 title="Tab 3">
-                                <Embed slot={EmbedSlot::new()} />
-                            </DockTab>
-                        </DockPane>
-                    </DockGroup>
-                </DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout focus=1u64>
+                    <DockPane id="main">
+                        <DockTab id=1u64 title="Tab 1">
+                            <Embed slot={first} />
+                        </DockTab>
+                        <DockGroup id="group">
+                            <DockPane id="grouped" active=3u64>
+                                <DockTab id=2u64 title="Tab 2">
+                                    <Embed slot={second} />
+                                </DockTab>
+                                <DockTab id=3u64 title="Tab 3">
+                                    <Embed slot={EmbedSlot::new()} />
+                                </DockTab>
+                            </DockPane>
+                        </DockGroup>
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

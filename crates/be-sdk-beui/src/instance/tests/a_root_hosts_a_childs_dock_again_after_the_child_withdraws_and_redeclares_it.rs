@@ -105,7 +105,7 @@ fn a_root_hosts_a_childs_dock_again_after_the_child_withdraws_and_redeclares_it(
         layout
             .state()
             .get_untracked()
-            .contains(beui::dock::unstyled::TabId::new(1)),
+            .contains(beui::dock::TabId::new(1)),
         "the child's own tab comes back while it declares nothing"
     );
     assert!(tab_bodies(&session).is_empty());

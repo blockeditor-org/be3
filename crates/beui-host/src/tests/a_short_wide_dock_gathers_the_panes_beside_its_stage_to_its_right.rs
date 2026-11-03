@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::DockMode;
+use crate::dock::DockMode;
 
 #[test]
 fn a_short_wide_dock_gathers_the_panes_beside_its_stage_to_its_right() {

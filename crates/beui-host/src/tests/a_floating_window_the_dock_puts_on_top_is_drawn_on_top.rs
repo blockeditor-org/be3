@@ -2,20 +2,20 @@ use super::*;
 use crate::reactive::*;
 
 #[component]
-fn Program(id: u64) -> dock::unstyled::DockNode<u64> {
+fn Program(id: u64) -> dock::DockNode<u64> {
     let key = format!("window.{id}");
     let at = 60.0 + 40.0 * id as f32;
     view! {
-        <dock::unstyled::DockWindow
+        <dock::DockWindow
             id={key.clone()}
             rect={Rect::from_min_size(pos2(at, at), vec2(360.0, 240.0))}
         >
-            <dock::unstyled::DockPane id={key}>
-                <dock::unstyled::DockTab id={id} title={format!("Program {id}")}>
+            <dock::DockPane id={key}>
+                <dock::DockTab id={id} title={format!("Program {id}")}>
                     <Frame @test_id={format!("program.{id}")} />
-                </dock::unstyled::DockTab>
-            </dock::unstyled::DockPane>
-        </dock::unstyled::DockWindow>
+                </dock::DockTab>
+            </dock::DockPane>
+        </dock::DockWindow>
     }
 }
 
@@ -46,20 +46,22 @@ fn window_of(harness: &Harness, program: u64) -> NodeId {
 #[test]
 fn a_floating_window_the_dock_puts_on_top_is_drawn_on_top() {
     let _root = crate::reactive::RootScope::new();
-    let layout = dock::unstyled::DockingLayout::<u64>::new();
+    let layout = dock::DockingLayout::<u64>::new();
     let document = build_node(move || {
         view! {
-            <dock::styled::Docking layout>
-                <dock::unstyled::DockPane
-                    id="desktop"
-                    empty={|| view! {
-                        <Frame />
-                    }}
-                />
-                <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
-                    <Program id />
-                </ForEach>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout>
+                    <dock::DockPane
+                        id="desktop"
+                        empty={|| view! {
+                            <Frame />
+                        }}
+                    />
+                    <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
+                        <Program id />
+                    </ForEach>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

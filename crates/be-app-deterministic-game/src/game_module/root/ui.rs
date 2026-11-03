@@ -1,6 +1,4 @@
-use be_sdk_beui::beui::dock::styled::{
-    DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
-};
+use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};

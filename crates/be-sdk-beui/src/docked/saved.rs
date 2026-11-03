@@ -1,11 +1,11 @@
 use be_lib_stable_hash::HashMap;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use be_block::DisplaySettings;
 use be_sdk::EditorHost;
 use be_sdk_api as api;
-use beui::dock::unstyled::{
+use beui::dock::{
     DockHostLink, DockKeeper, DockKept, DockOutside, DockOutsidePlace, DockRequest, DockSpec,
     DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow, DockState, SIDEBAR_WIDTH, TabId,
 };
@@ -54,8 +54,9 @@ pub(super) fn keep_joined(link: &Rc<ProtocolLink>, editor: Editor) {
     );
 }
 
-pub(super) fn keeper(host: EditorHost, editor: Editor) -> DockKeeper {
+pub(super) fn keeper(host: EditorHost, editor: Editor, claimed: Rc<Cell<bool>>) -> DockKeeper {
     DockKeeper::new(move |kept: DockKept| {
+        claimed.set(true);
         let standalone = Rc::new(Standalone {
             kept,
             saving: Saving::default(),

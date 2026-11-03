@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use be_sdk_beui::beui::NodeId;
-use be_sdk_beui::beui::dock::styled::TabId;
+use be_sdk_beui::beui::dock::TabId;
 use be_sdk_beui::beui::icons::{
     ICON_FILE_PLUS, ICON_PENCIL_LINE, ICON_SHARE_2, ICON_TRASH, ICON_UNLINK,
 };

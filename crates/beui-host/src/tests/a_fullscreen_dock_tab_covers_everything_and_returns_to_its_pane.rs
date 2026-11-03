@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
+use crate::dock::{DockPane, DockTab, DockingLayout};
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -28,30 +28,32 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
                             })}
                         />
                     </Frame>
-                    <dock::styled::Docking @sizing=ItemSize::Percent(100.0) layout focus=2u64>
-                        <DockPane id="tabs">
-                            <DockTab id=1u64 title="Tab 1">
-                                <Frame @test_id="content.1" />
-                            </DockTab>
-                            <DockTab
-                                id=2u64
-                                title="Tab 2"
-                                content={move || {
-                                    view! {
-                                        <Interactive
-                                            @test_id="content.2"
-                                            on_hover_change={move |on: bool| {
-                                                tab.update(|tab| tab.hovered = on);
-                                            }}
-                                            on_wheel={crate::unstyled::gestures::scroll_wheel(None, move |scroll: ScrollGesture| {
-                                                tab.update(|tab| tab.scrolled += scroll.delta);
-                                            })}
-                                        />
-                                    }
-                                }}
-                            />
-                        </DockPane>
-                    </dock::styled::Docking>
+                    <dock_host::styled::DockHost @sizing=ItemSize::Percent(100.0)>
+                        <dock::Docking layout focus=2u64>
+                            <DockPane id="tabs">
+                                <DockTab id=1u64 title="Tab 1">
+                                    <Frame @test_id="content.1" />
+                                </DockTab>
+                                <DockTab
+                                    id=2u64
+                                    title="Tab 2"
+                                    content={move || {
+                                        view! {
+                                            <Interactive
+                                                @test_id="content.2"
+                                                on_hover_change={move |on: bool| {
+                                                    tab.update(|tab| tab.hovered = on);
+                                                }}
+                                                on_wheel={crate::unstyled::gestures::scroll_wheel(None, move |scroll: ScrollGesture| {
+                                                    tab.update(|tab| tab.scrolled += scroll.delta);
+                                                })}
+                                            />
+                                        }
+                                    }}
+                                />
+                            </DockPane>
+                        </dock::Docking>
+                    </dock_host::styled::DockHost>
                 </List>
             }
         })

@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, TabId};
+use crate::dock::TabId;
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn dragging_a_dock_tab_in_space_where_no_panel_is_opens_one_at_the_pointer() {

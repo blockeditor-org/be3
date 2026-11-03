@@ -1,5 +1,5 @@
 use be_sdk_beui::beui::NodeId;
-use be_sdk_beui::beui::dock::styled::use_dock_bar;
+use be_sdk_beui::beui::dock::use_dock_bar;
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::popover::{PANEL_MAX_WIDTH, PANEL_PADDING};

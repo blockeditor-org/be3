@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{
+use crate::dock::{
     DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockTab, DockingLayout,
 };
 
@@ -28,25 +28,27 @@ fn bars_docked_along_one_edge_share_its_band_side_by_side() {
         let layout = DockingLayout::<u64>::new();
         handle.set(Some(layout));
         view! {
-            <dock::styled::Docking layout focus=1u64>
-                <DockPane id="stage" bare=true>
-                    <DockTab id=1u64 title="Stage">
-                        <Frame @test_id="content.1" />
-                    </DockTab>
-                </DockPane>
-                <DockBar id=5u64 parent=1u64 placement={top(DockAlign::Start)}>
-                    <BandBar id=5u64 thickness=24.0 />
-                </DockBar>
-                <DockBar id=6u64 parent=1u64 placement={top(DockAlign::Start)}>
-                    <BandBar id=6u64 thickness=24.0 />
-                </DockBar>
-                <DockBar id=7u64 parent=1u64 placement={top(DockAlign::Center)}>
-                    <BandBar id=7u64 thickness=24.0 />
-                </DockBar>
-                <DockBar id=8u64 parent=1u64 placement={top(DockAlign::End)}>
-                    <BandBar id=8u64 thickness=40.0 />
-                </DockBar>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout focus=1u64>
+                    <DockPane id="stage" bare=true>
+                        <DockTab id=1u64 title="Stage">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                    </DockPane>
+                    <DockBar id=5u64 parent=1u64 placement={top(DockAlign::Start)}>
+                        <BandBar id=5u64 thickness=24.0 />
+                    </DockBar>
+                    <DockBar id=6u64 parent=1u64 placement={top(DockAlign::Start)}>
+                        <BandBar id=6u64 thickness=24.0 />
+                    </DockBar>
+                    <DockBar id=7u64 parent=1u64 placement={top(DockAlign::Center)}>
+                        <BandBar id=7u64 thickness=24.0 />
+                    </DockBar>
+                    <DockBar id=8u64 parent=1u64 placement={top(DockAlign::End)}>
+                        <BandBar id=8u64 thickness=40.0 />
+                    </DockBar>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let layout = built.get().expect("the dock was built");

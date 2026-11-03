@@ -1,5 +1,5 @@
 use be_sdk_beui::beui::Pos2;
-use be_sdk_beui::beui::dock::styled::DockApi;
+use be_sdk_beui::beui::dock_host::styled::DockApi;
 
 use super::*;
 

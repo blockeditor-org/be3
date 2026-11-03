@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
+use crate::dock::{DockPane, DockSplit, DockTab, DockingLayout};
 use crate::reactive::*;
 
 #[test]
@@ -18,20 +18,22 @@ fn a_resized_dock_lays_its_panes_out_for_the_new_size_in_the_same_frame() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking layout>
-                <DockSplit id="split">
-                    <DockPane id="left">
-                        <DockTab id=1u64 title="Tab 1">
-                            <Frame @node_ref=&left />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="right">
-                        <DockTab id=2u64 title="Tab 2">
-                            <Frame @node_ref=&right />
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout>
+                    <DockSplit id="split">
+                        <DockPane id="left">
+                            <DockTab id=1u64 title="Tab 1">
+                                <Frame @node_ref=&left />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="right">
+                            <DockTab id=2u64 title="Tab 2">
+                                <Frame @node_ref=&right />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

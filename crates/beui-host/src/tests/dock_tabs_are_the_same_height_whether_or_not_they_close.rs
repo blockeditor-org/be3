@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
+use crate::dock::{DockPane, DockTab, DockingLayout};
 use crate::native::Document;
 
 #[test]
@@ -9,16 +9,18 @@ fn dock_tabs_are_the_same_height_whether_or_not_they_close() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
-                <DockPane id="tabs">
-                    <DockTab id=1u64 title="Tab 1">
-                        <Frame @test_id="content.1" />
-                    </DockTab>
-                    <DockTab id=2u64 title="Tab 2" on_close={|| {}}>
-                        <Frame @test_id="content.2" />
-                    </DockTab>
-                </DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout>
+                    <DockPane id="tabs">
+                        <DockTab id=1u64 title="Tab 1">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                        <DockTab id=2u64 title="Tab 2" on_close={|| {}}>
+                            <Frame @test_id="content.2" />
+                        </DockTab>
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

@@ -1,4 +1,4 @@
-use be_sdk_beui::beui::dock::styled::DockApi;
+use be_sdk_beui::beui::dock_host::styled::DockApi;
 use be_sdk_beui::beui::{pos2, vec2};
 
 use super::*;

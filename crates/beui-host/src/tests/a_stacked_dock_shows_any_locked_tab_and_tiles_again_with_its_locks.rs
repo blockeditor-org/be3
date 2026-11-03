@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize, TabId};
+use crate::dock::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize, TabId};
 
 #[test]
 fn a_stacked_dock_shows_any_locked_tab_and_tiles_again_with_its_locks() {
@@ -7,31 +7,30 @@ fn a_stacked_dock_shows_any_locked_tab_and_tiles_again_with_its_locks() {
     let layout = DockingLayout::<u64>::new();
     let document = build_node(move || {
         view! {
-            <dock::styled::Docking layout focus=10u64>
-                <DockSplit id="workspace" size={SplitSize::Fraction(0.3)}>
-                    <DockPane id="files" locked=true>
-                        <DockTab id=1u64 title="Tab 1">
-                            <Frame />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="editors" locked=true>
-                        <DockTab id=10u64 title="Tab 10">
-                            <Frame />
-                        </DockTab>
-                        <DockTab id=11u64 title="Tab 11">
-                            <Frame />
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout focus=10u64>
+                    <DockSplit id="workspace" size={SplitSize::Fraction(0.3)}>
+                        <DockPane id="files" locked=true>
+                            <DockTab id=1u64 title="Tab 1">
+                                <Frame />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="editors" locked=true>
+                            <DockTab id=10u64 title="Tab 10">
+                                <Frame />
+                            </DockTab>
+                            <DockTab id=11u64 title="Tab 11">
+                                <Frame />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, VIEWPORT);
     harness.frame(Vec::new());
-    assert_eq!(
-        layout.mode().get_untracked(),
-        dock::unstyled::DockMode::Stacked
-    );
+    assert_eq!(layout.mode().get_untracked(), dock::DockMode::Stacked);
 
     layout.show(&1);
     harness.frame(Vec::new());
@@ -46,10 +45,7 @@ fn a_stacked_dock_shows_any_locked_tab_and_tiles_again_with_its_locks() {
 
     harness.resize(WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    assert_eq!(
-        layout.mode().get_untracked(),
-        dock::unstyled::DockMode::Tiled
-    );
+    assert_eq!(layout.mode().get_untracked(), dock::DockMode::Tiled);
     let state = layout.state().get_untracked();
     for tab in [1, 10, 11] {
         assert!(

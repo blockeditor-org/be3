@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_menu};
+use crate::dock::{DockPane, DockTab, DockingLayout, TabId, dock_menu};
 use crate::reactive::*;
 
 const FIRST: u64 = 1;
@@ -38,32 +38,34 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking layout focus=FIRST>
-                <DockPane id="tabs">
-                    <DockTab id=FIRST title="Tab 1">
-                        <Frame @test_id="content.1" />
-                    </DockTab>
-                    <ForEach keys={open}>|id: u64|
-                        <DockTab
-                            id
-                            title={format!("Tab {id}")}
-                            on_close={move || {
-                                closed.update(|closed| closed.push(TabId::new(id)));
-                                open.update(|open| open.retain(|other| *other != id));
-                            }}
-                            content={move || {
-                                let act = Action::new(format!("action.{id}"), "Act", || {})
-                                    .pin(Pin::Icon)
-                                    .detached();
-                                dock_menu(create_memo(move || vec![MenuNode::action(&act)]));
-                                view! {
-                                    <Frame @test_id={format!("content.{id}")} />
-                                }
-                            }}
-                        />
-                    </ForEach>
-                </DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout focus=FIRST>
+                    <DockPane id="tabs">
+                        <DockTab id=FIRST title="Tab 1">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                        <ForEach keys={open}>|id: u64|
+                            <DockTab
+                                id
+                                title={format!("Tab {id}")}
+                                on_close={move || {
+                                    closed.update(|closed| closed.push(TabId::new(id)));
+                                    open.update(|open| open.retain(|other| *other != id));
+                                }}
+                                content={move || {
+                                    let act = Action::new(format!("action.{id}"), "Act", || {})
+                                        .pin(Pin::Icon)
+                                        .detached();
+                                    dock_menu(create_memo(move || vec![MenuNode::action(&act)]));
+                                    view! {
+                                        <Frame @test_id={format!("content.{id}")} />
+                                    }
+                                }}
+                            />
+                        </ForEach>
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, VIEWPORT);

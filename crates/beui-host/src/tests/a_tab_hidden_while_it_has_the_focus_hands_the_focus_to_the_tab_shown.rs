@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
+use crate::dock::{DockPane, DockTab, DockingLayout};
 use crate::reactive::*;
 
 type Heard = Rc<RefCell<Vec<(u64, bool)>>>;
@@ -28,16 +28,18 @@ fn a_tab_hidden_while_it_has_the_focus_hands_the_focus_to_the_tab_shown() {
     let (one, two) = (Rc::clone(&heard), Rc::clone(&heard));
     let document = build_node(move || {
         view! {
-            <dock::styled::Docking layout>
-                <DockPane id="tabs">
-                    <DockTab id=1u64 title="One">
-                        <Control id=1 heard=Rc::clone(&one) />
-                    </DockTab>
-                    <DockTab id=2u64 title="Two">
-                        <Control id=2 heard=Rc::clone(&two) />
-                    </DockTab>
-                </DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout>
+                    <DockPane id="tabs">
+                        <DockTab id=1u64 title="One">
+                            <Control id=1 heard=Rc::clone(&one) />
+                        </DockTab>
+                        <DockTab id=2u64 title="Two">
+                            <Control id=2 heard=Rc::clone(&two) />
+                        </DockTab>
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

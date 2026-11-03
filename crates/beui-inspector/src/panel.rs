@@ -12,10 +12,9 @@ use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::{ICON_MOUSE_POINTER_2, ICON_X};
 use beui_core::performance::PerformanceSnapshot;
 use beui_core::performance::PerformanceTimings;
-use beui_dock::styled::Docking;
-use beui_dock::unstyled::{
-    DockPane, DockSplit, DockTab, DockingLayout, SplitSize, dock_menu, use_dock_tab,
-};
+use beui_dock::Docking;
+use beui_dock::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize, dock_menu, use_dock_tab};
+use beui_dock_host::styled::DockHost;
 use beui_types::NodeId;
 use beui_types::TextAlign;
 use beui_types::{BackEdge, BackGesture};
@@ -265,7 +264,9 @@ pub fn build(state: Stored<State>, embeds_program: bool) -> Panel {
         };
         view! {
             <Frame @test_id={"inspector.dock"}>
-                <Docking layout=tools focus={Some(InspectorTab::Beui)}>{layout}</Docking>
+                <DockHost>
+                    <Docking layout=tools focus={Some(InspectorTab::Beui)}>{layout}</Docking>
+                </DockHost>
             </Frame>
         }
     });

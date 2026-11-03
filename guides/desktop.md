@@ -72,7 +72,7 @@ stacks its hours over its minutes and the status icons stack too. A button's pan
 opens away from the bar's edge, toward the windows: below or above a bar along the top or bottom
 (`PopoverPlacement::Below`, which turns up when there is no room below), beside one down a side
 (`PopoverPlacement::Beside`), just past the bar's surface (the popover's `band`). It stays inside
-its display's work area (`bar::BarArea`, the `DockingLayout::area()` the bands leave, as the
+its display's work area (`bar::BarArea`, the `DockHostLayout::area()` the bands leave, as the
 popover's `bounds`), shifting along the bar to clear another band and scrolling when taller than
 that area, so it never covers another bar. The bar's menus do the same (`bar::bar_bounds()` as the
 `bounds` of the grip's `DockBarGrip`, a window chip's `ContextMenu` and a tray item's `MenuButton`),
@@ -83,13 +83,13 @@ display's bars" (`desktop.apps.bars`), which shows its three again, and Super st
 centred over that display's windows' area (`ProgramsPanelOverlay`) while its Apps bar is hidden. Super opens
 Apps on the display the pointer was last over (`beui::native::last_pointer`, its window's
 `window_origin`), else the one holding the focused window, else the first. The windows' area is the dock inside its bands
-(`DockingLayout::area`), where floating windows go: the level display (`desktop.osd.0`) is centred
+(`DockHostLayout::area`), where floating windows go: the level display (`desktop.osd.0`) is centred
 low over it, and notification toasts gather in its corner nearest the Status bar
 (`bar::toast_corner`, bottom right by default, bottom left with the bar down the left side),
 below or beside the Status bar when it floats there (`bar::clear_of_status`, from
-`DockingLayout::over_bars_rect`). A fullscreen window covers the bars of its display, as it covers
+`DockHostLayout::over_bars_rect`). A fullscreen window covers the bars of its display, as it covers
 the whole display: the main dock's own bars drop beneath a fullscreen tab over its area, and a further
-display's dock is told a focused window is fullscreen on it (`DockingLayout::set_covered`).
+display's dock is told a focused window is fullscreen on it (`DockHostLayout::set_covered`).
 
 Display 0's bars are dock bars of the main view's dock, which holds every window. A further
 display's `Display` view holds a dock of its own (`desktop.dock.{n}`) with no panes and that
@@ -107,7 +107,7 @@ display is connected) with Copy report, Keep them and Reset bars. Toasts stay on
 corner nearest its Status bar.
 
 Each display's work area is that display less its own bars' bands: the dock's area
-(`DockingLayout::area`). A root dock whose windows the host shows tells its window's work area to
+(`DockHostLayout::area`). A root dock whose windows the host shows tells its window's work area to
 beui (`beui::window::set_work_area`), the app reports it on the view's frame report
 (`frame-report.work-area`, insets), and be-host (`compositor/desktop.rs`) and be-sdk-test's
 desk, through be-sdk-window-stack's `keep_in_work_areas` and `fitted`, keep each of the app's windows on a
@@ -227,10 +227,10 @@ Closing the tab, from its cross, Close or the window keys, is `close-child`; the
 the window leaves the list. Showing the tab gives the program the keyboard: be-sdk-beui's
 `Subregion` sends `focus-child` when the tab is given the keyboard or brought forward, as for a
 block. A count up of `minimized` (the program asked to be minimized) hides the tab's dock window
-(`DockingLayout::hide_window`; a tab in a pane, as in workspace-ui, stays). A hidden dock window's
+(`DockHostLayout::hide_window`; a tab in a pane, as in workspace-ui, stays). A hidden dock window's
 tab, or a tab not shown in its pane, places no body, so `UnshownWindows` (which both shells place
 beside `WorkspaceDialogs`) keeps every listed window whose tab (a dialog's: its window's) the dock
-does not place (`DockingLayout::is_shown`) placed with `ChildMode::Hidden`: it takes no room and the host draws nothing of it and suspends
+does not place (`DockHostLayout::is_shown`) placed with `ChildMode::Hidden`: it takes no room and the host draws nothing of it and suspends
 it, but its status keeps arriving. So a hidden tab's title, icon and bell are heard (`Heard`, the
 latest status of each tab, with the title also kept in the tab's record for a placeholder), and a
 count up of `raised` from the program shows the tab and its dock window again; the first status
@@ -314,7 +314,7 @@ input (guides/desktop/windows.md); the Linux host sets none.
 
 `WindowsWatch` lists every entry the host could show: program windows (`kind: window`) and, on a
 host that captures them (Windows), whole displays (`kind: display`). The host keeps no shown
-state: whether an entry shows is the dock's. A hidden dock window (`DockingLayout::hide_window`,
+state: whether an entry shows is the dock's. A hidden dock window (`DockHostLayout::hide_window`,
 from a chip, Super+Down or Super+D, or the program minimizing itself) shows none of its tabs, so
 its window child is placed only hidden and the host suspends the program (Linux) or stops
 capturing it (Windows); a dialog hides with its window. A hidden window shown again comes back where it was.
@@ -375,7 +375,7 @@ resize grips reach into and their rounded corners show what is behind them. The 
 surface and its floating layers (menus, popovers, toasts), the windows that display holds most
 of (`desktop::shown_on`, `DesktopWindows` in `compositor/app_view.rs`); the dock's bands of
 bars are among those floating layers, as on other desktops, so a window carried over a bar
-passes beneath it and the bar still takes presses (beui-dock's `DockBarBand` marks its band
+passes beneath it and the bar still takes presses (beui-dock-host's `DockBarBand` marks its band
 `AboveEmbeds::Paints` while `bar_level` is `Raised`, so the view's frame report lists it in
 `floating` and `floating-painted`), and drop beneath a fullscreen window as `bar_level` does.
 A bar popped out into a window of its own opens at `WindowLevel::Above` (the window-open's
@@ -391,10 +391,10 @@ at the pointer, or at the `placement` it kept (`desktop X Y`); the host answers 
 placement on the window's screen request, which the dock keeps. Every screen request of the shell's
 frame, display and window views also carries the view's `origin`, its top-left corner in desktop
 points, asked again whenever it changes; be-sdk-beui-platform reports it as each window's
-`WindowReport::Moved`, and the dock keeps a window's rect (`DockingLayout::window_rect`, in its
+`WindowReport::Moved`, and the dock keeps a window's rect (`DockHostLayout::window_rect`, in its
 own window's points) from it, so it stays true after the host moves a window, and when a dock bar
 beside its top or left edge moves the dock's own area. A dock window whose
-rect the dock changes itself (`DockingLayout::move_window`) asks the host for its new place with
+rect the dock changes itself (`DockHostLayout::move_window`) asks the host for its new place with
 the protocol's `place` window request (beui's `WindowRequest::Place`, an `Over` its home view).
 The Windows bar on each display lists the windows mostly on that display, and a chip's menu
 offers "Move to display N" (`<chip>.display.<n>`, `root/windows.rs`), which keeps the window's size
@@ -435,10 +435,12 @@ and its windows open over it.
 
 ## Window keys
 
-The window manager is beui-dock's (guides/beui.md, the dock's window actions), over the desktop's
-dock and each display's work area in the main dock's points: `DeskWindows` gives display 0 the
+The window manager is beui-dock-host's (guides/beui.md, the dock's window actions), over the desktop's
+dock and each display's work area in the main dock's points. Each dock of the desktop sits in a `DockHost`
+of its own, which sets the Super drag; the main one's `DockHostLayout` is `Workspace::dock_host`, and
+`Workspace::window_rect`, `is_hidden` and `hide` read and change it through the tab's `TabId` there: `DeskWindows` gives display 0 the
 dock's `area()` and every further display its `Display` view's area (`DeskWindows::report_area`)
-and passes them to `DockingLayout::set_areas`. It acts on program and block windows alike, as
+and passes them to `DockHostLayout::set_areas`. It acts on program and block windows alike, as
 floating dock windows. be-sdk-shell's `BlockTab` and `ProgramTab` give their tabs a `group`
 (`block:` and the block type, `program:` and the window child's group) for the app's next window, and
 `Workspace::hide` and `show` go through the dock. The

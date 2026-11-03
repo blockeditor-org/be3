@@ -148,7 +148,7 @@ fn settings_here<A: BeuiRoot>(test: &mut BeuiTest<A>, display: DisplaySettingsCo
 const STANDALONE_TYPE: Uuid = Uuid::from_u128(0x0b43);
 
 thread_local! {
-    static STANDALONE_LAYOUTS: std::cell::RefCell<Vec<beui::dock::styled::DockingLayout<u64>>> =
+    static STANDALONE_LAYOUTS: std::cell::RefCell<Vec<beui::dock::DockingLayout<u64>>> =
         const { std::cell::RefCell::new(Vec::new()) };
 }
 
@@ -158,8 +158,8 @@ struct StandaloneRoot;
 impl BeuiRoot for StandaloneRoot {
     #[component]
     fn View(editor: Editor) -> Root {
-        use beui::dock::styled::{DockBar, DockBarPlacement, DockEdge};
-        use beui::dock::styled::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
+        use beui::dock::{DockBar, DockBarPlacement, DockEdge};
+        use beui::dock::{DockPane, DockSplit, DockTab, Docking, DockingLayout};
         let _ = editor;
         let layout = DockingLayout::<u64>::new();
         STANDALONE_LAYOUTS.with(|layouts| layouts.borrow_mut().push(layout));
@@ -181,7 +181,7 @@ impl BeuiRoot for StandaloneRoot {
                     <DockBar
                         id=3u64
                         parent=1u64
-                        placement=DockBarPlacement::Over(DockEdge::Top, beui::dock::unstyled::DockAlign::Center)
+                        placement=DockBarPlacement::Over(DockEdge::Top, beui::dock::DockAlign::Center)
                     >
                         <Frame width={Size::Custom(120.0)} height={Size::Custom(24.0)} />
                     </DockBar>
@@ -197,7 +197,7 @@ fn standalone(
 ) -> (
     BeuiTest<StandaloneRoot>,
     Uuid,
-    beui::dock::styled::DockingLayout<u64>,
+    beui::dock::DockingLayout<u64>,
 ) {
     let host = EditorHost::default();
     host.set_editable(true);

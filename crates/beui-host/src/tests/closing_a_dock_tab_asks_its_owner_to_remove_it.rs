@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
+use crate::dock::{DockPane, DockTab, DockingLayout, TabId};
+use crate::dock_host::unstyled::DockApi;
 use crate::reactive::*;
 
 #[test]
@@ -10,19 +11,21 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
-                <DockPane id="tabs">
-                    <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
-                        <DockTab
-                            id
-                            title={format!("Tab {id}")}
-                            on_close={move || closed.update(|closed| closed.push(TabId::new(id)))}
-                        >
-                            <Frame @test_id={format!("content.{id}")} />
-                        </DockTab>
-                    </ForEach>
-                </DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout>
+                    <DockPane id="tabs">
+                        <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
+                            <DockTab
+                                id
+                                title={format!("Tab {id}")}
+                                on_close={move || closed.update(|closed| closed.push(TabId::new(id)))}
+                            >
+                                <Frame @test_id={format!("content.{id}")} />
+                            </DockTab>
+                        </ForEach>
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

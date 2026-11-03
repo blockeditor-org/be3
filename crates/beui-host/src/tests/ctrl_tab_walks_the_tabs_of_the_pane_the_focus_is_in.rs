@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
+use crate::dock::{DockPane, DockTab, DockingLayout, TabId};
+use crate::dock_host::unstyled::DockApi;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -10,26 +11,28 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
-                <DockPane id="tabs">
-                    <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
-                        <DockTab
-                            id
-                            title={format!("Tab {id}")}
-                            content={move || {
-                                let typed = create_signal(String::new());
-                                view! {
-                                    <styled::TextInput
-                                        @test_id={format!("input.{id}")}
-                                        value={typed}
-                                        label="Notes"
-                                    />
-                                }
-                            }}
-                        />
-                    </ForEach>
-                </DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout>
+                    <DockPane id="tabs">
+                        <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
+                            <DockTab
+                                id
+                                title={format!("Tab {id}")}
+                                content={move || {
+                                    let typed = create_signal(String::new());
+                                    view! {
+                                        <styled::TextInput
+                                            @test_id={format!("input.{id}")}
+                                            value={typed}
+                                            label="Notes"
+                                        />
+                                    }
+                                }}
+                            />
+                        </ForEach>
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

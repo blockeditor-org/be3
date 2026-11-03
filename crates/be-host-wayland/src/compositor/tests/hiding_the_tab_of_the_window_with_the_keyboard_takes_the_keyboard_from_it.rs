@@ -1,5 +1,6 @@
-use beui::dock::styled::Docking;
-use beui::dock::styled::{DockPane, DockTab, DockingLayout};
+use beui::dock::Docking;
+use beui::dock::{DockPane, DockTab, DockingLayout};
+use beui::dock_host::styled::DockHost;
 use beui::styled::*;
 
 use super::*;
@@ -18,28 +19,30 @@ fn Tabbed(windows: Windows) -> NodeId {
     let layout = DockingLayout::new();
     LAYOUT.with(|held| held.set(Some(layout)));
     view! {
-        <Docking layout>
-            <DockPane id="tabs">
-                <DockTab
-                    id=1u64
-                    title="Program"
-                    content={move || view! {
-                        <Layers>
-                            <ForEach keys={ids}>|id: WindowId|
-                                <WindowView windows id />
-                            </ForEach>
-                        </Layers>
-                    }}
-                />
-                <DockTab
-                    id=2u64
-                    title="Text"
-                    content={|| view! {
-                        <TextInput @test_id={"test.input"} value="" />
-                    }}
-                />
-            </DockPane>
-        </Docking>
+        <DockHost>
+            <Docking layout>
+                <DockPane id="tabs">
+                    <DockTab
+                        id=1u64
+                        title="Program"
+                        content={move || view! {
+                            <Layers>
+                                <ForEach keys={ids}>|id: WindowId|
+                                    <WindowView windows id />
+                                </ForEach>
+                            </Layers>
+                        }}
+                    />
+                    <DockTab
+                        id=2u64
+                        title="Text"
+                        content={|| view! {
+                            <TextInput @test_id={"test.input"} value="" />
+                        }}
+                    />
+                </DockPane>
+            </Docking>
+        </DockHost>
     }
 }
 

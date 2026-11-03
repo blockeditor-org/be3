@@ -86,9 +86,9 @@ fn a_root_gives_a_joined_editors_dock_bar_to_the_tab_hosting_it() {
     );
     assert_eq!(
         state.bar_placement(*bar),
-        Some(beui::dock::unstyled::DockBarPlacement::Beside(
-            beui::dock::unstyled::DockEdge::Bottom,
-            beui::dock::unstyled::DockAlign::Center,
+        Some(beui::dock::DockBarPlacement::Beside(
+            beui::dock::DockEdge::Bottom,
+            beui::dock::DockAlign::Center,
         ))
     );
     let hosted = dock_messages(&mut session)

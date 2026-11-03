@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{
+use crate::dock::{
     DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockingLayout,
     SplitSize, TabId, use_dock_bar,
 };
@@ -30,7 +30,7 @@ fn SharedTools(id: u64, tools: usize, pressed: Signal<Vec<u64>>) -> NodeId {
 fn SharedCanvas(id: u64, tools: usize, pressed: Signal<Vec<u64>>) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
-        <dock::styled::Docking layout>
+        <dock::Docking layout>
             <DockPane id="stage" bare=true>
                 <DockTab id="stage" title="Stage">
                     <Frame @test_id={format!("content.{id}")} />
@@ -43,7 +43,7 @@ fn SharedCanvas(id: u64, tools: usize, pressed: Signal<Vec<u64>>) -> NodeId {
             >
                 <SharedTools id tools pressed />
             </DockBar>
-        </dock::styled::Docking>
+        </dock::Docking>
     }
 }
 
@@ -67,26 +67,28 @@ fn bars_of_one_key_from_two_docked_tabs_share_one_window_that_follows_the_tab_sh
         let pressed = create_signal(Vec::new());
         handle.set(Some((outer, pressed)));
         view! {
-            <dock::styled::Docking layout=outer focus=2u64>
-                <DockSplit id="root" size={SplitSize::Fraction(0.7)}>
-                    <DockPane id="canvases">
-                        <DockTab id=1u64 title="Canvas 1">
-                            <SharedCanvas id=1 tools=2 pressed />
-                        </DockTab>
-                        <DockTab id=2u64 title="Canvas 2">
-                            <SharedCanvas id=2 tools=5 pressed />
-                        </DockTab>
-                        <DockTab id=3u64 title="Notes">
-                            <Frame @test_id="content.3" />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="side">
-                        <DockTab id=4u64 title="Side">
-                            <Frame @test_id="content.4" />
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout=outer focus=2u64>
+                    <DockSplit id="root" size={SplitSize::Fraction(0.7)}>
+                        <DockPane id="canvases">
+                            <DockTab id=1u64 title="Canvas 1">
+                                <SharedCanvas id=1 tools=2 pressed />
+                            </DockTab>
+                            <DockTab id=2u64 title="Canvas 2">
+                                <SharedCanvas id=2 tools=5 pressed />
+                            </DockTab>
+                            <DockTab id=3u64 title="Notes">
+                                <Frame @test_id="content.3" />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="side">
+                            <DockTab id=4u64 title="Side">
+                                <Frame @test_id="content.4" />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let (outer, pressed) = built.get().expect("the dock was built");

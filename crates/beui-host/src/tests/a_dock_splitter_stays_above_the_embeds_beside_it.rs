@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
+use dock::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
 
 #[test]
 fn a_dock_splitter_stays_above_the_embeds_beside_it() {
@@ -9,20 +9,22 @@ fn a_dock_splitter_stays_above_the_embeds_beside_it() {
     let document = build_node(move || {
         let layout = DockingLayout::<u64>::new();
         view! {
-            <dock::styled::Docking layout>
-                <DockSplit id="root" size={SplitSize::Fraction(0.5)}>
-                    <DockPane id="left">
-                        <DockTab id=1u64 title="Left">
-                            <Embed slot={EmbedSlot::new()} @test_id="embed" />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="right">
-                        <DockTab id=2u64 title="Right">
-                            <Frame />
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout>
+                    <DockSplit id="root" size={SplitSize::Fraction(0.5)}>
+                        <DockPane id="left">
+                            <DockTab id=1u64 title="Left">
+                                <Embed slot={EmbedSlot::new()} @test_id="embed" />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="right">
+                            <DockTab id=2u64 title="Right">
+                                <Frame />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, vec2(1000.0, 600.0));

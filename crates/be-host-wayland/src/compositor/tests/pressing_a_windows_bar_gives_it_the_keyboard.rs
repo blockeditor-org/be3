@@ -1,5 +1,6 @@
-use beui::dock::styled::Docking;
-use beui::dock::styled::{DockPane, DockTab, DockWindow, DockingLayout};
+use beui::dock::Docking;
+use beui::dock::{DockPane, DockTab, DockWindow, DockingLayout};
+use beui::dock_host::styled::DockHost;
 use beui::styled::*;
 
 use super::*;
@@ -13,32 +14,34 @@ fn Floating(windows: Windows) -> NodeId {
     let layout = DockingLayout::new();
     let window = Rect::from_min_size(pos2(450.0, 100.0), Vec2::new(450.0, 400.0));
     view! {
-        <Docking layout>
-            <DockPane id="main">
-                <DockTab
-                    id=1u64
-                    title="Text"
-                    content={|| view! {
-                        <TextInput @test_id={"test.input"} value="" />
-                    }}
-                />
-            </DockPane>
-            <DockWindow id="window" rect={window}>
-                <DockPane id="program">
+        <DockHost>
+            <Docking layout>
+                <DockPane id="main">
                     <DockTab
-                        id=2u64
-                        title="Program"
-                        content={move || view! {
-                            <Layers>
-                                <ForEach keys={ids}>|id: WindowId|
-                                    <WindowView windows id />
-                                </ForEach>
-                            </Layers>
+                        id=1u64
+                        title="Text"
+                        content={|| view! {
+                            <TextInput @test_id={"test.input"} value="" />
                         }}
                     />
                 </DockPane>
-            </DockWindow>
-        </Docking>
+                <DockWindow id="window" rect={window}>
+                    <DockPane id="program">
+                        <DockTab
+                            id=2u64
+                            title="Program"
+                            content={move || view! {
+                                <Layers>
+                                    <ForEach keys={ids}>|id: WindowId|
+                                        <WindowView windows id />
+                                    </ForEach>
+                                </Layers>
+                            }}
+                        />
+                    </DockPane>
+                </DockWindow>
+            </Docking>
+        </DockHost>
     }
 }
 

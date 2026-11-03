@@ -332,7 +332,9 @@ one direction:
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
 | `beui-components-styled` | `beui::styled`: themes, styled controls, the styled `Frame`, `Text`, `Span` and `Icon`, and every primitive with no styled version re-exported unchanged |
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
-| `beui-dock` | `beui::dock`: the dock, as `dock::unstyled` (the tree, the dragging, the keyboard and the layout state, painting nothing) and `dock::styled` (`Docking` painted with theme tokens) |
+| `beui-dock` | `beui::dock`: what an editor writes a dock with: `Docking` and the components that declare its panes, tabs, windows, dialogs and bars, the `DockingLayout` handle, the link a dock declares itself through, and what tab and bar bodies use (`use_dock_tab`, `use_dock_bar`, `dock_menu`, `styled::{DockBarGrip, DockBarSurface}`); it re-exports `beui-dock-state` |
+| `beui-dock-host` | `beui::dock_host`: `DockHost`, what lays a declared dock out and draws it (dragging, windows, bands, the stacked and compact modes, the switcher, the keyboard, the window manager), as `dock_host::unstyled` (painting nothing) and `dock_host::styled` (painted with theme tokens), and the `DockHostLayout` handle |
+| `beui-dock-state` | the dock's layout model: `DockState`, `DockSpec` and their operations, with no views |
 | `beui-keyboard` | `beui::keyboard`: the on-screen keyboard, as `keyboard::unstyled` (layouts, tables and the gesture engine) and `keyboard::styled`; beui-host's `build` installs it on every document |
 | `beui-draw` | `beui::native::{Draw, DrawAt, drawing, painted_drawing, texture_quad}`: the interface a gpu drawing implements, which the renderer runs, and the one pipeline that draws a texture into a rect (see [Draw with the gpu](#draw-with-the-gpu)) |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
@@ -2610,11 +2612,35 @@ popover's trigger toggles it closed once.
 
 ### Docking and windows
 
-`dock::styled::Docking` (crate `beui-dock`) is the workspace layout: panes split from one another, a tab
+`dock::Docking` (crate `beui-dock`) is the workspace layout: panes split from one another, a tab
 bar on each pane, and tabs that can be dragged between panes or out into
-windows that float over the rest of the dock. `dock::unstyled::Docking` underneath it
-owns the tree, the dragging and the keyboard, and paints nothing; the demo in
-`crates/beui-demo` is laid out in one.
+windows that float over the rest of the dock. A `Docking` only declares its
+dock; a `dock_host::styled::DockHost` above it lays the dock out and draws it
+where the `Docking` is, and owns the tree, the dragging and the keyboard
+(`dock_host::unstyled::DockHost` underneath paints nothing). An editor's frame
+already has one (be-sdk-beui), so an editor writes only the `Docking`; a
+program, a test or a shell that needs the host's own settings or its
+`DockHostLayout` puts one around its `Docking`. A `DockHost` hosts one
+`Docking`; attributes that place it (`@sizing`, `@test_id`, `@node_ref`) go on
+the `DockHost`, whose node is the dock's. The demo in `crates/beui-demo` is
+laid out in one.
+
+```rust
+let layout = DockingLayout::new();
+let host = DockHostLayout::new();
+view! {
+    <DockHost @sizing=ItemSize::Percent(100.0) layout=host drag_modifier={Some(Modifiers::LOGO)}>
+        <Docking layout>…</Docking>
+    </DockHost>
+}
+```
+
+`DockHostLayout` is the host's side, keyed by `TabId` (`DockingLayout::tab_of`
+turns a key into one): the area the dock lays windows out in (`area`), what
+covers it (`set_covered`, `over_bars_rect`), its windows (`window_rect`,
+`move_window`, the window manager below) and the switch. `DockHost` takes the
+settings of how the dock behaves (`drag_modifier`, below) and an `api`
+(`ComponentRef<DockApi>`, `DockApi::state`) for tests.
 
 The children describe the layout the dock starts with and the tabs that exist;
 a `DockingLayout<K>` holds where everything is now, and is what the caller saves
@@ -2815,7 +2841,7 @@ A tab that leaves the dock hands the visits that left it to the tab it was
 reached from.
 
 The dock's switcher walks `recent_tabs` across every pane and window, the way
-Alt+Tab walks a desktop's windows. `DockingLayout::begin_switch(backwards)`
+Alt+Tab walks a desktop's windows. `DockHostLayout::begin_switch(backwards)`
 chooses the tab shown before the current one (or, backwards, the one shown
 longest ago), `step_switch` moves the choice along and wraps, `commit_switch`
 shows the chosen tab (activating it in its pane and raising its window) and
@@ -3019,53 +3045,61 @@ in the group or moved out, so the inner dock's owner saves the inner
 `snapshot` (be-sdk-beui does this itself for a dock that joins another
 app's, guides/adding_an_app.md) and restores it before or after it joins (a restore made before it
 joins is grafted in once the group stands). An outer `restore` while an inner
-dock is joined keeps that dock's layout as it is. The seam is `docking/host.rs`'s
-`DockHostLink`, plain data both ways (`DockDeclaration`, `DockHosted`,
-`DockRequest`, `DockHostEvent`, `DockBodies`; `DockState::spec` and
-`from_spec` read and build a state exactly as the `DockSpec` that seeding takes, bars,
-homes and `outside` included; `DockTree` keeps a pane's `bare` too), and a platform
-implements it too: a `Docking` that finds no outer dock claims the
-`DockHostSlot` context if one is provided above it, and joins that host the same
-way. A slot made with `DockHostSlot::bars(link)` (`joins_bars`) is joined by
-bars only: its `Docking` stays standalone, drawing its tabs and keeping its
-layout, but declares itself to the link, places only its bar bodies through
-`DockBodies`, and while the link's `hosted` is `Some` draws none of its bars
-(the dock's `bars_away`), keeps its tab bodies clear of that hosted state's
-covers, and reads and places bars there (`DockingLayout::bar_placement`,
-`place_bar`). be-sdk-beui provides a slot in every editor's frame: a
-joining one where the editor's dock joins another app's, a bars one
-otherwise (guides/adding_an_app.md), and its `ChildBlock` in a
-tab body claims that tab's `DockJoin` (`use_dock_join()`, `DockJoin::host`,
-`claim`) for the child editor's dock. A link's `withdraw` takes back only the
-declaration: the bodies `place` gave and the `listen` callback stay with the
-link until the scope that claimed it ends, so a dock that stops declaring and
-declares again (a child editor whose `Docking` is torn down and built again) is
-hosted again with the same bodies. A `Docking` given `joins=false` claims
-neither a `DockJoin` nor a slot and stands alone wherever it is built, as the
-demo's Window manager page does with its floating windows. A `Docking` that joins no host instead
-claims the `DockKeeper` context if one is provided above it (one per keeper; a
-dock nested in it joins it and claims none) and hands it a `DockKept`: its own
-layout (`snapshot`'s state, as a memo), the keys of its own tabs and bars, and
-a restore that puts a state in place keeping the tab ids, so the keeper can
-save and restore a standalone dock as it would a joined one (be-sdk-beui
-provides one in every editor's frame). An owner that saves its dock itself
-provides `DockKeeper::none()` above it, as be-sdk-shell's `Workspace::new` does. Such a platform builds the tab bodies
-itself, and provides `DockTabMenu` and `DockTabControl::hosted(tab, hosted,
-request)` in each body's scope, so `dock_menu` and `use_dock_tab()` work there
-as in a local dock; `DockTabControl::is_hosted` tells such a body apart, and
-`claim_body` lets one child in it claim the tab. A `DockDialog` whose parent tab is hosting a group hangs
-from the group's shown tab. The inner dock's `DockDialog`s are declared too
-(`DockDeclaredDialog`) and the outer dock presents them as its own, over their
-parent's place, building their bodies like tab bodies and handing a close back
-to the inner `on_close`; a pane's `empty` view shows in the outer dock as a tab
-body does (`DockBodies::empty`), and the inner `focus` picks the group's tab
-when the group first takes the hosting tab's place. A `DockTab`'s `picture`
-reaches an outer dock in the same tree; across apps it is not carried (a
-`dock-tab` has no texture, and only the shell's own window tabs use pictures).
-A `Docking` inside a tab body of a dock that joined a platform's host (not an
-outer `Docking`) joins its own dock in turn: the joined dock splices it in as
-`joined:<tab>` and declares its tabs and dialogs as its own, keeping the host
-tab's panel alive (`DockBodies::hosts`) and passing its requests up.
+dock is joined keeps that dock's layout as it is. Every dock crosses the same seam, a `DockHostLink` (`beui-dock/src/link.rs`),
+plain data both ways (`DockDeclaration`, `DockHosted`, `DockRequest`,
+`DockHostEvent`, `DockBodies`; `DockState::spec` and `from_spec` read and build
+a state exactly as the `DockSpec` that seeding takes, bars, homes and `outside`
+included; `DockTree` keeps a pane's `bare` too). A `Docking` always declares
+through one: the `DockJoin` of the tab body it is built in, or else the
+`DockHostSlot` context above it, and it panics if it finds neither. A
+`DockHost` provides a slot whose link draws the dock in place of the `Docking`
+that claims it (`DockHostLink::view`); a platform's slot (`DockHostSlot::new`)
+draws nothing there and hosts the dock elsewhere. A `DockHost` hides any
+`DockJoin` around it (`DockJoin::none`), so a `Docking` under it stands alone
+even inside another dock's tab, as the demo's Window manager page does with its
+floating windows. A `DockHost` given `bars` (or inside one that was, which
+hands its link on) is joined by bars only: it declares the dock's owned bars to
+that link once a `Docking` is hosted, places only their bodies, and while the
+link's `hosted` is `Some` draws none of them (the dock's `bars_away`), keeps
+its tab bodies clear of that hosted state's covers, and reports the bars where
+the link has them, so `DockingLayout::bar_placement` and `place_bar` read and
+place them there. be-sdk-beui provides a platform slot in an editor's frame
+whose dock joins another app's, and wraps any other editor's content in a
+`DockHost` with the frame's bars link (guides/adding_an_app.md), and its
+`ChildBlock` in a tab body claims that tab's `DockJoin` (`use_dock_join()`,
+`DockJoin::host`, `claim`) for the child editor's dock. A link's `withdraw`
+takes back only the declaration: the bodies `place` gave and the `listen`
+callback stay with the link until the scope that claimed it ends, so a dock
+that stops declaring and declares again (a child editor whose `Docking` is torn
+down and built again) is hosted again with the same bodies. A `Docking` hosted
+by a `DockHost` (`DockHostSlot::is_local`) claims the `DockKeeper` context if
+one is provided above it (one per keeper; a dock nested in it joins it and
+claims none) and hands it a `DockKept`: its own layout (`snapshot`'s state, as
+a memo), the keys of its own tabs and bars, and a restore that puts a state in
+place keeping the tab ids, so the keeper can save and restore that dock as it
+would a joined one (be-sdk-beui provides one in every editor's frame). An owner
+that saves its dock itself provides `DockKeeper::none()` above it, as
+be-sdk-shell's `Workspace::new` does. A host builds the tab bodies itself from
+`DockBodies`, and provides `DockTabMenu` and a `DockTabControl` in each body's
+scope, so `dock_menu` and `use_dock_tab()` work there: `DockTabControl::local`
+and `DockBarControl::local` take the `DockTabDriver` and `DockBarDriver` a
+`DockHost` implements, and a platform hands out `DockTabControl::hosted(tab,
+hosted, request)` instead; `DockTabControl::is_hosted` tells such a body apart,
+and `claim_body` lets one child in it claim the tab. A `DockDialog` whose parent
+tab is hosting a group hangs from the group's shown tab. The inner dock's
+`DockDialog`s are declared too (`DockDeclaredDialog`) and the outer dock
+presents them as its own, over their parent's place, building their bodies like
+tab bodies and handing a close back to the inner `on_close`; a pane's `empty`
+view shows in the outer dock as a tab body does (`DockBodies::empty`), and the
+inner `focus` picks the group's tab when the group first takes the hosting
+tab's place. A `DockTab`'s `picture` reaches an outer dock in the same tree;
+across apps it is not carried (a `dock-tab` has no texture, and only the
+shell's own window tabs use pictures). Nesting happens in the client: a
+`Docking` inside a tab body of another splices the inner dock in as
+`joined:<tab>` and declares its tabs, dialogs, bars, group titles and
+see-through tabs as its own, naming the tabs hosting a group
+(`DockDeclaration::hosts`, which keep their panels alive) and passing its
+requests up, so a host only ever sees one declaration.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
@@ -3076,7 +3110,7 @@ and a screen reader does not read it. Closing the tab is what removes it.
 
 Pressing a pane's or a window's own chrome - its bar, a tab, a grip - gives the
 keyboard to the tab it shows rather than taking it: the bar is an `Interactive`
-with `press_focus=false` (guides/beui_keyboard.md), and the dock (`beui-dock/src/unstyled/keyboard.rs`) puts the focus in the
+with `press_focus=false` (guides/beui_keyboard.md), and the dock (`beui-dock-host/src/unstyled/keyboard.rs`) puts the focus in the
 panel, where it was when that tab last had it or else on the panel's first
 focusable (`Document::focus_into`, which waits a layout for a panel still being
 built). Picking a tab with the pointer does the same for the tab it shows, while
@@ -3092,7 +3126,7 @@ not while the dock is built or restored), without moving the focus. A block plac
 keyboard (`focus_child`, guides/adding_an_app.md), which is how a block window
 the desktop opens or brings forward takes the keys.
 
-`drag_modifier` (none unless asked for) makes the dock a window manager while
+`DockHost`'s `drag_modifier` (none unless asked for) makes the dock a window manager while
 those modifiers are held. A primary drag anywhere in a floating window - its
 content, its bar or its tabs - moves the whole window, as dragging its bar does;
 a secondary drag resizes it from the edge or corner nearest the pointer (by
@@ -3101,7 +3135,7 @@ the pointer, and a primary drag does nothing: it is swallowed rather than handed
 to the content, since a press made with the modifier is never meant for it.
 Each window and each docked pane claims those presses (a `Claim` with those modifiers), so
 neither the tabs nor the content see them. The code is
-`beui-dock/src/unstyled/modifier_drag.rs`; the desktop app sets Super, and the demo's Docking page
+`beui-dock-host/src/unstyled/modifier_drag.rs`; the desktop app sets Super, and the demo's Docking page
 has a switch for Alt.
 
 A `DockDialog`, declared beside the dock's other children, is a dialog attached
@@ -3280,8 +3314,8 @@ draws over the host's windows too), at `LayerLevel::Raised` like every popped-ou
 window, so floating dock windows pass under them while menus and modals open over them;
 while a fullscreen tab is in front they drop to `Normal` and it covers them (unless the
 tab is fullscreen over an area clear of the dock, such as another display), as they do while the owner
-says something outside the dock covers it (`DockingLayout::set_covered`). Where each run
-floating over the dock's edges is shown is `DockingLayout::over_bars_rect(edge, align)`, in the
+says something outside the dock covers it (`DockHostLayout::set_covered`). Where each run
+floating over the dock's edges is shown is `DockHostLayout::over_bars_rect(edge, align)`, in the
 dock's coordinates, so its owner can keep things such as toasts clear of it. A tab's bars
 floating over its pane stay in that pane, under the windows that cover it. Floating dock
 windows (in a dock that draws its own) never cover a band: on an edge with a dock band
@@ -3294,8 +3328,8 @@ outside every pane's bars. They are saved in `DockState` with the rest. A `Docki
 joins another declares its own dock bars up with no owner (`DockDeclaredBar::owner` is
 `None`) and the root gives them to the tab hosting it, so they behave as that tab's bars
 (lent to the joined dock's first pane); the joined dock sees them as its own again
-(`subtree`/`graft` map the host to none). A dock that only declares its bars up
-(`DockHostSlot::bars`) keeps its dock bars and draws them itself, so an app whose dock is
+(`subtree`/`graft` map the host to none). A `DockHost` that only declares its bars up
+(its `bars`) keeps its dock bars and draws them itself, so an app whose dock is
 the root (the desktop's) draws its own. Across the app protocol a docked app's dock bars
 cross with no `owner` too (be-sdk-api PROTOCOL.md, "Docks cross apps").
 
@@ -3325,30 +3359,31 @@ its group shows no second tab strip. The demo's Dock bars page has both.
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or
 `None` for the screen it opens on), `DockingLayout::enter_fullscreen` and
-`leave_fullscreen` from outside, or the `DockTabControl` that `use_dock_tab()`
+`leave_fullscreen` (or `DockHostLayout`'s) from outside, or the `DockTabControl` that `use_dock_tab()`
 hands the tab's own content. The panel moves into a floating overlay over that
-area, wrapped in Docking's `fullscreen` render prop (styled: the theme's
+area, wrapped in `DockHost`'s `fullscreen` render prop (styled: the theme's
 background), so it covers the tab bars, the other panes, the dock's windows
 (even one the focus moves into) and anything else in the document there, and nothing under it hears the pointer, while the rest of the
 document stays live. Leaving puts the panel back in its pane without rebuilding
 it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
 as the demo's Escape does. Fullscreen is not part of the saved layout.
 
-A floating window can be snapped: `DockingLayout::snap_window(key, DockSnap, area)` gives it the
+A floating window can be snapped: `DockHostLayout::snap_window(tab, DockSnap, area)` gives it the
 left or right half of `area` (in the dock's window points, as `window_rect`), or all of it
 (`DockSnap::Fill`, maximized), remembering the rect it had before its first snap;
 `unsnap_window` puts that rect back, and `window_snap` says how it is snapped, reactively,
 for as long as it stays at the rect it was snapped to (moved or resized away, it is not snapped
 and has nothing to go back to). Snaps are not part of the saved layout.
 
-The dock is also the window manager of its floating windows, for any shell (docking/manager.rs,
-state/hidden.rs). `DockingLayout::set_areas` gives it the rects of the displays it spans, in the
+The dock is also the window manager of its floating windows, for any shell
+(`beui-dock-host/src/unstyled/hosting/manager.rs`, `beui-dock-state/src/hidden.rs`), all on
+`DockHostLayout` and keyed by `TabId`. `DockHostLayout::set_areas` gives it the rects of the displays it spans, in the
 same points; with none, its own `area()` is its one area. A window belongs to the area it overlaps
 most (`area_of_window`, `holding_area`), `snap_in_area` snaps it within that area, and
 `move_to_area`/`step_area` move it to another keeping its place in proportion, inside the area,
 and keep a snapped window snapped there. A floating window can be hidden (`hide_window`,
 `is_hidden`, `DockState::hide_window`/`show_window`): it keeps its place but is not drawn, its
-tabs are not placed (`is_shown` is false for them, a tracked read on `DockingLayout` too, so its dialogs go with it), the focus goes to
+tabs are not placed (`is_shown` is false for them, a tracked read on `DockHostLayout` too, so its dialogs go with it), the focus goes to
 the tab shown before it, and the switcher skips it; showing or focusing any of its tabs
 (`show`, `DockState::focus`) shows it again. Hidden windows are not part of the saved layout.
 `show_desktop` hides every shown window, and pressed again while none has been shown since
@@ -3356,7 +3391,7 @@ the tab shown before it, and the switcher skips it; showing or focusing any of i
 hides again. A `DockTab`'s `group` (an optional string: which tabs are one app's) is what
 `next_of_group` cycles: the shown windows' tabs of the same group, in tab order. `close_tab`
 closes a tab through its own `on_close`, so the shell decides what closing means.
-`DockingLayout::window_actions(disabled)` returns `DockWindowActions`, a set of `ActionBuilder`s
+`DockHostLayout::window_actions(disabled)` returns `DockWindowActions`, a set of `ActionBuilder`s
 with ids, labels and icons but no keys, each enabled only when it has something to do and never
 while `disabled` (the shell's memo: the desktop's lock screen) is true: `dock.window.close`,
 `hide`, `snap_left`, `snap_right` (snapping the other way restores), `maximize`, `restore`,
@@ -4079,7 +4114,7 @@ key routing and tab order stay one across every window, except that a host's
 window (remembered per window) and `focused: true` gives it back when nothing
 else has it since. A window with nothing to give back first lets its
 `on_report` hear the `Focused` and choose: a dock window the host focuses
-(`window_focused` in `beui-dock/src/unstyled.rs`) focuses its pane and, unless the keyboard is
+(`window_focused` in `beui-dock-host/src/unstyled.rs`) focuses its pane and, unless the keyboard is
 already inside it, hands it to the shown tab (`give_keyboard`, the node that
 tab last had, else its first focusable), so a tab floated into a window the
 host focuses on opening takes the keyboard with it, while the main window
@@ -5019,7 +5054,7 @@ inspector's Sim tab has a button that opens it over the inspected program.
 ### The inspector
 
 Ctrl+Shift+I in a standalone beui window opens the node, component,
-accessibility, and performance inspector. Its document is a `dock::styled::Docking` that fills
+accessibility, and performance inspector. Its document is a `Docking` in a `dock_host::styled::DockHost` that fills
 the window, and the inspected program is one of its tabs: an Program tab, in a pane split off the left of
 the tools (Beui, Comp, A11y, Perf and Sim) with the tools 340 points wide, whose body is an
 `Embed` the program's document is laid out in. So the tools can be dragged beside the program, under it,
@@ -5379,7 +5414,7 @@ function of the canvas's laid-out size, compared by identity, so a memo hands a
 new one when what it places changes) calls it each time it is laid out and puts
 every `CanvasItem arranged=KEY` at the rect returned for KEY (empty if none),
 ignoring its x, y, width and height. The HTML core runs it from the canvas's
-measured size. beui-dock's tiled panes and splitters are placed this way.
+measured size. beui-dock-host's tiled panes and splitters are placed this way.
 `TextGeometrySignal` reads like a `ReadSignal` (it is
 `Get<Option<TextGeometry>>` over the core's own signal). `TextGeometry` is a
 `Text`'s last layout (a snapshot natively, read from the DOM on HTML):
@@ -5926,7 +5961,7 @@ region labelled with the message.
 
 `ToolPill` is the raised, bordered, fully rounded bar a floating set of tools
 sits in, or with `band` set the flat fill of a toolbar band (`BAND_FILL`, which
-beui-dock's band is drawn with too; a dock bar's body uses `DockBarSurface`,
+beui-dock-host's band is drawn with too; a dock bar's body uses `DockBarSurface`,
 which sets `band` while the bar is docked beside an edge): its children in a row,
 or a column with `direction=Direction::Vertical` (a dock bar on a side edge),
 with arrow-key focus along it, scrolling when the bar is offered less than it
@@ -5934,7 +5969,7 @@ needs. Placing it (a `Floating`, a dock bar, a margin) is the caller's.
 
 `keep_clear(node, rects)` names parts of a node (rects relative to it) that
 something floats over, as floating overlays do: a `Canvas` revealing its
-focused content keeps it out of both. beui-dock keeps an over-the-body dock
+focused content keeps it out of both. beui-dock-host keeps an over-the-body dock
 bar clear this way, and a joined editor's tab body is kept clear of the bars
 the root draws over it (`DockHosted.covers`).
 

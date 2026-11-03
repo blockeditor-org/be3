@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
+use crate::dock::{DockPane, DockSplit, DockTab, DockingLayout};
 use crate::reactive::*;
 
 const PHONE: Vec2 = Vec2::new(390.0, 600.0);
@@ -10,23 +10,25 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking layout focus=3u64>
-                <DockSplit id="split">
-                    <DockPane id="left">
-                        <DockTab id=1u64 title="Tab 1">
-                            <Frame @test_id="content.1" />
-                        </DockTab>
-                        <DockTab id=2u64 title="Tab 2">
-                            <Frame @test_id="content.2" />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="right">
-                        <DockTab id=3u64 title="Tab 3" on_close={|| {}}>
-                            <Frame @test_id="content.3" />
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout focus=3u64>
+                    <DockSplit id="split">
+                        <DockPane id="left">
+                            <DockTab id=1u64 title="Tab 1">
+                                <Frame @test_id="content.1" />
+                            </DockTab>
+                            <DockTab id=2u64 title="Tab 2">
+                                <Frame @test_id="content.2" />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="right">
+                            <DockTab id=3u64 title="Tab 3" on_close={|| {}}>
+                                <Frame @test_id="content.3" />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, PHONE);

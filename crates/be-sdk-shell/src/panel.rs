@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use be_sdk_beui::be_sdk_ui::{BlockCatalog, BlockTypes};
 use be_sdk_beui::beui::NodeId;
-use be_sdk_beui::beui::dock::styled::{TabId, dock_menu, use_dock_tab};
+use be_sdk_beui::beui::dock::{TabId, dock_menu, use_dock_tab};
 use be_sdk_beui::beui::icons::ICON_LOCK;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
