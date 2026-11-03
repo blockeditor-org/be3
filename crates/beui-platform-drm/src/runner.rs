@@ -60,15 +60,15 @@ use crate::escape::{Escape, FINGERS as ESCAPE_FINGERS, HOLD as ESCAPE_HOLD};
 use crate::flips::{Flip, Flips};
 use crate::gpu::{Gpu, SoftwareCursor};
 use crate::input::{
-    InputConfig, InputControl, InputDevice, PointerDevice, Pointing, PointerSettings, PointerSpeed, RawInput,
-    SharedFilter,
+    InputConfig, InputControl, InputDevice, PointerDevice, PointerSettings, PointerSpeed, Pointing,
+    RawInput, SharedFilter,
 };
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, clamp, moved};
-use crate::pointing::{self, Kind, Pointer, Target};
 use crate::output::{Buffers, Output, connected, wait_for};
 use crate::outputs::{DisplayRenderer, Outputs};
 use crate::pacing::{Lane, Pacer, Wait};
+use crate::pointing::{self, Kind, Pointer, Target};
 use crate::problems::Problems;
 use crate::recovery::{Card, Recovery};
 use crate::rotation::Turn;
@@ -1151,7 +1151,8 @@ impl Session {
     fn retarget(&mut self) {
         let screens = self.outputs.borrow().pointed();
         for known in &mut self.pointing {
-            known.target = pointing::target(&known.pointer, &screens, self.input.display(&known.id));
+            known.target =
+                pointing::target(&known.pointer, &screens, self.input.display(&known.id));
         }
     }
 

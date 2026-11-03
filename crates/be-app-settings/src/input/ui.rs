@@ -7,8 +7,8 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
 use be_sdk_beui::{
-    ChangesToast, DisplaysWatch, Editor, HostDisplay, HostInputDevice, InputDevicesWatch, InputReachWatch, LayeredSettings,
-    LayeredSettingsRow, SettingHandle,
+    ChangesToast, DisplaysWatch, Editor, HostDisplay, HostInputDevice, InputDevicesWatch,
+    InputReachWatch, LayeredSettings, LayeredSettingsRow, SettingHandle,
 };
 
 use super::remapper::RemapperSetting;
@@ -457,7 +457,8 @@ fn DisplayChoice(
     });
     let selected = create_memo(move || {
         let chosen = effective.with(|effective| effective.display(&device).map(str::to_owned));
-        let index = chosen.and_then(|id| shown.with(|shown| shown.iter().position(|(known, _)| *known == id)));
+        let index = chosen
+            .and_then(|id| shown.with(|shown| shown.iter().position(|(known, _)| *known == id)));
         Some(index.map_or(0, |index| index + 1))
     });
     view! {

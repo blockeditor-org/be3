@@ -67,8 +67,12 @@ pub fn automatic(pointer: &Pointer, screens: &[Screen]) -> Target {
     let fitting: Vec<usize> = (0..screens.len())
         .filter(|&index| fits(pointer.size, screens[index].size))
         .collect();
-    let prefer_built_in =
-        |among: &[usize]| among.iter().copied().find(|&index| built_in(&screens[index]));
+    let prefer_built_in = |among: &[usize]| {
+        among
+            .iter()
+            .copied()
+            .find(|&index| built_in(&screens[index]))
+    };
     if let Some(&first) = fitting.first() {
         return Target::Output(prefer_built_in(&fitting).unwrap_or(first));
     }

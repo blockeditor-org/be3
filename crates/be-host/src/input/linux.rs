@@ -145,9 +145,12 @@ fn host_device(device: &PointerDevice) -> HostInputDevice {
     HostInputDevice {
         device: device.id.clone(),
         defaults: device.defaults,
-        pointing: device.pointing.as_ref().map(|pointing| be_sdk_api::Pointing {
-            automatic: pointing.automatic.clone(),
-        }),
+        pointing: device
+            .pointing
+            .as_ref()
+            .map(|pointing| be_sdk_api::Pointing {
+                automatic: pointing.automatic.clone(),
+            }),
     }
 }
 
