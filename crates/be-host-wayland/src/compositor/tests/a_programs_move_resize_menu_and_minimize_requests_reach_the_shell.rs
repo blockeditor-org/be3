@@ -1,47 +1,8 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use beui::WindowEdge;
 use smithay::reexports::wayland_protocols::xdg::shell::client::xdg_toplevel::ResizeEdge;
 
 use super::*;
 use crate::state::Grab;
-use crate::view::Carrier;
-
-thread_local! {
-    static BEGUN: RefCell<Vec<Grab>> = const { RefCell::new(Vec::new()) };
-    static STEERED: RefCell<usize> = const { RefCell::new(0) };
-}
-
-#[component]
-fn Carried(windows: Windows) -> NodeId {
-    let ids = create_memo(clone_list(&windows));
-    view! {
-        <Layers>
-            <ForEach keys={ids}>|id: WindowId| {
-                let carrier = Carrier {
-                    begin: Rc::new(|grab| {
-                        BEGUN.with(|begun| begun.borrow_mut().push(grab));
-                        true
-                    }),
-                    steer: Rc::new(|input| {
-                        STEERED.with(|steered| *steered.borrow_mut() += input.events.len());
-                        input
-                    }),
-                };
-                view! {
-                    <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
-                        <WindowView windows id carrier={Some(carrier)} />
-                    </Frame>
-                }
-            }</ForEach>
-        </Layers>
-    }
-}
-
-fn begun() -> Vec<Grab> {
-    BEGUN.with(|begun| std::mem::take(&mut *begun.borrow_mut()))
-}
 
 #[test]
 fn a_programs_move_resize_menu_and_minimize_requests_reach_the_shell() {

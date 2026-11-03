@@ -12,6 +12,7 @@ mod a_desktop_window_is_kept_in_the_work_area_in_a_window_and_off_an_unplugged_d
 mod a_moved_window_brings_the_windows_opened_over_it_along;
 mod a_raised_window_brings_the_windows_opened_over_it_along;
 mod a_window_a_program_asks_to_move_or_resize_follows_the_pointer;
+mod a_window_a_program_asks_to_move_from_a_finger_follows_that_finger;
 mod a_window_held_past_the_edge_of_the_host_stretches_and_springs_back_when_let_go;
 mod a_window_moved_off_the_bottom_of_the_host_keeps_its_size_and_its_top_in_view;
 mod a_window_opened_from_a_dock_tab_is_hosted_by_that_tab;
@@ -90,9 +91,13 @@ impl Carrying {
     }
 
     fn pointer(&mut self, phase: PointerPhase, at: Pos2) {
+        self.pointer_by(PointerId::Mouse, phase, at);
+    }
+
+    fn pointer_by(&mut self, pointer: PointerId, phase: PointerPhase, at: Pos2) {
         self.inside(|key| {
             let event = PointerEvent {
-                pointer: PointerId::Mouse,
+                pointer,
                 window: beui::WindowId::MAIN,
                 phase,
                 pos: at,

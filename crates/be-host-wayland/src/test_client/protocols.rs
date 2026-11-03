@@ -431,8 +431,16 @@ impl Dispatch<wl_touch::WlTouch, ()> for Received {
     ) {
         let seen = match event {
             wl_touch::Event::Down {
-                surface, id, x, y, ..
-            } => TouchSeen::Down(surface, id, x, y),
+                serial,
+                surface,
+                id,
+                x,
+                y,
+                ..
+            } => {
+                state.serial = Some(serial);
+                TouchSeen::Down(surface, id, x, y)
+            }
             wl_touch::Event::Motion { id, x, y, .. } => TouchSeen::Motion(id, x, y),
             wl_touch::Event::Up { id, .. } => TouchSeen::Up(id),
             wl_touch::Event::Frame => TouchSeen::Frame,

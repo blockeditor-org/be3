@@ -31,6 +31,7 @@ struct Held {
     id: TouchId,
     slot: u32,
     window: Option<WindowId>,
+    serial: Serial,
 }
 
 impl Touch {
@@ -82,6 +83,17 @@ impl State {
             || (self.touch.emulated.is_some() && self.pointer_window() == Some(id))
     }
 
+    pub(crate) fn touch_holds(&self, id: WindowId, serial: Serial) -> bool {
+        self.touch
+            .points
+            .iter()
+            .any(|held| held.window == Some(id) && held.serial == serial)
+    }
+
+    pub(crate) fn touch_held_on(&self, id: WindowId) -> bool {
+        self.touch.points.iter().any(|held| held.window == Some(id))
+    }
+
     pub fn touch_down(&mut self, id: TouchId, target: Option<(WindowId, Point<f64, Logical>)>) {
         let focus = self.under(target);
         let surface = focus
@@ -95,15 +107,17 @@ impl State {
                     return;
                 };
                 let slot = self.touch.free_slot();
+                let serial = SERIAL_COUNTER.next_serial();
                 self.touch.points.push(Held {
                     id,
                     slot,
                     window: Some(window),
+                    serial,
                 });
                 let event = DownEvent {
                     slot: TouchSlot::from(Some(slot)),
                     location,
-                    serial: SERIAL_COUNTER.next_serial(),
+                    serial,
                     time: self.time(),
                 };
                 touch.down(self, under, &event);

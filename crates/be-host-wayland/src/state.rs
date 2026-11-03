@@ -1533,10 +1533,10 @@ fn xdg_edge(edges: xdg_toplevel::ResizeEdge) -> Option<beui::WindowEdge> {
 
 impl State {
     fn grab_from(&mut self, surface: &ToplevelSurface, serial: Serial, grab: Grab) {
-        if !self.pointer().has_grab(serial) {
+        let Some(id) = self.window_of(surface).map(|window| window.id) else {
             return;
-        }
-        if let Some(id) = self.window_of(surface).map(|window| window.id) {
+        };
+        if self.pointer().has_grab(serial) || self.touch_holds(id, serial) {
             self.events.push(ServerEvent::Grabbed(id, grab));
         }
     }
