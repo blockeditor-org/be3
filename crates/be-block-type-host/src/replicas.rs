@@ -386,10 +386,11 @@ impl<H: Host> Replicas<H> {
         self.left > 0
     }
 
-    fn leave(&mut self, peer: &Peer<H::Store>, block: Uuid) {
+    fn leave(&mut self, shared: &Arc<Mutex<H>>, peer: &Peer<H::Store>, block: Uuid) {
         let left = peer.leave_session(block);
         let unwatched = peer.unwatch(block);
         self.left += 1;
+        H::leaving(shared, true);
         let io = self.io.clone();
         H::spawn(async move {
             if let Ok(left) = left {
@@ -457,7 +458,7 @@ impl<H: Host> Replicas<H> {
                 self.answered(ctx, io);
             }
             for block in std::mem::take(&mut self.leaving) {
-                self.leave(ctx.0, block);
+                self.leave(ctx.1, ctx.0, block);
             }
             for (module, heard) in heard {
                 self.changed |= self.heard_from(ctx, module, heard).await;
@@ -1666,7 +1667,10 @@ impl<H: Host> Replicas<H> {
                 }
             }
             Io::Relayed => self.relaying -= 1,
-            Io::Left => self.left -= 1,
+            Io::Left => {
+                self.left -= 1;
+                H::leaving(shared, self.left > 0);
+            }
             Io::Sealed => self.release(),
             Io::Keyed { block, error } => {
                 if let Some(error) = error
@@ -1951,7 +1955,7 @@ impl<H: Host> Replicas<H> {
         self.asked.retain(|_, (to, _)| *to != replica);
         self.blocks.remove(&open.block);
         if !open.joining {
-            self.leave(peer, open.block);
+            self.leave(shared, peer, open.block);
         }
         if open.reopen {
             self.open((peer, shared), open.block, open.content_type, open.reader)

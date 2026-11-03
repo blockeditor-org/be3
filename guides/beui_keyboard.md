@@ -11,7 +11,7 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 | Sliders | Right/Up increase and Left/Down decrease by 5% of the track. Home/End select minimum/maximum. Page Up/Down adjust by 20% of the track. Values remain within the range, which is `min` to `max` and defaults to 0 to 1. A curved `scale` keeps the steps even along the track, so they are small where the track is fine and large where it is coarse. |
 | Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit; a single-line input with no `on_submit` leaves Enter to what is around it, such as a dialog's confirm action. Up and Down move to the start and the end of the text, as they would on the one line of a multiline area. Space inserts text. Paste replaces the selection. A secondary click opens the Copy, Cut, Paste and Select All menu that a touch tap on the selection or the caret handle opens. The desktop runner maps Command to Ctrl on macOS; Super chords type nothing. A multiline text area takes Tab and Shift+Tab to indent; Escape then Tab or Shift+Tab moves the focus out of it instead. It registers Find (Ctrl+F), Find and replace (Ctrl+H), the next and previous match (Ctrl+G, Ctrl+Shift+G), Duplicate the line (Ctrl+Shift+D), Select the next occurrence (Ctrl+D) and folding (Ctrl+Shift+[) as actions, which answer while the focus is in it. |
 | Selectable text | `<SelectableText>` makes the plain text nodes under it selectable together: a mouse drag selects from one text to another in tree order, Shift+click extends the selection, and a click clears it. Ctrl+C copies the selection, joining texts on one line with a space and lines with a line break; Ctrl+A selects everything under it. `copy_key` and `select_all_key` (each an `Option<Chord>`) change those keys or turn them off with `None`, as the terminal does to leave Ctrl+C and Ctrl+A to the shell (copying on Ctrl+Shift+C instead); a secondary click still opens the Copy and Select All menu, which shows whichever keys are set. A drag past the edge of the scroll around it scrolls. It is not a Tab stop, and the keys also reach it from a focused control inside it. |
-| Scroll areas | A scroll area is a Tab stop only while its content overflows and nothing inside it is a Tab stop; with a control inside, the keyboard reaches the area through that control, so it drops its own stop. Focusing anything inside scrolls it into view. A scroll area takes the keys that scroll it only while it can scroll that way, so one already at its end leaves a key to the area around it, as nested scrolling boxes in a browser do: the arrows along its axis by a line and Home/End to the endpoints, and a vertical one also Page Up/Down and Space/Shift+Space by a page. Those keys that the focused control leaves unused bubble to the nearest area that takes them, as a browser scrolls an overflowing box around a focused button. Tab and Shift+Tab walk a virtual list's rows as if every row were built, building the ones they reach, and a focused row scrolled out of view keeps the focus. |
+| Scroll areas | A scroll area is a Tab stop only while its content overflows and nothing inside it is a Tab stop; with a control inside, the keyboard reaches the area through that control, so it drops its own stop. A press on a scroll area with nothing to scroll, away from any control in it, leaves the focus where it is, as a native window leaves it on a click on blank space; one that scrolls takes the focus, so its keys scroll it. Focusing anything inside scrolls it into view. A scroll area takes the keys that scroll it only while it can scroll that way, so one already at its end leaves a key to the area around it, as nested scrolling boxes in a browser do: the arrows along its axis by a line and Home/End to the endpoints, and a vertical one also Page Up/Down and Space/Shift+Space by a page. Those keys that the focused control leaves unused bubble to the nearest area that takes them, as a browser scrolls an overflowing box around a focused button. Tab and Shift+Tab walk a virtual list's rows as if every row were built, building the ones they reach, and a focused row scrolled out of view keeps the focus. |
 | Toolbars and docks | Every control is a Tab stop. Left/Right move the focus to the previous/next control and stop at the ends; Home/End reach the first/last. A control that uses those keys itself, such as a text input, keeps them. `arrow_focus(row, direction)` gives a row of controls this (Up/Down for a column; the direction may change, as a dock bar's does when it moves to a side edge), and `be_sdk_beui`'s `Toolbar`, `ToolPill`, beui-dock's `DockBarSurface` and the text editor's format bar use it. |
 | Select (dropdown) | Clicking or activating the trigger opens the popup and focuses its search box; typing filters the options to those whose label contains every typed word, ignoring case. Up/Down/Home/End on the closed trigger also open the popup and move the highlight in that direction. Up/Down move the highlighted option without moving the text caret; Page Up/Page Down move eight options; Home/End jump to the first/last visible option. Enter confirms the highlighted option and closes the popup. Escape or an outside click closes the popup without changing the selection and returns focus to the trigger. |
 | Tree views | One Tab stop, at the selected row or the first row. Up/Down move to the previous/next visible row and stop at the ends; Home/End reach the first/last row. Right expands a collapsed row and then moves to its first child; Left collapses an expanded row and then moves to its parent. Space or Enter selects a row, the same as clicking it, and leaves it open or closed; only Left, Right and the chevron expand or collapse. Typing searches case-insensitive prefixes over the visible rows. Selection follows the focused row. |
@@ -130,8 +130,8 @@ do they show the focus ring or end autoscroll, and the runners drop their repeat
 Something that reacts to the modifier key rather
 than to the state, such as tapping Super alone, is a global action with a
 `Chord::tap(Key::Logo)` rather than code reading events: the document counts a
-modifier pressed and let go with no other key, press, scroll or loss of focus
-between as a tap, judged from the key events alone (the runners do not agree on
+modifier pressed and let go with no other key (handled or not, and an
+`Event::InterceptedKey` too), press, scroll or loss of focus between as a tap, judged from the key events alone (the runners do not agree on
 whether `Event::Modifiers` comes before or after the key's own event, and winit
 on X11 can report a modifier state that reverts before the key arrives), and
 offers it on the release to the host and window capture listeners as a
@@ -180,7 +180,7 @@ unmodified character and key code. Web and winit share `Key::from_value`, which
 reads a W3C key value. `evdev` on `Keystroke` and `Event::Key` is where the key
 sits, as a Linux evdev code (`KEY_A` is 30), on every platform: winit and the
 web map their W3C physical codes with `Key::evdev_from_code`, Android passes
-its scan code and drm its evdev code, and drive sends `Key::evdev`;
+its scan code and drm its evdev code;
 `Key::from_evdev` names the key in that place. It is `None` for a key with no
 physical place, such as one from an on-screen keyboard. It is for programs that
 apply a layout of their own, such as be-host-wayland's Wayland clients; shortcuts
@@ -267,9 +267,11 @@ modifiers until those of the chord are let go, so `held_modifiers()` sees Alt
 released while a Wayland program has the keyboard; that is how the desktop app's
 Alt+Tab works over any window. be-host takes intercepted keys only from the
 shell's frame, and only chords with Ctrl, Alt or Super, or media keys. A tap
-chord goes the same way as `Input::InterceptedTap`, but only while the
-view does not have the keyboard itself, since it then hears the key and
-counts the tap on its own; the release still reaches whatever had the focus.
+chord goes the same way as `Input::InterceptedTap`. Neither is intercepted while
+the view has the keyboard itself (`be_host_runtime::view_has_keyboard`): it then
+hears the key in order with the rest of its input and counts the tap on its own,
+where an intercepted key, sent at once, would reach it ahead of the Super it was
+pressed under. The release of a tap still reaches whatever had the focus.
 
 A document with a layer open that traps focus
 (`Layers::takes_keyboard`, such as a dialog, a popover or the command palette) reports `WindowRequests::wants_keyboard`, which the
@@ -294,7 +296,11 @@ Programs panel uses). Its overlay is an `unstyled::Modal`. `styled::SearchList` 
 and rows inline, with no overlay, for a panel that holds more than the search (the desktop's
 Programs panel); its rows are `{id}.item.{key}` and its field `{id}.search`. It, `CommandPalette` and
 `Select` are stylings of `unstyled::SearchList`, which owns the query, the highlight, the arrow,
-Page, Home and End keys, scrolling to the highlighted row, Enter and hover. With `columns` above
+Page, Home and End keys, scrolling to the highlighted row, Enter and hover. Each change of the
+query highlights its best match again (unless `highlight_first` is off), and a caller that resets
+the query to what it already was resets the `highlighted` it passes too. `fill_height` keeps the
+results at `list_height` whatever they hold, so a panel around them keeps its size while the query
+narrows them. With `columns` above
 one it lays the rows out as a grid of tiles (`styled::SearchList` draws each as an icon over its
 title), Up and Down move a row of tiles and Left and Right one tile, so a caller that wants the
 caret keys back in the field while a query is typed passes one column then, as the Programs panel
@@ -447,8 +453,9 @@ removing it from sequential Tab navigation, which is how single-Tab-stop groups
 work. `yields_tab_stop` on a focusable `<Interactive>` makes
 it a Tab stop only while nothing inside it is one, decided from the tree each
 time Tab walks it; that is how a scroll area hands its stop to its content,
-with its `tab_stop` following whether it overflows. Neither is set on a scroll
-area from outside.
+with its `tab_stop` following whether it overflows. While such an `Interactive`'s
+`tab_stop` is off, a press on it and on no focusable inside it leaves the focus
+where it is rather than taking it. Neither is set on a scroll area from outside.
 
 `press_focus=false` is the one way to make pressing something leave the focus,
 and with it a text field's caret and selection, where it is. It is a prop on any

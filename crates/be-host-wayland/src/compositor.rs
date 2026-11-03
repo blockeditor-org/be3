@@ -26,6 +26,7 @@ const BUTTON_MIDDLE: u32 = 0x112;
 const BUTTON_SIDE: u32 = 0x113;
 const BUTTON_EXTRA: u32 = 0x114;
 const MAX_ANCESTORS: usize = 32;
+const UNSEEN_REFRESH: Duration = Duration::from_micros(16_667);
 
 pub struct CursorImage {
     pub texture: wgpu::Texture,
@@ -68,6 +69,7 @@ pub struct Compositor {
     gtk_profile: Option<std::path::PathBuf>,
     cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
     cursor_revision: u64,
+    cursor_pixels: Option<beui::Image>,
     unowned: unowned::Unowned,
 }
 
@@ -76,6 +78,7 @@ struct Configured {
     size: (i32, i32),
     activated: bool,
     fullscreen: bool,
+    hidden: bool,
 }
 
 impl Compositor {
@@ -109,6 +112,7 @@ impl Compositor {
             gtk_profile,
             cursor_surface: None,
             cursor_revision: 0,
+            cursor_pixels: None,
             unowned: unowned::Unowned::default(),
         }
     }
@@ -119,6 +123,10 @@ impl Compositor {
 
     pub fn set_keyboard(&mut self, keyboard: &KeyboardConfig) -> bool {
         self.server.state.set_keyboard(keyboard)
+    }
+
+    pub fn set_layout(&mut self, index: u32) {
+        self.server.state.set_layout(index);
     }
 
     pub fn set_blank_after(&mut self, after: Option<Duration>) {
@@ -142,6 +150,7 @@ impl Compositor {
             return;
         }
         self.server.state.dismiss_popups();
+        self.server.state.release_all_pointers();
         self.server.state.release_buttons();
         if self.server.state.pointer_window().is_some() {
             self.server.state.pointer_motion(None);
@@ -261,6 +270,10 @@ impl Compositor {
             .map(|name| name.to_string_lossy().into_owned())
     }
 
+    pub fn start_xwayland(&mut self) {
+        self.server.start_xwayland();
+    }
+
     pub fn x11_display(&self) -> Option<String> {
         self.server
             .x11_display()
@@ -290,6 +303,7 @@ impl Compositor {
         let Some((program, arguments)) = launch.arguments.split_first() else {
             return;
         };
+        self.server.start_xwayland();
         let token = self.server.state.activation.launch_token(now);
         let mut process = Process::new(program);
         if let Some(dir) = &launch.working_dir {
@@ -367,7 +381,9 @@ impl Compositor {
             self.textures.borrow_mut().upload(&surface);
             cursor_changed |= cursor.as_ref() == Some(&surface);
         }
+        self.textures.borrow_mut().submit();
         if cursor_changed {
+            self.cursor_pixels = cursor.as_ref().and_then(crate::render::pixels);
             self.cursor_surface = cursor;
             self.cursor_revision += 1;
         }
@@ -387,6 +403,19 @@ impl Compositor {
                 ServerEvent::Titled(..) | ServerEvent::Changed(_) => changed = true,
                 ServerEvent::Fullscreen(id, on) => fullscreen.push((id, on)),
                 ServerEvent::Activated(id) => activated = Some(id),
+                ServerEvent::Grabbed(id, grab) => windows.grab(id, grab),
+                ServerEvent::Menu(id, at) => windows.ask_menu(id, at),
+                ServerEvent::Minimized(id) => windows.minimize(id),
+                ServerEvent::Rang(id) => windows.ring(id),
+                ServerEvent::Unmapped(id) => {
+                    windows.forget(id);
+                    windows.open(id);
+                    self.configured.remove(&id);
+                    if self.fullscreen.is_some_and(|(shown, _)| shown == id) {
+                        self.fullscreen = None;
+                    }
+                    changed = true;
+                }
                 ServerEvent::Committed(id) => {
                     if !windows.listed(id) {
                         changed = true;
@@ -485,9 +514,12 @@ impl Compositor {
             .filter_map(|id| {
                 let size = state.mapped_size(id)?;
                 let origin = self.origin(id);
+                let (min_size, max_size) = state.size_limits(id);
                 Some(WindowInfo {
                     id,
                     size,
+                    min_size,
+                    max_size,
                     title: state.title(id).unwrap_or_default(),
                     program_id: state.program_id(id).unwrap_or_default(),
                     parent: state.parent(id),
@@ -496,6 +528,7 @@ impl Compositor {
                     responding: state.responding(id),
                     icon: state.icon(id),
                     inhibits_shortcuts: state.inhibits_shortcuts(id),
+                    pointer: state.held_pointer(id),
                     launch: origin.launch,
                     command: origin.command,
                 })
@@ -543,6 +576,25 @@ impl Compositor {
             hotspot: beui::vec2(hotspot.x as f32, hotspot.y as f32),
             opaque: current.texture.opaque(),
             revision: self.cursor_revision,
+        })
+    }
+
+    fn client_cursor(
+        &self,
+        surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+    ) -> Option<beui::CursorImage> {
+        let image = self.cursor_pixels.clone()?;
+        let size = with_renderer_surface_state(surface, |state| state.surface_size()).flatten()?;
+        let hotspot = with_states(surface, |states| {
+            states
+                .data_map
+                .get::<CursorImageSurfaceData>()
+                .map(|data| data.lock().unwrap().hotspot)
+        })?;
+        Some(beui::CursorImage {
+            image,
+            size: beui::vec2(size.w as f32, size.h as f32),
+            hotspot: beui::vec2(hotspot.x as f32, hotspot.y as f32),
         })
     }
 
@@ -685,6 +737,24 @@ impl Compositor {
                     }
                     state.key(*code, press.pressed);
                 }
+                Forwarded::Input(Event::Key {
+                    press,
+                    evdev: None,
+                    text,
+                }) if !press.repeat && state.keyboard_window() == Some(id) => {
+                    if press.pressed {
+                        state.ping(id, now);
+                    }
+                    let keyed = state.placeless_key(press.key, text.as_deref(), press.pressed);
+                    if let (false, Some(text)) = (keyed, text) {
+                        state.text_inputs.commit_text(text);
+                    }
+                }
+                Forwarded::Input(Event::PointerMotion(delta))
+                    if state.keyboard_window() == Some(id) =>
+                {
+                    state.pointer_relative(*delta);
+                }
                 Forwarded::Input(Event::Text(text)) if state.keyboard_window() == Some(id) => {
                     state.text_inputs.commit_text(text);
                 }
@@ -700,6 +770,9 @@ impl Compositor {
                         PointerPhase::Down(button) | PointerPhase::Up(button) => {
                             let pressed = matches!(event.phase, PointerPhase::Down(_));
                             let target = at(over, event.pos);
+                            if pressed {
+                                state.pressed_on(target.map(|(target, _)| target));
+                            }
                             state.pointer_motion(target);
                             if pressed {
                                 state.ping(id, now);
@@ -714,6 +787,12 @@ impl Compositor {
                                 state.pointer_motion(at(over, event.pos));
                             }
                             state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
+                        }
+                        PointerPhase::Touchpad(gesture) => {
+                            if state.pointer_window() != Some(id) {
+                                state.pointer_motion(at(over, event.pos));
+                            }
+                            state.touchpad(gesture);
                         }
                         _ => {}
                     }
@@ -803,6 +882,8 @@ impl Compositor {
         for command in self.windows.take_commands() {
             match command {
                 Command::Configure(id) => {
+                    let hidden = self.windows.hidden(id);
+                    self.server.state.set_hidden(id, hidden);
                     if let Some(rect) = self.windows.rect(id) {
                         let position = rect.min - self.area.min;
                         self.server.state.place(
@@ -834,6 +915,7 @@ impl Compositor {
                         size,
                         activated: focused == Some(id),
                         fullscreen: self.server.state.fullscreen(id),
+                        hidden,
                     };
                     if self.configured.get(&id) == Some(&configured) {
                         continue;
@@ -850,18 +932,21 @@ impl Compositor {
                 Command::Close(id) => self.force_close(id),
                 Command::RestoreShortcuts(id) => {
                     self.server.state.restore_shortcuts(id);
+                    self.server.state.release_pointer(id);
                     self.forced = true;
                 }
                 Command::Launch(launch) => self.launch(&launch, now),
             }
         }
-        let cursor = match self.server.state.cursor() {
-            CursorImageStatus::Hidden => CursorIcon::None,
-            CursorImageStatus::Named(icon) => cursor_icon(*icon),
-            CursorImageStatus::Surface(_) => CursorIcon::Default,
+        let (cursor, image) = match self.server.state.cursor() {
+            CursorImageStatus::Hidden => (CursorIcon::None, None),
+            CursorImageStatus::Named(icon) => (cursor_icon(*icon), None),
+            CursorImageStatus::Surface(surface) => {
+                (CursorIcon::Default, self.client_cursor(surface))
+            }
         };
         let windows = self.windows;
-        windows.set_cursor(cursor);
+        windows.set_cursor(cursor, image);
         self.reap();
     }
 }
@@ -957,9 +1042,16 @@ impl Compositor {
 
     fn show_painted(&mut self, context: &Context) {
         let open = self.server.state.windows();
+        let unpainted: Vec<_> = match context.seen() {
+            true => Vec::new(),
+            false => open.iter().copied().filter(|id| self.shown(*id)).collect(),
+        };
         let presentation = &mut self.server.state.presentation;
         for id in self.windows.take_painted() {
             presentation.painted(id);
+        }
+        for id in unpainted {
+            presentation.shown_unpainted(id);
         }
         presentation.forget_closed(&open);
         let places: Vec<_> = open.iter().map(|id| (*id, self.place_of(*id))).collect();
@@ -974,7 +1066,22 @@ impl Compositor {
                     .map_or(Place::Anywhere, |(_, place)| *place)
             });
         for shown in shown {
+            let id = shown.id;
             self.server.state.present(shown);
+            self.server.state.release_fifo(id);
+        }
+        for id in open {
+            if !self.shown(id) {
+                self.server.state.release_fifo(id);
+            }
+        }
+        let now = context.now();
+        let presentation = &self.server.state.presentation;
+        let interval = presentation.refresh();
+        let until = presentation.monotonic(now) + interval;
+        if let Some(next) = self.server.state.release_timed(until) {
+            let due = next.saturating_sub(until);
+            context.request_repaint_after(due);
         }
     }
 
@@ -1009,7 +1116,7 @@ impl Compositor {
                     )
                         .into(),
                 ),
-                scale: monitor.scale.ceil().max(1.0) as i32,
+                scale: crate::heads::wire_scale(f64::from(monitor.scale)),
             })
             .collect();
         self.server.state.set_heads(heads);
@@ -1053,7 +1160,14 @@ impl Compositor {
         self.watch_idle(context, document);
         self.focus(now);
         self.input(now);
+        if self.owned() {
+            self.carry_files(context);
+        }
         self.apply(now);
+        self.server.state.settle_constraints();
+        if !self.server.state.events.is_empty() {
+            context.request_repaint();
+        }
         let typing = self
             .server
             .state
@@ -1065,6 +1179,10 @@ impl Compositor {
         self.watch_pings(context);
         if std::mem::take(&mut self.forced) || self.windows.revision() != self.listed {
             context.request_repaint();
+        }
+        let awaits = (self.server.state.presentation).awaits_frame(|id| self.shown(id));
+        if !context.seen() && awaits {
+            context.request_repaint_after(context.refresh_interval().unwrap_or(UNSEEN_REFRESH));
         }
         if let Some(watch) = &self.watch {
             watch.resume();

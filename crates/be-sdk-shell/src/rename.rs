@@ -341,6 +341,7 @@ fn IconTile(
         <TileButton
             @test_id={format!("rename.icon.{id}")}
             label
+            radio=true
             selected={chosen}
             size=TILE
             on_click={move || set_icon.call(match tile {

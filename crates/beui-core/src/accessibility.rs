@@ -45,6 +45,7 @@ pub struct Fragment {
     pub windows: Vec<(AccessNodeId, WindowId)>,
     pub window_roots: Vec<(WindowId, AccessNodeId)>,
     pub focus_window: Option<WindowId>,
+    pub focus_layer: Option<u64>,
     pub escaped: Vec<(AccessNodeId, u64)>,
     pub escaped_roots: Vec<(u64, AccessNodeId, SpaceTransform)>,
 }
@@ -63,6 +64,10 @@ impl Fragment {
 
 pub fn next_document_id() -> u32 {
     NEXT_DOCUMENT_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+pub fn reference(id: NodeId) -> AccessNodeId {
+    AccessNodeId((u64::from(id.generation() as u8) << GENERATION_SHIFT) | u64::from(id.index()))
 }
 
 pub fn document_of(id: AccessNodeId) -> u64 {
@@ -144,9 +149,8 @@ pub fn window_tree_update(
     root.set_children(roots);
     let focus = fragments
         .iter()
-        .filter(|fragment| fragment.focus_window == Some(window))
+        .filter(|fragment| fragment.focus_window == Some(window) && fragment.focus_layer.is_none())
         .find_map(|fragment| fragment.focus)
-        .filter(|focus| !escaped.contains(focus))
         .unwrap_or(WINDOW_NODE);
     let escaped_roots: HashSet<AccessNodeId> = fragments
         .iter()
@@ -237,8 +241,8 @@ pub fn escaped_tree_update(
     };
     let focus = fragments
         .iter()
-        .filter_map(|fragment| fragment.focus.filter(|focus| inside(fragment, *focus)))
-        .next()
+        .filter(|fragment| fragment.focus_layer == Some(layer))
+        .find_map(|fragment| fragment.focus)
         .unwrap_or(WINDOW_NODE);
     let mut nodes = vec![(WINDOW_NODE, window)];
     for fragment in fragments {
@@ -491,6 +495,11 @@ impl AccessibilityView<'_> {
         self.tree.focus
     }
 
+    pub fn id_of(&self, node: NodeId) -> AccessNodeId {
+        let described = self.document.described_within(node).unwrap_or(node);
+        self.document.access_node_id(described)
+    }
+
     pub fn len(&self) -> usize {
         self.tree.entries.iter().count() + self.tree.spaces.len()
     }
@@ -638,7 +647,9 @@ impl Pass<'_> {
         }
 
         let mut inner = Gathered::default();
-        self.visit_children(id, Frame::within(SpaceId::of(id)), &mut inner);
+        if !inert {
+            self.visit_children(id, Frame::within(SpaceId::of(id)), &mut inner);
+        }
         self.described += 1;
         let (mut node, focus) = document.describe(id, key, size, explicit, text, inner);
         if layered {
@@ -786,9 +797,14 @@ impl Document {
         }
         let inert = self.inert_roots();
         let held = std::mem::replace(&mut tree.inert, inert);
-        let toggled: Vec<NodeId> = held.symmetric_difference(&tree.inert).copied().collect();
-        for id in toggled {
-            tree.mark(id, &self.arena);
+        let mut toggled: Vec<NodeId> = held.symmetric_difference(&tree.inert).copied().collect();
+        while let Some(id) = toggled.pop() {
+            if self.arena.contains(id) {
+                tree.mark(id, &self.arena);
+                self.arena
+                    .get(id)
+                    .for_each_shown_child(&mut |child| toggled.push(child));
+            }
         }
         let scale = self.pixels_per_point();
         let rescaled = tree.scale.replace(scale) != Some(scale);
@@ -824,14 +840,42 @@ impl Document {
     }
 
     fn inert_roots(&self) -> HashSet<NodeId> {
-        self.layers()
-            .iter()
-            .filter(|layer| layer.policy == LayerPolicy::BlocksParent)
-            .filter_map(|layer| {
-                let blocked = layer.hangs_from?;
-                let overlay = layer.overlay?;
-                (!self.is_within(overlay.id(), blocked)).then_some(blocked)
-            })
+        let layers = self.layers();
+        if !layers.iter().any(|layer| layer.modal)
+            && !layers
+                .iter()
+                .any(|layer| layer.policy == LayerPolicy::BlocksParent)
+        {
+            return HashSet::default();
+        }
+        let open = self.open_overlays();
+        let mut kept = HashSet::default();
+        for overlay in open.iter().filter(|overlay| !self.inert(overlay.id())) {
+            let mut current = Some(overlay.id());
+            while let Some(id) = current {
+                if !kept.insert(id) || Some(id) == self.root {
+                    break;
+                }
+                current = self.arena.parent(id);
+            }
+        }
+        let mut candidates: Vec<NodeId> = open.iter().map(|overlay| overlay.id()).collect();
+        candidates.extend(
+            layers
+                .iter()
+                .filter(|layer| layer.policy == LayerPolicy::BlocksParent)
+                .filter_map(|layer| layer.hangs_from),
+        );
+        for id in &kept {
+            if self.inert(*id) {
+                self.arena
+                    .get(*id)
+                    .for_each_shown_child(&mut |child| candidates.push(child));
+            }
+        }
+        candidates
+            .into_iter()
+            .filter(|id| !kept.contains(id) && self.inert(*id))
             .collect()
     }
 
@@ -886,9 +930,11 @@ impl Document {
         };
         let (escaped, escaped_roots) = self.escaped_access(&nodes);
         let focus = self.accessibility_tree.borrow().focus;
-        let focus_window = focus
-            .and_then(|focus| self.local_key(focus))
-            .map(|focus| self.window_of(focus.node()));
+        let focused = focus.and_then(|focus| self.local_key(focus));
+        let focus_window = focused.map(|focus| self.window_of(focus.node()));
+        let focus_layer = focused
+            .filter(|_| self.escapes.any())
+            .and_then(|focus| self.escape_holding(focus.node()));
         Some(Fragment {
             nodes,
             root,
@@ -896,6 +942,7 @@ impl Document {
             windows,
             window_roots,
             focus_window,
+            focus_layer,
             escaped,
             escaped_roots,
         })
@@ -979,6 +1026,7 @@ impl Document {
         let mut focus = inner.focus;
         let mut node = if let Some(node) = explicit {
             let mut node = node.clone();
+            self.resolve_references(&mut node);
             if let Some(text) = text
                 && node.label().is_none()
                 && node.value().is_none()
@@ -1045,11 +1093,28 @@ impl Document {
         (node, focus)
     }
 
+    fn resolve_references(&self, node: &mut Node) {
+        let Some(referenced) = node.active_descendant() else {
+            return;
+        };
+        if document_of(referenced) != 0 {
+            return;
+        }
+        let local = self
+            .arena
+            .id_at(referenced.0 as u32 & INDEX_MASK)
+            .filter(|local| (referenced.0 >> GENERATION_SHIFT) as u8 == local.generation() as u8);
+        match local.and_then(|local| self.described_within(local)) {
+            Some(local) => node.set_active_descendant(self.access_node_id(local)),
+            None => node.clear_active_descendant(),
+        }
+    }
+
     pub fn handle_accessibility_action(&mut self, request: ActionRequest) -> bool {
         let Some(target) = self.local_node_id(request.target_node) else {
             return false;
         };
-        if !self.contains(target) {
+        if !self.contains(target) || self.inert(target) {
             return true;
         }
         if request.action == Action::ScrollIntoView {
@@ -1192,6 +1257,17 @@ impl Document {
 
     pub fn local_node_id(&self, id: AccessNodeId) -> Option<NodeId> {
         self.local_key(id).map(SpaceId::node)
+    }
+
+    fn described_within(&self, id: NodeId) -> Option<NodeId> {
+        if self.accessibility.get(&id).is_some() {
+            return Some(id);
+        }
+        self.arena
+            .get(id)
+            .children()
+            .into_iter()
+            .find_map(|child| self.described_within(child))
     }
 
     fn first_focusable_within(&self, id: NodeId) -> Option<NodeId> {

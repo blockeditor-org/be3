@@ -32,7 +32,7 @@ be_wasm_ops_bindgen::generate!({
         "block-metadata", "artifact-state", "version-status",
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
         "catalog", "audio-status", "child-layer", "child-mode", "host-preference-sources",
-        "host-contact", "host-image", "window-origin", "remap-state",
+        "host-contact", "host-image", "window-origin", "remap-state", "input-reach", "keyboard-layout", "keyboard-layouts",
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "program-catalog", "tray-toggle", "tray-menu-item", "host-tray-item",
@@ -44,7 +44,7 @@ be_wasm_ops_bindgen::generate!({
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
         "block-child", "creation-child", "artifact-settings-child", "picker-child",
-        "window-fullscreen", "wifi-connect", "notification-closed", "notification-action-invoked",
+        "window-fullscreen", "wifi-connect", "wifi-hidden", "notification-closed", "notification-action-invoked",
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
     ],
     ordered: ["child-content", "dock-tab-path", "block-filter"],
@@ -99,26 +99,26 @@ pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
 pub use desktop::{
     displays::HostDisplay,
-    input::{HostInputDevice, RemapState},
+    input::{HostInputDevice, InputReach, KeyboardLayout, KeyboardLayouts, Pointing, RemapState},
     media::{AudioOutput, MediaLevel, MediaLevels, MediaRequest, PlayerCommand},
     notifications::{
         HostNotificationAction, IncomingNotification, NotificationCloseReason, NotificationInbox,
         NotificationReport, NotificationRequest, NotificationSignal, NotificationUrgency,
     },
-    power::{PowerAction, PowerAvailability},
+    power::{EndingAnswer, PowerAction, PowerAvailability, SessionEnd},
     programs::{HostProgram, ProgramAction, ProgramCatalog},
-    tray::{HostTrayItem, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle},
+    tray::{HostTrayItem, TrayClick, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle},
     types::HostImage,
     wifi::{WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus},
-    windows::{HostWindow, WindowAction, WindowKind, WindowOrigin},
+    windows::{HostWindow, WindowAction, WindowKind, WindowMenu, WindowOrigin},
 };
 pub use desktop_types::TrayMenuEntry;
 pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};
 pub use guest::contacts::ContactsWatch;
 pub use guest::desktop::{
-    displays::DisplaysWatch,
+    displays::{DesktopBarWatch, DisplaysWatch},
     epaper::EpaperWatch,
-    input::{InputDevicesWatch, RemapsWatch},
+    input::{InputDevicesWatch, InputReachWatch, KeyboardLayoutsWatch, RemapsWatch},
     media::MediaWatch,
     notifications::NotificationsWatch,
     power::PowerWatch,
@@ -126,7 +126,7 @@ pub use guest::desktop::{
     screen_lock::ScreenLockedWatch,
     tray::TrayWatch,
     wifi::WifiWatch,
-    windows::WindowsWatch,
+    windows::{SuperKeptWatch, WindowsWatch},
 };
 
 mod accesskit_mirror;
@@ -148,7 +148,7 @@ pub use be_lib_ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
     Preferences, Rotation, ThemeKind,
 };
-pub use be_lib_ui_types::{ImeArea, WindowRequests};
+pub use be_lib_ui_types::{ImeArea, WindowLevel, WindowRequests};
 use be_sdk_manifest::extension_of;
 pub use be_sdk_manifest::{
     AppIdentity, BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode,
@@ -518,7 +518,7 @@ impl HostPanel {
         match self {
             Self::BlockStack => "Block Stack State",
             Self::Performance => "Performance",
-            Self::Apps => "Apps",
+            Self::Apps => "Running Apps",
             Self::Menu => "Menu",
         }
     }

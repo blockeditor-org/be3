@@ -12,6 +12,8 @@ fn host_window_messages_round_trip() {
         parent: Some(HostWindowId(3)),
         modal: true,
         size: Vec2::new(640.0, 480.0),
+        min_size: Vec2::new(320.0, 240.0),
+        max_size: Vec2::new(1280.0, 0.0),
         fullscreen: None,
         responding: true,
         focused: false,
@@ -21,12 +23,14 @@ fn host_window_messages_round_trip() {
             rgba: vec![1, 2, 3, 4],
         }),
         raised: 0,
+        rung: 0,
         origin: WindowOrigin {
             program: Some("foot.desktop".into()),
             command: vec!["foot".into(), "--server".into()],
             launch: Some(9),
         },
         note: None,
+        menu: None,
     };
     watched_round_trips::<WindowsWatch>(vec![window.clone()]);
     for action in [

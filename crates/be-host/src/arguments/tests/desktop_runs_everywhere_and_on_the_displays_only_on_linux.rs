@@ -44,7 +44,14 @@ fn desktop_runs_everywhere_and_on_the_displays_only_on_linux() {
     assert_eq!(
         parse(&words("--install-login-session /opt"), None, true),
         Ok(Arguments {
-            install_login_session: Some(Some("/opt".to_owned())),
+            login_session: Some(LoginSessionSetup::Install(Some("/opt".to_owned()))),
+            ..Arguments::default()
+        })
+    );
+    assert_eq!(
+        parse(&words("--uninstall-login-session"), None, true),
+        Ok(Arguments {
+            login_session: Some(LoginSessionSetup::Uninstall(None)),
             ..Arguments::default()
         })
     );
@@ -52,6 +59,7 @@ fn desktop_runs_everywhere_and_on_the_displays_only_on_linux() {
     for refused in [
         parse(&words("--desktop"), Some("drm"), false),
         parse(&words("--install-login-session"), None, false),
+        parse(&words("--uninstall-login-session"), None, false),
     ] {
         let refused = refused.expect_err("only Linux has login sessions");
         assert!(

@@ -8,6 +8,8 @@ mod display;
 mod editors;
 mod frame;
 mod input;
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+mod instance;
 mod local_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
@@ -92,8 +94,16 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     let platform = std::env::var(beui_host::native::environment::PLATFORM).ok();
     let arguments = arguments::parse(&arguments, platform.as_deref(), arguments::LINUX)?;
     #[cfg(target_os = "linux")]
-    if let Some(prefix) = &arguments.install_login_session {
-        return login_session::install(prefix.as_deref());
+    if let Some(setup) = &arguments.login_session {
+        return match setup {
+            arguments::LoginSessionSetup::Install(prefix) => {
+                login_session::install(prefix.as_deref())
+            }
+            arguments::LoginSessionSetup::Uninstall(prefix) => {
+                login_session::uninstall(prefix.as_deref())
+            }
+            arguments::LoginSessionSetup::ApplyChanges => login_session::apply_install_changes(),
+        };
     }
     #[cfg(target_os = "linux")]
     if arguments.drm {
@@ -111,7 +121,15 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
-    let mut core = HostCore::new(None).map_err(|error| error.to_string())?;
+    let data_dir = storage_dir().ok_or("the application-data directory is unavailable")?;
+    std::fs::create_dir_all(&data_dir)
+        .map_err(|error| format!("could not make {}: {error}", data_dir.display()))?;
+    let instance = match instance::claim(&data_dir)? {
+        instance::Claim::First(instance) => instance,
+        instance::Claim::Running(running) => return hand_over(&running, &arguments),
+    };
+    let mut core = HostCore::new(Some(data_dir)).map_err(|error| error.to_string())?;
+    core.hear_handoffs(instance);
     core.login_session_mode = arguments.drm;
     #[cfg(target_os = "linux")]
     if arguments.drm {
@@ -134,6 +152,31 @@ fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     }
     core.warm_apps();
     beui_host::native::run_with(options, Shell::new(core))
+}
+
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+fn hand_over(
+    running: &instance::Running,
+    arguments: &arguments::Arguments,
+) -> Result<(), Box<dyn Error>> {
+    let data = running.data_dir().display();
+    if arguments.desktop || arguments.drm {
+        return Err(format!(
+            "another be-host is already running on {data}, and a second desktop cannot share its data; quit that one first"
+        )
+        .into());
+    }
+    running
+        .hand_over(instance::Handoff {
+            dev_workspace: arguments.dev_workspace,
+        })
+        .map_err(|error| {
+            format!(
+                "another be-host is already running on {data}, but {error}; quit that one first"
+            )
+        })?;
+    eprintln!("be-host: already running on {data}; showed its window");
+    Ok(())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -321,6 +364,7 @@ impl beui::native::Program for Shell {
             self.core.login_session = Some(login_session::LoginSession::start(
                 desk().mailbox(HostCore::logind_heard),
             ));
+            self.core.power.log_in();
             login_session::export_environment(Host::environment());
         }
         display::start(setup);
@@ -506,6 +550,7 @@ struct HostCore {
     organization_error: Option<String>,
 
     reauth: Option<ReauthState>,
+    removing_account: Option<Account>,
     invite_open: bool,
     invite_sent: u64,
     invite_link: Option<String>,
@@ -556,6 +601,7 @@ struct HostCore {
     data_dir: PathBuf,
     #[cfg(not(target_arch = "wasm32"))]
     embedded_server: Option<embedded_server::EmbeddedServer>,
+    _handoffs: Option<host::Mailbox>,
     error: Option<String>,
     pending_error_action: Option<ErrorAction>,
     inspector_requested: Option<bool>,
@@ -566,6 +612,8 @@ struct HostCore {
     login_session: Option<login_session::LoginSession>,
     #[cfg(target_os = "linux")]
     screen_lock: Option<login_session::ScreenLock>,
+    #[cfg(target_os = "linux")]
+    power: login_session::Power,
     #[cfg(target_os = "linux")]
     published_power: Option<be_sdk_api::PowerAvailability>,
     #[cfg(target_os = "linux")]
@@ -786,6 +834,7 @@ impl HostCore {
             organization_created: 0,
             organization_error: None,
             reauth: None,
+            removing_account: None,
             invite_open: false,
             invite_sent: 0,
             invite_link: None,
@@ -832,6 +881,7 @@ impl HostCore {
             data_dir: PathBuf::new(),
             #[cfg(not(target_arch = "wasm32"))]
             embedded_server: None,
+            _handoffs: None,
             error: None,
             pending_error_action: None,
             inspector_requested: None,
@@ -842,6 +892,8 @@ impl HostCore {
             login_session: None,
             #[cfg(target_os = "linux")]
             screen_lock: None,
+            #[cfg(target_os = "linux")]
+            power: login_session::Power::default(),
             #[cfg(target_os = "linux")]
             published_power: None,
             #[cfg(target_os = "linux")]
@@ -860,6 +912,9 @@ impl HostCore {
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_as_desktop(&mut self) {
         self.root_settings = RootSettings::new(be_block::DESKTOP_EDITOR);
+        be_host_base::watches::publish::<be_sdk_api::DesktopBarWatch>(&true);
+        #[cfg(windows)]
+        be_host_base::watches::publish::<be_sdk_api::SuperKeptWatch>(&true);
         #[cfg(target_os = "linux")]
         {
             self.start_screen_lock();
@@ -891,17 +946,10 @@ impl HostCore {
 
     #[cfg(target_os = "linux")]
     fn take_power_request(&mut self) {
-        let request = be_host_base::watches::take_calls(be_sdk_api::requested::power).pop();
-        if let Some(action) = request
-            && self
-                .published_power
-                .is_some_and(|power| power.allows(action))
-        {
-            self.request_power(action, login_session::Trigger::Menu);
-        }
         self.run_media();
         self.run_wifi();
         display::run_epaper();
+        input::run_layout_requests();
     }
 
     #[cfg(target_os = "linux")]
@@ -913,20 +961,61 @@ impl HostCore {
                 }
             }
             action => {
-                if let Some(login_session) = &mut self.login_session {
-                    login_session.request(action);
-                    host::request_repaint();
-                }
+                self.power.request(
+                    action,
+                    &mut login_session::Live::of(self.login_session.as_ref()),
+                );
+                host::request_repaint();
             }
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_power(&mut self, locked: bool) {
+        let request = be_host_base::watches::take_calls(be_sdk_api::requested::power).pop();
+        if let Some(action) = request
+            && self
+                .published_power
+                .is_some_and(|power| power.allows(action))
+        {
+            self.request_power(action, login_session::Trigger::Menu);
+        }
+        for answer in be_host_base::watches::take_calls(be_sdk_api::requested::ending_answer) {
+            self.power.answer(answer);
+        }
+        let mut availability = self.power.availability();
+        availability.lock = !locked;
+        if self.published_power != Some(availability) {
+            self.published_power = Some(availability);
+            be_host_base::watches::publish::<be_sdk_api::PowerWatch>(&availability);
+        }
+        self.power
+            .frame(&mut login_session::Live::of(self.login_session.as_ref()));
+    }
+
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    fn hear_handoffs(&mut self, instance: instance::Instance) {
+        let (mailbox, post) = desk().mailbox(Self::handed_over);
+        self._handoffs = Some(mailbox);
+        instance.serve(move |handoff| post.send(handoff));
+    }
+
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    fn handed_over(&mut self, handoff: instance::Handoff) {
+        if handoff.dev_workspace {
+            self.open_dev_workspace(None);
+        }
+        host::raise_window();
+        host::request_repaint();
     }
 
     #[cfg(target_os = "linux")]
     fn logind_heard(&mut self, event: login_session::LogindEvent) {
         if let (Some(login_session), Some(lock)) = (&mut self.login_session, &mut self.screen_lock)
         {
-            login_session.heard(event, lock);
+            login_session.heard(event, lock, &mut self.power);
         }
+        host::request_repaint();
     }
 
     #[cfg(target_os = "linux")]
@@ -945,16 +1034,7 @@ impl HostCore {
         Host::set_locked(locked);
         be_host_desktop::remap::set_locked(locked);
         be_host_base::watches::publish::<be_sdk_api::ScreenLockedWatch>(&locked);
-        let mut availability = self
-            .login_session
-            .as_ref()
-            .map(login_session::LoginSession::availability)
-            .unwrap_or_default();
-        availability.lock = !locked;
-        if self.published_power != Some(availability) {
-            self.published_power = Some(availability);
-            be_host_base::watches::publish::<be_sdk_api::PowerWatch>(&availability);
-        }
+        self.run_power(locked);
     }
 
     #[cfg(target_os = "linux")]
@@ -963,11 +1043,7 @@ impl HostCore {
             return ui::LockView::default();
         };
         let state = lock.state();
-        let offered = self
-            .login_session
-            .as_ref()
-            .map(login_session::LoginSession::availability)
-            .unwrap_or_default();
+        let offered = self.power.availability();
         ui::LockView {
             available: true,
             locked: state.locked,
@@ -1257,9 +1333,13 @@ impl HostCore {
 
     fn log_out_account(&mut self, account: &Account) {
         if account.server == ServerLocation::Local {
-            self.close_reauth();
+            self.removing_account = Some(account.clone());
             return;
         }
+        self.forget_account(account);
+    }
+
+    fn forget_account(&mut self, account: &Account) {
         let url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
@@ -1783,9 +1863,20 @@ impl HostCore {
     }
 
     fn close_requested(&mut self) -> bool {
+        #[cfg(target_os = "linux")]
+        if !self.allow_close
+            && !self
+                .power
+                .close(&mut login_session::Live::of(self.login_session.as_ref()))
+        {
+            host::request_repaint();
+            return false;
+        }
         if be_host_stack::flush() == 0 || self.allow_close {
             return true;
         }
+        #[cfg(target_os = "linux")]
+        self.power.stay();
         self.pending_destructive_action = Some(PendingDestructiveAction::Close);
         host::request_repaint();
         false
@@ -2150,7 +2241,7 @@ impl HostCore {
     }
 
     fn watch_shell(&mut self) {
-        let crashed = be_host_runtime::take_crashed();
+        let stopped = be_host_runtime::take_stopped();
         let Some(shell) = self.shell else {
             return;
         };
@@ -2159,7 +2250,7 @@ impl HostCore {
                 editor.app().map(|app| app.identity.id.clone())
             })
             .flatten();
-        let Some(app) = app.filter(|app| crashed.contains(app)) else {
+        let Some(app) = app.filter(|app| stopped.contains(app)) else {
             return;
         };
         self.stop_shell();
@@ -3050,6 +3141,12 @@ impl HostCore {
                 self.close_reauth();
             }
             UiCommand::ReauthClose => self.close_reauth(),
+            UiCommand::ConfirmRemoveAccount => {
+                if let Some(account) = self.removing_account.take() {
+                    self.forget_account(&account);
+                }
+            }
+            UiCommand::CancelRemoveAccount => self.removing_account = None,
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
             UiCommand::InviteMember => {
                 self.invite_open = true;
@@ -3316,6 +3413,10 @@ impl HostCore {
                 error: self.organization_error.clone(),
                 created: self.organization_created,
             },
+            removing_account: self
+                .removing_account
+                .as_ref()
+                .map(|account| account.name.clone()),
             reauth: self.reauth.as_ref().map(|reauth| ui::ReauthView {
                 name: reauth.account.name.clone(),
                 busy: self.pending_account_request.is_some(),

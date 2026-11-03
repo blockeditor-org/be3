@@ -124,34 +124,58 @@ pub(crate) fn volume_glyph(level: MediaLevel) -> Glyph {
     }
 }
 
-fn osd_level(shown: Shown, levels: MediaLevels) -> Option<OsdLevel> {
+fn osd_level(shown: Shown, levels: MediaLevels) -> OsdLevel {
     match shown {
-        Shown::Volume => levels.output.map(|level| OsdLevel {
-            glyph: volume_glyph(level).to_owned(),
-            label: "Volume".to_owned(),
-            level: level.level,
-            muted: level.muted,
-        }),
-        Shown::Microphone => levels.input.map(|level| OsdLevel {
-            glyph: match level.muted {
-                true => ICON_MIC_OFF,
-                false => ICON_MIC,
-            }
-            .to_owned(),
-            label: "Microphone".to_owned(),
-            level: level.level,
-            muted: level.muted,
-        }),
-        Shown::Brightness => levels.brightness.map(|level| OsdLevel {
-            glyph: match level < 0.5 {
-                true => ICON_SUN_DIM,
-                false => ICON_SUN,
-            }
-            .to_owned(),
-            label: "Brightness".to_owned(),
-            level,
-            muted: false,
-        }),
+        Shown::Volume => match levels.output {
+            Some(level) => OsdLevel {
+                glyph: volume_glyph(level).to_owned(),
+                label: "Volume".to_owned(),
+                level: Some(level.level),
+                muted: level.muted,
+            },
+            None => OsdLevel {
+                glyph: ICON_VOLUME_X.to_owned(),
+                label: "No audio device".to_owned(),
+                level: None,
+                muted: true,
+            },
+        },
+        Shown::Microphone => match levels.input {
+            Some(level) => OsdLevel {
+                glyph: match level.muted {
+                    true => ICON_MIC_OFF,
+                    false => ICON_MIC,
+                }
+                .to_owned(),
+                label: "Microphone".to_owned(),
+                level: Some(level.level),
+                muted: level.muted,
+            },
+            None => OsdLevel {
+                glyph: ICON_MIC_OFF.to_owned(),
+                label: "No microphone".to_owned(),
+                level: None,
+                muted: true,
+            },
+        },
+        Shown::Brightness => match levels.brightness {
+            Some(level) => OsdLevel {
+                glyph: match level < 0.5 {
+                    true => ICON_SUN_DIM,
+                    false => ICON_SUN,
+                }
+                .to_owned(),
+                label: "Brightness".to_owned(),
+                level: Some(level),
+                muted: false,
+            },
+            None => OsdLevel {
+                glyph: ICON_SUN_DIM.to_owned(),
+                label: "No backlight".to_owned(),
+                level: None,
+                muted: true,
+            },
+        },
     }
 }
 
@@ -166,7 +190,7 @@ impl Osd {
     pub(crate) fn new(editor: Editor) -> Self {
         let levels = editor.watch::<MediaWatch>();
         let shown = create_signal(None);
-        let level = create_memo(move || osd_level(shown.get()?, levels.get()));
+        let level = create_memo(move || shown.get().map(|shown| osd_level(shown, levels.get())));
         Self {
             level,
             shown,

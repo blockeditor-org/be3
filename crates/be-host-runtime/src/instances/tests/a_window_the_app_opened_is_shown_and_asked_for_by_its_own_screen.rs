@@ -29,6 +29,7 @@ fn a_window_the_app_opened_is_shown_and_asked_for_by_its_own_screen() {
             width: 200.0,
             height: 100.0,
         },
+        level: be_sdk_api::WindowLevel::Normal,
     };
     instances.adopt_window(&open, &layout);
     let report = FrameReport {

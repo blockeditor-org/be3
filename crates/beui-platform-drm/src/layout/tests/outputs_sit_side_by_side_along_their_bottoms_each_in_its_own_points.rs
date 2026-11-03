@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn outputs_sit_side_by_side_along_their_bottoms_each_in_its_own_points() {
-    let outputs = arrange(&[((2560, 1440), 2.0), ((1920, 1080), 1.0)]);
+    let outputs = arrange(&[((2560, 1440), 2.0, None), ((1920, 1080), 1.0, None)]);
 
     assert_eq!(
         outputs,

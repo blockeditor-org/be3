@@ -16,8 +16,3 @@ fn text_the_host_copies_is_offered_to_programs() {
     harness.settle();
     assert_eq!(client::answer(answer), "copied in the host");
 }
-
-pub(super) fn copy_in_the_host(harness: &mut Harness, text: &str) {
-    harness.stepped.program_mut().copy = Some(text.to_owned());
-    harness.frame(Vec::new());
-}

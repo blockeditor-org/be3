@@ -63,6 +63,7 @@ fn open_keyboard(space: &mut Space, now: Instant, windows: Vec<WindowOutput>) ->
         placement: WindowPlacement::AtPointer,
         size: KEYBOARD,
         role: WindowRole::Keyboard,
+        level: beui_types::WindowLevel::Normal,
     }];
     space.frame(&output, &view(now));
     send(space, now, []);

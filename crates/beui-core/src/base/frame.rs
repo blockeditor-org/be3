@@ -66,7 +66,7 @@ impl FrameNode {
         width.min.map_or(length, |min| length.max(min))
     }
 
-    fn moved(&self, grid: PixelGrid) -> Vec2 {
+    pub(crate) fn moved(&self, grid: PixelGrid) -> Vec2 {
         grid.snap_vec(self.translate)
     }
 

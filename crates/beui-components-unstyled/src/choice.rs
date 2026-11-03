@@ -10,7 +10,7 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::Direction;
+use beui_view::types::{Direction, ItemSize};
 use beui_view::types::{Key, KeyPress};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -66,6 +66,7 @@ pub fn Choice(
     kind: ChoiceKind,
     direction: Option<Direction>,
     #[prop(default = false)] wrap: bool,
+    #[prop(default = false)] shrink: Prop<bool>,
     spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle>>,
@@ -107,6 +108,10 @@ pub fn Choice(
     };
     api.fill(ChoiceApi(state));
     let built_options: Stored<RefCell<Vec<Rc<ChoiceOption>>>> = store(RefCell::default());
+    let option_size = create_memo(move || match shrink.get() {
+        true => ItemSize::Intrinsic.shrink(1.0),
+        false => ItemSize::Intrinsic.into(),
+    });
     let buttons = options.build_each(
         built_options,
         |_, option| option,
@@ -140,6 +145,7 @@ pub fn Choice(
                             typeahead(state, index, &typed);
                         }
                     }}
+                    @sizing={option_size}
                 >|button: ButtonHandle| {
                     option.call(ChoiceOptionHandle {
                         index,

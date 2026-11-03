@@ -157,6 +157,13 @@ impl be_block_type_host::Host for Shared {
         held.unsealed = unsealed;
         held.owing = owing;
     }
+
+    fn leaving(shared: &Arc<Mutex<Self>>, leaving: bool) {
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .leaving = leaving;
+    }
 }
 
 fn to_editor(shared: &Arc<Mutex<Shared>>, block: Uuid, editor: EditorId, bytes: Vec<u8>) {

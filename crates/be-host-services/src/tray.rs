@@ -22,9 +22,13 @@ impl Tray {
             be_host_base::watches::publish::<TrayWatch>(&listed);
         });
         let (events, heard) = unbounded_channel();
-        crate::dbus::spawn(client::run(events.clone(), heard, move |listed| {
-            post.send(listed);
-        }));
+        let sender = events.clone();
+        crate::dbus::spawn(async move {
+            client::serve(&crate::dbus::SESSION, sender, heard, move |listed| {
+                post.send(listed);
+            })
+            .await;
+        });
         Self {
             events,
             _items: items,

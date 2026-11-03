@@ -233,6 +233,29 @@ interface types {
         pen: pen,
     }
 
+    record touchpad-gesture-pinched {
+        /// How far the fingers' centre moved, in pixels.
+        delta: vec2,
+        /// The fingers' spread against when the pinch began.
+        scale: f32,
+        /// Degrees turned clockwise since the last update.
+        rotation: f32,
+    }
+
+    /// Fingers on a touchpad swiping, pinching or held still. A swipe, pinch
+    /// or hold begins with its number of fingers and ends cancelled or not.
+    variant touchpad-gesture {
+        swipe-began(u32),
+        /// How far the fingers' centre moved, in pixels.
+        swiped(vec2),
+        swipe-ended(bool),
+        pinch-began(u32),
+        pinched(touchpad-gesture-pinched),
+        pinch-ended(bool),
+        hold-began(u32),
+        hold-ended(bool),
+    }
+
     record input-intercepted-key {
         key: key,
         pressed: bool,
@@ -251,6 +274,7 @@ interface types {
         pointer-moved(pos2),
         pointer-left,
         pointers-cancelled,
+        /// Motion of a locked pointer, unaccelerated, in pixels.
         pointer-motion(vec2),
         pointer-unlocked,
         pointer-button(input-pointer-button),
@@ -258,6 +282,7 @@ interface types {
         scroll(scroll-delta),
         scroll-ended,
         zoom(f32),
+        touchpad(touchpad-gesture),
         touch(input-touch),
         pen(input-pen),
         predicted(pos2),
@@ -334,11 +359,21 @@ interface types {
         popup,
     }
 
+    /// Where a window stacks among the host's windows. An `above` window,
+    /// such as a taskbar or toolbar, stays in front of every `normal` one,
+    /// still behind the host's own menus and lock screen. A window asks again
+    /// with `open` to change its level.
+    enum window-level {
+        normal,
+        above,
+    }
+
     record window-request-open {
         window: window-id,
         placement: window-placement,
         size: vec2,
         role: window-role,
+        level: window-level,
     }
 
     record window-request-begin-resize {

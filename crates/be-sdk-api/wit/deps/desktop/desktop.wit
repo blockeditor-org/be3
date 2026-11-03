@@ -41,6 +41,13 @@ interface windows {
         display,
     }
 
+    /// The program asked for its window menu, `at` this point of the window.
+    /// `asked` counts up with each ask.
+    record window-menu {
+        asked: u64,
+        at: vec2,
+    }
+
     record host-window {
         id: host-window-id,
         kind: window-kind,
@@ -55,6 +62,12 @@ interface windows {
         parent: option<host-window-id>,
         modal: bool,
         size: vec2,
+        /// The smallest and largest size the program asks for its window,
+        /// each axis 0 where it asks for no limit. The shell opens the window
+        /// within them where the room allows; the person may resize it past
+        /// them afterwards.
+        min-size: vec2,
+        max-size: vec2,
         /// The output a fullscreen window covers.
         fullscreen: option<rect>,
         responding: bool,
@@ -62,11 +75,16 @@ interface windows {
         icon: option<host-image>,
         /// Counts up each time the host raises the window.
         raised: u64,
+        /// Counts up each time the window's program rings the bell
+        /// (`xdg_system_bell_v1`); the shell flashes the window's entry.
+        rung: u64,
         origin: window-origin,
         /// What the host wants said about the window right now, such as how
         /// to come back from it; the shell shows it with the window's title
         /// while it is set.
         note: option<string>,
+        /// The program's last ask for its window menu.
+        menu: option<window-menu>,
     }
 
     record window-fullscreen {
@@ -89,6 +107,13 @@ interface windows {
         next: async func() -> list<host-window>;
     }
 
+    /// Whether the system keeps Super's chords for itself, as Windows does, so the
+    /// shell's window keys use Ctrl+Alt in their place; answered only where it does.
+    resource super-kept-watch {
+        constructor();
+        next: async func() -> bool;
+    }
+
     request: async func(action: window-action);
 }
 
@@ -100,6 +125,14 @@ interface input {
         device: input-device,
         /// What the device does before the user changes it.
         defaults: pointer-settings,
+        /// Set for a touchscreen or a pen, whose touches land on a display.
+        pointing: option<pointing>,
+    }
+
+    record pointing {
+        /// The id of the display the device lands on until the user chooses one;
+        /// none while it spans every display, as a tablet with no screen does.
+        automatic: option<string>,
     }
 
     /// Whether the session remaps input, and whether the remapping stopped.
@@ -118,6 +151,47 @@ interface input {
         constructor();
         next: async func() -> remap-state;
     }
+
+    /// Which of the input settings that are not a device's own take effect in the session.
+    record input-reach {
+        /// The keymap and key repeat: for the keyboards the session reads, and the programs it hosts.
+        keyboard: bool,
+        /// Middle-click paste, for the programs the session hosts.
+        middle-click-paste: bool,
+    }
+
+    /// Answered only where some of them do. The pointers' settings take effect where
+    /// `input-devices-watch` is answered.
+    resource input-reach-watch {
+        constructor();
+        next: async func() -> input-reach;
+    }
+
+    /// One of the layouts the keymap holds.
+    record keyboard-layout {
+        /// Its name, as the keymap gives it: "English (US)", "German".
+        name: string,
+        /// A short label for an indicator, upper case: "EN", "DE".
+        label: string,
+    }
+
+    /// The keymap's layouts and the one keys type in.
+    record keyboard-layouts {
+        /// In the order the keymap's settings list them.
+        layouts: list<keyboard-layout>,
+        /// The index in `layouts` of the active one.
+        active: u32,
+    }
+
+    /// Answered where the keymap takes effect (`input-reach`'s `keyboard`).
+    resource keyboard-layouts-watch {
+        constructor();
+        next: async func() -> keyboard-layouts;
+    }
+
+    /// Makes the layout at `index` the one keys type in, for every program the session
+    /// hosts and for the session's own text. An index past the last does nothing.
+    switch-layout: async func(index: u32);
 }
 
 /// The displays connected to the session.
@@ -125,7 +199,8 @@ interface displays {
     use be3:ui/types@0.1.0.{rect};
     use be3:preferences/types@0.1.0.{display-mode, rotation};
 
-    /// `rect` is where the display shows the desktop, in points, and `scale` its pixels per point.
+    /// `rect` is where the display shows the desktop, in points, and `scale` its pixels per point;
+    /// `default-scale` is the scale it has until one is chosen, which suits its size and resolution.
     record host-display {
         id: string,
         name: string,
@@ -136,11 +211,19 @@ interface displays {
         rotation: rotation,
         rect: rect,
         scale: f32,
+        default-scale: f32,
     }
 
     resource displays-watch {
         constructor();
         next: async func() -> list<host-display>;
+    }
+
+    /// Whether the session shows the desktop's bar, where the display settings put buttons;
+    /// answered only where it does.
+    resource desktop-bar-watch {
+        constructor();
+        next: async func() -> bool;
     }
 }
 
@@ -154,14 +237,33 @@ interface power {
         log-out,
     }
 
-    /// Which power actions the session may take now, and whether it is ending.
+    /// How the session is ending: be-host's window or the shell closing, or a power action.
+    enum session-end {
+        close,
+        log-out,
+        restart,
+        power-off,
+    }
+
+    /// What the person chose while the session waits for its programs to close.
+    enum ending-answer {
+        /// Stop ending: the programs still open stay open.
+        cancel,
+        /// End now, with the programs still open.
+        end-now,
+    }
+
+    /// Which power actions the session may take now, whether the host runs
+    /// the login session (without it only locking is possible), and how the
+    /// session is ending, if it is.
     record power-availability {
         lock: bool,
         suspend: bool,
         restart: bool,
         power-off: bool,
         log-out: bool,
-        ending: bool,
+        session: bool,
+        ending: option<session-end>,
     }
 
     resource power-watch {
@@ -170,11 +272,15 @@ interface power {
     }
 
     request: async func(action: power-action);
+
+    /// Answers the ending the availability names; ignored when none is.
+    answer-ending: async func(answer: ending-answer);
 }
 
 /// Sound levels and outputs, the brightness and the media players.
 interface media {
-    /// A level from 0 to 1.
+    /// A level from 0 to 1, where 1 is full; an output's volume may be louder
+    /// than full, up to 1.5 (`MediaLevel::LOUDEST`).
     record media-level {
         level: f32,
         muted: bool,
@@ -223,8 +329,12 @@ interface media {
 interface wifi {
     enum wifi-security {
         open,
+        /// WPA or WPA3, joined with a password.
         password,
-        unsupported,
+        /// The old WEP, joined with a key.
+        wep,
+        /// WPA Enterprise (802.1X), which needs a sign-in only a saved connection has.
+        enterprise,
     }
 
     record wifi-network {
@@ -254,10 +364,18 @@ interface wifi {
         password: option<string>,
     }
 
+    /// A network that does not broadcast its name.
+    record wifi-hidden {
+        ssid: string,
+        security: wifi-security,
+        password: option<string>,
+    }
+
     variant wifi-request {
         set-enabled(bool),
         scan,
         connect(wifi-connect),
+        join-hidden(wifi-hidden),
         disconnect,
     }
 
@@ -453,8 +571,18 @@ interface tray {
         tooltip: string,
         status: tray-status,
         icon: option<host-image>,
+        /// The item only shows its menu: it says so (`ItemIsMenu`), or it
+        /// has no `Activate` to take a click.
         item-is-menu: bool,
         menu: list<tray-menu-item>,
+    }
+
+    /// A click on an item, `x` and `y` where it was in desktop points: the
+    /// compositor's global coordinates, which X11 programs see as the screen's.
+    record tray-click {
+        item: string,
+        x: s32,
+        y: s32,
     }
 
     record tray-scroll {
@@ -469,10 +597,10 @@ interface tray {
     }
 
     variant tray-request {
-        activate(string),
-        secondary-activate(string),
+        activate(tray-click),
+        secondary-activate(tray-click),
         scroll(tray-scroll),
-        menu-opened(string),
+        menu-opened(tray-click),
         menu-closed(string),
         menu-chosen(tray-menu-chosen),
     }

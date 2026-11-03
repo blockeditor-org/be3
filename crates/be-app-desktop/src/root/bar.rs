@@ -21,6 +21,7 @@ use be_sdk_beui::{
 use be_sdk_shell::{SHELL_BARS, Workspace};
 
 use super::clock::ClockButton;
+use super::layouts::{LayoutButton, Layouts};
 use super::notifications::DesktopNotifications;
 use super::programs_panel::{ProgramsPanel, ProgramsPanelButton};
 use super::rotate::RotateButton;
@@ -36,7 +37,7 @@ pub(crate) const WINDOWS_PLACE: DockBarPlacement =
 pub(crate) const STATUS_PLACE: DockBarPlacement =
     DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::End);
 const PLACES: [DockBarPlacement; 3] = [PROGRAMS_PLACE, WINDOWS_PLACE, STATUS_PLACE];
-const DISPLAY_BARS: &str = "display-bars";
+const DISPLAY_BARS: &str = "display-bars-by-monitor";
 
 const STATUS_SPACING: Space = Space::Xs2;
 const SECONDS_PER_MINUTE: u64 = 60;
@@ -83,6 +84,14 @@ impl Bars {
     pub(crate) fn all(self) -> [TabId; 3] {
         [self.programs, self.windows, self.status]
     }
+
+    fn as_bar_of(self, tab: TabId, display: u32) -> TabId {
+        self.all()
+            .into_iter()
+            .zip(Self::of(display).all())
+            .find(|(own, _)| *own == tab)
+            .map_or(tab, |(_, other)| other)
+    }
 }
 
 pub(crate) fn display_layout(
@@ -91,15 +100,42 @@ pub(crate) fn display_layout(
     display: u32,
 ) -> DockingLayout<TabId> {
     let layout = DockingLayout::new();
-    let saved = untrack(|| saved_bars(editor))
-        .into_iter()
-        .find(|(held, _)| *held == display)
-        .map(|(_, saved)| saved.snapshot());
-    let snapshot = saved.unwrap_or_else(|| untrack(|| like_the_first(first, display)));
-    layout.restore(snapshot);
+    let displays = editor.watch::<DisplaysWatch>();
+    let monitor = create_memo(move || {
+        displays.with(|displays| displays.get(display as usize).map(|shown| shown.id.clone()))
+    });
+    let showing = create_signal(None::<String>);
+    let show = move |monitor: Option<String>| {
+        showing.set(None);
+        let saved = monitor.as_deref().and_then(|monitor| {
+            untrack(|| saved_bars(editor))
+                .ok()?
+                .into_iter()
+                .find(|(held, _)| held == monitor)
+                .map(|(_, saved)| {
+                    saved
+                        .map_tabs(|tab| Bars::of(0).as_bar_of(tab, display))
+                        .snapshot()
+                })
+        });
+        layout.restore(saved.unwrap_or_else(|| untrack(|| like_the_first(first, display))));
+        showing.set(monitor);
+    };
+    show(monitor.get_untracked());
     create_effect(move || {
-        let saved = SavedDockLayout::of(&layout.snapshot());
-        untrack(|| save_bars(editor, display, saved));
+        let monitor = monitor.get();
+        if untrack(|| showing.get()) != monitor {
+            untrack(|| show(monitor));
+        }
+    });
+    let readable = create_memo(move || saved_bars(editor).is_ok());
+    create_effect(move || {
+        let saved = SavedDockLayout::of(&layout.snapshot())
+            .map_tabs(|tab| Bars::of(display).as_bar_of(tab, 0));
+        let Some(monitor) = showing.get().filter(|_| readable.get()) else {
+            return;
+        };
+        untrack(|| save_bars(editor, monitor, saved));
     });
     layout
 }
@@ -114,22 +150,72 @@ fn like_the_first(first: DockingLayout<TabId>, display: u32) -> DockingSnapshot<
     DockingSnapshot::new(state, bars.map(|bar| (bar, bar)))
 }
 
-fn saved_bars(editor: Editor) -> Vec<(u32, SavedDockLayout)> {
-    editor
-        .view_state(DISPLAY_BARS)
-        .and_then(|state| state.value::<Vec<(u32, SavedDockLayout)>>())
-        .unwrap_or_default()
+type SavedBars = Vec<(String, SavedDockLayout)>;
+
+fn saved_bars(editor: Editor) -> Result<SavedBars, String> {
+    let Some(state) = editor.view_state(DISPLAY_BARS) else {
+        return Ok(Vec::new());
+    };
+    state.read::<SavedBars>().map_err(|error| {
+        format!(
+            "The saved bars of the further displays of session {} could not be read: {error}\n\nThey hold {} bytes, kept unchanged until the bars are reset.",
+            editor.block_id(),
+            state.bytes.len()
+        )
+    })
 }
 
-fn save_bars(editor: Editor, display: u32, layout: SavedDockLayout) {
-    let mut saved = saved_bars(editor);
-    match saved.iter_mut().find(|(held, _)| *held == display) {
+fn save_bars(editor: Editor, monitor: String, layout: SavedDockLayout) {
+    let Ok(mut saved) = saved_bars(editor) else {
+        return;
+    };
+    match saved.iter_mut().find(|(held, _)| *held == monitor) {
         Some((_, held)) if *held == layout => return,
         Some((_, held)) => *held = layout,
-        None => saved.push((display, layout)),
+        None => saved.push((monitor, layout)),
     }
-    saved.sort_by_key(|(held, _)| *held);
+    saved.sort_by(|(left, _), (right, _)| left.cmp(right));
     editor.set_view_state(DISPLAY_BARS, Some(&ViewState::new(&saved, Vec::new())));
+}
+
+#[component]
+pub(crate) fn UnreadableBarsDialog(editor: Editor) -> NodeId {
+    let report = create_memo(move || saved_bars(editor).err());
+    let displays = editor.watch::<DisplaysWatch>();
+    let further = create_memo(move || displays.with(|displays| displays.len() > 1));
+    let kept = create_signal(false);
+    let open = create_memo(move || report.with(Option::is_some) && further.get() && !kept.get());
+    let reset = move || {
+        let empty: SavedBars = Vec::new();
+        editor.set_view_state(DISPLAY_BARS, Some(&ViewState::new(&empty, Vec::new())));
+    };
+    view! {
+        <Dialog
+            open={open}
+            kind=DialogKind::Alert
+            title="The bars of the other displays could not be read"
+            width=Size::Dialog
+            id="desktop.display-bars"
+            actions={vec![
+                DialogAction::secondary("Copy report", move || {
+                    if let Some(report) = report.get_untracked() {
+                        copy_text(report);
+                    }
+                })
+                .named("copy-report"),
+                DialogAction::secondary("Keep them", move || kept.set(true)).named("keep"),
+                DialogAction::destructive("Reset bars", reset).named("reset"),
+            ]}
+            on_dismiss={move || kept.set(true)}
+        >
+            <Text style=TextStyle::PARAGRAPH>
+                "Where each display other than the first keeps its bars was saved in a form this version cannot read, so they start where the first display's are."
+            </Text>
+            <Text style=TextStyle::PARAGRAPH>
+                "Reset bars forgets the saved places and saves new ones from now on. Keep them leaves the saved places as they are, and moving a bar on another display is not saved until they are reset."
+            </Text>
+        </Dialog>
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -194,6 +280,7 @@ pub(crate) struct Shell {
     pub(crate) programs_panel: ProgramsPanel,
     pub(crate) windows: DeskWindows,
     pub(crate) clock: ReadSignal<String>,
+    pub(crate) layouts: Layouts,
 }
 
 impl Shell {
@@ -202,6 +289,7 @@ impl Shell {
         notifications: DesktopNotifications,
         programs_panel: ProgramsPanel,
         windows: DeskWindows,
+        layouts: Layouts,
     ) -> Self {
         Self {
             workspace,
@@ -209,6 +297,7 @@ impl Shell {
             programs_panel,
             windows,
             clock: wall_clock(),
+            layouts,
         }
     }
 }
@@ -285,6 +374,9 @@ fn StatusItems(shell: Shell, display: u32) -> NodeId {
     view! {
         <List direction align=Align::Center spacing=STATUS_SPACING>
             <TrayItems editor={editor} direction />
+            <Show condition={shell.layouts.several}>
+                <LayoutButton layouts={shell.layouts} />
+            </Show>
             <Show condition={keyboard}>
                 <Button
                     icon_only=true
@@ -312,7 +404,7 @@ fn StatusItems(shell: Shell, display: u32) -> NodeId {
             </Show>
             <StatusButton status direction />
             <ClockButton
-                editor={editor}
+                workspace={shell.workspace}
                 notifications={shell.notifications}
                 clock={shell.clock}
                 direction

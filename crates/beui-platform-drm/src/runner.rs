@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use beui::{
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, Pos2, ScrollDelta, TouchId, TouchPhase,
-    native::Setup, native::Waker, vec2,
+    TouchpadGesture, native::Setup, native::Waker, vec2,
 };
 use beui_core::clipboard::PasteAnswer;
 use beui_core::program::SafeArea;
@@ -28,7 +28,8 @@ use smithay::backend::drm::{
 };
 use smithay::backend::input::Event as _;
 use smithay::backend::input::{
-    AbsolutePositionEvent, Axis, ButtonState, InputEvent, KeyState, KeyboardKeyEvent,
+    AbsolutePositionEvent, Axis, ButtonState, GestureBeginEvent, GestureEndEvent,
+    GesturePinchUpdateEvent, GestureSwipeUpdateEvent, InputEvent, KeyState, KeyboardKeyEvent,
     PointerAxisEvent, PointerButtonEvent, PointerMotionEvent, ProximityState,
     TabletToolButtonEvent, TabletToolEvent, TabletToolProximityEvent, TabletToolTipEvent,
     TabletToolTipState, TabletToolType, TouchEvent,
@@ -52,24 +53,26 @@ use smithay::utils::{Clock, DeviceFd, Monotonic};
 
 use be_host_dmabuf::{DEVICE_EXTENSIONS, Vulkan, adapter_for};
 
-use crate::display::{DisplayConfig, DisplayControl};
+use crate::display::{DisplayConfig, DisplayControl, DisplayUse};
 use crate::displays::{Display, Displays};
 use crate::epaper::{Change, Epaper, Panel};
 use crate::escape::{Escape, FINGERS as ESCAPE_FINGERS, HOLD as ESCAPE_HOLD};
 use crate::flips::{Flip, Flips};
 use crate::gpu::{Gpu, SoftwareCursor};
 use crate::input::{
-    InputConfig, InputControl, InputDevice, PointerDevice, PointerSettings, PointerSpeed, RawInput,
-    SharedFilter,
+    InputConfig, InputControl, InputDevice, PointerDevice, PointerSettings, PointerSpeed, Pointing,
+    RawInput, SharedFilter,
 };
 use crate::keyboard::Keyboard;
-use crate::layout::{absolute, arrange, bounds, clamp, moved};
+use crate::layout::{arrange, clamp, mirrored_scale, moved};
 use crate::output::{Buffers, Output, connected, wait_for};
 use crate::outputs::{DisplayRenderer, Outputs};
 use crate::pacing::{Lane, Pacer, Wait};
+use crate::plan::plan;
+use crate::pointing::{self, Kind, Pointer, Target};
 use crate::problems::Problems;
 use crate::recovery::{Card, Recovery};
-use crate::rotation::{Rotation, Turn};
+use crate::rotation::Turn;
 use crate::screen::FORMAT;
 use crate::wake::{Held, Input, WakeGate};
 
@@ -94,11 +97,13 @@ pub struct Session {
     node: u64,
     libinput: Libinput,
     devices: Vec<Libdevice>,
+    pointing: Vec<Pointed>,
     input: InputConfig,
     control: InputControl,
     display_control: DisplayControl,
     display_config: DisplayConfig,
     config_pending: bool,
+    rearranged: bool,
     blanked: bool,
     gate: WakeGate,
     runner: Runner,
@@ -106,7 +111,7 @@ pub struct Session {
     outputs: Rc<RefCell<Outputs>>,
     displays: Displays,
     windows: Windows,
-    default_scale: f32,
+    forced_scale: Option<f32>,
     zoom: f32,
     pacer: Pacer,
     clock: Clock<Monotonic>,
@@ -119,6 +124,13 @@ pub struct Session {
     darken_retry: Option<RegistrationToken>,
     lost: Arc<AtomicBool>,
     problems: Problems,
+}
+
+struct Pointed {
+    device: Libdevice,
+    id: InputDevice,
+    pointer: Pointer,
+    target: Target,
 }
 
 #[derive(Default)]
@@ -202,11 +214,11 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let (device, queue) = open_gpu(node, &lost)?;
     let gpu = Rc::new(Gpu::new(device, queue, FORMAT));
     let buffers = buffers(fd, node, &gpu)?;
-    let default_scale = scale();
+    let forced_scale = scale();
     let outputs = Rc::new(RefCell::new(Outputs::new(
         gpu,
         SoftwareCursor::default(),
-        default_scale,
+        forced_scale.unwrap_or(1.0),
     )));
     let mut runner = Runner::new(launch);
     let hosted = runner.context().opens_windows();
@@ -239,7 +251,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         setup,
     )?;
     runner.reports().fullscreen(true);
-    runner.reports().scaled(default_scale);
+    runner.reports().scaled(forced_scale.unwrap_or(1.0));
     if epaper.is_some() {
         runner.reports().system_preferences(PreferenceLayer {
             theme: Some(ThemeKind::EPaper),
@@ -268,12 +280,14 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         node,
         libinput,
         devices: Vec::new(),
+        pointing: Vec::new(),
         keyboard: Keyboard::new(&input).ok_or("the keymap could not be compiled")?,
         input,
         control,
         display_control,
         display_config: DisplayConfig::default(),
         config_pending: false,
+        rearranged: false,
         blanked: false,
         gate: WakeGate::default(),
         runner,
@@ -284,7 +298,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
             hosted,
             ..Windows::default()
         },
-        default_scale,
+        forced_scale,
         zoom: 1.0,
         pacer: Pacer::default(),
         clock: Clock::new(),
@@ -407,12 +421,11 @@ fn buffers(display: DrmDeviceFd, node: u64, gpu: &Gpu) -> Result<Buffers, Box<dy
     })
 }
 
-fn scale() -> f32 {
+fn scale() -> Option<f32> {
     std::env::var("BEUI_SCALE")
         .ok()
         .and_then(|scale| scale.parse::<f32>().ok())
-        .filter(|scale| *scale > 0.0)
-        .unwrap_or(1.0)
+        .filter(|scale| scale.is_finite() && *scale > 0.0)
 }
 
 fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Queue), String> {
@@ -443,6 +456,7 @@ impl Session {
             platform,
             outputs,
             devices,
+            pointing,
             libinput,
             buffers,
             epaper,
@@ -452,6 +466,7 @@ impl Session {
         let finished = runner.finish();
         drop(platform);
         drop(outputs);
+        drop(pointing);
         drop(devices);
         libinput.suspend();
         drop(libinput);
@@ -470,6 +485,7 @@ impl Session {
         }
         self.drain_filter();
         if let Some(config) = self.display_control.take() {
+            self.rearranged |= !config.same_arrangement(&self.display_config);
             self.display_config = config;
             self.config_pending = true;
         }
@@ -498,9 +514,7 @@ impl Session {
             self.set_blanked(blanked);
         }
         self.runner.present();
-        if self.blanked {
-            self.darken();
-        }
+        self.darken();
         self.watch_fences();
         self.check_failures();
         self.schedule();
@@ -571,15 +585,12 @@ impl Session {
                 }
                 let wanted = self.display_config.mode(output.id());
                 let rotation = self.display_config.rotation(output.id());
-                let scale = self
-                    .display_config
-                    .scale(output.id())
-                    .unwrap_or(self.default_scale);
+                let scale = self.display_config.scale(output.id()).or(self.forced_scale);
                 changed |= output.configure(&outputs.gpu, wanted, rotation, scale);
             }
         }
         self.config_pending = waiting;
-        if changed {
+        if changed || (!waiting && std::mem::take(&mut self.rearranged)) {
             self.relayout();
         }
     }
@@ -806,7 +817,7 @@ impl Session {
                 &info,
                 &taken,
                 &self.display_config,
-                self.default_scale,
+                self.forced_scale,
                 self.built,
             ) {
                 Ok(mut output) => {
@@ -825,13 +836,48 @@ impl Session {
     fn relayout(&mut self) {
         let mut guard = self.outputs.borrow_mut();
         let outputs = &mut *guard;
-        let sizes: Vec<_> = outputs
-            .outputs
-            .iter()
-            .map(|output| (output.screen.picture(), output.screen.scale))
+        let ids: Vec<&str> = outputs.outputs.iter().map(Output::id).collect();
+        let planned = plan(&ids, &self.display_config);
+        let mut taken: Vec<Option<Output>> = outputs.outputs.drain(..).map(Some).collect();
+        for (index, used) in planned {
+            if let Some(mut output) = taken[index].take() {
+                output.set_used(used);
+                outputs.outputs.push(output);
+            }
+        }
+        let desktop: Vec<_> = outputs
+            .desktops()
+            .map(|output| {
+                (
+                    output.screen.picture(),
+                    output.screen.scale,
+                    self.display_config.place(output.id()),
+                )
+            })
             .collect();
-        for (output, rect) in outputs.outputs.iter_mut().zip(arrange(&sizes)) {
+        let rects = arrange(&desktop);
+        for (output, rect) in outputs
+            .outputs
+            .iter_mut()
+            .filter(|output| output.on_desktop())
+            .zip(rects)
+        {
             output.screen.rect = rect;
+            output.screen.invalidate();
+        }
+        let shown: Vec<(String, beui::Rect)> = outputs
+            .desktops()
+            .map(|output| (output.id().to_owned(), output.screen.rect))
+            .collect();
+        for output in &mut outputs.outputs {
+            let DisplayUse::Mirror(source) = &output.used else {
+                continue;
+            };
+            let Some((_, rect)) = shown.iter().find(|(id, _)| id == source) else {
+                continue;
+            };
+            output.screen.rect = *rect;
+            output.screen.scale = mirrored_scale(output.screen.picture(), rect.size());
             output.screen.invalidate();
         }
         outputs.pointer = clamp(outputs.pointer, &outputs.rects());
@@ -841,8 +887,7 @@ impl Session {
             output.screen.zoom = zoom;
         }
         let shown: Vec<Display> = outputs
-            .outputs
-            .iter()
+            .desktops()
             .map(|output| Display {
                 id: output.id().to_owned(),
                 name: output.name().to_owned(),
@@ -855,7 +900,7 @@ impl Session {
             })
             .collect();
         let native = outputs.outputs.first().map(|first| first.screen.scale);
-        let refresh = outputs.outputs.iter().map(|output| output.refresh()).min();
+        let refresh = outputs.desktops().map(|output| output.refresh()).min();
         drop(guard);
         if let Some(native) = native {
             self.runner.reports().scaled(native);
@@ -867,6 +912,8 @@ impl Session {
         self.report_sizes();
         self.pacer.ask();
         self.report_monitors();
+        self.retarget();
+        self.report_devices();
     }
 
     fn follow_zoom(&mut self) {
@@ -1028,6 +1075,11 @@ impl Session {
         self.push_sample(Incoming::points(beui::Input::Scroll(delta)).in_window(window));
     }
 
+    fn touchpad(&mut self, gesture: TouchpadGesture) {
+        let (window, _) = self.at(self.pointer());
+        self.push_sample(Incoming::points(beui::Input::Touchpad(gesture)).in_window(window));
+    }
+
     fn pressed_at(&mut self, position: Pos2) {
         let (window, _) = self.at(position);
         if !window.is_main() {
@@ -1117,15 +1169,26 @@ impl Session {
     }
 
     fn absolute_position<E: AbsolutePositionEvent<LibinputInputBackend>>(&self, event: &E) -> Pos2 {
-        let (area, rotation) = self.absolute_area();
-        clamp(absolute(normalized(event), area, rotation), &self.rects())
+        let target = self.target(&event.device());
+        let areas = self.outputs.borrow().areas();
+        clamp(
+            pointing::place(normalized(event), target, &areas),
+            &self.rects(),
+        )
     }
 
-    fn absolute_area(&self) -> (beui::Rect, Rotation) {
-        let outputs = self.outputs.borrow();
-        match outputs.outputs.as_slice() {
-            [only] => (only.screen.rect, only.screen.rotation()),
-            _ => (bounds(&outputs.rects()), Rotation::Normal),
+    fn target(&self, device: &Libdevice) -> Target {
+        match self.pointing.iter().find(|known| known.device == *device) {
+            Some(known) => known.target,
+            None => pointing::automatic(&Pointer::pen(), &self.outputs.borrow().pointed()),
+        }
+    }
+
+    fn retarget(&mut self) {
+        let screens = self.outputs.borrow().pointed();
+        for known in &mut self.pointing {
+            known.target =
+                pointing::target(&known.pointer, &screens, self.input.display(&known.id));
         }
     }
 
@@ -1148,28 +1211,47 @@ impl Session {
                     config.layout.clone_from(&self.input.layout);
                     config.variant.clone_from(&self.input.variant);
                     config.options.clone_from(&self.input.options);
+                    config.active_layout = self.input.active_layout;
                 }
             }
+        } else if config.active_layout != self.input.active_layout {
+            self.keyboard.set_layout(config.active_layout);
         }
         self.stop_repeat();
         self.input = config;
         for device in &mut self.devices {
             configure_device(device, &self.input);
         }
+        self.retarget();
     }
 
     fn report_devices(&self) {
+        let screens = self.outputs.borrow().pointed();
         let mut pointers: Vec<PointerDevice> = Vec::new();
         for device in &self.devices {
             let defaults = pointer_defaults(device);
-            if defaults == PointerSettings::default() {
+            let pointing = self
+                .pointing
+                .iter()
+                .find(|known| known.device == *device)
+                .map(|known| Pointing {
+                    automatic: pointing::shown(
+                        pointing::automatic(&known.pointer, &screens),
+                        &screens,
+                    ),
+                });
+            if defaults == PointerSettings::default() && pointing.is_none() {
                 continue;
             }
             let id = device_id(device);
             if pointers.iter().any(|pointer| pointer.id == id) {
                 continue;
             }
-            pointers.push(PointerDevice { id, defaults });
+            pointers.push(PointerDevice {
+                id,
+                defaults,
+                pointing,
+            });
         }
         pointers.sort_by(|left, right| left.id.cmp(&right.id));
         self.control.set_devices(pointers);
@@ -1209,10 +1291,20 @@ impl Session {
         match event {
             InputEvent::DeviceAdded { mut device } => {
                 configure_device(&mut device, &self.input);
+                if let Some(pointer) = pointer_of(&device) {
+                    self.pointing.push(Pointed {
+                        device: device.clone(),
+                        id: device_id(&device),
+                        pointer,
+                        target: Target::All,
+                    });
+                    self.retarget();
+                }
                 self.devices.push(device);
                 self.report_devices();
             }
             InputEvent::DeviceRemoved { device } => {
+                self.pointing.retain(|known| known.device != device);
                 self.devices.retain(|known| *known != device);
                 self.report_devices();
             }
@@ -1224,12 +1316,51 @@ impl Session {
                 });
             }
             InputEvent::PointerMotion { event } => {
-                let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
                 if self.platform.locked {
-                    self.push(Incoming::points(beui::Input::PointerMotion(delta)));
+                    let raw = vec2(
+                        event.delta_x_unaccel() as f32,
+                        event.delta_y_unaccel() as f32,
+                    );
+                    self.push(Incoming::points(beui::Input::PointerMotion(raw)));
                     return;
                 }
+                let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
                 self.point(moved(self.pointer(), delta, &self.rects()));
+            }
+            InputEvent::GestureSwipeBegin { event } => {
+                self.touchpad(TouchpadGesture::SwipeBegan(event.fingers()));
+            }
+            InputEvent::GestureSwipeUpdate { event } => {
+                let delta = vec2(
+                    GestureSwipeUpdateEvent::delta_x(&event) as f32,
+                    GestureSwipeUpdateEvent::delta_y(&event) as f32,
+                );
+                self.touchpad(TouchpadGesture::Swiped(delta));
+            }
+            InputEvent::GestureSwipeEnd { event } => {
+                self.touchpad(TouchpadGesture::SwipeEnded(event.cancelled()));
+            }
+            InputEvent::GesturePinchBegin { event } => {
+                self.touchpad(TouchpadGesture::PinchBegan(event.fingers()));
+            }
+            InputEvent::GesturePinchUpdate { event } => {
+                self.touchpad(TouchpadGesture::Pinched {
+                    delta: vec2(
+                        GesturePinchUpdateEvent::delta_x(&event) as f32,
+                        GesturePinchUpdateEvent::delta_y(&event) as f32,
+                    ),
+                    scale: event.scale() as f32,
+                    rotation: event.rotation() as f32,
+                });
+            }
+            InputEvent::GesturePinchEnd { event } => {
+                self.touchpad(TouchpadGesture::PinchEnded(event.cancelled()));
+            }
+            InputEvent::GestureHoldBegin { event } => {
+                self.touchpad(TouchpadGesture::HoldBegan(event.fingers()));
+            }
+            InputEvent::GestureHoldEnd { event } => {
+                self.touchpad(TouchpadGesture::HoldEnded(event.cancelled()));
             }
             InputEvent::PointerMotionAbsolute { event } => {
                 let position = self.absolute_position(&event);
@@ -1328,7 +1459,8 @@ impl Session {
         let position = self.absolute_position(event);
         self.place_pointer(position);
         let tool = event.tool();
-        let (_, rotation) = self.absolute_area();
+        let target = self.target(&event.device());
+        let (_, rotation) = pointing::area(target, &self.outputs.borrow().areas());
         let tilt =
             rotation.direction_to_picture(vec2(event.tilt_x() as f32, event.tilt_y() as f32));
         if matches!(phase, PenPhase::Down(_)) {
@@ -1343,14 +1475,8 @@ impl Session {
     }
 
     fn touch_position<E: AbsolutePositionEvent<LibinputInputBackend>>(&self, event: &E) -> Pos2 {
-        let outputs = self.outputs.borrow();
-        let (rect, rotation) = outputs
-            .outputs
-            .first()
-            .map_or((beui::Rect::ZERO, Rotation::Normal), |output| {
-                (output.screen.rect, output.screen.rotation())
-            });
-        absolute(normalized(event), rect, rotation)
+        let target = self.target(&event.device());
+        pointing::place(normalized(event), target, &self.outputs.borrow().areas())
     }
 
     fn touch(
@@ -1605,6 +1731,14 @@ fn gate_input(event: &InputEvent<LibinputInputBackend>) -> Option<(Input, u64)> 
         InputEvent::PointerMotion { event } => (Input::Other, event.time()),
         InputEvent::PointerMotionAbsolute { event } => (Input::Other, event.time()),
         InputEvent::PointerAxis { event } => (Input::Other, event.time()),
+        InputEvent::GestureSwipeBegin { event } => (Input::Other, event.time()),
+        InputEvent::GestureSwipeUpdate { event } => (Input::Other, event.time()),
+        InputEvent::GestureSwipeEnd { event } => (Input::Other, event.time()),
+        InputEvent::GesturePinchBegin { event } => (Input::Other, event.time()),
+        InputEvent::GesturePinchUpdate { event } => (Input::Other, event.time()),
+        InputEvent::GesturePinchEnd { event } => (Input::Other, event.time()),
+        InputEvent::GestureHoldBegin { event } => (Input::Other, event.time()),
+        InputEvent::GestureHoldEnd { event } => (Input::Other, event.time()),
         InputEvent::TouchDown { event } => (Input::Press(touch_held(event.slot())), event.time()),
         InputEvent::TouchMotion { event } => {
             (Input::Continue(touch_held(event.slot())), event.time())
@@ -1635,6 +1769,31 @@ fn gate_input(event: &InputEvent<LibinputInputBackend>) -> Option<(Input, u64)> 
 
 fn normalized<E: AbsolutePositionEvent<LibinputInputBackend>>(event: &E) -> Pos2 {
     beui::pos2(event.x_transformed(1) as f32, event.y_transformed(1) as f32)
+}
+
+fn pointer_of(device: &Libdevice) -> Option<Pointer> {
+    let kind = if device.has_capability(DeviceCapability::Touch) {
+        Kind::Touch
+    } else if device.has_capability(DeviceCapability::TabletTool) {
+        Kind::Pen
+    } else {
+        return None;
+    };
+    let output = smithay::reexports::udev::Device::from_subsystem_sysname(
+        "input".to_owned(),
+        device.sysname().to_owned(),
+    )
+    .ok()
+    .and_then(|udev| {
+        udev.property_value("WL_OUTPUT")
+            .map(|value| value.to_string_lossy().into_owned())
+    })
+    .filter(|output| !output.is_empty());
+    Some(Pointer {
+        kind,
+        size: device.size(),
+        output,
+    })
 }
 
 fn touch_held(slot: smithay::backend::input::TouchSlot) -> Held {

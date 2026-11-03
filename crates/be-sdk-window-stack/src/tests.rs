@@ -1,2 +1,4 @@
 use super::*;
 mod a_desktop_window_is_kept_off_the_bands_of_its_display_and_free_across_others;
+mod a_desktop_window_too_big_for_its_work_area_shrinks_and_one_on_no_display_comes_back;
+mod an_above_window_stays_in_front_of_normal_windows_raised_or_opened_after_it;

@@ -10,7 +10,8 @@ fn power_maps_both_ways_and_windows_never_ends_the_session_itself() {
         log_out: false,
     });
     assert!(available.lock && !available.suspend && available.restart);
-    assert!(available.power_off && !available.log_out && !available.ending);
+    assert!(available.power_off && !available.log_out && available.ending.is_none());
+    assert!(available.session, "windows is always the login session");
     for (ours, theirs) in [
         (
             be_sdk_api::PowerAction::Lock,

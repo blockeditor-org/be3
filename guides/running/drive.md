@@ -123,7 +123,7 @@ Arguments after `--` go to the launcher, which passes on those it does not know:
   `BEUI_HEADLESS_CLOCK=pinned` and `TZ=UTC`.
 - Anything else, such as be-host's `--desktop` (guides/desktop.md), goes to the program.
 
-A program's output goes to `~/.cache/be3/NAME/program.log`. `BE_DRIVE_DIR` moves the directory,
+A program's output goes to `~/.cache/be3/NAME/app.log`. `BE_DRIVE_DIR` moves the directory,
 for two copies of one program at once, so agents sharing a machine each give theirs a
 directory of its own. Keep it short, such as `/tmp/be3-123`: the drive socket (`drive.sock`) is in it,
 and a Unix socket's path fits in 107 bytes. `drive --socket=PATH` or `BE_DRIVE_SOCKET` picks
@@ -190,7 +190,8 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   initially collapses internals of components defined in `beui_*` crates and expands others.
   Like `hit`, this sees the host document, not app documents.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
-  fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
+  fullscreen, the cursor's shape (or the size and hotspot of a picture shown as the cursor, such as a
+  Wayland program's own), the pointer and the fingers down, held keys, an input
   method's composition or where the program asks for one and whether it shows the on-screen
   keyboard or holds it back, a back gesture under way, files being dragged in, any open file
   dialog, and `settled` or `busy:` followed by why the program is not, as of its last frame, and
@@ -221,8 +222,8 @@ place it is drawn, so `find` and `click` reach its rows like any other.
   so it compares exactly where a PNG would not; `drive paint FILE.png` draws it into a PNG
   instead, which is how to see the program's own window flat when a layer such as space is
   between it and the platform. `./scripts/buck run //crates/be-tool-local:bin -- rasterize
-  SNAPSHOT.paint OUTPUT.png [FRAME|all]` turns a saved snapshot into a PNG and `example-dump`
-  lists its shapes. It reveals TARGET as `shot` does, waits until the program settles and crops to
+  SNAPSHOT.paint OUTPUT.png [FRAME|all]` turns a saved snapshot into a PNG and
+  `./scripts/buck run //crates/beui-paint-snapshot:example-dump -- SNAPSHOT.paint` lists its shapes. It reveals TARGET as `shot` does, waits until the program settles and crops to
   the part of TARGET that shows in the frame it paints, then asks every running
   app for what it last painted, through the app's `paintings` export (beui-paint-format's
   `ScreenPaintings`). What an app draws through a
@@ -318,7 +319,11 @@ pending, and while the block store has commands to carry out, edits it owes a se
 for at once when driven, unless `hurry` is off, below) or sealed edits it is still sending, or is
 still listing a file's revisions or loading the organization's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
 instead, to see the program part way through something, such as an app still loading. Work the
-program cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
+program cannot see is not waited for: a server push, or a hosted Wayland or X11 program (`drive exec`,
+guides/desktop/linux.md) redrawing after input, which it does once it has handled the input on its
+own time (foot only once its shell has answered through the terminal), so a `shot` or `paint`
+right after typing into one can show the step before; the tree does not show what such a program
+draws, so let it catch up with `drive pause 200` before the screenshot. A server push is waited for with `drive wait TEXT` or `drive gone
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;
 `drive wait TEXT over TARGET` also asks that the line's node cover that point (`X,Y`, or
 `#TEST_ID+X,Y` beside another node), for something that
@@ -367,8 +372,10 @@ same way for the browser:
     EOF
 
 `type` presses the key that makes each character, with Shift where a US layout needs it,
-with each key's evdev code, so a Wayland program's window takes it as it takes `key` and
-`keydown`. A character no key makes, such as `é`, is sent as text, which only beui takes.
+and no physical place, as the on-screen keyboard does, so a Wayland program's window gets
+the key that makes it in the active layout (guides/desktop/linux.md, The on-screen keyboard).
+A character no US key makes, such as `é`, is sent as text, which beui and a program's enabled
+text field take.
 
 ## The headless window
 

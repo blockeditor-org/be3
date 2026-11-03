@@ -114,12 +114,17 @@ FIXUPS = {
     # The build script asks pkg-config for gbm and compiles a probe against its
     # headers, with warnings as errors, to learn which of gbm's newer functions
     # the compositor can call. The compiler it is given carries the link's
-    # flags as well, which a compile alone warns are unused.
+    # flags as well, which a compile alone warns are unused. X11Wm::new_selection
+    # never flushes its X connection, so Xwayland heard of a Wayland or be-host
+    # selection only with the next request that did, and an X11 program pasting
+    # straight after a copy read the old selection: the overlay flushes. Drop it
+    # once smithay does.
     "smithay": {
         "build_script_env": {
             "CFLAGS": "-Wno-unused-command-line-argument",
             "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
         },
+        "overlay": {"src/xwayland/xwm/mod.rs": "overlays/smithay/xwm.rs"},
     },
     "soup3-sys": _PKG_CONFIG,
     # bindgen! adds an include_bytes! of every WIT file it reads, by absolute

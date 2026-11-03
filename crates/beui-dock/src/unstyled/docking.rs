@@ -1,5 +1,6 @@
 use beui_view::types::icons::Glyph;
 mod host;
+mod snap;
 mod switch;
 
 use be_lib_stable_hash::{HashMap, HashSet};
@@ -41,6 +42,8 @@ pub use host::{
     DockKept, DockRequest, use_dock_join,
 };
 use host::{Joined, Registry};
+pub use snap::DockSnap;
+use snap::Snapped;
 
 pub trait DockKey: Clone + Eq + Hash + 'static {
     fn key(&self) -> String;
@@ -99,7 +102,7 @@ enum NodeKind<K: 'static> {
     },
     Dialog {
         id: K,
-        parent: K,
+        parent: Memo<K>,
         parts: DialogParts,
     },
     Bar {
@@ -121,6 +124,7 @@ enum EntryKind<K: 'static> {
         icon: Memo<Option<Glyph>>,
         picture: Memo<Option<Image>>,
         on_close: Option<ClickCallback>,
+        back_closes: bool,
         see_through: bool,
         content: RenderFn<()>,
     },
@@ -202,7 +206,7 @@ where
 #[component]
 pub fn DockDialog<K>(
     id: K,
-    parent: K,
+    parent: Prop<K>,
     title: Prop<String>,
     #[prop(default = None)] icon: Prop<Option<Glyph>>,
     size: Prop<Vec2>,
@@ -217,7 +221,7 @@ where
     DockNode {
         kind: NodeKind::Dialog {
             id,
-            parent,
+            parent: create_memo(move || parent.get()),
             parts: DialogParts {
                 title: create_memo(move || title.get()),
                 icon: create_memo(move || icon.get()),
@@ -259,6 +263,7 @@ pub fn DockTab<K>(
     #[prop(default = None)] icon: Prop<Option<Glyph>>,
     #[prop(default = None)] picture: Prop<Option<Image>>,
     on_close: Option<ClickCallback>,
+    #[prop(default = true)] back_closes: bool,
     #[prop(default = false)] see_through: bool,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockEntry<K>
@@ -272,6 +277,7 @@ where
             icon: create_memo(move || icon.get()),
             picture: create_memo(move || picture.get()),
             on_close,
+            back_closes,
             see_through,
             content,
         },
@@ -367,6 +373,7 @@ pub struct DockingLayout<K: 'static> {
     floats: Signal<BarFloats>,
     covered: Signal<bool>,
     area: Signal<Rect>,
+    snaps: Signal<HashMap<TabId, Snapped>>,
     inner: Stored<LayoutInner<K>>,
 }
 
@@ -435,6 +442,7 @@ impl<K: DockKey> DockingLayout<K> {
         let floats = create_signal(BarFloats::default());
         let covered = create_signal(false);
         let area = create_signal(Rect::ZERO);
+        let snaps = create_signal(HashMap::default());
         let registry = Rc::new(Registry {
             covers,
             version: create_signal(0),
@@ -467,6 +475,7 @@ impl<K: DockKey> DockingLayout<K> {
             floats,
             covered,
             area,
+            snaps,
             inner,
         };
         (layout, inner)
@@ -680,21 +689,12 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn move_window(&self, key: &K, to: Pos2) {
-        let Some(tab) = self.tab_of(key) else {
+        let Some(rect) = untrack(|| self.window_rect(key)) else {
             return;
         };
-        let at = to - self.area.get_untracked().min.to_vec2();
-        self.state.update(|state| {
-            let Some(surface) = state
-                .find(standing_in(state, tab))
-                .map(|found| found.surface)
-            else {
-                return;
-            };
-            if let Some(rect) = state.window_rect(surface) {
-                state.set_window_rect(surface, Rect::from_min_size(at, rect.size()));
-            }
-        });
+        if let Some(tab) = untrack(|| self.tab_of(key)) {
+            self.place_window(tab, Rect::from_min_size(to, rect.size()));
+        }
     }
 
     fn outermost(&self, tab: TabId) -> TabId {
@@ -1110,7 +1110,7 @@ impl<K: DockKey> DockingLayout<K> {
                 if found.dialogs.iter().any(|(held, _)| *held == dialog) {
                     continue;
                 }
-                let parent = self.mint(parent);
+                let parent = parent.with(|parent| self.mint(parent));
                 found.dialogs.push((dialog, parent));
                 found.parts.insert(dialog, *parts);
             }
@@ -1438,6 +1438,10 @@ impl<K: 'static> PartialEq for Found<K> {
 }
 
 impl<K: DockKey> Found<K> {
+    fn live_parts(&self, tab: TabId) -> Option<DialogParts> {
+        self.parts.get(&tab).copied().filter(DialogParts::alive)
+    }
+
     fn declared_tabs(&self) -> Vec<DockDeclaredTab> {
         self.tabs
             .iter()
@@ -1448,6 +1452,7 @@ impl<K: DockKey> Found<K> {
                     icon,
                     picture,
                     on_close,
+                    back_closes,
                     ..
                 } => Some(DockDeclaredTab {
                     tab: *tab,
@@ -1456,6 +1461,7 @@ impl<K: DockKey> Found<K> {
                     icon: icon.get(),
                     picture: picture.get(),
                     closable: on_close.is_some(),
+                    back_closes: *back_closes,
                 }),
                 EntryKind::Group { .. } => None,
             })
@@ -1524,6 +1530,18 @@ impl<K: DockKey> Found<K> {
             } => Some(read(title, icon, on_close, content)),
             EntryKind::Group { .. } => None,
         }
+    }
+
+    fn back_closes(&self, tab: TabId) -> bool {
+        self.tabs.get(&tab).is_none_or(|entry| {
+            !matches!(
+                entry.kind,
+                EntryKind::Tab {
+                    back_closes: false,
+                    ..
+                }
+            )
+        })
     }
 
     fn see_through(&self, tab: TabId) -> bool {
@@ -1613,7 +1631,7 @@ where
             None => Ok(found
                 .tab(tab, |_, _, on_close, _| *on_close)
                 .flatten()
-                .or_else(|| found.parts.get(&tab).and_then(|parts| parts.on_close))),
+                .or_else(|| found.live_parts(tab).and_then(|parts| parts.on_close))),
         });
         match close {
             Ok(Some(close)) => close.call(),
@@ -1628,7 +1646,7 @@ where
         let content = found.with_untracked(|found| found.tab(tab, |_, _, _, content| *content));
         let Some(content) = content else {
             let dialog =
-                found.with_untracked(|found| found.parts.get(&tab).map(|parts| parts.content));
+                found.with_untracked(|found| found.live_parts(tab).map(|parts| parts.content));
             return match dialog {
                 Some(dialog) => dialog.call(()),
                 None => view! {
@@ -1710,8 +1728,7 @@ where
                 .collect::<Vec<_>>()
         })
     });
-    let dialog =
-        Func::new(move |tab: TabId| found.with_untracked(|found| found.parts.get(&tab).cloned()));
+    let dialog = Func::new(move |tab: TabId| found.with_untracked(|found| found.live_parts(tab)));
     let declared = move |tab: TabId| -> Option<DockDeclaredTab> {
         found.with(|found| {
             let (joined, inner) = found.foreign.get(&tab)?;
@@ -1749,6 +1766,12 @@ where
         found
             .with(|found| found.tab(tab, |_, _, on_close, _| on_close.is_some()))
             .unwrap_or(false)
+    });
+    let back_closes = Func::new(move |tab: TabId| {
+        if let Some(declared) = declared(tab) {
+            return declared.back_closes;
+        }
+        found.with(|found| found.back_closes(tab))
     });
     let place = RenderFn::new(move |tab: TabId| {
         let join = |host: TabId| DockJoin {
@@ -1893,6 +1916,7 @@ where
                 icon,
                 picture,
                 closable,
+                back_closes,
                 menu,
                 stack_below,
                 short_below,

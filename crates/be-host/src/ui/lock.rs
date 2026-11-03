@@ -12,13 +12,14 @@ use beui::{Key, NodeId};
 
 use super::{HostUiStore, UiCommand, send};
 use be_host_base::password::Password;
-use beui::{Align, Align2, Direction};
+use beui::{Align, Align2, Direction, Extent};
 
 const SECONDS_PER_MINUTE: u64 = 60;
 const FIELD_WIDTH: Size = Size::Custom(280.0);
 const SPACING: Space = Space::Md;
 const GROUP_SPACING: Space = Space::Xl3;
 const ACTION_SPACING: Space = Space::Xs;
+const EDGE: Space = Space::Lg;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub(crate) struct LockAction {
@@ -152,22 +153,26 @@ pub(crate) fn LockScreen(
         >|| {
             let focused = create_memo(move || open.get() && !busy.get());
             let submit = submit.clone();
+            let viewport = use_viewport_size();
+            let height = create_memo(move || Length::Extent(Extent::at_least(viewport.get().y)));
             view! {
-                <Frame align={Align2::CENTER}>
-                    <LockCard
-                        time
-                        date
-                        user
-                        error
-                        busy
-                        actions
-                        password
-                        focused
-                        id={id.clone()}
-                        on_submit={move |typed: String| submit(typed)}
-                        on_action
-                    />
-                </Frame>
+                <Scroll>
+                    <Frame height padding={Padding::all(EDGE)} align={Align2::CENTER}>
+                        <LockCard
+                            time
+                            date
+                            user
+                            error
+                            busy
+                            actions
+                            password
+                            focused
+                            id={id.clone()}
+                            on_submit={move |typed: String| submit(typed)}
+                            on_action
+                        />
+                    </Frame>
+                </Scroll>
             }
         }</Modal>
     }

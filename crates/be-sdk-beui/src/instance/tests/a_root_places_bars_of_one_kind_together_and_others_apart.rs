@@ -53,6 +53,7 @@ fn barred() -> DockDeclaration {
             title: "Stage".to_owned(),
             glyph: String::new(),
             closable: false,
+            back_closes: true,
             menu: Vec::new(),
         }],
         dialogs: Vec::new(),

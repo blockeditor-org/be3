@@ -13,6 +13,8 @@ use crate::cursors::{Cursors, Shape};
 use crate::flips::Flips;
 use crate::gpu::{Gpu, SoftwareCursor};
 use crate::output::Output;
+use crate::pointing;
+use crate::rotation::Rotation;
 use crate::screen::{FORMAT, Frame, Pointer};
 use crate::theme::Theme;
 
@@ -60,8 +62,7 @@ impl Outputs {
     }
 
     pub fn under(&self, position: Pos2) -> Option<&Output> {
-        self.outputs
-            .iter()
+        self.desktops()
             .find(|output| output.screen.rect.contains(position))
     }
 
@@ -79,10 +80,27 @@ impl Outputs {
     }
 
     pub fn rects(&self) -> Vec<Rect> {
+        self.desktops().map(|output| output.screen.rect).collect()
+    }
+
+    pub fn desktops(&self) -> impl Iterator<Item = &Output> {
+        self.outputs.iter().filter(|output| output.on_desktop())
+    }
+
+    pub fn pointed(&self) -> Vec<pointing::Screen> {
+        self.lit().map(Output::pointed).collect()
+    }
+
+    pub fn areas(&self) -> Vec<(Rect, Rotation)> {
+        self.lit()
+            .map(|output| (output.screen.rect, output.screen.rotation()))
+            .collect()
+    }
+
+    fn lit(&self) -> impl Iterator<Item = &Output> {
         self.outputs
             .iter()
-            .map(|output| output.screen.rect)
-            .collect()
+            .filter(|output| output.shows().is_some())
     }
 
     pub fn moved_pointer(&mut self) {
@@ -135,7 +153,7 @@ impl Outputs {
             self.replace_pointer();
         }
         for output in &mut self.outputs {
-            let window = window_of(output.id());
+            let window = output.shows().and_then(&window_of);
             let shown = window.map(|window| window.id);
             let empty;
             let window = match window {

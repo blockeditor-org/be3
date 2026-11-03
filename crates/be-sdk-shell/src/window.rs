@@ -5,12 +5,13 @@ use std::cell::Cell;
 
 use be_sdk_beui::beui::dock::styled::WINDOW_CHROME;
 use be_sdk_beui::beui::dock::styled::{TabId, use_dock_tab};
+use be_sdk_beui::beui::icons::{ICON_EYE_OFF, ICON_FULLSCREEN, ICON_X};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Image, NodeId, Rect, Vec2, pos2};
+use be_sdk_beui::beui::{Image, NodeId, Pos2, Rect, Vec2, pos2, vec2};
 use be_sdk_beui::{
     ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent,
-    WindowAction,
+    WindowAction, WindowMenu,
 };
 use beui::{Align, Direction};
 
@@ -21,6 +22,7 @@ const WINDOW_CASCADES: u64 = 8;
 const BANNER_PADDING: Space = Space::Lg;
 const BANNER_SPACING: Space = Space::Lg;
 const PLACEHOLDER_EDGE: f32 = 1.0;
+const SNAP_TOLERANCE: f32 = 0.01;
 const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
 pub fn window_tab(window: HostWindowId) -> TabId {
@@ -31,21 +33,56 @@ pub(crate) fn tab_window(tab: TabId) -> Option<HostWindowId> {
     tab.value().checked_sub(WINDOW_TABS).map(HostWindowId)
 }
 
-pub(crate) fn floating_window(window: &HostWindow) -> Rect {
-    let step = (window.id.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
-    let size = window.size;
-    Rect::from_min_size(
-        pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
-        shown_size(size) + WINDOW_CHROME,
-    )
+pub(crate) fn floating_window(window: &HostWindow, area: Rect) -> Rect {
+    let size = within_limits(shown_size(window.size), window.min_size, window.max_size);
+    cascaded(window.id, size + WINDOW_CHROME, area)
 }
 
-pub(crate) fn kept_window(key: HostWindowId) -> Rect {
-    let step = (key.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
-    Rect::from_min_size(
-        pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
-        PLACEHOLDER_SIZE + WINDOW_CHROME,
-    )
+pub(crate) fn within_limits(size: Vec2, min: Vec2, max: Vec2) -> Vec2 {
+    let axis = |size: f32, min: f32, max: f32| match max > 0.0 {
+        true => size.min(max).max(min),
+        false => size.max(min),
+    };
+    vec2(axis(size.x, min.x, max.x), axis(size.y, min.y, max.y))
+}
+
+pub(crate) fn kept_window(key: HostWindowId, area: Rect) -> Rect {
+    cascaded(key, PLACEHOLDER_SIZE + WINDOW_CHROME, area)
+}
+
+pub(crate) fn cascaded(key: HostWindowId, size: Vec2, area: Rect) -> Rect {
+    if !area.is_positive() {
+        let step = (key.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
+        return Rect::from_min_size(pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step), size);
+    }
+    let size = size.min(area.size());
+    let free = area.size() - size;
+    let room = (free.x.min(free.y) - WINDOW_ORIGIN) / WINDOW_CASCADE;
+    let cascades = match room >= 0.0 {
+        true => (room as u64 + 1).min(WINDOW_CASCADES),
+        false => 1,
+    };
+    let step = WINDOW_ORIGIN + (key.0 % cascades) as f32 * WINDOW_CASCADE;
+    Rect::from_min_size(area.min + vec2(step.min(free.x), step.min(free.y)), size)
+}
+
+pub(crate) fn followed_size(size: Vec2, asked: Option<Vec2>, min: Vec2, max: Vec2) -> Vec2 {
+    let size = within_limits(size, min, max);
+    let Some(asked) = asked else {
+        return size;
+    };
+    let held = within_limits(asked, min, max);
+    let axis = |size: f32, asked: f32, held: f32| match (size - held).abs() < 1.0 {
+        true => asked,
+        false => size,
+    };
+    vec2(axis(size.x, asked.x, held.x), axis(size.y, asked.y, held.y))
+}
+
+pub(crate) fn snapped_short(size: Vec2, shown: Vec2) -> Option<Vec2> {
+    let short = size - shown;
+    let snapped = |axis: f32| axis.abs() > SNAP_TOLERANCE && axis.abs() < 1.0;
+    (snapped(short.x) || snapped(short.y)).then_some(short)
 }
 
 pub(crate) fn shown_size(size: Vec2) -> Vec2 {
@@ -77,7 +114,10 @@ pub fn shown_windows(entries: &[HostWindow]) -> Vec<HostWindow> {
     entries
         .iter()
         .filter(|window| top_shown(window))
-        .cloned()
+        .map(|window| HostWindow {
+            parent: window.parent.filter(|parent| by_id.contains_key(parent)),
+            ..window.clone()
+        })
         .collect()
 }
 
@@ -174,7 +214,9 @@ pub(crate) fn WindowPanel(
     responding: Memo<bool>,
     focused: Memo<bool>,
     size: Memo<Option<Vec2>>,
+    limits: Memo<(Vec2, Vec2)>,
     note: Memo<Option<String>>,
+    menu: Memo<Option<WindowMenu>>,
 ) -> NodeId {
     if let Some(tab) = use_dock_tab() {
         tab.show_notice(note);
@@ -183,7 +225,11 @@ pub(crate) fn WindowPanel(
         }
         create_effect(move || {
             if let Some(size) = size.get().and_then(own_size) {
-                untrack(|| tab.resize_window(size + WINDOW_CHROME));
+                let (min, max) = limits.get();
+                untrack(|| {
+                    let asked = tab.window_size().map(|shown| shown - WINDOW_CHROME);
+                    tab.resize_window(followed_size(size, asked, min, max) + WINDOW_CHROME)
+                });
             }
         });
         create_effect(move || {
@@ -234,6 +280,23 @@ pub(crate) fn WindowPanel(
         });
     }
     let panel = NodeRef::new();
+    let menu_at = create_signal(None::<Pos2>);
+    let seen = Cell::new(menu.get_untracked().map(|menu| menu.asked));
+    create_effect(move || {
+        let Some(asked) = menu.get() else {
+            return;
+        };
+        if seen.replace(Some(asked.asked)) == Some(asked.asked) {
+            return;
+        }
+        let shown = untrack(|| {
+            let node = panel.try_get()?;
+            measure(node).get_untracked()
+        });
+        if let Some(shown) = shown {
+            menu_at.set(Some(shown.rect.min + asked.at));
+        }
+    });
     let waited = create_signal(false);
     create_effect(move || {
         if responding.get() {
@@ -245,8 +308,53 @@ pub(crate) fn WindowPanel(
     let force_close = ClickCallback::new(move || {
         host.act(move || desktop::windows::request(WindowAction::Close(window)).detach())
     });
-    view! {
+    let act = move |action: WindowAction| {
+        let host = editor.host();
+        move || host.act(move || desktop::windows::request(action).detach())
+    };
+    let fullscreen_label = create_memo(move || match fullscreen.get() {
+        Some(_) => "Leave full screen".to_owned(),
+        None => "Full screen".to_owned(),
+    });
+    let host = editor.host();
+    let make_fullscreen = ClickCallback::new(move || {
+        let action = WindowAction::Fullscreen {
+            window,
+            fullscreen: fullscreen.get_untracked().is_none(),
+        };
+        host.act(move || desktop::windows::request(action).detach())
+    });
+    let built = view! {
         <Layers>
+            <ContextMenu
+                disabled=true
+                open_at={menu_at}
+                on_close={move || menu_at.set(None)}
+                items={view! {
+                    <Show condition={offers_fullscreen}>
+                        <MenuItem
+                            label="Hide"
+                            glyph=ICON_EYE_OFF
+                            row_test_id="workspace.window.menu.hide"
+                            on_click={act(WindowAction::Hide(window))}
+                        />
+                        <MenuItem
+                            label={fullscreen_label}
+                            glyph=ICON_FULLSCREEN
+                            row_test_id="workspace.window.menu.fullscreen"
+                            on_click={make_fullscreen}
+                        />
+                    </Show>
+                    <MenuItem
+                        label="Close"
+                        glyph=ICON_X
+                        row_test_id="workspace.window.menu.close"
+                        on_click={act(WindowAction::Close(window))}
+                    />
+                }}
+            >
+                <Frame />
+            </ContextMenu>
             <Subregion
                 editor={editor}
                 placed={Some(SubregionContent::Window(window))}
@@ -262,7 +370,23 @@ pub(crate) fn WindowPanel(
                 />
             </Floating>
         </Layers>
+    };
+    if let (Some(tab), Some(node)) = (use_dock_tab(), panel.try_get()) {
+        let shown = measure(node);
+        create_effect(move || {
+            let (Some(size), Some(shown)) = (size.get().and_then(own_size), shown.get()) else {
+                return;
+            };
+            if let Some(short) = snapped_short(size, shown.rect.size()) {
+                untrack(|| {
+                    if let Some(outer) = tab.window_size() {
+                        tab.resize_window(outer + short);
+                    }
+                });
+            }
+        });
     }
+    built
 }
 
 #[component]
@@ -299,3 +423,6 @@ fn NotResponding(
         </Frame>
     }
 }
+
+#[cfg(test)]
+mod tests;

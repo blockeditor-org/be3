@@ -11,8 +11,8 @@ fn a_block_opens_from_what_this_device_saved_before_its_session_is_joined() {
     wait_for_count(block, 4);
     flush();
     close(block);
-    wait_until("closed the counter", |shared| {
-        !shared.blocks.contains_key(&block)
+    wait_until("closed the counter and left its session", |shared| {
+        !shared.blocks.contains_key(&block) && !shared.leaving
     });
 
     harness.relay().stall();

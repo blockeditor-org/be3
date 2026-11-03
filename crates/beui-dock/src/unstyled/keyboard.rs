@@ -20,6 +20,30 @@ impl State {
         }
     }
 
+    pub(super) fn bring_forward_when_shown(&self) {
+        let dock = *self;
+        let shown = create_memo(move || {
+            dock.state
+                .with(|state| (state.shows(), state.focused_tab()))
+        });
+        let seen = StoredCell::new(shown.get_untracked());
+        create_effect(move || {
+            let shown = shown.get();
+            if seen.replace(shown) == shown {
+                return;
+            }
+            let (_, Some(tab)) = shown else {
+                return;
+            };
+            if untrack(|| dock.state.with(|state| state.in_window(tab))) {
+                dock.forward.update(|(count, target)| {
+                    *count += 1;
+                    *target = Some(tab);
+                });
+            }
+        });
+    }
+
     pub(super) fn give_keyboard(&self, tab: TabId) {
         let given = match self.dialog_focus.get_untracked() {
             Some(dialog) if self.dialog_root(dialog) == Some(tab) => {
@@ -80,6 +104,12 @@ impl State {
 }
 
 impl DockTabControl {
+    pub fn brought_forward(&self) -> Option<u64> {
+        let dock = self.dock()?;
+        dock.forward
+            .with(|(count, target)| (*target == Some(self.tab)).then_some(*count))
+    }
+
     pub fn keyboard(&self) -> Option<u64> {
         let dock = self.dock()?;
         dock.given

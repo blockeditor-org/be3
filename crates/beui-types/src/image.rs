@@ -182,3 +182,23 @@ impl ImageFit {
         )
     }
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CursorImage {
+    pub image: Image,
+    pub size: Vec2,
+    pub hotspot: Vec2,
+}
+
+impl CursorImage {
+    pub fn hotspot_pixels(&self) -> (u32, u32) {
+        let pixel = |at: f32, points: f32, pixels: u32| {
+            let at = (at * pixels as f32 / points.max(1.0)).round().max(0.0) as u32;
+            at.min(pixels.saturating_sub(1))
+        };
+        (
+            pixel(self.hotspot.x, self.size.x, self.image.width()),
+            pixel(self.hotspot.y, self.size.y, self.image.height()),
+        )
+    }
+}

@@ -19,8 +19,8 @@ use beui::icons::{
     ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_LOG_IN,
     ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_NETWORK, ICON_PALETTE,
     ICON_PANEL_BOTTOM, ICON_PANELS_TOP_LEFT, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER,
-    ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
-    ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE,
+    ICON_ROTATE_CCW, ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE,
+    ICON_STAR, ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE,
 };
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
@@ -785,6 +785,8 @@ fn DemoToolbar(pages: Pages) -> NodeId {
             />
             <Button
                 label="Reset layout"
+                glyph=ICON_ROTATE_CCW
+                icon_only={narrow}
                 variant=ButtonVariant::Secondary
                 on_click={move || pages.reset()}
             />

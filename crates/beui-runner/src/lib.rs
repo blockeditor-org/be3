@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use accesskit::TreeUpdate;
 
 use crate::renderer::{Capture, Loaded, Rendering};
-use beui_core::clipboard::{PasteAnswer, PasteRequest};
+use beui_core::clipboard::{ClipboardRead, PasteAnswer, PasteRequest};
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::file_picker::{FilePickAnswer, FilePickId, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveId, FileSaveRequest};
@@ -137,6 +137,8 @@ pub trait PlatformServices {
 
     fn set_fullscreen(&mut self, _fullscreen: bool) {}
 
+    fn raise_window(&mut self) {}
+
     fn publish_accessibility(&mut self, _tree: &mut dyn FnMut() -> TreeUpdate) {}
 }
 
@@ -188,6 +190,7 @@ pub struct Runner {
     saves: (Sender<Saved>, Receiver<Saved>),
     pastes: (Sender<Pasted>, Receiver<Pasted>),
     typed_pastes: (Sender<Pasted>, Receiver<Pasted>),
+    clipboard_reads: Vec<(Receiver<Pasted>, ClipboardRead)>,
     keyboard_chosen: bool,
     publishing_accessibility: bool,
     unpresented: bool,
@@ -246,6 +249,7 @@ impl Runner {
             saves: mpsc::channel(),
             pastes: mpsc::channel(),
             typed_pastes: mpsc::channel(),
+            clipboard_reads: Vec::new(),
             keyboard_chosen: false,
             publishing_accessibility: false,
             unpresented: false,
@@ -464,6 +468,13 @@ impl Runner {
         }
         let held = self.intake.modifiers();
         type_pastes(&self.typed_pastes.1, held, &mut self.intake.incoming);
+        for (pasted, read) in std::mem::take(&mut self.clipboard_reads) {
+            match pasted.try_recv() {
+                Ok(Pasted::Text(text)) => read.answer(Some(text)),
+                Ok(_) | Err(mpsc::TryRecvError::Disconnected) => read.answer(None),
+                Err(mpsc::TryRecvError::Empty) => self.clipboard_reads.push((pasted, read)),
+            }
+        }
         if !std::mem::replace(&mut self.keyboard_chosen, true)
             && !services(&mut self.layers, platform).shows_keyboard()
         {
@@ -627,6 +638,14 @@ impl Runner {
         if let Some(png) = output.copied_image.take() {
             below.copy_image(png);
         }
+        for read in std::mem::take(&mut output.clipboard_reads) {
+            let (sender, pasted) = mpsc::channel();
+            below.paste(
+                &[beui_types::PasteKind::Text],
+                PasteAnswer::new(sender, self.waker.clone()),
+            );
+            self.clipboard_reads.push((pasted, read));
+        }
         for request in std::mem::take(&mut output.file_picks) {
             let answer = FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
             below.pick_file(request, answer);
@@ -687,6 +706,9 @@ impl Runner {
             && fullscreen != self.context.fullscreen()
         {
             services(&mut self.layers, platform).set_fullscreen(fullscreen);
+        }
+        if output.raise_requested {
+            services(&mut self.layers, platform).raise_window();
         }
 
         let background = self.background;

@@ -1,0 +1,5 @@
+use super::*;
+
+mod a_display_gets_the_scale_that_suits_its_size_and_resolution;
+mod a_display_that_reports_no_believable_size_is_not_scaled;
+mod a_panel_held_in_the_hand_is_read_from_closer;

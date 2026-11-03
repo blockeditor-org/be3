@@ -60,6 +60,7 @@ fn a_window_opened_over_the_main_panel_takes_the_focus_and_the_keys() {
         placement: over.clone(),
         size: SMALL,
         role: WindowRole::Normal,
+        level: beui_types::WindowLevel::Normal,
     });
     let (second, sent) = open(&mut space, now, over);
     assert_eq!(

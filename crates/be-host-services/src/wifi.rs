@@ -9,9 +9,6 @@ use be_host_base::host::{self, Mailbox};
 
 use be_sdk_api::{WifiRequest, WifiStatus, WifiWatch};
 
-const PASSPHRASE_BYTES: std::ops::RangeInclusive<usize> = 8..=63;
-const HEX_KEY_LENGTH: usize = 64;
-
 pub trait Backend {
     fn request(&self, request: WifiRequest);
 }
@@ -48,17 +45,31 @@ impl Wifi {
 fn checked(request: WifiRequest) -> Option<WifiRequest> {
     match request {
         WifiRequest::Connect { ssid, password } => {
-            let named = !ssid.is_empty() && !ssid.contains('\0');
-            let keyed = password.as_deref().is_none_or(passphrase);
-            (named && keyed).then_some(WifiRequest::Connect { ssid, password })
+            let keyed = password
+                .as_deref()
+                .is_none_or(|password| model::passphrase(password) || model::wep_key(password));
+            (named(&ssid) && keyed).then_some(WifiRequest::Connect { ssid, password })
+        }
+        WifiRequest::JoinHidden {
+            ssid,
+            security,
+            password,
+        } => {
+            let keyed = model::Key::hidden(security, password.clone()).is_some();
+            (named(&ssid) && ssid.len() <= LONGEST_SSID && keyed).then_some(
+                WifiRequest::JoinHidden {
+                    ssid,
+                    security,
+                    password,
+                },
+            )
         }
         request => Some(request),
     }
 }
 
-fn passphrase(password: &str) -> bool {
-    let printable = password.chars().all(|letter| !letter.is_control());
-    let hex = password.len() == HEX_KEY_LENGTH
-        && password.chars().all(|letter| letter.is_ascii_hexdigit());
-    printable && (PASSPHRASE_BYTES.contains(&password.len()) || hex)
+const LONGEST_SSID: usize = 32;
+
+fn named(ssid: &str) -> bool {
+    !ssid.is_empty() && !ssid.contains('\0')
 }

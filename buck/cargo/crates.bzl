@@ -7197,6 +7197,8 @@ crates = {
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pulseaudio-0.3.1",
+                    "//third-party/rust:roxmltree-0.21.1",
+                    "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:uuid-1.23.2",
@@ -7220,6 +7222,8 @@ crates = {
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pulseaudio-0.3.1",
+                    "//third-party/rust:roxmltree-0.21.1",
+                    "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:uuid-1.23.2",
@@ -7920,6 +7924,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                     "//third-party/rust:gvdb-0.10.1",
@@ -7944,6 +7949,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                     "//third-party/rust:gvdb-0.10.1",
@@ -7968,6 +7974,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                     "//third-party/rust:gvdb-0.10.1",
@@ -7992,6 +7999,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                     "//third-party/rust:gvdb-0.10.1",
@@ -8016,6 +8024,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                     "//third-party/rust:gvdb-0.10.1",
@@ -8040,6 +8049,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                     "//third-party/rust:gvdb-0.10.1",
@@ -8064,6 +8074,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                     "//third-party/rust:gvdb-0.10.1",
@@ -33636,6 +33647,88 @@ third_party = {
         "size_bytes": 81597,
         "version": "0.22.1",
     },
+    "base64-0.23.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Marshall Pierce <marshall@mpierce.org>",
+            "CARGO_PKG_DESCRIPTION": "encodes and decodes base64 as bytes or utf8",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/marshallpierce/rust-base64",
+            "CARGO_PKG_RUST_VERSION": "1.71.0",
+        },
+        "library": {
+            "crate": "base64",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "base64",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "simd-unsafe",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "simd-unsafe",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "simd-unsafe",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "simd-unsafe",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "simd-unsafe",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "simd-unsafe",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "simd-unsafe",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5",
+        "size_bytes": 93605,
+        "version": "0.23.1",
+    },
     "base64ct-1.8.3": {
         "build_script": None,
         "env": {
@@ -44869,6 +44962,248 @@ third_party = {
         "size_bytes": 23329,
         "version": "0.2.0",
     },
+    "font-types-0.12.7": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Scalar types used in fonts.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/googlefonts/fontations",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "font_types",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "font-types",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "835ae9d781464a79026cde387f9cbc650c9a4909d7cf7e658b127e3c35d2f35d",
+        "size_bytes": 33312,
+        "version": "0.12.7",
+    },
+    "fontconfig-parser-0.5.8": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "fontconfig file parser in pure Rust",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/Riey/fontconfig-parser",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Riey/fontconfig-parser",
+        },
+        "library": {
+            "crate": "fontconfig_parser",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "fontconfig-parser",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":roxmltree-0.20.0",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":roxmltree-0.20.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "bbc773e24e02d4ddd8395fd30dc147524273a83e54e0f312d986ea30de5f5646",
+        "size_bytes": 40928,
+        "version": "0.5.8",
+    },
+    "fontdb-0.24.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Yevhenii Reizner <razrfalcon@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A simple, in-memory font database with CSS-like queries.",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RazrFalcon/fontdb",
+            "CARGO_PKG_RUST_VERSION": "1.71",
+        },
+        "library": {
+            "crate": "fontdb",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "fontdb",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":log-0.4.31",
+                    ":slotmap-1.1.1",
+                    ":tinyvec-1.12.0",
+                ],
+                "features": [
+                    "fontconfig",
+                    "fontconfig-parser",
+                    "fs",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":fontconfig-parser-0.5.8",
+                    ":log-0.4.31",
+                    ":slotmap-1.1.1",
+                    ":tinyvec-1.12.0",
+                ],
+                "features": [
+                    "fontconfig",
+                    "fontconfig-parser",
+                    "fs",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":fontconfig-parser-0.5.8",
+                    ":log-0.4.31",
+                    ":slotmap-1.1.1",
+                    ":tinyvec-1.12.0",
+                ],
+                "features": [
+                    "fontconfig",
+                    "fontconfig-parser",
+                    "fs",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":log-0.4.31",
+                    ":slotmap-1.1.1",
+                    ":tinyvec-1.12.0",
+                ],
+                "features": [
+                    "fontconfig",
+                    "fontconfig-parser",
+                    "fs",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":log-0.4.31",
+                    ":slotmap-1.1.1",
+                    ":tinyvec-1.12.0",
+                ],
+                "features": [
+                    "fontconfig",
+                    "fontconfig-parser",
+                    "fs",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":log-0.4.31",
+                    ":slotmap-1.1.1",
+                    ":tinyvec-1.12.0",
+                ],
+                "features": [
+                    "fontconfig",
+                    "fontconfig-parser",
+                    "fs",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":log-0.4.31",
+                    ":slotmap-1.1.1",
+                    ":tinyvec-1.12.0",
+                ],
+                "features": [
+                    "fontconfig",
+                    "fontconfig-parser",
+                    "fs",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "2660c5e9157bf76d2db1294e4a9feba604ef610819a3b591088d0d8392a3290f",
+        "size_bytes": 119122,
+        "version": "0.24.0",
+    },
     "foreign-types-0.3.2": {
         "build_script": None,
         "env": {
@@ -48379,6 +48714,115 @@ third_party = {
         "sha256": "58c18cfc23920d010f7637b86240a5f8892dfdbcb4f0e60828f8a9dc6ff5521d",
         "size_bytes": 204412,
         "version": "2.0.1",
+    },
+    "harfrust-0.12.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "A complete HarfBuzz shaping algorithm port to Rust.",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/harfbuzz/harfrust",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "harfrust",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "harfrust",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "c03d949a14aa089bbb282f7dd76a498a7f684428e4257202efc119ec010376f9",
+        "size_bytes": 291579,
+        "version": "0.12.0",
     },
     "hash32-0.2.1": {
         "build_script": None,
@@ -65543,6 +65987,108 @@ third_party = {
         "size_bytes": 11296,
         "version": "0.9.0",
     },
+    "read-fonts-0.41.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Reading OpenType font files.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/googlefonts/fontations",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "read_fonts",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "read-fonts",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "experimental_font_api",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "experimental_font_api",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "experimental_font_api",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "experimental_font_api",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "experimental_font_api",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "experimental_font_api",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "experimental_font_api",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "046a7d674daf459825b32f5062056d6882db0d2f5a479fbd76ccfc870ac18709",
+        "size_bytes": 567271,
+        "version": "0.41.0",
+    },
     "regalloc2-0.15.2": {
         "build_script": None,
         "env": {
@@ -66636,6 +67182,10 @@ third_party = {
                     ":tiny-skia-0.12.0",
                     ":usvg-0.48.1",
                 ],
+                "features": [
+                    "system-fonts",
+                    "text",
+                ],
             },
             "linux-arm64": {
                 "deps": [
@@ -66646,6 +67196,10 @@ third_party = {
                     ":svgtypes-0.16.1",
                     ":tiny-skia-0.12.0",
                     ":usvg-0.48.1",
+                ],
+                "features": [
+                    "system-fonts",
+                    "text",
                 ],
             },
             "linux-x86_64": {
@@ -66658,6 +67212,10 @@ third_party = {
                     ":tiny-skia-0.12.0",
                     ":usvg-0.48.1",
                 ],
+                "features": [
+                    "system-fonts",
+                    "text",
+                ],
             },
             "macos-arm64": {
                 "deps": [
@@ -66668,6 +67226,10 @@ third_party = {
                     ":svgtypes-0.16.1",
                     ":tiny-skia-0.12.0",
                     ":usvg-0.48.1",
+                ],
+                "features": [
+                    "system-fonts",
+                    "text",
                 ],
             },
             "macos-x86_64": {
@@ -66680,6 +67242,10 @@ third_party = {
                     ":tiny-skia-0.12.0",
                     ":usvg-0.48.1",
                 ],
+                "features": [
+                    "system-fonts",
+                    "text",
+                ],
             },
             "windows-arm64": {
                 "deps": [
@@ -66691,6 +67257,10 @@ third_party = {
                     ":tiny-skia-0.12.0",
                     ":usvg-0.48.1",
                 ],
+                "features": [
+                    "system-fonts",
+                    "text",
+                ],
             },
             "windows-x86_64": {
                 "deps": [
@@ -66701,6 +67271,10 @@ third_party = {
                     ":svgtypes-0.16.1",
                     ":tiny-skia-0.12.0",
                     ":usvg-0.48.1",
+                ],
+                "features": [
+                    "system-fonts",
+                    "text",
                 ],
             },
         },
@@ -67313,6 +67887,46 @@ third_party = {
         "sha256": "14b574c58582fa59fa43a2feb6608b8744184659f08a2e0117e4b8224d95ed61",
         "size_bytes": 36120,
         "version": "0.17.0",
+    },
+    "roxmltree-0.20.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Yevhenii Reizner <razrfalcon@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Represent an XML as a read-only tree.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RazrFalcon/roxmltree",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "roxmltree",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "roxmltree",
+        "platforms": {
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "positions",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "positions",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97",
+        "size_bytes": 54594,
+        "version": "0.20.0",
     },
     "roxmltree-0.21.1": {
         "build_script": None,
@@ -71664,6 +72278,94 @@ third_party = {
         "size_bytes": 11643,
         "version": "1.0.3",
     },
+    "skrifa-0.44.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Metadata reader and glyph scaler for OpenType fonts.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/googlefonts/fontations",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "skrifa",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "skrifa",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "819ab7d62b1d3e72d9d9dea5650bac30424f9111364bb94928dbf5ecad1baa68",
+        "size_bytes": 299025,
+        "version": "0.44.0",
+    },
     "slab-0.4.12": {
         "build_script": None,
         "env": {
@@ -71781,6 +72483,11 @@ third_party = {
         },
         "name": "slotmap",
         "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
             "wasi": {
                 "features": [
                     "default",
@@ -71793,6 +72500,8 @@ third_party = {
                     "std",
                 ],
             },
+            "windows-arm64": {},
+            "windows-x86_64": {},
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -78998,6 +79707,81 @@ third_party = {
         "size_bytes": 21737,
         "version": "0.9.3",
     },
+    "unicode-bidi-0.3.18": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Implementation of the Unicode Bidirectional Algorithm",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/servo/unicode-bidi",
+            "CARGO_PKG_RUST_VERSION": "1.47.0",
+        },
+        "library": {
+            "crate": "unicode_bidi",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "unicode-bidi",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "hardcoded-data",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "hardcoded-data",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "hardcoded-data",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "hardcoded-data",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "hardcoded-data",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "hardcoded-data",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "hardcoded-data",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5",
+        "size_bytes": 58300,
+        "version": "0.3.18",
+    },
     "unicode-ident-1.0.24": {
         "build_script": None,
         "env": {
@@ -79265,6 +80049,38 @@ third_party = {
         "sha256": "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8",
         "size_bytes": 112325,
         "version": "1.13.3",
+    },
+    "unicode-vo-0.1.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Evgeniy Reizner <razrfalcon@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Unicode vertical orientation detection",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RazrFalcon/unicode-vo",
+        },
+        "library": {
+            "crate": "unicode_vo",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "unicode-vo",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "b1d386ff53b415b7fe27b50bb44679e2cc4660272694b7b6f3326d8480823a94",
+        "size_bytes": 8084,
+        "version": "0.1.0",
     },
     "unicode-width-0.2.2": {
         "build_script": None,
@@ -79911,7 +80727,10 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
+                    ":base64-0.23.1",
                     ":data-url-0.3.2",
+                    ":fontdb-0.24.0",
+                    ":harfrust-0.12.0",
                     ":imagesize-0.15.0",
                     ":kurbo-0.13.1",
                     ":log-0.4.31",
@@ -79919,14 +80738,35 @@ third_party = {
                     ":roxmltree-0.21.1",
                     ":simplecss-0.2.2",
                     ":siphasher-1.0.3",
+                    ":skrifa-0.44.0",
                     ":strict-num-0.1.1",
                     ":svgtypes-0.16.1",
                     ":tiny-skia-path-0.12.0",
+                    ":unicode-bidi-0.3.18",
+                    ":unicode-script-0.5.8",
+                    ":unicode-vo-0.1.0",
+                    ":xmlwriter-0.1.0",
+                ],
+                "features": [
+                    "base64",
+                    "fontdb",
+                    "harfrust",
+                    "skrifa",
+                    "system-fonts",
+                    "text",
+                    "unicode-bidi",
+                    "unicode-script",
+                    "unicode-vo",
+                    "writer",
+                    "xmlwriter",
                 ],
             },
             "linux-arm64": {
                 "deps": [
+                    ":base64-0.23.1",
                     ":data-url-0.3.2",
+                    ":fontdb-0.24.0",
+                    ":harfrust-0.12.0",
                     ":imagesize-0.15.0",
                     ":kurbo-0.13.1",
                     ":log-0.4.31",
@@ -79934,14 +80774,35 @@ third_party = {
                     ":roxmltree-0.21.1",
                     ":simplecss-0.2.2",
                     ":siphasher-1.0.3",
+                    ":skrifa-0.44.0",
                     ":strict-num-0.1.1",
                     ":svgtypes-0.16.1",
                     ":tiny-skia-path-0.12.0",
+                    ":unicode-bidi-0.3.18",
+                    ":unicode-script-0.5.8",
+                    ":unicode-vo-0.1.0",
+                    ":xmlwriter-0.1.0",
+                ],
+                "features": [
+                    "base64",
+                    "fontdb",
+                    "harfrust",
+                    "skrifa",
+                    "system-fonts",
+                    "text",
+                    "unicode-bidi",
+                    "unicode-script",
+                    "unicode-vo",
+                    "writer",
+                    "xmlwriter",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
+                    ":base64-0.23.1",
                     ":data-url-0.3.2",
+                    ":fontdb-0.24.0",
+                    ":harfrust-0.12.0",
                     ":imagesize-0.15.0",
                     ":kurbo-0.13.1",
                     ":log-0.4.31",
@@ -79949,14 +80810,35 @@ third_party = {
                     ":roxmltree-0.21.1",
                     ":simplecss-0.2.2",
                     ":siphasher-1.0.3",
+                    ":skrifa-0.44.0",
                     ":strict-num-0.1.1",
                     ":svgtypes-0.16.1",
                     ":tiny-skia-path-0.12.0",
+                    ":unicode-bidi-0.3.18",
+                    ":unicode-script-0.5.8",
+                    ":unicode-vo-0.1.0",
+                    ":xmlwriter-0.1.0",
+                ],
+                "features": [
+                    "base64",
+                    "fontdb",
+                    "harfrust",
+                    "skrifa",
+                    "system-fonts",
+                    "text",
+                    "unicode-bidi",
+                    "unicode-script",
+                    "unicode-vo",
+                    "writer",
+                    "xmlwriter",
                 ],
             },
             "macos-arm64": {
                 "deps": [
+                    ":base64-0.23.1",
                     ":data-url-0.3.2",
+                    ":fontdb-0.24.0",
+                    ":harfrust-0.12.0",
                     ":imagesize-0.15.0",
                     ":kurbo-0.13.1",
                     ":log-0.4.31",
@@ -79964,14 +80846,35 @@ third_party = {
                     ":roxmltree-0.21.1",
                     ":simplecss-0.2.2",
                     ":siphasher-1.0.3",
+                    ":skrifa-0.44.0",
                     ":strict-num-0.1.1",
                     ":svgtypes-0.16.1",
                     ":tiny-skia-path-0.12.0",
+                    ":unicode-bidi-0.3.18",
+                    ":unicode-script-0.5.8",
+                    ":unicode-vo-0.1.0",
+                    ":xmlwriter-0.1.0",
+                ],
+                "features": [
+                    "base64",
+                    "fontdb",
+                    "harfrust",
+                    "skrifa",
+                    "system-fonts",
+                    "text",
+                    "unicode-bidi",
+                    "unicode-script",
+                    "unicode-vo",
+                    "writer",
+                    "xmlwriter",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
+                    ":base64-0.23.1",
                     ":data-url-0.3.2",
+                    ":fontdb-0.24.0",
+                    ":harfrust-0.12.0",
                     ":imagesize-0.15.0",
                     ":kurbo-0.13.1",
                     ":log-0.4.31",
@@ -79979,14 +80882,35 @@ third_party = {
                     ":roxmltree-0.21.1",
                     ":simplecss-0.2.2",
                     ":siphasher-1.0.3",
+                    ":skrifa-0.44.0",
                     ":strict-num-0.1.1",
                     ":svgtypes-0.16.1",
                     ":tiny-skia-path-0.12.0",
+                    ":unicode-bidi-0.3.18",
+                    ":unicode-script-0.5.8",
+                    ":unicode-vo-0.1.0",
+                    ":xmlwriter-0.1.0",
+                ],
+                "features": [
+                    "base64",
+                    "fontdb",
+                    "harfrust",
+                    "skrifa",
+                    "system-fonts",
+                    "text",
+                    "unicode-bidi",
+                    "unicode-script",
+                    "unicode-vo",
+                    "writer",
+                    "xmlwriter",
                 ],
             },
             "windows-arm64": {
                 "deps": [
+                    ":base64-0.23.1",
                     ":data-url-0.3.2",
+                    ":fontdb-0.24.0",
+                    ":harfrust-0.12.0",
                     ":imagesize-0.15.0",
                     ":kurbo-0.13.1",
                     ":log-0.4.31",
@@ -79994,14 +80918,35 @@ third_party = {
                     ":roxmltree-0.21.1",
                     ":simplecss-0.2.2",
                     ":siphasher-1.0.3",
+                    ":skrifa-0.44.0",
                     ":strict-num-0.1.1",
                     ":svgtypes-0.16.1",
                     ":tiny-skia-path-0.12.0",
+                    ":unicode-bidi-0.3.18",
+                    ":unicode-script-0.5.8",
+                    ":unicode-vo-0.1.0",
+                    ":xmlwriter-0.1.0",
+                ],
+                "features": [
+                    "base64",
+                    "fontdb",
+                    "harfrust",
+                    "skrifa",
+                    "system-fonts",
+                    "text",
+                    "unicode-bidi",
+                    "unicode-script",
+                    "unicode-vo",
+                    "writer",
+                    "xmlwriter",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
+                    ":base64-0.23.1",
                     ":data-url-0.3.2",
+                    ":fontdb-0.24.0",
+                    ":harfrust-0.12.0",
                     ":imagesize-0.15.0",
                     ":kurbo-0.13.1",
                     ":log-0.4.31",
@@ -80009,9 +80954,27 @@ third_party = {
                     ":roxmltree-0.21.1",
                     ":simplecss-0.2.2",
                     ":siphasher-1.0.3",
+                    ":skrifa-0.44.0",
                     ":strict-num-0.1.1",
                     ":svgtypes-0.16.1",
                     ":tiny-skia-path-0.12.0",
+                    ":unicode-bidi-0.3.18",
+                    ":unicode-script-0.5.8",
+                    ":unicode-vo-0.1.0",
+                    ":xmlwriter-0.1.0",
+                ],
+                "features": [
+                    "base64",
+                    "fontdb",
+                    "harfrust",
+                    "skrifa",
+                    "system-fonts",
+                    "text",
+                    "unicode-bidi",
+                    "unicode-script",
+                    "unicode-vo",
+                    "writer",
+                    "xmlwriter",
                 ],
             },
         },
@@ -87260,6 +88223,7 @@ third_party = {
                     "Win32_UI_Input_KeyboardAndMouse",
                     "Win32_UI_Shell",
                     "Win32_UI_Shell_PropertiesSystem",
+                    "Win32_UI_TextServices",
                     "Win32_UI_WindowsAndMessaging",
                     "default",
                     "std",
@@ -87326,6 +88290,7 @@ third_party = {
                     "Win32_UI_Input_KeyboardAndMouse",
                     "Win32_UI_Shell",
                     "Win32_UI_Shell_PropertiesSystem",
+                    "Win32_UI_TextServices",
                     "Win32_UI_WindowsAndMessaging",
                     "default",
                     "std",
@@ -90661,6 +91626,38 @@ third_party = {
         "sha256": "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f",
         "size_bytes": 52826,
         "version": "0.8.28",
+    },
+    "xmlwriter-0.1.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Evgeniy Reizner <razrfalcon@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A simple, streaming XML writer.",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RazrFalcon/xmlwriter",
+        },
+        "library": {
+            "crate": "xmlwriter",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "xmlwriter",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9",
+        "size_bytes": 6261,
+        "version": "0.1.0",
     },
     "yoke-0.8.4": {
         "build_script": None,

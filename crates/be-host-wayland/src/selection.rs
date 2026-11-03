@@ -10,7 +10,8 @@ use smithay::reexports::wayland_server::DisplayHandle;
 use smithay::reexports::wayland_server::protocol::wl_data_source::WlDataSource;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::wayland::selection::data_device::{
-    ClientDndGrabHandler, DataDeviceHandler, DataDeviceState, request_data_device_client_selection,
+    ClientDndGrabHandler, DataDeviceHandler, DataDeviceState, clear_data_device_selection,
+    current_data_device_selection_userdata, request_data_device_client_selection,
     set_data_device_selection,
 };
 use smithay::wayland::selection::ext_data_control::{
@@ -18,6 +19,7 @@ use smithay::wayland::selection::ext_data_control::{
 };
 use smithay::wayland::selection::primary_selection::{
     PrimarySelectionHandler, PrimarySelectionState, clear_primary_selection,
+    current_primary_selection_userdata, request_primary_client_selection, set_primary_selection,
 };
 use smithay::wayland::selection::wlr_data_control::{
     DataControlHandler as WlrDataControlHandler, DataControlState as WlrDataControlState,
@@ -37,7 +39,11 @@ const TEXT_TYPES: [&str; 5] = [
 const MAX_TEXT: usize = 64 << 20;
 const CHUNK: usize = 64 << 10;
 
-pub(crate) type HostText = Arc<str>;
+#[derive(Clone)]
+pub enum Owner {
+    Host,
+    X11,
+}
 
 pub(crate) struct Selection {
     data_device: DataDeviceState,
@@ -49,6 +55,9 @@ pub(crate) struct Selection {
     reading: Option<Reading>,
     read: Option<String>,
     dragging: bool,
+    program_copied: bool,
+    asked: Vec<OwnedFd>,
+    files: files::FileDrag,
 }
 
 struct Reading {
@@ -77,6 +86,9 @@ impl Selection {
             reading: None,
             read: None,
             dragging: false,
+            program_copied: false,
+            asked: Vec::new(),
+            files: files::FileDrag::default(),
         }
     }
 
@@ -88,16 +100,14 @@ impl Selection {
         self.reading = None;
         self.read = None;
         self.offered = mime_types;
+        self.program_copied = true;
     }
 
     pub(crate) fn take_read(&mut self) -> Option<String> {
         self.read.take()
     }
 
-    pub(crate) fn fetch(&mut self, seat: &Seat<State>, waiter: &Waiter) {
-        if let Some(mime_types) = self.offered.take() {
-            self.reading = start_reading(seat, &mime_types);
-        }
+    fn progress(&mut self, waiter: &Waiter) {
         let Some(reading) = &mut self.reading else {
             return;
         };
@@ -110,32 +120,20 @@ impl Selection {
         }
     }
 
-    pub(crate) fn offer(&mut self, handle: &DisplayHandle, seat: &Seat<State>, text: String) {
+    pub(crate) fn offer(&mut self, handle: &DisplayHandle, seat: &Seat<State>) {
         self.offered = None;
         self.reading = None;
         self.read = None;
-        set_data_device_selection(
-            handle,
-            seat,
-            TEXT_TYPES.iter().map(|mime| (*mime).to_owned()).collect(),
-            HostText::from(text),
-        );
+        set_data_device_selection(handle, seat, text_types(), Owner::Host);
     }
 }
 
-fn start_reading(seat: &Seat<State>, mime_types: &[String]) -> Option<Reading> {
-    let mime = TEXT_TYPES
-        .iter()
-        .find(|text| mime_types.iter().any(|offered| offered == *text))?;
-    let (read, write) = rustix::pipe::pipe_with(rustix::pipe::PipeFlags::CLOEXEC).ok()?;
-    let flags = rustix::fs::fcntl_getfl(&read).ok()?;
-    rustix::fs::fcntl_setfl(&read, flags | OFlags::NONBLOCK).ok()?;
-    request_data_device_client_selection(seat, (*mime).to_owned(), write).ok()?;
-    Some(Reading {
-        fd: read,
-        bytes: Vec::new(),
-        watched: None,
-    })
+fn text_types() -> Vec<String> {
+    TEXT_TYPES.iter().map(|mime| (*mime).to_owned()).collect()
+}
+
+fn owned_by_x11(owner: Option<impl std::ops::Deref<Target = Owner>>) -> bool {
+    owner.is_some_and(|owner| matches!(*owner, Owner::X11))
 }
 
 impl Reading {
@@ -180,7 +178,7 @@ impl Reading {
     }
 }
 
-fn send_text(fd: OwnedFd, text: HostText) {
+pub(crate) fn send_text(fd: OwnedFd, text: Arc<str>) {
     if let Ok(flags) = rustix::fs::fcntl_getfl(&fd) {
         let _ = rustix::fs::fcntl_setfl(&fd, flags - OFlags::NONBLOCK);
     }
@@ -197,12 +195,101 @@ impl State {
         if !on {
             let handle = self.display_handle();
             clear_primary_selection(&handle, &self.seat);
+            self.announce_x11_selection(SelectionTarget::Primary, None);
         }
     }
 
     pub(crate) fn fetch_selection(&mut self) {
+        if let Some(mime_types) = self.selection.offered.take() {
+            self.selection.reading = self.start_reading(&mime_types);
+        }
         let waiter = self.waiter().clone();
-        self.selection.fetch(&self.seat, &waiter);
+        self.selection.progress(&waiter);
+    }
+
+    fn start_reading(&mut self, mime_types: &[String]) -> Option<Reading> {
+        let mime = TEXT_TYPES
+            .iter()
+            .find(|text| mime_types.iter().any(|offered| offered == *text))?;
+        let mime = (*mime).to_owned();
+        let (read, write) = rustix::pipe::pipe_with(rustix::pipe::PipeFlags::CLOEXEC).ok()?;
+        let flags = rustix::fs::fcntl_getfl(&read).ok()?;
+        rustix::fs::fcntl_setfl(&read, flags | OFlags::NONBLOCK).ok()?;
+        if owned_by_x11(current_data_device_selection_userdata(&self.seat)) {
+            if !self.read_x11_selection(SelectionTarget::Clipboard, mime, write) {
+                return None;
+            }
+        } else {
+            request_data_device_client_selection(&self.seat, mime, write).ok()?;
+        }
+        Some(Reading {
+            fd: read,
+            bytes: Vec::new(),
+            watched: None,
+        })
+    }
+
+    pub(crate) fn x11_selected(&mut self, target: SelectionTarget, mime_types: Vec<String>) {
+        let handle = self.display_handle();
+        match target {
+            SelectionTarget::Clipboard => {
+                set_data_device_selection(&handle, &self.seat, mime_types.clone(), Owner::X11);
+                self.selection.offered(Some(mime_types));
+            }
+            SelectionTarget::Primary => {
+                if !self.selection.primary_on {
+                    return;
+                }
+                set_primary_selection(&handle, &self.seat, mime_types, Owner::X11);
+            }
+        }
+        self.announce_x11_selection(target, None);
+    }
+
+    pub(crate) fn x11_cleared(&mut self, target: SelectionTarget) {
+        let handle = self.display_handle();
+        match target {
+            SelectionTarget::Clipboard => {
+                if owned_by_x11(current_data_device_selection_userdata(&self.seat)) {
+                    clear_data_device_selection(&handle, &self.seat);
+                    self.selection.offered(None);
+                }
+            }
+            SelectionTarget::Primary => {
+                if owned_by_x11(current_primary_selection_userdata(&self.seat)) {
+                    clear_primary_selection(&handle, &self.seat);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn x11_paste(&mut self, target: SelectionTarget, mime_type: String, fd: OwnedFd) {
+        let owner = match target {
+            SelectionTarget::Clipboard => {
+                current_data_device_selection_userdata(&self.seat).map(|owner| owner.clone())
+            }
+            SelectionTarget::Primary => {
+                current_primary_selection_userdata(&self.seat).map(|owner| owner.clone())
+            }
+        };
+        match owner {
+            Some(Owner::Host) => {
+                if TEXT_TYPES.contains(&mime_type.as_str()) {
+                    self.selection.asked.push(fd);
+                }
+            }
+            Some(Owner::X11) => {}
+            None => {
+                let _ = match target {
+                    SelectionTarget::Clipboard => {
+                        request_data_device_client_selection(&self.seat, mime_type, fd).is_ok()
+                    }
+                    SelectionTarget::Primary => {
+                        request_primary_client_selection(&self.seat, mime_type, fd).is_ok()
+                    }
+                };
+            }
+        }
     }
 
     pub(crate) fn dragging(&self) -> bool {
@@ -213,14 +300,23 @@ impl State {
         self.selection.take_read()
     }
 
-    pub fn offer_selection_text(&mut self, text: String) {
+    pub fn take_program_copied(&mut self) -> bool {
+        std::mem::take(&mut self.selection.program_copied)
+    }
+
+    pub fn offer_host_clipboard(&mut self) {
         let handle = self.display_handle();
-        self.selection.offer(&handle, &self.seat, text);
+        self.selection.offer(&handle, &self.seat);
+        self.announce_x11_selection(SelectionTarget::Clipboard, Some(text_types()));
+    }
+
+    pub fn take_asked_for_host_clipboard(&mut self) -> Vec<OwnedFd> {
+        std::mem::take(&mut self.selection.asked)
     }
 }
 
 impl SelectionHandler for State {
-    type SelectionUserData = HostText;
+    type SelectionUserData = Owner;
 
     fn new_selection(
         &mut self,
@@ -228,22 +324,30 @@ impl SelectionHandler for State {
         source: Option<SelectionSource>,
         _seat: Seat<Self>,
     ) {
+        let mime_types = source.map(|source| source.mime_types());
         if target == SelectionTarget::Clipboard {
-            self.selection
-                .offered(source.map(|source| source.mime_types()));
+            self.selection.offered(mime_types.clone());
         }
+        self.announce_x11_selection(target, mime_types);
     }
 
     fn send_selection(
         &mut self,
-        _target: SelectionTarget,
+        target: SelectionTarget,
         mime_type: String,
         fd: OwnedFd,
         _seat: Seat<Self>,
-        text: &HostText,
+        owner: &Owner,
     ) {
-        if TEXT_TYPES.contains(&mime_type.as_str()) {
-            send_text(fd, text.clone());
+        match owner {
+            Owner::Host => {
+                if TEXT_TYPES.contains(&mime_type.as_str()) {
+                    self.selection.asked.push(fd);
+                }
+            }
+            Owner::X11 => {
+                self.read_x11_selection(target, mime_type, fd);
+            }
         }
     }
 }
@@ -287,6 +391,7 @@ impl WlrDataControlHandler for State {
     }
 }
 
+mod files;
 mod primary;
 
 #[cfg(test)]

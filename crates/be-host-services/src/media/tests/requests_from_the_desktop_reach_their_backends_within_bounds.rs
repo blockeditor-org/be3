@@ -54,7 +54,7 @@ fn requests_from_the_desktop_reach_their_backends_within_bounds() {
     assert_eq!(
         recorder.sent(),
         vec![
-            Sent::Audio(AudioRequest::Set(1.0)),
+            Sent::Audio(AudioRequest::Set(MediaLevel::LOUDEST)),
             Sent::Audio(AudioRequest::Set(0.0)),
             Sent::Brightness(-1.0),
         ],

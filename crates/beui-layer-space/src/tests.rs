@@ -251,6 +251,7 @@ fn open(space: &mut Space, now: Instant, placement: WindowPlacement) -> (WindowI
         placement,
         size: SMALL,
         role: WindowRole::Normal,
+        level: beui_types::WindowLevel::Normal,
     });
     (window, send(space, now, []))
 }

@@ -1,9 +1,12 @@
 use super::*;
 use beui::KeyAt;
 
+mod a_bell_rung_on_a_window_reaches_the_shell;
 mod a_button_beyond_the_five_reaches_the_window_with_its_own_code;
 mod a_click_on_beui_dismisses_a_grabbed_popup;
+mod a_client_cursor_surface_reaches_the_platform_as_a_cursor_image;
 mod a_closed_window_leaves_the_list;
+mod a_confined_pointer_stays_in_its_region_until_another_window_is_pressed;
 mod a_cursor_shape_a_client_names_is_shown_over_its_window;
 mod a_dialog_that_closes_gives_the_keyboard_back_to_the_window_that_had_it;
 mod a_dmabuf_window_samples_the_clients_pixels;
@@ -11,15 +14,23 @@ mod a_drag_begun_on_the_ui_over_a_window_never_reaches_the_window;
 mod a_drag_does_not_drop_onto_a_window_a_modal_dialog_blocks;
 mod a_drag_reaches_a_popup_past_its_windows_edge;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
+mod a_fifo_commit_waits_for_the_flip_that_shows_the_one_before;
+mod a_file_dropped_from_outside_reaches_the_window_under_the_pointer;
+mod a_file_taken_back_outside_leaves_the_window_without_a_drop;
 mod a_finger_held_on_one_window_stays_on_it_while_it_moves_over_another;
 mod a_finger_on_a_window_that_takes_no_touch_moves_and_presses_its_pointer;
+mod a_focused_window_whose_view_moves_keeps_the_keyboard;
 mod a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
+mod a_hidden_window_is_told_it_is_suspended_until_shown;
 mod a_launched_program_is_given_a_token_that_brings_a_window_forward;
+mod a_locked_pointer_holds_still_and_moves_by_the_platforms_raw_motion_until_the_host_loses_focus;
 mod a_locked_session_gives_no_window_the_keyboard_or_the_pointer;
 mod a_maximized_window_keeps_its_place_and_is_told_it_is_maximized;
+mod a_menubar_moving_to_its_next_menu_keeps_the_keyboard_on_it;
 mod a_modal_dialog_keeps_presses_and_keys_from_its_parent;
+mod a_move_asked_from_a_finger_held_on_the_window_begins_one;
 mod a_pen_over_a_window_reaches_it_as_a_tablet_tool_with_its_pressure;
 mod a_pen_over_a_window_that_takes_no_tablets_moves_and_presses_its_pointer;
 mod a_popup_reaching_past_its_window_keeps_its_size_and_is_shown_outside_it;
@@ -30,12 +41,15 @@ mod a_press_the_ui_claims_with_super_never_reaches_the_window;
 mod a_process_the_compositor_launched_can_be_ended;
 mod a_program_that_inhibits_shortcuts_gets_super_chords_until_super_escape;
 mod a_program_that_is_not_found_is_reported;
+mod a_programs_move_resize_menu_and_minimize_requests_reach_the_shell;
 mod a_repositioned_popup_is_configured_again;
 mod a_resized_window_is_drawn_unscaled_until_it_commits_the_new_size;
 mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
 mod a_shown_window_that_inhibits_idle_keeps_the_session_awake;
 mod a_single_pixel_buffer_fills_its_window_with_one_color;
 mod a_stale_or_foreign_token_does_not_take_the_focus;
+mod a_surfaces_alpha_multiplier_fades_it;
+mod a_timed_commit_is_applied_on_the_first_frame_at_its_time;
 mod a_token_from_a_click_in_the_focused_window_brings_another_window_forward;
 mod a_token_is_lost_once_the_keyboard_leaves_its_window;
 mod a_toplevel_and_its_popup_are_panels_of_their_own_in_space;
@@ -45,40 +59,60 @@ mod a_window_asking_for_fullscreen_before_it_is_shown_is_answered;
 mod a_window_asking_for_fullscreen_covers_the_screen;
 mod a_window_brought_forward_while_it_is_not_shown_is_reported_raised;
 mod a_window_dragged_from_drops_onto_the_window_under_the_pointer;
+mod a_window_given_a_parent_after_its_first_commit_becomes_its_dialog;
+mod a_window_is_asked_for_the_fractional_scale_of_the_monitor_it_is_on;
+mod a_window_is_told_to_draw_again_on_the_frame_clock_while_nothing_presents_the_host;
 mod a_window_no_shell_owns_gets_no_input_and_is_still_pinged;
 mod a_window_on_no_screen_has_its_presentation_discarded;
 mod a_window_that_copies_keeps_its_own_selection;
 mod a_window_that_moves_without_resizing_is_not_configured_again;
 mod a_window_that_picks_its_own_size_is_shown_at_it_and_never_told_another;
 mod a_window_that_stops_answering_pings_is_not_responding_until_it_answers;
+mod a_window_that_unmaps_leaves_the_list_until_it_maps_again;
 mod a_window_whose_first_focus_was_refused_gets_the_keyboard_when_raised;
+mod a_window_whose_parent_is_not_shown_is_a_window_of_its_own;
 mod a_window_whose_text_field_is_enabled_asks_for_the_keyboard_and_takes_typed_text;
 mod a_windows_surfaces_are_drawn_back_to_front;
 mod activating_a_window_with_a_modal_dialog_raises_the_dialog;
 mod an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake;
+mod an_output_lists_only_its_current_mode_in_pixels;
+mod closing_a_window_frees_its_texture;
 mod closing_a_window_that_is_not_responding_disconnects_its_client;
 mod each_monitor_is_an_output_and_a_window_enters_the_one_it_is_on;
 mod hiding_the_tab_of_the_window_with_the_keyboard_takes_the_keyboard_from_it;
 mod idle_notifications_tell_clients_when_the_user_idles_and_resumes;
 mod keys_follow_the_focus_between_beui_and_a_window;
+mod keys_typed_without_a_place_are_found_in_the_active_layout;
 mod leaving_fullscreen_returns_the_window_to_where_it_was_shown;
 mod only_an_input_idle_notification_ignores_inhibitors;
 mod presentation_feedback_carries_the_flip_time;
 mod pressing_a_windows_bar_gives_it_the_keyboard;
 mod raising_a_window_that_does_not_redraw_shows_it_over_the_one_it_covered;
+mod super_escape_lets_go_of_a_locked_pointer_until_its_window_is_clicked;
 mod super_f_toggles_fullscreen_on_the_focused_window;
+mod switching_the_layout_reaches_programs_and_keys_typed_without_a_place;
+mod text_a_program_copies_is_offered_to_x11_programs;
 mod text_a_program_copies_reaches_the_host;
+mod text_an_x11_program_copies_reaches_the_host_and_programs;
+mod text_copied_outside_replaces_a_programs_selection_once_the_host_is_focused;
+mod text_copied_outside_the_host_is_offered_to_programs;
 mod text_the_host_copies_is_offered_to_programs;
+mod text_the_host_copies_is_offered_to_x11_programs;
 mod the_f_of_super_f_released_elsewhere_is_not_held_against_the_next;
 mod the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked;
 mod the_menu_key_reaches_a_focused_window_inside_a_context_menu;
 mod the_pointer_shows_the_cursor_surface_a_client_sets_over_its_window;
 mod the_seat_offers_touch_only_while_a_touchscreen_is_attached;
 mod the_session_idles_after_the_blank_time_and_wakes_on_input;
+mod the_toplevel_list_follows_windows_opening_retitled_and_closing;
 mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
+mod touchpad_gestures_and_pointer_motion_over_a_window_reach_it;
 mod two_fingers_on_a_window_reach_it_as_two_touch_points;
+mod uploads_are_submitted_while_nothing_is_painted;
 mod with_middle_click_paste_off_a_selection_stays_its_owners_and_is_offered_to_no_one;
+mod with_middle_click_paste_off_x11_keeps_its_primary_selection_to_itself;
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
+mod with_middle_click_paste_on_x11_and_wayland_programs_share_the_primary_selection;
 
 use beui::native::WindowSize;
 use beui::styled::*;
@@ -89,6 +123,42 @@ use crate::test_client::{TestClient, TestWindow};
 use crate::view::WindowView;
 use beui::{LayerLevel, Placement};
 use beui_host::native::build;
+use smithay::wayland::selection::SelectionTarget;
+
+thread_local! {
+    static BEGUN: std::cell::RefCell<Vec<crate::state::Grab>> = const { std::cell::RefCell::new(Vec::new()) };
+    static STEERED: std::cell::RefCell<usize> = const { std::cell::RefCell::new(0) };
+}
+
+#[component]
+fn Carried(windows: Windows) -> NodeId {
+    let ids = create_memo(clone_list(&windows));
+    view! {
+        <Layers>
+            <ForEach keys={ids}>|id: WindowId| {
+                let carrier = crate::view::Carrier {
+                    begin: std::rc::Rc::new(|grab| {
+                        BEGUN.with(|begun| begun.borrow_mut().push(grab));
+                        true
+                    }),
+                    steer: std::rc::Rc::new(|input| {
+                        STEERED.with(|steered| *steered.borrow_mut() += input.events.len());
+                        input
+                    }),
+                };
+                view! {
+                    <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
+                        <WindowView windows id carrier={Some(carrier)} />
+                    </Frame>
+                }
+            }</ForEach>
+        </Layers>
+    }
+}
+
+fn begun() -> Vec<crate::state::Grab> {
+    BEGUN.with(|begun| std::mem::take(&mut *begun.borrow_mut()))
+}
 
 const SCREEN: Vec2 = Vec2::new(1000.0, 700.0);
 const SHOWN: Vec2 = Vec2::new(400.0, 300.0);
@@ -149,7 +219,16 @@ fn Shown(windows: Windows) -> NodeId {
         LOCK.with(|lock| *lock.borrow_mut() = Some(locked));
         let asking = create_signal(false);
         DIALOG.with(|dialog| *dialog.borrow_mut() = Some(asking));
-        let ids = create_memo(clone_list(&windows));
+        let moves = create_signal(0u32);
+        MOVES.with(|cell| *cell.borrow_mut() = Some(moves));
+        let listed = clone_list(&windows);
+        let ids = create_memo(move || {
+            let moved = moves.get();
+            listed()
+                .into_iter()
+                .map(|id| (id, moved))
+                .collect::<Vec<_>>()
+        });
         view! {
             <Interactive
                 claims={vec![beui::Claim::holding(beui::Modifiers::LOGO, true)]}
@@ -162,7 +241,7 @@ fn Shown(windows: Windows) -> NodeId {
             >
                 <List spacing=Space::None>
                     <TextInput @test_id={"test.input"} value={text} />
-                    <ForEach keys={ids}>|id: WindowId| {
+                    <ForEach keys={ids}>|(id, _): (WindowId, u32)| {
                         let list = windows.list();
                         let size = create_memo(move || {
                             list.with(|list| {
@@ -331,6 +410,14 @@ impl Harness {
             .with(|dialog| *dialog.borrow())
             .expect("the harness has a dialog");
         set.set(open);
+        self.settle();
+    }
+
+    fn move_views(&mut self) {
+        let moves = MOVES
+            .with(|moves| *moves.borrow())
+            .expect("the harness can move its views");
+        moves.update(|moves| *moves += 1);
         self.settle();
     }
 
@@ -513,6 +600,7 @@ const KEY_LEFTMETA: u32 = 125;
 thread_local! {
     static LOCK: std::cell::RefCell<Option<Signal<bool>>> = const { std::cell::RefCell::new(None) };
     static DIALOG: std::cell::RefCell<Option<Signal<bool>>> = const { std::cell::RefCell::new(None) };
+    static MOVES: std::cell::RefCell<Option<Signal<u32>>> = const { std::cell::RefCell::new(None) };
     static GLOBAL_RAN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
@@ -570,4 +658,43 @@ fn monitors(rects: &[Rect]) -> Vec<Monitor> {
             scale: 1.0,
         })
         .collect()
+}
+
+fn copy_in_the_host(harness: &mut Harness, text: &str) {
+    harness.stepped.program_mut().copy = Some(text.to_owned());
+    harness.frame(Vec::new());
+}
+
+fn paste_in_x11(harness: &mut Harness, target: SelectionTarget, mime_type: &str) -> String {
+    let (read, write) = rustix::pipe::pipe().expect("a pipe opens");
+    harness
+        .compositor()
+        .server
+        .state
+        .x11_paste(target, mime_type.to_owned(), write);
+    harness.settle();
+    crate::selection::client::answer(read)
+}
+
+fn copy_in_x11(harness: &mut Harness, target: SelectionTarget, mime_types: &[&str]) {
+    let mime_types = mime_types.iter().map(|mime| (*mime).to_owned()).collect();
+    harness
+        .compositor()
+        .server
+        .state
+        .x11_selected(target, mime_types);
+}
+
+fn answer_x11(harness: &mut Harness, text: &str) -> (SelectionTarget, String) {
+    let (target, mime_type, fd) = harness
+        .compositor()
+        .server
+        .state
+        .xwayland
+        .asked
+        .pop()
+        .expect("X11 is asked for its selection");
+    std::io::Write::write_all(&mut std::fs::File::from(fd), text.as_bytes())
+        .expect("the answer is written");
+    (target, mime_type)
 }

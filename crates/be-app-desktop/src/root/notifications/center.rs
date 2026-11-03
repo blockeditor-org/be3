@@ -67,6 +67,7 @@ pub(crate) struct Notification {
     pub(crate) incoming: Incoming,
     pub(crate) received: u64,
     pub(crate) toast: Toast,
+    pub(crate) seen: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -83,6 +84,24 @@ impl Notification {
 
     pub(crate) fn critical(&self) -> bool {
         self.incoming.urgency == NotificationUrgency::Critical
+    }
+
+    pub(crate) fn heading(&self) -> &str {
+        let incoming = &self.incoming;
+        match incoming.summary.is_empty() && incoming.body.is_empty() {
+            true => &incoming.app_name,
+            false => &incoming.summary,
+        }
+    }
+
+    pub(crate) fn names_app(&self) -> bool {
+        !self.incoming.app_name.is_empty() && self.heading() != self.incoming.app_name
+    }
+
+    pub(crate) fn shows_anything(&self) -> bool {
+        !self.heading().is_empty()
+            || !self.incoming.body.is_empty()
+            || self.incoming.image.is_some()
     }
 
     pub(crate) fn has_default_action(&self) -> bool {
@@ -108,6 +127,7 @@ impl Center {
             kept.incoming = incoming;
             kept.received = received;
             kept.toast = toast;
+            kept.seen = false;
             return;
         }
         self.kept.push(Notification {
@@ -115,6 +135,7 @@ impl Center {
             incoming,
             received,
             toast,
+            seen: false,
         });
         while self.kept.len() > MAX_KEPT {
             let oldest = self.kept.remove(0);
@@ -187,14 +208,30 @@ impl Center {
     }
 
     pub(crate) fn toasts(&self) -> impl Iterator<Item = &Notification> {
-        self.kept.iter().filter(|kept| kept.toasted())
+        self.kept
+            .iter()
+            .filter(|kept| kept.toasted() && kept.shows_anything())
     }
 
     pub(crate) fn listed(&self) -> impl Iterator<Item = &Notification> {
         self.kept
             .iter()
             .rev()
-            .filter(|kept| !kept.incoming.transient)
+            .filter(|kept| !kept.incoming.transient && kept.shows_anything())
+    }
+
+    pub(crate) fn unread(&self) -> usize {
+        self.listed().filter(|kept| !kept.seen).count()
+    }
+
+    pub(crate) fn see(&mut self) {
+        let mut changed = false;
+        for kept in &mut self.kept {
+            changed |= !std::mem::replace(&mut kept.seen, true);
+        }
+        if changed {
+            self.revision += 1;
+        }
     }
 
     pub(crate) fn kept_ids(&self) -> Vec<u32> {

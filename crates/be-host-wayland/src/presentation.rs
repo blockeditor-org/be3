@@ -57,6 +57,7 @@ pub(crate) struct Presentation {
     drawn: HashMap<WindowId, Callbacks>,
     painted: Vec<(WindowId, Callbacks)>,
     flips: Vec<(Rect, Presented)>,
+    refresh: Duration,
 }
 
 fn discard(callbacks: Callbacks) {
@@ -74,6 +75,7 @@ impl Presentation {
             drawn: HashMap::new(),
             painted: Vec::new(),
             flips: Vec::new(),
+            refresh: Duration::ZERO,
         }
     }
 
@@ -82,8 +84,13 @@ impl Presentation {
     }
 
     pub(crate) fn flipped(&mut self, screen: Rect, presented: Presented) {
+        self.refresh = presented.refresh;
         self.flips.retain(|(held, _)| *held != screen);
         self.flips.push((screen, presented));
+    }
+
+    pub(crate) fn refresh(&self) -> Duration {
+        self.refresh
     }
 
     pub(crate) fn awaits_flip(&self) -> bool {
@@ -111,6 +118,16 @@ impl Presentation {
             }
             None => self.painted.push((id, callbacks)),
         }
+    }
+
+    pub(crate) fn shown_unpainted(&mut self, id: WindowId) {
+        if !self.paced && self.drawn.contains_key(&id) {
+            self.painted(id);
+        }
+    }
+
+    pub(crate) fn awaits_frame(&self, shown: impl Fn(WindowId) -> bool) -> bool {
+        !self.paced && self.drawn.keys().any(|id| shown(*id))
     }
 
     pub(crate) fn forget_closed(&mut self, open: &[WindowId]) {

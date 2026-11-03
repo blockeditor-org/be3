@@ -106,7 +106,7 @@ pub(crate) fn ProgramsPanelKey(
         };
         pointer.or_else(focused).unwrap_or(0) as u32
     };
-    Action::new("desktop.apps.toggle", "ProgramsPanel", move || {
+    Action::new("desktop.apps.toggle", "Apps", move || {
         programs_panel.toggle(|| untrack(pointed))
     })
     .glyph(ICON_LAYOUT_GRID)
@@ -142,7 +142,7 @@ pub(crate) fn ProgramsPanelButton(
     view! {
         <BarPopup
             @node_ref={&button}
-            label="ProgramsPanel"
+            label="Apps"
             glyph={Some(ICON_LAYOUT_GRID)}
             icon_only=true
             width=PANEL_WIDTH
@@ -299,10 +299,13 @@ fn SessionRow(programs_panel: ProgramsPanel, block: Uuid, close: Callback<()>) -
                 .unwrap_or_default()
         })
     });
-    let detail = create_memo(move || match workspace.shows(block) {
-        true => "Open".to_owned(),
-        false => String::new(),
-    });
+    let detail = create_memo(
+        move || match (workspace.shows(block), workspace.holds(block)) {
+            (true, _) => "Open".to_owned(),
+            (false, true) => "Hidden".to_owned(),
+            (false, false) => String::new(),
+        },
+    );
     let choose = move || {
         close.call(());
         programs_panel.sessions.open(block);

@@ -99,6 +99,10 @@ pub fn component_placed() -> ReadSignal<bool> {
     crate::core::tree::component_placed()
 }
 
+pub fn accessibility_reference(node: NodeId) -> accesskit::NodeId {
+    crate::core::tree::accessibility_reference(node)
+}
+
 pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
     crate::core::tree::component_accessibility(node);
 }
@@ -173,6 +177,10 @@ pub fn focus_takes_text() -> bool {
 
 pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
     core::focus_ring(focused.into_prop())
+}
+
+pub fn focus_visible() -> bool {
+    core::focus_visible()
 }
 
 pub fn holds_focus(node: NodeRef) -> Memo<bool> {

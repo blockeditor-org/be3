@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use be_sdk_beui::be_sdk_ui::BlockTypes;
+use be_sdk_beui::be_sdk_ui::{BlockCatalog, BlockTypes};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{TabId, dock_menu, use_dock_tab};
 use be_sdk_beui::beui::icons::ICON_LOCK;
@@ -37,6 +37,14 @@ impl Default for Refs {
             state: Err(Pending::Loading),
             list: Vec::new(),
         }
+    }
+}
+
+impl Refs {
+    fn sort(&mut self, types: &BlockCatalog) {
+        self.list.sort_by_cached_key(|info| {
+            (info.deleted, info.label(types).name.to_lowercase(), info.id)
+        });
     }
 }
 
@@ -132,8 +140,8 @@ fn read_item_info(
     let own = workspace.info(item.id);
     let parent = own.as_ref().and_then(|info| info.parent);
     let parents = refs(watched.parents.as_ref());
-    let references = refs(watched.references.as_ref());
-    let backrefs = refs(watched.backrefs.as_ref());
+    let mut references = refs(watched.references.as_ref());
+    let mut backrefs = refs(watched.backrefs.as_ref());
     for reference in parents
         .list
         .iter()
@@ -143,6 +151,8 @@ fn read_item_info(
         workspace.record_reference_types(reference);
     }
     let types = workspace.types();
+    references.sort(&types);
+    backrefs.sort(&types);
     let deleted = own.filter(|info| info.deleted).map(|info| {
         let root = parents.list.iter().find(|above| above.deleted);
         Deleted {

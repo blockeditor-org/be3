@@ -456,7 +456,8 @@ screen of its own, which it numbers from 2^63, lists in its layout and
 reports in the same commit as the `window-request` that opens it (`open`,
 naming the view the window will be, that screen, the view it opens from and
 a placement: at the pointer, at a point of a view, or where a `host-place` the
-host gave says). A window is always a window of its own; what points back to
+host gave says, and a `level`: `above` keeps a window such as a bar in front of the
+app's `normal` windows; the app opens the view again to change it). A window is always a window of its own; what points back to
 where it came from (a menu, a picker, a popover) is an anchored view. The host shows the window from that
 screen in the frame that commits it, where the placement says, moved back
 inside its bounds, and from then on asks for the view with that same screen,

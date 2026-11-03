@@ -7,6 +7,7 @@ mod file_saver;
 mod preferences;
 #[cfg(test)]
 mod tests;
+mod touchpad;
 mod wheel;
 
 pub use winit;
@@ -56,6 +57,7 @@ use beui_types::{PasteKind, Pasted};
 use beui_types::{Pos2, Vec2, pos2, vec2};
 use clipboard::Clipboard;
 use preferences::SystemPreferences;
+use touchpad::{Gesture, Touchpad};
 use wheel::{Wheel, Wheeled};
 
 const BUTTON_EVDEV_FIRST: u16 = 0x110;
@@ -108,6 +110,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         wayland: false,
         fingers: Vec::new(),
         wheel: Wheel::new(cfg!(target_os = "macos")),
+        touchpad: Touchpad::default(),
         dropping: None,
         error: None,
         next_update: None,
@@ -125,6 +128,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
 struct Surface {
     window: Arc<dyn Window>,
     touch_cursor: Option<CustomCursor>,
+    image_cursor: Option<(beui_types::CursorImage, CustomCursor)>,
     fullscreen: bool,
     focused: bool,
     accessibility: Accessibility,
@@ -142,6 +146,7 @@ struct Runner {
     wayland: bool,
     fingers: Vec<TouchId>,
     wheel: Wheel,
+    touchpad: Touchpad,
     dropping: Option<AsyncRequestSerial>,
     error: Option<String>,
     next_update: Option<Instant>,
@@ -165,6 +170,7 @@ impl Drop for Runner {
 struct WinitPlatform<'a> {
     surface: &'a mut Surface,
     clipboard: &'a mut Clipboard,
+    event_loop: &'a dyn ActiveEventLoop,
 }
 
 impl PlatformServices for WinitPlatform<'_> {
@@ -198,6 +204,21 @@ impl PlatformServices for WinitPlatform<'_> {
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
+        if window.cursor_image != shown.cursor_image {
+            self.surface.image_cursor = window.cursor_image.as_ref().and_then(|image| {
+                let (x, y) = image.hotspot_pixels();
+                let source = CustomCursorSource::from_rgba(
+                    image.image.pixels().to_vec(),
+                    image.image.width() as u16,
+                    image.image.height() as u16,
+                    x as u16,
+                    y as u16,
+                )
+                .ok()?;
+                let cursor = self.event_loop.create_custom_cursor(source).ok()?;
+                Some((image.clone(), cursor))
+            });
+        }
         let surface = &*self.surface;
         if window.requests.pointer_locked != shown.requests.pointer_locked {
             lock_pointer(
@@ -207,6 +228,7 @@ impl PlatformServices for WinitPlatform<'_> {
         }
         if (window.requests.cursor, window.requests.pointer_locked)
             != (shown.requests.cursor, shown.requests.pointer_locked)
+            || window.cursor_image != shown.cursor_image
         {
             show_cursor(surface, window);
         }
@@ -224,6 +246,11 @@ impl PlatformServices for WinitPlatform<'_> {
         self.surface
             .window
             .set_fullscreen(fullscreen.then_some(Fullscreen::Borderless(None)));
+    }
+
+    fn raise_window(&mut self) {
+        self.surface.window.set_minimized(false);
+        self.surface.window.focus_window();
     }
 
     fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
@@ -272,6 +299,12 @@ impl Runner {
         self.runner.push(input);
     }
 
+    fn gesture(&mut self, gesture: Gesture, phase: winit::event::TouchPhase) {
+        if let Some(gesture) = self.touchpad.event(gesture, phase) {
+            self.push(Input::Touchpad(gesture));
+        }
+    }
+
     fn locked(&self) -> bool {
         self.runner.window().requests.pointer_locked
             && self.surface.as_ref().is_some_and(|surface| surface.focused)
@@ -290,6 +323,7 @@ impl Runner {
         let mut platform = WinitPlatform {
             surface,
             clipboard: &mut self.clipboard,
+            event_loop,
         };
         let Some(frame) = self.runner.frame(&mut platform, SafeArea::default()) else {
             self.next_update = None;
@@ -592,6 +626,7 @@ impl ApplicationHandler for Runner {
         self.surface = Some(Surface {
             window,
             touch_cursor,
+            image_cursor: None,
             fullscreen: false,
             focused: true,
             accessibility,
@@ -740,9 +775,19 @@ impl ApplicationHandler for Runner {
                     self.push(Input::ScrollEnded);
                 }
             }
-            WindowEvent::PinchGesture { delta, .. } => {
-                self.push(Input::Zoom(1.0 + delta as f32));
+            WindowEvent::PinchGesture { delta, phase, .. } => {
+                self.gesture(Gesture::Pinch(delta), phase);
+                if delta.is_finite() {
+                    self.push(Input::Zoom(1.0 + delta as f32));
+                }
             }
+            WindowEvent::PanGesture { delta, phase, .. } => {
+                self.gesture(Gesture::Pan(vec2(delta.x, delta.y)), phase);
+            }
+            WindowEvent::RotationGesture { delta, phase, .. } => {
+                self.gesture(Gesture::Rotation(delta), phase);
+            }
+            WindowEvent::HoldGesture { phase, .. } => self.gesture(Gesture::Hold, phase),
             WindowEvent::KeyboardInput {
                 is_synthetic: true,
                 event,
@@ -937,6 +982,15 @@ fn show_cursor(surface: &Surface, state: &WindowState) {
         && let Some(touch) = &surface.touch_cursor
     {
         window.set_cursor(touch.clone().into());
+        window.set_cursor_visible(!locked);
+        return;
+    }
+    if let Some((_, image)) = surface
+        .image_cursor
+        .as_ref()
+        .filter(|(image, _)| state.cursor_image.as_ref() == Some(image))
+    {
+        window.set_cursor(image.clone().into());
         window.set_cursor_visible(!locked);
         return;
     }

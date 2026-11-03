@@ -8,7 +8,7 @@ mod linux;
 #[cfg(target_os = "linux")]
 use linux::apply;
 #[cfg(target_os = "linux")]
-pub(crate) use linux::start;
+pub(crate) use linux::{run_layout_requests, start};
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn start(_setup: &beui::native::Setup) {}

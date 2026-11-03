@@ -1,3 +1,4 @@
+use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::NodeId;
@@ -31,6 +32,7 @@ pub fn Text(
     #[prop(default = Vec::new())] marks: Prop<Vec<TextMark>>,
     #[prop(default = Vec::new())] glyphs: Prop<Vec<TextGlyph>>,
     #[prop(default = Vec::new())] carets: Prop<Vec<TextCaret>>,
+    on_truncated: Callback<bool>,
     children: Children<TextChild>,
 ) -> NodeId {
     crate::core::text(
@@ -46,6 +48,7 @@ pub fn Text(
         marks,
         glyphs,
         carets,
+        on_truncated,
         children,
     )
 }

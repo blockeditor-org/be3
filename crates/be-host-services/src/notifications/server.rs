@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -11,13 +12,14 @@ use be_sdk_api::{
 use beui_types::Image;
 use image::imageops::FilterType;
 use tokio::sync::mpsc::UnboundedReceiver;
+use zbus::Connection;
 use zbus::fdo::{self, RequestNameFlags, RequestNameReply};
 use zbus::object_server::SignalEmitter;
 use zbus::zvariant::OwnedValue;
 
 use super::hints;
 use super::inbox::Ids;
-use be_host_base::host::Post;
+use crate::dbus::Bus;
 
 const NAME: &str = "org.freedesktop.Notifications";
 const PATH: &str = "/org/freedesktop/Notifications";
@@ -41,7 +43,7 @@ struct Looks {
 }
 
 struct Server {
-    requests: Post<NotificationRequest>,
+    requests: Requests,
     ids: Arc<Mutex<Ids>>,
     looks: OnceLock<Looks>,
 }
@@ -210,12 +212,12 @@ impl Server {
         let mut ids = self.ids.lock().unwrap_or_else(PoisonError::into_inner);
         incoming.id = ids.assign(replaces_id);
         let id = incoming.id;
-        self.requests.send(NotificationRequest::Notify(incoming));
+        (self.requests)(NotificationRequest::Notify(incoming));
         Ok(id)
     }
 
     async fn close_notification(&self, id: u32) {
-        self.requests.send(NotificationRequest::Close(id));
+        (self.requests)(NotificationRequest::Close(id));
     }
 
     fn get_capabilities(&self) -> Vec<String> {
@@ -247,14 +249,37 @@ impl Server {
     ) -> zbus::Result<()>;
 }
 
-pub async fn run(
-    requests: Post<NotificationRequest>,
+pub type Requests = Arc<dyn Fn(NotificationRequest) + Send + Sync>;
+
+pub async fn serve(
+    bus: &Bus,
+    requests: Requests,
     mut signals: UnboundedReceiver<NotificationSignal>,
     ids: Arc<Mutex<Ids>>,
 ) {
-    let Some(connection) = crate::dbus::session().await else {
-        return;
-    };
+    loop {
+        let connection = bus.connected().await;
+        let serving = run_on(
+            connection.clone(),
+            Arc::clone(&requests),
+            &mut signals,
+            Arc::clone(&ids),
+        );
+        if crate::dbus::until_closed(&connection, serving)
+            .await
+            .is_break()
+        {
+            return;
+        }
+    }
+}
+
+async fn run_on(
+    connection: Connection,
+    requests: Requests,
+    signals: &mut UnboundedReceiver<NotificationSignal>,
+    ids: Arc<Mutex<Ids>>,
+) -> ControlFlow<()> {
     let server = Server {
         requests,
         ids,
@@ -264,11 +289,11 @@ pub async fn run(
         Ok(true) => {}
         Ok(false) => {
             eprintln!("be-host: notifications are already served on this connection");
-            return;
+            return ControlFlow::Continue(());
         }
         Err(error) => {
             eprintln!("be-host: notifications cannot be served: {error}");
-            return;
+            return ControlFlow::Continue(());
         }
     }
     match connection
@@ -279,19 +304,19 @@ pub async fn run(
         Ok(_) => {
             eprintln!("be-host: another notification server is running, so this one is not");
             let _ = connection.object_server().remove::<Server, _>(PATH).await;
-            return;
+            return ControlFlow::Continue(());
         }
         Err(error) => {
             eprintln!("be-host: notifications cannot be served: {error}");
             let _ = connection.object_server().remove::<Server, _>(PATH).await;
-            return;
+            return ControlFlow::Continue(());
         }
     }
     let emitter = match SignalEmitter::new(&connection, PATH) {
         Ok(emitter) => emitter,
         Err(error) => {
             eprintln!("be-host: notification signals cannot be sent: {error}");
-            return;
+            return ControlFlow::Continue(());
         }
     };
     while let Some(signal) = signals.recv().await {
@@ -309,4 +334,5 @@ pub async fn run(
     }
     let _ = connection.object_server().remove::<Server, _>(PATH).await;
     let _ = connection.release_name(NAME).await;
+    ControlFlow::Break(())
 }

@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::clipboard::PasteRequest;
+use crate::clipboard::{ClipboardRead, PasteRequest};
 use crate::damage;
 use crate::display::{Display, Group, Layer};
 use crate::file_picker::{FilePickId, FilePickRequest};
@@ -82,6 +82,7 @@ struct Inner {
     copied_text: RefCell<Option<String>>,
     copied_image: RefCell<Option<Vec<u8>>>,
     paste: Cell<Option<PasteRequest>>,
+    clipboard_reads: RefCell<Vec<ClipboardRead>>,
     copy_watchers: RefCell<Vec<CopyWatcher>>,
     file_pick_requests: RefCell<Vec<FilePickRequest>>,
     file_picks: RefCell<Vec<(FilePickId, FilePick)>>,
@@ -108,6 +109,7 @@ struct Inner {
     fullscreen: Cell<Option<bool>>,
     fullscreen_shown: Cell<bool>,
     close_requested: Cell<bool>,
+    raise_requested: Cell<bool>,
     touch_emulation: Cell<bool>,
     touchscreen: Cell<bool>,
     preferences: Cell<PreferenceLayers>,
@@ -267,9 +269,11 @@ pub struct FrameOutput {
     dump: Option<AccessibilityDump>,
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
+    pub raise_requested: bool,
     pub copied_text: Option<String>,
     pub copied_image: Option<Vec<u8>>,
     pub paste: Option<PasteRequest>,
+    pub clipboard_reads: Vec<ClipboardRead>,
     pub file_picks: Vec<FilePickRequest>,
     pub file_saves: Vec<FileSaveRequest>,
     pub repaint: bool,
@@ -371,6 +375,7 @@ impl Context {
                 copied_text: RefCell::new(None),
                 copied_image: RefCell::new(None),
                 paste: Cell::new(None),
+                clipboard_reads: RefCell::new(Vec::new()),
                 copy_watchers: RefCell::new(Vec::new()),
                 file_pick_requests: RefCell::new(Vec::new()),
                 file_picks: RefCell::new(Vec::new()),
@@ -397,6 +402,7 @@ impl Context {
                 fullscreen: Cell::new(None),
                 fullscreen_shown: Cell::new(false),
                 close_requested: Cell::new(false),
+                raise_requested: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 touchscreen: Cell::new(false),
                 preferences: Cell::new(PreferenceLayers::default()),
@@ -711,6 +717,7 @@ impl Context {
         self.inner.escaped.borrow_mut().clear();
         self.inner.keyboard_window.set(WindowId::MAIN);
         self.inner.close_requested.set(false);
+        self.inner.raise_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
         self.inner.actions.borrow_mut().clear();
         self.inner.overflows.borrow_mut().clear();
@@ -858,12 +865,14 @@ impl Context {
             copied_text,
             copied_image: self.inner.copied_image.borrow_mut().take(),
             paste: self.inner.paste.take(),
+            clipboard_reads: std::mem::take(&mut *self.inner.clipboard_reads.borrow_mut()),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             file_saves: std::mem::take(&mut *self.inner.file_save_requests.borrow_mut()),
             repaint_after: self.inner.repaint_after.get(),
             animating: self.inner.animating.get(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
+            raise_requested: self.inner.raise_requested.get(),
             repaint: self.inner.repaint.get(),
             accessibility,
             actions: std::mem::take(&mut *self.inner.actions.borrow_mut()),
@@ -936,6 +945,10 @@ impl Context {
         self.inner.close_requested.set(true);
     }
 
+    pub fn raise_window(&self) {
+        self.inner.raise_requested.set(true);
+    }
+
     pub fn handle_back(&self) {
         self.inner.window.borrow_mut().requests.handles_back = true;
     }
@@ -994,6 +1007,13 @@ impl Context {
 
     pub fn take_clipboard_keys(&self, keys: bool) {
         self.inner.window.borrow_mut().requests.clipboard_keys = keys;
+    }
+
+    pub fn read_clipboard(&self, answer: impl FnOnce(Option<String>) + 'static) {
+        self.inner
+            .clipboard_reads
+            .borrow_mut()
+            .push(ClipboardRead::new(answer));
     }
 
     pub fn watch_copies(&self, watcher: impl Fn(&str) + 'static) {
@@ -1056,6 +1076,10 @@ impl Context {
 
     pub fn set_cursor_icon(&self, cursor_icon: CursorIcon) {
         self.inner.window.borrow_mut().requests.cursor = cursor_icon;
+    }
+
+    pub fn set_cursor_image(&self, image: Option<beui_types::CursorImage>) {
+        self.inner.window.borrow_mut().cursor_image = image;
     }
 
     pub fn set_appearance(&self, appearance: &Appearance) {
@@ -1301,6 +1325,7 @@ impl Context {
             state.appearance.notice.clone_from(&window.notice);
             if pointer == window.id {
                 state.requests.cursor = main.requests.cursor;
+                state.cursor_image.clone_from(&main.cursor_image);
                 state.requests.pointer_locked = main.requests.pointer_locked;
             }
             if keyboard == window.id {
@@ -1311,6 +1336,7 @@ impl Context {
         }
         if shown.iter().any(|window| window.id == pointer) {
             main.requests.cursor = CursorIcon::default();
+            main.cursor_image = None;
         }
         (main, others)
     }
@@ -1321,6 +1347,7 @@ impl Context {
         window.requests.keyboard_toggles = self.inner.keyboard.borrow().toggles();
         if self.touch_emulation() {
             window.requests.cursor = CursorIcon::Touch;
+            window.cursor_image = None;
         }
         window
     }

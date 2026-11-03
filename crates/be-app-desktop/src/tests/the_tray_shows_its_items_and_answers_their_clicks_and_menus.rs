@@ -1,5 +1,8 @@
+use be_sdk_beui::beui::accesskit::{Role, Toggled};
 use be_sdk_beui::beui::{PointerButton, Vec2};
-use be_sdk_beui::{HostTrayItem, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch};
+use be_sdk_beui::{
+    HostTrayItem, TrayClick, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch,
+};
 
 use super::*;
 
@@ -90,7 +93,11 @@ fn tray() -> Vec<HostTrayItem> {
 }
 
 fn item(id: &str) -> String {
-    format!("desktop.tray.{id}")
+    tray_button(id)
+}
+
+fn clicked(fixture: &Fixture, id: &str) -> TrayClick {
+    tray_click(fixture, id)
 }
 
 #[test]
@@ -111,6 +118,11 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     );
     fixture.test.snapshot("the_tray_in_the_bar");
 
+    let at = clicked(&fixture, CHAT);
+    assert!(
+        at.x > 0 && at.y > 0,
+        "the click is where the button is: {at:?}"
+    );
     fixture.test.click(item(CHAT));
     fixture.settle();
     fixture.test.click_with(item(CHAT), PointerButton::Middle);
@@ -120,15 +132,16 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     assert_eq!(
         fixture.test.take_host_calls(be_sdk_test::requested::tray),
         vec![
-            TrayRequest::Activate(CHAT.to_owned()),
-            TrayRequest::SecondaryActivate(CHAT.to_owned()),
+            TrayRequest::Activate(at.clone()),
+            TrayRequest::SecondaryActivate(at.clone()),
             TrayRequest::Scroll {
                 item: CHAT.to_owned(),
                 delta: 120,
                 horizontal: false,
             },
         ],
-        "a click activates, a middle click activates the other way and the wheel scrolls"
+        "a click activates, a middle click activates the other way and the wheel scrolls, \
+         each where the pointer is on the desktop"
     );
     assert!(!fixture.test.shown(&format!("{}.1", item(CHAT))));
 
@@ -149,13 +162,36 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
         "a submenu opens on hover"
     );
     fixture.test.snapshot("the_tray_menu");
+    let toggles: Vec<(Role, String, Toggled)> = {
+        let document = fixture.test.document();
+        let view = document
+            .accessibility_view()
+            .expect("an accessibility tree");
+        view.nodes()
+            .filter(|node| matches!(node.role(), Role::MenuItemCheckBox | Role::MenuItemRadio))
+            .filter_map(|node| Some((node.role(), node.label()?.to_owned(), node.toggled()?)))
+            .collect()
+    };
+    assert_eq!(
+        toggles,
+        vec![
+            (
+                Role::MenuItemCheckBox,
+                "Start with the computer".to_owned(),
+                Toggled::True
+            ),
+            (Role::MenuItemRadio, "Online".to_owned(), Toggled::True),
+            (Role::MenuItemRadio, "Away".to_owned(), Toggled::False),
+        ],
+        "check and radio entries say whether they are on"
+    );
     fixture.test.click(format!("{}.5", item(CHAT)));
     fixture.settle();
     fixture.test.settle();
     assert_eq!(
         fixture.test.take_host_calls(be_sdk_test::requested::tray),
         vec![
-            TrayRequest::MenuOpened(CHAT.to_owned()),
+            TrayRequest::MenuOpened(at.clone()),
             TrayRequest::MenuChosen {
                 item: CHAT.to_owned(),
                 entry: 5,
@@ -166,6 +202,7 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     );
     assert!(!fixture.test.shown(&format!("{}.1", item(CHAT))));
 
+    let sync = clicked(&fixture, SYNC);
     fixture.test.click(item(SYNC));
     fixture.settle();
     fixture
@@ -175,8 +212,8 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     assert_eq!(
         fixture.test.take_host_calls(be_sdk_test::requested::tray),
         vec![
-            TrayRequest::MenuOpened(SYNC.to_owned()),
-            TrayRequest::MenuOpened(SYNC.to_owned()),
+            TrayRequest::MenuOpened(sync.clone()),
+            TrayRequest::MenuOpened(sync),
         ],
         "an item that is only a menu, with none to show, is asked to show its own"
     );

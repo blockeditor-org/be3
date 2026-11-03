@@ -342,6 +342,25 @@ fn entry(raw: &RawEntry, depth: u32) -> Option<TrayMenuItem> {
     })
 }
 
+pub(super) fn introspected_activates(xml: &str) -> Option<bool> {
+    let options = roxmltree::ParsingOptions {
+        allow_dtd: true,
+        ..roxmltree::ParsingOptions::default()
+    };
+    let document = roxmltree::Document::parse_with_options(xml, options).ok()?;
+    let named = |node: &roxmltree::Node<'_, '_>, tag: &str, name: &str| {
+        node.has_tag_name(tag) && node.attribute("name") == Some(name)
+    };
+    let item = document
+        .root_element()
+        .children()
+        .find(|node| named(node, "interface", "org.kde.StatusNotifierItem"))?;
+    Some(
+        item.children()
+            .any(|node| named(&node, "method", "Activate")),
+    )
+}
+
 pub(super) fn mnemonic_free(label: &str) -> String {
     let mut plain = String::with_capacity(label.len());
     let mut characters = label.chars().peekable();
@@ -365,6 +384,7 @@ pub(super) struct Item {
     pub(super) properties: Option<Properties>,
     pub(super) icon: Option<HostImage>,
     pub(super) menu: Vec<TrayMenuItem>,
+    pub(super) activates: Option<bool>,
     pub(super) asked: u64,
     pub(super) menu_asked: u64,
 }
@@ -396,7 +416,7 @@ impl Item {
             tooltip: properties.tooltip.clone(),
             status: properties.status,
             icon: self.icon.clone(),
-            item_is_menu: properties.item_is_menu,
+            item_is_menu: properties.item_is_menu || self.activates == Some(false),
             menu: self.menu.clone(),
         })
     }

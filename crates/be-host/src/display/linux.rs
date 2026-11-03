@@ -1,9 +1,12 @@
 use std::cell::RefCell;
 
 use be_block::DisplaySettings;
+use be_block::display_settings::ScreenUse;
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_sdk_api::HostDisplay;
-use beui_platform_drm::{Display, DisplayConfig, DisplayControl, Displays, Epaper, Monitor};
+use beui_platform_drm::{
+    Display, DisplayConfig, DisplayControl, DisplayUse, Displays, Epaper, Monitor,
+};
 
 use super::Screen;
 use super::shown::ShownDisplay;
@@ -100,7 +103,31 @@ fn config(settings: &DisplaySettings) -> DisplayConfig {
             .iter()
             .filter_map(|(id, screen)| Some((id.clone(), screen.rotation?)))
             .collect(),
-        scales: Vec::new(),
+        scales: settings
+            .screens
+            .iter()
+            .filter_map(|(id, _)| Some((id.clone(), settings.screen_scale(id)?)))
+            .collect(),
+        uses: settings
+            .screens
+            .iter()
+            .filter_map(|(id, screen)| Some((id.clone(), display_use(screen.used.clone()?))))
+            .collect(),
+        main: settings.main_screen(),
+        places: settings
+            .arrangement()
+            .places
+            .iter()
+            .map(|place| (place.id.clone(), beui::pos2(place.x as f32, place.y as f32)))
+            .collect(),
+    }
+}
+
+fn display_use(used: ScreenUse) -> DisplayUse {
+    match used {
+        ScreenUse::Desktop => DisplayUse::Desktop,
+        ScreenUse::Mirror { of } => DisplayUse::Mirror(of),
+        ScreenUse::Off => DisplayUse::Off,
     }
 }
 
@@ -142,6 +169,10 @@ fn host_display(monitor: &Monitor, shown: Option<&Display>) -> HostDisplay {
         current: monitor.current,
         rotation: monitor.rotation,
         rect: shown.map_or(beui::Rect::ZERO, Display::rect),
-        scale: shown.map_or(1.0, |display| display.scale),
+        scale: shown.map_or(monitor.default_scale, |display| display.scale),
+        default_scale: monitor.default_scale,
     }
 }
+
+#[cfg(test)]
+mod tests;

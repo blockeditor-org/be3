@@ -3,8 +3,19 @@ pub(crate) struct Arguments {
     pub(crate) dev_workspace: bool,
     pub(crate) desktop: bool,
     pub(crate) drm: bool,
-    pub(crate) install_login_session: Option<Option<String>>,
+    pub(crate) login_session: Option<LoginSessionSetup>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum LoginSessionSetup {
+    Install(Option<String>),
+    Uninstall(Option<String>),
+    ApplyChanges,
+}
+
+pub(crate) const INSTALL: &str = "--install-login-session";
+pub(crate) const UNINSTALL: &str = "--uninstall-login-session";
+pub(crate) const APPLY_CHANGES: &str = "--apply-login-session-changes";
 
 pub(crate) const LINUX: bool = cfg!(target_os = "linux");
 
@@ -16,13 +27,21 @@ pub(crate) fn parse(
     linux: bool,
 ) -> Result<Arguments, String> {
     let mut parsed = Arguments::default();
-    if arguments.first().map(String::as_str) == Some("--install-login-session") {
+    let prefix = arguments.get(1).cloned();
+    let setup = match arguments.first().map(String::as_str) {
+        Some(INSTALL) => Some(LoginSessionSetup::Install(prefix)),
+        Some(UNINSTALL) => Some(LoginSessionSetup::Uninstall(prefix)),
+        Some(APPLY_CHANGES) => Some(LoginSessionSetup::ApplyChanges),
+        _ => None,
+    };
+    if let Some(setup) = setup {
         if !linux {
-            return Err(
-                "--install-login-session installs be-host as a Linux login session, which only Linux has; --desktop runs the desktop shell in a window".to_owned(),
-            );
+            return Err(format!(
+                "{} sets be-host up as a Linux login session, which only Linux has; --desktop runs the desktop shell in a window",
+                arguments[0]
+            ));
         }
-        parsed.install_login_session = Some(arguments.get(1).cloned());
+        parsed.login_session = Some(setup);
         return Ok(parsed);
     }
     for argument in arguments {

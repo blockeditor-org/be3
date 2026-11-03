@@ -241,13 +241,17 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> be_sdk_beui::HostWindow 
         parent: parent.map(be_sdk_beui::HostWindowId),
         modal: false,
         size: be_sdk_beui::beui::Vec2::new(320.0, 200.0),
+        min_size: Vec2::ZERO,
+        max_size: Vec2::ZERO,
         fullscreen: None,
         responding: true,
         focused: false,
         icon: None,
         raised: 0,
+        rung: 0,
         origin: Default::default(),
         note: None,
+        menu: None,
     }
 }
 

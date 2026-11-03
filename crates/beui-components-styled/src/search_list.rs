@@ -19,6 +19,7 @@ use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
 use crate::tokens::{Padding, Size, Space, use_space};
+use crate::tooltip::Tooltip;
 
 const LIST_HEIGHT: f32 = 360.0;
 const SPACING: Space = Space::Sm;
@@ -32,9 +33,11 @@ pub fn SearchList(
     items: Prop<Vec<PaletteItem>>,
     #[prop(default = PaletteItem::substring_score as PaletteScore)] score: PaletteScore,
     #[prop(default = create_signal(String::new()))] query: Signal<String>,
+    #[prop(default = create_signal(None))] highlighted: Signal<Option<String>>,
     #[prop(default = 1)] columns: Prop<usize>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = LIST_HEIGHT)] list_height: Prop<f32>,
+    #[prop(default = false)] fill_height: Prop<bool>,
     #[prop(default = "Search".to_owned())] placeholder: Prop<String>,
     #[prop(default = "Search".to_owned())] label: Prop<String>,
     #[prop(default = "search-list".to_owned())] id: String,
@@ -119,7 +122,7 @@ pub fn SearchList(
         <unstyled::SearchList
             api
             query
-            highlighted={create_signal(None)}
+            highlighted
             rank={ranked}
             enabled
             columns
@@ -132,6 +135,7 @@ pub fn SearchList(
                 <PaletteSearch @test_id={search_id.clone()} handle />
             }}
             list_height
+            fill_height
             spacing={use_space(SPACING).get_untracked()}
             scrollbar={scrollbar_style()}
             accessibility={row_accessibility}
@@ -151,6 +155,8 @@ fn PaletteTile(handle: CommandRowHandle) -> NodeId {
         hovered,
         ..
     } = handle;
+    let truncated = create_signal(false);
+    let whole = create_memo(move || !truncated.get());
     let pictured = create_memo(move || image.with(Option::is_some));
     let plain = create_memo(move || !pictured.get());
     let fill = create_memo(move || match (highlighted.get(), hovered.get()) {
@@ -164,24 +170,34 @@ fn PaletteTile(handle: CommandRowHandle) -> NodeId {
         false => TextColor::Default,
     });
     view! {
-        <Frame fill radius=Radius::Md padding={Padding::all(TILE_PADDING)}>
-            <List align=Align::Center spacing=TILE_SPACING>
-                <Frame width=TILE_ICON height=TILE_ICON>
-                    <List align=Align::Center spacing=Space::None>
-                        <Show condition={pictured}>
+        <Tooltip label disabled={whole}>
+            <Frame fill radius=Radius::Md padding={Padding::all(TILE_PADDING)}>
+                <List align=Align::Center spacing=TILE_SPACING>
+                    <Show condition={pictured}>
+                        <Frame width=TILE_ICON height=TILE_ICON>
                             <Picture image />
-                        </Show>
-                        <Show condition={plain}>
-                            <Text size=TextSize::Xl color align=TextAlign::Center>
-                                <Icon glyph />
-                            </Text>
-                        </Show>
-                    </List>
-                </Frame>
-                <Text size=TextSize::Sm color align=TextAlign::Center overflow=Overflow::Ellipsis>
-                    {label}
-                </Text>
-            </List>
-        </Frame>
+                        </Frame>
+                    </Show>
+                    <Show condition={plain}>
+                        <Frame width=TILE_ICON height=TILE_ICON>
+                            <List align=Align::Center spacing=Space::None>
+                                <Text size=TextSize::Xl color align=TextAlign::Center>
+                                    <Icon glyph />
+                                </Text>
+                            </List>
+                        </Frame>
+                    </Show>
+                    <Text
+                        size=TextSize::Sm
+                        color
+                        align=TextAlign::Center
+                        overflow=Overflow::Ellipsis
+                        on_truncated={move |cut: bool| truncated.set(cut)}
+                    >
+                        {label}
+                    </Text>
+                </List>
+            </Frame>
+        </Tooltip>
     }
 }

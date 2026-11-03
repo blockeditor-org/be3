@@ -28,7 +28,7 @@ pub fn run() -> ExitCode {
         "fuzz" => fuzz::main(rest),
         _ => {
             eprintln!(
-                "usage: local-tools ci|changed|deploy|fuzz|rasterize|icons|web-page|apk-sign ..."
+                "usage: be-tool-local ci|changed|deploy|fuzz|rasterize|icons|web-page|apk-sign ..."
             );
             ExitCode::FAILURE
         }

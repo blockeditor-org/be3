@@ -5,6 +5,9 @@ use wayland_client::{Connection, Dispatch, QueueHandle};
 use wayland_protocols::wp::content_type::v1::client::{
     wp_content_type_manager_v1, wp_content_type_v1,
 };
+use wayland_protocols::wp::fractional_scale::v1::client::{
+    wp_fractional_scale_manager_v1, wp_fractional_scale_v1,
+};
 use wayland_protocols::wp::keyboard_shortcuts_inhibit::zv1::client::{
     zwp_keyboard_shortcuts_inhibit_manager_v1, zwp_keyboard_shortcuts_inhibitor_v1,
 };
@@ -26,6 +29,18 @@ use wayland_protocols::xdg::toplevel_icon::v1::client::{
     xdg_toplevel_icon_manager_v1, xdg_toplevel_icon_v1,
 };
 
+use wayland_protocols::ext::foreign_toplevel_list::v1::client::{
+    ext_foreign_toplevel_handle_v1, ext_foreign_toplevel_list_v1,
+};
+use wayland_protocols::wp::alpha_modifier::v1::client::{
+    wp_alpha_modifier_surface_v1, wp_alpha_modifier_v1,
+};
+use wayland_protocols::wp::commit_timing::v1::client::{
+    wp_commit_timer_v1, wp_commit_timing_manager_v1,
+};
+use wayland_protocols::wp::fifo::v1::client::{wp_fifo_manager_v1, wp_fifo_v1};
+use wayland_protocols::xdg::system_bell::v1::client::xdg_system_bell_v1;
+
 use super::{Received, TestClient, TestWindow};
 
 #[derive(Default)]
@@ -38,7 +53,20 @@ pub(crate) struct Protocols {
     pub(crate) text_committed: Vec<String>,
     pub(crate) pen: Vec<PenSeen>,
     pub(crate) touch: Vec<TouchSeen>,
+    pub(crate) pointer: Vec<super::PointerSeen>,
     pub(crate) seat_capabilities: Option<wl_seat::Capability>,
+    pub(crate) preferred_scale: Option<u32>,
+    pub(crate) toplevels: Vec<ListedToplevel>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ListedToplevel {
+    pub(crate) handle: ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1,
+    pub(crate) identifier: String,
+    pub(crate) title: String,
+    pub(crate) app_id: String,
+    pub(crate) done: usize,
+    pub(crate) closed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -64,6 +92,36 @@ pub(crate) enum PenSeen {
 }
 
 impl TestClient {
+    pub(crate) fn bell(&self) -> xdg_system_bell_v1::XdgSystemBellV1 {
+        self.bind("xdg_system_bell_v1", 1)
+    }
+
+    pub(crate) fn alpha_modifier(
+        &self,
+        surface: &wl_surface::WlSurface,
+    ) -> wp_alpha_modifier_surface_v1::WpAlphaModifierSurfaceV1 {
+        let manager: wp_alpha_modifier_v1::WpAlphaModifierV1 = self.bind("wp_alpha_modifier_v1", 1);
+        manager.get_surface(surface, &self.handle, ())
+    }
+
+    pub(crate) fn fifo(&self, surface: &wl_surface::WlSurface) -> wp_fifo_v1::WpFifoV1 {
+        let manager: wp_fifo_manager_v1::WpFifoManagerV1 = self.bind("wp_fifo_manager_v1", 1);
+        manager.get_fifo(surface, &self.handle, ())
+    }
+
+    pub(crate) fn commit_timer(
+        &self,
+        surface: &wl_surface::WlSurface,
+    ) -> wp_commit_timer_v1::WpCommitTimerV1 {
+        let manager: wp_commit_timing_manager_v1::WpCommitTimingManagerV1 =
+            self.bind("wp_commit_timing_manager_v1", 1);
+        manager.get_timer(surface, &self.handle, ())
+    }
+
+    pub(crate) fn toplevel_list(&self) -> ext_foreign_toplevel_list_v1::ExtForeignToplevelListV1 {
+        self.bind("ext_foreign_toplevel_list_v1", 1)
+    }
+
     pub(crate) fn subsurface(
         &self,
         parent: &wl_surface::WlSurface,
@@ -118,6 +176,15 @@ impl TestClient {
 
     pub(crate) fn touch(&self) -> wl_touch::WlTouch {
         self.seat.as_ref().unwrap().get_touch(&self.handle, ())
+    }
+
+    pub(crate) fn fractional_scale(
+        &self,
+        surface: &wl_surface::WlSurface,
+    ) -> wp_fractional_scale_v1::WpFractionalScaleV1 {
+        let manager: wp_fractional_scale_manager_v1::WpFractionalScaleManagerV1 =
+            self.bind("wp_fractional_scale_manager_v1", 1);
+        manager.get_fractional_scale(surface, &self.handle, ())
     }
 
     pub(crate) fn viewport(&self, surface: &wl_surface::WlSurface) -> wp_viewport::WpViewport {
@@ -264,6 +331,22 @@ wayland_client::delegate_noop!(Received: ignore xdg_toplevel_icon_v1::XdgTopleve
 wayland_client::delegate_noop!(Received: ignore wl_subcompositor::WlSubcompositor);
 wayland_client::delegate_noop!(Received: ignore wl_subsurface::WlSubsurface);
 wayland_client::delegate_noop!(Received: ignore wp_viewporter::WpViewporter);
+wayland_client::delegate_noop!(Received: ignore wp_fractional_scale_manager_v1::WpFractionalScaleManagerV1);
+
+impl Dispatch<wp_fractional_scale_v1::WpFractionalScaleV1, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wp_fractional_scale_v1::WpFractionalScaleV1,
+        event: wp_fractional_scale_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wp_fractional_scale_v1::Event::PreferredScale { scale } = event {
+            state.protocols.preferred_scale = Some(scale);
+        }
+    }
+}
 wayland_client::delegate_noop!(Received: ignore wp_viewport::WpViewport);
 
 impl Dispatch<zwp_tablet_seat_v2::ZwpTabletSeatV2, ()> for Received {
@@ -348,8 +431,16 @@ impl Dispatch<wl_touch::WlTouch, ()> for Received {
     ) {
         let seen = match event {
             wl_touch::Event::Down {
-                surface, id, x, y, ..
-            } => TouchSeen::Down(surface, id, x, y),
+                serial,
+                surface,
+                id,
+                x,
+                y,
+                ..
+            } => {
+                state.serial = Some(serial);
+                TouchSeen::Down(surface, id, x, y)
+            }
             wl_touch::Event::Motion { id, x, y, .. } => TouchSeen::Motion(id, x, y),
             wl_touch::Event::Up { id, .. } => TouchSeen::Up(id),
             wl_touch::Event::Frame => TouchSeen::Frame,
@@ -357,5 +448,69 @@ impl Dispatch<wl_touch::WlTouch, ()> for Received {
             _ => return,
         };
         state.protocols.touch.push(seen);
+    }
+}
+
+wayland_client::delegate_noop!(Received: ignore xdg_system_bell_v1::XdgSystemBellV1);
+wayland_client::delegate_noop!(Received: ignore wp_alpha_modifier_v1::WpAlphaModifierV1);
+wayland_client::delegate_noop!(Received: ignore wp_alpha_modifier_surface_v1::WpAlphaModifierSurfaceV1);
+wayland_client::delegate_noop!(Received: ignore wp_fifo_manager_v1::WpFifoManagerV1);
+wayland_client::delegate_noop!(Received: ignore wp_fifo_v1::WpFifoV1);
+wayland_client::delegate_noop!(Received: ignore wp_commit_timing_manager_v1::WpCommitTimingManagerV1);
+wayland_client::delegate_noop!(Received: ignore wp_commit_timer_v1::WpCommitTimerV1);
+
+impl Dispatch<ext_foreign_toplevel_list_v1::ExtForeignToplevelListV1, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &ext_foreign_toplevel_list_v1::ExtForeignToplevelListV1,
+        event: ext_foreign_toplevel_list_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let ext_foreign_toplevel_list_v1::Event::Toplevel { toplevel } = event {
+            state.protocols.toplevels.push(ListedToplevel {
+                handle: toplevel,
+                identifier: String::new(),
+                title: String::new(),
+                app_id: String::new(),
+                done: 0,
+                closed: false,
+            });
+        }
+    }
+
+    wayland_client::event_created_child!(Received, ext_foreign_toplevel_list_v1::ExtForeignToplevelListV1, [
+        ext_foreign_toplevel_list_v1::EVT_TOPLEVEL_OPCODE => (ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1, ()),
+    ]);
+}
+
+impl Dispatch<ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1, ()> for Received {
+    fn event(
+        state: &mut Self,
+        handle: &ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1,
+        event: ext_foreign_toplevel_handle_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        let Some(listed) = state
+            .protocols
+            .toplevels
+            .iter_mut()
+            .find(|listed| listed.handle == *handle)
+        else {
+            return;
+        };
+        match event {
+            ext_foreign_toplevel_handle_v1::Event::Identifier { identifier } => {
+                listed.identifier = identifier;
+            }
+            ext_foreign_toplevel_handle_v1::Event::Title { title } => listed.title = title,
+            ext_foreign_toplevel_handle_v1::Event::AppId { app_id } => listed.app_id = app_id,
+            ext_foreign_toplevel_handle_v1::Event::Done => listed.done += 1,
+            ext_foreign_toplevel_handle_v1::Event::Closed => listed.closed = true,
+            _ => {}
+        }
     }
 }

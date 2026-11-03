@@ -1,3 +1,4 @@
+use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::ChildSegment;
 use crate::reactive::Children;
@@ -42,6 +43,7 @@ pub(crate) fn text(
     marks: Prop<Vec<TextMark>>,
     glyphs: Prop<Vec<TextGlyph>>,
     carets: Prop<Vec<TextCaret>>,
+    on_truncated: Callback<bool>,
     children: Children<TextChild>,
 ) -> NodeId {
     let (string, children) = match children.into_only() {
@@ -94,6 +96,9 @@ pub(crate) fn text(
         let carets = carets.get();
         with_document(|document| document.set_text_carets(node, carets))
     });
+    if !on_truncated.is_empty() {
+        with_document(|document| document.set_text_on_truncated(node, on_truncated));
+    }
     children.mount(node);
     node.id()
 }

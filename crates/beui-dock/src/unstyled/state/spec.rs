@@ -407,7 +407,7 @@ impl DockState {
         self.surfaces.push(Surface {
             id,
             root,
-            window: Some(rect),
+            window: Some(super::framed(rect)),
             key,
         });
         id

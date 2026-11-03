@@ -24,7 +24,7 @@ be_wasm_ops_bindgen::generate!({
     inline: [
         "back-gesture-started", "ime-event-replace-text", "ime-event-delete-surrounding",
         "ime-event-set-selection", "keyboard-shown", "input-pointer-button", "input-touch",
-        "input-pen", "input-intercepted-key", "window-placement-over", "window-request-open",
+        "input-pen", "input-intercepted-key", "touchpad-gesture-pinched", "window-placement-over", "window-request-open",
         "window-request-begin-resize", "window-request-resize", "window-request-place", "window-report-resized",
         "window-report-placed", "window-report-rastered", "window-report-moved",
         "window-report-focused",
@@ -47,6 +47,6 @@ pub use input::{
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 pub use window::{
-    HostPlacement, ImeArea, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
-    WindowRequests, WindowRole,
+    HostPlacement, ImeArea, WindowEdge, WindowId, WindowLevel, WindowPlacement, WindowReport,
+    WindowRequest, WindowRequests, WindowRole,
 };

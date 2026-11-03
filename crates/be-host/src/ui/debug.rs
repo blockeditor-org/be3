@@ -307,6 +307,7 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
     let keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     let kill = id.clone();
     let crash = id.clone();
+    let kill_id = format!("debug.apps.kill.{id}");
     let crash_id = format!("debug.apps.crash.{id}");
     view! {
         <Frame padding={Padding::vertical(Space::Sm)}>
@@ -317,6 +318,7 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
                     <Button
                         label="Kill"
                         variant=ButtonVariant::Secondary
+                        @test_id={kill_id}
                         on_click={move || debug(DebugCommand::KillApp(kill.clone()))}
                     />
                     <Button

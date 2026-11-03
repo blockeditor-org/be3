@@ -3,12 +3,14 @@ use std::collections::{BTreeMap, HashMap};
 
 use be_sdk_api::{
     EditorInstanceId, HostView, ParentView, View, ViewId, ViewPlacement, ViewRef, WindowEdge,
-    WindowOpen, WindowPlacement,
+    WindowLevel, WindowOpen, WindowPlacement,
 };
 use beui::animation::{create_animation, motion};
 use beui::reactive::*;
 use beui::unstyled::rubber_band::{Band, WINDOW_SPRING};
-use beui::{Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, Vec2, pos2, vec2};
+use beui::{
+    Forwarded, ForwardedInput, NodeId, PointerId, PointerPhase, Pos2, Rect, Vec2, pos2, vec2,
+};
 
 use be_host_runtime::HostChildStatus;
 use be_sdk_window_stack::{Gesture as Kind, Host, Stacked};
@@ -46,6 +48,7 @@ pub(crate) struct Floated {
     pub(crate) anchor: View,
     pub(crate) parent: Option<ViewId>,
     pub(crate) grab: Option<Vec2>,
+    pub(crate) level: WindowLevel,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -101,6 +104,10 @@ impl Stacked for Floated {
     fn pinned(&self) -> bool {
         self.panel.is_some()
     }
+
+    fn above(&self) -> bool {
+        self.level == WindowLevel::Above
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -109,6 +116,14 @@ struct Gesture {
     kind: Kind,
     began_on: Option<usize>,
     start: Option<(Pos2, Rect)>,
+    pointer: Option<PointerId>,
+}
+
+struct Pressed {
+    key: FloatedKey,
+    at: Pos2,
+    rect: Rect,
+    pointer: PointerId,
 }
 
 type StatusKey = (String, EditorInstanceId, ViewId);
@@ -117,7 +132,8 @@ thread_local! {
     static FLOATED: Cell<Option<Signal<Vec<Floated>>>> = const { Cell::new(None) };
     static GESTURE: Cell<Option<Signal<Option<Gesture>>>> = const { Cell::new(None) };
     static WORK_AREAS: Cell<Option<Signal<Vec<(StatusKey, Rect)>>>> = const { Cell::new(None) };
-    static PRESSED: RefCell<Option<(FloatedKey, Pos2, Rect)>> = const { RefCell::new(None) };
+    static WINDOW_DISPLAY: Cell<Option<Signal<Option<Rect>>>> = const { Cell::new(None) };
+    static PRESSED: RefCell<Option<Pressed>> = const { RefCell::new(None) };
     static POINTER: Cell<Pos2> = const { Cell::new(Pos2::ZERO) };
     static ORIGINS: RefCell<HashMap<(String, EditorInstanceId, ViewId), Pos2>> =
         RefCell::new(HashMap::new());
@@ -135,12 +151,11 @@ pub(crate) fn install() {
     FLOATED.set(Some(floated));
     GESTURE.set(Some(gesture));
     WORK_AREAS.set(Some(areas));
+    WINDOW_DISPLAY.set(Some(create_signal(None)));
     create_effect(move || {
         areas.with(|_| ());
         let moving = gesture.with(|gesture| gesture.as_ref().map(|gesture| gesture.key.clone()));
-        let displays = crate::display::made().map_or_else(Vec::new, |shown| {
-            shown.with(|shown| shown.iter().map(|display| display.rect).collect::<Vec<_>>())
-        });
+        let displays = desktop_displays();
         untrack(|| {
             let mut windows = floated.get();
             if keep_in_work_areas(&mut windows, &displays, moving.as_ref()) {
@@ -148,6 +163,35 @@ pub(crate) fn install() {
             }
         });
     });
+}
+
+pub(crate) fn hold_window_display(display: Memo<Rect>) {
+    let Some(held) = WINDOW_DISPLAY.get() else {
+        return;
+    };
+    create_effect(move || {
+        let display = display.get();
+        untrack(|| held.set(Some(display)));
+    });
+    on_cleanup(move || {
+        if held.is_alive() {
+            held.set(None);
+        }
+    });
+}
+
+fn desktop_displays() -> Vec<Rect> {
+    let shown = crate::display::made().map_or_else(Vec::new, |shown| {
+        shown.with(|shown| shown.iter().map(|display| display.rect).collect::<Vec<_>>())
+    });
+    match shown.is_empty() {
+        true => WINDOW_DISPLAY
+            .get()
+            .and_then(|held| held.get())
+            .into_iter()
+            .collect(),
+        false => shown,
+    }
 }
 
 fn work_areas_signal() -> Signal<Vec<(StatusKey, Rect)>> {
@@ -198,8 +242,8 @@ fn keep_in_work_areas(
 ) -> bool {
     let moving = moving.and_then(|key| windows.iter().position(|window| window.key == *key));
     be_sdk_window_stack::keep_in_work_areas(windows, moving, |window| {
-        let display = displays[crate::display::owner(displays, window.rect)?];
-        let work = work_area_on(&window.key.app, window.key.instance, display)?;
+        let display = displays[be_sdk_window_stack::home(displays, window.rect)?];
+        let work = work_area_on(&window.key.app, window.key.instance, display).unwrap_or(display);
         Some((display, work))
     })
 }
@@ -294,6 +338,33 @@ pub(crate) fn forget_catcher(node: NodeId) {
     CATCHERS.with(|catchers| catchers.borrow_mut().remove(&node));
 }
 
+pub(crate) fn catchers_of(app: &str, instance: EditorInstanceId) -> Vec<NodeId> {
+    CATCHERS.with(|catchers| {
+        catchers
+            .borrow()
+            .iter()
+            .filter(|(_, catcher)| catcher.instance == instance && catcher.app == app)
+            .map(|(node, _)| *node)
+            .collect()
+    })
+}
+
+pub(crate) fn shown_within(node: NodeId, within: impl Fn(NodeId, &Catcher) -> bool) -> bool {
+    let mut at = Some(node);
+    let mut seen = Vec::new();
+    while let Some(node) = at.filter(|node| !seen.contains(node)) {
+        seen.push(node);
+        let Some(catcher) = catcher(node) else {
+            return false;
+        };
+        if within(node, &catcher) {
+            return true;
+        }
+        at = catcher.parent;
+    }
+    false
+}
+
 pub(crate) fn catcher(node: NodeId) -> Option<Catcher> {
     CATCHERS.with(|catchers| catchers.borrow().get(&node).cloned())
 }
@@ -353,18 +424,8 @@ pub(crate) fn apply() {
         else {
             continue;
         };
-        let window = &mut windows[index];
-        match (&mut window.panel, kind) {
-            (Some(panel), Kind::Move) => panel.moves += 1,
-            (Some(panel), Kind::Resize(edge)) => panel.resizes = (panel.resizes.0 + 1, edge),
-            (None, kind) => {
-                gesture = Some(Gesture {
-                    key: window.key.clone(),
-                    kind,
-                    began_on: None,
-                    start: pressed_on(&window.key),
-                });
-            }
+        if let Some(began) = begin_on(&mut windows[index], kind) {
+            gesture = Some(began);
         }
     }
     let moving = gesture
@@ -373,9 +434,7 @@ pub(crate) fn apply() {
         .or_else(|| {
             gesture_signal().with_untracked(|held| held.as_ref().map(|held| held.key.clone()))
         });
-    let displays = crate::display::made().map_or_else(Vec::new, |shown| {
-        shown.with_untracked(|shown| shown.iter().map(|display| display.rect).collect())
-    });
+    let displays = untrack(desktop_displays);
     keep_in_work_areas(&mut windows, &displays, moving.as_ref());
     if floated.with_untracked(|held| *held != windows) {
         floated.set(windows);
@@ -384,6 +443,44 @@ pub(crate) fn apply() {
         gesture.began_on = owner_index(&gesture.key);
         gesture_signal().set(Some(gesture));
     }
+}
+
+fn begin_on(window: &mut Floated, kind: Kind) -> Option<Gesture> {
+    match (&mut window.panel, kind) {
+        (Some(panel), Kind::Move) => panel.moves += 1,
+        (Some(panel), Kind::Resize(edge)) => panel.resizes = (panel.resizes.0 + 1, edge),
+        (None, kind) => {
+            let pressed = pressed_on(&window.key);
+            return Some(Gesture {
+                key: window.key.clone(),
+                kind,
+                began_on: None,
+                start: pressed.map(|(at, rect, _)| (at, rect)),
+                pointer: pressed.map(|(_, _, pointer)| pointer),
+            });
+        }
+    }
+    None
+}
+
+pub(crate) fn begin(key: &FloatedKey, kind: Kind) -> bool {
+    if FLOATED.get().is_none() {
+        return false;
+    }
+    let floated = floated_signal();
+    let mut windows = floated.get_untracked();
+    let Some(window) = windows.iter_mut().find(|window| window.key == *key) else {
+        return false;
+    };
+    let gesture = begin_on(window, kind);
+    if floated.with_untracked(|held| *held != windows) {
+        floated.set(windows);
+    }
+    if let Some(mut gesture) = gesture {
+        gesture.began_on = owner_index(&gesture.key);
+        gesture_signal().set(Some(gesture));
+    }
+    true
 }
 
 struct Opener<'a>(&'a str);
@@ -457,17 +554,18 @@ impl Host<Floated> for Opener<'_> {
             anchor,
             parent: opener.map(|opener| opener.key.window),
             grab: None,
+            level: open.level,
         }
     }
 }
 
-fn pressed_on(key: &FloatedKey) -> Option<(Pos2, Rect)> {
+fn pressed_on(key: &FloatedKey) -> Option<(Pos2, Rect, PointerId)> {
     PRESSED.with(|pressed| {
         pressed
             .borrow()
             .as_ref()
-            .filter(|(held, _, _)| held == key)
-            .map(|(_, at, rect)| (*at, *rect))
+            .filter(|pressed| pressed.key == *key)
+            .map(|pressed| (pressed.at, pressed.rect, pressed.pointer))
     })
 }
 
@@ -477,13 +575,8 @@ fn owner_index(key: &FloatedKey) -> Option<usize> {
             .find(|window| window.key == *key)
             .map(|window| window.rect)
     })?;
-    let displays = desktop_displays();
+    let displays = untrack(desktop_displays);
     crate::display::owner(&displays, rect)
-}
-
-fn desktop_displays() -> Vec<Rect> {
-    crate::display::shown()
-        .with_untracked(|shown| shown.iter().map(|display| display.rect).collect())
 }
 
 pub(crate) fn clamped(rect: Rect, viewport: Vec2) -> Rect {
@@ -823,10 +916,21 @@ pub(crate) fn follow(key: &FloatedKey, input: ForwardedInput, origin: Vec2) -> F
                     .map(|window| window.rect)
             });
             if let Some(rect) = rect {
-                PRESSED.with(|pressed| *pressed.borrow_mut() = Some((key.clone(), at, rect)));
+                PRESSED.with(|pressed| {
+                    *pressed.borrow_mut() = Some(Pressed {
+                        key: key.clone(),
+                        at,
+                        rect,
+                        pointer: event.pointer,
+                    })
+                });
             }
         }
-        let held = gesture.with_untracked(|held| held.clone().filter(|held| held.key == *key));
+        let held = gesture.with_untracked(|held| {
+            held.clone().filter(|held| {
+                held.key == *key && held.pointer.is_none_or(|pointer| pointer == event.pointer)
+            })
+        });
         let Some(mut held) = held else {
             events.push(forwarded);
             continue;

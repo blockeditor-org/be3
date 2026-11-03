@@ -12,7 +12,7 @@ mod guard;
 pub(crate) mod shown;
 
 pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
-use guard::{Guard, ModeChange, written};
+use guard::{Change, Guard, written};
 pub(crate) use shown::{apply as apply_shown, create_handle, made, owner, shown};
 
 #[cfg(target_os = "linux")]
@@ -85,7 +85,7 @@ pub(crate) fn revert(
 fn settle(
     store: &HostStateStore,
     layers: &LayerContents<DisplaySettings>,
-    answer: impl FnOnce(&mut Guard) -> Vec<ModeChange>,
+    answer: impl FnOnce(&mut Guard) -> Vec<Change>,
 ) -> Vec<(SettingsLayer, Edit)> {
     let (changes, applied, tried) = GUARD.with(|guard| {
         let mut guard = guard.borrow_mut();

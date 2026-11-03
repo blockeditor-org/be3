@@ -50,9 +50,6 @@ impl DeviceClass {
                     Motion::Instant,
                     |motion| motion.name().to_owned(),
                 ),
-                ClassDefault::new(DisplaySettings::scale_setting(), 150, |percent| {
-                    format!("{percent}%")
-                }),
             ]
             .into_iter()
             .chain(bar_tools())

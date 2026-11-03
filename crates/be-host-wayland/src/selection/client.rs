@@ -58,6 +58,7 @@ struct Clipboard {
     primary_cancelled: bool,
     entered: Option<wayland_client::protocol::wl_surface::WlSurface>,
     dropped: Option<wayland_client::protocol::wl_surface::WlSurface>,
+    dragged: Option<Offer>,
 }
 
 thread_local! {
@@ -170,6 +171,10 @@ pub(crate) fn dropped_on() -> Option<wayland_client::protocol::wl_surface::WlSur
     CLIPBOARD.with(|clipboard| clipboard.borrow().dropped.clone())
 }
 
+pub(crate) fn dragged() -> Option<Offer> {
+    CLIPBOARD.with(|clipboard| clipboard.borrow().dragged.clone())
+}
+
 pub(crate) fn source_cancelled() -> bool {
     CLIPBOARD.with(|clipboard| clipboard.borrow().cancelled)
 }
@@ -186,8 +191,12 @@ pub(crate) fn mime_types(offer: &Offer) -> Vec<String> {
 }
 
 pub(crate) fn ask(offer: &Offer) -> OwnedFd {
+    ask_as(offer, TEXT)
+}
+
+pub(crate) fn ask_as(offer: &Offer, mime: &str) -> OwnedFd {
     let (read, write) = rustix::pipe::pipe().expect("a pipe opens");
-    offer.receive(TEXT, std::os::fd::AsFd::as_fd(&write));
+    offer.receive(mime, std::os::fd::AsFd::as_fd(&write));
     read
 }
 
@@ -240,6 +249,7 @@ impl Dispatch<wl_data_device::WlDataDevice, ()> for Received {
                     ..
                 } => {
                     clipboard.entered = Some(surface.clone());
+                    clipboard.dragged = id.clone().map(Offer::Data);
                     if let Some(offer) = id {
                         offer.accept(*serial, Some(TEXT.to_owned()));
                         offer.set_actions(
