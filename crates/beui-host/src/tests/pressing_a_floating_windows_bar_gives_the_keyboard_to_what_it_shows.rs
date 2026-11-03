@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
+use crate::dock::{DockPane, DockTab, DockWindow, DockingLayout};
 use crate::styled::*;
 
 #[component]
@@ -17,23 +17,25 @@ fn pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
-                <DockPane id="main">
-                    <DockTab id=1u64 title="Main">
-                        <Input id=1 />
-                    </DockTab>
-                </DockPane>
-                <DockWindow
-                    id="window"
-                    rect={Rect::from_min_size(pos2(500.0, 100.0), vec2(400.0, 300.0))}
-                >
-                    <DockPane id="floating">
-                        <DockTab id=2u64 title="Floating">
-                            <Input id=2 />
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout>
+                    <DockPane id="main">
+                        <DockTab id=1u64 title="Main">
+                            <Input id=1 />
                         </DockTab>
                     </DockPane>
-                </DockWindow>
-            </dock::styled::Docking>
+                    <DockWindow
+                        id="window"
+                        rect={Rect::from_min_size(pos2(500.0, 100.0), vec2(400.0, 300.0))}
+                    >
+                        <DockPane id="floating">
+                            <DockTab id=2u64 title="Floating">
+                                <Input id=2 />
+                            </DockTab>
+                        </DockPane>
+                    </DockWindow>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

@@ -1,14 +1,16 @@
 use super::*;
-use beui::dock::styled::{
-    DockBar, DockBarPlacement, DockBarSurface, DockEdge, DockPane, DockTab, DockWindow, Docking,
-    DockingLayout,
+use beui::dock::styled::DockBarSurface;
+use beui::dock::{
+    DockBar, DockBarPlacement, DockEdge, DockPane, DockTab, DockWindow, Docking, DockingLayout,
 };
+use beui::dock_host::styled::{DockHost, DockHostLayout};
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
 const DISPLAY: Vec2 = vec2(900.0, 600.0);
 
 thread_local! {
     static LAYOUT: std::cell::Cell<Option<DockingLayout<u64>>> = const { std::cell::Cell::new(None) };
+    static HOST: std::cell::Cell<Option<DockHostLayout>> = const { std::cell::Cell::new(None) };
 }
 
 struct PoppedOverRoot;
@@ -20,31 +22,35 @@ impl BeuiRoot for PoppedOverRoot {
         let _ = editor;
         let layout = DockingLayout::<u64>::new();
         LAYOUT.with(|held| held.set(Some(layout)));
+        let host = DockHostLayout::new();
+        HOST.with(|held| held.set(Some(host)));
         view! {
             <Root>
-                <Docking layout>
-                    <DockBar
-                        id=9u64
-                        placement={DockBarPlacement::Window {
-                            edge: DockEdge::Top,
-                            origin: pos2(220.0, 180.0),
-                        }}
-                    >
-                        <DockBarSurface @test_id={"bar"}>
-                            <Button label="Bar" />
-                        </DockBarSurface>
-                    </DockBar>
-                    <DockWindow
-                        id="program"
-                        rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(520.0, 380.0))}
-                    >
-                        <DockPane id="program">
-                            <DockTab id=4u64 title="Program">
-                                <Frame @test_id={"program"} />
-                            </DockTab>
-                        </DockPane>
-                    </DockWindow>
-                </Docking>
+                <DockHost layout=host>
+                    <Docking layout>
+                        <DockBar
+                            id=9u64
+                            placement={DockBarPlacement::Window {
+                                edge: DockEdge::Top,
+                                origin: pos2(220.0, 180.0),
+                            }}
+                        >
+                            <DockBarSurface @test_id={"bar"}>
+                                <Button label="Bar" />
+                            </DockBarSurface>
+                        </DockBar>
+                        <DockWindow
+                            id="program"
+                            rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(520.0, 380.0))}
+                        >
+                            <DockPane id="program">
+                                <DockTab id=4u64 title="Program">
+                                    <Frame @test_id={"program"} />
+                                </DockTab>
+                            </DockPane>
+                        </DockWindow>
+                    </Docking>
+                </DockHost>
             </Root>
         }
     }
@@ -103,8 +109,7 @@ fn a_popped_out_bar_stays_above_a_window_raised_over_it_until_covered() {
         0,
     );
 
-    LAYOUT
-        .with(std::cell::Cell::get)
+    HOST.with(std::cell::Cell::get)
         .expect("the app made its dock")
         .set_covered(true);
     test.run();

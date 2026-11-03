@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, TabId};
+use crate::dock::TabId;
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn switching_dock_tabs_keeps_the_panel_it_hides() {

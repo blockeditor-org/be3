@@ -3,9 +3,10 @@ use std::cell::Cell;
 
 use be_sdk_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent, ViewState};
 use be_sdk_beui::beui::NodeId;
-use be_sdk_beui::beui::dock::styled::{
+use be_sdk_beui::beui::dock::{
     DockEntry, DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId, use_dock_tab,
 };
+use be_sdk_beui::beui::dock_host::styled::DockHost;
 use be_sdk_beui::beui::icons::{ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -155,44 +156,48 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
         <Frame @node_ref={&surface}>
             <List spacing=Space::None>
                 <Failure failed={failed} reason={reason} />
-                <Docking @sizing=ItemSize::Percent(100.0) layout>
-                    <DockSplit id="workspace" size={SplitSize::First(FILES_WIDTH)}>
-                        <DockPane id="files" locked=true>
-                            <DockTab id=FILES title="Files" icon=ICON_FOLDER>
-                                <FilesPanel workspace files={shell.files} />
-                            </DockTab>
-                            <DockTab id=SETTINGS title="Settings" icon=ICON_SETTINGS>
-                                <SettingsPanel workspace />
-                            </DockTab>
-                            <DockTab id=REVISIONS title="History" icon=ICON_ROTATE_CCW_CLOCK>
-                                <RevisionHistoryPanel workspace history />
-                            </DockTab>
-                        </DockPane>
-                        <DockPane
-                            id="editors"
-                            locked=true
-                            empty={move || view! {
-                                <EmptyPanel />
-                            }}
-                        >
-                            <ForEach keys={block_tabs}>|tab: TabId|
-                                <WorkspaceBlockTab shell tab />
-                            </ForEach>
-                            <ForEach keys={tabbed}>|tab: TabId|
-                                <ProgramTab workspace tab />
-                            </ForEach>
-                        </DockPane>
-                    </DockSplit>
-                    <ForEach keys={panels}>|panel: HostPanel|
-                        <PanelWindow workspace panel />
-                    </ForEach>
-                    <ForEach keys={floating}>|tab: TabId|
-                        <ProgramWindow workspace tab />
-                    </ForEach>
-                    <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
-                        <WindowDialog workspace window parent />
-                    </ForEach>
-                </Docking>
+                <DockHost @sizing=ItemSize::Percent(100.0) layout={workspace.dock_host()}>
+                    <Docking layout>
+                        <DockSplit id="workspace" size={SplitSize::First(FILES_WIDTH)}>
+                            <DockPane id="files" locked=true>
+                                <DockTab id=FILES title="Files" icon=ICON_FOLDER>
+                                    <FilesPanel workspace files={shell.files} />
+                                </DockTab>
+                                <DockTab id=SETTINGS title="Settings" icon=ICON_SETTINGS>
+                                    <SettingsPanel workspace />
+                                </DockTab>
+                                <DockTab id=REVISIONS title="History" icon=ICON_ROTATE_CCW_CLOCK>
+                                    <RevisionHistoryPanel workspace history />
+                                </DockTab>
+                            </DockPane>
+                            <DockPane
+                                id="editors"
+                                locked=true
+                                empty={move || view! {
+                                    <EmptyPanel />
+                                }}
+                            >
+                                <ForEach keys={block_tabs}>|tab: TabId|
+                                    <WorkspaceBlockTab shell tab />
+                                </ForEach>
+                                <ForEach keys={tabbed}>|tab: TabId|
+                                    <ProgramTab workspace tab />
+                                </ForEach>
+                            </DockPane>
+                        </DockSplit>
+                        <ForEach keys={panels}>|panel: HostPanel|
+                            <PanelWindow workspace panel />
+                        </ForEach>
+                        <ForEach keys={floating}>|tab: TabId|
+                            <ProgramWindow workspace tab />
+                        </ForEach>
+                        <ForEach
+                            keys={dialog_windows}
+                        >|(window, parent): (HostWindowId, HostWindowId)|
+                            <WindowDialog workspace window parent />
+                        </ForEach>
+                    </Docking>
+                </DockHost>
                 <WorkspaceDialogs workspace />
                 <DetailsSheet workspace sheet={shell.sheet} />
                 <UnshownWindows workspace />

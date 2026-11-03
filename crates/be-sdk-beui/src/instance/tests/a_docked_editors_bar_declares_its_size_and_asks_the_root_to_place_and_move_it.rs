@@ -4,7 +4,7 @@ use be_sdk_api::{
     DockHosted, DockHostedView, DockItem, DockItemKind, DockLayout, DockMessage, DockPane,
     DockPlacedBar, DockRequest, DockTabPath, DockTree, DockUpdate,
 };
-use beui::dock::unstyled::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
+use beui::dock::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
 
 fn hosted(bar: u64, placement: DockBarPlacement) -> DockUpdate {
     let stage = DockTabPath::own(1);

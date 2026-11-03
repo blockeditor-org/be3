@@ -1,8 +1,8 @@
-use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
-    SplitSize,
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
+use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge, DockMode};
+use be_sdk_beui::beui::dock::{
+    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
 };
-use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge, DockMode};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};

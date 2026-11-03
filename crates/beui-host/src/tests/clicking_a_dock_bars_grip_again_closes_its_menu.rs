@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{
+use crate::dock::{
     DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockTab, DockingLayout,
 };
 
@@ -17,16 +17,18 @@ fn clicking_a_dock_bars_grip_again_closes_its_menu() {
         let document = build_node(move || {
             let layout = DockingLayout::<u64>::new();
             view! {
-                <dock::styled::Docking layout focus=1u64>
-                    <DockPane id="stage">
-                        <DockTab id=1u64 title="One">
-                            <Frame @test_id="content.1" />
-                        </DockTab>
-                    </DockPane>
-                    <DockBar id=9u64 placement>
-                        <TestToolBar />
-                    </DockBar>
-                </dock::styled::Docking>
+                <dock_host::styled::DockHost>
+                    <dock::Docking layout focus=1u64>
+                        <DockPane id="stage">
+                            <DockTab id=1u64 title="One">
+                                <Frame @test_id="content.1" />
+                            </DockTab>
+                        </DockPane>
+                        <DockBar id=9u64 placement>
+                            <TestToolBar />
+                        </DockBar>
+                    </dock::Docking>
+                </dock_host::styled::DockHost>
             }
         });
         let mut harness = Harness::sized(document, WIDE_VIEWPORT);

@@ -4,11 +4,12 @@ use std::time::Duration;
 use be_sdk_beui::be_block::DisplaySettings;
 use be_sdk_beui::be_block::ViewState;
 use be_sdk_beui::beui::datetime::{HourCycle, SECONDS_PER_DAY, Time};
-use be_sdk_beui::beui::dock::styled::{
-    DockAlign, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockingLayout,
-    DockingSnapshot, TabId, use_dock_bar,
+use be_sdk_beui::beui::dock::DockState;
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
+use be_sdk_beui::beui::dock::{
+    DockAlign, DockBarPlacement, DockEdge, DockingLayout, DockingSnapshot, TabId, use_dock_bar,
 };
-use be_sdk_beui::beui::dock::unstyled::DockState;
+use be_sdk_beui::beui::dock_host::styled::DockHostLayout;
 use be_sdk_beui::beui::icons::{ICON_KEYBOARD, ICON_REFRESH_CW};
 use be_sdk_beui::beui::reactive::toggle_keyboard;
 use be_sdk_beui::beui::reactive::*;
@@ -250,7 +251,7 @@ pub(crate) fn toast_corner(placement: Option<DockBarPlacement>) -> Edge {
 }
 
 pub(crate) fn clear_of_status(
-    layout: DockingLayout<TabId>,
+    layout: DockHostLayout,
     status: Option<DockBarPlacement>,
     area: Rect,
 ) -> Rect {

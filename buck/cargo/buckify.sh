@@ -98,7 +98,7 @@ plan build --target wasm32-unknown-unknown $games $types -p be-wasm-gpu-shim -p 
 # native core, such as the shared tests' fixtures program, and beui's demo
 # in the browser (beui-demo-html). The host's adds be-server-bin, the
 # server's executable, which renders its account portal on that core.
-html_packages="-p beui -p beui-dock -p beui-keyboard -p beui-view -p beui-html -p beui-core-html -p beui-components-unstyled -p beui-components-styled -p be-host-accounts-ui -p beui-html-spike -p be-server-portal-ui"
+html_packages="-p beui -p beui-dock -p beui-dock-host -p beui-dock-state -p beui-keyboard -p beui-view -p beui-html -p beui-core-html -p beui-components-unstyled -p beui-components-styled -p be-host-accounts-ui -p beui-html-spike -p be-server-portal-ui"
 browser_packages="$html_packages -p beui-tests -p beui-demo-html"
 host_html_packages="$html_packages -p be-server-bin"
 RUSTFLAGS="--cfg beui_html" plan build --target wasm32-wasip1-threads $browser_packages --lib > "$scratch/wasi-html.json"

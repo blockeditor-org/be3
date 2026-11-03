@@ -9,9 +9,10 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use be_sdk_beui::be_sdk_ui::{BlockCatalog, BlockLabel, BlockTypes};
-use be_sdk_beui::beui::dock::styled::{
+use be_sdk_beui::beui::dock::{
     DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
+use be_sdk_beui::beui::dock_host::styled::DockHostLayout;
 use be_sdk_beui::beui::icons::{Glyph, ICON_APP_WINDOW, ICON_MONITOR};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -49,6 +50,7 @@ pub struct Focus {
 
 struct State {
     layout: DockingLayout<TabId>,
+    host: DockHostLayout,
     restored: Cell<bool>,
     handles: RefCell<HashMap<Uuid, BlockList>>,
     block_types: RefCell<HashMap<Uuid, Uuid>>,
@@ -91,7 +93,7 @@ pub struct Workspace {
 
 impl Workspace {
     pub fn new(editor: Editor) -> Self {
-        provide_context(beui::dock::unstyled::DockKeeper::none());
+        provide_context(beui::dock::DockKeeper::none());
         let tabs = create_signal(Tabs::new());
         let views = create_signal(HashMap::new());
         let titles = create_signal(HashMap::new());
@@ -114,6 +116,7 @@ impl Workspace {
         let workspace = Self {
             state: store(State {
                 layout: DockingLayout::new(),
+                host: DockHostLayout::new(),
                 restored: Cell::new(false),
                 handles: RefCell::new(HashMap::new()),
                 block_types: RefCell::new(HashMap::new()),
@@ -228,6 +231,20 @@ impl Workspace {
         inner.layout
     }
 
+    pub fn dock_host(&self) -> DockHostLayout {
+        let inner = self.state.value();
+        inner.host
+    }
+
+    pub fn on_dock_host<R>(
+        &self,
+        tab: TabId,
+        act: impl FnOnce(DockHostLayout, TabId) -> R,
+    ) -> Option<R> {
+        let placed = self.layout().tab_of(&tab)?;
+        Some(act(self.dock_host(), placed))
+    }
+
     pub fn phone(&self) -> ReadSignal<bool> {
         self.phone.read_only()
     }
@@ -275,22 +292,28 @@ impl Workspace {
     }
 
     pub fn shows(&self, id: Uuid) -> bool {
-        let layout = self.layout();
         self.tabs.with(|tabs| {
             tabs.iter()
-                .any(|(tab, item)| item.id == id && !layout.is_hidden(tab))
+                .any(|(tab, item)| item.id == id && !self.is_hidden(*tab))
         })
     }
 
+    pub fn window_rect(&self, tab: TabId) -> Option<Rect> {
+        self.on_dock_host(tab, |host, tab| host.window_rect(tab))
+            .flatten()
+    }
+
     pub fn is_hidden(&self, tab: TabId) -> bool {
-        self.layout().is_hidden(&tab)
+        self.on_dock_host(tab, |host, tab| host.is_hidden(tab))
+            .unwrap_or(false)
     }
 
     pub fn hide(&self, tab: TabId) {
-        let layout = self.layout();
-        if untrack(|| layout.window_rect(&tab)).is_some() {
-            layout.hide_window(&tab);
-        }
+        self.on_dock_host(tab, |host, tab| {
+            if untrack(|| host.window_rect(tab)).is_some() {
+                host.hide_window(tab);
+            }
+        });
     }
 
     pub fn show(&self, tab: TabId) {

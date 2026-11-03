@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
+use crate::dock::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
 
 fn shown(harness: &Harness, test_id: &str) -> bool {
     harness
@@ -15,26 +15,28 @@ fn a_locked_dock_tab_over_a_pane_outside_its_area_draws_no_drop_marker() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking layout focus=10u64>
-                <DockSplit id="workspace" size={SplitSize::Fraction(0.3)}>
-                    <DockPane id="files" locked=true>
-                        <DockTab id=1u64 title="Tab 1">
-                            <Frame />
-                        </DockTab>
-                        <DockTab id=2u64 title="Tab 2">
-                            <Frame />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="editors" locked=true>
-                        <DockTab id=10u64 title="Tab 10">
-                            <Frame />
-                        </DockTab>
-                        <DockTab id=11u64 title="Tab 11">
-                            <Frame />
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout focus=10u64>
+                    <DockSplit id="workspace" size={SplitSize::Fraction(0.3)}>
+                        <DockPane id="files" locked=true>
+                            <DockTab id=1u64 title="Tab 1">
+                                <Frame />
+                            </DockTab>
+                            <DockTab id=2u64 title="Tab 2">
+                                <Frame />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="editors" locked=true>
+                            <DockTab id=10u64 title="Tab 10">
+                                <Frame />
+                            </DockTab>
+                            <DockTab id=11u64 title="Tab 11">
+                                <Frame />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

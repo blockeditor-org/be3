@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockDrop, DockEdge, TabId};
+use crate::dock::{DockAlign, DockBarPlacement, DockDrop, DockEdge, TabId};
 
 #[test]
 fn a_dock_bar_shows_only_while_its_tab_does_and_moves_with_it() {
@@ -40,7 +40,7 @@ fn a_dock_bar_shows_only_while_its_tab_does_and_moves_with_it() {
         (9, TabId::new(9)),
     ];
     dock.layout
-        .restore(crate::dock::unstyled::DockingSnapshot::new(moved, keys));
+        .restore(crate::dock::DockingSnapshot::new(moved, keys));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let bar = harness.rect(harness.find("bar.9"));

@@ -1,11 +1,11 @@
 use be_type_video::VideoContent;
 
 use be_sdk_beui::Loaded;
-use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
-    SplitSize, use_dock_bar,
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
+use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::dock::{
+    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize, use_dock_bar,
 };
-use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::icons::{
     ICON_CORNER_DOWN_RIGHT, ICON_PAUSE, ICON_PLAY, ICON_PLUS, ICON_SCAN, ICON_SCISSORS,
     ICON_SKIP_BACK, ICON_SKIP_FORWARD, ICON_TRASH, ICON_ZOOM_IN, ICON_ZOOM_OUT,

@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::DockApi;
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn a_finger_swiping_along_a_tab_bar_moves_no_tab() {

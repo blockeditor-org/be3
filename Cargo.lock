@@ -2639,6 +2639,7 @@ dependencies = [
  "beui-components-unstyled",
  "beui-core",
  "beui-dock",
+ "beui-dock-host",
  "beui-draw",
  "beui-keyboard",
  "beui-macros",
@@ -2755,14 +2756,37 @@ dependencies = [
 name = "beui-dock"
 version = "0.1.0"
 dependencies = [
+ "be-lib-stable-hash",
+ "beui-components-styled",
+ "beui-components-unstyled",
+ "beui-dock-state",
+ "beui-macros",
+ "beui-reactive",
+ "beui-view",
+]
+
+[[package]]
+name = "beui-dock-host"
+version = "0.1.0"
+dependencies = [
  "accesskit",
  "be-lib-stable-hash",
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
+ "beui-dock",
+ "beui-dock-state",
  "beui-macros",
  "beui-reactive",
  "beui-view",
+]
+
+[[package]]
+name = "beui-dock-state"
+version = "0.1.0"
+dependencies = [
+ "be-lib-stable-hash",
+ "beui-types",
 ]
 
 [[package]]
@@ -2869,6 +2893,7 @@ dependencies = [
  "beui-components-unstyled",
  "beui-core",
  "beui-dock",
+ "beui-dock-host",
  "beui-macros",
  "beui-reactive",
  "beui-types",

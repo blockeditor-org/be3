@@ -15,6 +15,7 @@ pub use beui_view::window::{
 pub use beui_view::{CORE, Core, child_type, value_child_type};
 
 pub use beui_dock as dock;
+pub use beui_dock_host as dock_host;
 pub use beui_keyboard as keyboard;
 
 pub mod reactive {

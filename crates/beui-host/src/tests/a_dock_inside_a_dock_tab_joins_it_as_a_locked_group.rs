@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockHome, Entry, TabId};
+use crate::dock::{DockHome, Entry, TabId};
 
 #[test]
 fn a_dock_inside_a_dock_tab_joins_it_as_a_locked_group() {

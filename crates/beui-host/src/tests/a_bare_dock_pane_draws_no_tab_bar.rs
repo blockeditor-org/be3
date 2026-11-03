@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use crate::dock::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
 fn a_bare_dock_pane_draws_no_tab_bar() {

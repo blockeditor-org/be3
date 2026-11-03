@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::DockMode;
+use crate::dock::DockMode;
 
 #[test]
 fn a_short_dock_without_a_stage_stacks_its_tabs() {

@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::TabId;
+use crate::dock::TabId;
 
 #[test]
 fn closing_the_tab_that_holds_a_nested_dock_closes_its_tabs_wherever_they_went() {

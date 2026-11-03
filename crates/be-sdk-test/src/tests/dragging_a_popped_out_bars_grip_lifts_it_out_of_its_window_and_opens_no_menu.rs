@@ -1,8 +1,6 @@
 use super::*;
-use beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarPlacement, DockBarSurface, DockEdge, DockPane, DockTab, Docking,
-    DockingLayout,
-};
+use beui::dock::styled::{DockBarGrip, DockBarSurface};
+use beui::dock::{DockBar, DockBarPlacement, DockEdge, DockPane, DockTab, Docking, DockingLayout};
 use beui::{Key, Modifiers, Pos2, Rect, Vec2, pos2, vec2};
 
 const DISPLAY: Vec2 = vec2(900.0, 600.0);

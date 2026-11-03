@@ -4,8 +4,8 @@ use be_sdk_api::{
     DockItemKind, DockLayout, DockMessage, DockPane as Pane, DockPlacedBar, DockRequest,
     DockTabPath, DockTree, DockUpdate, ViewId,
 };
-use beui::dock::styled::{DockPane, DockTab, Docking, DockingLayout};
-use beui::dock::unstyled::{DockBar, DockBarPlacement as Placement, DockEdge as Edge};
+use beui::dock::{DockBar, DockBarPlacement as Placement, DockEdge as Edge};
+use beui::dock::{DockPane, DockTab, Docking, DockingLayout};
 
 const REBUILT_TYPE: Uuid = Uuid::from_u128(0x0b44);
 
@@ -42,7 +42,7 @@ fn Deck() -> NodeId {
             <DockBar
                 id=3u64
                 parent=1u64
-                placement=Placement::Over(Edge::Top, beui::dock::unstyled::DockAlign::Center)
+                placement=Placement::Over(Edge::Top, beui::dock::DockAlign::Center)
             >
                 <Frame width={Size::Custom(120.0)} height={Size::Custom(24.0)} />
             </DockBar>

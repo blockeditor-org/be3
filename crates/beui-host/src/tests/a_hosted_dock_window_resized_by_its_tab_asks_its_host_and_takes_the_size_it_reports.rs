@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, DockTabControl, use_dock_tab};
+use crate::dock::{DockTabControl, use_dock_tab};
+use crate::dock_host::unstyled::DockApi;
 use crate::{WindowReport, WindowRequest};
 
 #[test]
@@ -8,25 +9,27 @@ fn a_hosted_dock_window_resized_by_its_tab_asks_its_host_and_takes_the_size_it_r
     let dock = NodeRef::new();
     let control = StoredCell::new(None::<DockTabControl>);
     let document = build_node(move || {
-        let layout = dock::unstyled::DockingLayout::new();
+        let layout = dock::DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
-                <dock::unstyled::DockPane id="base">
-                    <dock::unstyled::DockTab id=1u64 title="Base">
-                        <Frame />
-                    </dock::unstyled::DockTab>
-                </dock::unstyled::DockPane>
-                <dock::unstyled::DockWindow
-                    id="window"
-                    rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
-                >
-                    <dock::unstyled::DockPane id="floating">
-                        <dock::unstyled::DockTab id=2u64 title="Floating">
-                            <Grabbing control />
-                        </dock::unstyled::DockTab>
-                    </dock::unstyled::DockPane>
-                </dock::unstyled::DockWindow>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout>
+                    <dock::DockPane id="base">
+                        <dock::DockTab id=1u64 title="Base">
+                            <Frame />
+                        </dock::DockTab>
+                    </dock::DockPane>
+                    <dock::DockWindow
+                        id="window"
+                        rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
+                    >
+                        <dock::DockPane id="floating">
+                            <dock::DockTab id=2u64 title="Floating">
+                                <Grabbing control />
+                            </dock::DockTab>
+                        </dock::DockPane>
+                    </dock::DockWindow>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use super::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
+use crate::dock::{DockPane, DockTab, DockWindow, DockingLayout};
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -28,42 +28,44 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
         build_node(move || {
             let (program, other) = (program.clone(), other.clone());
             view! {
-                <dock::styled::Docking layout>
-                    <DockPane
-                        id="desktop"
-                        empty={|| view! {
-                            <Frame />
-                        }}
-                    />
-                    <DockWindow
-                        id="program"
-                        rect={Rect::from_min_size(pos2(40.0, 40.0), vec2(360.0, 240.0))}
-                    >
-                        <DockPane id="program">
-                            <DockTab
-                                id=1u64
-                                title="Program"
-                                content={move || view! {
-                                    <HoverInto hovered={program.clone()} @test_id="program" />
-                                }}
-                            />
-                        </DockPane>
-                    </DockWindow>
-                    <DockWindow
-                        id="other"
-                        rect={Rect::from_min_size(pos2(300.0, 200.0), vec2(360.0, 240.0))}
-                    >
-                        <DockPane id="other">
-                            <DockTab
-                                id=2u64
-                                title="Other"
-                                content={move || view! {
-                                    <HoverInto hovered={other.clone()} @test_id="other" />
-                                }}
-                            />
-                        </DockPane>
-                    </DockWindow>
-                </dock::styled::Docking>
+                <dock_host::styled::DockHost>
+                    <dock::Docking layout>
+                        <DockPane
+                            id="desktop"
+                            empty={|| view! {
+                                <Frame />
+                            }}
+                        />
+                        <DockWindow
+                            id="program"
+                            rect={Rect::from_min_size(pos2(40.0, 40.0), vec2(360.0, 240.0))}
+                        >
+                            <DockPane id="program">
+                                <DockTab
+                                    id=1u64
+                                    title="Program"
+                                    content={move || view! {
+                                        <HoverInto hovered={program.clone()} @test_id="program" />
+                                    }}
+                                />
+                            </DockPane>
+                        </DockWindow>
+                        <DockWindow
+                            id="other"
+                            rect={Rect::from_min_size(pos2(300.0, 200.0), vec2(360.0, 240.0))}
+                        >
+                            <DockPane id="other">
+                                <DockTab
+                                    id=2u64
+                                    title="Other"
+                                    content={move || view! {
+                                        <HoverInto hovered={other.clone()} @test_id="other" />
+                                    }}
+                                />
+                            </DockPane>
+                        </DockWindow>
+                    </dock::Docking>
+                </dock_host::styled::DockHost>
             }
         })
     };

@@ -1,9 +1,8 @@
 use beui::NodeId;
 use beui::Overflow;
-use beui::dock::styled::Docking;
-use beui::dock::styled::{
-    DockDocument, DockDocumentBody, DockDocumentTabs, DockEntry, DockPane, DockTab,
-};
+use beui::dock::Docking;
+use beui::dock::{DockDocument, DockDocumentBody, DockDocumentTabs, DockEntry, DockPane, DockTab};
+use beui::dock_host::styled::DockHost;
 use beui::icons::ICON_TERMINAL;
 use beui::reactive::*;
 use beui::styled::*;
@@ -42,20 +41,22 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                     </Show>
                 </List>
             </Frame>
-            <Docking @sizing=ItemSize::Percent(100.0) layout={model.layout}>
-                <DockPane id="workspace" active={Some(Tab::Log)}>
-                    <DockTab id=Tab::Log title="Log" icon=ICON_TERMINAL>
-                        <Frame padding=PADDING>
-                            <TerminalPane pane />
-                        </Frame>
-                    </DockTab>
-                    <DockDocumentTabs
-                        documents={model.documents}
-                    >|document: DockDocument<Tab, PullRequest, u64>|
-                        <PullRequestTab model document />
-                    </DockDocumentTabs>
-                </DockPane>
-            </Docking>
+            <DockHost @sizing=ItemSize::Percent(100.0)>
+                <Docking layout={model.layout}>
+                    <DockPane id="workspace" active={Some(Tab::Log)}>
+                        <DockTab id=Tab::Log title="Log" icon=ICON_TERMINAL>
+                            <Frame padding=PADDING>
+                                <TerminalPane pane />
+                            </Frame>
+                        </DockTab>
+                        <DockDocumentTabs
+                            documents={model.documents}
+                        >|document: DockDocument<Tab, PullRequest, u64>|
+                            <PullRequestTab model document />
+                        </DockDocumentTabs>
+                    </DockPane>
+                </Docking>
+            </DockHost>
         </List>
     }
 }

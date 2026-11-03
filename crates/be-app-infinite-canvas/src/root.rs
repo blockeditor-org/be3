@@ -4,10 +4,10 @@ use be_type_infinite_canvas::CanvasContent;
 use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::Vec2;
-use be_sdk_beui::beui::dock::styled::{
+use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::dock::{
     DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
 };
-use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{Creation, Editor};

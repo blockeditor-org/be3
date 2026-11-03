@@ -185,10 +185,10 @@ fn SubregionView(
     let mode = create_memo(move || mode.get());
     let turn = create_memo(move || rotation.get());
     let fade = create_memo(move || opacity.get());
-    let docked = beui::dock::unstyled::use_dock_tab().filter(|tab| tab.is_hosted());
+    let docked = beui::dock::use_dock_tab().filter(|tab| tab.is_hosted());
     let join = match docked {
         Some(_) => None,
-        None => beui::dock::unstyled::use_dock_join(),
+        None => beui::dock::use_dock_join(),
     };
     let dock_tab = docked
         .as_ref()
@@ -222,12 +222,12 @@ fn SubregionView(
         on_focus,
         dock_tab,
         docks,
-        beui::dock::unstyled::use_dock_tab(),
+        beui::dock::use_dock_tab(),
     );
     if let Some(link) = link {
         crate::docked::bridge_child_dock(editor, link, state, docked_tab);
     }
-    if let Some(tab) = beui::dock::unstyled::use_dock_tab() {
+    if let Some(tab) = beui::dock::use_dock_tab() {
         follow_tab_keyboard(editor, tab, state, placed, mode);
     }
     let preview = create_memo(move || state.with(|state| state.preview));
@@ -274,7 +274,7 @@ fn SubregionView(
 
 fn follow_tab_keyboard(
     editor: Editor,
-    tab: beui::dock::unstyled::DockTabControl,
+    tab: beui::dock::DockTabControl,
     state: ReadSignal<ChildState>,
     placed: Memo<Option<SubregionContent>>,
     mode: Memo<ChildMode>,

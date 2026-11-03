@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::DockApi;
+use crate::dock_host::unstyled::DockApi;
 use crate::{HostPlacement, WindowPlacement, WindowReport, WindowRequest};
 
 #[test]

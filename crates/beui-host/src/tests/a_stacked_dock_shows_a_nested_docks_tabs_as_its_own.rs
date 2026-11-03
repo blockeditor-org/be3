@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::DockMode;
+use crate::dock::DockMode;
 
 #[test]
 fn a_stacked_dock_shows_a_nested_docks_tabs_as_its_own() {

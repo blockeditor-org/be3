@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, use_dock_tab};
+use crate::dock::{DockPane, DockTab, DockingLayout, use_dock_tab};
 use crate::reactive::*;
 
 #[component]
@@ -40,16 +40,18 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
     let document = {
         build_node(move || {
             view! {
-                <dock::styled::Docking @node_ref=&dock layout>
-                    <DockPane id="tabs">
-                        <DockTab id=1u64 title="Offered">
-                            <Offered />
-                        </DockTab>
-                        <DockTab id=2u64 title="Plain">
-                            <Frame @test_id="plain" />
-                        </DockTab>
-                    </DockPane>
-                </dock::styled::Docking>
+                <dock_host::styled::DockHost @node_ref=&dock>
+                    <dock::Docking layout>
+                        <DockPane id="tabs">
+                            <DockTab id=1u64 title="Offered">
+                                <Offered />
+                            </DockTab>
+                            <DockTab id=2u64 title="Plain">
+                                <Frame @test_id="plain" />
+                            </DockTab>
+                        </DockPane>
+                    </dock::Docking>
+                </dock_host::styled::DockHost>
             }
         })
     };

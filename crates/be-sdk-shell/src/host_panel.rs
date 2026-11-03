@@ -1,4 +1,4 @@
-use be_sdk_beui::beui::dock::styled::TabId;
+use be_sdk_beui::beui::dock::TabId;
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::icons::{ICON_GAUGE, ICON_LAYERS, ICON_MENU, ICON_PUZZLE};
 use be_sdk_beui::beui::reactive::*;

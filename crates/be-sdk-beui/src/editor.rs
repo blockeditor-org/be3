@@ -1,4 +1,4 @@
-use beui::dock::unstyled::DockTabControl;
+use beui::dock::DockTabControl;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

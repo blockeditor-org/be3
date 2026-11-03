@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use crate::dock::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
 fn a_dock_bars_grip_menu_moves_it_without_dragging() {

@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, Entry, TabId};
+use crate::dock::{Entry, TabId};
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar() {

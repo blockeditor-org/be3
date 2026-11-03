@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, TabId};
+use crate::dock::TabId;
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn a_dock_dialog_is_never_a_tab() {

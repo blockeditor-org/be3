@@ -104,18 +104,13 @@ fn a_root_places_bars_of_one_kind_together_and_others_apart() {
         .into_iter()
         .map(|bar| state.bar_placement(bar))
         .collect();
-    use beui::dock::unstyled::{
-        DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge,
-    };
+    use beui::dock::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
     assert_eq!(
         placements,
         vec![
             Some(Placement::Beside(Edge::Left, Align::Center)),
             Some(Placement::Beside(Edge::Left, Align::Center)),
-            Some(Placement::Over(
-                Edge::Top,
-                beui::dock::unstyled::DockAlign::Center
-            )),
+            Some(Placement::Over(Edge::Top, beui::dock::DockAlign::Center)),
         ],
         "a bar of the same kind follows, one of the same key but another kind stays"
     );

@@ -2,11 +2,11 @@ use beui::Overflow;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockSplit, DockTab, Docking, DockingLayout,
-    SplitSize,
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
+use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::dock::{
+    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
 };
-use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_MAXIMIZE, ICON_TRASH, ICON_X,
 };

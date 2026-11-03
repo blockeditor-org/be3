@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{
+use crate::dock::{
     DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab, DockingLayout,
     SplitSize,
 };
@@ -22,27 +22,29 @@ fn a_dock_bar_whose_content_writes_a_signal_while_it_builds_is_shown() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking layout focus=1u64>
-                <DockSplit id="root" size={SplitSize::Fraction(0.6)}>
-                    <DockPane id="stage" locked=true bare=true>
-                        <DockTab id=1u64 title="Stage">
-                            <Frame @test_id="content.1" />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="side" locked=true>
-                        <DockTab id=2u64 title="Side">
-                            <Frame @test_id="content.2" />
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-                <DockBar
-                    id=9u64
-                    parent=1u64
-                    placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
-                >
-                    <CountingBar />
-                </DockBar>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout focus=1u64>
+                    <DockSplit id="root" size={SplitSize::Fraction(0.6)}>
+                        <DockPane id="stage" locked=true bare=true>
+                            <DockTab id=1u64 title="Stage">
+                                <Frame @test_id="content.1" />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="side" locked=true>
+                            <DockTab id=2u64 title="Side">
+                                <Frame @test_id="content.2" />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                    <DockBar
+                        id=9u64
+                        parent=1u64
+                        placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
+                    >
+                        <CountingBar />
+                    </DockBar>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

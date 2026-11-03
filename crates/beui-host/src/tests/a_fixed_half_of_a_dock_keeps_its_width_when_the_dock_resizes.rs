@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
+use crate::dock::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize};
 use crate::reactive::*;
 
 #[test]
@@ -18,20 +18,22 @@ fn a_fixed_half_of_a_dock_keeps_its_width_when_the_dock_resizes() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking layout>
-                <DockSplit id="split" size={SplitSize::First(300.0)}>
-                    <DockPane id="left">
-                        <DockTab id=1u64 title="Tab 1">
-                            <Frame @node_ref=&left />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="right">
-                        <DockTab id=2u64 title="Tab 2">
-                            <Frame @node_ref=&right />
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout>
+                    <DockSplit id="split" size={SplitSize::First(300.0)}>
+                        <DockPane id="left">
+                            <DockTab id=1u64 title="Tab 1">
+                                <Frame @node_ref=&left />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="right">
+                            <DockTab id=2u64 title="Tab 2">
+                                <Frame @node_ref=&right />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

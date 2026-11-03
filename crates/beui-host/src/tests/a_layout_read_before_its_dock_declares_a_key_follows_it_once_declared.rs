@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{
+use crate::dock::{
     DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockTab, DockingLayout,
 };
 use crate::reactive::Memo;
@@ -20,16 +20,18 @@ fn a_layout_read_before_its_dock_declares_a_key_follows_it_once_declared() {
         assert!(!hidden.get_untracked());
         handle.set(Some((layout, tab, placement, hidden)));
         view! {
-            <dock::styled::Docking layout focus=1u64>
-                <DockPane id="stage">
-                    <DockTab id=1u64 title="One">
-                        <Frame @test_id="content.1" />
-                    </DockTab>
-                </DockPane>
-                <DockBar id=9u64 placement=BOTTOM>
-                    <TestToolBar />
-                </DockBar>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout focus=1u64>
+                    <DockPane id="stage">
+                        <DockTab id=1u64 title="One">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                    </DockPane>
+                    <DockBar id=9u64 placement=BOTTOM>
+                        <TestToolBar />
+                    </DockBar>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let (layout, tab, placement, hidden) = read.get().expect("the dock was built");

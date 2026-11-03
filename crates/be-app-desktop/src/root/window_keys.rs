@@ -1,4 +1,5 @@
-use be_sdk_beui::beui::dock::styled::{DockWindowActions, DockingLayout, TabId};
+use be_sdk_beui::beui::dock_host::styled::DockHostLayout;
+use be_sdk_beui::beui::dock_host::styled::DockWindowActions;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Key, NodeId};
@@ -51,13 +52,13 @@ impl WindowKeys {
 }
 
 #[component]
-pub(super) fn WindowShortcuts(editor: Editor, layout: DockingLayout<TabId>) -> NodeId {
+pub(super) fn WindowShortcuts(editor: Editor, host: DockHostLayout) -> NodeId {
     let super_kept = editor.watch::<SuperKeptWatch>();
     let locked = editor.watch::<ScreenLockedWatch>();
     view! {
         <List spacing=Space::None>
             <Dynamic value={super_kept}>|super_kept: bool| {
-                bind(layout.window_actions(locked), WindowKeys::of(super_kept));
+                bind(host.window_actions(locked), WindowKeys::of(super_kept));
                 view! {
                     <Frame />
                 }

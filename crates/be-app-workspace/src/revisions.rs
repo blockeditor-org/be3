@@ -5,7 +5,7 @@ use std::{
 
 use be_sdk_beui::Revision;
 use be_sdk_beui::beui::datetime::DateTime;
-use be_sdk_beui::beui::{NodeId, dock::styled::TabId, reactive::*, styled::*};
+use be_sdk_beui::beui::{NodeId, dock::TabId, reactive::*, styled::*};
 use be_sdk_beui::{ChildTarget, Editor, Failure, Pushed, Task};
 use uuid::Uuid;
 

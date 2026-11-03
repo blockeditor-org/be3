@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, TabId};
+use crate::dock::TabId;
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn a_tab_dragged_from_one_hosted_dock_window_onto_anothers_bar_joins_it() {

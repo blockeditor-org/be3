@@ -1,6 +1,6 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
+use crate::dock::{DockPane, DockTab, DockingLayout};
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -8,26 +8,29 @@ use crate::reactive::*;
 fn escape_cancels_a_dock_switch_even_from_a_focused_program() {
     let _root = crate::reactive::RootScope::new();
     let layout = DockingLayout::<u64>::new();
+    let host = crate::dock_host::styled::DockHostLayout::new();
     let program = NodeRef::new();
     let heard = create_signal(Vec::<ForwardedInput>::new());
     let document = build_node(move || {
         view! {
-            <dock::styled::Docking layout={layout}>
-                <DockPane id="tabs">
-                    <DockTab id=1u64 title="One">
-                        <Interactive
-                            @node_ref=&program
-                            focusable=true
-                            on_forward={move |input| heard.update(|heard| heard.push(input))}
-                        >
+            <dock_host::styled::DockHost layout=host>
+                <dock::Docking layout={layout}>
+                    <DockPane id="tabs">
+                        <DockTab id=1u64 title="One">
+                            <Interactive
+                                @node_ref=&program
+                                focusable=true
+                                on_forward={move |input| heard.update(|heard| heard.push(input))}
+                            >
+                                <Frame />
+                            </Interactive>
+                        </DockTab>
+                        <DockTab id=2u64 title="Two">
                             <Frame />
-                        </Interactive>
-                    </DockTab>
-                    <DockTab id=2u64 title="Two">
-                        <Frame />
-                    </DockTab>
-                </DockPane>
-            </dock::styled::Docking>
+                        </DockTab>
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
@@ -36,15 +39,15 @@ fn escape_cancels_a_dock_switch_even_from_a_focused_program() {
     layout.show(&1);
     harness.frame(Vec::new());
     harness.document_mut().focus_focusable(program.get());
-    layout.begin_switch(false);
+    host.begin_switch(false);
     harness.frame(Vec::new());
-    assert!(layout.switching());
+    assert!(host.switching());
     heard.set(Vec::new());
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());
     assert!(
-        !layout.switching(),
+        !host.switching(),
         "Escape cancels the switch though the switcher holds no focus"
     );
     let escapes = heard.with_untracked(|heard| {

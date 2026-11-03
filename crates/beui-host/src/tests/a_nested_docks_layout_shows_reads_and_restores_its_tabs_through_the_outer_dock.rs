@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockDrop, DockingSnapshot, Side};
+use crate::dock::{DockDrop, DockingSnapshot, Side};
 
 #[test]
 fn a_nested_docks_layout_shows_reads_and_restores_its_tabs_through_the_outer_dock() {
@@ -58,9 +58,7 @@ fn a_nested_docks_layout_shows_reads_and_restores_its_tabs_through_the_outer_doc
         .find_group("joined:2")
         .expect("the group is still there");
     assert_eq!(
-        outer
-            .tree_leaves(crate::dock::unstyled::Tree::Group(group))
-            .len(),
+        outer.tree_leaves(crate::dock::Tree::Group(group)).len(),
         2,
         "restoring through the inner layout splits the group in the outer dock"
     );

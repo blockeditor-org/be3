@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use crate::dock::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
 fn a_dock_bar_let_go_slowly_away_from_every_edge_floats_over_the_nearest() {

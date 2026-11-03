@@ -7,7 +7,7 @@ struct NestedBarRoot;
 impl crate::BeuiRoot for NestedBarRoot {
     #[beui::reactive::component]
     fn View(editor: crate::Editor) -> beui::styled::Root {
-        use beui::dock::styled::{
+        use beui::dock::{
             DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockTab, Docking,
             DockingLayout,
         };

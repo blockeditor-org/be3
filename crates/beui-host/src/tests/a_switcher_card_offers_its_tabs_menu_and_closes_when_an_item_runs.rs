@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
+use crate::dock::{DockPane, DockTab, DockingLayout, dock_menu};
 use crate::reactive::*;
 
 const PHONE: Vec2 = Vec2::new(390.0, 800.0);
@@ -25,28 +25,30 @@ fn a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking layout focus=2u64>
-                <DockPane id="tabs">
-                    <ForEach keys={vec![1u64, 2]}>|id: u64|
-                        <DockTab
-                            id
-                            title={format!("Tab {id}")}
-                            on_close={|| {}}
-                            content={move || {
-                                let share = Action::new("share", "Share", move || {
-                                    shared.update(|shared| shared.push(id))
-                                })
-                                .pin(Pin::Label)
-                                .detached();
-                                dock_menu(create_memo(move || vec![MenuNode::action(&share)]));
-                                view! {
-                                    <Frame @test_id={format!("content.{id}")} />
-                                }
-                            }}
-                        />
-                    </ForEach>
-                </DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost>
+                <dock::Docking layout focus=2u64>
+                    <DockPane id="tabs">
+                        <ForEach keys={vec![1u64, 2]}>|id: u64|
+                            <DockTab
+                                id
+                                title={format!("Tab {id}")}
+                                on_close={|| {}}
+                                content={move || {
+                                    let share = Action::new("share", "Share", move || {
+                                        shared.update(|shared| shared.push(id))
+                                    })
+                                    .pin(Pin::Label)
+                                    .detached();
+                                    dock_menu(create_memo(move || vec![MenuNode::action(&share)]));
+                                    view! {
+                                        <Frame @test_id={format!("content.{id}")} />
+                                    }
+                                }}
+                            />
+                        </ForEach>
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, PHONE);

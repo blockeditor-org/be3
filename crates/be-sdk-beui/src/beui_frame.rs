@@ -99,7 +99,7 @@ pub(crate) fn FrameChrome(
     let anchor = editor.frame_anchor();
     beui::unstyled::provide_frame_anchor(create_memo(move || anchor.get()));
     let placed = editor.placed_content();
-    beui::dock::unstyled::provide_dock_shows_through(create_memo(move || placed.get().is_some()));
+    beui::dock::provide_dock_shows_through(create_memo(move || placed.get().is_some()));
     let phone = create_memo(move || bar.get().on_phone);
     provide_density(create_memo(move || match phone.get() {
         true => Density::Comfortable,
@@ -114,6 +114,7 @@ pub(crate) fn FrameChrome(
     .register();
     let host = editor.host();
     let releasing = Rc::clone(&docked);
+    let hosting = Rc::clone(&docked);
     create_effect(move || {
         if !palette.get() {
             untrack(|| releasing.release());
@@ -150,11 +151,13 @@ pub(crate) fn FrameChrome(
                 />
                 <CommandPalette open={palette} shown_in />
                 <ChromeRoot @sizing=ItemSize::Percent(100.0)>|| {
-                    let built = view();
-                    let content = built.child();
-                    rooted.set(Some(built));
-                    content_slot_writer.set(Some(content));
-                    content
+                    hosting.hosting(move || {
+                        let built = view();
+                        let content = built.child();
+                        rooted.set(Some(built));
+                        content_slot_writer.set(Some(content));
+                        content
+                    })
                 }</ChromeRoot>
             </List>
             <Pickers editor />

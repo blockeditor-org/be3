@@ -8,6 +8,7 @@ license.workspace = true
 accesskit = "0.24.1"
 beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-dock = { path = "../beui-dock" }
+beui-dock-host = { path = "../beui-dock-host" }
 beui-keyboard = { path = "../beui-keyboard" }
 beui-view = { path = "../beui-view" }
 beui-macros = { path = "../beui-macros" }

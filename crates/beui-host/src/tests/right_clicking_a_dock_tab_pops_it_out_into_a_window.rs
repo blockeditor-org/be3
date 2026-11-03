@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, Entry, TabId};
+use crate::dock::{Entry, TabId};
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn right_clicking_a_dock_tab_pops_it_out_into_a_window() {

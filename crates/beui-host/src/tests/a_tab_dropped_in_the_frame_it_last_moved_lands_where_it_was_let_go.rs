@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, Entry, TabId};
+use crate::dock::{Entry, TabId};
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn a_tab_dropped_in_the_frame_it_last_moved_lands_where_it_was_let_go() {

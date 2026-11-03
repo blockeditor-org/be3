@@ -1,8 +1,7 @@
 use be_sdk_beui::beui::NodeId;
-use be_sdk_beui::beui::dock::styled::{
-    DockBar, DockBarGrip, DockBarSurface, DockPane, DockTab, Docking, DockingLayout,
-};
-use be_sdk_beui::beui::dock::unstyled::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
+use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockTab, Docking, DockingLayout};
 use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_REFRESH_CW};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;

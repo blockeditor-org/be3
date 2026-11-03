@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, dock_menu};
+use crate::dock::{DockPane, DockTab, DockingLayout, dock_menu};
+use crate::dock_host::unstyled::DockApi;
 use crate::reactive::*;
 
 fn laid_out(harness: &Harness, test_id: &str) -> bool {
@@ -29,27 +30,29 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout focus=2u64>
-                <DockPane id="tabs">
-                    <DockTab id=1u64 title="Tab 1">
-                        <Frame @test_id="content.1" />
-                    </DockTab>
-                    <DockTab
-                        id=2u64
-                        title="Tab 2"
-                        content={move || {
-                            let tidy = Action::new("tidy", "Tidy up", move || {
-                                ran.update(|ran| *ran += 1)
-                            })
-                            .detached();
-                            dock_menu(create_memo(move || vec![MenuNode::action(&tidy)]));
-                            view! {
-                                <Frame @test_id="content.2" />
-                            }
-                        }}
-                    />
-                </DockPane>
-            </dock::styled::Docking>
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout focus=2u64>
+                    <DockPane id="tabs">
+                        <DockTab id=1u64 title="Tab 1">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                        <DockTab
+                            id=2u64
+                            title="Tab 2"
+                            content={move || {
+                                let tidy = Action::new("tidy", "Tidy up", move || {
+                                    ran.update(|ran| *ran += 1)
+                                })
+                                .detached();
+                                dock_menu(create_memo(move || vec![MenuNode::action(&tidy)]));
+                                view! {
+                                    <Frame @test_id="content.2" />
+                                }
+                            }}
+                        />
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

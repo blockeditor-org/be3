@@ -1,6 +1,6 @@
 use super::*;
 use beui::PointerButton;
-use beui::dock::unstyled::{DockHome, DockingSnapshot};
+use beui::dock::{DockHome, DockingSnapshot};
 use beui::native::with_reactive_scope;
 use beui_host::native::testing::Target;
 use std::cell::Cell;
@@ -45,20 +45,22 @@ fn nested(restored: Option<DockingSnapshot<u64>>) -> DocumentTest {
         LAYOUT.with(|held| held.set(Some(layout)));
         view! {
             <Root>
-                <Docking layout>
-                    <DockSplit id="outer">
-                        <DockPane id="left">
-                            <DockTab id=1u64 title="Host">
-                                <Inner />
-                            </DockTab>
-                        </DockPane>
-                        <DockPane id="right">
-                            <DockTab id=2u64 title="Other">
-                                <Text>"Other body"</Text>
-                            </DockTab>
-                        </DockPane>
-                    </DockSplit>
-                </Docking>
+                <DockHost>
+                    <Docking layout>
+                        <DockSplit id="outer">
+                            <DockPane id="left">
+                                <DockTab id=1u64 title="Host">
+                                    <Inner />
+                                </DockTab>
+                            </DockPane>
+                            <DockPane id="right">
+                                <DockTab id=2u64 title="Other">
+                                    <Text>"Other body"</Text>
+                                </DockTab>
+                            </DockPane>
+                        </DockSplit>
+                    </Docking>
+                </DockHost>
             </Root>
         }
     });

@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
+use crate::dock::{DockPane, DockTab, DockWindow, DockingLayout};
+use crate::dock_host::unstyled::DockApi;
 use crate::geometry::vec2;
 
 #[test]
@@ -9,26 +10,28 @@ fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
-                <DockPane id="main">
-                    <DockTab id=1u64 title="Tab 1">
-                        <Frame @test_id="content.1" />
-                    </DockTab>
-                </DockPane>
-                <DockWindow
-                    id="window"
-                    rect={Rect::from_min_size(pos2(80.0, 60.0), vec2(520.0, 320.0))}
-                >
-                    <DockPane id="side" vertical=true>
-                        <DockTab id=2u64 title="Tab 2">
-                            <Frame @test_id="content.2" />
-                        </DockTab>
-                        <DockTab id=3u64 title="Tab 3">
-                            <Frame @test_id="content.3" />
+            <dock_host::styled::DockHost @node_ref=&dock>
+                <dock::Docking layout>
+                    <DockPane id="main">
+                        <DockTab id=1u64 title="Tab 1">
+                            <Frame @test_id="content.1" />
                         </DockTab>
                     </DockPane>
-                </DockWindow>
-            </dock::styled::Docking>
+                    <DockWindow
+                        id="window"
+                        rect={Rect::from_min_size(pos2(80.0, 60.0), vec2(520.0, 320.0))}
+                    >
+                        <DockPane id="side" vertical=true>
+                            <DockTab id=2u64 title="Tab 2">
+                                <Frame @test_id="content.2" />
+                            </DockTab>
+                            <DockTab id=3u64 title="Tab 3">
+                                <Frame @test_id="content.3" />
+                            </DockTab>
+                        </DockPane>
+                    </DockWindow>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

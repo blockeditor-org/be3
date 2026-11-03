@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, Entry, TabId};
+use crate::dock::{Entry, TabId};
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn clicking_the_outer_tab_bar_takes_the_focus_out_of_a_group() {
