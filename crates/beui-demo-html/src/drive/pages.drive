@@ -12,7 +12,7 @@ wait 'focused #demo.catalog.Dock bars'
 wait '#bars.tools'
 key Tab Enter
 wait 'focused #demo.catalog.Window manager'
-wait '#wm.window.3'
+wait '#wm.menu'
 key Tab Enter
 wait 'focused #demo.catalog.Text'
 wait 'Tab "Text" selected'
