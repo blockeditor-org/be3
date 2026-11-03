@@ -5,7 +5,7 @@ sr.ht does not answer web fetches from here, but `git clone` works:
 
 - https://git.sr.ht/~hrdl/pinenote-dist: the distribution (packages, configs, mkosi image).
   `packages/linux-pinenote-hrdl-git/PKGBUILD` names the kernel branch it builds.
-- https://git.sr.ht/~hrdl/linux, branch `v6.19_pinenote` at the time of writing: the kernel.
+- https://git.sr.ht/~hrdl/linux, branch `v6.19_pinenote` (`PKGBUILD` above names the current one): the kernel.
   The driver is `drivers/gpu/drm/rockchip/rockchip_ebc.c`, its scheduling in
   `rockchip_ebc_blit_neon.c`, its ioctls in `include/uapi/drm/rockchip_ebc_drm.h` (below). Clone
   only those with `git clone --depth 1 --filter=blob:none --sparse -b v6.19_pinenote
@@ -41,7 +41,7 @@ global, waits for ongoing updates, and enters through a global refresh, so beui 
 `epaper.rs` sets the default hint to Y2 threshold (`0x10`) while the screen is still, and to
 dithered Y1 (`0x40`) while it moves (guides/pinenote.md says when). To settle it sets Y2 again
 and commits the unchanged framebuffer with damage clips covering everything drawn at Y1, which
-the driver converts again and redraws at Y2. It leaves `redraw_delay` alone and never sets
+the driver converts again and redraws at Y2. It leaves `redraw_delay` alone and does not set
 REDRAW.
 
 ## `include/uapi/drm/rockchip_ebc_drm.h`

@@ -6,19 +6,31 @@ a Milestones database, kept in a workspace and
 shared with the agents that work on them. Agents read and change them with `be`, the command line tool in
 `crates/be-tool-cli`, and GitHub moves them as pull requests open and merge.
 
-## Using it from an agent
+## Running it
 
 Run it as `./scripts/be ARGS`; `./scripts/be help` lists everything. That
 script runs the `be` release pinned in `scripts/internal/pins`, with the
 `build-info.json` deployed beside it (both checked against their pinned SHA-256)
 naming the server's build and its default server, so the server refuses it
-once it is deployed from another build and the pin has to move with it. Set
-`BE3_AGENT_CREDENTIALS` to the JSON copied from the host's Agents dialog, or save
+once it is deployed from another build and the pin has to move with it. A `be`
+built from the checkout (`./scripts/buck run //crates/be-tool-cli:native -- ARGS`)
+carries that checkout's build id, so it talks to a dev server built from the
+same tree, and the real server refuses it.
+
+`be` speaks to the server over HTTP posts (`/api/be/http`), since a cloud
+environment's proxy refuses websockets; requests made together share one post.
+It keeps the objects it reads in `~/.cache/be3/be/ORGANIZATION` (`BE3_CACHE`),
+still encrypted and named by their hash, so a later run reads only what
+changed.
+
+### Credentials
+
+Set `BE3_AGENT_CREDENTIALS` to the JSON copied from the host's Agents dialog, or save
 that JSON in `external/.tracker-credentials`. The file is ignored by git and
 `./scripts/be` fetches it on first use from
 `https://api.be3.pfg.pw/authorized-storage/tracker-credentials` behind the gateway.
 The wrapper passes it to `be` as `BE3_AGENT_CREDENTIALS`; `be` reads environment
-variables, never that file.
+variables, not that file. The whole bundle is secret.
 
 ```json
 {"server":"https://api.be3.pfg.pw","organization":"<organization UUID>","token":"<agent token>","recovery_phrase":"<agent recovery phrase>"}
@@ -27,20 +39,18 @@ variables, never that file.
 The bundle supplies all four connection fields together and takes precedence over
 the individual `BE3_SERVER`, `BE3_ORGANIZATION`, `BE3_TOKEN` and
 `BE3_RECOVERY_PHRASE` variables, which a directly invoked CLI also accepts.
-`BE3_AUTHORIZATION` supplies a separate `Be3-Gateway-Authorization` header if needed; without it, `./scripts/be` sends the gateway key `./scripts/buck` saved (guides/build_server.md).
-Select “Account token supplied by proxy” in the agent dialog to copy a bundle
-without the account token. Configure the proxy to inject the shown
-`Authorization: Bearer ...` value on every request to the server; the bundle’s
-`authentication: "proxy"` selects header authentication in `be`. Treat the whole
-bundle as secret. A `be` built from the
-checkout (`./scripts/buck run //crates/be-tool-cli:native -- ARGS`) carries that
-checkout's build id, so it talks to a dev server built from the same tree, and
-the real server refuses it. `BE3_SERVER` is `https://api.be3.pfg.pw` unless
-set. `be` speaks to the server over HTTP posts (`/api/be/http`), since a cloud
-environment's proxy refuses websockets; requests made together share one post.
-It keeps the objects it reads in `~/.cache/be3/be/ORGANIZATION` (`BE3_CACHE`),
-still encrypted and named by their hash, so a later run reads only what
-changed.
+`BE3_SERVER` is `https://api.be3.pfg.pw` unless set.
+`BE3_AUTHORIZATION` supplies a separate `Be3-Gateway-Authorization` header if
+needed; without it, `./scripts/be` sends the gateway key `./scripts/buck` saved
+(guides/build_server.md).
+
+Selecting “Account token supplied by proxy” in the agent dialog copies a bundle
+without the account token; the proxy then injects the shown
+`Authorization: Bearer ...` value on every request to the server, and the
+bundle’s `authentication: "proxy"` selects header authentication in `be`
+(guides/hosting.md, Proxy account credentials).
+
+## Commands
 
 A command names a target and then a verb, and the verbs depend on
 what the target is:
@@ -73,56 +83,85 @@ be Code sync ~/code [--watch]           a folder or workspace and a directory, k
                                         step both ways (guides/sync.md)
 ```
 
+`--json` prints JSON.
+
+### Targets
+
 `be ls` lists the top: the organization's roots the account can see
 (`list-blocks` of the root's children) and each block shared with it whose parent it
-cannot see (`list-blocks` of what is shared, the host's Shared with me), never a settings block.
-`be` never lists the whole organization: it lists the top, then a block's
+cannot see (`list-blocks` of what is shared, the host's Shared with me), but no settings block.
+`be` does not list the whole organization: it lists the top, then a block's
 children when it needs them, one request per block, and keeps what it has
-listed for the rest of the command. `new-database` and `upload` without `--in`
-go into the one workspace the account may write in, or, with none, the one
-shared folder it may; with several they ask for `--in`. A target is a block, by
-its full id (read directly), or by the end of its id as `be ls` prints it (the
-last eight hex digits, which UUIDv7 makes random where its start is a
-timestamp) or its name, found a level at a time from the top, all of a level's
-listings sent together; the shallowest level with a match decides. A database
-view and the database inside it share a name, and the name means the database. A row is
-its id alone, `be ROW-ID [VERB]`, or named within its database, `be DATABASE row
-ROW-ID [VERB]`. A row's id is its database's prefix and six characters made from the
-row's own id, so it never changes and needs no coordination. The prefix is only a
-label: two databases may share one, and a copy keeps it. A row id alone resolves only
-through the prefix registries (`be_block::PrefixRegistry`, a workspace settings kind
-any editor of the workspace changes): `be` reads the registry of each workspace at the
-top and the open registry above each block shared with it, and takes the databases
-registered with that prefix that it can view and that still lie inside the registry's
-workspace. There is no search for a prefix beyond them; a prefix no registry lists
-fails, and one that names more than one database says which, so name the database
-instead. `new-database`, `upload`, and the database editor (when its prefix changes or
-it is opened somewhere it is not yet listed) write the database into the nearest
-registry above it, making the workspace's if there is none. Moving a block
-(`Peer::set_parent`, which `be TARGET move`, `be sync` and the host's moves all go
-through) moves the databases inside it from the registry above its old place to
-the one above its new place. The editor's Display
-menu says when another database there shares the prefix. Field values are matched by name, case
-aside: an option's name for an Enum column, a row's title or id for a Relation.
+listed for the rest of the command.
+
+A target is a block, by its full id (read directly), or by the end of its id as
+`be ls` prints it (the last eight hex digits, which UUIDv7 makes random where
+its start is a timestamp) or its name, found a level at a time from the top,
+all of a level's listings sent together; the shallowest level with a match
+decides. A database view and the database inside it share a name, and the name
+means the database.
+
+`new-database` and `upload` without `--in` go into the one workspace the
+account may write in, or, with none, the one shared folder it may; with
+several they ask for `--in`.
+
+### Rows and prefixes
+
+A row is its id alone, `be ROW-ID [VERB]`, or named within its database,
+`be DATABASE row ROW-ID [VERB]`. A row's id is its database's prefix and six
+characters made from the row's own id, so it never changes and needs no
+coordination. The prefix is only a label: two databases may share one, and a
+copy keeps it.
+
+A row id alone resolves only through the prefix registries
+(`be_block::PrefixRegistry`, a workspace settings kind any editor of the
+workspace changes): `be` reads the registry of each workspace at the top and
+the open registry above each block shared with it, and takes the databases
+registered with that prefix that it can view and that still lie inside the
+registry's workspace. There is no search for a prefix beyond them; a prefix no
+registry lists fails, and one that names more than one database says which, so
+name the database instead. The database editor's Display menu says when
+another database there shares the prefix.
+
+`new-database`, `upload`, and the database editor (when its prefix changes or
+it is opened somewhere it is not yet listed) write the database into the
+nearest registry above it, making the workspace's if there is none. Moving a
+block (`Peer::set_parent`, which `be TARGET move`, `be sync` and the host's
+moves all go through) moves the databases inside it from the registry above
+its old place to the one above its new place.
+
+### Fields
+
+Field values are matched by name, case aside: an option's name for an Enum
+column, a row's title or id for a Relation. The title is the first text column.
 `option FIELD OPTION` changes an option the column has, refusing any other
-name, and `add-option` adds one; both take
-`color=`, `icon=`, `closed=yes|no` (a closed option marks a row finished),
-`default=yes|no`, `name=`, `after=OPTION` and `first=yes`. A new row, by `new`
-or `import`, takes each Enum column's default option unless it sets that column.
-A relation of several rows takes `FIELD=A,B`, `FIELD+=A` and `FIELD-=A`, and so
-does its inverse column (`Blocking+=BE-…` writes `Blocked by` on that row). The
-title is the first text column. `--body` replaces the row's page and `--append`
-adds a paragraph to it; `-` reads either from standard input. `--json` prints
-JSON. `download` writes a block file (`crates/be-block-client/src/transfer.rs`): each
+name, and `add-option` adds one; both take `color=`, `icon=`,
+`closed=yes|no` (a closed option marks a row finished), `default=yes|no`,
+`name=`, `after=OPTION` and `first=yes`. A new row, by `new` or `import`, takes
+each Enum column's default option unless it sets that column. A relation of
+several rows takes `FIELD=A,B`, `FIELD+=A` and `FIELD-=A`, and so does its
+inverse column (`Blocking+=BE-…` writes `Blocked by` on that row). `--body`
+replaces the row's page and `--append` adds a paragraph to it; `-` reads either
+from standard input.
+
+### Block files and imports
+
+`download` writes a block file (`crates/be-block-client/src/transfer.rs`): each
 block's type, metadata, references and decrypted content bytes, the outermost
 block first and every block after its parent, into a new file only its owner
-may read; a database inside a view is downloaded from the view. The host writes and reads the same file: the files
-pane's Export as, Block file, and the block picker's Import tab. `upload` gives every block a new id and swaps the old
+may read; a database inside a view is downloaded from the view. The host writes
+and reads the same file: the files pane's Export as, Block file, and the block
+picker's Import tab. `upload` gives every block a new id and swaps the old
 ids for the new ones in the content bytes (as 16 raw bytes, hyphenated or
 simple hex) and references, so the copy points at its own children; ids of
-blocks outside the file are left as they were. The file format is frozen (guides/frozen_formats.md). An import's Title column is the title, Description the page, and every
-column named like a field sets it, adding the options an Enum column lacks and
-the rows a Relation column names that its database lacks.
+blocks outside the file are left as they were. The file format is frozen
+(guides/frozen_formats.md).
+
+An import's Title column is the title, Description the page, and every column
+named like a field sets it, adding the options an Enum column lacks and the
+rows a Relation column names that its database lacks.
+
+## Working on a row
 
 When a task names a row, read it with `be ID` first, and put its id in the
 pull request's title or body (or the branch name) so GitHub moves it. File the
@@ -161,8 +200,7 @@ them in the handoff.
   saved (`tests/frozen_database*.rs`) and check it still loads, so a change to
   these types only adds fields, variants and kinds (guides/frozen_formats.md).
 - **Agents.** Any member adds one from the host menu (Agents, in either a
-  personal or company organization). Listing and removal are scoped to the
-  creator; other members cannot list or remove the agent. The host makes a recovery phrase for it, the server
+  personal or company organization). Only its creator can list or remove it. The host makes a recovery phrase for it, the server
   makes an editor account with no password and a token (`CreateAgent`) and
   records the agent and its creator as contacts, and the host writes the agent's
   public key into its contact row, so every device of the creator can share
@@ -176,7 +214,7 @@ them in the handoff.
   deletes its account, its tokens and what was sealed to it.
 - **Writes.** `be` reads the block's head bytes, makes the new content and
   publishes it against the head it read (`Tracker::edit`), retrying on the new
-  head when the publish is rejected, so it never overwrites a save it did not
+  head when the publish is rejected, so it does not overwrite a save it did not
   see. Every publish takes its references and derived metadata from the type
   module's `Describe`. An editor with the block open takes the new head the way
   it takes any outside publish, merging it with what it has not saved yet.
@@ -188,7 +226,7 @@ them in the handoff.
   with `ToFile` and written with `Apply` of `Change::FromFile` (a text write
   changes only the span that differs), and a folder or workspace lists a child
   with `Change::Child`. The modules start on first use
-  (`Tracker::types`), so `be ls` never compiles one. Deleting a row also
+  (`Tracker::types`), so `be ls` compiles none. Deleting a row also
   removes the links to it from the rows of its own database.
 - **GitHub.** `.github/workflows/tracker.yml` runs `be DATABASE pull-request`
   on the event, with the database's full id from the `BE3_TRACKER_DATABASE`
@@ -199,8 +237,7 @@ them in the handoff.
   `BE3_TRACKER_CREDENTIALS` JSON secret and (for a gateway)
   `BE3_TRACKER_AUTHORIZATION`. It passes them as environment variables to
   `./scripts/be` from the default branch, alongside the status variables. The
-  pinned CLI must support the bundle format; deploy the CLI and server together
-  before configuring the new secret. The workflow never executes PR-head code.
+  workflow does not execute PR-head code.
 - **Releases.** `./scripts/deploy` (guides/hosting.md) uploads `be` with the
   server it deploys and pins it in `scripts/internal/pins`.
 - **Proxies.** `be-block-client` tunnels `https` and `wss` through `HTTPS_PROXY` and

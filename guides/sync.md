@@ -14,8 +14,10 @@ be sync ~/code --watch [SECONDS]    keep going: on every change on disk, and eve
 The code is `crates/be-block-sync`, used by `be` (`crates/be-tool-cli`). It knows no block
 format: every block's file form comes from its type module
 (guides/type_modules.md), through the `be_block_type_host::Modules` its caller hands
-`sync` and `watch`. A folder export in the host (plans/daily_driver.md, phase 7)
-should use the same requests rather than writing another mapping, as be-host's files opened in programs do (`to-file` to write a block out and `from-file` to take a program's save back, guides/desktop/linux.md).
+`sync` and `watch`. be-host's files opened in programs use the same requests
+(`to-file` to write a block out and `from-file` to take a program's save back,
+guides/desktop/linux.md), and a folder export in the host (plans/daily_driver.md,
+phase 7) can too, with no mapping of its own.
 
 ## What becomes what
 
@@ -36,7 +38,7 @@ should use the same requests rather than writing another mapping, as be-host's f
   directory is a block of the type that claims directories (`Claims` with
   `directory`, a folder), its children added with `Change::Child`, and a
   directory's entries change the same way.
-- `be sync` never joins a live session. Every change it makes is a commit
+- `be sync` does not join a live session. Every change it makes is a commit
   published against the head it read (step 5 below). A session open in be-host
   takes that in as it does any publish from elsewhere (its replica's
   `Head { Moved }`, guides/type_modules.md): it merges the new head with what was
