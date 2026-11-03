@@ -1,5 +1,6 @@
 use be_sdk_beui::beui::accesskit::{Node, Role, Toggled};
 use be_sdk_beui::beui::dock::styled::TabId;
+use be_sdk_beui::beui::dock::unstyled::holding_area;
 use be_sdk_beui::beui::icons::{
     ICON_APP_WINDOW, ICON_ARCHIVE_RESTORE, ICON_EXTERNAL_LINK, ICON_EYE, ICON_EYE_OFF,
     ICON_MONITOR, ICON_X,
@@ -11,7 +12,7 @@ use be_sdk_beui::beui::unstyled;
 use be_sdk_beui::beui::{Align, Direction, Extent, ItemSize, NodeId, Pos2, Rect, Sizing};
 use be_sdk_beui::desktop;
 use be_sdk_beui::{DisplaysWatch, HostWindow, HostWindowId, WindowAction, WindowKind};
-use be_sdk_shell::{WindowManager, Workspace, window_name, window_picture, window_tab};
+use be_sdk_shell::{Workspace, window_name, window_picture, window_tab};
 use std::collections::HashMap;
 
 use super::bar::bar_bounds;
@@ -48,31 +49,18 @@ pub(crate) fn picked(entries: &[HostWindow]) -> Vec<HostWindowId> {
     displays.chain(windows).map(|entry| entry.id).collect()
 }
 
-fn overlap(left: Rect, right: Rect) -> f32 {
-    let shared = left.intersect(right);
-    shared.width().max(0.0) * shared.height().max(0.0)
-}
-
 pub(crate) fn holder(window: Option<Rect>, displays: &[Rect]) -> u32 {
     let (Some(window), Some(first)) = (window, displays.first()) else {
         return 0;
     };
     let window = window.translate(first.min.to_vec2());
-    let mut best = (0, 0.0);
-    for (at, display) in displays.iter().enumerate() {
-        let shared = overlap(window, *display);
-        if shared > best.1 {
-            best = (at as u32, shared);
-        }
-    }
-    best.0
+    holding_area(window, displays).unwrap_or(0) as u32
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct DeskWindows {
     workspace: Workspace,
     pub(crate) placeholders: Placeholders,
-    pub(crate) manager: WindowManager,
     all: Memo<Vec<ChipKey>>,
     displays: Memo<Vec<Rect>>,
     bands: Signal<HashMap<u32, Rect>>,
@@ -120,13 +108,16 @@ impl DeskWindows {
                             (_, inside) => inside.unwrap_or(whole).translate(display.min - first),
                         }
                     })
-                    .collect()
+                    .collect::<Vec<Rect>>()
             })
+        });
+        create_effect(move || {
+            let areas = areas.get();
+            untrack(|| layout.set_areas(areas));
         });
         Self {
             workspace,
             placeholders,
-            manager: WindowManager::new(workspace, areas),
             all,
             displays,
             bands,
@@ -195,8 +186,9 @@ impl DeskWindows {
     }
 
     fn move_to(&self, chip: ChipKey, display: u32) {
-        self.manager
-            .move_to_display(self.tab(chip), display as usize);
+        self.workspace
+            .layout()
+            .move_to_area(&self.tab(chip), display as usize);
     }
 
     fn tab(&self, chip: ChipKey) -> TabId {
@@ -209,10 +201,16 @@ impl DeskWindows {
 
     fn shown(&self, chip: ChipKey) -> bool {
         match chip {
-            ChipKey::Window(id) => self
-                .workspace
-                .entries()
-                .with(|entries| entries.iter().any(|entry| entry.id == id && entry.shown)),
+            ChipKey::Window(id) => {
+                let tab = self.tab(chip);
+                match self.workspace.layout().window_rect(&tab).is_some() {
+                    true => !self.workspace.is_hidden(tab),
+                    false => self
+                        .workspace
+                        .entries()
+                        .with(|entries| entries.iter().any(|entry| entry.id == id && entry.shown)),
+                }
+            }
             ChipKey::Placeholder(_) => true,
             ChipKey::Block(tab) => !self.workspace.is_hidden(tab),
         }
@@ -242,7 +240,7 @@ impl DeskWindows {
 
     fn hide(&self, chip: ChipKey) {
         if !matches!(chip, ChipKey::Placeholder(_)) {
-            self.manager.hide(self.tab(chip));
+            self.workspace.hide(self.tab(chip));
         }
     }
 

@@ -34,7 +34,7 @@ use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
-    WindowPanel, floating_window, kept_window, program_name, shown_size, shown_windows, tab_window,
+    WindowPanel, floating_window, kept_window, listed_windows, program_name, shown_size, tab_window,
     window_name, window_picture, window_tab,
 };
 use beui::ItemSize;
@@ -97,8 +97,13 @@ pub struct Workspace {
     panels: Signal<Vec<HostPanel>>,
     landing_for: Signal<Option<Uuid>>,
     default_editors: Memo<EditorSettings>,
-    hidden: Signal<Vec<TabId>>,
-    showing: Signal<Option<TabId>>,
+    mirrored: StoredCell<HashMap<HostWindowId, Mirrored>>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Mirrored {
+    seen: Option<bool>,
+    asked: Option<bool>,
 }
 
 impl Workspace {
@@ -117,7 +122,8 @@ impl Workspace {
         let share = create_signal(None);
         let panels = create_signal(Vec::new());
         let entries = editor.watch::<WindowsWatch>();
-        let windows = create_memo(move || entries.with(|entries| shown_windows(entries)));
+        let windows =
+            create_memo(move || entries.with(|entries| listed_windows(entries, keeps_windows)));
         let kept = create_signal(Kept::default());
         let desk = create_memo(move || {
             kept.with(|kept| windows.with(|windows| kept::sort_out(kept, windows)))
@@ -161,12 +167,13 @@ impl Workspace {
             unreadable: create_signal(None),
             panels,
             landing_for: create_signal(None),
-            hidden: create_signal(Vec::new()),
-            showing: create_signal(None),
+            mirrored: StoredCell::new(HashMap::new()),
         };
-        create_effect(move || {
-            workspace.show_when_laid_out();
-        });
+        if keeps_windows {
+            create_effect(move || {
+                workspace.mirror_shown();
+            });
+        }
         create_effect(move || {
             workspace.forget_closed_places();
         });
@@ -438,111 +445,106 @@ impl Workspace {
     }
 
     pub fn shows(&self, id: Uuid) -> bool {
+        let layout = self.layout();
         self.tabs.with(|tabs| {
             tabs.iter()
-                .any(|(tab, item)| item.id == id && !self.is_hidden(*tab))
+                .any(|(tab, item)| item.id == id && !layout.is_hidden(tab))
         })
     }
 
     pub fn is_hidden(&self, tab: TabId) -> bool {
-        self.hidden.with(|hidden| hidden.contains(&tab))
-    }
-
-    pub fn shown_block_tabs(&self) -> Memo<Vec<TabId>> {
-        let tabs = self.block_tabs();
-        let hidden = self.hidden;
-        create_memo(move || {
-            let mut shown = tabs.get();
-            hidden.with(|hidden| shown.retain(|tab| !hidden.contains(tab)));
-            shown
-        })
+        self.layout().is_hidden(&tab)
     }
 
     pub fn hide(&self, tab: TabId) {
-        if let Some(key) = tab_window(tab) {
-            if let Some(window) = self.desk.with_untracked(|desk| desk.window(key)) {
-                self.host()
-                    .act(move || desktop::windows::request(WindowAction::Hide(window)).detach());
-            }
+        let layout = self.layout();
+        if untrack(|| layout.window_rect(&tab)).is_some() {
+            layout.hide_window(&tab);
+            untrack(|| self.mirror_shown());
             return;
         }
-        if self.tabs.with_untracked(|tabs| !tabs.contains_key(&tab)) {
+        let Some(key) = tab_window(tab) else {
             return;
+        };
+        if let Some(window) = self.desk.with_untracked(|desk| desk.window(key)) {
+            self.host()
+                .act(move || desktop::windows::request(WindowAction::Hide(window)).detach());
         }
-        self.hidden.update(|hidden| {
-            if !hidden.contains(&tab) {
-                hidden.push(tab);
-            }
-        });
     }
 
     pub fn show(&self, tab: TabId) {
-        if let Some(key) = tab_window(tab) {
-            let window = self
-                .desk
-                .with_untracked(|desk| desk.window(key))
-                .unwrap_or(key);
-            let hidden = self.entries.with_untracked(|entries| {
+        let layout = self.layout();
+        let Some(key) = tab_window(tab) else {
+            layout.show(&tab);
+            return;
+        };
+        let window = self
+            .desk
+            .with_untracked(|desk| desk.window(key))
+            .unwrap_or(key);
+        let floating = untrack(|| layout.window_rect(&tab)).is_some();
+        if floating {
+            layout.show(&tab);
+            untrack(|| self.mirror_shown());
+        }
+        let hidden = !floating
+            && self.entries.with_untracked(|entries| {
                 entries
                     .iter()
                     .any(|entry| entry.id == window && !entry.shown)
             });
-            self.host().act(move || {
-                if hidden {
-                    desktop::windows::request(WindowAction::Show(window)).detach();
-                }
-                desktop::windows::request(WindowAction::Focus(window)).detach();
-            });
-            return;
-        }
-        let layout = self.layout();
-        match untrack(|| self.is_hidden(tab)) {
-            true => {
-                self.hidden
-                    .update(|hidden| hidden.retain(|held| *held != tab));
-                self.showing.set(Some(tab));
+        self.host().act(move || {
+            if hidden {
+                desktop::windows::request(WindowAction::Show(window)).detach();
             }
-            false => layout.show(&tab),
-        }
+            desktop::windows::request(WindowAction::Focus(window)).detach();
+        });
     }
 
-    pub fn shown_window_tabs(&self) -> Vec<TabId> {
-        let mut tabs: Vec<TabId> = self
-            .desk
-            .with(|desk| desk.keys.iter().map(|key| window_tab(*key)).collect());
-        tabs.extend(self.shown_block_tabs().get());
-        tabs
-    }
-
-    pub fn program_window(&self, tab: TabId) -> Option<HostWindowId> {
-        let key = tab_window(tab)?;
-        self.desk.with(|desk| desk.window(key))
-    }
-
-    pub(crate) fn kind_of(&self, tab: TabId) -> Option<String> {
-        match self.program_window(tab) {
-            Some(window) => self.windows.with(|windows| {
-                windows
-                    .iter()
-                    .find(|listed| listed.id == window)
-                    .map(|listed| format!("program:{}", listed.program_id))
-            }),
-            None => self.tabs.with(|tabs| {
-                tabs.get(&tab)
-                    .map(|item| format!("block:{}", item.block_type))
-            }),
-        }
-    }
-
-    fn show_when_laid_out(&self) {
-        let Some(tab) = self.showing.get() else {
-            return;
-        };
+    fn mirror_shown(&self) {
         let layout = self.layout();
-        if layout.contains(&tab) {
-            untrack(|| {
-                self.showing.set(None);
-                layout.show(&tab);
+        let windows: Vec<(HostWindowId, bool)> = self.windows.with(|windows| {
+            windows
+                .iter()
+                .filter(|window| window.parent.is_none())
+                .map(|window| (window.id, window.shown))
+                .collect()
+        });
+        let mut asks = Vec::new();
+        let mut mirrored = self.mirrored.take();
+        mirrored.retain(|window, _| windows.iter().any(|(listed, _)| listed == window));
+        for (window, shown) in windows {
+            let tab = self.window_tab_of(window);
+            if layout.window_rect(&tab).is_none() {
+                continue;
+            }
+            let held = !layout.is_hidden(&tab);
+            let mirror = mirrored.entry(window).or_default();
+            if mirror.seen != Some(shown) {
+                mirror.seen = Some(shown);
+                let asked = mirror.asked.take();
+                if asked != Some(shown) && held != shown {
+                    untrack(|| match shown {
+                        true => layout.show(&tab),
+                        false => layout.hide_window(&tab),
+                    });
+                }
+                continue;
+            }
+            if held != shown && mirror.asked != Some(held) {
+                mirror.asked = Some(held);
+                asks.push(match held {
+                    true => WindowAction::Show(window),
+                    false => WindowAction::Hide(window),
+                });
+            }
+        }
+        self.mirrored.set(mirrored);
+        if !asks.is_empty() {
+            self.host().act(move || {
+                for ask in asks {
+                    desktop::windows::request(ask).detach();
+                }
             });
         }
     }
@@ -1206,8 +1208,6 @@ impl Workspace {
             }
         }
         self.tabs.set(tabs);
-        self.hidden
-            .update(|hidden| hidden.retain(|held| *held != tab));
         if !still_open {
             self.forget(closed.id);
         }
@@ -1374,8 +1374,13 @@ impl Workspace {
 pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
     let title = workspace.tab_title(tab);
     let icon = workspace.tab_glyph(tab);
+    let group = create_memo(move || {
+        workspace
+            .tab(tab)
+            .map(|item| format!("block:{}", item.block_type))
+    });
     view! {
-        <DockTab id=tab title icon on_close={move || workspace.close(tab)}>
+        <DockTab id=tab title icon group on_close={move || workspace.close(tab)}>
             <BlockPanel workspace={workspace} tab />
         </DockTab>
     }
@@ -1422,6 +1427,7 @@ pub fn WindowTab(
     let note = create_memo(move || info.get()?.note);
     let menu = create_memo(move || info.get()?.menu);
     let picture = create_memo(move || info.get()?.icon.as_ref().and_then(window_picture));
+    let group = create_memo(move || Some(format!("program:{}", info.get()?.program_id)));
     let editor = workspace.editor();
     let tab = window_tab(key);
     view! {
@@ -1430,6 +1436,7 @@ pub fn WindowTab(
             title
             icon=ICON_APP_WINDOW
             picture
+            group
             on_close={move || workspace.close(tab)}
             back_closes=false
         >

@@ -2,7 +2,6 @@ mod bar;
 mod calendar;
 mod clock;
 mod ending;
-mod fullscreen;
 mod launcher;
 mod layouts;
 pub(crate) mod media;
@@ -15,7 +14,6 @@ mod programs_panel;
 mod rotate;
 mod sessions;
 mod status;
-mod switcher;
 mod tray;
 mod volume;
 mod wifi;
@@ -191,14 +189,13 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout();
-    switcher::bind_window_switcher(layout);
     let failure = workspace.error();
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
     let desk = workspace.desk();
     let placeholders = Placeholders::new(workspace);
     let windows = DeskWindows::new(workspace, placeholders);
-    let block_windows = workspace.shown_block_tabs();
+    let block_windows = workspace.block_tabs();
     ending::keep_windows_through_ending(workspace);
     let placeholder = RenderFn::new(move |key: HostWindowId| {
         view! {
@@ -268,7 +265,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 <Show condition={several_layouts}>
                     <layouts::LayoutKey layouts />
                 </Show>
-                <WindowShortcuts editor manager={windows.manager} />
+                <WindowShortcuts editor layout />
                 <media::LevelDisplay osd area display=0 />
                 <Show condition={launches}>
                     <ProgramsPanelKey programs_panel windows layout />

@@ -4137,6 +4137,11 @@ impl DockApi {
             self.0.ask_bar(request);
         }
     }
+
+    pub(crate) fn focused_dialog(&self) -> Option<TabId> {
+        let focus = self.0.dialog_focus;
+        focus.is_alive().then(|| focus.get()).flatten()
+    }
 }
 
 fn tracked_rect(node: NodeId) -> Option<Rect> {

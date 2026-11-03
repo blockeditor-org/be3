@@ -98,7 +98,7 @@ pub fn window_picture(icon: &HostImage) -> Option<Image> {
         .then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
 }
 
-pub fn shown_windows(entries: &[HostWindow]) -> Vec<HostWindow> {
+pub fn listed_windows(entries: &[HostWindow], with_hidden: bool) -> Vec<HostWindow> {
     let by_id: std::collections::HashMap<HostWindowId, &HostWindow> =
         entries.iter().map(|entry| (entry.id, entry)).collect();
     let top_shown = |window: &HostWindow| {
@@ -109,7 +109,7 @@ pub fn shown_windows(entries: &[HostWindow]) -> Vec<HostWindow> {
                 None => break,
             }
         }
-        at.shown && window.shown
+        with_hidden || (at.shown && window.shown)
     };
     entries
         .iter()

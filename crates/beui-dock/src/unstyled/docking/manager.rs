@@ -301,6 +301,15 @@ impl<K: DockKey> DockingLayout<K> {
 
     pub fn focused_window(&self) -> Option<K> {
         let focused = self.tab_of(&self.focused()?)?;
+        let dialog = self
+            .inner()
+            .registry
+            .dock
+            .get()
+            .and_then(|dock| dock.try_get())
+            .and_then(|dock| dock.focused_dialog())
+            .filter(|dialog| self.dialog_root(*dialog) == focused);
+        let focused = dialog.unwrap_or(focused);
         let root = self.dialog_root(focused);
         let shown = self.state.with(|state| {
             floating_surface(state, root).is_some_and(|surface| !state.is_hidden(surface))
