@@ -26,7 +26,7 @@ fn a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it() {
     );
     let parent_tab = fixture
         .test
-        .rect_of(&format!("dock.tab.{}", (1u64 << 41) + 1));
+        .rect_of("dock.tab.2");
     assert!(
         dialog.top() > parent_tab.bottom()
             && dialog.left() <= parent_tab.center().x

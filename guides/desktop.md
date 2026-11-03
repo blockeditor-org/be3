@@ -193,7 +193,7 @@ session is ending (`Workspace::keep_through_ending`), when a window its program 
 again for leaves its tab as a placeholder. The desktop app puts each program tab in a floating
 dock window of its own (`ProgramWindow`); workspace-ui puts them in its editors pane, or floating
 where the host opens windows (`opens_windows()`, true only in space). The person can dock either
-anywhere after. A display entry (`kind: display`, Windows) opens hidden.
+anywhere after. A display entry (`kind: display`, Windows) is hidden as soon as its child has reported its name.
 
 A program's dialog (a toplevel with a parent: an xdg toplevel's parent or xdg-dialog, an X11
 transient, a Windows owned window) is never a tab: be-sdk-shell's `WindowDialog` declares it as a

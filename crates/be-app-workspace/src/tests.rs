@@ -107,6 +107,7 @@ struct Fixture<A: be_sdk_beui::BeuiRoot = WorkspaceUiRoot> {
 struct TestWindow {
     id: u64,
     title: String,
+    name: String,
     program_id: String,
     parent: Option<u64>,
     modal: bool,
@@ -117,6 +118,24 @@ struct TestWindow {
 }
 
 impl TestWindow {
+    fn named(&self, parent: Option<&TestWindow>) -> String {
+        let name = match self.name.is_empty() {
+            true => parent.map_or_else(String::new, |parent| parent.name.clone()),
+            false => self.name.clone(),
+        };
+        let title = self.title.trim();
+        let title = title
+            .strip_suffix(&format!(" - {name}"))
+            .filter(|_| !name.is_empty())
+            .unwrap_or(title);
+        let untitled = title.is_empty() || title == name || title == self.program_id;
+        match (name.is_empty(), untitled) {
+            (true, _) => title.to_owned(),
+            (false, true) => name,
+            (false, false) => format!("{name} \u{2014} {title}"),
+        }
+    }
+
     fn listed(&self) -> be_sdk_beui::HostWindow {
         be_sdk_beui::HostWindow {
             id: HostWindowId(self.id),
@@ -160,7 +179,7 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
     fn report_windows(&mut self) -> bool {
         let placed: Vec<(ChildId, u64)> = self
             .test
-            .children()
+            .every_child()
             .iter()
             .filter_map(|placement| match placement.content {
                 ChildContent::Window(window) => Some((placement.child, window.0)),
@@ -176,8 +195,12 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
                 continue;
             }
             self.reported.insert(child, window.clone());
+            let parent = window
+                .parent
+                .and_then(|parent| self.windows.iter().find(|held| held.id == parent));
+            let title = window.named(parent);
             self.test.report_child(child, move |status| {
-                status.title = Some(window.title);
+                status.title = Some(title);
                 status.icon = window.icon;
                 status.group = Some(window.program_id).filter(|id| !id.is_empty());
                 status.raised = window.raised;
@@ -325,7 +348,7 @@ const PROGRAMS: [(&str, &str); 5] = [
 ];
 
 fn window(id: u64, title: &str, parent: Option<u64>) -> TestWindow {
-    let (program_id, _) = match parent {
+    let (program_id, name) = match parent {
         Some(_) => ("", ""),
         None => PROGRAMS
             .into_iter()
@@ -335,6 +358,7 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> TestWindow {
     TestWindow {
         id,
         title: title.to_owned(),
+        name: name.to_owned(),
         program_id: program_id.to_owned(),
         parent,
         modal: false,

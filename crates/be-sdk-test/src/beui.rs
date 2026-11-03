@@ -120,6 +120,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     overflows: Vec<String>,
     viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
+    views_children: Vec<(ViewId, Vec<ChildPlacement>)>,
     occluders: Vec<Occluder>,
     report: Option<FrameReport>,
     window: be_sdk_api::WindowRequests,
@@ -404,6 +405,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             overflows: Vec::new(),
             viewport: None,
             children: Vec::new(),
+            views_children: Vec::new(),
             occluders: Vec::new(),
             report: None,
             window: be_sdk_api::WindowRequests::default(),
@@ -980,12 +982,23 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.report_children(|placement| available_status(view, placement));
     }
 
-    pub fn report_child(&mut self, child: ChildId, change: impl FnOnce(&mut ChildStatus)) {
-        let view = self.view().id;
-        let placement = self
-            .children
+    pub fn every_child(&self) -> Vec<ChildPlacement> {
+        self.views_children
             .iter()
-            .find(|placement| placement.child == child)
+            .flat_map(|(_, children)| children.iter().cloned())
+            .collect()
+    }
+
+    pub fn report_child(&mut self, child: ChildId, change: impl FnOnce(&mut ChildStatus)) {
+        let (view, placement) = self
+            .views_children
+            .iter()
+            .find_map(|(view, children)| {
+                children
+                    .iter()
+                    .find(|placement| placement.child == child)
+                    .map(|placement| (*view, placement))
+            })
             .expect("the editor placed the child to report on");
         let mut status = available_status(view, placement);
         change(&mut status);
@@ -1187,6 +1200,12 @@ impl<A: BeuiRoot> BeuiTest<A> {
         let view = self.view().id;
         let asked = commit.window_requests;
         let reports = commit.reports.clone();
+        for placements in &commit.children {
+            self.views_children
+                .retain(|(held, _)| *held != placements.view);
+            self.views_children
+                .push((placements.view, placements.children.clone()));
+        }
         if let Some(placements) = commit
             .children
             .into_iter()

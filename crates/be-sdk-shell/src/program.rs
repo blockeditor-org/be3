@@ -296,7 +296,18 @@ pub(crate) fn program_name(record: &ProgramRecord, program: Option<&HostProgram>
                 .to_owned()
         })
     };
+    let program_id = || {
+        let id = record.program_id.trim();
+        let file = id.rsplit(['/', '\\']).next().unwrap_or(id);
+        let file = match file.len().checked_sub(4).and_then(|cut| file.get(cut..)) {
+            Some(extension) if extension.eq_ignore_ascii_case(".exe") => &file[..file.len() - 4],
+            _ => file,
+        };
+        Some(file.rsplit('.').next().unwrap_or(file).to_owned())
+    };
     named
+        .filter(|name| !name.is_empty())
+        .or_else(|| program_id().filter(|name| !name.is_empty()))
         .or_else(command)
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "Program".to_owned())
@@ -318,6 +329,10 @@ impl Workspace {
         let windows = self.windows.get();
         untrack(|| {
             let mut programs = self.programs.get_untracked();
+            let before: HashMap<TabId, Option<HostWindowId>> = programs
+                .iter()
+                .map(|(tab, program)| (*tab, program.window))
+                .collect();
             let mut next = self.next_tab();
             let catalog = self.catalog.get_untracked();
             let gone = place(&mut programs, &windows, ending, &mut next, |record| {
@@ -326,9 +341,27 @@ impl Workspace {
                     || program_for(record, &catalog).is_some()
             });
             self.set_next_tab(next);
-            if !gone.is_empty() {
-                self.heard
-                    .update(|heard| heard.retain(|tab, _| !gone.contains(tab)));
+            let dialogs: HashSet<TabId> = windows
+                .iter()
+                .filter(|window| window.parent.is_some())
+                .map(|window| dialog_tab(window.id))
+                .collect();
+            let rebound: HashSet<TabId> = programs
+                .iter()
+                .filter(|(tab, program)| {
+                    program.window.is_some()
+                        && before.get(tab).is_some_and(|held| *held != program.window)
+                })
+                .map(|(tab, _)| *tab)
+                .collect();
+            let kept = |tab: &TabId| {
+                (programs.contains_key(tab) && !rebound.contains(tab)) || dialogs.contains(tab)
+            };
+            let stale = self
+                .heard
+                .with_untracked(|heard| heard.keys().any(|tab| !kept(tab)));
+            if stale || !gone.is_empty() || !rebound.is_empty() {
+                self.heard.update(|heard| heard.retain(|tab, _| kept(tab)));
             }
             if programs != self.programs.get_untracked() {
                 self.programs.set(programs);
@@ -706,8 +739,10 @@ pub fn ProgramWindow(workspace: Workspace, tab: TabId) -> DockNode<TabId> {
     let area = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area - reach);
     let rect = cascaded(tab.value(), PLACEHOLDER_SIZE + WINDOW_CHROME, area);
     if untrack(|| workspace.is_display(tab)) && workspace.needs_size(tab) {
+        let heard = workspace.heard_of(tab);
+        let named = create_memo(move || heard.with(|heard| heard.title.is_some()));
         create_effect(move || {
-            if layout.window_rect(&tab).is_some() {
+            if named.get() && layout.window_rect(&tab).is_some() {
                 untrack(|| {
                     workspace.sized(tab);
                     layout.hide_window(&tab);
@@ -798,7 +833,8 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                 }
                 workspace.sized(tab);
                 let area = layout.area();
-                let local = Rect::from_min_size(Pos2::ZERO, area.size());
+                let reach = Vec2::splat(be_sdk_beui::beui::dock::unstyled::HANDLE_REACH);
+                let local = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area.size() - reach);
                 let rect = cascaded(tab.value(), size + WINDOW_CHROME, local);
                 control.resize_window(rect.size());
                 layout.move_window(&tab, rect.min + area.min.to_vec2());

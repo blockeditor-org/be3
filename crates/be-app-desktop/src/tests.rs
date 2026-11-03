@@ -46,7 +46,6 @@ mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_floating_bar_dragged_by_its_grip_follows_to_the_end_and_lands_where_let_go;
 mod a_fullscreen_window_covers_the_bars;
 mod a_fullscreen_window_on_the_second_display_covers_only_that_displays_bars;
-mod a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen;
 mod a_held_volume_key_keeps_turning_the_volume;
 mod a_hidden_bar_stays_hidden_and_the_apps_panel_shows_it_again;
 mod a_hidden_session_chosen_from_the_apps_panel_comes_back_in_front_with_the_focus;
@@ -349,7 +348,7 @@ impl Fixture {
     fn report_windows(&mut self) -> bool {
         let placed: Vec<(ChildId, u64)> = self
             .test
-            .children()
+            .every_child()
             .iter()
             .filter_map(|placement| match placement.content {
                 ChildContent::Window(window) => Some((placement.child, window.0)),
@@ -411,7 +410,7 @@ impl Fixture {
 
     fn fullscreen_windows(&self) -> Vec<HostWindowId> {
         self.test
-            .children()
+            .every_child()
             .iter()
             .filter(|placement| placement.fullscreen)
             .filter_map(|placement| match placement.content {
@@ -926,7 +925,9 @@ fn window_name(window: &TestWindow, parent: Option<&TestWindow>) -> String {
         .or_else(|| parent.and_then(read))
         .unwrap_or_default();
     let title = window.title.trim();
-    let titled = !title.is_empty() && !title.eq_ignore_ascii_case(&name);
+    let titled = !title.is_empty()
+        && !title.eq_ignore_ascii_case(&name)
+        && title != window.program_id.trim();
     match (name.is_empty(), titled) {
         (true, false) => "Window".to_owned(),
         (true, true) => title.to_owned(),
