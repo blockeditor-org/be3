@@ -24,6 +24,7 @@ use crate::editors::{AppEditor, Chrome, EditorRegistry, PendingCreation, editor_
 use crate::surfaces::{ConflictNotice, HostedSurface, HostedView, StaleBlock, SurfaceId};
 use crate::ui::HostPanelSurface;
 use be_host_desktop::host_item::{HostItem, HostItemFace};
+use be_host_desktop::window_body::WindowStatus;
 use be_host_runtime::{ChildCommit, HostChild, HostChildStatus, HostContent};
 use beui::{Align, Direction, ItemSize, Placement};
 
@@ -1656,15 +1657,7 @@ fn HostedChild(
             if let Some(window) = placed_window.get()
                 && let Some(shown) = Host::window_status(window)
             {
-                status.title = Some(shown.title.clone());
-                status.icon = shown.icon.clone();
-                status.group = Some(shown.group.clone()).filter(|group| !group.is_empty());
-                status.raised = shown.raised;
-                status.rung = shown.rung;
-                status.fullscreen = shown.fullscreen;
-                status.notice = shown.notice.clone();
-                status.menu_asked = shown.menu;
-                status.intrinsic = shown.intrinsic();
+                with_window(&mut status, shown);
             }
             if kind.get() == Kind::NoPicker {
                 status.error = Some(NO_PICKER.to_owned());
@@ -2097,6 +2090,19 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
             false => Vec::new(),
         },
     }
+}
+
+fn with_window(status: &mut HostChildStatus, shown: WindowStatus) {
+    let intrinsic = shown.intrinsic();
+    status.title = Some(shown.title);
+    status.icon = shown.icon;
+    status.group = Some(shown.group).filter(|group| !group.is_empty());
+    status.raised = shown.raised;
+    status.rung = shown.rung;
+    status.fullscreen = shown.fullscreen;
+    status.notice = shown.notice;
+    status.menu_asked = shown.menu;
+    status.intrinsic = intrinsic;
 }
 
 fn reporter_for(parent: Uuid, region: View, key: ChildId, within: Callback<()>) -> ChildReporter {
