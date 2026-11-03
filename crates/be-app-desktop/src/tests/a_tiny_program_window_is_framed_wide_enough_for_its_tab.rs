@@ -28,7 +28,11 @@ fn a_tiny_program_window_is_framed_wide_enough_for_its_tab() {
         .filter(|id| id.starts_with("dock.") && id.ends_with(".close"))
         .flat_map(|id| fixture.test.desk_rects_of(&id))
         .collect();
-    assert_eq!(closes.len(), 1, "the window has one close button: {closes:?}");
+    assert_eq!(
+        closes.len(),
+        1,
+        "the window has one close button: {closes:?}"
+    );
     let close = closes[0];
     assert!(
         close.min.x >= window.min.x && close.max.x <= window.max.x,
