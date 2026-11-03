@@ -15,7 +15,7 @@ it to be asked again); anything else builds on Namespace.
 
 `local`'s address, such as `127.0.0.1:50052`, is `BE3_BUILD_SERVER_ADDRESS`,
 or else the second line of `~/.config/be3/build-server`, where the prompt
-saves it. It is dialed directly, never through `scripts/internal/re-relay`.
+saves it. It is dialed directly, not through `scripts/internal/re-relay`.
 
 The servers share nothing but the gateway key: each has its own cache.
 `./scripts/buck` writes the one it picked into `.buckconfig.local`, with its
@@ -94,7 +94,7 @@ the buck2 configuration that names the executor, the storage and the
 run, keeps nothing, and writes the answer into `.buckconfig.local`. The waker
 answers quickly from its own cache, so the only slow request is one that
 finds the cluster asleep, and after two seconds of waiting `./scripts/buck`
-says it is waking it. Builds never run `nsc`.
+says it is waking it. Builds don't run `nsc`.
 
 Behind that URL, the build helper (`crates/be-tool-build-helper`, below), when given
 `--token`, runs
@@ -103,21 +103,22 @@ cluster if it is down, and answers with the configuration it writes. It hands
 that answer out again until the executor stops answering a gRPC call (which it
 makes with `curl`) or the answer is three and a half hours old, and only then
 runs `nsc` again. Callers within a minute of a setup get its answer without
-that check, so a crowd that finds the cluster asleep wakes it once. Every setup comes from that one host, with one
-pinned `nsc` and the same arguments and `--key`: Namespace starts a new cluster
-beside the old one when any of them differ, or when two setups race. The
-dashboard shows both, and the stale one should be destroyed, since its workers
-count against the workspace's 32 vCPU limit.
+that check, so a crowd that finds the cluster asleep wakes it once.
+
+Every setup comes from that one host, with one pinned `nsc` and the same
+arguments and `--key`, because Namespace starts a new cluster beside the old
+one when any of them differ, or when two setups race. The dashboard then shows
+both; destroy the stale one, since its workers count against the workspace's
+32 vCPU limit.
 
 ### Hosting the waker
 
 The waker is the build helper's `GET /build/namespace`, served only when it is
-started with `--token ns-token.json --nsc ./nsc` (hosting it is under "The
-build helper" below).
-`sh scripts/internal/bootstrap.sh install-nsc linux_amd64` downloads the
-`nsc` pinned in `scripts/internal/pins` and
-prints its path; the host also needs `curl`. The waker runs `nsc` with `NS_DO_NOT_UPDATE=1`, so `nsc`
-changes only when that pin does. Changing the pin can change what a setup asks
+started with `--token ns-token.json --nsc ./nsc` ("Hosting the build helper"
+below). `sh scripts/internal/bootstrap.sh install-nsc linux_amd64` downloads
+the `nsc` pinned in `scripts/internal/pins` and prints its path; the host also
+needs `curl`. The waker runs `nsc` with `NS_DO_NOT_UPDATE=1`, so `nsc` changes
+only when that pin does. Changing the pin can change what a setup asks
 for, which starts a new cluster: destroy the old one afterwards.
 
 The token is made with a Namespace login, and revoked at
@@ -236,8 +237,9 @@ BUNNY_STORAGE_KEY=... be-tool-build-helper --checkout /srv/build-helper/checkout
 
 The build helper signs its `android` and `launcher-android` builds with CI's
 keystore, the file its `--keystore` names, through `be-tool-local apk-sign`
-after the build, so the key never becomes an action input. CI itself no
-longer builds or signs an APK. Keep the same keystore so each build installs
-as an update over the last. Keys are JKS/PKCS12 or base64 of one, with
+after the build, so the key never becomes an action input. CI itself builds
+and signs no APK. Android installs a build as an update over the last only if
+both are signed with the same key, so replacing the keystore means
+uninstalling first. Keys are JKS/PKCS12 or base64 of one, with
 password `android`. Key generation and release key handling are described in
 guides/running/android.md.
