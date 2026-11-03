@@ -1,11 +1,12 @@
 const POINTS_PER_INCH: f32 = 110.0;
+const HELD_POINTS_PER_INCH: f32 = 150.0;
 const STEP: f32 = 0.25;
 const MIN_SCALE: f32 = 1.0;
 const MAX_SCALE: f32 = 3.0;
 const MIN_MILLIMETRES: u32 = 40;
 const MILLIMETRES_PER_INCH: f32 = 25.4;
 
-pub fn natural_scale(pixels: (u32, u32), millimetres: Option<(u32, u32)>) -> f32 {
+pub fn natural_scale(pixels: (u32, u32), millimetres: Option<(u32, u32)>, held: bool) -> f32 {
     let Some((width_mm, height_mm)) = millimetres else {
         return MIN_SCALE;
     };
@@ -15,7 +16,11 @@ pub fn natural_scale(pixels: (u32, u32), millimetres: Option<(u32, u32)>) -> f32
     let diagonal = |a: f32, b: f32| a.hypot(b);
     let inches = diagonal(width_mm as f32, height_mm as f32) / MILLIMETRES_PER_INCH;
     let dots_per_inch = diagonal(pixels.0 as f32, pixels.1 as f32) / inches;
-    let scale = (dots_per_inch / POINTS_PER_INCH / STEP).round() * STEP;
+    let points_per_inch = match held {
+        true => HELD_POINTS_PER_INCH,
+        false => POINTS_PER_INCH,
+    };
+    let scale = (dots_per_inch / points_per_inch / STEP).round() * STEP;
     scale.clamp(MIN_SCALE, MAX_SCALE)
 }
 

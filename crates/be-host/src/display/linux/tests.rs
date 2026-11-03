@@ -1,3 +1,4 @@
 use super::*;
 
 mod each_display_is_configured_at_the_scale_chosen_for_it;
+mod the_arrangement_main_display_and_uses_reach_the_platform;

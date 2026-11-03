@@ -283,7 +283,8 @@ A hidden window shown again opens at its default place, not where it was.
 ## Displays
 
 The host shows each display in a window of its own (in a login session, guides/desktop/linux.md,
-Displays). The desktop is one space in points: the displays side by side along their bottom edges. Each
+Displays). The desktop is one space in points: the displays as arranged in Settings > Display, or
+else side by side along their bottom edges. Each
 display's window shows its own view of the shell, macOS-like: the first display the shell's
 main view (`ui::Root`'s `MainSurface`), each further one a display view (`HostView::Display(n)`) of the same instance
 (`ui::SecondaryDisplay` mounts `compositor::ShellDisplay`, n being the display's place in the

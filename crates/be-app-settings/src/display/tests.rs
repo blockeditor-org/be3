@@ -24,6 +24,8 @@ mod choosing_a_resolution_uses_its_fastest_refresh_rate;
 mod choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now;
 mod choosing_a_scale_stores_it;
 mod choosing_a_theme_stores_it;
+mod dragging_a_display_rearranges_the_desktop;
+mod a_display_turned_off_or_made_main_is_kept_on_this_device;
 mod choosing_never_keeps_the_screens_on;
 mod each_tile_is_drawn_turned_from_the_rotation_shown_now;
 mod in_a_windowed_desktop_only_the_keyboard_button_goes_in_the_bar;
@@ -278,6 +280,34 @@ fn saved(width: u32, height: u32, refresh_millihertz: u32) -> DisplayMode {
         height,
         refresh_millihertz,
     }
+}
+
+const LAPTOP: &str = "BOE|NE135A1M-NY1|0";
+
+fn laptop_beside(monitor: HostDisplay) -> Vec<HostDisplay> {
+    let laptop = HostDisplay {
+        id: LAPTOP.to_owned(),
+        name: "Built-in display".to_owned(),
+        connector: "eDP-1".to_owned(),
+        modes: vec![mode(2560, 1600, 60_000)],
+        default: mode(2560, 1600, 60_000),
+        current: mode(2560, 1600, 60_000),
+        rect: be_sdk_beui::Rect::from_min_size(
+            be_sdk_beui::beui::pos2(0.0, 280.0),
+            Vec2::new(1280.0, 800.0),
+        ),
+        scale: 2.0,
+        default_scale: 2.0,
+        ..gaming_monitor()
+    };
+    let monitor = HostDisplay {
+        rect: be_sdk_beui::Rect::from_min_size(
+            be_sdk_beui::beui::pos2(1280.0, 0.0),
+            Vec2::new(2560.0, 1440.0) / monitor.scale,
+        ),
+        ..monitor
+    };
+    vec![laptop, monitor]
 }
 
 fn gaming_monitor() -> HostDisplay {

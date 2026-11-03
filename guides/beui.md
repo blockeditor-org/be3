@@ -4262,16 +4262,28 @@ and reports the window's `Resized`, `Moved` (the display's position) and `Scaled
 first is drawn crisp from its second frame). It reports no placement for any
 window, so a dock never reopens one, and any other `Window` is an overlay in the
 window it was opened in. A display with no window shows its clear colour.
-The desktop puts the displays side by side, left to right, along their bottom
-edges, each `size` its physical mode over its scale; the main window is the
-first display's size at its scale, which is also the context's.
+Each display's `size` is its physical mode over its scale. `DisplayConfig` arranges them
+(`plan.rs`, then `layout::arrange`): `uses` puts each on the desktop (the default), shows
+another display's picture on it (`DisplayUse::Mirror`: the platform draws that display's window
+on it too, at the scale that fits it, from its top-left corner) or turns it off (darkened as the
+screens are when blanked, keeping its connector and CRTC); a display mirroring one that is not on
+the desktop is on the desktop itself, and with none left on the desktop the main one is (or else
+the first found), so a session always has one. `main` names the first display, which `displays()`
+lists first, then the others on the desktop in the order they were found; mirrors and displays
+turned off are not in `displays()` and take no pointer. `places` puts each display's top-left
+corner in the desktop's points; be-lib-geometry's `touching::arrange` keeps it there while it
+shares an edge with a display placed before it and overlaps none, and otherwise moves it to the
+nearest place that does (`settle`), one with no place going right of the rest along their bottom
+edges. The arrangement is then moved so its top-left corner is the origin. The main window is
+the first display's size at its scale, which is also the context's.
 Pointer input goes to the window of the display under the pointer, in that
 window's points (`Units::Points`), and a press focuses the window it lands in
 (`WindowReport::Focused`); a press held in one window goes on as the pointer
 crosses into another, by the rules above. Each display's scale is what
 `DisplayConfig::scales` names for its monitor id, or else `BEUI_SCALE`, or else
 one that suits the display's physical size and its mode (`density.rs`), which
-`Monitor::default_scale` reports.
+`Monitor::default_scale` reports. `Monitor`s list every connected display, those
+off and mirroring included, in the same order.
 `Displays::new` makes a handle with displays of a test's own, and
 `Displays::set` changes them.
 

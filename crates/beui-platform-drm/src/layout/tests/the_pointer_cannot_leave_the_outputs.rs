@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_pointer_cannot_leave_the_outputs() {
-    let outputs = arrange(&[((100, 100), 1.0), ((50, 50), 1.0)]);
+    let outputs = arrange(&[((100, 100), 1.0, None), ((50, 50), 1.0, None)]);
 
     assert_eq!(
         moved(pos2(90.0, 70.0), vec2(30.0, 0.0), &outputs),

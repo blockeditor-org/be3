@@ -3,6 +3,7 @@ use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 use serde::{Deserialize, Serialize};
 
 mod region;
+pub mod touching;
 
 pub use region::Region;
 

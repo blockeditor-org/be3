@@ -8,6 +8,7 @@ use be_sdk_beui::{
 };
 
 use super::appearance::AppearanceSection;
+use super::arrangement::ArrangementRow;
 use super::power::PowerSection;
 use super::screens::ScreenSection;
 
@@ -28,6 +29,15 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
         })
     });
     let none = create_memo(move || offered.get() && displays.with(Vec::is_empty));
+    let arranged = create_memo(move || {
+        displays.with(|displays| {
+            displays
+                .iter()
+                .filter(|display| display.rect.width() > 0.0)
+                .count()
+                > 1
+        })
+    });
     let bar = editor.offered::<DesktopBarWatch>();
     let rotate_shown = create_memo(move || bar.get() && offered.get());
     let screens = create_memo(move || bar.get() || offered.get());
@@ -35,7 +45,8 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
         true => "Screens".to_owned(),
         false => "Desktop bar".to_owned(),
     });
-    let after_rotate = create_memo(move || none.get() || rotate_shown.get());
+    let before_rotate = create_memo(move || none.get() || arranged.get());
+    let after_rotate = create_memo(move || before_rotate.get() || rotate_shown.get());
     let in_bar = create_memo(move || merged.with(DisplaySettings::rotate_in_bar));
     let rotate_in_bar = DisplaySettings::rotate_in_bar_setting();
     let in_bar_row = settings.row(&rotate_in_bar);
@@ -54,12 +65,15 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                     <Show condition={none}>
                         <SettingsRow label="No screen is connected to this session." />
                     </Show>
+                    <Show condition={arranged}>
+                        <ArrangementRow settings={settings} displays={displays} read_only={read_only} />
+                    </Show>
                     <Show condition={rotate_shown}>
                         <LayeredSettingsRow
                             setting={in_bar_row}
                             label="Rotate button in the bar"
                             description="A button in the desktop's bar that turns the screen."
-                            separated={none}
+                            separated={before_rotate}
                             compact=true
                             locked={read_only}
                             id={"display.rotate-in-bar".to_owned()}

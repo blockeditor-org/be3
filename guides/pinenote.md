@@ -84,6 +84,9 @@ it there as a session:
 
 `--install-login-session` also lists the login session in `/etc/greetd/environments`, which gtkgreet offers
 on its session menu. The first time be-host signs in on the PineNote it finds the e-paper panel, so
-the device's new settings profile is an E-paper tablet: it keeps the E-paper theme, instant motion, a 150% scale and
+the device's new settings profile is an E-paper tablet: it keeps the E-paper theme, instant motion and
 the Status bar's rotate button on this device, and opens to be set up (guides/the_new_block_stack.md).
+Its scale is the panel's own default (guides/desktop/linux.md, Displays): the panel reports
+210 × 157 mm (panel-simple's `eink,ed103tc2`) on a `DPI` connector, a panel held in the hand,
+so 150 points per inch, which makes 1.5.
 

@@ -16,6 +16,7 @@ mod output;
 mod outputs;
 mod pacing;
 mod pointing;
+mod plan;
 mod problems;
 mod recovery;
 mod rotation;
@@ -25,7 +26,7 @@ mod swapchain;
 mod theme;
 mod wake;
 
-pub use display::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
+pub use display::{DisplayConfig, DisplayControl, DisplayMode, DisplayUse, Monitor};
 pub use displays::{Display, Displays};
 pub use epaper::Epaper;
 pub use flips::{Flip, Flips};

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use be_block::be_block_model::{Document, Edit};
-use be_block::display_settings::DisplayMode;
+use be_block::display_settings::{Arrangement, DisplayMode, ScreenUse};
 use be_block::{DisplaySettings, SettingsLayer};
 
 use crate::local_settings::LayerContents;
@@ -49,6 +49,16 @@ impl ModeChange {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Change {
+    Mode(ModeChange),
+    Use {
+        id: String,
+        used: Option<ScreenUse>,
+    },
+    Arrangement(Option<Arrangement>),
+}
+
 pub(crate) const ANSWER_WITHIN: Duration = Duration::from_secs(15);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -93,10 +103,10 @@ impl Guard {
 
     pub(crate) fn take(&mut self, settings: DisplaySettings) -> bool {
         let base = self.previous.take().unwrap_or_else(|| self.applied.clone());
-        let changed = self
-            .screens
-            .iter()
-            .any(|screen| screen.showing(&base) != screen.showing(&settings));
+        let changed = self.screens.iter().any(|screen| {
+            screen.showing(&base) != screen.showing(&settings)
+                || base.used(&screen.id) != settings.used(&screen.id)
+        }) || base.main_screen() != settings.main_screen();
         self.applied = settings;
         if changed {
             self.previous = Some(base);
@@ -135,7 +145,7 @@ impl Guard {
         self.previous.is_some() || self.untried().next().is_some()
     }
 
-    pub(crate) fn keep(&mut self) -> Vec<ModeChange> {
+    pub(crate) fn keep(&mut self) -> Vec<Change> {
         self.previous = None;
         self.asked = None;
         let changes: Vec<ModeChange> = self
@@ -145,10 +155,10 @@ impl Guard {
             .collect();
         self.change(&changes);
         self.try_showing();
-        changes
+        changes.into_iter().map(Change::Mode).collect()
     }
 
-    pub(crate) fn revert(&mut self) -> Vec<ModeChange> {
+    pub(crate) fn revert(&mut self) -> Vec<Change> {
         self.asked = None;
         let mut changes = Vec::new();
         if let Some(previous) = self.previous.take() {
@@ -160,7 +170,27 @@ impl Guard {
                 .map(|id| ModeChange::new(id, previous.mode(id)))
                 .collect();
             self.change(&restored);
-            changes.extend(restored);
+            changes.extend(restored.into_iter().map(Change::Mode));
+            let uses: Vec<Change> = self
+                .screens
+                .iter()
+                .map(|screen| &screen.id)
+                .filter(|id| previous.screen(id).used != self.applied.screen(id).used)
+                .map(|id| Change::Use {
+                    id: id.clone(),
+                    used: previous.screen(id).used,
+                })
+                .collect();
+            changes.extend(uses);
+            if previous.arrangement != self.applied.arrangement {
+                changes.push(Change::Arrangement(previous.arrangement.clone()));
+            }
+            let layout_changes: Vec<Change> = changes
+                .iter()
+                .filter(|change| !matches!(change, Change::Mode(_)))
+                .cloned()
+                .collect();
+            self.applied = edited(&self.applied, &edits_of(&self.applied, &layout_changes));
             let shown: Vec<(String, DisplayMode)> = self
                 .screens
                 .iter()
@@ -176,7 +206,7 @@ impl Guard {
             })
             .collect();
         self.change(&fallen_back);
-        changes.extend(fallen_back);
+        changes.extend(fallen_back.into_iter().map(Change::Mode));
         self.try_showing();
         changes
     }
@@ -206,21 +236,53 @@ impl Guard {
 
 pub(crate) fn written(
     layers: &LayerContents<DisplaySettings>,
-    changes: &[ModeChange],
+    changes: &[Change],
 ) -> Vec<(SettingsLayer, Edit)> {
     let mut layers = layers.clone();
     changes
         .iter()
         .map(|change| {
-            let setting = DisplaySettings::mode_setting(&change.id);
-            let layer = match change.here {
-                true => SettingsLayer::ThisDevice,
-                false => setting.layer(&layers.own(SettingsLayer::ThisDevice)),
+            let (layer, edit) = match change {
+                Change::Mode(change) => {
+                    let setting = DisplaySettings::mode_setting(&change.id);
+                    let layer = match change.here {
+                        true => SettingsLayer::ThisDevice,
+                        false => setting.layer(&layers.own(SettingsLayer::ThisDevice)),
+                    };
+                    (layer, setting.set(&layers.own(layer), change.mode))
+                }
+                Change::Use { id, used } => {
+                    let setting = DisplaySettings::used_setting(id);
+                    let layer = setting.layer(&layers.own(SettingsLayer::ThisDevice));
+                    (layer, setting.set(&layers.own(layer), used.clone()))
+                }
+                Change::Arrangement(arrangement) => {
+                    let setting = DisplaySettings::arrangement_setting();
+                    let layer = setting.layer(&layers.own(SettingsLayer::ThisDevice));
+                    (layer, setting.set(&layers.own(layer), arrangement.clone()))
+                }
             };
             let own = layers.own(layer);
-            let edit = setting.set(&own, change.mode);
             layers.set(layer, edited(&own, std::slice::from_ref(&edit)));
             (layer, edit)
+        })
+        .collect()
+}
+
+fn edits_of(settings: &DisplaySettings, changes: &[Change]) -> Vec<Edit> {
+    let mut settings = settings.clone();
+    changes
+        .iter()
+        .map(|change| {
+            let edit = match change {
+                Change::Mode(change) => settings.set_mode(&change.id, change.mode),
+                Change::Use { id, used } => settings.set_used(id, used.clone()),
+                Change::Arrangement(arrangement) => {
+                    DisplaySettings::set_arrangement(arrangement.clone())
+                }
+            };
+            settings = edited(&settings, std::slice::from_ref(&edit));
+            edit
         })
         .collect()
 }

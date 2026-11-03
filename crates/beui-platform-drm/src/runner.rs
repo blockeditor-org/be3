@@ -53,7 +53,7 @@ use smithay::utils::{Clock, DeviceFd, Monotonic};
 
 use be_host_dmabuf::{DEVICE_EXTENSIONS, Vulkan, adapter_for};
 
-use crate::display::{DisplayConfig, DisplayControl};
+use crate::display::{DisplayConfig, DisplayControl, DisplayUse};
 use crate::displays::{Display, Displays};
 use crate::epaper::{Change, Epaper, Panel};
 use crate::escape::{Escape, FINGERS as ESCAPE_FINGERS, HOLD as ESCAPE_HOLD};
@@ -64,7 +64,8 @@ use crate::input::{
     RawInput, SharedFilter,
 };
 use crate::keyboard::Keyboard;
-use crate::layout::{arrange, clamp, moved};
+use crate::layout::{arrange, clamp, mirrored_scale, moved};
+use crate::plan::plan;
 use crate::output::{Buffers, Output, connected, wait_for};
 use crate::outputs::{DisplayRenderer, Outputs};
 use crate::pacing::{Lane, Pacer, Wait};
@@ -102,6 +103,7 @@ pub struct Session {
     display_control: DisplayControl,
     display_config: DisplayConfig,
     config_pending: bool,
+    rearranged: bool,
     blanked: bool,
     gate: WakeGate,
     runner: Runner,
@@ -285,6 +287,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         display_control,
         display_config: DisplayConfig::default(),
         config_pending: false,
+        rearranged: false,
         blanked: false,
         gate: WakeGate::default(),
         runner,
@@ -482,6 +485,7 @@ impl Session {
         }
         self.drain_filter();
         if let Some(config) = self.display_control.take() {
+            self.rearranged |= !config.same_arrangement(&self.display_config);
             self.display_config = config;
             self.config_pending = true;
         }
@@ -510,9 +514,7 @@ impl Session {
             self.set_blanked(blanked);
         }
         self.runner.present();
-        if self.blanked {
-            self.darken();
-        }
+        self.darken();
         self.watch_fences();
         self.check_failures();
         self.schedule();
@@ -588,7 +590,7 @@ impl Session {
             }
         }
         self.config_pending = waiting;
-        if changed {
+        if changed || (!waiting && std::mem::take(&mut self.rearranged)) {
             self.relayout();
         }
     }
@@ -834,13 +836,48 @@ impl Session {
     fn relayout(&mut self) {
         let mut guard = self.outputs.borrow_mut();
         let outputs = &mut *guard;
-        let sizes: Vec<_> = outputs
-            .outputs
-            .iter()
-            .map(|output| (output.screen.picture(), output.screen.scale))
+        let ids: Vec<&str> = outputs.outputs.iter().map(Output::id).collect();
+        let planned = plan(&ids, &self.display_config);
+        let mut taken: Vec<Option<Output>> = outputs.outputs.drain(..).map(Some).collect();
+        for (index, used) in planned {
+            if let Some(mut output) = taken[index].take() {
+                output.set_used(used);
+                outputs.outputs.push(output);
+            }
+        }
+        let desktop: Vec<_> = outputs
+            .desktops()
+            .map(|output| {
+                (
+                    output.screen.picture(),
+                    output.screen.scale,
+                    self.display_config.place(output.id()),
+                )
+            })
             .collect();
-        for (output, rect) in outputs.outputs.iter_mut().zip(arrange(&sizes)) {
+        let rects = arrange(&desktop);
+        for (output, rect) in outputs
+            .outputs
+            .iter_mut()
+            .filter(|output| output.on_desktop())
+            .zip(rects)
+        {
             output.screen.rect = rect;
+            output.screen.invalidate();
+        }
+        let shown: Vec<(String, beui::Rect)> = outputs
+            .desktops()
+            .map(|output| (output.id().to_owned(), output.screen.rect))
+            .collect();
+        for output in &mut outputs.outputs {
+            let DisplayUse::Mirror(source) = &output.used else {
+                continue;
+            };
+            let Some((_, rect)) = shown.iter().find(|(id, _)| id == source) else {
+                continue;
+            };
+            output.screen.rect = *rect;
+            output.screen.scale = mirrored_scale(output.screen.picture(), rect.size());
             output.screen.invalidate();
         }
         outputs.pointer = clamp(outputs.pointer, &outputs.rects());
@@ -850,8 +887,7 @@ impl Session {
             output.screen.zoom = zoom;
         }
         let shown: Vec<Display> = outputs
-            .outputs
-            .iter()
+            .desktops()
             .map(|output| Display {
                 id: output.id().to_owned(),
                 name: output.name().to_owned(),
@@ -864,7 +900,7 @@ impl Session {
             })
             .collect();
         let native = outputs.outputs.first().map(|first| first.screen.scale);
-        let refresh = outputs.outputs.iter().map(|output| output.refresh()).min();
+        let refresh = outputs.desktops().map(|output| output.refresh()).min();
         drop(guard);
         if let Some(native) = native {
             self.runner.reports().scaled(native);

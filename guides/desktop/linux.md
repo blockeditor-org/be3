@@ -65,8 +65,19 @@ nodes. Every display has its own scale: the one chosen for it in Settings > Disp
 `ScreenSettings::scale_percent`, keyed by `HostDisplay::id` like its mode and rotation, which
 `display/linux.rs` hands the platform as `DisplayConfig::scales`), or else its default,
 `HostDisplay::default_scale`: `BEUI_SCALE` when set, or else one that suits its size and resolution
-(beui-platform-drm's `density.rs`: its pixels per inch over 110, to the nearest quarter, from 1 to 3;
-1 when its EDID gives no believable size). Elsewhere (a window, headless, the web, Android)
+(beui-platform-drm's `density.rs`: its pixels per inch over 110, or over 150 for a panel held in
+the hand, one on a DSI or DPI connector, to the nearest quarter, from 1 to 3; 1 when it reports no
+believable size).
+
+With more than one display, Settings > Display arranges them (`display/arrangement.rs` in
+be-app-settings): an Arrangement row draws the displays on the desktop to scale, and dragging one
+drops it where `touching::settle` puts it, edge to edge with the others, and saves every display's
+place in points and the main display as `DisplaySettings::arrangement`; each display's Use
+(`ScreenSettings::used`: part of the desktop, the same as another display, or off) and its Main
+display switch sit in its own section. Both are kept on this device, and `display/linux.rs` hands
+them to the platform as `DisplayConfig`'s `uses`, `main` and `places` (guides/beui.md, Displays
+under beui-platform-drm). A new main display, or a display's use changed, waits to be kept like a
+new mode (`display/guard.rs`): reverting puts back the uses and arrangement before it. Elsewhere (a window, headless, the web, Android)
 there are no displays and the UI is the main window's, as it always was.
 
 be-host-wayland advertises one `wl_output` per display (`Compositor::set_monitors`, from the same

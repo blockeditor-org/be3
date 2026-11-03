@@ -29,7 +29,10 @@ fn a_device_class_is_detected_and_brings_its_own_defaults() {
     let epaper = DeviceClass::EpaperTablet.display_settings();
     assert_eq!(epaper.theme, Some(ThemeKind::EPaper));
     assert_eq!(epaper.motion, Some(Motion::Instant));
-    assert_eq!(epaper.scale_percent, Some(150));
+    assert_eq!(
+        epaper.scale_percent, None,
+        "the panel's own default scale suits it, as it is held in the hand"
+    );
     assert_eq!(epaper.rotate_in_bar, Some(true));
     assert_eq!(epaper.keyboard_in_bar, Some(true));
     assert_eq!(
@@ -52,7 +55,6 @@ fn a_device_class_is_detected_and_brings_its_own_defaults() {
         differing,
         [
             "Motion",
-            "Scale",
             "The rotate button",
             "The keyboard button"
         ]

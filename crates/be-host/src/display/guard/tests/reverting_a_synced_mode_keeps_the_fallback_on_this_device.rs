@@ -9,10 +9,10 @@ fn reverting_a_synced_mode_keeps_the_fallback_on_this_device() {
     let changes = guard.revert();
     assert_eq!(
         changes,
-        vec![ModeChange {
+        vec![Change::Mode(ModeChange {
             here: true,
-            ..change(Some(slow()))
-        }]
+            ..ModeChange::new(MONITOR, Some(slow()))
+        })]
     );
     assert!(!guard.asking());
 
