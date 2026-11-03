@@ -221,6 +221,11 @@ impl SplitSize {
 }
 pub const MIN_PANE_LENGTH: f32 = 120.0;
 pub const MIN_WINDOW_SIZE: Vec2 = Vec2::new(200.0, 140.0);
+pub(crate) fn framed(rect: Rect) -> Rect {
+    let width = rect.width().max(MIN_WINDOW_SIZE.x);
+    Rect::from_min_size(rect.min, Vec2::new(width, rect.height()))
+}
+
 pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
 pub const SIDEBAR_WIDTH: f32 = 180.0;
 pub const MIN_SIDEBAR_WIDTH: f32 = 80.0;
@@ -765,7 +770,7 @@ impl DockState {
         if let Some(surface) = self.surface_mut(surface)
             && surface.window.is_some()
         {
-            surface.window = Some(rect);
+            surface.window = Some(framed(rect));
         }
     }
 
@@ -781,7 +786,7 @@ impl DockState {
         self.surfaces.push(Surface {
             id,
             root: Node::Leaf(leaf),
-            window: Some(rect),
+            window: Some(framed(rect)),
             key: None,
         });
         self.focus = Some(focus);
