@@ -1,5 +1,7 @@
+mod phone;
 pub mod picker;
 pub mod rename;
+mod revisions;
 pub mod root;
 
 be_sdk_beui::beui_app!("../manifest.json", {

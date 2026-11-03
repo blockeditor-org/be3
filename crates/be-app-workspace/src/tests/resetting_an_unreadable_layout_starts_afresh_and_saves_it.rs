@@ -20,10 +20,10 @@ fn resetting_an_unreadable_layout_starts_afresh_and_saves_it() {
         unreadable_layout(),
         "the fresh layout is saved over it"
     );
-    assert_eq!(
-        layout.refs.len(),
-        1,
-        "only the new files view is referenced"
+    assert!(layout.refs.is_empty(), "no tab's view is referenced");
+    assert!(
+        profile(&fixture).state("files").is_some(),
+        "the files view is kept beside the layout"
     );
 
     show(&mut fixture, opened, None);

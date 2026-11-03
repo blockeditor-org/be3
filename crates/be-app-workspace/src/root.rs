@@ -1,7 +1,7 @@
 use be_sdk_beui::be_block::EditorViewContent;
 use std::cell::Cell;
 
-use be_sdk_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
+use be_sdk_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent, ViewState};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{
     DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId, use_dock_tab,
@@ -15,11 +15,19 @@ use be_sdk_beui::{
     TopBar,
 };
 use be_sdk_shell::{
-    BlockTab, FILES, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, REVISIONS,
-    RevisionHistoryPanel, SETTINGS, WindowDialog, Workspace, WorkspaceDialogs,
+    BlockTab, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, TabParts, WindowDialog,
+    Workspace, WorkspaceDialogs,
 };
 use beui::{Align, ItemSize};
+use uuid::Uuid;
 
+use crate::phone::{DetailsSheet, PhoneSheet};
+use crate::revisions::{RevisionHistory, RevisionHistoryPanel, RevisionPreviewBar};
+
+pub(crate) const FILES: TabId = TabId::new(1);
+pub(crate) const SETTINGS: TabId = TabId::new(1 << 39);
+pub(crate) const REVISIONS: TabId = TabId::new((1 << 39) + 1);
+const FILES_VIEW: &str = "files";
 pub(crate) const FILES_WIDTH: f32 = 260.0;
 const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Sm;
@@ -40,28 +48,110 @@ impl be_sdk_beui::BeuiRoot for WorkspaceUiRoot {
 
 #[component]
 fn WorkspaceShell(editor: Editor) -> NodeId {
-    let workspace = Workspace::new(editor, true, false);
+    let workspace = Workspace::new(editor);
+    let history = RevisionHistory::new(editor);
+    let shell = Shell {
+        workspace,
+        history,
+        sheet: create_signal(PhoneSheet::Closed),
+        files: create_signal(None),
+        bar: RenderFn::new(move |tab: TabId| {
+            view! {
+                <RevisionPreviewBar history tab workspace />
+            }
+        }),
+    };
+    workspace.set_tab_parts(shell);
+    create_effect(move || shell.follow_focus());
+    create_effect(move || shell.open_files());
     view! {
         <Loaded label="Loading the workspace">|| {
             let _layout = editor.view_content();
             view! {
                 <Container>|_|
-                    <WorkspaceBody workspace />
+                    <WorkspaceBody shell />
                 </Container>
             }
         }</Loaded>
     }
 }
 
+#[derive(Clone, Copy)]
+struct Shell {
+    workspace: Workspace,
+    history: RevisionHistory,
+    sheet: Signal<PhoneSheet>,
+    files: Signal<Option<Uuid>>,
+    bar: RenderFn<TabId, NodeId>,
+}
+
+impl Shell {
+    fn follow_focus(self) {
+        let focus = self.workspace.focus().get();
+        let target = match focus.shown {
+            Some(tab) if tab == FILES || tab == SETTINGS || tab == REVISIONS => self
+                .history
+                .target()
+                .filter(|item| self.workspace.holds(item.id)),
+            Some(tab) => self.workspace.tab(tab),
+            None => focus.active,
+        };
+        untrack(|| self.history.follow(target));
+    }
+
+    fn open_files(self) {
+        if !self.workspace.ready().get() {
+            return;
+        }
+        untrack(|| {
+            if self.files.get().is_some() {
+                return;
+            }
+            let editor = self.workspace.editor();
+            let saved = editor
+                .view_state(FILES_VIEW)
+                .and_then(|state| state.refs.first().copied())
+                .filter(|id| !id.is_nil());
+            let files = saved.or_else(|| {
+                let made = self.workspace.create_view(FILES_EDITOR, None)?;
+                editor.set_view_state(FILES_VIEW, Some(&ViewState::new(&(), vec![made])));
+                Some(made)
+            });
+            self.files.set(files);
+        });
+    }
+
+    fn set_phone(self, phone: bool) {
+        self.sheet.set(PhoneSheet::Closed);
+        self.workspace.set_phone(phone);
+    }
+}
+
+impl TabParts for Shell {
+    fn bar(&self) -> RenderFn<TabId, NodeId> {
+        self.bar
+    }
+
+    fn shown_instead(&self, workspace: Workspace, tab: TabId) -> Option<ChildTarget> {
+        self.history.preview_for(workspace.tab(tab))
+    }
+
+    fn details(&self, _workspace: Workspace, tab: TabId) {
+        self.sheet.set(PhoneSheet::Details(tab));
+    }
+}
+
 #[component]
-pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
+fn WorkspaceBody(shell: Shell) -> NodeId {
+    let workspace = shell.workspace;
+    let history = shell.history;
     let layout = workspace.layout();
     let mode = layout.mode();
     let was_stacked = Cell::new(false);
     create_effect(move || {
         let now = mode.get() == DockMode::Stacked;
         if was_stacked.replace(now) != now {
-            untrack(|| workspace.set_phone(now));
+            untrack(|| shell.set_phone(now));
         }
     });
     let surface = NodeRef::new();
@@ -90,13 +180,13 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                     <DockSplit id="workspace" size={SplitSize::First(FILES_WIDTH)}>
                         <DockPane id="files" locked=true>
                             <DockTab id=FILES title="Files" icon=ICON_FOLDER>
-                                <FilesPanel workspace />
+                                <FilesPanel workspace files={shell.files} />
                             </DockTab>
                             <DockTab id=SETTINGS title="Settings" icon=ICON_SETTINGS>
                                 <SettingsPanel workspace />
                             </DockTab>
                             <DockTab id=REVISIONS title="History" icon=ICON_ROTATE_CCW_CLOCK>
-                                <RevisionHistoryPanel workspace />
+                                <RevisionHistoryPanel workspace history />
                             </DockTab>
                         </DockPane>
                         <DockPane
@@ -125,14 +215,14 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                     </ForEach>
                 </Docking>
                 <WorkspaceDialogs workspace />
+                <DetailsSheet workspace sheet={shell.sheet} />
             </List>
         </Frame>
     }
 }
 
 #[component]
-fn FilesPanel(workspace: Workspace) -> NodeId {
-    let files = workspace.files();
+fn FilesPanel(workspace: Workspace, files: Signal<Option<Uuid>>) -> NodeId {
     let target = create_memo(move || {
         files.get().map(|id| {
             ChildTarget::new(id, EditorViewContent::CONTENT_TYPE)

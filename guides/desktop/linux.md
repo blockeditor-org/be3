@@ -786,8 +786,7 @@ Dismiss, stacked as the windows were with the one that had the focus on top. Eac
 has a chip in the Windows bar after the running windows' (outlined, with a muted label, as
 `ButtonFace`'s `placeholder`) whose click brings it in front and whose menu offers Open and
 Dismiss, and the Restore chip leading the bar opens them all. Each is a program tab with no window
-(guides/desktop.md, Program windows): be-sdk-shell's `Workspace` (with `keeps_windows`, which only
-the desktop app sets) saves every program tab's `ProgramRecord` beside the dock layout in its
+(guides/desktop.md, Program windows): be-sdk-shell's `Workspace` saves every program tab's `ProgramRecord` beside the dock layout in its
 `layout` view state, and a window that appears after the restore takes the tab it was launched
 from, else one that last held the same window id for the same program (a shell started again over
 the same compositor keeps every window), else the oldest waiting tab of its program id, else a tab

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::menu::ReferenceMenuItem;
 use super::menu::unlink_permission;
-use super::panel::{Info, Refs};
+use super::panel::{Refs, TabInfo};
 use super::workspace::Workspace;
 use be_sdk_beui::beui::TextAlign;
 use beui::{Align, Direction, ItemSize, Overflow};
@@ -20,7 +20,7 @@ const SPACING: Space = Space::Md;
 #[component]
 pub(crate) fn LinkedBar(
     workspace: Workspace,
-    info: ReadSignal<Option<Info>>,
+    info: ReadSignal<Option<TabInfo>>,
 ) -> DynamicSegment<ListChild> {
     let backrefs = create_memo(move || {
         info.with(|info| {

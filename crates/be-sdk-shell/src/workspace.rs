@@ -1,7 +1,6 @@
 use be_sdk_beui::be_block::profile::RECENTS;
 use be_sdk_beui::be_block::{
-    BlockContent, BlockMetadata, FILES_EDITOR, Home, PREFERRED_EDITOR, Recents, VIEW_EDITOR,
-    WORKSPACE_TYPE,
+    BlockContent, BlockMetadata, Home, PREFERRED_EDITOR, Recents, VIEW_EDITOR, WORKSPACE_TYPE,
 };
 use be_sdk_beui::be_block::{EditorView, EditorViewContent, ViewState};
 use be_type_settings::EditorSettings;
@@ -28,15 +27,13 @@ use uuid::Uuid;
 use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::panel::BlockPanel;
+use super::parts::TabParts;
 use super::program::{Heard, Program, Programs, listed_windows};
 use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use beui::ItemSize;
 
-pub const FILES: TabId = TabId::new(1);
-pub const SETTINGS: TabId = TabId::new(1 << 39);
-pub const REVISIONS: TabId = TabId::new((1 << 39) + 1);
 pub const SHELL_BARS: u64 = 1 << 42;
 const FIRST_BLOCK_TAB: u64 = 2;
 const MAX_OPENED_VIA_HOPS: usize = 64;
@@ -45,10 +42,10 @@ const PANEL_SPACING: Space = Space::Sm;
 
 type Tabs = HashMap<TabId, TabItem>;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PhoneSheet {
-    Closed,
-    Details(TabId),
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Focus {
+    pub shown: Option<TabId>,
+    pub active: Option<TabItem>,
 }
 
 struct State {
@@ -63,27 +60,24 @@ struct State {
     saved_titles: RefCell<HashMap<TabId, String>>,
     next_ask: Cell<u64>,
     share_asks: RefCell<Vec<be_sdk_beui::Task>>,
+    parts: RefCell<Option<Rc<dyn TabParts>>>,
 }
 
 #[derive(Clone, Copy)]
 pub struct Workspace {
-    pub(crate) revisions: super::revisions::RevisionHistory,
     state: Stored<State>,
     editor: Editor,
-    with_files: bool,
     tabs: Signal<Tabs>,
     views: Signal<HashMap<TabId, Uuid>>,
     pub(crate) titles: Signal<HashMap<TabId, String>>,
     simulated: Signal<HashMap<Uuid, AccessLevel>>,
     error: Signal<Option<String>>,
-    files: Signal<Option<Uuid>>,
     routes: Signal<u64>,
     pub(crate) phone: Signal<bool>,
-    pub(crate) sheet: Signal<PhoneSheet>,
+    focus: Signal<Focus>,
     pub(crate) dialog: Signal<Option<OpenDialog>>,
     pub(crate) share: Signal<Option<Share>>,
     pub(crate) windows: Memo<Vec<HostWindow>>,
-    keeps_windows: bool,
     pub(crate) programs: Signal<Programs>,
     pub(crate) heard: Signal<HashMap<TabId, Heard>>,
     pub(crate) ready: Signal<bool>,
@@ -98,17 +92,15 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn new(editor: Editor, with_files: bool, keeps_windows: bool) -> Self {
+    pub fn new(editor: Editor) -> Self {
         provide_context(beui::dock::unstyled::DockKeeper::none());
         let tabs = create_signal(Tabs::new());
         let views = create_signal(HashMap::new());
         let titles = create_signal(HashMap::new());
         let simulated = create_signal(HashMap::new());
         let error = create_signal(None);
-        let files = create_signal(None);
         let routes = create_signal(0);
         let phone = create_signal(false);
-        let sheet = create_signal(PhoneSheet::Closed);
         let dialog = create_signal(None);
         let share = create_signal(None);
         let panels = create_signal(Vec::new());
@@ -122,7 +114,6 @@ impl Workspace {
         });
         let default_editors = editor.effective_settings::<EditorSettings>();
         let workspace = Self {
-            revisions: super::revisions::RevisionHistory::new(editor),
             state: store(State {
                 layout: DockingLayout::new(),
                 restored: Cell::new(false),
@@ -135,23 +126,21 @@ impl Workspace {
                 saved_titles: RefCell::new(HashMap::new()),
                 next_ask: Cell::new(0),
                 share_asks: RefCell::new(Vec::new()),
+                parts: RefCell::new(None),
             }),
             editor,
-            with_files,
             tabs,
             views,
             titles,
             simulated,
             error,
-            files,
             routes,
             phone,
-            sheet,
+            focus: create_signal(Focus::default()),
             default_editors,
             dialog,
             share,
             windows,
-            keeps_windows,
             programs: create_signal(Programs::new()),
             heard: create_signal(HashMap::new()),
             ready: create_signal(false),
@@ -250,8 +239,20 @@ impl Workspace {
         self.error.read_only()
     }
 
-    pub fn files(&self) -> ReadSignal<Option<Uuid>> {
-        self.files.read_only()
+    pub fn ready(&self) -> ReadSignal<bool> {
+        self.ready.read_only()
+    }
+
+    pub fn focus(&self) -> ReadSignal<Focus> {
+        self.focus.read_only()
+    }
+
+    pub fn set_tab_parts(&self, parts: impl TabParts + 'static) {
+        *self.state.value().parts.borrow_mut() = Some(Rc::new(parts));
+    }
+
+    pub(crate) fn tab_parts(&self) -> Option<Rc<dyn TabParts>> {
+        self.state.value().parts.borrow().clone()
     }
 
     pub fn panels(&self) -> ReadSignal<Vec<HostPanel>> {
@@ -311,7 +312,7 @@ impl Workspace {
         self.open(TabItem::new(id, block_type), None);
     }
 
-    pub(crate) fn host(&self) -> EditorHost {
+    pub fn host(&self) -> EditorHost {
         self.editor.host()
     }
 
@@ -331,11 +332,11 @@ impl Workspace {
             .or_else(|| self.blocks().info(id))
     }
 
-    pub(crate) fn types(&self) -> Rc<BlockCatalog> {
+    pub fn types(&self) -> Rc<BlockCatalog> {
         self.editor.block_types()
     }
 
-    pub(crate) fn tab(&self, tab: TabId) -> Option<TabItem> {
+    pub fn tab(&self, tab: TabId) -> Option<TabItem> {
         self.tabs.with(|tabs| tabs.get(&tab).copied())
     }
 
@@ -535,7 +536,7 @@ impl Workspace {
         self.views.with(|views| views.get(&tab).copied())
     }
 
-    fn create_view(&self, editor: Uuid, content: Option<Uuid>) -> Option<Uuid> {
+    pub fn create_view(&self, editor: Uuid, content: Option<Uuid>) -> Option<Uuid> {
         let profile = self.editor.view_block()?;
         Some(self.blocks().create_with(
             EditorViewContent::CONTENT_TYPE,
@@ -599,9 +600,7 @@ impl Workspace {
 
     fn adopt(&self, restored: Option<saved::Restored>) {
         let inner = self.state.value();
-        let mut files = None;
         if let Some(restored) = restored {
-            files = restored.files;
             let mut tabs = Tabs::new();
             let mut views = HashMap::new();
             for (tab, (item, view)) in restored.tabs {
@@ -609,14 +608,11 @@ impl Workspace {
                 tabs.insert(tab, item);
                 views.insert(tab, view);
             }
-            let programs: Programs = match self.keeps_windows {
-                true => restored
-                    .programs
-                    .into_iter()
-                    .map(|(tab, record)| (tab, Program::restored(record)))
-                    .collect(),
-                false => Programs::new(),
-            };
+            let programs: Programs = restored
+                .programs
+                .into_iter()
+                .map(|(tab, record)| (tab, Program::restored(record)))
+                .collect();
             let mut next = restored
                 .next_tab
                 .max(FIRST_BLOCK_TAB)
@@ -650,10 +646,6 @@ impl Workspace {
             self.programs.set(programs);
             inner.layout.restore(restored.dock);
         }
-        if self.with_files {
-            let files = files.or_else(|| self.create_view(FILES_EDITOR, None));
-            self.files.set(files);
-        }
     }
 
     fn save(&self) {
@@ -662,7 +654,6 @@ impl Workspace {
         let tabs = self.tabs.get();
         let views = self.views.get();
         let titles = self.titles.get();
-        let files = self.files.get();
         let programs: Vec<(TabId, super::program::ProgramRecord)> =
             self.programs.with(|programs| {
                 programs
@@ -674,14 +665,7 @@ impl Workspace {
         if !inner.restored.get() || unreadable {
             return;
         }
-        let state = saved::save(
-            &layout,
-            inner.next_tab.get(),
-            files,
-            &tabs,
-            &views,
-            programs,
-        );
+        let state = saved::save(&layout, inner.next_tab.get(), &tabs, &views, programs);
         let titles = saved::save_titles(&titles);
         untrack(|| {
             self.editor.set_view_state(LAYOUT, Some(&state));
@@ -731,15 +715,15 @@ impl Workspace {
         self.routes.get();
         let active = current.or_else(|| inner.active.get());
         inner.active.set(active);
-        let history_target = self.tabs.with(|tabs| match shown {
-            Some(tab) if tab == FILES || tab == SETTINGS || tab == REVISIONS => self
-                .revisions
-                .target()
-                .filter(|item| tabs.values().any(|open| open.id == item.id)),
-            Some(tab) => tabs.get(&tab).copied(),
-            None => active.and_then(|id| tabs.values().find(|item| item.id == id).copied()),
-        });
-        self.revisions.follow(history_target);
+        let focus = Focus {
+            shown,
+            active: self.tabs.with(|tabs| {
+                active.and_then(|id| tabs.values().find(|item| item.id == id).copied())
+            }),
+        };
+        if self.focus.with_untracked(|held| *held != focus) {
+            untrack(|| self.focus.set(focus));
+        }
         let focused = active.and_then(|id| {
             let block_type = inner.block_types.borrow().get(&id).copied()?;
             Some((id, block_type))
@@ -846,7 +830,7 @@ impl Workspace {
         }
     }
 
-    pub(crate) fn open(&self, item: TabItem, via: Option<Uuid>) {
+    pub fn open(&self, item: TabItem, via: Option<Uuid>) {
         let inner = self.state.value();
         self.record_via(item.id, via);
         self.record_type(item.id, item.block_type);
@@ -928,17 +912,7 @@ impl Workspace {
             .or_else(|| types.own_editor(item.block_type, file_name))
     }
 
-    pub(crate) fn set_sheet(&self, sheet: PhoneSheet) {
-        self.sheet.set(sheet);
-    }
-
-    pub(crate) fn dismiss_sheet(&self, sheet: PhoneSheet) {
-        if self.sheet.get_untracked() == sheet {
-            self.sheet.set(PhoneSheet::Closed);
-        }
-    }
-
-    pub(crate) fn tab_showing(&self, id: Uuid) -> Option<TabId> {
+    pub fn tab_showing(&self, id: Uuid) -> Option<TabId> {
         self.tabs.with_untracked(|tabs| {
             tabs.iter()
                 .find(|(_, item)| item.id == id)
@@ -988,11 +962,10 @@ impl Workspace {
     }
 
     pub fn set_phone(&self, phone: bool) {
-        self.sheet.set(PhoneSheet::Closed);
         self.phone.set(phone);
     }
 
-    pub(crate) fn can_edit(&self, id: Uuid) -> bool {
+    pub fn can_edit(&self, id: Uuid) -> bool {
         self.info(id).is_none_or(|info| info.access.can_edit())
     }
 
@@ -1028,7 +1001,7 @@ impl Workspace {
         self.host().simulate_access(id, level);
     }
 
-    pub(crate) fn label(&self, id: Uuid, block_type: Uuid) -> BlockLabel {
+    pub fn label(&self, id: Uuid, block_type: Uuid) -> BlockLabel {
         let types = self.types();
         self.info(id).map_or_else(
             || BlockLabel::new(types.as_ref(), block_type, None, false),
@@ -1036,7 +1009,7 @@ impl Workspace {
         )
     }
 
-    pub(crate) fn new_file_near(&self, id: Uuid) {
+    pub fn new_file_near(&self, id: Uuid) {
         let holds_children = self
             .known_type(id)
             .is_some_and(|block_type| self.types().child_operations(block_type).add)
@@ -1052,7 +1025,6 @@ impl Workspace {
     }
 
     pub(crate) fn create_in(&self, parent: BlockParent) {
-        self.sheet.set(PhoneSheet::Closed);
         self.error.set(None);
         let container = match parent {
             BlockParent::Block(id) => Some(id),

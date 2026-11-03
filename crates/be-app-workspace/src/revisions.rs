@@ -9,7 +9,7 @@ use be_sdk_beui::beui::{NodeId, dock::styled::TabId, reactive::*, styled::*};
 use be_sdk_beui::{ChildTarget, Editor, Failure, Pushed, Task};
 use uuid::Uuid;
 
-use super::{Workspace, tab::TabItem};
+use be_sdk_shell::{TabItem, Workspace};
 use beui::Direction;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -234,13 +234,12 @@ fn revision_time(time: i64) -> String {
     )
 }
 
-pub fn revision_key(commit: &[u8; 32]) -> String {
+fn revision_key(commit: &[u8; 32]) -> String {
     commit.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 #[component]
-pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
-    let history = workspace.revisions;
+pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistory) -> NodeId {
     let revisions = create_memo(move || {
         history.entries.with(|entries| {
             entries

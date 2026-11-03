@@ -10,19 +10,23 @@ use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{BlockInfo, BlockParent};
 use uuid::Uuid;
 
-use super::menu::{Action, apply, permissions};
-use super::panel::{Info, Refs, Watched, read_info};
-use super::tab::TabItem;
-use super::workspace::{PhoneSheet, Workspace};
 use be_sdk_beui::beui::TextAlign;
+use be_sdk_shell::{
+    BlockAction, Refs, TabInfo, TabItem, Watched, Workspace, apply, permissions, read_info,
+};
 use beui::{Align, Direction, ItemSize};
 
 const SHEET_PADDING: Space = Space::Lg;
 const SECTION_PADDING: Space = Space::Md;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PhoneSheet {
+    Closed,
+    Details(TabId),
+}
+
 #[component]
-pub(crate) fn DetailsSheet(workspace: Workspace) -> NodeId {
-    let sheet = workspace.sheet;
+pub(crate) fn DetailsSheet(workspace: Workspace, sheet: Signal<PhoneSheet>) -> NodeId {
     let shown = create_memo(move || match sheet.get() {
         PhoneSheet::Details(shown) => Some(shown),
         PhoneSheet::Closed => None,
@@ -33,8 +37,8 @@ pub(crate) fn DetailsSheet(workspace: Workspace) -> NodeId {
             open={open}
             rest={SHEET_STOPS[1]}
             on_close={move || {
-                if let Some(tab) = shown.get_untracked() {
-                    workspace.dismiss_sheet(PhoneSheet::Details(tab));
+                if shown.get_untracked().is_some() {
+                    sheet.set(PhoneSheet::Closed);
                 }
             }}
         >
@@ -42,7 +46,7 @@ pub(crate) fn DetailsSheet(workspace: Workspace) -> NodeId {
                 <Dynamic value={shown}>|tab: Option<TabId>| {
                     match tab {
                         Some(tab) => view! {
-                            <DetailsBody @sizing=ItemSize::Percent(100.0) workspace tab />
+                            <DetailsBody @sizing=ItemSize::Percent(100.0) workspace sheet tab />
                         },
                         None => view! {
                             <Frame @sizing=ItemSize::Percent(100.0) />
@@ -55,8 +59,8 @@ pub(crate) fn DetailsSheet(workspace: Workspace) -> NodeId {
 }
 
 #[component]
-fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
-    let info = create_signal(None::<Info>);
+fn DetailsBody(workspace: Workspace, sheet: Signal<PhoneSheet>, tab: TabId) -> NodeId {
+    let info = create_signal(None::<TabInfo>);
     let watched = RefCell::new(Watched::default());
     create_effect(move || {
         info.set(read_info(&workspace, tab, &watched));
@@ -121,13 +125,13 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let act = move |action: Action| {
+    let act = move |action: BlockAction| {
         let Some((id, container)) =
             info.with_untracked(|info| info.as_ref().map(|info| (info.item.id, info.container)))
         else {
             return;
         };
-        workspace.set_sheet(PhoneSheet::Closed);
+        sheet.set(PhoneSheet::Closed);
         if let Some(reference) = workspace.info(id) {
             apply(&workspace, &reference, container, action, None);
         }
@@ -136,7 +140,7 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
         let Some(id) = info.with_untracked(|info| info.as_ref().map(|info| info.item.id)) else {
             return;
         };
-        workspace.set_sheet(PhoneSheet::Closed);
+        sheet.set(PhoneSheet::Closed);
         workspace.new_file_near(id);
     };
     view! {
@@ -164,21 +168,21 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                     label="Rename"
                     glyph=ICON_PENCIL_LINE
                     disabled={rename_off}
-                    on_click={move || act(Action::Rename)}
+                    on_click={move || act(BlockAction::Rename)}
                 />
                 <ActionRow
                     @test_id={"workspace.details.share"}
                     label="Share"
                     glyph=ICON_SHARE_2
                     disabled={share_off}
-                    on_click={move || act(Action::Share)}
+                    on_click={move || act(BlockAction::Share)}
                 />
                 <Show condition={unlinkable}>
                     <ActionRow
                         @test_id={"workspace.details.unlink"}
                         label="Unlink"
                         glyph=ICON_UNLINK
-                        on_click={move || act(Action::Unlink)}
+                        on_click={move || act(BlockAction::Unlink)}
                     />
                 </Show>
                 <Show condition={offers_delete}>
@@ -188,17 +192,19 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                         glyph=ICON_TRASH
                         disabled={delete_off}
                         danger=true
-                        on_click={move || act(Action::Delete)}
+                        on_click={move || act(BlockAction::Delete)}
                     />
                 </Show>
                 <RelatedBlocks
                     workspace={workspace}
+                    sheet
                     title="References"
                     refs={references}
                     named="workspace.details.reference"
                 />
                 <RelatedBlocks
                     workspace={workspace}
+                    sheet
                     title="Referenced by"
                     refs={backrefs}
                     named="workspace.details.backref"
@@ -209,7 +215,13 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
 }
 
 #[component]
-fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: String) -> NodeId {
+fn RelatedBlocks(
+    workspace: Workspace,
+    sheet: Signal<PhoneSheet>,
+    title: String,
+    refs: Memo<Refs>,
+    named: String,
+) -> NodeId {
     let ids = create_memo(move || {
         refs.with(|refs| refs.list.iter().map(|info| info.id).collect::<Vec<Uuid>>())
     });
@@ -229,7 +241,7 @@ fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: S
                 });
                 let named = format!("{named}.{id}");
                 view! {
-                    <RelatedRow workspace reference named />
+                    <RelatedRow workspace sheet reference named />
                 }
             }</ForEach>
         </List>
@@ -237,7 +249,12 @@ fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: S
 }
 
 #[component]
-fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: String) -> NodeId {
+fn RelatedRow(
+    workspace: Workspace,
+    sheet: Signal<PhoneSheet>,
+    reference: Memo<Option<BlockInfo>>,
+    named: String,
+) -> NodeId {
     let label = create_memo(move || {
         let types = workspace.types();
         reference.with(|reference| {
@@ -266,7 +283,7 @@ fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: S
         let Some(reference) = reference.get_untracked() else {
             return;
         };
-        workspace.set_sheet(PhoneSheet::Closed);
+        sheet.set(PhoneSheet::Closed);
         let via = reference.parent.and_then(BlockParent::block);
         workspace.open(TabItem::new(reference.id, reference.block_type), via);
     };

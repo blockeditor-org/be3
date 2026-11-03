@@ -184,8 +184,8 @@ A program window is a tab like a block's. be-sdk-shell's `Workspace` has one tab
 content is a block or a program (`program.rs`: `Program { window, record }`, the `ProgramRecord`
 being what the tab saves to be a placeholder after a restart: the window it last held, program
 id, desktop entry, command and title). Program tabs take keys from the same counter as block tabs
-and are saved with the dock layout in the `layout` view state (`saved::SavedProgram`, restored only
-by a workspace with `keeps_windows`, the desktop). A parentless window in the list goes to the tab
+and are saved with the dock layout in the `layout` view state (`saved::SavedProgram`) and restored
+as placeholders by either shell. A parentless window in the list goes to the tab
 whose key is its `origin.launch`, else a waiting tab that last held this window id for the same
 program (a shell started again over the same host), else the oldest waiting tab of its program id,
 else a new tab (`program::place`). A window that leaves the list closes its tab, except while the
