@@ -8,6 +8,7 @@ use beui_view::types::{Pos2, Rect, Vec2};
 
 mod bars;
 mod compact;
+mod hidden;
 mod history;
 mod joined;
 mod snapshot;
@@ -620,6 +621,7 @@ pub struct DockState {
     shows: u64,
     see_through: Vec<TabId>,
     compact: Vec<DockCompact>,
+    hidden: Vec<SurfaceId>,
 }
 
 impl Default for DockState {
@@ -649,6 +651,7 @@ impl DockState {
             shows: 0,
             see_through: Vec::new(),
             compact: Vec::new(),
+            hidden: Vec::new(),
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
         let focus = leaf.id;
@@ -804,6 +807,7 @@ impl DockState {
         self.invalidate();
         self.groups.retain(|group| !nested.contains(&group.id));
         self.surfaces.retain(|candidate| candidate.id != surface);
+        self.hidden.retain(|hidden| *hidden != surface);
         self.settle_focus();
     }
 
@@ -1005,6 +1009,9 @@ impl DockState {
         let Some(position) = self.find(tab) else {
             return false;
         };
+        if self.is_hidden(position.surface) {
+            return false;
+        }
         let mut leaf = position.leaf;
         if self.active_tab(leaf) != Some(tab) {
             return false;
@@ -1163,6 +1170,9 @@ impl DockState {
     pub fn focus(&mut self, leaf: LeafId) {
         if self.leaf(leaf).is_none() {
             return;
+        }
+        if let Some(surface) = self.surface_of(leaf) {
+            self.unhide(surface);
         }
         self.focus = Some(leaf);
         self.reveal(leaf);
@@ -2300,7 +2310,10 @@ impl DockState {
         }
         self.focus = self
             .surfaces
-            .last()
+            .iter()
+            .rev()
+            .find(|surface| !self.hidden.contains(&surface.id))
+            .or(self.surfaces.first())
             .map(|surface| surface.root.first_leaf().id);
     }
 }

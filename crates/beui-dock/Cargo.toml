@@ -13,5 +13,8 @@ beui-macros = { path = "../beui-macros" }
 beui-reactive = { path = "../beui-reactive" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 
+[dev-dependencies]
+beui-core = { path = "../beui-core" }
+
 [lints]
 workspace = true

@@ -2759,6 +2759,7 @@ dependencies = [
  "be-lib-stable-hash",
  "beui-components-styled",
  "beui-components-unstyled",
+ "beui-core",
  "beui-macros",
  "beui-reactive",
  "beui-view",

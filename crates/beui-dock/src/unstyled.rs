@@ -63,8 +63,8 @@ pub use docking::{
     DockBar, DockBarMove, DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog,
     DockDeclaredTab, DockDialog, DockDragStage, DockEntry, DockGroup, DockHostEvent, DockHostLink,
     DockHostSlot, DockHosted, DockJoin, DockKeeper, DockKept, DockKey, DockNode, DockPane,
-    DockRequest, DockSnap, DockSplit, DockTab, DockWindow, Docking, DockingLayout, DockingSnapshot,
-    OwnedDockingLayout, use_dock_join,
+    DockRequest, DockSnap, DockSplit, DockTab, DockWindow, DockWindowActions, Docking,
+    DockingLayout, DockingSnapshot, OwnedDockingLayout, holding_area, use_dock_join,
 };
 pub use documents::{
     DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockSlot,
@@ -2427,7 +2427,7 @@ fn DockTiles(dock: State) -> NodeId {
     let current = dock.state;
     let main = create_memo(move || current.with(DockState::main));
     let windows = create_memo(move || {
-        let mut windows = current.with(DockState::windows);
+        let mut windows = current.with(DockState::shown_windows);
         windows.sort();
         windows
     });

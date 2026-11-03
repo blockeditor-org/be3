@@ -22094,6 +22094,30 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-geometry:be-lib-geometry",
+                    "//crates/be-lib-graphemes:be-lib-graphemes",
+                    "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                    "//crates/be-lib-ui-types:be-lib-ui-types",
+                    "//crates/beui-lucide:beui-lucide",
+                    "//crates/beui-paint-format:beui-paint-format",
+                    "//crates/beui-reactive:beui-reactive",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:foldhash-0.2.0",
+                    "//third-party/rust:kurbo-0.13.1",
+                    "//third-party/rust:lyon_tessellation-1.0.22",
+                    "//third-party/rust:raw-window-handle-0.6.2",
+                    "//third-party/rust:thumbhash-0.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -23068,7 +23092,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -23084,7 +23110,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -23100,7 +23128,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "test_features": [],
             },
             "linux-x86_64-html": {
@@ -23116,7 +23146,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -23132,7 +23164,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -23148,7 +23182,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "test_features": [],
             },
             "wasi": {
@@ -23212,7 +23248,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -23228,7 +23266,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "test_features": [],
             },
         },
@@ -32083,7 +32123,11 @@ third_party = {
                     "std",
                 ],
             },
-            "linux-x86_64-html": {},
+            "linux-x86_64-html": {
+                "features": [
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "default",
@@ -43867,6 +43911,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "libm",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":num-traits-0.2.19",
@@ -44792,6 +44845,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
@@ -54060,6 +54114,17 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":polycool-0.4.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":arrayvec-0.7.6",
@@ -54637,6 +54702,12 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "arch",
+                    "default",
+                ],
+            },
+            "linux-x86_64-html": {
                 "features": [
                     "arch",
                     "default",
@@ -55468,6 +55539,16 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":euclid-0.22.14",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":arrayvec-0.7.6",
@@ -55580,6 +55661,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":lyon_geom-1.0.20",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":lyon_geom-1.0.20",
@@ -55682,6 +55772,17 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":float_next_after-1.0.0",
+                    ":lyon_path-1.0.19",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":float_next_after-1.0.0",
                     ":lyon_path-1.0.19",
@@ -58301,8 +58402,12 @@ third_party = {
                 ],
             },
             "linux-x86_64-html": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
                 "features": [
                     "default",
+                    "libm",
                     "std",
                 ],
             },
@@ -62660,6 +62765,14 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":arrayvec-0.7.6",
@@ -65685,6 +65798,11 @@ third_party = {
                 "features": [
                     "alloc",
                     "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
                 ],
             },
             "macos-arm64": {
@@ -72563,6 +72681,7 @@ third_party = {
             "linux-x86_64-html": {
                 "features": [
                     "const_generics",
+                    "const_new",
                 ],
             },
             "macos-arm64": {

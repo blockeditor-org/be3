@@ -30,7 +30,11 @@ impl DockState {
     }
 
     pub fn begin_switch(&mut self, backwards: bool) {
-        let tabs = self.recent_tabs();
+        let tabs: Vec<TabId> = self
+            .recent_tabs()
+            .into_iter()
+            .filter(|tab| !self.is_tab_hidden(*tab))
+            .collect();
         let Some(first) = tabs.first().copied() else {
             self.switch = None;
             return;
