@@ -1,6 +1,6 @@
 # Type modules
 
-A block type is moving out of be-host into an app's *type module*: a pure wasm
+A block type lives in an app's *type module*: a pure wasm
 module that holds the device's one replica of every open block of its types (content,
 live session, undo stack) and talks to its host only through typed operations. Two crates
 define it, and a third hosts it. be-host's peer, `be` and `be sync` host every
@@ -29,172 +29,202 @@ any other interface, import or export. Everything else is an `async func`, a
 `stream<T>` or a resource's lifetime: an operation ("op") of the be-wasm-ops kernel, which can
 be awaited and canceled.
 
-- `crates/be-wasm-ops`: the kernel. A `Connection` (one per side, `Side::Host` or
-  `Side::Guest`) has five frames: `Start { op, parent, method, args }`,
-  `Yield { op, item }`, `Complete { op, outcome }`, `Cancel { op }` and `Credit { op, items, bytes }`. Either side
-  starts ops, and an op id carries the starting side in its top bit. Every op ends
-  with exactly one `Complete`, also after a `Cancel`, which is a request: the callee
-  answers `Err(Canceled)` or the real result. An op started with a parent is canceled
-  (the callee sees `Incoming::Canceled`) when the parent ends, and one started under a
-  parent that already ended is answered `Canceled` by the kernel. Besides a method's own
-  errors there are `OpError::Canceled`, `Unsupported` (an unknown method or arguments
-  that do not decode), `Denied` and `Unanswered` (the host dropped the call's `Reply`
-  without answering it). A method's id is the FNV-1a hash of its name,
-  `<package>/<interface>@<version>#<function>`; frames, args and results are postcard,
-  each frame with a 4-byte big-endian length in front (`encode_frame`/`decode_frame`),
-  stable only within one source tree.
-  A stream is back-pressured by a `Window` of items and bytes: the side serving it
-  may send while `STREAM_WINDOW` items and `STREAM_WINDOW_BYTES` bytes are not used
-  up (an item larger than what is left still goes while any is left), and
-  `Frame::Credit` from the consumer gives back what it took. The connection holds
-  nothing back: out of credit, `Producer::send` (`Connection::yield_item`) answers
-  `WouldBlock` and sends nothing, so the producer stops taking from its own source and
-  keeps the item, `Producer::ready` asks first, and `Incoming::Credited { op }` says
-  when room came back. A host serving many streams puts their producers in an
-  `Outlets<K>`, which routes each item to the streams whose key `K` matches and holds
-  back what it could not send, per stream: `Backlog::Latest` keeps only the newest
-  value, `Backlog::Queue(n)` up to `n` items, past which `send` answers
-  `WouldBlock`. `Outlets::credited` sends what was held back, and `Outlets::end`
-  completes a stream, failing it `Canceled` if it ends cleanly with items it could
-  not flush. The guest
-  executor's `Stream` grants credit as its task takes items; a host consuming a stream
-  calls `Connection::credit` itself. The other way, an import whose items the guest
-  produces is an `async func` per item that the host answers once it has taken the
-  item in, and the guest keeps no more than a `Window` of them unanswered.
-  `be_wasm_ops::guest` is the guest's single-threaded executor: `Executor::step` takes the
-  host's items, runs every task they wake until none is ready, and returns the items
-  to send, so a step is deterministic and handles one item completely before the next.
-  A guest calls an import inside `guest::with_parent(op, ...)` to make the call about
-  `op`. A call has happened once the generated function returns: it queued the `Start`.
-  Dropping the call's `Pending` afterwards (or a `Stream`) only asks the callee to
-  cancel, with a `Cancel` behind the `Start`; the callee answers the real result if the
-  call already took effect, and the guest ignores whichever answer comes. `Pending` is
-  `#[must_use]`, and `.detach()` is how a guest says nobody waits for the answer: it
-  forgets the call without a `Cancel` (`net::Pending::detach` does the same through
-  `Caller::forget`). An export whose future is ready when first polled answers in the
-  step that read its `Start`, before the next item, as if it were a plain call.
-- `crates/be-wasm-ops-bindgen`: the generator, a proc macro over `wit-parser`
-  (`generate!({ path, world, ... })`, expanded at the crate root). Its
-  `path` is read at `CARGO_MANIFEST_DIR`, so the crate passes the files to buck as
-  `resources` (guides/buck2.md), and WIT of another crate's package as
-  `foreign_resources` (`{"//crates/be-lib-ui-types:wit": "crates/be-lib-ui-types"}`) named in
-  `deps: ["../ui-types/wit"]`, each package after the ones it uses (be-sdk-api
-  lists `../ui-keys/wit` and `../ui-preferences/wit` before `../ui-types/wit`). A
-  type another interface `use`s resolves to the interface that defines it, so a crate
-  needs a `uses` entry for that interface too even when its WIT reaches the type
-  through another package. It emits a module per interface with its types
-  (records as structs, variants and enums as enums, flags, `list<u8>` as `Vec<u8>`),
-  deriving `Copy`, `Eq`, `Hash` and `Ord` where every field allows
-  (no floats, nothing owned). The options, each a list of WIT type names unless said:
-  `with` (a map, keyed by the WIT type's name in any interface) puts an existing Rust
-  type in place of a WIT type whose serde data model is the same, which the
-  interface's module still names as an alias: a byte array for a tuple of as many
-  `u8` (uuids, commit ids, colours), a newtype id for an alias of `u64`. Nothing
-  checks that the two agree (one known exception: be-sdk-type-api maps `uuid` onto
-  `uuid::Uuid`, whose serde writes its 16 bytes with a length in front, which works
-  because both ends of a type module's link are be-sdk-type-api), so `with` is never for
-  a type with fields or cases of its own: generate it, and convert explicitly where Rust code wants another shape (a
-  menu's tree, AccessKit's tree update). The one exception is a network world, whose
-  client and server are both the crate that generates it: be-block-protocol maps
-  `access-level`, `block-parent` and `escrow-key` onto `be_block_graph::Access`,
-  `be_block_graph::BlockParent` and its own frozen `EscrowKey`, so the wire uses the very
-  Rust types the graph and the sealed escrow bytes use, and a test of be-block-protocol
-  holds the escrow key's bytes; `uses` (a map) takes a whole interface of another package from the crate
-  generated from it (`{"be3:ui/types@0.1.0": ::be_lib_ui_types::types}`); `copy` names the
-  mapped types that are `Copy`; `default` the types that derive `Default` (a variant's
-  or enum's first case is the default); `inline` records that are a variant case's
-  fields, so `case(record)` becomes a struct variant; `lenient` records that take
-  `#[serde(default)]`; `ordered` types that derive `Ord` and `Hash` although not
-  `Copy`; `own_debug` types whose crate writes `Debug` itself; `encodings` (a map) gives a
-  `with` type that holds bytes the `be_wasm_ops::wire` encoding to send it with (be-sdk-type-api's
-  `entries`, a `BTreeMap<Uuid, Vec<u8>>`, is `Map<Plain, Bytes>`); `local` (see below).
-  Every `list<u8>`, wherever it sits (a field, a case, an argument, a result, a stream
-  item, inside a list, option, result or tuple), goes over the wire as one run of bytes
-  and never byte by byte through serde: the generator gives each position a
-  `be_wasm_ops::wire` encoding (`Plain`, `Bytes`, `List<E>`, `Optional<E>`,
-  `Fallible<E, F>`, tuples of encodings, `Map<K, V>`), as `serialize_with` and
-  `deserialize_with` on fields and cases and as the second type parameter of
-  `Pending`, `Stream`, `Ticket`, `Reply` and `Producer`, which defaults to
-  `Plain` (`Ticket<Vec<u8>, wire::Bytes>`). Code that holds one of those for a call
-  with bytes in its result names the encoding the generated function returns, and a
-  helper generic over them takes it as a parameter (`E: wire::Decode<T>` to decode,
-  `wire::Encode<T>` to encode) rather than fixing `Plain`; `Reply::answer` encodes an
-  answer to send later. With postcard a byte sequence and bytes encode alike, so this
-  changes no byte on the wire. A watched value is a record or variant, never bytes
-  directly. A hand-written serde type on these wires puts `#[serde(with = "serde_bytes")]`
-  on a `Vec<u8>` or `Option<Vec<u8>>` field and `be_wasm_ops::wire::serialize`/`deserialize`
-  on deeper nesting.
-  WIT's own rules hold: a name that is a WIT keyword is written with `%` (`%type(uuid)`
-  for a case named `type`, generated as `Type`), and a function may not share its name
-  with a type of its interface, so a function that takes a `hello` is not `hello`.
-  A package's dependencies may also sit in a `deps/<name>/` folder beside its files,
-  which is how an extension package travels with the world that imports it. An
-  interface of a package other than the world's is generated under a module named after
-  its package, in the types, `guest` and `embed` alike (`shared::ids`,
-  `desktop::power`, `guest::desktop::power`), so two packages may name an
-  interface alike. Ids and
-  access levels have one shape in every package: `be3:shared` (crates/be-wasm-ops/wit, its
-  buck `foreign_resources` `//crates/be-wasm-ops:wit`) holds `uuid` (16 bytes), `hash` (32)
-  and their aliases by what they name (`block-id`, `content-type-id`, `commit-id`, ...);
-  an id is always a named alias, and a number one side hands out is an alias of an
-  unsigned integer named `<thing>-id` in the package that hands it out. For the guest:
-  `guest::<import>` functions (an `async func` returns `Pending<T>`; a `stream<T>`
-  returns `Stream<T>`), and for each export a `Guest` trait, a `Guest<Resource>` trait
-  per resource and `dispatch`, whose methods return `impl Future<Output = T>`
-  (`std::future::ready(value)` for one the guest finishes at once);
-  `guest::executor(guest)` serves them. For the host: `embed::<import>::Call`, one case
-  per import, accepted from an op (`Call::accept`, with a `Reply<T>` or `Producer<T>` to
-  answer it); `accept` answers a method it does not know `Unsupported`, and
-  `Call::refuse(error)` turns a call the host will not serve into its op and the error
-  outcome to send. `embed::Call` is the world's: one case per imported interface (named
-  after it, or after its package and it where two share a name) holding that
-  interface's `Call`, with the same `accept` and `refuse`, so a host that serves every
-  import matches once (be-server's `serve`, be-host-runtime's `heard`);
-  `Call::accepts(&started)` asks one interface alone, and `embed::method_name(method)`
-  names a method from the world's `embed::METHODS`. A `Reply` must be answered:
-  `send` or `fail` on the connection, or `answer` for its op and outcome, which a host
-  without the connection at hand queues to send later. One dropped unanswered answers
-  `Err(Unanswered)` the next time its connection's outbound is taken, so a forgotten
-  answer is an error the guest sees rather than an op left open; `into_op` is for a host
-  that keeps only the op id and answers it with `Connection::complete` itself (a watch's
-  `next`, parked until its value changes). And `embed::exports::<export>`
-  functions and resource handles that return `Ticket<T>`s to decode the completion
-  with. A resource's constructor is a long-lived op whose id is the handle; its async
-  methods are ops with it as parent, and `resource_drop` cancels it. A resource named `*-watch` whose only functions are a
-  `constructor()` and `next: async func() -> T` is a latest-value watch: the guest's
-  handle implements `be_wasm_ops::Watched` (its `Value`, its interface, the two method ids,
-  `open()` and `next()`), and `embed::WATCHES` lists every watch the world imports as a
-  `be_wasm_ops::Watching`, so a host can serve a watch by its method ids and an editor follow
-  any of them with one accessor (be-sdk-beui's `editor.watch::<W>()`). The shapes follow wit-bindgen's, so moving to it later
-  changes little: the guest traits take `&self` of a guest instance instead of
-  statics, since tests run many modules on one thread, and the constructor lives on
-  `Guest` as `new_<resource>`, handed its op id.
+So one generator, one set of types and one op protocol, with two ways a call travels,
+chosen by who answers it. An `async func` or stream is an op: postcard arguments in a
+frame, answered later by whoever holds the other `Connection` (a host through the guest's
+frames, or a server through a socket, which is all `network` changes: the transport, and
+a `Send` client in place of the guest's executor). A `local` func is the one call that
+returns into the guest, which only a host on the guest's own thread can answer; its
+flattened wasm arguments keep a per-draw call to a few wasm values with no encoding or
+copy (decisions/guest_calls_are_async_ops_except_local_ones.md).
 
-The rule, so that native, the web and in process behave the same: only a host on the
-caller's own thread can answer synchronously, and the host's state is not reachable
-from the guest's worker on the web, so every call but a `local` one is an `async func`.
+### The kernel
+
+`crates/be-wasm-ops` is the kernel. A `Connection` (one per side, `Side::Host` or
+`Side::Guest`) has five frames: `Start { op, parent, method, args }`,
+`Yield { op, item }`, `Complete { op, outcome }`, `Cancel { op }` and `Credit { op, items, bytes }`.
+Either side starts ops, and an op id carries the starting side in its top bit. Every op ends
+with exactly one `Complete`, also after a `Cancel`, which is a request: the callee
+answers `Err(Canceled)` or the real result. An op started with a parent is canceled
+(the callee sees `Incoming::Canceled`) when the parent ends, and one started under a
+parent that already ended is answered `Canceled` by the kernel. Besides a method's own
+errors there are `OpError::Canceled`, `Unsupported` (an unknown method or arguments
+that do not decode), `Denied` and `Unanswered` (the host dropped the call's `Reply`
+without answering it). A method's id is the FNV-1a hash of its name,
+`<package>/<interface>@<version>#<function>`; frames, args and results are postcard,
+each frame with a 4-byte big-endian length in front (`encode_frame`/`decode_frame`),
+stable only within one source tree.
+
+A stream is back-pressured by a `Window` of items and bytes: the side serving it
+may send while `STREAM_WINDOW` items and `STREAM_WINDOW_BYTES` bytes are not used
+up (an item larger than what is left still goes while any is left), and
+`Frame::Credit` from the consumer gives back what it took. The connection holds
+nothing back: out of credit, `Producer::send` (`Connection::yield_item`) answers
+`WouldBlock` and sends nothing, so the producer stops taking from its own source and
+keeps the item, `Producer::ready` asks first, and `Incoming::Credited { op }` says
+when room came back. A host serving many streams puts their producers in an
+`Outlets<K>`, which routes each item to the streams whose key `K` matches and holds
+back what it could not send, per stream: `Backlog::Latest` keeps only the newest
+value, `Backlog::Queue(n)` up to `n` items, past which `send` answers
+`WouldBlock`. `Outlets::credited` sends what was held back, and `Outlets::end`
+completes a stream, failing it `Canceled` if it ends cleanly with items it could
+not flush. The guest executor's `Stream` grants credit as its task takes items; a host
+consuming a stream calls `Connection::credit` itself. The other way, an import whose items the guest
+produces is an `async func` per item that the host answers once it has taken the
+item in, and the guest keeps no more than a `Window` of them unanswered.
+
+`be_wasm_ops::guest` is the guest's single-threaded executor: `Executor::step` takes the
+host's items, runs every task they wake until none is ready, and returns the items
+to send, so a step is deterministic and handles one item completely before the next.
+A guest calls an import inside `guest::with_parent(op, ...)` to make the call about
+`op`. A call has happened once the generated function returns: it queued the `Start`.
+Dropping the call's `Pending` afterwards (or a `Stream`) only asks the callee to
+cancel, with a `Cancel` behind the `Start`; the callee answers the real result if the
+call already took effect, and the guest ignores whichever answer comes. `Pending` is
+`#[must_use]`, and `.detach()` is how a guest says nobody waits for the answer: it
+forgets the call without a `Cancel` (`net::Pending::detach` does the same through
+`Caller::forget`). An export whose future is ready when first polled answers in the
+step that read its `Start`, before the next item, as if it were a plain call.
+
 An import that only tells the host something returns nothing: the guest makes it and
 calls `.detach()`, and the host answers `()` in the arm that applies it, or once it took
 effect for a guest that awaits it. The guest's whole wasm interface is then
 be-wasm-guest-abi's (`be3_host` and the `app_*` exports) plus its local imports.
 
-The one exception is an interface whose host runs inside the guest's own worker or
-thread on every platform, as the GPU device does (be-wasm-gpu-shim on the web, wasmtime
-host functions natively). `local: ["be3:gpu/device@0.1.0"]` names such imports: they
-are no ops, have no async funcs, and each func, resource method, constructor and
-`[resource-drop]` is a wasm import of its own that returns its result. Scalars, enums,
-flags, handles and records and options of them are flattened into wasm arguments,
-strings and lists of scalars or handles go as a pointer and a length, and anything
+### The generator
+
+`crates/be-wasm-ops-bindgen` is the generator, a proc macro over `wit-parser`
+(`generate!({ path, world, ... })`, expanded at the crate root). Its
+`path` is read at `CARGO_MANIFEST_DIR`, so the crate passes the files to buck as
+`resources` (guides/buck2.md), and WIT of another crate's package as
+`foreign_resources` (`{"//crates/be-lib-ui-types:wit": "crates/be-lib-ui-types"}`) named in
+`deps: ["../ui-types/wit"]`, each package after the ones it uses (be-sdk-api
+lists `../ui-keys/wit` and `../ui-preferences/wit` before `../ui-types/wit`). A
+type another interface `use`s resolves to the interface that defines it, so a crate
+needs a `uses` entry for that interface too even when its WIT reaches the type
+through another package. A package's dependencies may also sit in a `deps/<name>/` folder
+beside its files, which is how an extension package travels with the world that imports it.
+
+It emits a module per interface with its types (records as structs, variants and enums as
+enums, flags, `list<u8>` as `Vec<u8>`), deriving `Copy`, `Eq`, `Hash` and `Ord` where every
+field allows (no floats, nothing owned). An interface of a package other than the world's is
+generated under a module named after its package, in the types, `guest` and `embed` alike
+(`shared::ids`, `desktop::power`, `guest::desktop::power`), so two packages may name an
+interface alike.
+
+WIT's own rules hold: a name that is a WIT keyword is written with `%` (`%type(uuid)`
+for a case named `type`, generated as `Type`), and a function may not share its name
+with a type of its interface, so a function that takes a `hello` is not `hello`.
+Ids and access levels have one shape in every package: `be3:shared` (crates/be-wasm-ops/wit,
+its buck `foreign_resources` `//crates/be-wasm-ops:wit`) holds `uuid` (16 bytes), `hash` (32)
+and their aliases by what they name (`block-id`, `content-type-id`, `commit-id`, ...);
+an id is a named alias, and a number one side hands out is an alias of an
+unsigned integer named `<thing>-id` in the package that hands it out.
+
+The options, each a list of WIT type names unless said:
+- `with` (a map, keyed by the WIT type's name in any interface) puts an existing Rust
+  type in place of a WIT type whose serde data model is the same, which the
+  interface's module still names as an alias: a byte array for a tuple of as many
+  `u8` (uuids, commit ids, colours), a newtype id for an alias of `u64`. Nothing
+  checks that the two agree (be-sdk-type-api maps `uuid` onto `uuid::Uuid`, whose serde
+  writes its 16 bytes with a length in front, which works only because both ends of a type
+  module's link are be-sdk-type-api), so `with` is used only for those shapes. A type with
+  fields or cases of its own is generated, and Rust code that wants another shape converts
+  explicitly (a menu's tree, AccessKit's tree update). The exception is a network world,
+  whose client and server are both the crate that generates it: be-block-protocol maps
+  `access-level`, `block-parent` and `escrow-key` onto `be_block_graph::Access`,
+  `be_block_graph::BlockParent` and its own frozen `EscrowKey`, so the wire uses the very
+  Rust types the graph and the sealed escrow bytes use, and a test of be-block-protocol
+  holds the escrow key's bytes.
+- `uses` (a map) takes a whole interface of another package from the crate
+  generated from it (`{"be3:ui/types@0.1.0": ::be_lib_ui_types::types}`).
+- `copy` names the mapped types that are `Copy`; `default` the types that derive `Default`
+  (a variant's or enum's first case is the default); `inline` records that are a variant
+  case's fields, so `case(record)` becomes a struct variant; `lenient` records that take
+  `#[serde(default)]`; `ordered` types that derive `Ord` and `Hash` although not
+  `Copy`; `own_debug` types whose crate writes `Debug` itself.
+- `encodings` (a map) gives a `with` type that holds bytes the `be_wasm_ops::wire` encoding
+  to send it with (be-sdk-type-api's `entries`, a `BTreeMap<Uuid, Vec<u8>>`, is
+  `Map<Plain, Bytes>`).
+- `local` (below).
+
+Every `list<u8>`, wherever it sits (a field, a case, an argument, a result, a stream
+item, inside a list, option, result or tuple), goes over the wire as one run of bytes
+and never byte by byte through serde: the generator gives each position a
+`be_wasm_ops::wire` encoding (`Plain`, `Bytes`, `List<E>`, `Optional<E>`,
+`Fallible<E, F>`, tuples of encodings, `Map<K, V>`), as `serialize_with` and
+`deserialize_with` on fields and cases and as the second type parameter of
+`Pending`, `Stream`, `Ticket`, `Reply` and `Producer`, which defaults to
+`Plain` (`Ticket<Vec<u8>, wire::Bytes>`). Code that holds one of those for a call
+with bytes in its result names the encoding the generated function returns, and a
+helper generic over them takes it as a parameter (`E: wire::Decode<T>` to decode,
+`wire::Encode<T>` to encode) rather than fixing `Plain`; `Reply::answer` encodes an
+answer to send later. With postcard a byte sequence and bytes encode alike, so this
+changes no byte on the wire. A watched value is a record or variant, not bytes
+directly. A hand-written serde type on these wires puts `#[serde(with = "serde_bytes")]`
+on a `Vec<u8>` or `Option<Vec<u8>>` field and `be_wasm_ops::wire::serialize`/`deserialize`
+on deeper nesting.
+
+### What it generates for each side
+
+For the guest: `guest::<import>` functions (an `async func` returns `Pending<T>`; a
+`stream<T>` returns `Stream<T>`), and for each export a `Guest` trait, a `Guest<Resource>`
+trait per resource and `dispatch`, whose methods return `impl Future<Output = T>`
+(`std::future::ready(value)` for one the guest finishes at once);
+`guest::executor(guest)` serves them. The shapes follow wit-bindgen's, except that the guest
+traits take `&self` of a guest instance instead of statics, since tests run many modules on
+one thread, and the constructor lives on `Guest` as `new_<resource>`, handed its op id.
+
+For the host: `embed::<import>::Call`, one case per import, accepted from an op
+(`Call::accept`, with a `Reply<T>` or `Producer<T>` to answer it); `accept` answers a method
+it does not know `Unsupported`, and `Call::refuse(error)` turns a call the host will not
+serve into its op and the error outcome to send. `embed::Call` is the world's: one case per
+imported interface (named after it, or after its package and it where two share a name)
+holding that interface's `Call`, with the same `accept` and `refuse`, so a host that serves
+every import matches once (be-server's `serve`, be-host-runtime's `heard`);
+`Call::accepts(&started)` asks one interface alone, and `embed::method_name(method)`
+names a method from the world's `embed::METHODS`. And `embed::exports::<export>`
+functions and resource handles that return `Ticket<T>`s to decode the completion with.
+
+A `Reply` is answered with `send` or `fail` on the connection, or `answer` for its op and
+outcome, which a host without the connection at hand queues to send later. One dropped
+unanswered answers `Err(Unanswered)` the next time its connection's outbound is taken, so a
+forgotten answer is an error the guest sees rather than an op left open; `into_op` is for a
+host that keeps only the op id and answers it with `Connection::complete` itself (a watch's
+`next`, parked until its value changes).
+
+A resource's constructor is a long-lived op whose id is the handle; its async
+methods are ops with it as parent, and `resource_drop` cancels it. A resource named `*-watch`
+whose only functions are a `constructor()` and `next: async func() -> T` is a latest-value
+watch: the guest's handle implements `be_wasm_ops::Watched` (its `Value`, its interface, the
+two method ids, `open()` and `next()`), and `embed::WATCHES` lists every watch the world
+imports as a `be_wasm_ops::Watching`, so a host can serve a watch by its method ids and an
+editor follow any of them with one accessor (be-sdk-beui's `editor.watch::<W>()`).
+
+### Local interfaces
+
+An interface whose host runs inside the guest's own worker or thread on every platform, as
+the GPU device does (be-wasm-gpu-shim on the web, wasmtime host functions natively), is
+`local`: `local: ["be3:gpu/device@0.1.0"]` names such imports. They are no ops, have no
+async funcs, and each func, resource method, constructor and `[resource-drop]` is a wasm
+import of its own that returns its result. On the web the host's state is not reachable from
+the guest's worker, so every other call is an `async func`.
+
+Scalars, enums, flags, handles and records and options of them are flattened into wasm
+arguments, strings and lists of scalars or handles go as a pointer and a length, and anything
 else as postcard; a result is one wasm value (`option<own<R>>` is the handle, 0 for
 none) or postcard written into room the guest offers, with `[returned]` fetching one
 that did not fit. A `list<u8>` result is raw bytes rather than postcard: the guest offers
 no room, learns the length, and has `[returned]` write the bytes straight into a vector
-of that length, so a large read is copied once into the guest. The guest gets an owner type per resource that drops it; the host a
-`Host` trait, a `Caller` trait for the guest's memory and the device, `glue`
-functions, and `<world>_local_imports!`, which hands a macro of the runtime's every
-import's glue, module, name, `module#name` and wasm signature to link or export. A
-world with other imports of its own takes a local interface from its crate with
-`uses` and also names it in `local`, and generates nothing for it.
+of that length, so a large read is copied once into the guest.
+
+The guest gets an owner type per resource that drops it; the host a `Host` trait, a `Caller`
+trait for the guest's memory and the device, `glue` functions, and `<world>_local_imports!`,
+which hands a macro of the runtime's every import's glue, module, name, `module#name` and wasm
+signature to link or export. A world with other imports of its own takes a local interface
+from its crate with `uses` and also names it in `local`, and generates nothing for it.
+
+### Network worlds
 
 `network: true` generates a world for a client and a server that talk over a
 socket instead of a guest and its host: `crates/be-block-protocol`'s network protocol. Such
@@ -208,32 +238,26 @@ or a `be_wasm_ops::net::Stream<T>` (`recv()`, and `futures_core::Stream`; it gra
 as it is read like the guest's), and a struct per resource whose `new(caller, ...)`
 opens it, whose methods start ops under it, whose `closed()` awaits its end and whose
 drop cancels it. Dropping a `Pending` or `Stream` asks to cancel it too, so nothing in user
-code names an op. `Caller` is the stubs' seam (start an op, poll what arrives for it,
-grant credit, cancel), and `be_wasm_ops::net::Peer` implements it: one side's `Connection`
-behind a mutex, made with a sink it hands each outbound frame to (under its lock, so
-in order; the sink must not call back into the peer), fed each inbound frame with
-`receive`, which keeps what belongs to calls started through `Caller` and returns the
-rest of the events (`Started`, and `Canceled`/`Credited` of what this side serves),
-and `close`d when the socket goes, which ends every call `Canceled`. The client is
-`Side::Guest` and the server `Side::Host`. The server answers from any thread or task
-through `peer.lock()`, a guard that derefs to the `Connection` and sends what it queued
-when dropped: `embed::Call::accept(&mut peer.lock(), started)`, then in a spawned task
-`reply.send(&mut peer.lock(), &value)`, `stream.send(...)` after
+code names an op.
+
+`Caller` is the stubs' seam (start an op, poll what arrives for it, grant credit, cancel), and
+`be_wasm_ops::net::Peer` implements it: one side's `Connection` behind a mutex, made with a
+sink it hands each outbound frame to under its lock, so in order (a sink that calls back into
+the peer re-enters that lock), fed each inbound frame with `receive`, which keeps what belongs
+to calls started through `Caller` and returns the rest of the events (`Started`, and
+`Canceled`/`Credited` of what this side serves), and `close`d when the socket goes, which
+ends every call `Canceled`. The client is `Side::Guest` and the server `Side::Host`.
+
+The server answers from any thread or task through `peer.lock()`, a guard that derefs to the
+`Connection` and sends what it queued when dropped: `embed::Call::accept(&mut peer.lock(), started)`,
+then in a spawned task `reply.send(&mut peer.lock(), &value)`, `stream.send(...)` after
 `peer.writable(stream.op()).await?` (which waits for credit and fails once the op is
 canceled), and `peer.canceled(op).await` to stop work, or end a resource, that the
-client dropped. Never hold the guard across an await. A `Canceled` event may name an op
+client dropped. The guard holds the peer's mutex, so one held across an await blocks every
+other task on that peer and sends nothing until it drops. A `Canceled` event may name an op
 already answered (a parent's end cancels its children when the server completes it,
 and the event comes out of the next `receive`), so a server ignores one it does not
 know. crates/be-wasm-ops's `network` tests run both halves over an in-memory pipe.
-
-So one generator, one set of types and one op protocol, with two ways a call travels,
-chosen by who answers it. An `async func` or stream is an op: postcard arguments in a
-frame, answered later by whoever holds the other `Connection` (a host through the guest's
-frames, or a server through a socket, which is all `network` changes: the transport, and
-a `Send` client in place of the guest's executor). A `local` func is the one call that
-returns into the guest, which only a host on the guest's own thread can answer; its
-flattened wasm arguments keep a per-draw call to a few wasm values with no encoding or
-copy.
 
 ## The protocol
 
