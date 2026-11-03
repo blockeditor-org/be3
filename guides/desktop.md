@@ -90,7 +90,8 @@ Display 0's bars are dock bars of the main view's dock, which holds every window
 display's `Display` view holds a dock of its own (`desktop.dock.{n}`) with no panes and that
 display's three bars as its dock bars, on its own `DockingLayout` (`bar::display_layout`). The main
 dock's state is saved in the session's layout as ever; each further display's is saved beside it,
-under the session view's `display-bars-by-monitor` state as a `SavedDockLayout`, keyed by the
+under the session view's `display-bars-by-monitor` state as a `SavedDockLayout` naming display 0's bar ids
+(`SavedDockLayout::map_tabs`, so it fits whichever place the display is in), keyed by the
 `HostDisplay::id` at that display's place (its EDID make, model and serial, or else its connector),
 so a display keeps its own bars when displays are unplugged or change places: when the id at a
 place changes, that place's dock restores the new display's bars. A display that has
