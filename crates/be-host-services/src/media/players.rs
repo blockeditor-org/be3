@@ -143,7 +143,8 @@ async fn run_on(
     if let Err(error) = list(&connection, &mut tracker, &read_sender).await {
         eprintln!("be-host: media players cannot be listed: {error}");
     }
-    targeted(tracker.target());
+    let targeted = Untargeted(targeted);
+    (targeted.0)(tracker.target());
     loop {
         let next = {
             let request = requested.recv();
@@ -176,7 +177,15 @@ async fn run_on(
             Next::Status(Some((owner, status))) => tracker.first_status(&owner, &status),
             Next::Status(None) => {}
         }
-        targeted(tracker.target());
+        (targeted.0)(tracker.target());
+    }
+}
+
+struct Untargeted<'a, T: FnMut(Option<&str>)>(&'a mut T);
+
+impl<T: FnMut(Option<&str>)> Drop for Untargeted<'_, T> {
+    fn drop(&mut self) {
+        (self.0)(None);
     }
 }
 

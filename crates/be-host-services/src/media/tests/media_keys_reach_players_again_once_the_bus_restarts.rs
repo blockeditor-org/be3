@@ -75,6 +75,7 @@ fn media_keys_reach_players_again_once_the_bus_restarts() {
     });
 
     bus.kill();
+    while next(&targets, "the host forgets the player once the bus is gone").is_some() {}
     bus.start_again();
 
     zbus::block_on(async {
