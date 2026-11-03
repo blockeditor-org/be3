@@ -121,11 +121,9 @@ default `colors`, and reports `TerminalInput`, `TerminalWheel` and `Fit`.
   at the view's width, so in a monospace font it breaks where the terminal did.
   Screen rows joined by `wrapped` (`logical_lines`) are one `Text` with
   `Overflow::Visible` and a `<Break/>` at each wrap point, keyed by the first
-  row's id, so a selection across the wrap copies no newline. They are not
-  `Overflow::Ellipsis`: that would cut each row on its own and draw an
-  ellipsis the terminal's cells do not hold whenever the view is briefly
-  narrower than the grid. The list's `text` gives unbuilt rows' text to copy
-  and select-all.
+  row's id, so a selection across the wrap copies no newline
+  (decisions/terminal_rows_overflow_visible.md). The list's `text` gives
+  unbuilt rows' text to copy and select-all.
 - The cursor is the row's caret (`TextCaret`, a bar) at `cursor.byte`, the row
   padded with spaces when the byte is past its end.
 - Fit: columns and rows from the view's size and the cell, whose width is the
@@ -154,7 +152,7 @@ top bar says no machine is running it, with a popover of the setup steps.
 Viewers send the client in `host`, while it shows `TerminalHost`, peer messages
 on the block's live session (guides/the_new_block_stack.md, Peer messages), so
 the server relays them sealed and cannot read the terminal. The terminal host and be-host
-are replicas of one session, so both must run the same build of the module that
+are replicas of one session, so both need the same build of the module that
 holds `TerminalContent` (the session's tag, guides/type_modules.md): `be`
 carries that build in its executable.
 
@@ -180,9 +178,8 @@ seconds; it recognises its own shell in the document and carries on without
 restoring.
 
 A viewer that may only read the block renders the document but sends nothing.
-The host does not check that yet, and anyone who can edit the block has a
-shell as the host's user: BE-E1C7A1 is the warning and permissions that should
-come before a public release.
+The host does not check that, so anyone who can edit the block has a shell as
+the host's user; BE-E1C7A1 tracks the warning and permissions.
 
 ## Tests
 
@@ -194,7 +191,7 @@ come before a public release.
   `a_terminal_host_encodes_keys_for_the_mode_its_program_set`.
 - `be-host`'s `a_terminal_host_answers_this_peer_through_the_blocks_session`:
   a real host against be-host's own stack, read from the block's content.
-- be-lib-ghostty-vt's tests cover rows, history, the encoders and paste; be-type-terminal'
+- be-lib-ghostty-vt's tests cover rows, history, the encoders and paste; be-type-terminal's
   cover the line helpers and the messages.
 - The editor's tests hold a document and drive presence and peer messages
   through be-sdk-test (`hold`, `set_peers`, `take_sent_to_peers`): input
