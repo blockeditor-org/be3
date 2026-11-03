@@ -17,11 +17,11 @@ whose shell is the desktop app. Two ways to run it are Linux's alone:
   every display's default scale.
 - `--install-login-session [PREFIX]` and `--uninstall-login-session [PREFIX]`: see Installing it as a login session, below.
 
-Under `--desktop` on Linux programs open as windows inside the shell, windowed or on the
-displays; without it be-host runs no Wayland server or Xwayland at all (guides/desktop.md), so no
-program window and no program editor of a block. What needs the displays and input devices themselves, such as display modes, pointer
-settings and the power row's actions other than Lock, is absent, since `beui-platform-drm` is
-not running: the power actions start only when the DRM seat provides its `DisplayControl`.
+Under `--desktop` programs open as windows inside the shell, windowed or on the displays; without
+it be-host runs no Wayland server or Xwayland at all (guides/desktop.md). In a window, what needs
+the displays and input devices themselves, such as display modes, pointer settings and the power
+row's actions other than Lock, is absent, since `beui-platform-drm` is not running: the power
+actions start only when the DRM seat provides its `DisplayControl`.
 
 ## Program windows
 
@@ -78,8 +78,8 @@ place in points and the main display as `DisplaySettings::arrangement`; each dis
 display switch sit in its own section. Both are kept on this device, and `display/linux.rs` hands
 them to the platform as `DisplayConfig`'s `uses`, `main` and `places` (guides/beui.md, Displays
 under beui-platform-drm). A new main display, or a display's use changed, waits to be kept like a
-new mode (`display/guard.rs`): reverting puts back the uses and arrangement before it. Elsewhere (a window, headless, the web, Android)
-there are no displays and the UI is the main window's, as it always was.
+new mode (`display/guard.rs`): reverting puts back the uses and arrangement before it. Elsewhere
+(a window, headless, the web, Android) there are no displays and the UI is the main window's.
 
 be-host-wayland advertises one `wl_output` per display (`Compositor::set_monitors`, from the same
 handle; `heads.rs`), at its desktop position, with one mode, its size in pixels at its scale
@@ -116,9 +116,9 @@ LightDM all read that directory, and LightDM (Mint's slick-greeter) never reads
 lists; `X-LightDM-Session-Type=wayland` makes LightDM run it as Wayland from any directory. The
 login screen then offers Block on its session menu, where it can be picked and remembered as
 the default. greetd's greeters (gtkgreet, regreet) list the commands in
-`/etc/greetd/environments` instead, so when that file exists the same command, with the installed link, is
-added to it once, and a line `LINK --session` an install from before `--desktop` left there is removed.
-`/etc/pam.d/be-host` is written unless one is there (Lock screen, below).
+`/etc/greetd/environments` instead, so when that file exists the same command, with the installed
+link, is added to it once, and an older `LINK --session` line is removed.
+`/etc/pam.d/be-host` is written unless one is there (The lock screen, below).
 
 It installs exactly the files the build put beside be-host, which `buck/program/stage.sh` lists
 in `program-files.txt` for every program with an executable, and refuses a directory without that
@@ -127,7 +127,7 @@ beside be-host stay where they are. `src/login_session/install.rs` plans every c
 `install/changes.rs` checks that each destination can be written before anything is; as someone
 other than root it names each destination it cannot write, and then a prefix that needs root (the default) runs the whole install again under sudo, and with a prefix
 of one's own (`~/.local`) be-host is copied in as its user and sudo writes only the files outside it
-(`--apply-login-session-changes`, which reads them on stdin). Nothing in `$HOME` is ever written as
+(`--apply-login-session-changes`, which reads them on stdin). Nothing in `$HOME` is written as
 root, and root refuses to write into a directory another user owns. When sudo cannot ask for a
 password (no terminal and no cached sudo) it refuses before copying anything, and when root's part
 fails the staged copy is removed, so a failed install leaves nothing behind. Running it again
@@ -141,6 +141,8 @@ The install records what it placed in `PREFIX/lib/be-host/installed.json`, and
 removes exactly that, with the same privilege handling: the entries, the link, the PAM service and
 greetd's line unless someone changed them since, and the listed files, then the directories they
 leave empty. A file someone else put in `PREFIX/lib/be-host` stays.
+
+## The log and problems
 
 In a login session stdout and stderr, and so every `eprintln!`, every panic with its backtrace
 and the output of every program be-host starts, go to `$XDG_STATE_HOME/block/login-session.log`
@@ -161,8 +163,10 @@ app runs (signing in, choosing an organization) and over either shell; they stac
 top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of the desktop app's notification
 toasts, which gather at the bottom unless its Status bar is moved.
 
-A panic must not take every program's window with it, so be-host's `panic_guard` sorts
-panics by where they happen. Every panic is logged with its backtrace. One inside
+## Panics
+
+be-host's `panic_guard` sorts panics by where they happen, so that one does not take every
+program's window with it. Every panic is logged with its backtrace. One inside
 `panic_guard::contain` is contained: an app, or the host's work for one, stops only that
 app (guides/adding_an_app.md), the shell included, while the compositor and its
 clients keep running (guides/desktop.md, A shell that stops); a D-Bus task (`dbus::spawn`) ends alone with a toast; a
@@ -171,6 +175,8 @@ contains (the block stack's, say), is be-host's own: in a window be-host shows i
 screen, and in a login session it ends the login session instead, through beui's runner and
 `beui_platform_drm`'s `Session::end`, so the console comes back and the display manager takes
 over rather than a frozen screen.
+
+## Screens turning off
 
 The screens turn off after the display settings' "Turn off screens after" (ten minutes by
 default). `be_host_wayland::Compositor` counts the idle time on the frame clock from the frames that
@@ -188,6 +194,8 @@ delivered before the screens went off is still delivered, so no key stays held. 
 turns the screens on itself and reports the wake through `DisplayControl::take_woken`, which
 be-host hands to `Compositor::woke` so the idle count restarts.
 
+## Switching terminals
+
 Switching terminals hands the seat to whatever runs there, whose DRM master reprograms the
 CRTCs, connectors and planes as it likes, so nothing the platform cached about them survives.
 `recovery.rs` decides what happens: when the seat comes back every output (surface,
@@ -198,6 +206,8 @@ modeset rather than a page flip. Coming back also wakes the screens and starts t
 modifiers over. A frame that cannot be shown sets its output up again once; if that fails too
 the output stops drawing and the problem is reported once through `Problems`, until the seat
 comes back or a display is plugged in or out.
+
+## Power and logging out
 
 The power row in the Status bar's Quick settings locks, suspends, restarts, powers off or logs out. The desktop
 app watches `PowerWatch` for what it may offer and sends `power::request(PowerAction)`;
@@ -217,7 +227,11 @@ ending's own exit is refused after all (be-host asks about unsent changes), `Pow
 later close start a new one. `src/login_session/logind.rs` talks to `org.freedesktop.login1`, including its `PrepareForSleep`
 signal. Logging out closes be-host the way closing its window does; `beui-platform-drm`'s
 `Session::end` then drops be-host, the outputs, the input devices, the DRM device (which
-puts back what the console showed) and, last, the seat. Every D-Bus conversation runs on one thread, be-host-services' `src/dbus.rs`: `dbus::spawn` runs a
+puts back what the console showed) and, last, the seat.
+
+## D-Bus
+
+Every D-Bus conversation runs on one thread, be-host-services' `src/dbus.rs`: `dbus::spawn` runs a
 future there. A task hands what it learns back through a `host::mailbox` (guides/desktop.md),
 which wakes the event loop, so nothing on the UI thread waits on the bus.
 
@@ -239,8 +253,8 @@ of its socket with inotify and tries again once something is created there, and 
 backoff from 1 to 30 seconds, because the socket can exist before the daemon listens on it and an
 address can name no socket file at all (an abstract socket, TCP).
 
-Build every connection with `dbus::build`, as the buses and the tests' private bus
-(`dbus::test_bus`) do. It sets `dbus::METHOD_TIMEOUT` (10 s), so a peer that never answers fails
+The buses and the tests' private bus (`dbus::test_bus`) build every connection with `dbus::build`,
+and a connection built otherwise lacks both of its guarantees. It sets `dbus::METHOD_TIMEOUT` (10 s), so a peer that never answers fails
 its call instead of holding the task that waits for it; calls to programs that can be slow, like
 tray items, run in their own `dbus::spawn` task, and media keys are sent without waiting for a
 reply. zbus starts a connection's object server only when the first object is served, and drops a
@@ -252,7 +266,6 @@ the connection is returned.
 Tests run services on a private bus, `dbus::test_bus::PrivateBus`, whose `kill` and
 `start_again` restart it at the same address to check that services come back, and wait with
 `test_bus::next` and `test_bus::within`, which fail after 30 seconds instead of hanging.
-
 
 ## Notifications
 
@@ -576,13 +589,23 @@ program can also be started against a driven `--desktop` be-host directly: it ha
 `drive env` (`Program::environment`), so `drive exec foot` runs `foot` inside it, and
 `eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
 
-A top-level window floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A toplevel that unmaps (commits with no buffer attached) leaves the window list, and its tab or dock window with it, until it maps again, when it is listed afresh, as xdg-shell defines (be-host-wayland's `ServerEvent::Unmapped`). A window with a parent (`xdg_toplevel.set_parent`) instead hangs from its parent's tab as a dock dialog, the anchored card guides/desktop.md describes (Program windows), showing and hiding with it; its header names the program from the desktop entry it was launched from, else the one its program id names. `xdg-dialog-v1` (be-host-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-host-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
-and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
-window (the desktop app's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). A window's
-tab menu offers the same (`FloatingWindow` offers fullscreen on its tab). Under `--desktop`, Super+drag anywhere on a floating window, its bar
-included, moves the window, and Super+right-drag resizes it from its nearest edge or corner,
-or moves the split beside a docked one. The desktop shell's other window keys (Alt+F4, Super+arrows, Super+D, ...) are in guides/desktop.md, Window keys. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
-windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
+A top-level window floats in a dock window of its own in the desktop shell, unless it was launched
+to open a block (Files opened in programs, below). A toplevel that unmaps (commits with no buffer
+attached) leaves the window list, and its tab or dock window with it, until it maps again, when it
+is listed afresh, as xdg-shell defines (be-host-wayland's `ServerEvent::Unmapped`).
+
+A window with a parent (`xdg_toplevel.set_parent`) instead hangs from its parent's tab as a dock dialog, the anchored card guides/desktop.md describes (Program windows), showing and hiding with it; its header names the program from the desktop entry it was launched from, else the one its program id names. `xdg-dialog-v1` (be-host-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-host-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input.
+
+`weston-simple-shm` (from the `weston` package) and `foot` are small clients to try it with.
+`foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on
+the focused window (the desktop app's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). A window's
+tab menu offers the same (`FloatingWindow` offers fullscreen on its tab).
+
+Under `--desktop`, Super+drag anywhere on a floating window, its bar included, moves the window,
+and Super+right-drag resizes it from its nearest edge or corner, or moves the split beside a
+docked one. The desktop shell's other window keys (Alt+F4, Super+arrows, Super+D, ...) are in
+guides/desktop.md, Window keys. In the desktop shell Alt+Tab, with Alt held, opens the window
+switcher and walks the windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
 raises the chosen one and Alt+Escape stays where it was. To drive it, hold Alt across the
 presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 
@@ -691,8 +714,7 @@ carrier, so it does not move. `show_window_menu` reaches the shell as `HostWindo
 asks and the point, from the window's top left), where be-sdk-shell's `WindowPanel` opens a menu
 there with Hide, Full screen and Close; minimizing (`xdg_toplevel.set_minimized`, an X11 window's
 iconify) hides the window as its chip's Hide does. A hidden window shown again comes back where
-it was: be-sdk-shell's `FloatingWindow` keeps the rect its dock window last had for as long as the
-host lists the window. While hidden, the window is told so, so its program can stop drawing:
+it was (guides/desktop.md, Shown and hidden entries). While hidden, the window is told so, so its program can stop drawing:
 be-host-desktop passes Hide and Show to `Windows::set_hidden`, which reconfigures it with
 `xdg_toplevel`'s `suspended` state (`xdg_wm_base` v6) or, for an X11 window,
 `_NET_WM_STATE_HIDDEN`. An X11 window's `WM_STATE` stays `NormalState`: smithay writes
@@ -805,8 +827,7 @@ window's own id never collides with a kept key. The host fills `HostWindow::orig
 compositor launched the program or an ancestor of it, the `.desktop` entry it was launched from
 and the `launch` number the shell put on its `ProgramAction::Launch` or `Exec`; otherwise the
 program's executable, the first word of the client's `/proc` command line (an X11 window's
-`_NET_WM_PID`). The arguments are never kept, since saved layouts outlive the process and an
-argument can be a secret. The desktop app opens a placeholder with that entry, else one from
+`_NET_WM_PID`). The arguments are not kept (decisions/kept_windows_store_no_program_arguments.md). The desktop app opens a placeholder with that entry, else one from
 `Programs` whose `StartupWMClass` or id matches the program id, else the executable. The host runs
 a `Launch` that arrives before it has listed the programs once the list is in.
 
@@ -883,9 +904,8 @@ missing and unmakeable, not writable or not a directory, no free display from :0
 once with what to fix, as `be-wayland: Xwayland did not start ...`; the same failure again is
 not logged again.
 
-It starts with the compositor rather than when an X11 client first connects: smithay creates
-the Xwayland client and its X11 sockets only inside `XWayland::spawn`, which starts the server
-at once. Programs the compositor launches get `DISPLAY`, and in a login session both it and
+It starts with the compositor, not when an X11 client first connects
+(decisions/xwayland_starts_with_the_compositor.md). Programs the compositor launches get `DISPLAY`, and in a login session both it and
 `WAYLAND_DISPLAY` go to D-Bus's activation environment and systemd's user manager
 (`src/login_session/environment.rs`). If Xwayland dies, its windows close and it starts again on the
 same display, up to three times, after which it stays stopped until be-host restarts. To try it under `:dev`, install `xwayland`
@@ -943,13 +963,12 @@ smithay's `X11Wm::new_selection` does not flush its X connection, so an overlay
 (`third-party/rust/overlays/smithay/xwm.rs`) does.
 
 Middle-click paste (`zwp_primary_selection_device_manager_v1`, and the primary selection of the
-data-control protocols) is off unless the input settings' "Middle-click paste" is on. The globals are always
-advertised, because a program that finds no primary selection protocol emulates one (Firefox
-then pastes the clipboard on a middle click). While the setting is off the primary selection
-just stays empty: `selection/primary.rs` drops every `set_selection` on a primary device, and
-`set_primary_selection` on a data-control device, so no one is offered it. It never cancels the
-source: a program whose source is cancelled has lost its selection, and a terminal then clears
-the text it just highlighted. Switching the setting off clears the current one, so it takes
+data-control protocols) is off unless the input settings' "Middle-click paste" is on. While it is
+off the globals are still advertised and the primary selection just stays empty:
+`selection/primary.rs` drops every `set_selection` on a primary device, and
+`set_primary_selection` on a data-control device, so no one is offered it, and the source is not
+cancelled (decisions/middle_click_paste_off_keeps_the_primary_selection_empty.md). Switching the setting off
+ clears the current one, so it takes
 effect at once in running programs. While it is off X11 programs keep
 their own `PRIMARY` in Xwayland, which is not bridged to Wayland, so they can still
 middle-click paste among themselves.
