@@ -78,8 +78,8 @@ pub(super) fn ScreenSection(
             .map(|display| display.connector.clone())
             .unwrap_or_default()
     });
-    let use_id = format!("display.{connector}.use");
-    let main_id = format!("display.{connector}.main");
+    let use_id = store(format!("display.{connector}.use"));
+    let main_id = store(format!("display.{connector}.main"));
     let resolution_id = format!("display.{connector}.resolution");
     let refresh_id = format!("display.{connector}.refresh");
     let scale_id = format!("display.{connector}.scale");
@@ -219,7 +219,7 @@ pub(super) fn ScreenSection(
                     label="Use"
                     description="Part of the desktop, showing what another display shows, or off."
                     locked={read_only}
-                    id={use_id.clone()}
+                    id={String::clone(&use_id.value())}
                 >
                     <Select
                         @sizing=ItemSize::Percent(100.0)
@@ -237,7 +237,7 @@ pub(super) fn ScreenSection(
                         })}
                         label="Use"
                         disabled={read_only}
-                        @test_id={use_id.clone()}
+                        @test_id={String::clone(&use_id.value())}
                     />
                 </LayeredSettingsRow>
             </Show>
@@ -253,7 +253,7 @@ pub(super) fn ScreenSection(
                         on={Binding::new(is_main, move |on: bool| make_main.call(on))}
                         label="Main display"
                         disabled={main_locked}
-                        @test_id={main_id.clone()}
+                        @test_id={String::clone(&main_id.value())}
                     />
                 </SettingsRow>
             </Show>
