@@ -3769,14 +3769,6 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     });
     let menu = dock.leaf_menu(hoisted);
     let closable = dock.all_closable(contents);
-    let lone_tab = create_memo(move || {
-        !icons_only.get()
-            && state.with(|state| match state.leaves(surface)[..] {
-                [leaf] => matches!(state.entries(leaf)[..], [Entry::Tab(_)]),
-                _ => false,
-            })
-    });
-    let bar_closable = create_memo(move || closable.get() && !lone_tab.get());
     let overlay = NodeRef::new();
     dock.stacked.value().borrow_mut().insert(surface, overlay);
     on_cleanup(move || {
@@ -3995,7 +3987,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                     tabs,
                                                                     title,
                                                                     vacant,
-                                                                    closable: bar_closable,
+                                                                    closable,
                                                                     menu,
                                                                     close,
                                                                     test_prefix: hoisted.map_or_else(

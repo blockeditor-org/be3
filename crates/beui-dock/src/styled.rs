@@ -434,7 +434,7 @@ fn DockTabChrome(
                         @test_id={close_test_id.clone()}
                         glyph=ICON_X
                         label="Close tab"
-                        size=ButtonSize::Small
+                        size=ButtonSize::Inline
                         variant=ButtonVariant::Ghost
                         capture_presses=true
                         on_click={close}
@@ -584,7 +584,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                                     @test_id={format!("dock.dialog.{}.close", tab.value())}
                                     glyph=ICON_X
                                     label="Close"
-                                    size=ButtonSize::Small
+                                    size=ButtonSize::Inline
                                     variant=ButtonVariant::Ghost
                                     capture_presses=true
                                     on_click={close}
