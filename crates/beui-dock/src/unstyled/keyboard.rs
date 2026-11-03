@@ -105,9 +105,6 @@ impl State {
 
 impl DockTabControl {
     pub fn brought_forward(&self) -> Option<u64> {
-        if let Some(focused) = self.read_hosted(|hosted| hosted.focused == Some(self.tab)) {
-            return focused.then_some(0);
-        }
         let dock = self.dock()?;
         dock.forward
             .with(|(count, target)| (*target == Some(self.tab)).then_some(*count))

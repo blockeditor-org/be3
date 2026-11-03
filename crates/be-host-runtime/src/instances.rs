@@ -2812,6 +2812,14 @@ impl Instances {
             .unwrap_or_default()
     }
 
+    pub(super) fn ask_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) {
+        if let Some(entry) = self.entries.get_mut(&instance)
+            && !entry.child_focus.contains(&child)
+        {
+            entry.child_focus.push(child);
+        }
+    }
+
     pub(super) fn take_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) -> bool {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
@@ -3499,9 +3507,7 @@ impl Instances {
             }
             ShellCall::FocusChild { reply, child, .. } => {
                 ack(reply);
-                if !entry.child_focus.contains(&child) {
-                    entry.child_focus.push(child);
-                }
+                self.ask_child_focus(instance, child);
             }
             ShellCall::ShowCard { reply, card, .. } => {
                 ack(reply);

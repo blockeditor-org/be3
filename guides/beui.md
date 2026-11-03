@@ -3083,8 +3083,7 @@ keyboard, `DockTabControl::keyboard` changes, so content whose keyboard lives
 in another document, such as a program's window, can take it there.
 `DockTabControl::brought_forward` changes each time a tab in a floating window
 comes to the front (opened, shown, switched to, or left in front by a close;
-not while the dock is built or restored), without moving the focus, and a
-hosted tab reports it while the hosting dock focuses it. A block placed in a tab
+not while the dock is built or restored), without moving the focus. A block placed in a tab
 (`ChildBlock`, `Subregion`) follows both and asks the host to give it the
 keyboard (`focus_child`, guides/adding_an_app.md), which is how a block window
 the desktop opens or brings forward takes the keys.

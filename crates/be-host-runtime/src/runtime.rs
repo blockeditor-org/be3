@@ -1551,6 +1551,12 @@ pub fn card(app_id: &str, instance: EditorInstanceId) -> bool {
     with(app_id, |runtime| runtime.instances.card(instance)).unwrap_or(false)
 }
 
+pub fn pass_child_focus(app_id: &str, instance: EditorInstanceId, child: be_sdk_api::ChildId) {
+    if with(app_id, |runtime| runtime.instances.ask_child_focus(instance, child)).is_some() {
+        mark(app_id);
+    }
+}
+
 pub fn take_child_focus(
     app_id: &str,
     instance: EditorInstanceId,

@@ -295,7 +295,10 @@ fn follow_tab_keyboard(
             return;
         };
         let held = asked.replace(given.clone());
-        if given.iter().any(|given| !held.contains(given)) {
+        let trapped = editor.popped().with_untracked(Option::is_some)
+            || beui::native::try_with_document(|document| document.layers().takes_keyboard())
+                .unwrap_or(false);
+        if !trapped && given.iter().any(|given| !held.contains(given)) {
             untrack(|| editor.host().focus_child(child));
         }
     });

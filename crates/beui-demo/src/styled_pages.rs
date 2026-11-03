@@ -333,7 +333,7 @@ fn ContentDrag() -> NodeId {
                         }
                     })}
                 />
-                <Text>"Alt moves and resizes windows"</Text>
+                <Text @sizing=ItemSize::Percent(100.0)>"Alt moves and resizes windows"</Text>
             </List>
             <Text style=TextStyle::CAPTION>
                 "A dock can be given a drag modifier, which is off unless asked for. \

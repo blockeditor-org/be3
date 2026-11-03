@@ -681,7 +681,7 @@ pub(crate) fn AppView(
     focus_when_presenting(presenting, presented, &catcher, primary);
     toggle_keyboard_when_asked(state, primary);
     focus_when_asked(revision, app_id, instance, region, &catcher, primary);
-    focus_when_given(asked, revision, &catcher, primary);
+    focus_when_given(asked, (app_id, instance), state, revision, &catcher, primary);
     let catcher_zoom = zoom;
     create_effect(move || {
         revision.get();
@@ -708,6 +708,11 @@ pub(crate) fn AppView(
     on_cleanup(move || {
         if let Some(node) = catcher.try_get() {
             super::desktop::forget_catcher(node);
+            try_with_document(|document| {
+                if document.focused_node() == Some(node) {
+                    document.blur();
+                }
+            });
         }
     });
     super::anchored::register(super::anchored::AnchorOwner {
@@ -1486,6 +1491,8 @@ fn focus_when_asked(
 
 fn focus_when_given(
     asked: Option<AskedFocus>,
+    (app, own): (Stored<String>, EditorInstanceId),
+    state: Memo<PlacedView>,
     revision: beui::reactive::ReadSignal<u64>,
     catcher: &NodeRef,
     primary: Memo<bool>,
@@ -1494,6 +1501,20 @@ fn focus_when_given(
         return;
     };
     let catcher = *catcher;
+    let passing = create_signal(false);
+    create_effect(move || {
+        let filling = state.with(filling_child);
+        let (true, Some(filling), Some(node)) = (passing.get(), filling, catcher.try_get()) else {
+            return;
+        };
+        untrack(|| {
+            passing.set(false);
+            let held = try_with_document(|document| document.focused_node());
+            if held.flatten() == Some(node) {
+                be_host_runtime::pass_child_focus(&app.value(), own, filling);
+            }
+        });
+    });
     create_effect(move || {
         revision.get();
         if !asked.asked.get() || !primary.get() {
@@ -1507,28 +1528,47 @@ fn focus_when_given(
             if !be_host_runtime::take_child_focus(&placer.app.value(), placer.instance, child) {
                 return;
             }
+            if WANTING_KEYBOARD.with_borrow(|views| !views.is_empty()) {
+                return;
+            }
             try_with_document(|document| {
                 let held = document.focused_node();
-                let inside = held
-                    .is_some_and(|held| super::desktop::shown_within(held, |view, _| view == node));
+                let inside = held.is_some_and(|held| {
+                    super::desktop::shown_within(held, |view, catcher| {
+                        view == node || (catcher.instance == own && catcher.app == *app.value())
+                    })
+                });
                 if document.focus_is_within(node) || inside {
                     return;
                 }
-                let app = placer.app.value();
+                let placing = placer.app.value();
                 let placer_holds = held.is_none_or(|held| {
-                    super::desktop::catchers_of(&app, placer.instance)
+                    super::desktop::catchers_of(&placing, placer.instance)
                         .into_iter()
                         .any(|view| document.focus_is_within(view))
                         || super::desktop::shown_within(held, |_, catcher| {
-                            catcher.instance == placer.instance && catcher.app == *app
+                            catcher.instance == placer.instance && catcher.app == *placing
                         })
                 });
                 if placer_holds {
                     document.focus_focusable(node);
+                    passing.set(true);
                 }
             });
         });
     });
+}
+
+fn filling_child(view: &PlacedView) -> Option<ChildId> {
+    let live = |child: &&HostChild| {
+        child.anchored.is_none() && child.own_frame && child.mode == be_sdk_api::ChildMode::Live
+    };
+    let [child] = view.children.iter().filter(live).collect::<Vec<_>>()[..] else {
+        return None;
+    };
+    let shown = child.clip.intersect(view.rect);
+    let area = |rect: Rect| rect.width() * rect.height();
+    (area(shown) >= area(view.rect) * 0.8).then_some(child.child)
 }
 
 fn focus_when_presenting(

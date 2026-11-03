@@ -60,7 +60,7 @@ pub use runtime::{
     report_children, request_painting, resized, revoke_frame_child, running, set_artifact_states,
     set_focus, set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog,
     show_panel, start_frames, take_artifact_outcome, take_artifact_watch, take_bar_actions,
-    take_child_commits, take_child_dismissals, take_child_focus, take_child_menu_picks,
+    take_child_commits, take_child_dismissals, take_child_focus, pass_child_focus, take_child_menu_picks,
     take_created, take_focus_report, take_leaving, take_steps, take_stopped, take_view_changes,
     view_placement_of, view_size, warm,
 };
