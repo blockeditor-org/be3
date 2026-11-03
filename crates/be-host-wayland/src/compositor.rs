@@ -417,7 +417,8 @@ impl Compositor {
                     changed = true;
                 }
                 ServerEvent::Committed(id) => {
-                    if !windows.listed(id) {
+                    let drawn = self.server.state.drawn_size(id);
+                    if windows.listed_drawn(id) != Some(drawn) {
                         changed = true;
                     }
                     if !redraw.contains(&id) {
@@ -518,6 +519,7 @@ impl Compositor {
                 Some(WindowInfo {
                     id,
                     size,
+                    drawn: state.drawn_size(id),
                     min_size,
                     max_size,
                     title: state.title(id).unwrap_or_default(),
@@ -882,7 +884,7 @@ impl Compositor {
         for command in self.windows.take_commands() {
             match command {
                 Command::Configure(id) => {
-                    let hidden = self.windows.hidden(id);
+                    let hidden = self.windows.suspended(id);
                     self.server.state.set_hidden(id, hidden);
                     if let Some(rect) = self.windows.rect(id) {
                         let position = rect.min - self.area.min;
@@ -901,11 +903,7 @@ impl Compositor {
                                 (area.width().round() as i32, area.height().round() as i32)
                             })
                         });
-                    let own = !self.configured.contains_key(&id)
-                        && size.is_some_and(|size| {
-                            self.server.state.own_size(id) == Some(size.into())
-                        });
-                    let Some(size) = size.filter(|size| size.0 >= 1 && size.1 >= 1 && !own) else {
+                    let Some(size) = size.filter(|size| size.0 >= 1 && size.1 >= 1) else {
                         self.server
                             .state
                             .configure_sized(id, None, focused == Some(id));

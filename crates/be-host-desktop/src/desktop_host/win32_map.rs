@@ -288,6 +288,14 @@ impl ProgramNames {
     }
 }
 
+pub fn drawn_size(snapshot: &Snapshot, entry: &Entry) -> Vec2 {
+    let scale = scale_at(snapshot, entry.frame);
+    Vec2::new(
+        entry.frame.width().max(0) as f32 / scale,
+        entry.frame.height().max(0) as f32 / scale,
+    )
+}
+
 pub fn host_window(
     snapshot: &Snapshot,
     entry: &Entry,

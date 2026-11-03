@@ -15,6 +15,7 @@ pub struct WindowInfo {
     pub parent: Option<WindowId>,
     pub modal: bool,
     pub size: Vec2,
+    pub drawn: Vec2,
     pub min_size: Vec2,
     pub max_size: Vec2,
     pub fullscreen: Option<Rect>,
@@ -84,8 +85,9 @@ struct Inner {
     menus: RefCell<HashMap<WindowId, (u64, Vec2)>>,
     minimized: RefCell<Vec<WindowId>>,
     hidden: RefCell<Vec<WindowId>>,
+    placed: RefCell<Vec<WindowId>>,
     list: Signal<Vec<WindowInfo>>,
-    revision: Cell<u64>,
+    revision: Signal<u64>,
     cursor: Signal<CursorIcon>,
     cursor_image: Signal<Option<CursorImage>>,
     idle: Signal<bool>,
@@ -100,6 +102,7 @@ impl Windows {
         let cursor = create_signal(CursorIcon::Default);
         let cursor_image = create_signal(None);
         let idle = create_signal(false);
+        let revision = create_signal(0);
         Self(store(Inner {
             windows: RefCell::new(HashMap::new()),
             scope: owner_scope().expect("windows are made inside a scope"),
@@ -115,8 +118,9 @@ impl Windows {
             menus: RefCell::new(HashMap::new()),
             minimized: RefCell::new(Vec::new()),
             hidden: RefCell::new(Vec::new()),
+            placed: RefCell::new(Vec::new()),
             list,
-            revision: Cell::new(0),
+            revision,
             cursor,
             cursor_image,
             idle,
@@ -130,7 +134,17 @@ impl Windows {
 
     pub fn revision(&self) -> u64 {
         let inner = self.0.value();
-        inner.revision.get()
+        inner.revision.get_untracked()
+    }
+
+    pub fn changes(&self) -> ReadSignal<u64> {
+        let inner = self.0.value();
+        inner.revision.read_only()
+    }
+
+    fn changed(&self) {
+        let inner = self.0.value();
+        inner.revision.update(|revision| *revision += 1);
     }
 
     pub fn signals(&self, id: WindowId) -> Option<WindowSignals> {
@@ -189,7 +203,7 @@ impl Windows {
         };
         signals.asks.update(|asks| *asks += 1);
         *inner.raised.borrow_mut().entry(id).or_default() += 1;
-        inner.revision.set(inner.revision.get() + 1);
+        self.changed();
     }
 
     pub(crate) fn pressed(&self, id: WindowId) {
@@ -198,7 +212,7 @@ impl Windows {
         }
         let inner = self.0.value();
         *inner.raised.borrow_mut().entry(id).or_default() += 1;
-        inner.revision.set(inner.revision.get() + 1);
+        self.changed();
     }
 
     pub fn raised(&self, id: WindowId) -> u64 {
@@ -209,7 +223,7 @@ impl Windows {
     pub(crate) fn ring(&self, id: WindowId) {
         let inner = self.0.value();
         *inner.rung.borrow_mut().entry(id).or_default() += 1;
-        inner.revision.set(inner.revision.get() + 1);
+        self.changed();
     }
 
     pub fn rung(&self, id: WindowId) -> u64 {
@@ -230,7 +244,7 @@ impl Windows {
         let mut menus = inner.menus.borrow_mut();
         let asked = menus.get(&id).map_or(0, |(asked, _)| *asked) + 1;
         menus.insert(id, (asked, at));
-        inner.revision.set(inner.revision.get() + 1);
+        self.changed();
     }
 
     pub fn menu(&self, id: WindowId) -> Option<(u64, Vec2)> {
@@ -241,7 +255,7 @@ impl Windows {
     pub(crate) fn minimize(&self, id: WindowId) {
         let inner = self.0.value();
         inner.minimized.borrow_mut().push(id);
-        inner.revision.set(inner.revision.get() + 1);
+        self.changed();
     }
 
     pub fn set_hidden(&self, id: WindowId, hidden: bool) {
@@ -260,6 +274,12 @@ impl Windows {
 
     pub fn hidden(&self, id: WindowId) -> bool {
         self.0.value().hidden.borrow().contains(&id)
+    }
+
+    pub fn suspended(&self, id: WindowId) -> bool {
+        let inner = self.0.value();
+        self.hidden(id)
+            || (inner.placed.borrow().contains(&id) && !inner.views.borrow().contains_key(&id))
     }
 
     pub fn take_minimized(&self) -> Vec<WindowId> {
@@ -347,6 +367,7 @@ impl Windows {
         inner.menus.borrow_mut().remove(&id);
         inner.minimized.borrow_mut().retain(|held| *held != id);
         inner.hidden.borrow_mut().retain(|held| *held != id);
+        inner.placed.borrow_mut().retain(|held| *held != id);
         if inner.focused.get() == Some(id) {
             inner.focused.set(None);
         }
@@ -358,14 +379,18 @@ impl Windows {
     pub(crate) fn set_list(&self, list: Vec<WindowInfo>) {
         let inner = self.0.value();
         if inner.list.get_untracked() != list {
-            inner.revision.set(inner.revision.get() + 1);
+            self.changed();
             inner.list.set(list);
         }
     }
 
-    pub(crate) fn listed(&self, id: WindowId) -> bool {
+    pub(crate) fn listed_drawn(&self, id: WindowId) -> Option<Vec2> {
         let inner = self.0.value();
-        inner.list.get_untracked().iter().any(|info| info.id == id)
+        inner.list.with_untracked(|list| {
+            list.iter()
+                .find(|info| info.id == id)
+                .map(|info| info.drawn)
+        })
     }
 
     pub(crate) fn draw(&self, id: WindowId, drawing: Option<Drawing>, popups: Option<Popups>) {
@@ -403,6 +428,11 @@ impl Windows {
         let changed = view.rect != Some(rect);
         view.rect = Some(rect);
         drop(views);
+        let mut placed = inner.placed.borrow_mut();
+        if !placed.contains(&id) {
+            placed.push(id);
+        }
+        drop(placed);
         if changed {
             self.push(Command::Configure(id));
         }
@@ -452,6 +482,8 @@ impl Windows {
         view.popups.retain(|node| !nodes.contains(&Some(*node)));
         if view.mounts == 0 {
             views.remove(&id);
+            drop(views);
+            self.push(Command::Configure(id));
         }
     }
 
@@ -492,7 +524,7 @@ impl Windows {
             inner.focused.set(None);
         }
         if inner.focused.get() != was {
-            inner.revision.set(inner.revision.get() + 1);
+            self.changed();
         }
         self.push(Command::Configure(id));
     }

@@ -16,7 +16,7 @@ use beui::styled::*;
 use beui::{Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
 
-use be_host_desktop::desktop_host::{DesktopHost, Host};
+use be_host_desktop::desktop_host::{DesktopHost, Host, PlacedWindow};
 
 use super::app_view::{AppView, ChildView, ViewEditor};
 use crate::editors::app::{AppPicker, InstanceSource};
@@ -42,6 +42,7 @@ pub(crate) struct State {
     settings_children: RefCell<HashMap<(Uuid, ChildId), Uuid>>,
     settings_shown: RefCell<HashMap<CreationKey, Uuid>>,
     settings_status: RefCell<Option<(Uuid, f32, DialogStatus)>>,
+    windows: RefCell<HashMap<(Uuid, ChildId), HostWindowId>>,
 }
 
 pub(crate) type CreationKey = (Uuid, View, ChildId);
@@ -108,6 +109,7 @@ impl OwnedEditors {
             settings_children: RefCell::new(HashMap::new()),
             settings_shown: RefCell::new(HashMap::new()),
             settings_status: RefCell::new(None),
+            windows: RefCell::new(HashMap::new()),
         });
         let editors = Editors(*state);
         EDITORS.set(Some(editors));
@@ -293,7 +295,25 @@ impl Editors {
         }
     }
 
-    pub(crate) fn close_children(&self, _parent: Uuid, _children: &[ChildId]) {}
+    pub(crate) fn close_children(&self, parent: Uuid, children: &[ChildId]) {
+        let state = self.0.value();
+        let closed: Vec<HostWindowId> = children
+            .iter()
+            .filter_map(|child| state.windows.borrow().get(&(parent, *child)).copied())
+            .collect();
+        for window in closed {
+            Host::close(window);
+        }
+    }
+
+    fn place_window(&self, parent: Uuid, child: ChildId, window: Option<HostWindowId>) {
+        let state = self.0.value();
+        let mut windows = state.windows.borrow_mut();
+        match window {
+            Some(window) => windows.insert((parent, child), window),
+            None => windows.remove(&(parent, child)),
+        };
+    }
 
     pub(crate) fn commit_creations(&self, parent: Uuid, commits: Vec<ChildCommit>) {
         let state = self.0.value();
@@ -1114,7 +1134,7 @@ enum Resolution {
 }
 
 #[component]
-fn ProgramSurface(block: Uuid) -> NodeId {
+fn ProgramSurface(block: Uuid, focus: Memo<u64>) -> NodeId {
     let any = super::any();
     let shown = create_memo(move || {
         any.get();
@@ -1125,7 +1145,7 @@ fn ProgramSurface(block: Uuid) -> NodeId {
             <Dynamic value={shown}>|shown: Option<be_host_desktop::programs::Shown>| {
                 match shown {
                     Some(be_host_desktop::programs::Shown::Window(window)) => view! {
-                        <Host::WindowSurface window={window} />
+                        <PlacedWindow window={window} focus />
                     },
                     Some(be_host_desktop::programs::Shown::Closed(name)) => view! {
                         <ProgramClosed name block />
@@ -1590,6 +1610,20 @@ fn HostedChild(
             _ => Kind::Embedded,
         }
     });
+    let placed_window = create_memo(move || match kind.get() {
+        Kind::Window(window) => Some(window),
+        Kind::Program(block) => {
+            any.get();
+            match be_host_desktop::programs::shown(block) {
+                Some(be_host_desktop::programs::Shown::Window(window)) => Some(window),
+                _ => None,
+            }
+        }
+        _ => None,
+    });
+    create_effect(move || editors.place_window(parent, key, placed_window.get()));
+    on_cleanup(move || editors.place_window(parent, key, None));
+    let window_focus = follow_window(parent, key, child, placed_window);
     create_effect(move || {
         let Some(child) = child.get() else {
             return;
@@ -1618,6 +1652,19 @@ fn HostedChild(
                 status.creation = progress;
                 status.intrinsic = height.map(|height| vec2(0.0, height));
                 status.dialog = dialog;
+            }
+            if let Some(window) = placed_window.get()
+                && let Some(shown) = Host::window_status(window)
+            {
+                status.title = Some(shown.title.clone());
+                status.icon = shown.icon.clone();
+                status.group = Some(shown.group.clone()).filter(|group| !group.is_empty());
+                status.raised = shown.raised;
+                status.rung = shown.rung;
+                status.fullscreen = shown.fullscreen;
+                status.notice = shown.notice.clone();
+                status.menu_asked = shown.menu;
+                status.intrinsic = shown.intrinsic();
             }
             if kind.get() == Kind::NoPicker {
                 status.error = Some(NO_PICKER.to_owned());
@@ -1717,10 +1764,10 @@ fn HostedChild(
                                 <HostPanelSurface panel={panel} />
                             },
                             Kind::Window(window) => view! {
-                                <Host::WindowSurface window={window} />
+                                <PlacedWindow window={window} focus={window_focus} />
                             },
                             Kind::Program(block) => view! {
-                                <ProgramSurface block />
+                                <ProgramSurface block focus={window_focus} />
                             },
                             Kind::DockTab(block, tab) => view! {
                                 <DockTabSurface block tab reporter />
@@ -1815,6 +1862,59 @@ fn HostedChild(
             </CanvasItem>
         </Canvas>
     }
+}
+
+fn follow_window(
+    parent: Uuid,
+    key: ChildId,
+    child: Memo<Option<HostChild>>,
+    window: Memo<Option<HostWindowId>>,
+) -> Memo<u64> {
+    let editors = editors();
+    let asks = create_signal(0u64);
+    let given = create_memo(move || {
+        child.with(|child| child.as_ref().is_some_and(|child| child.keyboard))
+    });
+    let held = StoredCell::new(false);
+    create_effect(move || {
+        let given = given.get() && window.get().is_some();
+        if !held.replace(given) && given {
+            untrack(|| asks.update(|asks| *asks += 1));
+        }
+    });
+    let asked = create_memo(move || {
+        child.with(|child| child.as_ref().is_some_and(|child| child.focus_asked))
+    });
+    create_effect(move || {
+        if !asked.get() || window.get().is_none() {
+            return;
+        }
+        untrack(|| {
+            let Some(placer) = editors.handle(parent) else {
+                return;
+            };
+            let Some(app_id) = placer.app_id() else {
+                return;
+            };
+            if be_host_runtime::take_child_focus(app_id, placer.instance, key) {
+                asks.update(|asks| *asks += 1);
+            }
+        });
+    });
+    let fullscreen = create_memo(move || {
+        child.with(|child| child.as_ref().is_some_and(|child| child.fullscreen))
+    });
+    let shown = StoredCell::new(false);
+    create_effect(move || {
+        let fullscreen = fullscreen.get();
+        let Some(window) = window.get() else {
+            return;
+        };
+        if shown.replace(fullscreen) != fullscreen {
+            untrack(|| Host::fullscreen(window, fullscreen));
+        }
+    });
+    create_memo(move || asks.get())
 }
 
 #[derive(Clone, Copy)]

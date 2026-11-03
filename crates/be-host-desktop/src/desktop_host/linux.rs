@@ -7,6 +7,7 @@ use std::time::Duration;
 use super::DesktopHost;
 use super::shown::Shown;
 use crate::programs::{Opener, ProgramSource};
+use crate::window_body::WindowStatus;
 use be_host_wayland::programs::{
     DesktopEntry, Environment, IconThemes, MimeGlobs, NamedIcons, load_icon,
 };
@@ -309,56 +310,24 @@ impl DesktopHost for Linux {
         listed
             .into_iter()
             .filter(|info| !opening.contains(&info.id))
-            .map(|info| {
-                let launched = launched(info.launch);
-                let known = match launched.program.is_some() {
-                    true => Known::default(),
-                    false => known(&info.program_id),
-                };
-                let icon = info.icon.or_else(|| {
-                    let name = launched.icon.as_ref().or(known.icon.as_ref())?;
-                    ICONS.with_borrow_mut(|icons| icons.get(name, be_host_wayland::ICON_PIXELS))
-                });
-                HostWindow {
-                    id: HostWindowId(info.id.0),
-                    kind: WindowKind::Window,
-                    shown: SHOWN.with(|kept| kept.borrow().shown(HostWindowId(info.id.0))),
-                    name: match launched.name.is_empty() {
-                        true => known.name,
-                        false => launched.name.clone(),
-                    },
-                    title: info.title,
-                    program_id: info.program_id,
-                    parent: info
-                        .parent
-                        .filter(|parent| !opening.contains(parent))
-                        .map(|parent| HostWindowId(parent.0)),
-                    modal: info.modal,
-                    size: info.size,
-                    min_size: info.min_size,
-                    max_size: info.max_size,
-                    fullscreen: info.fullscreen,
-                    responding: info.responding,
-                    focused: windows.focused() == Some(info.id),
-                    icon: icon.map(|icon| HostImage {
-                        width: icon.width(),
-                        height: icon.height(),
-                        rgba: icon.pixels().to_vec(),
-                    }),
-                    raised: windows.raised(info.id),
-                    rung: windows.rung(info.id),
-                    origin: WindowOrigin {
-                        command: relaunch_command(&launched.program, info.command),
-                        program: launched.program,
-                        launch: launched.launch,
-                    },
-                    note: None,
-                    menu: windows
-                        .menu(info.id)
-                        .map(|(asked, at)| WindowMenu { asked, at }),
-                }
-            })
+            .map(|info| host_window(windows, info, &opening))
             .collect()
+    }
+
+    fn window_status(window: HostWindowId) -> Option<WindowStatus> {
+        let windows = windows()?;
+        windows.changes().get();
+        let id = WindowId(window.0);
+        windows.list().with(|list| {
+            let info = list.iter().find(|info| info.id == id)?;
+            let parent = info
+                .parent
+                .and_then(|parent| list.iter().find(|info| info.id == parent))
+                .map(|parent| host_window(windows, parent.clone(), &[]));
+            let drawn = info.drawn;
+            let record = host_window(windows, info.clone(), &[]);
+            Some(WindowStatus::of(&record, parent.as_ref(), drawn))
+        })
     }
 
     fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
@@ -435,7 +404,7 @@ impl DesktopHost for Linux {
     }
 
     #[component]
-    fn WindowSurface(window: HostWindowId) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
         let occluders = crate::occlusion::occlusion();
         let occluders = create_memo(move || {
             occluders
@@ -457,12 +426,62 @@ impl DesktopHost for Linux {
         });
         match windows() {
             Some(windows) => view! {
-                <WindowView windows id={WindowId(window.0)} occluders carrier />
+                <WindowView windows id={WindowId(window.0)} occluders carrier focus />
             },
             None => view! {
                 <Frame />
             },
         }
+    }
+}
+
+fn host_window(windows: Windows, info: be_host_wayland::WindowInfo, opening: &[WindowId]) -> HostWindow {
+    let launched = launched(info.launch);
+    let known = match launched.program.is_some() {
+        true => Known::default(),
+        false => known(&info.program_id),
+    };
+    let icon = info.icon.or_else(|| {
+        let name = launched.icon.as_ref().or(known.icon.as_ref())?;
+        ICONS.with_borrow_mut(|icons| icons.get(name, be_host_wayland::ICON_PIXELS))
+    });
+    HostWindow {
+        id: HostWindowId(info.id.0),
+        kind: WindowKind::Window,
+        shown: SHOWN.with(|kept| kept.borrow().shown(HostWindowId(info.id.0))),
+        name: match launched.name.is_empty() {
+            true => known.name,
+            false => launched.name.clone(),
+        },
+        title: info.title,
+        program_id: info.program_id,
+        parent: info
+            .parent
+            .filter(|parent| !opening.contains(parent))
+            .map(|parent| HostWindowId(parent.0)),
+        modal: info.modal,
+        size: info.size,
+        min_size: info.min_size,
+        max_size: info.max_size,
+        fullscreen: info.fullscreen,
+        responding: info.responding,
+        focused: windows.focused() == Some(info.id),
+        icon: icon.map(|icon| HostImage {
+            width: icon.width(),
+            height: icon.height(),
+            rgba: icon.pixels().to_vec(),
+        }),
+        raised: windows.raised(info.id),
+        rung: windows.rung(info.id),
+        origin: WindowOrigin {
+            command: relaunch_command(&launched.program, info.command),
+            program: launched.program,
+            launch: launched.launch,
+        },
+        note: None,
+        menu: windows
+            .menu(info.id)
+            .map(|(asked, at)| WindowMenu { asked, at }),
     }
 }
 

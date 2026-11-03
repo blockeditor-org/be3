@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_window_that_resizes_itself_is_followed() {
+fn a_window_that_resizes_itself_keeps_that_as_its_own_size() {
     let mut snapshot = snapshot(vec![window(1, Rect::new(100, 100, 900, 700))]);
     let mut shaping = Shaping::default();
     shaping.observe(&snapshot);

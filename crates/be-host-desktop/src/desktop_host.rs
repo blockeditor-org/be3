@@ -20,6 +20,7 @@ use beui::styled::*;
 use beui::{NodeId, Rect};
 
 use crate::programs::ProgramSource;
+use crate::window_body::{WindowBody, WindowStatus};
 
 #[cfg(target_os = "linux")]
 pub use linux::{Linux as Host, set_keyboard, set_layout};
@@ -86,6 +87,10 @@ pub trait DesktopHost {
         Vec::new()
     }
 
+    fn window_status(_window: HostWindowId) -> Option<WindowStatus> {
+        None
+    }
+
     fn close(_window: HostWindowId) {}
 
     fn fullscreen(_window: HostWindowId, _fullscreen: bool) {}
@@ -112,10 +117,21 @@ pub trait DesktopHost {
     }
 
     #[component]
-    fn WindowSurface(window: HostWindowId) -> NodeId {
-        let _ = window;
+    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+        let _ = (window, focus);
         view! {
             <Frame />
         }
+    }
+}
+
+#[component]
+pub fn PlacedWindow(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+    let status = create_memo(move || Host::window_status(window));
+    let on_force_close = ClickCallback::new(move || Host::close(window));
+    view! {
+        <WindowBody status on_force_close>
+            <Host::WindowSurface window focus />
+        </WindowBody>
     }
 }

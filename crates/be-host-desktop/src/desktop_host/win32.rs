@@ -15,6 +15,7 @@ use beui::{
 };
 
 use crate::programs::ProgramSource;
+use crate::window_body::WindowStatus;
 
 use super::DesktopHost;
 use super::win32_map::{
@@ -59,6 +60,7 @@ struct Captured {
 #[derive(Clone, Copy)]
 struct Signals {
     snapshot: Signal<Arc<Snapshot>>,
+    notes: Signal<u64>,
 }
 
 struct Host {
@@ -79,6 +81,7 @@ thread_local! {
     static CHANGES: Cell<u64> = const { Cell::new(0) };
     static NOTES: RefCell<Notes> = RefCell::new(Notes::default());
     static NAMES: RefCell<ProgramNames> = RefCell::new(ProgramNames::default());
+    static NOTED: Cell<u64> = const { Cell::new(0) };
 }
 
 fn edit_notes(change: impl FnOnce(&mut Notes)) {
@@ -88,6 +91,7 @@ fn edit_notes(change: impl FnOnce(&mut Notes)) {
         *notes != before
     });
     if edited {
+        NOTED.set(NOTED.get() + 1);
         changed();
     }
 }
@@ -118,6 +122,7 @@ impl DesktopHost for Win32 {
     fn create() {
         SIGNALS.set(Some(Signals {
             snapshot: create_signal(Arc::new(Snapshot::default())),
+            notes: create_signal(0),
         }));
     }
 
@@ -297,6 +302,9 @@ impl DesktopHost for Win32 {
             if signals.snapshot.get_untracked().revision != snapshot.revision {
                 signals.snapshot.set(snapshot);
             }
+            if signals.notes.get_untracked() != NOTED.get() {
+                signals.notes.set(NOTED.get());
+            }
             for (signal, drawing) in frames {
                 signal.set(drawing);
             }
@@ -347,6 +355,28 @@ impl DesktopHost for Win32 {
 
     fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
         Vec::new()
+    }
+
+    fn window_status(window: HostWindowId) -> Option<WindowStatus> {
+        let signals = signals()?;
+        signals.notes.get();
+        let id = entry_id(window);
+        signals.snapshot.with(|snapshot| {
+            let entry = snapshot.entry(id)?;
+            let parent = entry.parent.and_then(|parent| snapshot.entry(parent));
+            SHAPING.with_borrow(|shaping| {
+                NOTES.with_borrow(|notes| {
+                    NAMES.with_borrow(|names| {
+                        let record = win32_map::host_window(snapshot, entry, shaping, notes, names);
+                        let parent = parent.map(|parent| {
+                            win32_map::host_window(snapshot, parent, shaping, notes, names)
+                        });
+                        let drawn = win32_map::drawn_size(snapshot, entry);
+                        Some(WindowStatus::of(&record, parent.as_ref(), drawn))
+                    })
+                })
+            })
+        })
     }
 
     fn close(window: HostWindowId) {
@@ -408,7 +438,7 @@ impl DesktopHost for Win32 {
     }
 
     #[component]
-    fn WindowSurface(window: HostWindowId) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
         let id = entry_id(window);
         let Some(signals) = signals() else {
             return view! {
@@ -452,9 +482,29 @@ impl DesktopHost for Win32 {
         let press = Rc::new(RefCell::new(ContentPress::default()));
         let rect_held = create_signal(Rect::ZERO);
         let rect = rect_held.read_only();
-        create_effect(move || resize(id, rect.get().size()));
+        let drawn = create_memo(move || {
+            snapshot.with(|snapshot| {
+                snapshot
+                    .entry(id)
+                    .map_or(Vec2::ZERO, |entry| win32_map::drawn_size(snapshot, entry))
+            })
+        });
+        create_effect(move || {
+            drawn.get();
+            resize(id, rect.get().size());
+        });
+        let asked_focus = StoredCell::new(focus.get_untracked());
+        create_effect(move || {
+            let asked = focus.get();
+            if asked_focus.replace(asked) != asked {
+                untrack(|| focus_entry(id, None));
+            }
+        });
+        let drawn_width = create_memo(move || drawn.get().x);
+        let drawn_height = create_memo(move || drawn.get().y);
         let popups = create_memo(move || {
             let panel = rect.get();
+            let shown = drawn.get();
             snapshot.with(|snapshot| {
                 snapshot
                     .entry(id)
@@ -463,8 +513,7 @@ impl DesktopHost for Win32 {
                             .popups
                             .iter()
                             .map(|popup| {
-                                let at =
-                                    win32_map::popup_rect(entry.frame, popup.frame, panel.size());
+                                let at = win32_map::popup_rect(entry.frame, popup.frame, shown);
                                 (popup.handle, at.translate(panel.min.to_vec2()))
                             })
                             .collect::<Vec<_>>()
@@ -490,17 +539,21 @@ impl DesktopHost for Win32 {
         let parent = use_window().map_or(beui::WindowId::MAIN, |window| window.id);
         let built = view! {
             <Layers>
-                <Interactive
-                    focusable=true
-                    @test_id={format!("win32.window.{}", id.0)}
-                    on_hover_change={hovered}
-                    on_forward={move |input: ForwardedInput| forwarded(id, &pressed, &press, input)}
-                >
-                    <Layers>
-                        <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
-                        <EntryOverlay secure off_screen />
-                    </Layers>
-                </Interactive>
+                <Canvas>
+                    <CanvasItem x=0.0 y=0.0 width={drawn_width} height={drawn_height}>
+                        <Interactive
+                            focusable=true
+                            @test_id={format!("win32.window.{}", id.0)}
+                            on_hover_change={hovered}
+                            on_forward={move |input: ForwardedInput| forwarded(id, &pressed, &press, input)}
+                        >
+                            <Layers>
+                                <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                                <EntryOverlay secure off_screen />
+                            </Layers>
+                        </Interactive>
+                    </CanvasItem>
+                </Canvas>
                 <ForEach keys={keys}>|key: (u64, Option<(u32, u32)>)| {
                     let handle = Handle(key.0);
                     let placed = create_memo(move || {
@@ -682,7 +735,10 @@ fn start_capture(target: Target) -> Result<Capture, String> {
 
 fn resize(id: EntryId, size: Vec2) {
     let snapshot = snapshot();
-    let asked = SHAPING.with_borrow_mut(|shaping| shaping.placed(&snapshot, id, size));
+    let asked = SHAPING.with_borrow_mut(|shaping| {
+        shaping.observe(&snapshot);
+        shaping.placed(&snapshot, id, size)
+    });
     let (Some((width, height)), Some(entry)) = (asked, snapshot.entry(id)) else {
         return;
     };
