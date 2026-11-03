@@ -8,7 +8,12 @@ fn buffer_width(harness: &mut Harness, id: WindowId) -> f64 {
 
 fn monotonic(harness: &mut Harness) -> Duration {
     let now = harness.context().now();
-    harness.compositor().server().state.presentation.monotonic(now)
+    harness
+        .compositor()
+        .server()
+        .state
+        .presentation
+        .monotonic(now)
 }
 
 #[test]

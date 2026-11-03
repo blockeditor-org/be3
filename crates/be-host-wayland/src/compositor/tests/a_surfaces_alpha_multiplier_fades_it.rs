@@ -51,7 +51,10 @@ fn a_surfaces_alpha_multiplier_fades_it() {
     harness.settle();
 
     let alpha = harness.compositor().server().state.layers(id)[0].alpha;
-    assert!((alpha - 0.5).abs() < 0.001, "the surface is drawn at half alpha: {alpha}");
+    assert!(
+        (alpha - 0.5).abs() < 0.001,
+        "the surface is drawn at half alpha: {alpha}"
+    );
     let painting = harness.stepped.painting();
     beui_paint_snapshot::assert_painting("a_surfaces_alpha_multiplier_fades_it", painting);
 }
