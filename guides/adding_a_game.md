@@ -37,8 +37,8 @@ side of the WebAssembly boundary it runs on:
   is the game function.
 - `crates/tabletop-rules-foo/rulebook.md` — the rules in English,
   written the way a rulebook explains a game: who plays, what the pieces or
-  cards are, how a turn goes, how it ends. Write this one first, because the
-  code is meant to read like it.
+  cards are, how a turn goes, how it ends. The code is meant to read like it,
+  so it is best written first.
 - Root `Cargo.toml` — add `crates/tabletop-rules-foo` to the members,
   which is how the generated buck rules find the crate and its dependencies.
 
@@ -79,7 +79,7 @@ waits in `action`, the host can also ask it for any player's screen, which
 
 ### What the player sees
 
-A game never draws anything. The screen it returns is a `Scene`: a sentence
+A game draws nothing (decisions/games_describe_their_table_and_never_draw.md). The screen it returns is a `Scene`: a sentence
 for the viewer and a `Board` (`tabletop_api::board`) that says what is on the
 table and where, and the Game block's editor decides what each thing looks
 like - which is what lets a player pick their own skin for the pieces.
@@ -132,9 +132,9 @@ another - or clicking the first and then the second. The editor highlights
 every spot a move can start from, and once one is picked up, every spot it
 can land on. Two moves may share a gesture - playing an eight onto the
 discard pile is four moves, one per suit it can call - and the editor then
-asks which one was meant. Give every move a gesture: the editor shows no list
-of moves and no status line, only the board and the move table, so a player
-joins or deals by clicking the deck. The one exception is a move that is about
+asks which one was meant. The editor shows no list of moves and no status
+line, only the board and the move table, so a move without a gesture cannot be
+made at all; even joining or dealing is a click on the deck. The one exception is a move that is about
 the game rather than the board - `.control(Control::Resign)` - which the editor
 shows as an icon under the move table and asks before it plays.
 
@@ -190,10 +190,9 @@ pile back under the face-up card when the draw pile runs out), counts
 passes and passes the turn to the left. Its shuffle is seeded from the ids
 of the players it deals to, so it needs no randomness of its own.
 
-These all live in `tabletop-api` rather than in a game, so put anything new of
-the same sort there too: whenever a rulebook sentence is plain and the Rust
-for it is not, the sentence belongs in the shared crate and the game keeps
-only its own rules. `crazy_8s` is written that way - one `lib.rs` that
+These all live in `tabletop-api` rather than in a game, and so does anything
+new of the same sort: whenever a rulebook sentence is plain and the Rust for it
+is not, the shared crate says it, and the game keeps only its own rules. `crazy_8s` is written that way - one `lib.rs` that
 follows its `rulebook.md` section by section - so what is left in it is
 what makes Crazy 8s that game: eights are wild, a played eight calls a
 suit, and drawing gets you one card you may play.

@@ -26,8 +26,9 @@ A Rust app is linked against two libraries, or one (`buck/wasm/defs.bzl`):
   FreeType and HarfBuzz.
 
 Every editor is linked against both unless its `app()` says otherwise (`DEFAULT_LIBRARIES`);
-an editor with no ui framework, such as triangle, names base alone (`BASE_LIBRARY`). Split base
-further only when a module needs part of it, such as a type module that wants std without wgpu.
+an editor with no ui framework, such as triangle, names base alone (`BASE_LIBRARY`). Base would
+be split further for a module that needs only part of it, such as a type module that wants std
+without wgpu.
 
 A library is linked whole and exports everything, since it cannot know what an app it has not
 seen will use. A crate only one or two apps use stays in those apps. To move one into a
@@ -37,16 +38,15 @@ library, add it to the library crate's `Cargo.toml` (and its `lib.rs`) and run
 libc++ and libc++abi are linked whole into the root too (`WHOLE_LIBRARIES` in `crates/be-wasm-link/src/lib.rs`).
 wasi-libc is linked for what the root uses, and the C math library and the libc functions in
 `LIBC` are forced in (`MATH` and `LIBC` there), among them what FreeType and PDFium call. A
-module that calls a C function no library has fails to link, with the function named; add it
-there. A
-library none of them links, such as one of wasi-libc's emulations (`libwasi-emulated-mman.a`),
+module that calls a C function no library has fails to link, with the function named, and adding
+the function there fixes it. A library none of them links, such as one of wasi-libc's emulations (`libwasi-emulated-mman.a`),
 stays in the app's own link.
 
 A C or C++ library a linked module links has to be compiled position-independent, as everything
 the apps' toolchain compiles is (`_wasi_flags` in `buck/toolchains/BUCK` gives an app's C
 `-fPIC`, which cc-rs leaves out on wasm, so a build script's C is too): a shared module cannot
-take any other code. Build it from source on that toolchain, as third-party/pdfium builds PDFium,
-rather than linking an archive built elsewhere. The C++ runtime and setjmp are base's even though
+take any other code. So it is built from source on that toolchain, as third-party/pdfium builds PDFium;
+an archive built elsewhere is not position-independent. The C++ runtime and setjmp are base's even though
 nothing in base uses them, so every C++ library above it shares one copy (`crates/be-sdk-library-base/BUCK`).
 
 ## Identity
@@ -96,7 +96,7 @@ link that needs libraries reads their `be3.lib` sections and:
 - renames every mangled symbol it imports or exports (`_R`, `_Z` and LLVM's `anon.`) to `#` and
   sixteen characters of its SHA-256 (`be_wasm_dylink::short_symbol`), as the root's link does its
   exports: a library exports every symbol it has, and their names were a third of its module.
-  The loaders only ever match names, so nothing else changes; the `name` section keeps the readable
+  The loaders match nothing but names, so nothing else changes; the `name` section keeps the readable
   names for backtraces, and `unresolved` and the `be3.lib` listing name symbols as they were;
 - adds the `__be3_lib_*` globals, and `__be3_dylink_<memory size>_<memory align>_<table size>_<table
   align>_<tls size>_<tls align>`, which a host reads from the compiled module before
@@ -130,7 +130,7 @@ main-thread thread-local block. The loader owns everything above it: it creates 
 root's import, places every other module's static data in pages it grows the memory by, gives each
 module its table slots, and gives each module above the root a thread-local block on every thread.
 Making the root position-independent too needs std built from source (`-Zbuild-std`) and wasi-libc
-built with `-fPIC` for threads.
+built with `-fPIC` for threads (decisions/app_library_root_is_linked_at_fixed_addresses.md).
 
 ## Thread-locals
 
@@ -254,7 +254,49 @@ A linked app follows the linked-module convention on top of this, which belongs 
 not to the interface: it and its libraries import one shared `env.memory` (the root's import, with
 its limits), and the exports and imports under "How the links are made" and "Loading".
 
-### The gpu
+### Pure guests
+
+A *pure guest* has only the `be3_host` imports: no gpu, no library, no WASI, no threads, no shared memory, no
+clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `app()`, and exports its
+own memory. `crates/be-wasm-guest-echo` is the smallest one, which the tests start every way. A
+type module is a pure guest whose every call is a be-wasm-ops frame through `be3_host`
+(guides/type_modules.md, "Operations and WIT"), so its ABI is the same as every other
+pure guest's, and the host refuses any import but `be3_host`'s.
+
+### The host half
+
+The host half is `crates/be-wasm-guest-host`, which the editor host and anything else that runs a
+guest share:
+- `Worker<C: Channel>` queues frames, steps the guest once it is ready, carries what it sent and
+  finds a step that runs past `STEP_TIMEOUT`. It steps only when frames are waiting or the guest
+  woke (`Channel::take_woken`), so an idle guest costs nothing to poll; a guest that holds
+  output back for a later step wakes itself.
+- `thread::spawn` runs a `thread::Runnable` on a thread of its own and is the `Channel` for it;
+  it hands the guest a `Wake` (`Runnable::on_wake`) that marks the guest woken before it
+  reaches the host. Dropping it interrupts the guest. Every wasmtime guest reaches it through
+  be-wasm-host's `Host::spawn`, which loads a `Runnable` from the host (a `App` for a pure
+  guest, be-host-runtime's `Editor` around one for an editor) and takes how to contain a
+  panic on the thread.
+- `InProcess<G: Guest>` runs a guest's Rust in the same process, for unit tests.
+- `web::WebGuest<P>` runs any guest in a web worker of its own: `src/guest.js`, which the crate
+  embeds and starts as a blob worker, so it needs no file served. It answers `be3_host` and
+  the step, report and wake messages with frames moved as transferable
+  buffers, and refuses any other import, which is all a pure guest needs. An editor's start
+  names an extension, be-host's `app.js`, served beside be-host, which instantiates the
+  app with its libraries, WASI, threads and be-wasm-gpu-shim, answers the rest of its imports,
+  takes the page's canvas and picture messages (`WebGuest::post`; held until the guest is
+  running) and adds `painted`, `pictures`, `gpu` and `submit` to each report, which `P`
+  (`web::Pictures`, be-host-runtime's `PresentedBitmap`) reads.
+
+Natively a pure guest is a `App` of a `Host::pure` in be-wasm-host: the same loading,
+calls and stepping as an editor, with an engine of its own configuration (threads, shared memory
+and relaxed SIMD off, epoch interruption on), no device, and only the `be3_host` imports
+linked (no WASI, gpu or threads, and no unknown import stubbed) so a guest that imports
+anything else is refused, and its memory capped with `StoreLimits` (`MEMORY_LIMIT`, or
+`with_memory_limit`).
+`precompile` compiles either kind.
+
+## The gpu
 
 An editor's wgpu calls are the `be3:gpu` world (`crates/be-wasm-gpu-abi/wit`, shaped after
 wasi:webgpu), which be-wasm-ops-bindgen generates with `local` (guides/type_modules.md,
@@ -364,41 +406,3 @@ a bundle that fails validation goes to the device's error scope instead of panic
 the host, and a render pass's occlusion query set reaches the browser's pass; refresh or
 drop it when wgpu is upgraded. On WebGL, indirect draws are refused (wgpu's
 `INDIRECT_EXECUTION` downlevel flag), which an app cannot ask about beforehand.
-
-A *pure guest* has only those imports: no gpu, no library, no WASI, no threads, no shared memory, no
-clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `app()`, and exports its
-own memory. `crates/be-wasm-guest-echo` is the smallest one, which the tests start every way. A
-type module is a pure guest whose every call is a be-wasm-ops frame through `be3_host`
-(guides/type_modules.md, "Operations and WIT"), so its ABI is the same as every other
-pure guest's, and the host refuses any import but `be3_host`'s.
-
-The host half is `crates/be-wasm-guest-host`, which the editor host and anything else that runs a
-guest share:
-- `Worker<C: Channel>` queues frames, steps the guest once it is ready, carries what it sent and
-  finds a step that runs past `STEP_TIMEOUT`. It steps only when frames are waiting or the guest
-  woke (`Channel::take_woken`), so an idle guest costs nothing to poll; a guest that holds
-  output back for a later step wakes itself.
-- `thread::spawn` runs a `thread::Runnable` on a thread of its own and is the `Channel` for it;
-  it hands the guest a `Wake` (`Runnable::on_wake`) that marks the guest woken before it
-  reaches the host. Dropping it interrupts the guest. Every wasmtime guest reaches it through
-  be-wasm-host's `Host::spawn`, which loads a `Runnable` from the host (a `App` for a pure
-  guest, be-host-runtime's `Editor` around one for an editor) and takes how to contain a
-  panic on the thread.
-- `InProcess<G: Guest>` runs a guest's Rust in the same process, for unit tests.
-- `web::WebGuest<P>` runs any guest in a web worker of its own: `src/guest.js`, which the crate
-  embeds and starts as a blob worker, so it needs no file served. It answers `be3_host` and
-  the step, report and wake messages with frames moved as transferable
-  buffers, and refuses any other import, which is all a pure guest needs. An editor's start
-  names an extension, be-host's `app.js`, served beside be-host, which instantiates the
-  app with its libraries, WASI, threads and be-wasm-gpu-shim, answers the rest of its imports,
-  takes the page's canvas and picture messages (`WebGuest::post`; held until the guest is
-  running) and adds `painted`, `pictures`, `gpu` and `submit` to each report, which `P`
-  (`web::Pictures`, be-host-runtime's `PresentedBitmap`) reads.
-
-Natively a pure guest is a `App` of a `Host::pure` in be-wasm-host: the same loading,
-calls and stepping as an editor, with an engine of its own configuration (threads, shared memory
-and relaxed SIMD off, epoch interruption on), no device, and only the `be3_host` imports
-linked (no WASI, gpu or threads, and no unknown import stubbed) so a guest that imports
-anything else is refused, and its memory capped with `StoreLimits` (`MEMORY_LIMIT`, or
-`with_memory_limit`).
-`precompile` compiles either kind.
