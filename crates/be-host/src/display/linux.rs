@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 
 use be_block::DisplaySettings;
+use be_block::display_settings::ScreenUse;
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_sdk_api::HostDisplay;
-use be_block::display_settings::ScreenUse;
 use beui_platform_drm::{
     Display, DisplayConfig, DisplayControl, DisplayUse, Displays, Epaper, Monitor,
 };
@@ -118,12 +118,7 @@ fn config(settings: &DisplaySettings) -> DisplayConfig {
             .arrangement()
             .places
             .iter()
-            .map(|place| {
-                (
-                    place.id.clone(),
-                    beui::pos2(place.x as f32, place.y as f32),
-                )
-            })
+            .map(|place| (place.id.clone(), beui::pos2(place.x as f32, place.y as f32)))
             .collect(),
     }
 }

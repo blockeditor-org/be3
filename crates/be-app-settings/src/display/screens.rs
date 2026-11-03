@@ -78,6 +78,8 @@ pub(super) fn ScreenSection(
             .map(|display| display.connector.clone())
             .unwrap_or_default()
     });
+    let use_id = format!("display.{connector}.use");
+    let main_id = format!("display.{connector}.main");
     let resolution_id = format!("display.{connector}.resolution");
     let refresh_id = format!("display.{connector}.refresh");
     let scale_id = format!("display.{connector}.scale");
@@ -133,26 +135,27 @@ pub(super) fn ScreenSection(
         move || {
             displays.with(|displays| {
                 std::iter::once((ScreenUse::Desktop, "Part of the desktop".to_owned()))
-                    .chain(
-                        displays
-                            .iter()
-                            .filter(|other| other.id != id)
-                            .map(|other| {
-                                (
-                                    ScreenUse::Mirror {
-                                        of: other.id.clone(),
-                                    },
-                                    format!("The same as {}", other.name),
-                                )
-                            }),
-                    )
+                    .chain(displays.iter().filter(|other| other.id != id).map(|other| {
+                        (
+                            ScreenUse::Mirror {
+                                of: other.id.clone(),
+                            },
+                            format!("The same as {}", other.name),
+                        )
+                    }))
                     .chain(std::iter::once((ScreenUse::Off, "Off".to_owned())))
                     .collect::<Vec<_>>()
             })
         }
     });
-    let choice_labels =
-        create_memo(move || choices.with(|choices| choices.iter().map(|(_, label)| label.clone()).collect::<Vec<_>>()));
+    let choice_labels = create_memo(move || {
+        choices.with(|choices| {
+            choices
+                .iter()
+                .map(|(_, label)| label.clone())
+                .collect::<Vec<_>>()
+        })
+    });
     let use_selected = create_memo({
         let id = id.clone();
         move || {
@@ -162,10 +165,20 @@ pub(super) fn ScreenSection(
     });
     let several = create_memo(move || displays.with(|displays| displays.len() > 1));
     let on_desktop = create_memo(move || {
-        display.with(|display| display.as_ref().is_some_and(|display| display.rect.width() > 0.0))
+        display.with(|display| {
+            display
+                .as_ref()
+                .is_some_and(|display| display.rect.width() > 0.0)
+        })
     });
     let arranged = create_memo(move || {
-        displays.with(|displays| displays.iter().filter(|display| display.rect.width() > 0.0).count() > 1)
+        displays.with(|displays| {
+            displays
+                .iter()
+                .filter(|display| display.rect.width() > 0.0)
+                .count()
+                > 1
+        })
     });
     let main_shown = create_memo(move || on_desktop.get() && arranged.get());
     let is_main = create_memo({
@@ -206,7 +219,7 @@ pub(super) fn ScreenSection(
                     label="Use"
                     description="Part of the desktop, showing what another display shows, or off."
                     locked={read_only}
-                    id={format!("display.{connector}.use")}
+                    id={use_id.clone()}
                 >
                     <Select
                         @sizing=ItemSize::Percent(100.0)
@@ -224,7 +237,7 @@ pub(super) fn ScreenSection(
                         })}
                         label="Use"
                         disabled={read_only}
-                        @test_id={format!("display.{connector}.use")}
+                        @test_id={use_id.clone()}
                     />
                 </LayeredSettingsRow>
             </Show>
@@ -240,7 +253,7 @@ pub(super) fn ScreenSection(
                         on={Binding::new(is_main, move |on: bool| make_main.call(on))}
                         label="Main display"
                         disabled={main_locked}
-                        @test_id={format!("display.{connector}.main")}
+                        @test_id={main_id.clone()}
                     />
                 </SettingsRow>
             </Show>

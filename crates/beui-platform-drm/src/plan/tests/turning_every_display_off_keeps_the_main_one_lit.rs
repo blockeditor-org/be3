@@ -27,7 +27,10 @@ fn turning_every_display_off_keeps_the_main_one_lit() {
                 None
             )
         ),
-        [(0, DisplayUse::Desktop), (1, DisplayUse::Mirror(LAPTOP.to_owned()))],
+        [
+            (0, DisplayUse::Desktop),
+            (1, DisplayUse::Mirror(LAPTOP.to_owned()))
+        ],
         "two displays mirroring each other leave the first on the desktop"
     );
 }

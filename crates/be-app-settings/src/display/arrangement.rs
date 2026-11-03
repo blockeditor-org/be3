@@ -186,7 +186,12 @@ pub(super) fn ArrangementRow(
         };
         dragged.set(None);
         let arrangement = laid.with_untracked(|tiles| {
-            dropped(tiles, &id, rect, merged.with_untracked(DisplaySettings::main_screen))
+            dropped(
+                tiles,
+                &id,
+                rect,
+                merged.with_untracked(DisplaySettings::main_screen),
+            )
         });
         save.call(Some(arrangement));
     };
@@ -230,9 +235,8 @@ fn ArrangedTile(
     main: Memo<Option<String>>,
 ) -> NodeId {
     let key = id.clone();
-    let tile = create_memo(move || {
-        shown.with(|tiles| tiles.iter().find(|tile| tile.id == key).cloned())
-    });
+    let tile =
+        create_memo(move || shown.with(|tiles| tiles.iter().find(|tile| tile.id == key).cloned()));
     let area = create_memo(move || {
         let view = view.get();
         tile.with(|tile| {
@@ -244,8 +248,18 @@ fn ArrangedTile(
     let width = create_memo(move || Length::Size(Size::Custom(area.get().width())));
     let height = create_memo(move || Length::Size(Size::Custom(area.get().height())));
     let translate = create_memo(move || area.get().min.to_vec2());
-    let name = create_memo(move || tile.with(|tile| tile.as_ref().map(|tile| tile.name.clone()).unwrap_or_default()));
-    let connector = tile.with_untracked(|tile| tile.as_ref().map(|tile| tile.connector.clone()).unwrap_or_default());
+    let name = create_memo(move || {
+        tile.with(|tile| {
+            tile.as_ref()
+                .map(|tile| tile.name.clone())
+                .unwrap_or_default()
+        })
+    });
+    let connector = tile.with_untracked(|tile| {
+        tile.as_ref()
+            .map(|tile| tile.connector.clone())
+            .unwrap_or_default()
+    });
     let is_main = create_memo(move || main.get().as_deref() == Some(id.as_str()));
     let fill = create_memo(move || match is_main.get() {
         true => ColorRole::AccentSoft,

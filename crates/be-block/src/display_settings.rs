@@ -51,7 +51,9 @@ impl LockAfter {
 pub enum ScreenUse {
     #[default]
     Desktop,
-    Mirror { of: String },
+    Mirror {
+        of: String,
+    },
     Off,
 }
 

@@ -53,11 +53,7 @@ fn a_device_class_is_detected_and_brings_its_own_defaults() {
         .collect();
     assert_eq!(
         differing,
-        [
-            "Motion",
-            "The rotate button",
-            "The keyboard button"
-        ]
+        ["Motion", "The rotate button", "The keyboard button"]
     );
 
     let changed = DisplaySettings {
@@ -87,7 +83,14 @@ fn a_device_class_is_detected_and_brings_its_own_defaults() {
         DeviceClass::EpaperTablet.display_edits(Some(DeviceClass::Desktop), &desktop),
     )
     .root();
-    assert_eq!(back, epaper, "picking a class writes its defaults");
+    assert_eq!(
+        back,
+        DisplaySettings {
+            scale_percent: Some(125),
+            ..epaper.clone()
+        },
+        "picking a class writes its defaults, and leaves the scale it has none for"
+    );
 
     let kept = DisplaySettings {
         keyboard_in_bar: Some(false),

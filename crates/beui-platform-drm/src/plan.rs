@@ -18,14 +18,12 @@ pub fn plan(ids: &[&str], config: &DisplayConfig) -> Vec<(usize, DisplayUse)> {
     let uses: Vec<DisplayUse> = wanted
         .into_iter()
         .zip(&desktop)
-        .map(|(used, desktop)| match (used, desktop) {
+        .map(|(used, lit)| match (used, lit) {
             (_, true) => DisplayUse::Desktop,
-            (DisplayUse::Mirror(of), false) => {
-                match ids.iter().position(|id| *id == of) {
-                    Some(source) if desktop_at(&desktop, source) => DisplayUse::Mirror(of),
-                    _ => DisplayUse::Desktop,
-                }
-            }
+            (DisplayUse::Mirror(of), false) => match ids.iter().position(|id| *id == of) {
+                Some(source) if desktop_at(&desktop, source) => DisplayUse::Mirror(of),
+                _ => DisplayUse::Desktop,
+            },
             (used, false) => used,
         })
         .collect();

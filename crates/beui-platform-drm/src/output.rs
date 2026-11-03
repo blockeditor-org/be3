@@ -295,8 +295,9 @@ impl Output {
     }
 
     fn default_scale(&self, chosen: usize) -> f32 {
-        self.forced_scale
-            .unwrap_or_else(|| natural_scale(size_of(&self.modes[chosen]), self.millimetres, self.held))
+        self.forced_scale.unwrap_or_else(|| {
+            natural_scale(size_of(&self.modes[chosen]), self.millimetres, self.held)
+        })
     }
 
     pub fn drawing(&self) -> bool {

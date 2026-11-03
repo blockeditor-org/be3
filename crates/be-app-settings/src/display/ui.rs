@@ -66,7 +66,11 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                         <SettingsRow label="No screen is connected to this session." />
                     </Show>
                     <Show condition={arranged}>
-                        <ArrangementRow settings={settings} displays={displays} read_only={read_only} />
+                        <ArrangementRow
+                            settings={settings}
+                            displays={displays}
+                            read_only={read_only}
+                        />
                     </Show>
                     <Show condition={rotate_shown}>
                         <LayeredSettingsRow

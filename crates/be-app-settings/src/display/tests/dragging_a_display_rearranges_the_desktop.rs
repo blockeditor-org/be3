@@ -37,7 +37,8 @@ fn dragging_a_display_rearranges_the_desktop() {
     );
     assert_eq!(arrangement.main, None, "the main display stays as it was");
     assert_eq!(
-        settings.every_device().arrangement, None,
+        settings.every_device().arrangement,
+        None,
         "an arrangement is this device's alone"
     );
     settings

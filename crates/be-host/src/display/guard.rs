@@ -52,10 +52,7 @@ impl ModeChange {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Change {
     Mode(ModeChange),
-    Use {
-        id: String,
-        used: Option<ScreenUse>,
-    },
+    Use { id: String, used: Option<ScreenUse> },
     Arrangement(Option<Arrangement>),
 }
 

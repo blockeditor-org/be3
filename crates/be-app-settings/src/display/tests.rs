@@ -15,6 +15,7 @@ use uuid::Uuid;
 use crate::display::DisplaySettingsRoot;
 
 mod a_change_here_goes_to_every_device_and_a_toast_says_so;
+mod a_display_turned_off_or_made_main_is_kept_on_this_device;
 mod a_profile_shows_the_theme_it_inherits;
 mod a_screen_known_by_its_connector_is_this_devices_alone;
 mod choosing_a_display_scale_stores_it_and_the_default_suits_the_display;
@@ -24,9 +25,8 @@ mod choosing_a_resolution_uses_its_fastest_refresh_rate;
 mod choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now;
 mod choosing_a_scale_stores_it;
 mod choosing_a_theme_stores_it;
-mod dragging_a_display_rearranges_the_desktop;
-mod a_display_turned_off_or_made_main_is_kept_on_this_device;
 mod choosing_never_keeps_the_screens_on;
+mod dragging_a_display_rearranges_the_desktop;
 mod each_tile_is_drawn_turned_from_the_rotation_shown_now;
 mod in_a_windowed_desktop_only_the_keyboard_button_goes_in_the_bar;
 mod keeping_a_setting_copies_it_here_and_later_changes_stay_here;

@@ -3,8 +3,7 @@ use be_sdk_beui::be_block::display_settings::ScreenUse;
 
 #[test]
 fn a_display_turned_off_or_made_main_is_kept_on_this_device() {
-    let mut settings =
-        Harness::in_a_session(laptop_beside(gaming_monitor())).on_this_device();
+    let mut settings = Harness::in_a_session(laptop_beside(gaming_monitor())).on_this_device();
 
     settings.editor.click("display.DP-1.main");
     settings.run();

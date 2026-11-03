@@ -23,7 +23,9 @@ pub fn arrange(rects: &[(Vec2, Option<Pos2>)]) -> Vec<Rect> {
 }
 
 pub fn settle(rect: Rect, placed: &[Rect]) -> Rect {
-    if placed.is_empty() || (!overlaps_any(rect, placed) && placed.iter().any(|other| touch(rect, *other))) {
+    if placed.is_empty()
+        || (!overlaps_any(rect, placed) && placed.iter().any(|other| touch(rect, *other)))
+    {
         return rect;
     }
     let size = rect.size();

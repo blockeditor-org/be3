@@ -7,10 +7,7 @@ fn a_display_mirrors_only_a_display_on_the_desktop() {
     assert_eq!(
         plan(
             &ids,
-            &config(
-                &[(LAPTOP, mirrored(LEFT)), (LEFT, DisplayUse::Off)],
-                None
-            )
+            &config(&[(LAPTOP, mirrored(LEFT)), (LEFT, DisplayUse::Off)], None)
         ),
         [
             (0, DisplayUse::Desktop),
