@@ -21,13 +21,12 @@ use be_sdk_beui::{
     Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, PickAnchor,
     PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch,
 };
-use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, ChildTarget};
 use uuid::Uuid;
 
 use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::panel::BlockPanel;
-use super::parts::TabParts;
 use super::program::{Heard, Program, Programs, listed_windows};
 use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
@@ -60,7 +59,6 @@ struct State {
     saved_titles: RefCell<HashMap<TabId, String>>,
     next_ask: Cell<u64>,
     share_asks: RefCell<Vec<be_sdk_beui::Task>>,
-    parts: RefCell<Option<Rc<dyn TabParts>>>,
 }
 
 #[derive(Clone, Copy)]
@@ -126,7 +124,6 @@ impl Workspace {
                 saved_titles: RefCell::new(HashMap::new()),
                 next_ask: Cell::new(0),
                 share_asks: RefCell::new(Vec::new()),
-                parts: RefCell::new(None),
             }),
             editor,
             tabs,
@@ -245,14 +242,6 @@ impl Workspace {
 
     pub fn focus(&self) -> ReadSignal<Focus> {
         self.focus.read_only()
-    }
-
-    pub fn set_tab_parts(&self, parts: impl TabParts + 'static) {
-        *self.state.value().parts.borrow_mut() = Some(Rc::new(parts));
-    }
-
-    pub(crate) fn tab_parts(&self) -> Option<Rc<dyn TabParts>> {
-        self.state.value().parts.borrow().clone()
     }
 
     pub fn panels(&self) -> ReadSignal<Vec<HostPanel>> {
@@ -1103,9 +1092,21 @@ impl Workspace {
 }
 
 #[component]
-pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
+pub fn BlockTab(
+    workspace: Workspace,
+    tab: TabId,
+    #[prop(default = None)] bar: Option<RenderFn<(), NodeId>>,
+    #[prop(default = None)] preview: Prop<Option<ChildTarget>>,
+    on_details: Callback<()>,
+) -> DockEntry<TabId> {
     let title = workspace.tab_title(tab);
     let icon = workspace.tab_glyph(tab);
+    let bar = RenderFn::new(move |()| match bar {
+        Some(bar) => bar.call(()),
+        None => view! {
+            <List spacing=Space::None />
+        },
+    });
     let group = create_memo(move || {
         workspace
             .tab(tab)
@@ -1113,7 +1114,7 @@ pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
     });
     view! {
         <DockTab id=tab title icon group on_close={move || workspace.close(tab)}>
-            <BlockPanel workspace={workspace} tab />
+            <BlockPanel workspace={workspace} tab bar={move || bar.call(())} preview on_details />
         </DockTab>
     }
 }

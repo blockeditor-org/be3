@@ -187,7 +187,13 @@ fn read_item_info(
 }
 
 #[component]
-pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
+pub(crate) fn BlockPanel(
+    workspace: Workspace,
+    tab: TabId,
+    bar: RenderFn<(), NodeId>,
+    preview: Prop<Option<ChildTarget>>,
+    on_details: Callback<()>,
+) -> NodeId {
     let info = create_signal(None::<TabInfo>);
     let watched = RefCell::new(Watched::default());
     create_effect(move || {
@@ -207,12 +213,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
         item.block_type
             == <be_sdk_beui::be_block::EditorViewContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE
     });
-    let parts = workspace.tab_parts();
-    let preview = create_memo(move || {
-        parts
-            .as_ref()
-            .and_then(|parts| parts.shown_instead(workspace, tab))
-    });
+    let preview = create_memo(move || preview.get());
     let previewing = create_memo(move || preview.get().is_some());
     let live = create_memo(move || !previewing.get());
     let child_menu = create_signal(Vec::<MenuNode>::new());
@@ -228,7 +229,13 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
     }));
     let docked_tab = RenderFn::new(move |docked: ChildDockTab| {
         view! {
-            <DockedBlockTab workspace={workspace} tab info={info.read_only()} session docked />
+            <DockedBlockTab
+                workspace={workspace}
+                info={info.read_only()}
+                session
+                docked
+                bar={move || bar.call(())}
+            />
         }
     });
     view! {
@@ -243,7 +250,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                 <Show condition={!session}>
                     <LinkedBar workspace={workspace} info={info.read_only()} />
                 </Show>
-                <TabBar workspace tab own=true />
+                <TabBar bar={move || bar.call(())} own=true />
                 <ShowKeepAlive condition={live}>
                     <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                         <Dynamic value={content}>|content: Content| {
@@ -263,11 +270,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                                         docked_tab
                                         top_bar={top_bar}
                                         on_bar={move |action: BarAction| match action {
-                                            BarAction::Details => {
-                                                if let Some(parts) = workspace.tab_parts() {
-                                                    parts.details(workspace, tab);
-                                                }
-                                            }
+                                            BarAction::Details => on_details.call(()),
                                         }}
                                     />
                                 },
@@ -340,10 +343,10 @@ fn BlockChild(
 #[component]
 fn DockedBlockTab(
     workspace: Workspace,
-    tab: TabId,
     info: ReadSignal<Option<TabInfo>>,
     session: bool,
     docked: ChildDockTab,
+    bar: RenderFn<(), NodeId>,
 ) -> NodeId {
     let ChildDockTab { menu, body, owner } = docked;
     let own = owner.is_none();
@@ -380,17 +383,17 @@ fn DockedBlockTab(
             <Show condition={!session}>
                 <LinkedBar workspace={workspace} info={info} />
             </Show>
-            <TabBar workspace tab own />
+            <TabBar bar={move || bar.call(())} own />
             <Layers @sizing=ItemSize::Percent(100.0) @test_id={"workspace.block"}>{body}</Layers>
         </List>
     }
 }
 
 #[component]
-fn TabBar(workspace: Workspace, tab: TabId, own: bool) -> NodeId {
-    match workspace.tab_parts().filter(|_| own) {
-        Some(parts) => parts.bar().call(tab),
-        None => view! {
+fn TabBar(bar: RenderFn<(), NodeId>, own: bool) -> NodeId {
+    match own {
+        true => bar.call(()),
+        false => view! {
             <List spacing=Space::None />
         },
     }

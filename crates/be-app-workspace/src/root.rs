@@ -4,7 +4,7 @@ use std::cell::Cell;
 use be_sdk_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent, ViewState};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{
-    DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId, use_dock_tab,
+    DockEntry, DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId, use_dock_tab,
 };
 use be_sdk_beui::beui::icons::{ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS};
 use be_sdk_beui::beui::reactive::*;
@@ -15,8 +15,8 @@ use be_sdk_beui::{
     TopBar,
 };
 use be_sdk_shell::{
-    BlockTab, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, TabParts,
-    UnshownWindows, WindowDialog, Workspace, WorkspaceDialogs,
+    BlockTab, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, UnshownWindows,
+    WindowDialog, Workspace, WorkspaceDialogs,
 };
 use beui::{Align, ItemSize};
 use uuid::Uuid;
@@ -55,13 +55,7 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
         history,
         sheet: create_signal(PhoneSheet::Closed),
         files: create_signal(None),
-        bar: RenderFn::new(move |tab: TabId| {
-            view! {
-                <RevisionPreviewBar history tab workspace />
-            }
-        }),
     };
-    workspace.set_tab_parts(shell);
     create_effect(move || shell.follow_focus());
     create_effect(move || shell.open_files());
     view! {
@@ -82,7 +76,6 @@ struct Shell {
     history: RevisionHistory,
     sheet: Signal<PhoneSheet>,
     files: Signal<Option<Uuid>>,
-    bar: RenderFn<TabId, NodeId>,
 }
 
 impl Shell {
@@ -124,20 +117,6 @@ impl Shell {
     fn set_phone(self, phone: bool) {
         self.sheet.set(PhoneSheet::Closed);
         self.workspace.set_phone(phone);
-    }
-}
-
-impl TabParts for Shell {
-    fn bar(&self) -> RenderFn<TabId, NodeId> {
-        self.bar
-    }
-
-    fn shown_instead(&self, workspace: Workspace, tab: TabId) -> Option<ChildTarget> {
-        self.history.preview_for(workspace.tab(tab))
-    }
-
-    fn details(&self, _workspace: Workspace, tab: TabId) {
-        self.sheet.set(PhoneSheet::Details(tab));
     }
 }
 
@@ -197,7 +176,7 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
                             }}
                         >
                             <ForEach keys={block_tabs}>|tab: TabId|
-                                <BlockTab workspace tab />
+                                <WorkspaceBlockTab shell tab />
                             </ForEach>
                             <ForEach keys={tabbed}>|tab: TabId|
                                 <ProgramTab workspace tab />
@@ -219,6 +198,28 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
                 <UnshownWindows workspace />
             </List>
         </Frame>
+    }
+}
+
+#[component]
+fn WorkspaceBlockTab(shell: Shell, tab: TabId) -> DockEntry<TabId> {
+    let Shell {
+        workspace,
+        history,
+        sheet,
+        ..
+    } = shell;
+    let preview = create_memo(move || history.preview_for(workspace.tab(tab)));
+    view! {
+        <BlockTab
+            workspace
+            tab
+            bar={move || view! {
+                <RevisionPreviewBar history tab workspace />
+            }}
+            preview
+            on_details={move |()| sheet.set(PhoneSheet::Details(tab))}
+        />
     }
 }
 

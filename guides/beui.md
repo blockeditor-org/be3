@@ -135,7 +135,8 @@ whole view is a `Show` returns it typed `-> DynamicSegment<ListChild>` (or
 whatever kind of child its parent takes) rather than a `NodeId`.
 
 A function containing `view!` must be `#[component]`, whatever type it returns.
-The source check exempts test code, framework trait entrypoints, and views
+The source check exempts test code, framework trait entrypoints, methods
+taking `self` (a component cannot, so `#[component]` rejects a receiver), and views
 inside document/HTML rendering calls or factories storing deferred render
 callbacks. Extract other helpers into
 components and call them through `view!`, including helpers returning child
