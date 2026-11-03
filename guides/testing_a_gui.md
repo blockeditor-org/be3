@@ -501,7 +501,7 @@ runs against its own build of be-host with `./scripts/test foo`, as verify runs 
 
 ## 7. Testing both of beui's cores
 
-beui has two cores (plans/html_core.md): the native one, which lays out and paints itself, and
+beui has two cores (guides/beui.md, its cores; decisions/beui_has_an_html_core_on_the_web.md): the native one, which lays out and paints itself, and
 the HTML one, whose primitives are DOM elements the browser lays out. crates/beui-tests
 holds what must behave the same on both: screens, each a `#[component]` in src/lib.rs that
 `Fixture` picks by name, built from primitives the HTML core has, and a script per screen,
