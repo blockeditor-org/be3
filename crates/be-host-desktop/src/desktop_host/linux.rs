@@ -441,6 +441,7 @@ fn known_window(
         modal: info.modal,
         size: info.size,
         min_size: info.min_size,
+        maximized: info.maximized,
         fullscreen: info.fullscreen,
         responding: info.responding,
         icon: icon.map(|icon| Picture {

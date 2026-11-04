@@ -13,6 +13,8 @@ fn the_program_windows_reach_only_the_shell() {
         modal: false,
         program_id: "foot".to_owned(),
         origin: WindowOrigin::default(),
+        size: None,
+        maximized: false,
     }];
     instances.next_screens(PASS);
 
