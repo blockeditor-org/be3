@@ -431,6 +431,7 @@ async fn handle_connection(
     else {
         return Ok(());
     };
+    let (stream, heard) = Watched::new(stream);
     let handshake = accept_async_with_config(
         stream,
         Some(WebSocketConfig {
@@ -443,7 +444,94 @@ async fn handle_connection(
         .await
         .map_err(|_| ServerError::Socket("the websocket handshake timed out".into()))??;
     tracing::debug!(%client, "connected");
-    serve_socket(socket, &services, client, authorization).await
+    serve_socket(socket, &heard, &services, client, authorization).await
+}
+
+/// When a connection last read any bytes, so a message still arriving is not taken for silence.
+#[derive(Clone)]
+pub(crate) struct Heard(Arc<std::sync::Mutex<tokio::time::Instant>>);
+
+impl Heard {
+    fn last(&self) -> tokio::time::Instant {
+        *self.0.lock().unwrap()
+    }
+}
+
+/// A stream that notes in its `Heard` each time it reads.
+pub(crate) struct Watched<S> {
+    inner: S,
+    heard: Heard,
+}
+
+impl<S> Watched<S> {
+    pub(crate) fn new(inner: S) -> (Self, Heard) {
+        let heard = Heard(Arc::new(std::sync::Mutex::new(tokio::time::Instant::now())));
+        (
+            Self {
+                inner,
+                heard: heard.clone(),
+            },
+            heard,
+        )
+    }
+}
+
+impl<S: AsyncRead + Unpin> AsyncRead for Watched<S> {
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+        buffer: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<io::Result<()>> {
+        let before = buffer.filled().len();
+        let polled = std::pin::Pin::new(&mut self.inner).poll_read(context, buffer);
+        if buffer.filled().len() > before {
+            *self.heard.0.lock().unwrap() = tokio::time::Instant::now();
+        }
+        polled
+    }
+}
+
+impl<S: AsyncWrite + Unpin> AsyncWrite for Watched<S> {
+    fn poll_write(
+        mut self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+        buffer: &[u8],
+    ) -> std::task::Poll<io::Result<usize>> {
+        std::pin::Pin::new(&mut self.inner).poll_write(context, buffer)
+    }
+
+    fn poll_flush(
+        mut self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_flush(context)
+    }
+
+    fn poll_shutdown(
+        mut self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_shutdown(context)
+    }
+}
+
+/// The next message, or none once nothing at all has been read for `IDLE_TIMEOUT`. A large
+/// message on a slow link takes as long as it takes, as long as its bytes keep coming.
+pub(crate) async fn next_heard<M>(
+    source: &mut (impl futures_util::Stream<Item = M> + Unpin),
+    heard: &Heard,
+) -> Option<M> {
+    let mut next = source.next();
+    loop {
+        tokio::select! {
+            message = &mut next => return message,
+            () = tokio::time::sleep_until(heard.last() + IDLE_TIMEOUT) => {
+                if heard.last() + IDLE_TIMEOUT <= tokio::time::Instant::now() {
+                    return None;
+                }
+            }
+        }
+    }
 }
 
 pub(crate) fn greeting(theirs: Option<&str>) -> Result<(Vec<u8>, bool), ServerError> {
@@ -490,6 +578,7 @@ where
 
 async fn serve_socket<S>(
     socket: tokio_tungstenite::WebSocketStream<S>,
+    heard: &Heard,
     services: &Services,
     address: IpAddr,
     authorization: Option<String>,
@@ -554,10 +643,9 @@ where
         let (outgoing, peer) = (outgoing.clone(), client.peer.clone());
         async move {
             loop {
-                let Ok(frame) = tokio::time::timeout(IDLE_TIMEOUT, source.next()).await else {
+                let Some(frame) = next_heard(&mut source, heard).await else {
                     return Ok(());
                 };
-                let Some(frame) = frame else { return Ok(()) };
                 let sent = match frame? {
                     Message::Binary(bytes) if is_ping(&bytes) => {
                         let others = pong(&peer, &bytes);

@@ -258,7 +258,7 @@ impl ServerStore {
             let unreferenced = refs.get(hash).copied().unwrap_or(0) == 0;
             let already: bool = transaction
                 .prepare_cached(
-                    "SELECT EXISTS(SELECT 1 FROM object_uploads
+                    "SELECT EXISTS(SELECT 1 FROM object_uploads INDEXED BY object_uploads_object
                                    WHERE hash = ?1 AND account_id = ?2 AND pending = 1)",
                 )?
                 .query_row(params![hash.to_hex(), account], |row| row.get(0))?;
@@ -348,7 +348,7 @@ impl ServerStore {
                 )?;
                 let charged_elsewhere: bool = transaction
                     .prepare_cached(
-                        "SELECT EXISTS(SELECT 1 FROM object_uploads
+                        "SELECT EXISTS(SELECT 1 FROM object_uploads INDEXED BY object_uploads_object
                                        WHERE hash = ?1 AND account_id = ?2 AND pending = 1)",
                     )?
                     .query_row(params![hex, account], |row| row.get(0))?;
@@ -358,7 +358,7 @@ impl ServerStore {
                 }
                 let still_pending: bool = transaction
                     .prepare_cached(
-                        "SELECT EXISTS(SELECT 1 FROM object_uploads WHERE hash = ?1 AND pending = 1)",
+                        "SELECT EXISTS(SELECT 1 FROM object_uploads INDEXED BY object_uploads_object WHERE hash = ?1 AND pending = 1)",
                     )?
                     .query_row([hex], |row| row.get(0))?;
                 if !still_pending && self.object_refs().count(hash) == 0 {
@@ -592,7 +592,7 @@ fn count_account_object(
 fn stop_pending(connection: &Connection, hash: Hash, bytes: u64) -> Result<Vec<Uuid>, ServerError> {
     let payers: Vec<String> = {
         let mut statement = connection.prepare_cached(
-            "SELECT MIN(payer) FROM object_uploads WHERE hash = ?1 AND pending = 1
+            "SELECT MIN(payer) FROM object_uploads INDEXED BY object_uploads_object WHERE hash = ?1 AND pending = 1
                  GROUP BY account_id",
         )?;
         let rows = statement.query_map([hash.to_hex()], |row| row.get(0))?;
