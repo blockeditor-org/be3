@@ -8,7 +8,7 @@ use be_sdk_beui::beui::{Color32, Key, KeyAt, KeyPhase, NodeId, TextAlign};
 use be_sdk_beui::{BlockQuery, DialogAnswer, Editor};
 use uuid::Uuid;
 
-use beui::{Align, Align2, Direction, ItemSize};
+use beui::{Align, Align2, Direction};
 
 const SPACING: Space = Space::Md;
 const COLUMNS: usize = 8;
@@ -236,15 +236,16 @@ fn RenameBody(
                             <Icon glyph={pictured} />
                         </Text>
                     </Frame>
-                    <TextInput
-                        @sizing=ItemSize::Percent(100.0)
-                        @node_ref={&field}
-                        @test_id={"rename.name"}
-                        value={name}
-                        label="Name"
-                        select_on_focus=true
-                        on_submit={move |_: String| accept.call(())}
-                    />
+                    <ListItem grow=1.0>
+                        <TextInput
+                            @node_ref={&field}
+                            @test_id={"rename.name"}
+                            value={name}
+                            label="Name"
+                            select_on_focus=true
+                            on_submit={move |_: String| accept.call(())}
+                        />
+                    </ListItem>
                 </List>
                 <Show condition={invalid}>
                     <Text style=TextStyle::CAPTION>{error}</Text>
@@ -285,20 +286,22 @@ fn RenameBody(
                     @test_id={"rename.search"}
                 />
             </List>
-            <Scroll @sizing=ItemSize::Percent(100.0) bleed={Bleed::DIALOG.top(false)}>
-                <List spacing=TILE_SPACING>
-                    <Show condition={empty}>
-                        <Text style=TextStyle::CAPTION>"No icons match."</Text>
-                    </Show>
-                    <VirtualList keys={rows} item_size={row_size}>|row: ReadSignal<Vec<Tile>>|
-                        <List direction=Direction::Horizontal spacing=TILE_SPACING>
-                            <ForEach keys={create_memo(move || row.get())}>|tile: Tile|
-                                <IconTile tile look shown set_icon />
-                            </ForEach>
-                        </List>
-                    </VirtualList>
-                </List>
-            </Scroll>
+            <ListItem grow=1.0>
+                <Scroll bleed={Bleed::DIALOG.top(false)}>
+                    <List spacing=TILE_SPACING>
+                        <Show condition={empty}>
+                            <Text style=TextStyle::CAPTION>"No icons match."</Text>
+                        </Show>
+                        <VirtualList keys={rows} item_size={row_size}>|row: ReadSignal<Vec<Tile>>|
+                            <List direction=Direction::Horizontal spacing=TILE_SPACING>
+                                <ForEach keys={create_memo(move || row.get())}>|tile: Tile|
+                                    <IconTile tile look shown set_icon />
+                                </ForEach>
+                            </List>
+                        </VirtualList>
+                    </List>
+                </Scroll>
+            </ListItem>
         </DialogBody>
     };
     let focused = std::cell::Cell::new(false);

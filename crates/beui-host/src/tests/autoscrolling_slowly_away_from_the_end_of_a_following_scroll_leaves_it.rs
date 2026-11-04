@@ -11,11 +11,13 @@ fn autoscrolling_slowly_away_from_the_end_of_a_following_scroll_leaves_it() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll follow_end=true>
-                    <ForEach keys={indices(100)}>|index: usize|
-                        <LabelledButton label={format!("Row {index}")} />
-                    </ForEach>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll follow_end=true>
+                        <ForEach keys={indices(100)}>|index: usize|
+                            <LabelledButton label={format!("Row {index}")} />
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

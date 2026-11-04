@@ -1,6 +1,5 @@
 use super::*;
 use crate::primitives::List;
-use crate::reactive::*;
 use crate::styled::*;
 use beui::Align;
 
@@ -12,7 +11,7 @@ fn a_separator_keeps_the_length_it_is_given_where_its_row_centres_it() {
         view! {
             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <Separator direction=Direction::Vertical length=LENGTH />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
         }
     });

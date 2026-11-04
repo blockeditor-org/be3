@@ -10,11 +10,13 @@ fn pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={indices(100)}>|index: usize|
-                        <LabelledButton label={format!("Row {index}")} />
-                    </ForEach>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <ForEach keys={indices(100)}>|index: usize|
+                            <LabelledButton label={format!("Row {index}")} />
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

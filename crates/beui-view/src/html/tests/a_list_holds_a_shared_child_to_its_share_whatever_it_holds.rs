@@ -6,7 +6,9 @@ fn a_list_holds_a_shared_child_to_its_share_whatever_it_holds() {
         view! {
             <Root clear_color={PAPER}>
                 <List spacing={8.0}>
-                    <Offset @sizing={ItemSize::Percent(1.0)}>{swatch(BLUE, 120.0, 400.0)}</Offset>
+                    <ListItem grow=1.0>
+                        <Offset>{swatch(BLUE, 120.0, 400.0)}</Offset>
+                    </ListItem>
                     {swatch(GREEN, 120.0, 30.0)}
                 </List>
             </Root>

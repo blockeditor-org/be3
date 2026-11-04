@@ -10,16 +10,18 @@ fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="scroll">
-                    <Frame height=150.0>
-                        <Offset @test_id="offset">
-                            <List spacing=0.0>
-                                <Rows count=20 />
-                            </List>
-                        </Offset>
-                    </Frame>
-                    <Rows count=20 />
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @test_id="scroll">
+                        <Frame height=150.0>
+                            <Offset @test_id="offset">
+                                <List spacing=0.0>
+                                    <Rows count=20 />
+                                </List>
+                            </Offset>
+                        </Frame>
+                        <Rows count=20 />
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });
@@ -43,7 +45,7 @@ fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
 }
 
 #[component]
-fn Rows(count: usize) -> DynamicSegment<ListChild> {
+fn Rows(count: usize) -> DynamicSegment<ListItem> {
     view! {
         <ForEach keys={indices(count)}>|index: usize|
             <Text color=Color32::WHITE font={FontId::proportional(20.0)}>

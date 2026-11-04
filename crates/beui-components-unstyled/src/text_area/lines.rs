@@ -9,10 +9,10 @@ use beui_text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
+use beui_view::types::Align;
 use beui_view::types::Color;
 use beui_view::types::Placement;
 use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
-use beui_view::types::{Align, ItemSize};
 use beui_view::types::{FontFamily, FontId, TextAlign, TextLayout};
 use beui_view::types::{Rect, Vec2};
 use beui_view::types::{SpanStyle, TextCaret, TextGlyph, TextMark};
@@ -270,7 +270,9 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                         <Gutter cx={cx} model={model} />
                     </Frame>
                 </Show>
-                <Frame @sizing=ItemSize::Percent(100.0)>{wrapped}</Frame>
+                <ListItem grow=1.0>
+                    <Frame>{wrapped}</Frame>
+                </ListItem>
             </List>
         </Frame>
     };
@@ -1054,9 +1056,13 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
                         <Icon glyph={arrow} />
                     </Text>
                 </Frame>
-                <Frame @sizing=ItemSize::Percent(100.0) height=height>
-                    <Text font=number_font color={number_color} align=TextAlign::End>{number}</Text>
-                </Frame>
+                <ListItem grow=1.0>
+                    <Frame height=height>
+                        <Text font=number_font color={number_color} align=TextAlign::End>
+                            {number}
+                        </Text>
+                    </Frame>
+                </ListItem>
             </List>
         </Frame>
     }

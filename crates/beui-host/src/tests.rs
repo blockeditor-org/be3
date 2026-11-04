@@ -235,6 +235,7 @@ mod a_global_key_whose_release_was_lost_does_not_swallow_the_next_press;
 mod a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view;
 mod a_grid_lines_its_cells_up_in_shared_columns;
 mod a_grip_touch_cancelled_by_a_second_finger_lets_the_sheet_go;
+mod a_growing_child_stops_at_its_max_and_hands_the_rest_on;
 mod a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves;
 mod a_headless_window_fills_its_screen_when_the_program_goes_fullscreen;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
@@ -261,6 +262,7 @@ mod a_layer_that_traps_the_focus_in_a_window_takes_the_keyboard_there_with_nothi
 mod a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were;
 mod a_layout_read_before_its_dock_declares_a_key_follows_it_once_declared;
 mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
+mod a_list_items_reactive_props_move_a_child_between_fixed_and_growing;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
 mod a_locked_dock_tab_over_a_pane_outside_its_area_draws_no_drop_marker;
 mod a_locked_pane_with_one_closable_tab_shows_one_close_named_by_the_tabs_key;
@@ -318,7 +320,6 @@ mod a_passing_overlay_occludes_only_its_content;
 mod a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard;
 mod a_paste_brings_the_first_kind_the_focus_accepts_unless_the_platform_pastes_itself;
 mod a_pen_presses_and_drags_like_a_mouse_and_reports_its_pressure;
-mod a_percent_child_stops_at_its_max_and_hands_the_rest_on;
 mod a_picture_given_a_source_paints_only_that_part_of_the_image;
 mod a_picture_paints_the_image_it_is_given;
 mod a_picture_scaled_down_never_grows_past_its_own_pixels;
@@ -357,7 +358,6 @@ mod a_program_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch;
 mod a_progress_reads_as_busy_until_it_has_a_value_and_then_holds_still;
 mod a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking;
 mod a_quick_tap_with_several_fingers_is_a_finger_tap;
-mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_test_id_follows_its_signal;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_read_only_text_area_selects_and_refuses_edits_and_reads_as_read_only;
@@ -503,7 +503,7 @@ mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_typed_paste_types_the_clipboard_key_by_key;
 mod a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone;
 mod a_value_child_that_watches_its_placement_panics_when_built;
-mod a_value_written_between_tags_takes_the_sizing_after_it;
+mod a_value_wrapped_in_a_list_item_takes_its_sizing;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
 mod a_vertical_wheel_scrolls_a_horizontal_scroll_unless_something_around_it_scrolls_vertically;
 mod a_virtual_list_builds_its_overscan_beyond_the_window;
@@ -759,6 +759,9 @@ mod forwarded_input_reaches_only_the_topmost_catcher_under_it;
 mod fuzzy_ranking_puts_names_above_keywords_and_comments;
 mod grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was;
 mod grabbing_the_bar_between_two_panes_off_centre_moves_it_only_as_far_as_the_pointer;
+mod growing_children_land_on_whole_device_pixels;
+mod growing_children_of_an_unbounded_list_use_their_intrinsic_length;
+mod growing_children_still_size_an_intrinsic_lists_height;
 mod held_modifiers_and_key_releases_reach_global_listeners;
 mod holding_a_finger_down_opens_a_context_menu;
 mod holding_the_caret_handle_below_a_short_text_area_keeps_scrolling;
@@ -791,6 +794,7 @@ mod keys_without_alt_reach_the_control_the_screen_reader_focused;
 mod layers_stack_their_children_in_one_box_sized_to_the_largest;
 mod lifting_the_fingers_off_a_trackpad_scroll_carries_it_on;
 mod line_starts_follow_edits;
+mod list_items_at_the_roots_of_a_multi_root_view_are_honoured;
 mod list_rows_and_pressables_activate_from_the_keyboard;
 mod listbox_navigation_reveals_options_inside_a_tall_scroll_item;
 mod listbox_typeahead_matches_prefixes_and_cycles_repeated_letters;
@@ -822,9 +826,6 @@ mod painting_never_has_to_move_a_rect_onto_the_pixel_grid;
 mod painting_skips_the_elements_outside_the_damaged_region;
 mod panning_a_canvas_lays_out_and_paints_none_of_its_items_again;
 mod panning_a_canvas_moves_its_accessibility_spaces_and_describes_none_of_its_items;
-mod percent_children_land_on_whole_device_pixels;
-mod percent_children_of_an_unbounded_list_use_their_intrinsic_length;
-mod percent_sized_children_still_size_an_intrinsic_lists_height;
 mod performance_measurements_report_what_the_frame_reused;
 mod performance_measurements_report_work_and_cache_hits;
 mod picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus;
@@ -898,7 +899,6 @@ mod show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden;
 mod showing_a_child_at_the_end_of_a_list_damages_only_that_child;
 mod showing_the_program_again_in_a_stacked_inspector_keeps_its_accessibility_tree_attached;
 mod simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point;
-mod sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured;
 mod slider_home_end_and_page_keys_clamp_at_the_bounds;
 mod space_toggles_checkboxes_switches_and_toggle_buttons;
 mod splitting_a_dock_tab_with_the_next_shows_both_side_by_side;
@@ -1030,7 +1030,7 @@ mod unused_navigation_keys_scroll_the_nearest_ancestor;
 mod up_and_down_in_a_single_line_text_area_move_to_its_ends;
 mod view_attributes_can_be_written_without_braces;
 mod view_attributes_can_pun_a_bare_name_as_its_own_value;
-mod view_children_can_pick_fixed_and_percent_sizing;
+mod view_children_can_pick_fixed_and_growing_sizing;
 mod walking_a_long_menu_with_keys_under_a_resting_pointer_leaves_the_focus_to_the_keys;
 mod walking_a_search_list_with_keys_under_a_resting_pointer_leaves_the_highlight_to_the_keys;
 mod web_codes_and_typed_characters_name_the_same_keys;
@@ -1040,7 +1040,7 @@ mod with_a_second_window_open_each_windows_scroll_is_copied_in_that_window_alone
 mod with_motion_reduced_a_dragged_dock_bar_moves_and_docks_at_once;
 mod without_a_drag_modifier_a_modified_drag_reaches_the_dock_content;
 mod wrapped_rich_text_lines_hang_under_the_byte_they_are_told_to;
-mod wrapped_rows_wrap_long_text_and_grow_percent_children;
+mod wrapped_rows_wrap_long_text_and_widen_growing_children;
 mod wrapped_text_ends_its_last_allowed_line_in_an_ellipsis;
 mod zooming_a_canvas_paints_none_of_its_scaled_items_until_their_text_settles;
 mod zooming_a_pan_zoom_stops_at_its_scale_limits;
@@ -1066,7 +1066,7 @@ use crate::reactive::*;
 use crate::styled;
 use crate::styled::*;
 use crate::unstyled;
-use beui::layout::{Direction, ItemSize};
+use beui::layout::Direction;
 use beui_macros::{component, view};
 
 #[component]
@@ -1814,23 +1814,25 @@ pub(crate) fn virtual_list(built: Signal<Vec<usize>>) -> VirtualScroll {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <VirtualList
-                        @node_ref=&list
-                        keys={indices(VIRTUAL_ITEM_COUNT)}
-                        item_size=VIRTUAL_ITEM_HEIGHT
-                    >|index: ReadSignal<usize>| {
-                        create_binding(move || {
-                            let index = index.get();
-                            built.update(|built| built.push(index));
-                        });
-                        view! {
-                            <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
-                                <Spacer />
-                            </Frame>
-                        }
-                    }</VirtualList>
-                </Offset>
+                <ListItem grow=1.0>
+                    <Offset @node_ref=&scroll>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >|index: ReadSignal<usize>| {
+                            create_binding(move || {
+                                let index = index.get();
+                                built.update(|built| built.push(index));
+                            });
+                            view! {
+                                <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
+                                    <Frame />
+                                </Frame>
+                            }
+                        }</VirtualList>
+                    </Offset>
+                </ListItem>
             </List>
         }
     });
@@ -1856,23 +1858,25 @@ pub(crate) fn keyed_virtual_list(built: Signal<Vec<usize>>) -> KeyedVirtualScrol
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <VirtualList
-                        @node_ref=&list
-                        keys={keys}
-                        item_size=VIRTUAL_ITEM_HEIGHT
-                    >|key: ReadSignal<usize>| {
-                        create_binding(move || {
-                            let key = key.get();
-                            built.update(|built| built.push(key));
-                        });
-                        view! {
-                            <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                <Spacer />
-                            </Frame>
-                        }
-                    }</VirtualList>
-                </Offset>
+                <ListItem grow=1.0>
+                    <Offset @node_ref=&scroll>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={keys}
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >|key: ReadSignal<usize>| {
+                            create_binding(move || {
+                                let key = key.get();
+                                built.update(|built| built.push(key));
+                            });
+                            view! {
+                                <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                    <Frame />
+                                </Frame>
+                            }
+                        }</VirtualList>
+                    </Offset>
+                </ListItem>
             </List>
         }
     });
@@ -2024,7 +2028,9 @@ pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: Signal<usize>) ->
     build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
                 <styled::Sheet
                     @node_ref=&sheet
                     extent=600.0
@@ -2555,22 +2561,24 @@ fn nested() -> Document {
     build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">
-                    <Frame height=200.0 />
-                    <Frame height=150.0>
-                        <Scroll @test_id="inner">
-                            <Rows count=20 />
-                        </Scroll>
-                    </Frame>
-                    <Rows count=20 />
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @test_id="outer">
+                        <Frame height=200.0 />
+                        <Frame height=150.0>
+                            <Scroll @test_id="inner">
+                                <Rows count=20 />
+                            </Scroll>
+                        </Frame>
+                        <Rows count=20 />
+                    </Scroll>
+                </ListItem>
             </List>
         }
     })
 }
 
 #[component]
-fn Rows(count: usize) -> DynamicSegment<ListChild> {
+fn Rows(count: usize) -> DynamicSegment<ListItem> {
     view! {
         <ForEach keys={indices(count)}>|index: usize|
             <Text color=Color32::WHITE font={FontId::proportional(20.0)}>

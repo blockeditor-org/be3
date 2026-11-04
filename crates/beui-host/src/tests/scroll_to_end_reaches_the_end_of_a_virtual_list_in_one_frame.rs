@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::{Scroll, ScrollApi};
@@ -15,17 +14,19 @@ fn scroll_to_end_reaches_the_end_of_a_virtual_list_in_one_frame() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll api>
-                    <VirtualList
-                        @node_ref=&list
-                        keys={indices(500)}
-                        item_size=ESTIMATE
-                    >|_index: ReadSignal<usize>|
-                        <Frame height=ACTUAL>
-                            <Spacer />
-                        </Frame>
-                    </VirtualList>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll api>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={indices(500)}
+                            item_size=ESTIMATE
+                        >|_index: ReadSignal<usize>|
+                            <Frame height=ACTUAL>
+                                <Frame />
+                            </Frame>
+                        </VirtualList>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

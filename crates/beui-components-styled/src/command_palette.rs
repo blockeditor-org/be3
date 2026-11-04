@@ -16,7 +16,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::ICON_SEARCH;
-use beui_view::types::{Align, Direction, Extent, ItemSize};
+use beui_view::types::{Align, Direction, Extent};
 
 const WIDTH: f32 = 560.0;
 const LIST_HEIGHT: f32 = 360.0;
@@ -106,7 +106,9 @@ pub(crate) fn PaletteSearch(handle: TextInputHandle) -> NodeId {
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_SEARCH />
                 </Text>
-                <Frame @sizing=ItemSize::Percent(100.0)>{field}</Frame>
+                <ListItem grow=1.0>
+                    <Frame>{field}</Frame>
+                </ListItem>
             </List>
         </Frame>
     }

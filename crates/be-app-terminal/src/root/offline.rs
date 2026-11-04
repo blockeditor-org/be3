@@ -2,7 +2,7 @@ use be_sdk_beui::Editor;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, icons::*};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 use uuid::Uuid;
 
 const PADDING: Space = Space::Xl3;
@@ -55,12 +55,11 @@ pub(crate) fn SetupSteps(editor: Editor) -> NodeId {
             </List>
             <Card>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
-                    <SelectableText
-                        @sizing=ItemSize::Percent(100.0)
-                        child_size=ItemSize::Percent(100.0)
-                    >
-                        <Text family=Family::Mono @test_id={"terminal.command"}>{command}</Text>
-                    </SelectableText>
+                    <ListItem grow=1.0>
+                        <SelectableText child_grow=1.0>
+                            <Text family=Family::Mono @test_id={"terminal.command"}>{command}</Text>
+                        </SelectableText>
+                    </ListItem>
                     <Button
                         icon_only=true
                         label="Copy command"

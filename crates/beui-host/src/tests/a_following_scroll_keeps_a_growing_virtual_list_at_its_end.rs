@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
@@ -15,17 +14,19 @@ fn a_following_scroll_keeps_a_growing_virtual_list_at_its_end() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll follow_end=true>
-                    <VirtualList
-                        @node_ref=&list
-                        keys={keys}
-                        item_size=ESTIMATE
-                    >|_index: ReadSignal<usize>|
-                        <Frame height=ACTUAL>
-                            <Spacer />
-                        </Frame>
-                    </VirtualList>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll follow_end=true>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={keys}
+                            item_size=ESTIMATE
+                        >|_index: ReadSignal<usize>|
+                            <Frame height=ACTUAL>
+                                <Frame />
+                            </Frame>
+                        </VirtualList>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

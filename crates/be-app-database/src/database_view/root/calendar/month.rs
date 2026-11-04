@@ -5,7 +5,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 
 use super::{Event, FIRST_DAY, events_on, forward, today};
-use beui::{Direction, ItemSize};
+use beui::Direction;
 
 const CELL_SPACING: Space = Space::Xs2;
 const MAX_VISIBLE: usize = 3;
@@ -36,18 +36,21 @@ pub(super) fn MonthGrid(
         <List spacing=CELL_SPACING>
             <List direction=Direction::Horizontal spacing=CELL_SPACING>
                 <ForEach keys={names}>|name: &'static str|
-                    <Text @sizing=ItemSize::Percent(100.0) align=TextAlign::Center>{name}</Text>
+                    <ListItem grow=1.0>
+                        <Text align=TextAlign::Center>{name}</Text>
+                    </ListItem>
                 </ForEach>
             </List>
             <ForEach keys={weeks}>|start: i64|
-                <MonthWeek
-                    @sizing=ItemSize::Percent(100.0)
-                    start={start}
-                    anchor={anchor}
-                    events={events}
-                    on_pick_day={forward(on_pick_day)}
-                    on_pick_event={forward(on_pick_event)}
-                />
+                <ListItem grow=1.0>
+                    <MonthWeek
+                        start={start}
+                        anchor={anchor}
+                        events={events}
+                        on_pick_day={forward(on_pick_day)}
+                        on_pick_event={forward(on_pick_event)}
+                    />
+                </ListItem>
             </ForEach>
         </List>
     }
@@ -65,14 +68,15 @@ fn MonthWeek(
     view! {
         <List direction=Direction::Horizontal spacing=CELL_SPACING>
             <ForEach keys={days}>|day: i64|
-                <MonthCell
-                    @sizing=ItemSize::Percent(100.0)
-                    day={day}
-                    anchor={anchor}
-                    events={events}
-                    on_pick_day={forward(on_pick_day)}
-                    on_pick_event={forward(on_pick_event)}
-                />
+                <ListItem grow=1.0>
+                    <MonthCell
+                        day={day}
+                        anchor={anchor}
+                        events={events}
+                        on_pick_day={forward(on_pick_day)}
+                        on_pick_event={forward(on_pick_event)}
+                    />
+                </ListItem>
             </ForEach>
         </List>
     }
@@ -159,7 +163,7 @@ fn MonthCell(
                     }
                 }</ForEach>
                 <Text style=TextStyle::CAPTION>{overflow}</Text>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
         </Frame>
     }

@@ -6,7 +6,6 @@ use be_sdk_beui::{BlockLink, ChildTarget, Editor};
 use be_type_logic_grid::CompiledLogic as Program;
 use be_type_logic_grid::CompiledLogicContent;
 use be_type_logic_grid::LogicGridContent;
-use beui::ItemSize;
 use logicgame::grid::{ComponentPort, ConnectionDirection};
 use uuid::Uuid;
 
@@ -65,39 +64,41 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
     view! {
         <Frame padding=PADDING>
             <List spacing=Space::None>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <List spacing=SECTION_SPACING>
-                        <List spacing=Space::Sm>
-                            <Text style=TextStyle::HEADING>"Compiled from"</Text>
-                            <BlockLink
-                                editor={editor}
-                                block={source}
-                                @test_id={"compiled-logic.source"}
-                            />
-                            <Text style=TextStyle::CAPTION>{summary}</Text>
+                <ListItem grow=1.0>
+                    <Scroll>
+                        <List spacing=SECTION_SPACING>
+                            <List spacing=Space::Sm>
+                                <Text style=TextStyle::HEADING>"Compiled from"</Text>
+                                <BlockLink
+                                    editor={editor}
+                                    block={source}
+                                    @test_id={"compiled-logic.source"}
+                                />
+                                <Text style=TextStyle::CAPTION>{summary}</Text>
+                            </List>
+                            <Separator />
+                            <List spacing=Space::Sm>
+                                <Text style=TextStyle::HEADING>"Ports"</Text>
+                                <Lines lines={ports} />
+                            </List>
+                            <Separator />
+                            <List spacing=Space::Sm>
+                                <Text style=TextStyle::HEADING>"Calls"</Text>
+                                <Show condition={no_calls}>
+                                    <Text style=TextStyle::CAPTION>
+                                        "This component calls nothing else."
+                                    </Text>
+                                </Show>
+                                <Calls editor={editor} calls={calls} />
+                            </List>
+                            <Separator />
+                            <List spacing=Space::Sm>
+                                <Text style=TextStyle::HEADING>"Program"</Text>
+                                <Lines lines={program} monospace=true />
+                            </List>
                         </List>
-                        <Separator />
-                        <List spacing=Space::Sm>
-                            <Text style=TextStyle::HEADING>"Ports"</Text>
-                            <Lines lines={ports} />
-                        </List>
-                        <Separator />
-                        <List spacing=Space::Sm>
-                            <Text style=TextStyle::HEADING>"Calls"</Text>
-                            <Show condition={no_calls}>
-                                <Text style=TextStyle::CAPTION>
-                                    "This component calls nothing else."
-                                </Text>
-                            </Show>
-                            <Calls editor={editor} calls={calls} />
-                        </List>
-                        <Separator />
-                        <List spacing=Space::Sm>
-                            <Text style=TextStyle::HEADING>"Program"</Text>
-                            <Lines lines={program} monospace=true />
-                        </List>
-                    </List>
-                </Scroll>
+                    </Scroll>
+                </ListItem>
             </List>
         </Frame>
     }

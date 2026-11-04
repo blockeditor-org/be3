@@ -24,17 +24,19 @@ fn dragging_past_the_bottom_of_a_selectable_virtual_list_scrolls_it_and_selects_
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @node_ref=&scroll @sizing=ItemSize::Fixed(100.0)>
-                    <SelectableText @node_ref=&region>
-                        <VirtualList
-                            keys={(0..ROWS).collect::<Vec<usize>>()}
-                            item_size=20.0
-                            text={label}
-                        >|index: ReadSignal<usize>|
-                            <Line index />
-                        </VirtualList>
-                    </SelectableText>
-                </Scroll>
+                <ListItem length=100.0>
+                    <Scroll @node_ref=&scroll>
+                        <SelectableText @node_ref=&region>
+                            <VirtualList
+                                keys={(0..ROWS).collect::<Vec<usize>>()}
+                                item_size=20.0
+                                text={label}
+                            >|index: ReadSignal<usize>|
+                                <Line index />
+                            </VirtualList>
+                        </SelectableText>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

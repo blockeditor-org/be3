@@ -417,7 +417,7 @@ pub fn TreeToggle(
     toggle: ClickCallback,
     #[prop(default = String::new())] button_test_id: String,
     #[prop(children)] content: RenderFn<TreeToggleHandle>,
-) -> DynamicSegment<ListChild> {
+) -> DynamicSegment<ListItem> {
     let expandable = create_memo(move || item.get().expandable);
     let expanded = create_memo(move || item.get().expanded);
     view! {

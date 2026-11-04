@@ -4,7 +4,6 @@ use be_sdk::{ScrollDelta, TimedInput};
 use beui::styled::*;
 
 use super::*;
-use beui::ItemSize;
 
 #[test]
 fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted() {
@@ -16,13 +15,15 @@ fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted(
         Windowed::new(move |_| {
             view! {
                 <List spacing=Space::None>
-                    <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <ForEach keys={(0..40).collect::<Vec<usize>>()}>|_: usize|
-                            <Frame padding={Padding::vertical(Space::Xl2)}>
-                                <Spacer />
-                            </Frame>
-                        </ForEach>
-                    </Scroll>
+                    <ListItem grow=1.0>
+                        <Scroll @node_ref=&scroll>
+                            <ForEach keys={(0..40).collect::<Vec<usize>>()}>|_: usize|
+                                <Frame padding={Padding::vertical(Space::Xl2)}>
+                                    <Frame />
+                                </Frame>
+                            </ForEach>
+                        </Scroll>
+                    </ListItem>
                 </List>
             }
         })

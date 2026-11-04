@@ -7,7 +7,7 @@ use beui::reactive::*;
 use beui::styled::*;
 
 use super::{UiCommand, send};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 #[derive(Clone, Debug)]
 pub(crate) enum DebugCommand {
@@ -79,23 +79,29 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
                         HostPanel::BlockStack => {
                             let client = create_memo(move || debug.get().client);
                             view! {
-                                <ClientPanel @sizing=ItemSize::Percent(100.0) client />
+                                <ListItem grow=1.0>
+                                    <ClientPanel client />
+                                </ListItem>
                             }
                         }
                         HostPanel::Performance => {
                             let performance = create_memo(move || debug.get().performance);
                             view! {
-                                <PerformancePanel @sizing=ItemSize::Percent(100.0) performance />
+                                <ListItem grow=1.0>
+                                    <PerformancePanel performance />
+                                </ListItem>
                             }
                         }
                         HostPanel::Apps => {
                             let apps = create_memo(move || debug.get().apps);
                             view! {
-                                <AppsPanel @sizing=ItemSize::Percent(100.0) apps />
+                                <ListItem grow=1.0>
+                                    <AppsPanel apps />
+                                </ListItem>
                             }
                         }
                         HostPanel::Menu => view! {
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                            <Spacer />
                         },
                     }
                 }</Dynamic>
@@ -213,38 +219,18 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
     });
     view! {
         <List direction=Direction::Horizontal spacing=Space::Md>
-            <Text
-                overflow=Overflow::Ellipsis
-                @sizing=ItemSize::Percent(100.0)
-                size=TextSize::Sm
-                weight={weight}
-            >
-                {name}
-            </Text>
-            <Text
-                @sizing=ItemSize::Fixed(90.0)
-                size=TextSize::Sm
-                family=Family::Mono
-                weight={weight}
-            >
-                {current}
-            </Text>
-            <Text
-                @sizing=ItemSize::Fixed(90.0)
-                size=TextSize::Sm
-                family=Family::Mono
-                weight={weight}
-            >
-                {average}
-            </Text>
-            <Text
-                @sizing=ItemSize::Fixed(90.0)
-                size=TextSize::Sm
-                family=Family::Mono
-                weight={weight}
-            >
-                {peak}
-            </Text>
+            <ListItem grow=1.0>
+                <Text overflow=Overflow::Ellipsis size=TextSize::Sm weight={weight}>{name}</Text>
+            </ListItem>
+            <ListItem length=90.0>
+                <Text size=TextSize::Sm family=Family::Mono weight={weight}>{current}</Text>
+            </ListItem>
+            <ListItem length=90.0>
+                <Text size=TextSize::Sm family=Family::Mono weight={weight}>{average}</Text>
+            </ListItem>
+            <ListItem length=90.0>
+                <Text size=TextSize::Sm family=Family::Mono weight={weight}>{peak}</Text>
+            </ListItem>
         </List>
     }
 }
@@ -314,7 +300,9 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
             <List spacing=Space::Xs2>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text size=TextSize::Lg>{id}</Text>
-                    <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{state}</Text>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::CAPTION>{state}</Text>
+                    </ListItem>
                     <Button
                         label="Kill"
                         variant=ButtonVariant::Secondary

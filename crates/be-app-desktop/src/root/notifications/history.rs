@@ -8,7 +8,7 @@ use be_sdk_beui::beui::styled::*;
 
 use super::{DesktopNotifications, Listed};
 use crate::root::bar::local_minutes;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 pub(crate) const LIST_HEIGHT: f32 = 420.0;
 const SPACING: Space = Space::Md;
@@ -40,7 +40,7 @@ pub(crate) fn NotificationList(
         <List spacing=SPACING @test_id={"desktop.notifications.list"}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text style=TextStyle::HEADING>"Notifications"</Text>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
                 <Button
                     label="Clear all"
                     variant=ButtonVariant::Ghost
@@ -110,34 +110,36 @@ fn NotificationRow(
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Start spacing=ROW_SPACING>
-            <ListRow
-                @sizing=ItemSize::Percent(100.0)
-                @test_id={format!("desktop.notifications.{id}")}
-                on_click={activate}
-            >
-                <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
-                    <Show condition={pictured}>|| {
-                        let image = image.clone(); view! {
-                            <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
-                                <Picture image />
-                            </Frame>
-                        }
-                    }</Show>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                        <Text style=TextStyle::CAPTION>{source}</Text>
-                        <Show condition={titled}>|| {
-                            let heading = heading.clone(); view! {
-                                <Text color={summary_color} weight=Weight::Bold>{heading}</Text>
+            <ListItem grow=1.0>
+                <ListRow @test_id={format!("desktop.notifications.{id}")} on_click={activate}>
+                    <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
+                        <Show condition={pictured}>|| {
+                            let image = image.clone(); view! {
+                                <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
+                                    <Picture image />
+                                </Frame>
                             }
                         }</Show>
-                        <Show condition={said}>|| {
-                            let body = body.clone(); view! {
-                                <Text size=TextSize::Sm color={body_color}>{body}</Text>
-                            }
-                        }</Show>
+                        <ListItem grow=1.0>
+                            <List spacing=ROW_SPACING>
+                                <Text style=TextStyle::CAPTION>{source}</Text>
+                                <Show condition={titled}>|| {
+                                    let heading = heading.clone(); view! {
+                                        <Text color={summary_color} weight=Weight::Bold>
+                                            {heading}
+                                        </Text>
+                                    }
+                                }</Show>
+                                <Show condition={said}>|| {
+                                    let body = body.clone(); view! {
+                                        <Text size=TextSize::Sm color={body_color}>{body}</Text>
+                                    }
+                                }</Show>
+                            </List>
+                        </ListItem>
                     </List>
-                </List>
-            </ListRow>
+                </ListRow>
+            </ListItem>
             <Button
                 icon_only=true
                 glyph=ICON_X

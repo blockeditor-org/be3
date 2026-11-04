@@ -5,7 +5,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::desktop;
 use be_sdk_beui::{Editor, PowerAction, PowerAvailability, PowerWatch};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const DIALOG_SPACING: Space = Space::Xl;
 const ROW_SPACING: Space = Space::Xs;
@@ -109,7 +109,7 @@ pub(crate) fn PowerRow(choice: PowerChoice, on_chose: Callback<()>) -> NodeId {
         >
             <PowerButton action=PowerAction::Lock choice={choice} on_chose={on_chose} />
             <PowerButton action=PowerAction::Suspend choice={choice} on_chose={on_chose} />
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Spacer />
             <PowerButton action=PowerAction::LogOut choice={choice} on_chose={on_chose} />
             <PowerButton action=PowerAction::Restart choice={choice} on_chose={on_chose} />
             <PowerButton action=PowerAction::PowerOff choice={choice} on_chose={on_chose} />

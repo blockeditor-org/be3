@@ -13,7 +13,9 @@ fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
                 <ModalSheet
                     open={open}
                     fit=true

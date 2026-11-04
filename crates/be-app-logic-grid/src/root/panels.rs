@@ -6,7 +6,7 @@ use beui::{FontId, NodeId, PointerPress, TextLayout, reactive::Painter};
 
 use super::session::Session;
 use super::*;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const SPACING: Space = Space::Md;
 const LABEL_WIDTH: f32 = 110.0;
@@ -50,8 +50,12 @@ pub(super) fn Panels(session: Session) -> NodeId {
 fn Field(label: Prop<String>, value: Prop<String>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(LABEL_WIDTH)>{label}</Text>
-            <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0)>{value}</Text>
+            <ListItem length=LABEL_WIDTH>
+                <Text style=TextStyle::CAPTION>{label}</Text>
+            </ListItem>
+            <ListItem grow=1.0>
+                <Text style=TextStyle::CODE>{value}</Text>
+            </ListItem>
         </List>
     }
 }
@@ -375,7 +379,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                     @test_id={"logic-grid.step-instruction"}
                     on_click={step}
                 />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
             <Show condition={failed}>
                 <Problem content={problem} />
@@ -475,7 +479,9 @@ fn InstructionRow(
     view! {
         <Frame fill={fill} radius=Radius::Xs padding={Padding::horizontal(Space::Xs)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0)>{text}</Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CODE>{text}</Text>
+                </ListItem>
                 <Show condition={calls}>
                     <Button
                         label="Target"
@@ -662,12 +668,11 @@ fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
                     cells.with(|cells| cells.get(index).cloned().unwrap_or_default())
                 });
                 view! {
-                    <Frame
-                        @sizing=ItemSize::Fixed(CELL_WIDTH)
-                        padding={Padding::horizontal(Space::Xs2)}
-                    >
-                        <Text>{text}</Text>
-                    </Frame>
+                    <ListItem length=CELL_WIDTH>
+                        <Frame padding={Padding::horizontal(Space::Xs2)}>
+                            <Text>{text}</Text>
+                        </Frame>
+                    </ListItem>
                 }
             }</ForEach>
         </List>

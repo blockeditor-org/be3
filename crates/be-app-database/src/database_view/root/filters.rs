@@ -16,7 +16,7 @@ use uuid::Uuid;
 use crate::database_view::root::controls::MARK;
 use crate::database_view::root::data::Data;
 use be_sdk_beui::beui::TextAlign;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const SPACING: Space = Space::Sm;
 const EDITOR_WIDTH: f32 = 300.0;
@@ -422,26 +422,28 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
             <List spacing=Space::Md>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text>{name}</Text>
-                    <Frame @sizing=ItemSize::Percent(100.0)>
-                        <Select
-                            options={view! {
-                                <ForEach keys={kind_keys}>|index: usize| {
-                                    let label = create_memo(move || {
-                                        kinds.with(|kinds| {
-                                            kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
-                                        })
-                                    });
-                                    view! {
-                                        <ChoiceOption label={label} />
-                                    }
-                                }</ForEach>
-                            }}
-                            selected={Binding::new(selected, recondition)}
-                            label="Condition"
-                            disabled={condition_off}
-                            @test_id={format!("database-view.filter.{}.condition", id.as_uuid())}
-                        />
-                    </Frame>
+                    <ListItem grow=1.0>
+                        <Frame>
+                            <Select
+                                options={view! {
+                                    <ForEach keys={kind_keys}>|index: usize| {
+                                        let label = create_memo(move || {
+                                            kinds.with(|kinds| {
+                                                kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
+                                            })
+                                        });
+                                        view! {
+                                            <ChoiceOption label={label} />
+                                        }
+                                    }</ForEach>
+                                }}
+                                selected={Binding::new(selected, recondition)}
+                                label="Condition"
+                                disabled={condition_off}
+                                @test_id={format!("database-view.filter.{}.condition", id.as_uuid())}
+                            />
+                        </Frame>
+                    </ListItem>
                 </List>
                 <Show condition={choosing}>
                     <ValueChoices data={data} id={id} filter={filter} field={field} />
@@ -616,13 +618,14 @@ fn ValueChoices(
                                 <Show condition={marked}>
                                     <ChoiceMark option={option} size=MARK />
                                 </Show>
-                                <Checkbox
-                                    @sizing={be_sdk_beui::beui::ItemSize::Percent(100.0).shrink(1.0)}
-                                    label={label}
-                                    checked={Binding::new(checked, toggle)}
-                                    disabled={read_only}
-                                    @test_id={element_test_id}
-                                />
+                                <ListItem grow=1.0 shrink=1.0>
+                                    <Checkbox
+                                        label={label}
+                                        checked={Binding::new(checked, toggle)}
+                                        disabled={read_only}
+                                        @test_id={element_test_id}
+                                    />
+                                </ListItem>
                                 <Text style=TextStyle::CAPTION>{count}</Text>
                             </List>
                         }
@@ -663,7 +666,9 @@ pub fn FilterList(data: Data) -> NodeId {
                 let read_only = data.read_only;
                 view! {
                     <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
-                        <FilterEditor @sizing=ItemSize::Percent(100.0) data={data} id={id} />
+                        <ListItem grow=1.0>
+                            <FilterEditor data={data} id={id} />
+                        </ListItem>
                         <Button
                             icon_only=true
                             glyph=ICON_X
@@ -680,25 +685,27 @@ pub fn FilterList(data: Data) -> NodeId {
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_PLUS />
                 </Text>
-                <Frame @sizing=ItemSize::Percent(100.0)>
-                    <Select
-                        options={view! {
-                            <ForEach keys={field_keys}>|index: usize| {
-                                let label = create_memo(move || {
-                                    names.with(|fields| fields.get(index).map(|field| field.name.clone()).unwrap_or_default())
-                                });
-                                view! {
-                                    <ChoiceOption label={label} />
-                                }
-                            }</ForEach>
-                        }}
-                        selected={Binding::new(None, add)}
-                        label="Add a filter"
-                        placeholder="Add a filter"
-                        disabled={read_only}
-                        @test_id={"database-view.filters.add-field"}
-                    />
-                </Frame>
+                <ListItem grow=1.0>
+                    <Frame>
+                        <Select
+                            options={view! {
+                                <ForEach keys={field_keys}>|index: usize| {
+                                    let label = create_memo(move || {
+                                        names.with(|fields| fields.get(index).map(|field| field.name.clone()).unwrap_or_default())
+                                    });
+                                    view! {
+                                        <ChoiceOption label={label} />
+                                    }
+                                }</ForEach>
+                            }}
+                            selected={Binding::new(None, add)}
+                            label="Add a filter"
+                            placeholder="Add a filter"
+                            disabled={read_only}
+                            @test_id={"database-view.filters.add-field"}
+                        />
+                    </Frame>
+                </ListItem>
             </List>
         </List>
     }

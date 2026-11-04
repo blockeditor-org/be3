@@ -15,20 +15,23 @@ fn a_long_modal_sheet_on_the_html_core() {
                     on_dismiss={|| {}}
                 >|_|
                     <List spacing=Space::None>
-                        <primitives::Spacer @sizing=crate::ItemSize::Percent(100.0) />
-                        <Frame
-                            @sizing={crate::ItemSize::Intrinsic.shrink(1.0)}
-                            fill=ColorRole::Surface
-                            height=Size::Custom(200.0)
-                        >
-                            <Scroll>
-                                <List spacing=Space::None>
-                                    <ForEach keys={(1..=30).collect::<Vec<usize>>()}>|row: usize|
-                                        <ActionRow label={format!("Row {row}")} on_click={|| {}} />
-                                    </ForEach>
-                                </List>
-                            </Scroll>
-                        </Frame>
+                        <primitives::Spacer />
+                        <ListItem shrink=1.0>
+                            <Frame fill=ColorRole::Surface height=Size::Custom(200.0)>
+                                <Scroll>
+                                    <List spacing=Space::None>
+                                        <ForEach
+                                            keys={(1..=30).collect::<Vec<usize>>()}
+                                        >|row: usize|
+                                            <ActionRow
+                                                label={format!("Row {row}")}
+                                                on_click={|| {}}
+                                            />
+                                        </ForEach>
+                                    </List>
+                                </Scroll>
+                            </Frame>
+                        </ListItem>
                     </List>
                 </unstyled::Modal>
             </Root>

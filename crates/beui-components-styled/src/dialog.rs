@@ -15,7 +15,6 @@ use beui_components_unstyled::{
 };
 use beui_view::primitives::Spacer;
 use beui_view::reactive::NodeId;
-use beui_view::types::ItemSize;
 
 use crate::list::List;
 use crate::theme::Density;
@@ -81,7 +80,7 @@ pub fn Dialog(
     #[prop(default = Vec::new())] actions: Vec<DialogAction>,
     #[prop(default = true)] scrolls: bool,
     on_dismiss: ClickCallback,
-    #[prop(children)] content: Render<(), Children<ListChild>>,
+    #[prop(children)] content: Render<(), Children<ListItem>>,
 ) -> NodeId {
     view! {
         <DialogFrame open kind width size anchor on_dismiss={on_dismiss}>
@@ -171,7 +170,7 @@ pub fn DialogBody(
     #[prop(default = true)] focuses: Prop<bool>,
     #[prop(default = true)] scrolls: bool,
     on_dismiss: ClickCallback,
-    #[prop(children)] content: Render<(), Children<ListChild>>,
+    #[prop(children)] content: Render<(), Children<ListItem>>,
 ) -> NodeId {
     let id = create_memo(move || id.get());
     let layout = use_context::<DialogLayout>();
@@ -205,7 +204,7 @@ fn DialogBodyFace(
     id: Memo<String>,
     scrolls: bool,
     inset: Memo<f32>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let title = handle.title;
     let closable = handle.kind == DialogKind::Dialog;
@@ -216,12 +215,16 @@ fn DialogBodyFace(
     let dismiss = handle.dismiss;
     let content = match scrolls {
         true => view! {
-            <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} fit=true bleed={bleed}>
-                <List spacing=SPACING>{children}</List>
-            </Scroll>
+            <ListItem shrink=1.0>
+                <Scroll fit=true bleed={bleed}>
+                    <List spacing=SPACING>{children}</List>
+                </Scroll>
+            </ListItem>
         },
         false => view! {
-            <List @sizing=ItemSize::Percent(100.0) spacing=SPACING>{children}</List>
+            <ListItem grow=1.0>
+                <List spacing=SPACING>{children}</List>
+            </ListItem>
         },
     };
     let below = create_memo(move || Padding::ZERO.bottom(Space::Custom(inset.get())));
@@ -231,9 +234,9 @@ fn DialogBodyFace(
                 <List spacing=SPACING>
                     <Show condition={titled}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE>
-                                {title}
-                            </Text>
+                            <ListItem grow=1.0>
+                                <Text style=TextStyle::TITLE>{title}</Text>
+                            </ListItem>
                             <Show condition={create_memo(move || closable)}>
                                 <Button
                                     icon_only=true
@@ -279,7 +282,7 @@ fn DialogFooter(handle: DialogBodyHandle, id: Memo<String>) -> NodeId {
                         <ActionButton handle index id />
                     </ForEach>
                     <Show condition={leading}>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Spacer />
                     </Show>
                     <ForEach keys={end}>|index: usize|
                         <ActionButton handle index id />

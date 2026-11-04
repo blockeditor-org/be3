@@ -8,7 +8,7 @@ use beui::{NodeId, Overflow, TextAlign};
 
 use super::embeds::ResolvedEmbed;
 use super::state::{FocusedEmbed, State};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const TITLE_SPACING: Space = Space::Sm;
 const TITLE_PADDING: Space = Space::Sm;
@@ -70,14 +70,11 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
                         <Show condition={has_icon} then={icon_row} />
-                        <Text
-                            @sizing=ItemSize::Percent(100.0)
-                            size=TextSize::Lg
-                            italic={automatic}
-                            overflow=Overflow::Ellipsis
-                        >
-                            {label}
-                        </Text>
+                        <ListItem grow=1.0>
+                            <Text size=TextSize::Lg italic={automatic} overflow=Overflow::Ellipsis>
+                                {label}
+                            </Text>
+                        </ListItem>
                         <Show condition={deleted}>
                             <Text size=TextSize::Sm color=TextColor::Muted>
                                 "In Recently Deleted"
@@ -98,26 +95,27 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                 </Frame>
                 <Show condition={unavailable} then={unavailable_row} />
                 <Show condition={available}>
-                    <ChildBlock
-                        @sizing=ItemSize::Percent(100.0)
-                        editor={state.editor}
-                        block={Some(target)}
-                        mode={mode}
-                        on_state={move |next: ChildState| {
-                            child.set(next.clone());
-                            state.inner().embed_children.borrow_mut().insert(key, next.clone());
-                            if let Some(size) = next.intrinsic_size
-                                && state
-                                    .embed_sizes
-                                    .with_untracked(|sizes| sizes.get(&key.id) != Some(&size))
-                            {
-                                state.embed_sizes.update(|sizes| {
-                                    sizes.insert(key.id, size);
-                                });
-                            }
-                            confirm_focus(state, key, next.active);
-                        }}
-                    />
+                    <ListItem grow=1.0>
+                        <ChildBlock
+                            editor={state.editor}
+                            block={Some(target)}
+                            mode={mode}
+                            on_state={move |next: ChildState| {
+                                child.set(next.clone());
+                                state.inner().embed_children.borrow_mut().insert(key, next.clone());
+                                if let Some(size) = next.intrinsic_size
+                                    && state
+                                        .embed_sizes
+                                        .with_untracked(|sizes| sizes.get(&key.id) != Some(&size))
+                                {
+                                    state.embed_sizes.update(|sizes| {
+                                        sizes.insert(key.id, size);
+                                    });
+                                }
+                                confirm_focus(state, key, next.active);
+                            }}
+                        />
+                    </ListItem>
                 </Show>
             </List>
         </Frame>

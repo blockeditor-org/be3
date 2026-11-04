@@ -19,7 +19,7 @@ use crate::database_view::root::controls::{ChoicePicker, MARK, MARK_SIZE};
 use crate::database_view::root::data::Data;
 use crate::database_view::root::list::{iconic, row_title, visible_groups};
 use be_type_text::TextContent;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const PADDING: Space = Space::Xl2;
 const SPACING: Space = Space::Md;
@@ -121,96 +121,100 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     let row = view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame padding=PADDING>
-                        <List spacing=Space::Xl>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=Space::Xs2
-                            >
-                                <TextInput
-                                    @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                                    value={Binding::new(title, retitled)}
-                                    placeholder="Title"
-                                    disabled={title_off}
-                                    focused={untitled}
-                                    @test_id={"database-view.detail.title"}
-                                />
-                                <Button
-                                    icon_only=true
-                                    glyph=ICON_CHEVRON_UP
-                                    label="Previous row"
-                                    variant=ButtonVariant::Ghost
-                                    @test_id={"database-view.detail.previous"}
-                                    on_click={move || step(-1)}
-                                />
-                                <Button
-                                    icon_only=true
-                                    glyph=ICON_CHEVRON_DOWN
-                                    label="Next row"
-                                    variant=ButtonVariant::Ghost
-                                    @test_id={"database-view.detail.next"}
-                                    on_click={move || step(1)}
-                                />
-                                <Button
-                                    icon_only=true
-                                    glyph=ICON_EXTERNAL_LINK
-                                    label="Open the page"
-                                    variant=ButtonVariant::Ghost
-                                    @test_id={"database-view.detail.open"}
-                                    on_click={open_page}
-                                />
-                                <MenuButton
-                                    icon_only=true
-                                    variant=ButtonVariant::Ghost
-                                    label="More"
-                                    glyph=ICON_ELLIPSIS
-                                    @test_id={"database-view.detail.more"}
-                                    items={view! {
-                                        <MenuItem
-                                            label="Delete row"
-                                            glyph=ICON_TRASH
-                                            danger=true
-                                            disabled={delete_off}
-                                            row_test_id={"database-view.detail.delete".to_owned()}
-                                            on_click={remove}
+                <ListItem grow=1.0>
+                    <Scroll>
+                        <Frame padding=PADDING>
+                            <List spacing=Space::Xl>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Xs2
+                                >
+                                    <ListItem grow=1.0 shrink=1.0>
+                                        <TextInput
+                                            value={Binding::new(title, retitled)}
+                                            placeholder="Title"
+                                            disabled={title_off}
+                                            focused={untitled}
+                                            @test_id={"database-view.detail.title"}
                                         />
-                                    }}
-                                />
-                            </List>
-                            <List spacing=Space::Xs2>
-                                <ForEach keys={properties}>|field: Uuid|
-                                    <Property data={data} row={row} field={field} />
-                                </ForEach>
-                            </List>
-                            <ForEach keys={link_fields}>|field: Uuid|
-                                <LinkSection data={data} row={row} field={field} />
-                            </ForEach>
-                            <Separator />
-                            <Show condition={missing}>
-                                <List direction=Direction::Horizontal spacing=Space::None>
+                                    </ListItem>
                                     <Button
-                                        glyph=ICON_FILE_PLUS
-                                        label="Write a description"
+                                        icon_only=true
+                                        glyph=ICON_CHEVRON_UP
+                                        label="Previous row"
                                         variant=ButtonVariant::Ghost
-                                        disabled={page_off}
-                                        @test_id={"database-view.detail.add-page"}
-                                        on_click={add_page}
+                                        @test_id={"database-view.detail.previous"}
+                                        on_click={move || step(-1)}
+                                    />
+                                    <Button
+                                        icon_only=true
+                                        glyph=ICON_CHEVRON_DOWN
+                                        label="Next row"
+                                        variant=ButtonVariant::Ghost
+                                        @test_id={"database-view.detail.next"}
+                                        on_click={move || step(1)}
+                                    />
+                                    <Button
+                                        icon_only=true
+                                        glyph=ICON_EXTERNAL_LINK
+                                        label="Open the page"
+                                        variant=ButtonVariant::Ghost
+                                        @test_id={"database-view.detail.open"}
+                                        on_click={open_page}
+                                    />
+                                    <MenuButton
+                                        icon_only=true
+                                        variant=ButtonVariant::Ghost
+                                        label="More"
+                                        glyph=ICON_ELLIPSIS
+                                        @test_id={"database-view.detail.more"}
+                                        items={view! {
+                                            <MenuItem
+                                                label="Delete row"
+                                                glyph=ICON_TRASH
+                                                danger=true
+                                                disabled={delete_off}
+                                                row_test_id={"database-view.detail.delete".to_owned()}
+                                                on_click={remove}
+                                            />
+                                        }}
                                     />
                                 </List>
-                            </Show>
-                        </List>
-                    </Frame>
-                </Scroll>
+                                <List spacing=Space::Xs2>
+                                    <ForEach keys={properties}>|field: Uuid|
+                                        <Property data={data} row={row} field={field} />
+                                    </ForEach>
+                                </List>
+                                <ForEach keys={link_fields}>|field: Uuid|
+                                    <LinkSection data={data} row={row} field={field} />
+                                </ForEach>
+                                <Separator />
+                                <Show condition={missing}>
+                                    <List direction=Direction::Horizontal spacing=Space::None>
+                                        <Button
+                                            glyph=ICON_FILE_PLUS
+                                            label="Write a description"
+                                            variant=ButtonVariant::Ghost
+                                            disabled={page_off}
+                                            @test_id={"database-view.detail.add-page"}
+                                            on_click={add_page}
+                                        />
+                                    </List>
+                                </Show>
+                            </List>
+                        </Frame>
+                    </Scroll>
+                </ListItem>
                 <Show condition={present}>
-                    <ChildBlock
-                        @sizing=ItemSize::Percent(100.0)
-                        editor={editor}
-                        block={target}
-                        mode=ChildMode::Live
-                        own_frame=true
-                    />
+                    <ListItem grow=1.0>
+                        <ChildBlock
+                            editor={editor}
+                            block={target}
+                            mode=ChildMode::Live
+                            own_frame=true
+                        />
+                    </ListItem>
                 </Show>
             </List>
         </Frame>
@@ -282,34 +286,38 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     let (choice_off, value_off) = (data.read_only, data.read_only);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{name}</Text>
-            </Frame>
-            <Frame @sizing=ItemSize::Percent(100.0)>
-                <List spacing=Space::None>
-                    <Show condition={choice}>
-                        <ChoicePicker
-                            field={known}
-                            chosen={chosen}
-                            disabled={choice_off}
-                            picker_id={format!("database-view.detail.field.{field}")}
-                            on_pick={picked}
-                        />
-                    </Show>
-                    <Show condition={other}>
-                        <DatabaseValueEditor
-                            fields={fields}
-                            values={values}
-                            labels={labels}
-                            disabled={value_off}
-                            prefix="database-view.detail"
-                            headings=false
-                            on_change={changed}
-                            on_pick={pick_block}
-                        />
-                    </Show>
-                </List>
-            </Frame>
+            <ListItem length=LABEL_WIDTH>
+                <Frame>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{name}</Text>
+                </Frame>
+            </ListItem>
+            <ListItem grow=1.0>
+                <Frame>
+                    <List spacing=Space::None>
+                        <Show condition={choice}>
+                            <ChoicePicker
+                                field={known}
+                                chosen={chosen}
+                                disabled={choice_off}
+                                picker_id={format!("database-view.detail.field.{field}")}
+                                on_pick={picked}
+                            />
+                        </Show>
+                        <Show condition={other}>
+                            <DatabaseValueEditor
+                                fields={fields}
+                                values={values}
+                                labels={labels}
+                                disabled={value_off}
+                                prefix="database-view.detail"
+                                headings=false
+                                on_change={changed}
+                                on_pick={pick_block}
+                            />
+                        </Show>
+                    </List>
+                </Frame>
+            </ListItem>
         </List>
     }
 }
@@ -383,30 +391,34 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text>{heading}</Text>
                 <Text style=TextStyle::CAPTION>{count}</Text>
-                <Frame @sizing=ItemSize::Percent(100.0) />
-                <Frame @sizing=ItemSize::Fixed(180.0)>
-                    <Select
-                        options={view! {
-                            <ForEach keys={add_keys}>|link: RowRef| {
-                                let label = create_memo(move || {
-                                    addable.with(|rows| {
-                                        rows.iter()
-                                            .find(|(held, _)| *held == link)
-                                            .map_or_else(String::new, |(_, label)| label.clone())
-                                    })
-                                });
-                                view! {
-                                    <ChoiceOption label={label} />
-                                }
-                            }</ForEach>
-                        }}
-                        selected={Binding::new(None, added)}
-                        label="Link a row"
-                        placeholder="Link a row"
-                        disabled={add_off}
-                        @test_id={format!("database-view.detail.links.{field}.add")}
-                    />
-                </Frame>
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
+                <ListItem length=180.0>
+                    <Frame>
+                        <Select
+                            options={view! {
+                                <ForEach keys={add_keys}>|link: RowRef| {
+                                    let label = create_memo(move || {
+                                        addable.with(|rows| {
+                                            rows.iter()
+                                                .find(|(held, _)| *held == link)
+                                                .map_or_else(String::new, |(_, label)| label.clone())
+                                        })
+                                    });
+                                    view! {
+                                        <ChoiceOption label={label} />
+                                    }
+                                }</ForEach>
+                            }}
+                            selected={Binding::new(None, added)}
+                            label="Link a row"
+                            placeholder="Link a row"
+                            disabled={add_off}
+                            @test_id={format!("database-view.detail.links.{field}.add")}
+                        />
+                    </Frame>
+                </ListItem>
             </List>
             <ForEach keys={links}>|link: RowRef|
                 <LinkedRow data={data} row={row} field={field} link={link} links={links} />
@@ -475,29 +487,27 @@ fn LinkedRow(
     let read_only = data.read_only;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-            <ListRow
-                @sizing=ItemSize::Percent(100.0)
-                @test_id={format!("database-view.detail.links.{field}.{}", link.row)}
-                on_click={open}
-                on_activate={open}
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Frame width={Size::Custom(MARK_SIZE)} height={Size::Custom(MARK_SIZE)}>
-                        <Layers>
-                            <Show condition={marked}>
-                                <ChoiceMark option={option} size=MARK />
-                            </Show>
-                        </Layers>
-                    </Frame>
-                    <Text style=TextStyle::CAPTION>{code}</Text>
-                    <Text
-                        @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                        overflow=Overflow::Ellipsis
-                    >
-                        {label}
-                    </Text>
-                </List>
-            </ListRow>
+            <ListItem grow=1.0>
+                <ListRow
+                    @test_id={format!("database-view.detail.links.{field}.{}", link.row)}
+                    on_click={open}
+                    on_activate={open}
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <Frame width={Size::Custom(MARK_SIZE)} height={Size::Custom(MARK_SIZE)}>
+                            <Layers>
+                                <Show condition={marked}>
+                                    <ChoiceMark option={option} size=MARK />
+                                </Show>
+                            </Layers>
+                        </Frame>
+                        <Text style=TextStyle::CAPTION>{code}</Text>
+                        <ListItem grow=1.0 shrink=1.0>
+                            <Text overflow=Overflow::Ellipsis>{label}</Text>
+                        </ListItem>
+                    </List>
+                </ListRow>
+            </ListItem>
             <Button
                 icon_only=true
                 glyph=ICON_X

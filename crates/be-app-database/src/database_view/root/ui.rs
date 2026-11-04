@@ -23,7 +23,7 @@ use crate::database_view::root::list::{ListView, OpenRow};
 use crate::database_view::root::scatter::Scatter;
 use crate::database_view::root::spreadsheet::Spreadsheet;
 use crate::database_view::sort::{ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const CELL_LABEL_WIDTH: f32 = 56.0;
 const CELL_EDITOR_HEIGHT: Size = Size::Xl;
@@ -84,9 +84,11 @@ fn ViewEditor(editor: Editor) -> NodeId {
                             <Show condition={chrome}>
                                 <ViewHeader data={data} />
                             </Show>
-                            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                                <Content data={data} />
-                            </Frame>
+                            <ListItem grow=1.0>
+                                <Frame @node_ref={&content}>
+                                    <Content data={data} />
+                                </Frame>
+                            </ListItem>
                         </List>
                     </DockTab>
                 </DockPane>
@@ -146,19 +148,29 @@ fn Content(data: Data) -> NodeId {
             <Dynamic value={kind}>|kind: DatabaseViewKind| {
                 match kind {
                     DatabaseViewKind::Spreadsheet => view! {
-                        <Spreadsheet @sizing=ItemSize::Percent(100.0) data={data} />
+                        <ListItem grow=1.0>
+                            <Spreadsheet data={data} />
+                        </ListItem>
                     },
                     DatabaseViewKind::Kanban => view! {
-                        <Kanban @sizing=ItemSize::Percent(100.0) data={data} />
+                        <ListItem grow=1.0>
+                            <Kanban data={data} />
+                        </ListItem>
                     },
                     DatabaseViewKind::Scatter => view! {
-                        <Scatter @sizing=ItemSize::Percent(100.0) data={data} />
+                        <ListItem grow=1.0>
+                            <Scatter data={data} />
+                        </ListItem>
                     },
                     DatabaseViewKind::List => view! {
-                        <ListView @sizing=ItemSize::Percent(100.0) data={data} />
+                        <ListItem grow=1.0>
+                            <ListView data={data} />
+                        </ListItem>
                     },
                     DatabaseViewKind::Calendar => view! {
-                        <CalendarView @sizing=ItemSize::Percent(100.0) data={data} />
+                        <ListItem grow=1.0>
+                            <CalendarView data={data} />
+                        </ListItem>
                     },
                 }
             }</Dynamic>
@@ -209,22 +221,25 @@ fn CellEditor(data: Data) -> NodeId {
     view! {
         <Frame height=CELL_EDITOR_HEIGHT>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                <Frame @sizing={ItemSize::Intrinsic.min(CELL_LABEL_WIDTH)}>
-                    <Text @test_id={"database-view.cell-editor.cell"}>{label}</Text>
-                </Frame>
+                <ListItem min=CELL_LABEL_WIDTH>
+                    <Frame>
+                        <Text @test_id={"database-view.cell-editor.cell"}>{label}</Text>
+                    </Frame>
+                </ListItem>
                 <Show condition={chosen}>
-                    <DatabaseValueEditor
-                        @sizing=ItemSize::Fixed(CELL_EDITOR_WIDTH)
-                        fields={fields}
-                        values={values}
-                        labels={labels}
-                        disabled={read_only}
-                        prefix="database-view.cell-editor"
-                        headings=false
-                        on_change={changed}
-                        on_pick={picked}
-                        on_submit={submitted}
-                    />
+                    <ListItem length=CELL_EDITOR_WIDTH>
+                        <DatabaseValueEditor
+                            fields={fields}
+                            values={values}
+                            labels={labels}
+                            disabled={read_only}
+                            prefix="database-view.cell-editor"
+                            headings=false
+                            on_change={changed}
+                            on_pick={picked}
+                            on_submit={submitted}
+                        />
+                    </ListItem>
                 </Show>
             </List>
         </Frame>

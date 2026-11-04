@@ -1,7 +1,7 @@
 use super::*;
+use beui::Direction;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Direction, ItemSize};
 
 struct SidebarRoot;
 
@@ -14,8 +14,12 @@ impl crate::BeuiRoot for SidebarRoot {
             editor.content(&canvas);
             view! {
                 <List direction=Direction::Horizontal spacing=Space::None>
-                    <Frame @sizing=ItemSize::Fixed(100.0) />
-                    <Frame @node_ref={&canvas} @sizing=ItemSize::Percent(100.0) />
+                    <ListItem length=100.0>
+                        <Frame />
+                    </ListItem>
+                    <ListItem grow=1.0>
+                        <Frame @node_ref={&canvas} />
+                    </ListItem>
                 </List>
             }
         };

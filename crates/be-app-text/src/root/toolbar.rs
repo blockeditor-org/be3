@@ -13,7 +13,7 @@ use beui::styled::*;
 use beui_text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
 use super::state::State;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const TOOLBAR_SPACING: Space = Space::Sm;
 const SETTINGS_SPACING: Space = Space::Md;
@@ -201,16 +201,15 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
                             align=Align::Center
                             spacing=Space::None
                         >
-                            <Scroll
-                                @sizing=ItemSize::Percent(100.0)
-                                direction=Direction::Horizontal
-                            >
-                                <Frame padding=FORMAT_PADDING>
-                                    <List spacing=Space::None>
-                                        <Show condition={markdown} then={controls} />
-                                    </List>
-                                </Frame>
-                            </Scroll>
+                            <ListItem grow=1.0>
+                                <Scroll direction=Direction::Horizontal>
+                                    <Frame padding=FORMAT_PADDING>
+                                        <List spacing=Space::None>
+                                            <Show condition={markdown} then={controls} />
+                                        </List>
+                                    </Frame>
+                                </Scroll>
+                            </ListItem>
                             <Show condition={keyboard}>
                                 <Frame padding=FORMAT_PADDING>
                                     <Button
@@ -256,7 +255,9 @@ fn HexSettings(state: State) -> NodeId {
     let insert = state.hex_insert_mode;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-            <Text @sizing=ItemSize::Percent(100.0)>"Insert instead of overwriting"</Text>
+            <ListItem grow=1.0>
+                <Text>"Insert instead of overwriting"</Text>
+            </ListItem>
             <Switch
                 label="Insert instead of overwriting"
                 on={Binding::new(insert, move |pressed: bool| {
@@ -299,7 +300,9 @@ fn TextSettings(state: State) -> NodeId {
     view! {
         <List spacing=SETTINGS_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-                <Text @sizing=ItemSize::Percent(100.0)>"Language"</Text>
+                <ListItem grow=1.0>
+                    <Text>"Language"</Text>
+                </ListItem>
                 <Select
                     width=SELECT_WIDTH
                     label="Language"
@@ -320,7 +323,9 @@ fn TextSettings(state: State) -> NodeId {
                 />
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-                <Text @sizing=ItemSize::Percent(100.0)>"Indentation"</Text>
+                <ListItem grow=1.0>
+                    <Text>"Indentation"</Text>
+                </ListItem>
                 <Select
                     width=SELECT_WIDTH
                     label="Indentation"
@@ -340,7 +345,9 @@ fn TextSettings(state: State) -> NodeId {
             </List>
             <Show condition={spaces}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-                    <Text @sizing=ItemSize::Percent(100.0)>"Indentation width"</Text>
+                    <ListItem grow=1.0>
+                        <Text>"Indentation width"</Text>
+                    </ListItem>
                     <Frame width=NUMBER_WIDTH>
                         <NumberInput
                             label="Indentation width"

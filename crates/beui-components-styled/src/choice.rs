@@ -13,7 +13,7 @@ use beui_view::reactive::*;
 
 use crate::text::{Text, TextColor};
 pub(super) use beui_components_unstyled::ChoiceKind as Kind;
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 
 pub(crate) const OPTION_SPACING: Space = Space::Sm;
 const MARK_SPACING: Space = Space::Md;
@@ -65,9 +65,9 @@ fn ChoiceLabel(
             <Show condition={kind == Kind::Radio}>
                 <RadioMark checked={checked} />
             </Show>
-            <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0) color align>
-                {label}
-            </Text>
+            <ListItem grow=1.0>
+                <Text overflow=Overflow::Ellipsis color align>{label}</Text>
+            </ListItem>
         </List>
     }
 }

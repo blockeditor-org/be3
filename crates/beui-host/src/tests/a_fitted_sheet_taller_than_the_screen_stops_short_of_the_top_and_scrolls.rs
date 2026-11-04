@@ -12,7 +12,9 @@ fn a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
                 <ModalSheet open={open} fit=true on_close={|| ()}>
                     <List @node_ref=&rows spacing=0.0>
                         <ForEach keys={indices(SHEET_ROWS)}>|_: usize|

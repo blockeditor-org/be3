@@ -8,7 +8,7 @@ use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{Editor, Subregion, SubregionContent};
 
 use super::session::{PAGE, Session};
-use beui::{Align, ItemSize, Justify};
+use beui::{Align, Justify};
 
 const STAGE: &str = "stage";
 const TOOLBAR: &str = "toolbar";
@@ -68,18 +68,14 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
             <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
                 match chrome.get_untracked() {
                     true => view! {
-                        <TabDock
-                            @sizing=ItemSize::Percent(100.0)
-                            editor
-                            content
-                            page
-                            failed
-                            reason
-                            bar
-                        />
+                        <ListItem grow=1.0>
+                            <TabDock editor content page failed reason bar />
+                        </ListItem>
                     },
                     false => view! {
-                        <Page @sizing=ItemSize::Percent(100.0) editor content page failed reason />
+                        <ListItem grow=1.0>
+                            <Page editor content page failed reason />
+                        </ListItem>
                     },
                 }
             }</Keyed>
@@ -171,15 +167,16 @@ fn AddressBar(bar: Bar) -> NodeId {
                 @test_id={"browser.reload"}
                 on_click={move || reload.call(())}
             />
-            <TextInput
-                @sizing={ItemSize::Fixed(ADDRESS_WIDTH).shrink(1.0)}
-                value={Binding::new(address, move |value: String| typed.call(value))}
-                label="Address"
-                placeholder="Search or enter address"
-                @test_id={"browser.address"}
-                on_submit={move |value: String| submit.call(value)}
-                on_focus_change={move |focused: bool| focus.call(focused)}
-            />
+            <ListItem length=ADDRESS_WIDTH shrink=1.0>
+                <TextInput
+                    value={Binding::new(address, move |value: String| typed.call(value))}
+                    label="Address"
+                    placeholder="Search or enter address"
+                    @test_id={"browser.address"}
+                    on_submit={move |value: String| submit.call(value)}
+                    on_focus_change={move |focused: bool| focus.call(focused)}
+                />
+            </ListItem>
             <Button
                 label="Go"
                 variant=ButtonVariant::Primary

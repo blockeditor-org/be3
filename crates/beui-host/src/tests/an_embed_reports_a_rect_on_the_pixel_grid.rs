@@ -1,6 +1,5 @@
 use super::*;
 use crate::primitives::*;
-use crate::reactive::*;
 
 #[test]
 fn an_embed_reports_a_rect_on_the_pixel_grid() {
@@ -9,9 +8,11 @@ fn an_embed_reports_a_rect_on_the_pixel_grid() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) aspect_ratio=1.0>
-                    <Embed slot={slot} />
-                </Frame>
+                <ListItem grow=1.0>
+                    <Frame aspect_ratio=1.0>
+                        <Embed slot={slot} />
+                    </Frame>
+                </ListItem>
             </List>
         }
     });

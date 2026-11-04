@@ -1,8 +1,8 @@
 use super::*;
 
 #[test]
-fn percent_items_get_nothing_when_no_space_remains() {
-    let sizes = [ItemSize::Intrinsic, ItemSize::Percent(100.0)];
+fn growing_items_get_nothing_when_no_space_remains() {
+    let sizes = [ItemSize::Intrinsic, ItemSize::Grow(1.0)];
     let intrinsic_lengths = [150.0, 0.0];
 
     let lengths =

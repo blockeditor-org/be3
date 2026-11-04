@@ -17,7 +17,7 @@ use beui_view::reactive::*;
 use beui_view::types::Placement;
 use beui_view::types::PointerPress;
 use beui_view::types::icons::ICON_ELLIPSIS;
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 use beui_view::types::{Dismiss, LayerPolicy};
 use beui_view::types::{Key, KeyPhase};
 use beui_view::types::{Pos2, Rect, Vec2, pos2};
@@ -41,7 +41,7 @@ pub fn ContextMenu(
     children: Child,
     items: Children<MenuItem>,
     menu: MenuStyle,
-    #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
+    #[prop(default = 0.0)] child_grow: Prop<f32>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
     #[prop(default = true)] open_at_focuses: bool,
@@ -164,7 +164,7 @@ pub fn ContextMenu(
             }}
         >
             <List spacing=0.0>
-                {children} @sizing={child_size}
+                <ListItem grow=child_grow>{children}</ListItem>
                 <Show condition={built}>
                     <MenuPopup
                         overlay

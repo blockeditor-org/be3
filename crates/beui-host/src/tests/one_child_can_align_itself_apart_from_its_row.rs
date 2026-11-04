@@ -10,18 +10,12 @@ fn one_child_can_align_itself_apart_from_its_row() {
         view! {
             <List direction=Direction::Horizontal align=Align::Start spacing=0.0>
                 <Frame @node_ref=&tall width=10.0 height=40.0 />
-                <Frame
-                    @sizing={ItemSize::Intrinsic.align(Align::Center)}
-                    @node_ref=&centred
-                    width=10.0
-                    height=10.0
-                />
-                <Frame
-                    @sizing={ItemSize::Intrinsic.align(Align::End)}
-                    @node_ref=&ended
-                    width=10.0
-                    height=10.0
-                />
+                <ListItem align=Align::Center>
+                    <Frame @node_ref=&centred width=10.0 height=10.0 />
+                </ListItem>
+                <ListItem align=Align::End>
+                    <Frame @node_ref=&ended width=10.0 height=10.0 />
+                </ListItem>
             </List>
         }
     });

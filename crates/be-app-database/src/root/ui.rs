@@ -8,7 +8,7 @@ use be_sdk_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, SIDE_PA
 use be_type_database::DatabaseSchemaContent;
 use be_type_database::database::DatabaseContent;
 use be_type_database::database_view::{self, DatabaseViewContent};
-use beui::{Direction, ItemSize};
+use beui::Direction;
 use uuid::Uuid;
 
 const PADDING: Space = Space::Xl2;
@@ -82,9 +82,11 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
                                         "This database has no views yet."
                                     </Text>
                                 </Show>
-                                <Scroll @sizing=ItemSize::Percent(100.0)>
-                                    <ViewLinks editor={editor} rows={rows} />
-                                </Scroll>
+                                <ListItem grow=1.0>
+                                    <Scroll>
+                                        <ViewLinks editor={editor} rows={rows} />
+                                    </Scroll>
+                                </ListItem>
                                 <List direction=Direction::Horizontal spacing=Space::None>
                                     <Button
                                         label="New view"
@@ -93,7 +95,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
                                         @test_id={"database.new-view"}
                                         on_click={new_view}
                                     />
-                                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                                    <Spacer />
                                 </List>
                             </List>
                         </Frame>
@@ -150,12 +152,9 @@ fn SchemaPanel(editor: Editor, schema: Memo<Option<Uuid>>) -> NodeId {
             <Show condition={missing}>
                 <Text style=TextStyle::CAPTION>"This database has no schema."</Text>
             </Show>
-            <ChildBlock
-                @sizing=ItemSize::Percent(100.0)
-                editor={editor}
-                block={target}
-                mode=ChildMode::Live
-            />
+            <ListItem grow=1.0>
+                <ChildBlock editor={editor} block={target} mode=ChildMode::Live />
+            </ListItem>
         </List>
     }
 }

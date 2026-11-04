@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{Direction, Extent, ItemSize};
+use beui_view::types::{Direction, Extent};
 
 const SLACK: f32 = 0.01;
 
@@ -126,8 +126,8 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
                     Stage::Probe(_) => None,
                 });
                 let stretch = create_memo(move || match stage {
-                    Stage::Show(_) => ItemSize::Intrinsic.min(room.get().unwrap_or(0.0)),
-                    Stage::Probe(_) => ItemSize::Intrinsic.min(0.0),
+                    Stage::Show(_) => room.get().unwrap_or(0.0),
+                    Stage::Probe(_) => 0.0,
                 });
                 let measured = measure(shown);
                 create_effect(move || {
@@ -142,7 +142,7 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
                 view! {
                     <Frame width={box_width}>
                         <List direction=Direction::Horizontal spacing=0.0>
-                            {shown} @sizing={stretch}
+                            <ListItem min=stretch>{shown}</ListItem>
                         </List>
                     </Frame>
                 }

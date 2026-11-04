@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -16,17 +15,19 @@ fn scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <VirtualList
-                        @node_ref=&list
-                        keys={indices(ROWS)}
-                        item_size=ESTIMATE
-                    >|_: ReadSignal<usize>|
-                        <Frame height=ACTUAL>
-                            <Spacer />
-                        </Frame>
-                    </VirtualList>
-                </Offset>
+                <ListItem grow=1.0>
+                    <Offset @node_ref=&scroll>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={indices(ROWS)}
+                            item_size=ESTIMATE
+                        >|_: ReadSignal<usize>|
+                            <Frame height=ACTUAL>
+                                <Frame />
+                            </Frame>
+                        </VirtualList>
+                    </Offset>
+                </ListItem>
             </List>
         }
     });

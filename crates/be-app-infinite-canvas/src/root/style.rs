@@ -11,7 +11,7 @@ use be_type_infinite_canvas::{
 use super::selection_bar::Swatch;
 use super::sidebar::{closed, colored, stroked};
 use super::state::{CanvasState, CommonValue, common_value};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const LABEL_WIDTH: f32 = 72.0;
 const ROW_SPACING: Space = Space::Xs;
@@ -356,12 +356,13 @@ fn StyleControls(state: CanvasState) -> NodeId {
             </Show>
             <Show condition={shows(stroke)}>
                 <StyleRow label="Opacity">
-                    <Slider
-                        @sizing=ItemSize::Percent(100.0)
-                        label="Opacity"
-                        value={Binding::new(opacity_value, opacity_set)}
-                        @test_id={"infinite-canvas.style.opacity"}
-                    />
+                    <ListItem grow=1.0>
+                        <Slider
+                            label="Opacity"
+                            value={Binding::new(opacity_value, opacity_set)}
+                            @test_id={"infinite-canvas.style.opacity"}
+                        />
+                    </ListItem>
                 </StyleRow>
             </Show>
         </List>
@@ -369,18 +370,21 @@ fn StyleControls(state: CanvasState) -> NodeId {
 }
 
 #[component]
-fn StyleRow(label: &'static str, #[prop(children)] children: Children<ListChild>) -> NodeId {
+fn StyleRow(label: &'static str, #[prop(children)] children: Children<ListItem>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-            <Text @sizing=ItemSize::Fixed(LABEL_WIDTH) style=TextStyle::CAPTION>{label}</Text>
-            <List
-                @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                direction=Direction::Horizontal
-                align=Align::Center
-                spacing=ROW_SPACING
-                wrap=true
-                children={children}
-            />
+            <ListItem length=LABEL_WIDTH>
+                <Text style=TextStyle::CAPTION>{label}</Text>
+            </ListItem>
+            <ListItem grow=1.0 shrink=1.0>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    spacing=ROW_SPACING
+                    wrap=true
+                    children={children}
+                />
+            </ListItem>
         </List>
     }
 }

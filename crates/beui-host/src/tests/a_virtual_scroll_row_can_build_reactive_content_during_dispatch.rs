@@ -9,15 +9,17 @@ fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0)>
-                    <VirtualList
-                        @node_ref=&list
-                        keys={indices(VIRTUAL_ITEM_COUNT)}
-                        item_size=VIRTUAL_ITEM_HEIGHT
-                    >|index: ReadSignal<usize>|
-                        <Text>{create_memo(move || format!("Row {}", index.get()))}</Text>
-                    </VirtualList>
-                </Offset>
+                <ListItem grow=1.0>
+                    <Offset>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >|index: ReadSignal<usize>|
+                            <Text>{create_memo(move || format!("Row {}", index.get()))}</Text>
+                        </VirtualList>
+                    </Offset>
+                </ListItem>
             </List>
         }
     });

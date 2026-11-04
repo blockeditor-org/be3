@@ -12,7 +12,7 @@ fn narrower_than_with_no_container_above_it_panics() {
     build_node(move || {
         let _narrow = narrower_than(300.0);
         view! {
-            <Spacer />
+            <Frame />
         }
     });
 }

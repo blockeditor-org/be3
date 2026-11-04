@@ -5,7 +5,7 @@ use beui::reactive::*;
 use beui::styled::*;
 
 use crate::Editor;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 #[component]
 pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
@@ -93,7 +93,9 @@ pub fn VersionSteps(
                         spacing=Space::Md
                         @test_id=step_test_id
                     >
-                        <Text @sizing=ItemSize::Percent(100.0)>{description}</Text>
+                        <ListItem grow=1.0>
+                            <Text>{description}</Text>
+                        </ListItem>
                         <beui::reactive::Show condition={undone}>
                             <Text style=TextStyle::CAPTION>"Undone"</Text>
                         </beui::reactive::Show>

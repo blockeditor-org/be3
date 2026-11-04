@@ -13,7 +13,7 @@ use uuid::Uuid;
 use super::share::{GRANTABLE, Member, Person, Share, ShareAction};
 use super::workspace::Workspace;
 use be_sdk_beui::beui::TextAlign;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const MEMBERS_HEIGHT: Size = Size::Custom(280.0);
 const SETTINGS_HEIGHT: f32 = 96.0;
@@ -403,7 +403,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                     <ChoiceOption label={AccessLevel::KnowExists.label()} />
                                 }}
                             />
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                            <Spacer />
                             <Button
                                 label="Add"
                                 glyph=ICON_USER_PLUS
@@ -453,13 +453,11 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         <Text size=TextSize::Sm align=TextAlign::Center>
                             <Icon glyph=ICON_LOCK />
                         </Text>
-                        <Text
-                            style=TextStyle::CAPTION
-                            @test_id={"share.administrators"}
-                            @sizing=ItemSize::Percent(100.0)
-                        >
-                            "The organization's administrators can manage this block. This can't be changed."
-                        </Text>
+                        <ListItem grow=1.0>
+                            <Text style=TextStyle::CAPTION @test_id={"share.administrators"}>
+                                "The organization's administrators can manage this block. This can't be changed."
+                            </Text>
+                        </ListItem>
                     </List>
                 </Show>
                 <Frame height=MEMBERS_HEIGHT>
@@ -542,30 +540,36 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
         <Frame padding={Padding::vertical(Space::Xs)}>
             <Card>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                            <Text align=TextAlign::Center>
-                                <Icon glyph=ICON_USER />
-                            </Text>
-                            <Text size=TextSize::Lg>{name}</Text>
-                        </List>
-                        <Text style=TextStyle::CAPTION>{email}</Text>
-                        <Show condition={is_fixed}>
+                    <ListItem grow=1.0>
+                        <List spacing=Space::Xs2>
                             <List
                                 direction=Direction::Horizontal
                                 align=Align::Center
                                 spacing=Space::Xs
                             >
-                                <Text size=TextSize::Sm align=TextAlign::Center>
-                                    <Icon glyph=ICON_LOCK />
+                                <Text align=TextAlign::Center>
+                                    <Icon glyph=ICON_USER />
                                 </Text>
-                                <Text style=TextStyle::CAPTION>{fixed_text}</Text>
+                                <Text size=TextSize::Lg>{name}</Text>
                             </List>
-                        </Show>
-                        <Show condition={has_note}>
-                            <Text style=TextStyle::CAPTION>{note_text}</Text>
-                        </Show>
-                    </List>
+                            <Text style=TextStyle::CAPTION>{email}</Text>
+                            <Show condition={is_fixed}>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Xs
+                                >
+                                    <Text size=TextSize::Sm align=TextAlign::Center>
+                                        <Icon glyph=ICON_LOCK />
+                                    </Text>
+                                    <Text style=TextStyle::CAPTION>{fixed_text}</Text>
+                                </List>
+                            </Show>
+                            <Show condition={has_note}>
+                                <Text style=TextStyle::CAPTION>{note_text}</Text>
+                            </Show>
+                        </List>
+                    </ListItem>
                     <Show condition={is_fixed}>
                         <Button
                             label={access_label}

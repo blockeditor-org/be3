@@ -10,7 +10,7 @@ use be_sdk_beui::desktop;
 use be_sdk_beui::{Editor, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus};
 
 use super::status::BackButton;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const LIST_HEIGHT: Size = Size::Custom(360.0);
 const SPACING: Space = Space::Md;
@@ -151,7 +151,9 @@ pub(crate) fn WifiPanel(editor: Editor, status: Memo<WifiStatus>, on_back: Callb
         <List spacing=SPACING @test_id={"desktop.wifi.panel"}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <BackButton on_click={on_back} />
-                <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::HEADING>"Wi-Fi"</Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::HEADING>"Wi-Fi"</Text>
+                </ListItem>
                 <Switch
                     on={Binding::new(enabled, move |on: bool| editor.act(move || desktop::wifi::request(WifiRequest::SetEnabled(on)).detach()))}
                     label="Wi-Fi"
@@ -249,34 +251,32 @@ fn NetworkRow(
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <ListRow
-                    @sizing=ItemSize::Percent(100.0)
-                    @test_id={id.clone()}
-                    label
-                    disabled={unreachable}
-                    on_click={choose}
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text size=TextSize::Lg>
-                            <Icon glyph />
-                        </Text>
-                        <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                            <Text>{ssid.clone()}</Text>
-                            <Show condition={captioned}>
-                                <Text style=TextStyle::CAPTION>{said}</Text>
+                <ListItem grow=1.0>
+                    <ListRow @test_id={id.clone()} label disabled={unreachable} on_click={choose}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <Text size=TextSize::Lg>
+                                <Icon glyph />
+                            </Text>
+                            <ListItem grow=1.0>
+                                <List spacing=ROW_SPACING>
+                                    <Text>{ssid.clone()}</Text>
+                                    <Show condition={captioned}>
+                                        <Text style=TextStyle::CAPTION>{said}</Text>
+                                    </Show>
+                                </List>
+                            </ListItem>
+                            <Show condition={secured}>
+                                <Text
+                                    size=TextSize::Sm
+                                    color=TextColor::Muted
+                                    @test_id={lock_id.clone()}
+                                >
+                                    <Icon glyph=ICON_LOCK />
+                                </Text>
                             </Show>
                         </List>
-                        <Show condition={secured}>
-                            <Text
-                                size=TextSize::Sm
-                                color=TextColor::Muted
-                                @test_id={lock_id.clone()}
-                            >
-                                <Icon glyph=ICON_LOCK />
-                            </Text>
-                        </Show>
-                    </List>
-                </ListRow>
+                    </ListRow>
+                </ListItem>
                 <Show condition={connected}>
                     <Button
                         label="Disconnect"
@@ -325,18 +325,20 @@ fn PasswordEntry(
         editor.act(move || desktop::wifi::request(request).detach());
     };
     let submitted = connect.clone();
+    let password_test_id = format!("{id}.password");
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <TextInput
-                @sizing=ItemSize::Percent(100.0)
-                value={password}
-                kind={InputKind::Password}
-                focused=true
-                placeholder
-                label
-                @test_id={format!("{id}.password")}
-                on_submit={move |_: String| submitted()}
-            />
+            <ListItem grow=1.0>
+                <TextInput
+                    value={password}
+                    kind={InputKind::Password}
+                    focused=true
+                    placeholder
+                    label
+                    @test_id={password_test_id}
+                    on_submit={move |_: String| submitted()}
+                />
+            </ListItem>
             <Button
                 label="Connect"
                 variant=ButtonVariant::Primary
@@ -358,7 +360,9 @@ fn OtherNetwork(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) -
                     <Text size=TextSize::Lg>
                         <Icon glyph=ICON_PLUS />
                     </Text>
-                    <Text @sizing=ItemSize::Percent(100.0)>"Other network…"</Text>
+                    <ListItem grow=1.0>
+                        <Text>"Other network…"</Text>
+                    </ListItem>
                 </List>
             </ListRow>
             <Show condition={other}>
@@ -457,7 +461,9 @@ fn HiddenEntry(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) ->
                 />
             </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::CAPTION>{said}</Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CAPTION>{said}</Text>
+                </ListItem>
                 <Button
                     label="Connect"
                     variant=ButtonVariant::Primary

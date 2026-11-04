@@ -14,9 +14,11 @@ fn clicking_the_scrollbar_track_pages_the_scroll_towards_the_click() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame height=CONTENT_HEIGHT />
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <Frame height=CONTENT_HEIGHT />
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

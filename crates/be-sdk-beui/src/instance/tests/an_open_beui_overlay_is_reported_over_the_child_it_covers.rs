@@ -1,7 +1,6 @@
 use super::*;
 use crate::{ChildBlock, ChildState, ChildTarget};
 use be_sdk_api::ChildMode;
-use beui::ItemSize;
 use beui::reactive::*;
 use beui::styled::*;
 
@@ -20,15 +19,16 @@ impl crate::BeuiRoot for OverlaidRoot {
             view! {
                 <Frame>
                     <List spacing=Space::None>
-                        <ChildBlock
-                            @node_ref={&child}
-                            @sizing=ItemSize::Percent(100.0)
-                            editor={editor}
-                            block={Some(ChildTarget::new(BLOCK, BLOCK_TYPE))}
-                            mode=ChildMode::Live
-                            own_frame=true
-                            on_state={move |_: ChildState| {}}
-                        />
+                        <ListItem grow=1.0>
+                            <ChildBlock
+                                @node_ref={&child}
+                                editor={editor}
+                                block={Some(ChildTarget::new(BLOCK, BLOCK_TYPE))}
+                                mode=ChildMode::Live
+                                own_frame=true
+                                on_state={move |_: ChildState| {}}
+                            />
+                        </ListItem>
                         <Floating anchor={child}>
                             <Frame width={Size::Custom(PANEL)} height={Size::Custom(PANEL)} />
                         </Floating>

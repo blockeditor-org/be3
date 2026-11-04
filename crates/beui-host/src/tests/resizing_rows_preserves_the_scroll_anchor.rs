@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
@@ -21,7 +20,7 @@ fn resizing_rows_preserves_the_scroll_anchor() {
                             @node_ref={&rows[index]}
                             padding={Sides::symmetric(0.0, 10.0 + (index % 3) as f32)}
                         >
-                            <Spacer />
+                            <Frame />
                         </Frame>
                     </ForEach>
                 </Scroll>

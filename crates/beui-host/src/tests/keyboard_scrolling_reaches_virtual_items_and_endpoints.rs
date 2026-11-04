@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
@@ -11,16 +10,18 @@ fn keyboard_scrolling_reaches_virtual_items_and_endpoints() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <VirtualList
-                        keys={indices(VIRTUAL_ITEM_COUNT)}
-                        item_size=VIRTUAL_ITEM_HEIGHT
-                    >|_: ReadSignal<usize>|
-                        <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
-                            <Spacer />
-                        </Frame>
-                    </VirtualList>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <VirtualList
+                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >|_: ReadSignal<usize>|
+                            <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
+                                <Frame />
+                            </Frame>
+                        </VirtualList>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

@@ -10,14 +10,16 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">
-                    <Frame height=150.0>
-                        <Scroll @test_id="inner">
-                            <Rows count=20 />
-                        </Scroll>
-                    </Frame>
-                    <Rows count=20 />
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @test_id="outer">
+                        <Frame height=150.0>
+                            <Scroll @test_id="inner">
+                                <Rows count=20 />
+                            </Scroll>
+                        </Frame>
+                        <Rows count=20 />
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });
@@ -39,7 +41,7 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
 }
 
 #[component]
-fn Rows(count: usize) -> DynamicSegment<ListChild> {
+fn Rows(count: usize) -> DynamicSegment<ListItem> {
     view! {
         <ForEach keys={indices(count)}>|index: usize|
             <Text color=Color32::WHITE font={FontId::proportional(20.0)}>

@@ -5,7 +5,7 @@ use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, PointerPress, Pos2, Vec2};
 
 use super::{Event, assign_lanes, events_on, forward, today, weekday_abbreviation};
-use beui::{Direction, ItemSize};
+use beui::Direction;
 
 const HEADER_HEIGHT: Size = Size::Custom(22.0);
 const HOUR_HEIGHT: f32 = 40.0;
@@ -43,19 +43,23 @@ pub(super) fn Timeline(
             <List direction=Direction::Horizontal spacing=Space::None>
                 <Frame width={Size::Custom(GUTTER)} />
                 <ForEach keys={columns}>|day: i64|
-                    <DayHeader @sizing=ItemSize::Percent(100.0) day={day} />
+                    <ListItem grow=1.0>
+                        <DayHeader day={day} />
+                    </ListItem>
                 </ForEach>
             </List>
             <Separator />
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Grid
-                    first_day={first_day}
-                    days={days}
-                    events={events}
-                    on_pick_slot={on_pick_slot}
-                    on_pick_event={on_pick_event}
-                />
-            </Scroll>
+            <ListItem grow=1.0>
+                <Scroll>
+                    <Grid
+                        first_day={first_day}
+                        days={days}
+                        events={events}
+                        on_pick_slot={on_pick_slot}
+                        on_pick_event={on_pick_event}
+                    />
+                </Scroll>
+            </ListItem>
         </List>
     }
 }

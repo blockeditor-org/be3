@@ -1,12 +1,12 @@
 use super::*;
 
 #[test]
-fn percent_items_normalize_when_they_dont_sum_to_100() {
-    let sizes = [ItemSize::Percent(1.0), ItemSize::Percent(3.0)];
+fn growing_items_split_remaining_space_by_weight() {
+    let sizes = [ItemSize::Grow(0.5), ItemSize::Grow(0.5)];
     let intrinsic_lengths = [0.0, 0.0];
 
     let lengths =
         distribute_main_axis(PixelGrid::default(), 100.0, 0.0, &sizes, &intrinsic_lengths);
 
-    assert_eq!(lengths, vec![25.0, 75.0]);
+    assert_eq!(lengths, vec![50.0, 50.0]);
 }

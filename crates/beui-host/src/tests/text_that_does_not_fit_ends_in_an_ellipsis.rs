@@ -1,6 +1,5 @@
 use super::*;
 use crate::primitives::*;
-use crate::reactive::*;
 use beui::Overflow;
 
 const LONG: &str = "Checked out a commit whose summary is far too long for the toolbar";
@@ -12,7 +11,9 @@ fn text_that_does_not_fit_ends_in_an_ellipsis() {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame width=100.0 height=20.0 />
-                <Text @sizing=ItemSize::Percent(100.0) overflow=Overflow::Ellipsis>{LONG}</Text>
+                <ListItem grow=1.0>
+                    <Text overflow=Overflow::Ellipsis>{LONG}</Text>
+                </ListItem>
                 <Text overflow=Overflow::Ellipsis>{SHORT}</Text>
             </List>
         }

@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::geometry::entity_kind_label;
 
 use super::state::CanvasState;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const ROW_PADDING: Space = Space::Xs;
 const ROW_RADIUS: Radius = Radius::Sm;
@@ -104,18 +104,19 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
                             @test_id={format!("infinite-canvas.layer.{id}.visibility")}
                             on_click={toggle}
                         />
-                        <Draggable
-                            @sizing=ItemSize::Percent(100.0)
-                            payload={Some(Layer(id))}
-                            cursor=CursorIcon::PointingHand
-                            preview={ghost}
-                            on_click={select}
-                            @test_id={format!("infinite-canvas.layer.{id}")}
-                        >|_: DragHandle|
-                            <Frame padding={Padding::vertical(ROW_PADDING)}>
-                                <Text color={text}>{label}</Text>
-                            </Frame>
-                        </Draggable>
+                        <ListItem grow=1.0>
+                            <Draggable
+                                payload={Some(Layer(id))}
+                                cursor=CursorIcon::PointingHand
+                                preview={ghost}
+                                on_click={select}
+                                @test_id={format!("infinite-canvas.layer.{id}")}
+                            >|_: DragHandle|
+                                <Frame padding={Padding::vertical(ROW_PADDING)}>
+                                    <Text color={text}>{label}</Text>
+                                </Frame>
+                            </Draggable>
+                        </ListItem>
                     </List>
                 </Frame>
             }

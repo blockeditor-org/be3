@@ -9,7 +9,7 @@ use beui_components_unstyled::{SliderHandle, SliderScale};
 use beui_view::primitives::Layers;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{Align, Align2, Direction, ItemSize};
+use beui_view::types::{Align, Align2, Direction};
 
 const HEIGHT: Size = Size::Sm;
 const TRACK_HEIGHT: Size = Size::Track;
@@ -57,8 +57,7 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let filled_percent = create_memo(move || filled_size(fraction.get()));
-    let rest_percent = create_memo(move || rest_size(fraction.get()));
+    let rest = create_memo(move || 1.0 - fraction.get());
     let knob_color = create_memo(move || knob_fill_color(dragging.get(), disabled.get()));
     let filled_color = create_memo(move || match disabled.get() {
         true => ColorRole::Track,
@@ -74,7 +73,7 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
             <Layers>
                 <Show condition={mark.is_some()}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-                        <Spacer @sizing={filled_size(mark.unwrap_or_default())} />
+                        <Spacer grow={mark.unwrap_or_default()} />
                         <Frame width=KNOB_SIZE height=KNOB_SIZE align=Align2::CENTER>
                             <Frame
                                 width=MARK_WIDTH
@@ -83,16 +82,13 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
                                 radius=Radius::Full
                             />
                         </Frame>
-                        <Spacer @sizing={rest_size(mark.unwrap_or_default())} />
+                        <Spacer grow={1.0 - mark.unwrap_or_default()} />
                     </List>
                 </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-                    <Frame
-                        @sizing={filled_percent}
-                        height=TRACK_HEIGHT
-                        fill={filled_color}
-                        radius=Radius::Full
-                    />
+                    <ListItem grow={fraction}>
+                        <Frame height=TRACK_HEIGHT fill={filled_color} radius=Radius::Full />
+                    </ListItem>
                     <Frame
                         width=KNOB_SIZE
                         height=KNOB_SIZE
@@ -100,24 +96,13 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
                         border={knob_border(&theme)}
                         radius=Radius::Full
                     />
-                    <Frame
-                        @sizing={rest_percent}
-                        height=TRACK_HEIGHT
-                        fill=ColorRole::Track
-                        radius=Radius::Full
-                    />
+                    <ListItem grow={rest}>
+                        <Frame height=TRACK_HEIGHT fill=ColorRole::Track radius=Radius::Full />
+                    </ListItem>
                 </List>
             </Layers>
         </Frame>
     }
-}
-
-fn filled_size(value: f32) -> ItemSize {
-    ItemSize::Percent(value * 100.0)
-}
-
-fn rest_size(value: f32) -> ItemSize {
-    ItemSize::Percent((1.0 - value) * 100.0)
 }
 
 fn knob_fill_color(dragging: bool, disabled: bool) -> ColorRole {

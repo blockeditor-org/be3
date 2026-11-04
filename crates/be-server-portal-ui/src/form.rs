@@ -1,6 +1,6 @@
+use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{ItemSize, NodeId};
 
 pub fn fixed(text: String) -> Memo<String> {
     create_memo(move || text.clone())
@@ -12,7 +12,7 @@ pub fn PortalForm(
     csrf: String,
     #[prop(default = None)] code: Option<String>,
     #[prop(default = Vec::new())] hidden: Vec<(&'static str, String)>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let mut fields = vec![("csrf", csrf)];
     fields.extend(code.map(|code| ("code", code)));
@@ -46,14 +46,9 @@ pub fn Field(
     view! {
         <List spacing=Space::Xs>
             <Text size=TextSize::Sm weight=Weight::Bold>{label}</Text>
-            <TextInput
-                value
-                label={label}
-                kind
-                name
-                autocomplete
-                @sizing=ItemSize::Percent(100.0)
-            />
+            <ListItem grow=1.0>
+                <TextInput value label={label} kind name autocomplete />
+            </ListItem>
             <Show condition={has_problem}>
                 <Text size=TextSize::Sm color=TextColor::Danger>{shown}</Text>
             </Show>

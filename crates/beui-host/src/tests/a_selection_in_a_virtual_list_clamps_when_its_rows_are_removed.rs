@@ -24,13 +24,15 @@ fn a_selection_in_a_virtual_list_clamps_when_its_rows_are_removed() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Fixed(100.0)>
-                    <SelectableText @node_ref=&region>
-                        <VirtualList keys item_size=20.0 text={label}>|index: ReadSignal<usize>|
-                            <Line index />
-                        </VirtualList>
-                    </SelectableText>
-                </Scroll>
+                <ListItem length=100.0>
+                    <Scroll>
+                        <SelectableText @node_ref=&region>
+                            <VirtualList keys item_size=20.0 text={label}>|index: ReadSignal<usize>|
+                                <Line index />
+                            </VirtualList>
+                        </SelectableText>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

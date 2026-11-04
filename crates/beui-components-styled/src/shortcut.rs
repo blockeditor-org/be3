@@ -7,7 +7,7 @@ use crate::tokens::Space;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::TextAlign;
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 
 const SPACING: Space = Space::Md;
 
@@ -16,14 +16,11 @@ pub fn Shortcut(keys: Prop<String>, description: Prop<String>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Chip label={keys} />
-            <Text
-                @sizing=ItemSize::Percent(100.0)
-                size=TextSize::Sm
-                color=TextColor::Muted
-                align=TextAlign::Start
-            >
-                {description}
-            </Text>
+            <ListItem grow=1.0>
+                <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Start>
+                    {description}
+                </Text>
+            </ListItem>
         </List>
     }
 }

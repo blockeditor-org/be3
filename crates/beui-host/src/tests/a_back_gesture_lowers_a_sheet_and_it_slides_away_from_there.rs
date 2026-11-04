@@ -13,7 +13,9 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
                 <ModalSheet
                     @node_ref=&sheet
                     open={open}

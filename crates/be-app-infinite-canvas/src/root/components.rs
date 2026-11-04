@@ -12,7 +12,7 @@ use be_type_database::database_schema::DatabaseSchemaContent;
 use uuid::Uuid;
 
 use super::state::{CanvasState, attach_component, remove_component, set_component_value};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const SPACING: Space = Space::Md;
 
@@ -46,7 +46,7 @@ pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
                         @test_id={"infinite-canvas.add-component"}
                         on_click={add}
                     />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Spacer />
                 </List>
             </List>
         </Accordion>
@@ -166,7 +166,7 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
                                 @test_id={add_id}
                                 on_click={add_all}
                             />
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                            <Spacer />
                         </List>
                     </List>
                 }

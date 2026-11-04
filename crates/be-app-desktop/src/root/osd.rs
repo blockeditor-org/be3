@@ -7,7 +7,7 @@ use be_sdk_beui::beui::unstyled::{Progress as BareProgress, ProgressHandle};
 use be_sdk_beui::beui::{
     LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Rect, TextAlign,
 };
-use beui::{Align, Direction, ItemSize, Sides};
+use beui::{Align, Direction, Sides};
 
 pub(crate) const OSD_DURATION: Duration = Duration::from_millis(1500);
 
@@ -19,7 +19,7 @@ const PADDING_VERTICAL: Space = Space::Xl;
 const SPACING: Space = Space::Xl;
 const BAR_WIDTH: Size = Size::Menu;
 const BAR_HEIGHT: Size = Size::Track;
-const SLIVER: f32 = 0.001;
+const SLIVER: f32 = 0.00001;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct OsdLevel {
@@ -169,9 +169,8 @@ fn OsdCard(
 #[component]
 fn LevelBar(value: Memo<Option<f32>>, label: Memo<String>, fill: Memo<ColorRole>) -> NodeId {
     let spans = create_memo(move || spans(value.get().unwrap_or_default()));
-    let percent = move |span: fn((f32, f32, f32)) -> f32| {
-        create_memo(move || ItemSize::Percent(span(spans.get()) * 100.0 + SLIVER))
-    };
+    let share =
+        move |span: fn((f32, f32, f32)) -> f32| create_memo(move || span(spans.get()) + SLIVER);
     let said = create_memo(move || {
         let label = label.get();
         match value.get() {
@@ -183,13 +182,13 @@ fn LevelBar(value: Memo<Option<f32>>, label: Memo<String>, fill: Memo<ColorRole>
         <BareProgress value={value} label={said}>|_handle: ProgressHandle|
             <Frame width=BAR_WIDTH height=BAR_HEIGHT fill=ColorRole::Track radius=Radius::Full>
                 <List direction=Direction::Horizontal spacing=Space::None>
-                    <Frame @sizing={percent(|spans| spans.0)} fill radius=Radius::Full />
-                    <Frame
-                        @sizing={percent(|spans| spans.1)}
-                        fill=ColorRole::Warning
-                        radius=Radius::Full
-                    />
-                    <Spacer @sizing={percent(|spans| spans.2)} />
+                    <ListItem grow={share(|spans| spans.0)}>
+                        <Frame fill radius=Radius::Full />
+                    </ListItem>
+                    <ListItem grow={share(|spans| spans.1)}>
+                        <Frame fill=ColorRole::Warning radius=Radius::Full />
+                    </ListItem>
+                    <Spacer grow={share(|spans| spans.2)} />
                 </List>
             </Frame>
         </BareProgress>

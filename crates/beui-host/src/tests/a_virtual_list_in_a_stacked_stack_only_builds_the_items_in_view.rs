@@ -17,36 +17,38 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
         view! {
             <Container>|_| {
                 let narrow = narrower_than(BREAKPOINT);
-                let size = create_memo(move || if narrow.get() {
-                    ItemSize::Fixed(STACKED_LIST_HEIGHT)
-                } else {
-                    ItemSize::Percent(100.0)
-                });
+                let length = create_memo(move || narrow.get().then_some(STACKED_LIST_HEIGHT));
+                let grow = create_memo(move || if narrow.get() { 0.0 } else { 1.0 });
                 view! {
                     <Stack spacing=Space::None breakpoint=BREAKPOINT>
-                        <Spacer @sizing=ItemSize::Percent(50.0) />
-                        <List @sizing=ItemSize::Percent(50.0) spacing=0.0>
-                            <List @sizing={size} spacing=0.0>
-                                <VirtualList
-                                    @sizing=ItemSize::Percent(100.0)
-                                    @node_ref=&scroll
-                                    keys={indices(VIRTUAL_ITEM_COUNT)}
-                                    item_size=VIRTUAL_ITEM_HEIGHT
-                                >|index: ReadSignal<usize>| {
-                                    create_binding(move || {
-                                        let index = index.get();
-                                        built.update(|built| built.push(index));
-                                    });
-                                    view! {
-                                        <Frame
-                                            padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
-                                        >
-                                            <Spacer />
-                                        </Frame>
-                                    }
-                                }</VirtualList>
+                        <Spacer grow=0.5 />
+                        <ListItem grow=0.5>
+                            <List spacing=0.0>
+                                <ListItem length grow>
+                                    <List spacing=0.0>
+                                        <ListItem grow=1.0>
+                                            <VirtualList
+                                                @node_ref=&scroll
+                                                keys={indices(VIRTUAL_ITEM_COUNT)}
+                                                item_size=VIRTUAL_ITEM_HEIGHT
+                                            >|index: ReadSignal<usize>| {
+                                                create_binding(move || {
+                                                    let index = index.get();
+                                                    built.update(|built| built.push(index));
+                                                });
+                                                view! {
+                                                    <Frame
+                                                        padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
+                                                    >
+                                                        <Frame />
+                                                    </Frame>
+                                                }
+                                            }</VirtualList>
+                                        </ListItem>
+                                    </List>
+                                </ListItem>
                             </List>
-                        </List>
+                        </ListItem>
                     </Stack>
                 }
             }</Container>

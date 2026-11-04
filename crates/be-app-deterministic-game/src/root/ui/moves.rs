@@ -7,7 +7,7 @@ use be_sdk_beui::beui::{NodeId, TextAlign};
 use beui::Overflow;
 
 use super::{Steps, Table};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const NUMBER_WIDTH: f32 = 30.0;
 
@@ -75,7 +75,9 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
     view! {
         <List spacing=Space::Sm>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
-                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>"Moves"</Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CAPTION>"Moves"</Text>
+                </ListItem>
                 <Button
                     icon_only=true
                     glyph=ICON_CHEVRON_FIRST
@@ -110,22 +112,19 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                 />
             </List>
             <List direction=Direction::Horizontal spacing=Space::Xs2>
-                <Text size=TextSize::Sm color={muted} @sizing=ItemSize::Fixed(NUMBER_WIDTH)>
-                    "#"
-                </Text>
+                <ListItem length=NUMBER_WIDTH>
+                    <Text size=TextSize::Sm color={muted}>"#"</Text>
+                </ListItem>
                 <ForEach keys={column_keys}>|column: usize| {
                     let name = create_memo(move || {
                         columns.with(|columns| columns.get(column).cloned().unwrap_or_default())
                     });
                     view! {
-                        <Text
-                            overflow=Overflow::Ellipsis
-                            size=TextSize::Sm
-                            color={muted}
-                            @sizing=ItemSize::Percent(100.0)
-                        >
-                            {name}
-                        </Text>
+                        <ListItem grow=1.0>
+                            <Text overflow=Overflow::Ellipsis size=TextSize::Sm color={muted}>
+                                {name}
+                            </Text>
+                        </ListItem>
                     }
                 }</ForEach>
             </List>
@@ -155,18 +154,13 @@ fn MoveRow(
     let muted = TextColor::Muted;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
-            <Text size=TextSize::Sm color={muted} @sizing=ItemSize::Fixed(NUMBER_WIDTH)>
-                {format!("{}", row + 1)}
-            </Text>
+            <ListItem length=NUMBER_WIDTH>
+                <Text size=TextSize::Sm color={muted}>{format!("{}", row + 1)}</Text>
+            </ListItem>
             <ForEach keys={columns}>|column: usize|
-                <MoveCell
-                    row
-                    column
-                    rows={rows}
-                    shown={shown}
-                    steps={steps}
-                    @sizing=ItemSize::Percent(100.0)
-                />
+                <ListItem grow=1.0>
+                    <MoveCell row column rows={rows} shown={shown} steps={steps} />
+                </ListItem>
             </ForEach>
         </List>
     }

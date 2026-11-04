@@ -19,7 +19,6 @@ use super::layout::{Layout, Look, Placed, SpotPlace, movable};
 use super::motion::{Motion, flights, sightings};
 use super::play::{Dragging, Mark, Play};
 use super::skin::paint_sprite;
-use beui::ItemSize;
 
 const DRAG_THRESHOLD: f32 = 6.0;
 const LABEL_SIZE: f32 = 13.0;
@@ -332,23 +331,25 @@ pub(crate) fn Stage(
         >
             <Layers>
                 <List spacing=Space::None>
-                    <Canvas view={canvas} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                        <ForEach keys={item_keys}>|id: ItemId|
-                            <TableItem id layout={layout} play={play} hidden={hidden} />
-                        </ForEach>
-                        <ForEach keys={spot_keys}>|spot: Spot|
-                            <SpotItem spot layout={layout} play={play} />
-                        </ForEach>
-                        <CanvasItem
-                            x=0.0
-                            y=0.0
-                            width={create_memo(move || bounds.get().width().max(1.0))}
-                            height={create_memo(move || bounds.get().height().max(1.0))}
-                            @test_id={"game.board"}
-                        >
-                            <Drawing draw={marks_draw} />
-                        </CanvasItem>
-                    </Canvas>
+                    <ListItem grow=1.0>
+                        <Canvas view={canvas} @node_ref={&content}>
+                            <ForEach keys={item_keys}>|id: ItemId|
+                                <TableItem id layout={layout} play={play} hidden={hidden} />
+                            </ForEach>
+                            <ForEach keys={spot_keys}>|spot: Spot|
+                                <SpotItem spot layout={layout} play={play} />
+                            </ForEach>
+                            <CanvasItem
+                                x=0.0
+                                y=0.0
+                                width={create_memo(move || bounds.get().width().max(1.0))}
+                                height={create_memo(move || bounds.get().height().max(1.0))}
+                                @test_id={"game.board"}
+                            >
+                                <Drawing draw={marks_draw} />
+                            </CanvasItem>
+                        </Canvas>
+                    </ListItem>
                     <HandBar hand bar play={play} hidden />
                 </List>
                 <Canvas view={screen_view()}>

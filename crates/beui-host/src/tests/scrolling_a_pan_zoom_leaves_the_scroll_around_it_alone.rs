@@ -12,21 +12,22 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll
-                    @sizing=ItemSize::Percent(100.0)
-                    on_change={move |position: beui::ScrollPosition| {
-                        reported.set(Some(position.offset));
-                    }}
-                >
-                    <Frame height=200.0>
-                        <PanZoomStage />
-                    </Frame>
-                    <ForEach keys={indices(20)}>|index: usize|
-                        <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
-                            {format!("Row {index}")}
-                        </Text>
-                    </ForEach>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll
+                        on_change={move |position: beui::ScrollPosition| {
+                            reported.set(Some(position.offset));
+                        }}
+                    >
+                        <Frame height=200.0>
+                            <PanZoomStage />
+                        </Frame>
+                        <ForEach keys={indices(20)}>|index: usize|
+                            <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
+                                {format!("Row {index}")}
+                            </Text>
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

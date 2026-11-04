@@ -6,7 +6,7 @@ use be_sdk_beui::beui::{NodeId, TextAlign};
 use be_type_logic_grid::QuizRow;
 
 use super::{BinaryAdditionQuiz, next_answer};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 type Answers = (Vec<Option<bool>>, Vec<Option<bool>>);
 
@@ -115,7 +115,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::root::Gam
                         "Some blanks still need work."
                     </Text>
                 </Show>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
@@ -140,7 +140,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::root::Gam
                         "Every problem is correct."
                     </Text>
                 </Show>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
         </List>
     }
@@ -179,7 +179,9 @@ fn ProblemGrid(
             <OperandRows operands={operands} />
             <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
                 <Frame width=LABEL_WIDTH />
-                <Separator @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <Separator />
+                </ListItem>
             </List>
             <BitRow
                 label="sum"
@@ -237,7 +239,7 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
                     </Frame>
                 }
             }</ForEach>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Spacer />
         </List>
     }
 }
@@ -284,7 +286,7 @@ fn BitRow(
                     />
                 }
             }</ForEach>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Spacer />
         </List>
     }
 }

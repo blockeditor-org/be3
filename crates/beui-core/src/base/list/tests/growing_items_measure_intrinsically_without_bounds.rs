@@ -1,11 +1,11 @@
 use super::*;
 
 #[test]
-fn percent_items_measure_intrinsically_without_bounds() {
+fn growing_items_measure_intrinsically_without_bounds() {
     let sizes = [
         ItemSize::Fixed(30.0),
         ItemSize::Intrinsic,
-        ItemSize::Percent(100.0),
+        ItemSize::Grow(1.0),
     ];
     let intrinsic_lengths = [0.0, 20.0, 50.0];
 

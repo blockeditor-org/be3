@@ -12,7 +12,7 @@ use crate::database_view::groups::{Group, GroupKey};
 use crate::database_view::root::controls::MARK;
 use crate::database_view::root::data::Data;
 use crate::database_view::root::list::{Parts, group_test_key, row_parts, row_title};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const COLUMN_WIDTH: f32 = 272.0;
 const FOLDED_WIDTH: Size = Size::Xl2;
@@ -46,15 +46,17 @@ pub fn Kanban(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
-                        <Frame padding=PADDING>
-                            <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
-                                <ForEach keys={columns}>|key: GroupKey|
-                                    <Column data={data} key={key} />
-                                </ForEach>
-                            </List>
-                        </Frame>
-                    </Scroll>
+                    <ListItem grow=1.0>
+                        <Scroll direction=Direction::Horizontal>
+                            <Frame padding=PADDING>
+                                <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
+                                    <ForEach keys={columns}>|key: GroupKey|
+                                        <Column data={data} key={key} />
+                                    </ForEach>
+                                </List>
+                            </Frame>
+                        </Scroll>
+                    </ListItem>
                 </Show>
             </List>
         </Frame>
@@ -199,7 +201,9 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                 <ChoiceMark option={option} size=MARK />
                                 <Text>{label}</Text>
                                 <Text style=TextStyle::CAPTION>{count}</Text>
-                                <Frame @sizing=ItemSize::Percent(100.0) />
+                                <ListItem grow=1.0>
+                                    <Frame />
+                                </ListItem>
                                 <Button
                                     icon_only=true
                                     glyph=ICON_PLUS
@@ -212,19 +216,21 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                 />
                             </List>
                         </Frame>
-                        <Scroll @sizing=ItemSize::Percent(100.0)>
-                            <VirtualList
-                                keys={keys}
-                                item_size=CARD_HEIGHT
-                                overscan=CARD_HEIGHT
-                            >|row: ReadSignal<usize>|
-                                <Frame
-                                    padding={Padding::new(Space::None, Space::None, Space::None, CARD_SPACING)}
-                                >
-                                    <KanbanCard data={data} row={row} />
-                                </Frame>
-                            </VirtualList>
-                        </Scroll>
+                        <ListItem grow=1.0>
+                            <Scroll>
+                                <VirtualList
+                                    keys={keys}
+                                    item_size=CARD_HEIGHT
+                                    overscan=CARD_HEIGHT
+                                >|row: ReadSignal<usize>|
+                                    <Frame
+                                        padding={Padding::new(Space::None, Space::None, Space::None, CARD_SPACING)}
+                                    >
+                                        <KanbanCard data={data} row={row} />
+                                    </Frame>
+                                </VirtualList>
+                            </Scroll>
+                        </ListItem>
                     </List>
                 </Frame>
             }

@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::database_view::groups::groupable;
 use crate::database_view::root::data::Data;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const SPACING: Space = Space::Md;
 const LABEL_WIDTH: f32 = 96.0;
@@ -83,16 +83,19 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             </Show>
             <Separator />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                    <Text style=TextStyle::CAPTION>"Row id prefix"</Text>
-                </Frame>
-                <TextInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={Binding::new(prefix, reprefix)}
-                    placeholder="BE"
-                    disabled={prefix_off}
-                    @test_id={"database-view.prefix"}
-                />
+                <ListItem length=LABEL_WIDTH>
+                    <Frame>
+                        <Text style=TextStyle::CAPTION>"Row id prefix"</Text>
+                    </Frame>
+                </ListItem>
+                <ListItem grow=1.0>
+                    <TextInput
+                        value={Binding::new(prefix, reprefix)}
+                        placeholder="BE"
+                        disabled={prefix_off}
+                        @test_id={"database-view.prefix"}
+                    />
+                </ListItem>
             </List>
             <Show condition={shared}>
                 <List spacing=Space::Xs2 @test_id={"database-view.prefix-shared"}>
@@ -264,15 +267,16 @@ fn OrderPicker(data: Data) -> NodeId {
     view! {
         <Labelled label="Order by">
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
-                <FieldPicker
-                    @sizing=ItemSize::Percent(100.0)
-                    options={options}
-                    chosen={chosen}
-                    none="Manual"
-                    label="Order by"
-                    picker_id={"database-view.order-by".to_owned()}
-                    on_change={picked}
-                />
+                <ListItem grow=1.0>
+                    <FieldPicker
+                        options={options}
+                        chosen={chosen}
+                        none="Manual"
+                        label="Order by"
+                        picker_id={"database-view.order-by".to_owned()}
+                        on_change={picked}
+                    />
+                </ListItem>
                 <Show condition={sorted}>
                     <Button
                         icon_only=true
@@ -385,7 +389,9 @@ fn EmptyGroups(data: Data) -> NodeId {
     let toggle = move |on: bool| data.operate_view(DatabaseView::set_show_empty_groups(on));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Text @sizing=ItemSize::Percent(100.0)>"Show empty groups"</Text>
+            <ListItem grow=1.0>
+                <Text>"Show empty groups"</Text>
+            </ListItem>
             <Switch
                 on={Binding::new(on, toggle)}
                 label="Show empty groups"
@@ -448,10 +454,14 @@ fn Labelled(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                <Text style=TextStyle::CAPTION>{label}</Text>
-            </Frame>
-            <Frame @sizing=ItemSize::Percent(100.0)>{children}</Frame>
+            <ListItem length=LABEL_WIDTH>
+                <Frame>
+                    <Text style=TextStyle::CAPTION>{label}</Text>
+                </Frame>
+            </ListItem>
+            <ListItem grow=1.0>
+                <Frame>{children}</Frame>
+            </ListItem>
         </List>
     }
 }

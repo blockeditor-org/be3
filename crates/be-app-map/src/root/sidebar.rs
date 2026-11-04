@@ -13,7 +13,7 @@ use crate::points::marker_color;
 
 use super::state::MapState;
 use be_sdk_beui::beui::TextAlign;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const PREVIEW_HEIGHT: Size = Size::Custom(130.0);
 
@@ -191,36 +191,30 @@ fn RegionEdges(state: MapState) -> NodeId {
     view! {
         <List spacing=Space::Xs>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
-                <Coordinate
-                    @sizing=ItemSize::Percent(50.0)
-                    label={north_label}
-                    value={north}
-                    limit=MAX_LATITUDE
-                    on_change={set_north}
-                />
-                <Coordinate
-                    @sizing=ItemSize::Percent(50.0)
-                    label={south_label}
-                    value={south}
-                    limit=MAX_LATITUDE
-                    on_change={set_south}
-                />
+                <ListItem grow=0.5>
+                    <Coordinate
+                        label={north_label}
+                        value={north}
+                        limit=MAX_LATITUDE
+                        on_change={set_north}
+                    />
+                </ListItem>
+                <ListItem grow=0.5>
+                    <Coordinate
+                        label={south_label}
+                        value={south}
+                        limit=MAX_LATITUDE
+                        on_change={set_south}
+                    />
+                </ListItem>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
-                <Coordinate
-                    @sizing=ItemSize::Percent(50.0)
-                    label={west_label}
-                    value={west}
-                    limit=180.0
-                    on_change={set_west}
-                />
-                <Coordinate
-                    @sizing=ItemSize::Percent(50.0)
-                    label={east_label}
-                    value={east}
-                    limit=180.0
-                    on_change={set_east}
-                />
+                <ListItem grow=0.5>
+                    <Coordinate label={west_label} value={west} limit=180.0 on_change={set_west} />
+                </ListItem>
+                <ListItem grow=0.5>
+                    <Coordinate label={east_label} value={east} limit=180.0 on_change={set_east} />
+                </ListItem>
             </List>
         </List>
     }
@@ -320,7 +314,9 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
             on_activate={move || {}}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
-                <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{label}</Text>
+                <ListItem grow=1.0>
+                    <Text overflow=Overflow::Ellipsis>{label}</Text>
+                </ListItem>
                 <Swatch color={swatch} />
             </List>
         </ListRow>
@@ -369,7 +365,9 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     @test_id={"map.point.back"}
                     on_click={move || state.select(None)}
                 />
-                <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{label}</Text>
+                <ListItem grow=1.0>
+                    <Text overflow=Overflow::Ellipsis>{label}</Text>
+                </ListItem>
             </List>
             <Frame height=PREVIEW_HEIGHT radius=Radius::Sm>
                 <ChildBlock

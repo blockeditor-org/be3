@@ -10,7 +10,6 @@ mod setup;
 mod ui;
 
 use be_sdk_beui::BlockQuery;
-use be_sdk_beui::beui::ItemSize;
 use be_sdk_beui::beui::styled::{Frame, List, Space};
 use block::{BlockSettingsView, is_block_settings};
 use ui::{SettingsProfileView, SettingsView};
@@ -35,20 +34,19 @@ impl be_sdk_beui::BeuiRoot for SettingsRoot {
                         <Dynamic value={shown}>|shown: Option<Option<Uuid>>| {
                             match shown {
                                 Some(Some(owner)) => view! {
-                                    <BlockSettingsView
-                                        @sizing=ItemSize::Percent(100.0)
-                                        editor={editor}
-                                        owner={owner}
-                                    />
+                                    <ListItem grow=1.0>
+                                        <BlockSettingsView editor={editor} owner={owner} />
+                                    </ListItem>
                                 },
                                 Some(None) => view! {
-                                    <SettingsView
-                                        @sizing=ItemSize::Percent(100.0)
-                                        editor={editor}
-                                    />
+                                    <ListItem grow=1.0>
+                                        <SettingsView editor={editor} />
+                                    </ListItem>
                                 },
                                 None => view! {
-                                    <Frame @sizing=ItemSize::Percent(100.0) />
+                                    <ListItem grow=1.0>
+                                        <Frame />
+                                    </ListItem>
                                 },
                             }
                         }</Dynamic>

@@ -8,11 +8,11 @@ use beui_view::reactive::NodeId;
 use crate::list::List;
 use crate::tokens::{Length, Size, Space};
 use beui_view::reactive::*;
-use beui_view::types::{Direction, ItemSize};
+use beui_view::types::Direction;
 
 const HEIGHT: Size = Size::Track;
 const SEGMENT: f32 = 0.35;
-const SLIVER: f32 = 0.001;
+const SLIVER: f32 = 0.00001;
 
 pub const INLINE_PROGRESS_WIDTH: Size = Size::Xl;
 
@@ -36,16 +36,18 @@ pub fn Progress(
                     (phase * (1.0 - SEGMENT), SEGMENT, (1.0 - phase) * (1.0 - SEGMENT))
                 }
             });
-            let percent = move |span: fn(Spans) -> f32| {
-                create_memo(move || ItemSize::Percent(span(spans.get()) * 100.0 + SLIVER))
+            let share = move |span: fn(Spans) -> f32| {
+                create_memo(move || span(spans.get()) + SLIVER)
             };
             let (width, fill, track) = (width.clone(), fill.clone(), track.clone());
             view! {
                 <Frame width height=HEIGHT fill=track radius=Radius::Full>
                     <List direction=Direction::Horizontal spacing=Space::None>
-                        <Spacer @sizing={percent(|spans| spans.0)} />
-                        <Frame @sizing={percent(|spans| spans.1)} fill radius=Radius::Full />
-                        <Spacer @sizing={percent(|spans| spans.2)} />
+                        <Spacer grow={share(|spans| spans.0)} />
+                        <ListItem grow={share(|spans| spans.1)}>
+                            <Frame fill radius=Radius::Full />
+                        </ListItem>
+                        <Spacer grow={share(|spans| spans.2)} />
                     </List>
                 </Frame>
             }

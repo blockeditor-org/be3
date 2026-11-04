@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -11,9 +10,11 @@ fn an_aspect_ratio_frame_centres_the_largest_box_that_fits() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&stage} aspect_ratio=2.0>
-                    <Spacer @node_ref={&slide} />
-                </Frame>
+                <ListItem grow=1.0>
+                    <Frame @node_ref={&stage} aspect_ratio=2.0>
+                        <Frame @node_ref={&slide} />
+                    </Frame>
+                </ListItem>
             </List>
         }
     });

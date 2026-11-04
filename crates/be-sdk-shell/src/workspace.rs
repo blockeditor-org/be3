@@ -32,7 +32,6 @@ use super::program::{Heard, Program, Programs, listed_windows};
 use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
-use beui::ItemSize;
 
 pub const SHELL_BARS: u64 = 1 << 42;
 const FIRST_BLOCK_TAB: u64 = 2;
@@ -1163,7 +1162,7 @@ pub fn PanelWindow(workspace: Workspace, panel: HostPanel) -> DockNode<TabId> {
 }
 
 #[component]
-pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> DynamicSegment<ListChild> {
+pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> DynamicSegment<ListItem> {
     view! {
         <Show condition={failed}>
             <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
@@ -1186,7 +1185,7 @@ pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
                 <Frame padding=PANEL_PADDING>
                     <List spacing=PANEL_SPACING>
                         <Text style=TextStyle::CAPTION>{message}</Text>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Spacer />
                     </List>
                 </Frame>
             </Show>

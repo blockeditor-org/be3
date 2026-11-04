@@ -9,7 +9,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::button::ButtonFace;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::unstyled;
-use be_sdk_beui::beui::{Align, Direction, Extent, ItemSize, NodeId, Pos2, Rect, Sizing};
+use be_sdk_beui::beui::{Align, Direction, Extent, NodeId, Pos2, Rect};
 use be_sdk_beui::{DisplaysWatch, HostWindowId};
 use be_sdk_shell::Workspace;
 use std::collections::HashMap;
@@ -274,14 +274,20 @@ pub(crate) fn WindowChips(
         count > 0 && (room - gaps()) / (count as f32) < least.get()
     });
     let icons = create_memo(move || vertical.get() || compact.get());
-    let chip_size = create_memo(move || match icons.get() {
-        true => Sizing::from(ItemSize::Intrinsic),
-        false => ItemSize::Percent(1.0).max(widest.get()),
+    let chip_grow = create_memo(move || match icons.get() {
+        true => 0.0,
+        false => 1.0,
+    });
+    let chip_max = create_memo(move || match icons.get() {
+        true => f32::INFINITY,
+        false => widest.get(),
     });
     let chips_row = view! {
         <List @node_ref=&row direction align=Align::Center spacing=CHIP_SPACING>
             <ForEach keys={chips}>|chip: ChipKey|
-                <WindowChip @sizing={chip_size} windows chip icons count />
+                <ListItem grow=chip_grow max=chip_max>
+                    <WindowChip windows chip icons count />
+                </ListItem>
             </ForEach>
         </List>
     };
@@ -298,12 +304,16 @@ pub(crate) fn WindowChips(
                 <RestoreChip workspace vertical />
             </Show>
             <Show condition={listed}>
-                <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} direction fit=true>
-                    <Layers @sizing={ItemSize::Intrinsic.shrink(1.0)}>
-                        <Frame width={wanted} />
-                        {chips_row}
-                    </Layers>
-                </Scroll>
+                <ListItem shrink=1.0>
+                    <Scroll direction fit=true>
+                        <ListItem shrink=1.0>
+                            <Layers>
+                                <Frame width={wanted} />
+                                {chips_row}
+                            </Layers>
+                        </ListItem>
+                    </Scroll>
+                </ListItem>
             </Show>
             <Show condition={empty}>
                 <Frame

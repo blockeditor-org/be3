@@ -8,13 +8,19 @@ fn a_list_lays_out_its_children_in_a_line_by_their_sizing() {
                 <List spacing={10.0}>
                     <List direction={Direction::Horizontal} spacing={8.0}>
                         {swatch(BLUE, 40.0, 30.0)}
-                        <Spacer @sizing={ItemSize::Percent(1.0)} />
+                        <Spacer />
                         {swatch(GREEN, 40.0, 30.0)}
                     </List>
                     <List direction={Direction::Horizontal} spacing={8.0}>
-                        <Frame @sizing={ItemSize::Percent(1.0)} height={30.0} fill={BLUE} />
-                        <Frame @sizing={ItemSize::Percent(2.0)} height={30.0} fill={GREEN} />
-                        <Frame @sizing={ItemSize::Fixed(50.0)} height={30.0} fill={AMBER} />
+                        <ListItem grow=1.0>
+                            <Frame height={30.0} fill={BLUE} />
+                        </ListItem>
+                        <ListItem grow=2.0>
+                            <Frame height={30.0} fill={GREEN} />
+                        </ListItem>
+                        <ListItem length=50.0>
+                            <Frame height={30.0} fill={AMBER} />
+                        </ListItem>
                     </List>
                     <List
                         direction={Direction::Horizontal}

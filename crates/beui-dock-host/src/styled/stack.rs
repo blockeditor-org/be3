@@ -25,7 +25,7 @@ use beui_view::types::Track;
 use beui_view::types::icons::{
     Glyph, ICON_ARROW_LEFT, ICON_CHEVRON_DOWN, ICON_ELLIPSIS_VERTICAL, ICON_X,
 };
-use beui_view::types::{Align, Direction, ItemSize, TextAlign};
+use beui_view::types::{Align, Direction, TextAlign};
 
 const BAR_PADDING: Space = Space::Xs;
 const BAR_SPACING: Space = Space::Xs2;
@@ -74,20 +74,22 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             on_click={back}
                         />
                     </Show>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                        <Dynamic value={titled}>|titled: bool| {
-                            match titled {
-                                true => view! {
-                                    <DockTitleButton action title icon noticed />
-                                },
-                                false => view! {
-                                    <Frame padding={Padding::horizontal(TITLE_PADDING)}>
-                                        <DockTitle title icon noticed opens=false />
-                                    </Frame>
-                                },
-                            }
-                        }</Dynamic>
-                    </List>
+                    <ListItem grow=1.0>
+                        <List spacing=Space::None>
+                            <Dynamic value={titled}>|titled: bool| {
+                                match titled {
+                                    true => view! {
+                                        <DockTitleButton action title icon noticed />
+                                    },
+                                    false => view! {
+                                        <Frame padding={Padding::horizontal(TITLE_PADDING)}>
+                                            <DockTitle title icon noticed opens=false />
+                                        </Frame>
+                                    },
+                                }
+                            }</Dynamic>
+                        </List>
+                    </ListItem>
                     <DockMenu menu room=BarRoom::Phone test_prefix={"dock".to_owned()} />
                     <DockTabCount count={open_tabs} label={switch_label} on_click={open_switcher} />
                 </List>
@@ -167,13 +169,9 @@ fn DockTitle(
                     <Icon glyph={icon} />
                 </Text>
             </Show>
-            <Text
-                color={label}
-                overflow=Overflow::Ellipsis
-                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-            >
-                {title}
-            </Text>
+            <ListItem shrink=1.0>
+                <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
+            </ListItem>
             <Show condition={opens}>
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_CHEVRON_DOWN />
@@ -318,22 +316,20 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
             padding=CARD_PADDING
         >
             <List direction=Direction::Horizontal spacing=Space::None>
-                <ListRow
-                    @sizing=ItemSize::Percent(100.0)
-                    @test_id={format!("dock.switcher.tab.{id}")}
-                    on_click={pick}
-                >
-                    <Frame padding={Padding::vertical(CARD_PADDING)}>
-                        <List spacing=CARD_LINES>
-                            <List direction=Direction::Horizontal spacing=Space::None>
-                                <Text color=TextColor::Accent align=TextAlign::Center>
-                                    <Icon glyph={icon} />
-                                </Text>
+                <ListItem grow=1.0>
+                    <ListRow @test_id={format!("dock.switcher.tab.{id}")} on_click={pick}>
+                        <Frame padding={Padding::vertical(CARD_PADDING)}>
+                            <List spacing=CARD_LINES>
+                                <List direction=Direction::Horizontal spacing=Space::None>
+                                    <Text color=TextColor::Accent align=TextAlign::Center>
+                                        <Icon glyph={icon} />
+                                    </Text>
+                                </List>
+                                <Text overflow=Overflow::Ellipsis>{title}</Text>
                             </List>
-                            <Text overflow=Overflow::Ellipsis>{title}</Text>
-                        </List>
-                    </Frame>
-                </ListRow>
+                        </Frame>
+                    </ListRow>
+                </ListItem>
                 <List spacing=Space::None>
                     <Show condition={closable}>
                         <Button

@@ -13,7 +13,9 @@ fn a_sheet_opened_as_another_closes_takes_its_place_without_sliding() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
                 <ModalSheet open={first} fit=true on_close={move || first.set(false)}>
                     <Frame @node_ref=&first_content height=120.0 />
                 </ModalSheet>

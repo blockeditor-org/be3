@@ -19,7 +19,7 @@ use be_sdk_shell::{
     BlockTab, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, UnshownWindows,
     WindowDialog, Workspace, WorkspaceDialogs,
 };
-use beui::{Align, ItemSize};
+use beui::Align;
 use uuid::Uuid;
 
 use crate::phone::{DetailsSheet, PhoneSheet};
@@ -156,48 +156,54 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
         <Frame @node_ref={&surface}>
             <List spacing=Space::None>
                 <Failure failed={failed} reason={reason} />
-                <DockHost @sizing=ItemSize::Percent(100.0) layout={workspace.dock_host()}>
-                    <Docking layout>
-                        <DockSplit id="workspace" size={SplitSize::First(FILES_WIDTH)}>
-                            <DockPane id="files" locked=true>
-                                <DockTab id=FILES title="Files" icon=ICON_FOLDER>
-                                    <FilesPanel workspace files={shell.files} />
-                                </DockTab>
-                                <DockTab id=SETTINGS title="Settings" icon=ICON_SETTINGS>
-                                    <SettingsPanel workspace />
-                                </DockTab>
-                                <DockTab id=REVISIONS title="History" icon=ICON_ROTATE_CCW_CLOCK>
-                                    <RevisionHistoryPanel workspace history />
-                                </DockTab>
-                            </DockPane>
-                            <DockPane
-                                id="editors"
-                                locked=true
-                                empty={move || view! {
-                                    <EmptyPanel />
-                                }}
-                            >
-                                <ForEach keys={block_tabs}>|tab: TabId|
-                                    <WorkspaceBlockTab shell tab />
-                                </ForEach>
-                                <ForEach keys={tabbed}>|tab: TabId|
-                                    <ProgramTab workspace tab />
-                                </ForEach>
-                            </DockPane>
-                        </DockSplit>
-                        <ForEach keys={panels}>|panel: HostPanel|
-                            <PanelWindow workspace panel />
-                        </ForEach>
-                        <ForEach keys={floating}>|tab: TabId|
-                            <ProgramWindow workspace tab />
-                        </ForEach>
-                        <ForEach
-                            keys={dialog_windows}
-                        >|(window, parent): (HostWindowId, HostWindowId)|
-                            <WindowDialog workspace window parent />
-                        </ForEach>
-                    </Docking>
-                </DockHost>
+                <ListItem grow=1.0>
+                    <DockHost layout={workspace.dock_host()}>
+                        <Docking layout>
+                            <DockSplit id="workspace" size={SplitSize::First(FILES_WIDTH)}>
+                                <DockPane id="files" locked=true>
+                                    <DockTab id=FILES title="Files" icon=ICON_FOLDER>
+                                        <FilesPanel workspace files={shell.files} />
+                                    </DockTab>
+                                    <DockTab id=SETTINGS title="Settings" icon=ICON_SETTINGS>
+                                        <SettingsPanel workspace />
+                                    </DockTab>
+                                    <DockTab
+                                        id=REVISIONS
+                                        title="History"
+                                        icon=ICON_ROTATE_CCW_CLOCK
+                                    >
+                                        <RevisionHistoryPanel workspace history />
+                                    </DockTab>
+                                </DockPane>
+                                <DockPane
+                                    id="editors"
+                                    locked=true
+                                    empty={move || view! {
+                                        <EmptyPanel />
+                                    }}
+                                >
+                                    <ForEach keys={block_tabs}>|tab: TabId|
+                                        <WorkspaceBlockTab shell tab />
+                                    </ForEach>
+                                    <ForEach keys={tabbed}>|tab: TabId|
+                                        <ProgramTab workspace tab />
+                                    </ForEach>
+                                </DockPane>
+                            </DockSplit>
+                            <ForEach keys={panels}>|panel: HostPanel|
+                                <PanelWindow workspace panel />
+                            </ForEach>
+                            <ForEach keys={floating}>|tab: TabId|
+                                <ProgramWindow workspace tab />
+                            </ForEach>
+                            <ForEach
+                                keys={dialog_windows}
+                            >|(window, parent): (HostWindowId, HostWindowId)|
+                                <WindowDialog workspace window parent />
+                            </ForEach>
+                        </Docking>
+                    </DockHost>
+                </ListItem>
                 <WorkspaceDialogs workspace />
                 <DetailsSheet workspace sheet={shell.sheet} />
                 <UnshownWindows workspace />
@@ -270,18 +276,19 @@ fn SidePanel(
     let tab = use_dock_tab();
     view! {
         <List spacing=Space::None>
-            <ChildBlock
-                @sizing=ItemSize::Percent(100.0)
-                editor={editor}
-                block={target}
-                mode=ChildMode::Live
-                own_frame=true
-                top_bar={top_bar}
-                on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
-                @test_id={id}
-            >|handle: ChildBlockHandle|
-                <PanelStatus state={handle.state} loading={loading.to_owned()} />
-            </ChildBlock>
+            <ListItem grow=1.0>
+                <ChildBlock
+                    editor={editor}
+                    block={target}
+                    mode=ChildMode::Live
+                    own_frame=true
+                    top_bar={top_bar}
+                    on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
+                    @test_id={id}
+                >|handle: ChildBlockHandle|
+                    <PanelStatus state={handle.state} loading={loading.to_owned()} />
+                </ChildBlock>
+            </ListItem>
         </List>
     }
 }

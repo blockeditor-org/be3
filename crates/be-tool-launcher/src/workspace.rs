@@ -13,7 +13,7 @@ use crate::github::PullRequest;
 use crate::model::{Model, Tab};
 use crate::pane::TerminalPane;
 use crate::view::{PADDING, state_glyph};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 #[component]
 pub(crate) fn Workspace(model: Model) -> NodeId {
@@ -29,34 +29,32 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
         <List spacing=Space::None>
             <Frame padding={Padding::symmetric(PADDING, Space::Lg)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
-                    <Text
-                        style=TextStyle::CAPTION
-                        @sizing=ItemSize::Percent(100.0)
-                        overflow=Overflow::Ellipsis
-                    >
-                        {status}
-                    </Text>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{status}</Text>
+                    </ListItem>
                     <Show condition={working}>
                         <Progress width=Size::Sm label="A build is running" />
                     </Show>
                 </List>
             </Frame>
-            <DockHost @sizing=ItemSize::Percent(100.0)>
-                <Docking layout={model.layout}>
-                    <DockPane id="workspace" active={Some(Tab::Log)}>
-                        <DockTab id=Tab::Log title="Log" icon=ICON_TERMINAL>
-                            <Frame padding=PADDING>
-                                <TerminalPane pane />
-                            </Frame>
-                        </DockTab>
-                        <DockDocumentTabs
-                            documents={model.documents}
-                        >|document: DockDocument<Tab, PullRequest, u64>|
-                            <PullRequestTab model document />
-                        </DockDocumentTabs>
-                    </DockPane>
-                </Docking>
-            </DockHost>
+            <ListItem grow=1.0>
+                <DockHost>
+                    <Docking layout={model.layout}>
+                        <DockPane id="workspace" active={Some(Tab::Log)}>
+                            <DockTab id=Tab::Log title="Log" icon=ICON_TERMINAL>
+                                <Frame padding=PADDING>
+                                    <TerminalPane pane />
+                                </Frame>
+                            </DockTab>
+                            <DockDocumentTabs
+                                documents={model.documents}
+                            >|document: DockDocument<Tab, PullRequest, u64>|
+                                <PullRequestTab model document />
+                            </DockDocumentTabs>
+                        </DockPane>
+                    </Docking>
+                </DockHost>
+            </ListItem>
         </List>
     }
 }

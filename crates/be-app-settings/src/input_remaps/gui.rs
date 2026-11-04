@@ -2,9 +2,9 @@ use be_host_remap::edit::{
     Does, Editing, GroupField, GroupOutline, RuleEdit, RuleOutline, StepOutline,
 };
 use be_host_remap::text;
+use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{ItemSize, NodeId};
 
 use super::ui::Shared;
 use beui::Extent;
@@ -330,26 +330,27 @@ fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
                 on_change={edit(RuleEdit::On)}
             />
             <SettingsRow label="Does" separated=true>
-                <Select
-                    @sizing=ItemSize::Percent(100.0)
-                    width={Extent::fraction(1.0)}
-                    options={view! {
-                        <ChoiceOption label="Holds a key while it is held" />
-                        <ChoiceOption label="Taps a key" />
-                        <ChoiceOption label="Plays steps" />
-                    }}
-                    selected={Binding::new(does, move |index: Option<usize>| {
-                        let chosen = match index {
-                            Some(1) => Does::Tap,
-                            Some(2) => Does::Steps,
-                            _ => Does::Send,
-                        };
-                        edits.edit_rule(group, rule, RuleEdit::Does(chosen));
-                    })}
-                    label="Does"
-                    disabled={edits.read_only}
-                    @test_id={id("does")}
-                />
+                <ListItem grow=1.0>
+                    <Select
+                        width={Extent::fraction(1.0)}
+                        options={view! {
+                            <ChoiceOption label="Holds a key while it is held" />
+                            <ChoiceOption label="Taps a key" />
+                            <ChoiceOption label="Plays steps" />
+                        }}
+                        selected={Binding::new(does, move |index: Option<usize>| {
+                            let chosen = match index {
+                                Some(1) => Does::Tap,
+                                Some(2) => Does::Steps,
+                                _ => Does::Send,
+                            };
+                            edits.edit_rule(group, rule, RuleEdit::Does(chosen));
+                        })}
+                        label="Does"
+                        disabled={edits.read_only}
+                        @test_id={id("does")}
+                    />
+                </ListItem>
             </SettingsRow>
             <Show condition={keyed}>
                 <TextRow
@@ -368,15 +369,16 @@ fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
                     description="Milliseconds, for games that miss short taps."
                     separated=true
                 >
-                    <NumberInput
-                        @sizing=ItemSize::Fixed(MS_WIDTH)
-                        value={Binding::new(hold, move |ms: f64| edits.edit_rule(group, rule, RuleEdit::HoldMs(Some(ms.round() as i64))))}
-                        min=0.0
-                        decimals={Some(0)}
-                        label="Hold for"
-                        disabled={edits.read_only}
-                        @test_id={id("hold")}
-                    />
+                    <ListItem length=MS_WIDTH>
+                        <NumberInput
+                            value={Binding::new(hold, move |ms: f64| edits.edit_rule(group, rule, RuleEdit::HoldMs(Some(ms.round() as i64))))}
+                            min=0.0
+                            decimals={Some(0)}
+                            label="Hold for"
+                            disabled={edits.read_only}
+                            @test_id={id("hold")}
+                        />
+                    </ListItem>
                 </SettingsRow>
             </Show>
             <Show condition={stepping}>
@@ -472,23 +474,25 @@ fn StepRow(edits: Edits, group: usize, rule: usize, step: usize) -> NodeId {
     view! {
         <SettingsRow label={label} separated=true>
             <Show condition={tap}>
-                <TextInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={Binding::new(key, move |text: String| edits.edit_rule(group, rule, RuleEdit::StepKey(step, text)))}
-                    label="Key"
-                    disabled={edits.read_only}
-                    @test_id={id("key")}
-                />
+                <ListItem grow=1.0>
+                    <TextInput
+                        value={Binding::new(key, move |text: String| edits.edit_rule(group, rule, RuleEdit::StepKey(step, text)))}
+                        label="Key"
+                        disabled={edits.read_only}
+                        @test_id={id("key")}
+                    />
+                </ListItem>
             </Show>
-            <NumberInput
-                @sizing=ItemSize::Fixed(MS_WIDTH)
-                value={Binding::new(ms, move |ms: f64| edits.edit_rule(group, rule, RuleEdit::StepMs(step, Some(ms.round() as i64))))}
-                min=0.0
-                decimals={Some(0)}
-                label="Milliseconds"
-                disabled={edits.read_only}
-                @test_id={id("ms")}
-            />
+            <ListItem length=MS_WIDTH>
+                <NumberInput
+                    value={Binding::new(ms, move |ms: f64| edits.edit_rule(group, rule, RuleEdit::StepMs(step, Some(ms.round() as i64))))}
+                    min=0.0
+                    decimals={Some(0)}
+                    label="Milliseconds"
+                    disabled={edits.read_only}
+                    @test_id={id("ms")}
+                />
+            </ListItem>
             <Button
                 label="Remove"
                 variant=ButtonVariant::Ghost
@@ -513,18 +517,19 @@ fn TextRow(
 ) -> NodeId {
     view! {
         <SettingsRow label={label} description={description} separated={separated}>
-            <TextInput
-                @sizing=ItemSize::Percent(100.0)
-                value={Binding::new(value, move |text: String| {
-                    if text != value.get_untracked() {
-                        on_change.call(text);
-                    }
-                })}
-                label={label}
-                placeholder={placeholder}
-                disabled={read_only}
-                @test_id={id}
-            />
+            <ListItem grow=1.0>
+                <TextInput
+                    value={Binding::new(value, move |text: String| {
+                        if text != value.get_untracked() {
+                            on_change.call(text);
+                        }
+                    })}
+                    label={label}
+                    placeholder={placeholder}
+                    disabled={read_only}
+                    @test_id={id}
+                />
+            </ListItem>
         </SettingsRow>
     }
 }

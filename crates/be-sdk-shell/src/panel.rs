@@ -19,7 +19,7 @@ use super::deleted::DeletedBar;
 use super::linked::LinkedBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, Workspace};
-use beui::{Align, ItemSize};
+use beui::Align;
 
 const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Sm;
@@ -252,44 +252,47 @@ pub(crate) fn BlockPanel(
                 </Show>
                 <TabBar bar={move || bar.call(())} own=true />
                 <ShowKeepAlive condition={live}>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                        <Dynamic value={content}>|content: Content| {
-                            match content {
-                                Content::Denied => view! {
-                                    <AccessDenied
-                                        @sizing=ItemSize::Percent(100.0)
-                                        info={info.read_only()}
-                                    />
-                                },
-                                Content::Block => view! {
-                                    <BlockChild
-                                        @sizing=ItemSize::Percent(100.0)
-                                        editor={editor}
-                                        info={info.read_only()}
-                                        menu={child_menu}
-                                        docked_tab
-                                        top_bar={top_bar}
-                                        on_bar={move |action: BarAction| match action {
-                                            BarAction::Details => on_details.call(()),
-                                        }}
-                                    />
-                                },
-                            }
-                        }</Dynamic>
-                    </List>
+                    <ListItem grow=1.0>
+                        <List spacing=Space::None>
+                            <Dynamic value={content}>|content: Content| {
+                                match content {
+                                    Content::Denied => view! {
+                                        <ListItem grow=1.0>
+                                            <AccessDenied info={info.read_only()} />
+                                        </ListItem>
+                                    },
+                                    Content::Block => view! {
+                                        <ListItem grow=1.0>
+                                            <BlockChild
+                                                editor={editor}
+                                                info={info.read_only()}
+                                                menu={child_menu}
+                                                docked_tab
+                                                top_bar={top_bar}
+                                                on_bar={move |action: BarAction| match action {
+                                                    BarAction::Details => on_details.call(()),
+                                                }}
+                                            />
+                                        </ListItem>
+                                    },
+                                }
+                            }</Dynamic>
+                        </List>
+                    </ListItem>
                 </ShowKeepAlive>
                 <Show condition={previewing}>
-                    <ChildBlock
-                        @sizing=ItemSize::Percent(100.0)
-                        editor
-                        block={preview}
-                        mode=ChildMode::Live
-                        own_frame=true
-                        top_bar=TopBar::Hidden
-                        @test_id={"workspace.revision.preview"}
-                    >|handle: ChildBlockHandle|
-                        <PanelStatus state={handle.state} loading="Loading revision…" />
-                    </ChildBlock>
+                    <ListItem grow=1.0>
+                        <ChildBlock
+                            editor
+                            block={preview}
+                            mode=ChildMode::Live
+                            own_frame=true
+                            top_bar=TopBar::Hidden
+                            @test_id={"workspace.revision.preview"}
+                        >|handle: ChildBlockHandle|
+                            <PanelStatus state={handle.state} loading="Loading revision…" />
+                        </ChildBlock>
+                    </ListItem>
                 </Show>
             </List>
         </Frame>
@@ -384,7 +387,9 @@ fn DockedBlockTab(
                 <LinkedBar workspace={workspace} info={info} />
             </Show>
             <TabBar bar={move || bar.call(())} own />
-            <Layers @sizing=ItemSize::Percent(100.0) @test_id={"workspace.block"}>{body}</Layers>
+            <ListItem grow=1.0>
+                <Layers @test_id={"workspace.block"}>{body}</Layers>
+            </ListItem>
         </List>
     }
 }

@@ -11,7 +11,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 
 const SPACING: Space = Space::Md;
 const PADDING_HORIZONTAL: Space = Space::Md;
@@ -59,14 +59,11 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
             padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text
-                    @sizing=ItemSize::Percent(100.0)
-                    size=TextSize::Lg
-                    color={title_color}
-                    align=TextAlign::Start
-                >
-                    {title}
-                </Text>
+                <ListItem grow=1.0>
+                    <Text size=TextSize::Lg color={title_color} align=TextAlign::Start>
+                        {title}
+                    </Text>
+                </ListItem>
                 <Text size=TextSize::Sm color={marker_color} align=TextAlign::Center>
                     <Icon glyph={marker_glyph} />
                 </Text>

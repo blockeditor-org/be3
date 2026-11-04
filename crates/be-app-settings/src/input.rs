@@ -8,7 +8,6 @@ use be_sdk_beui::{Editor, LayeredSettings};
 mod remapper;
 mod ui;
 
-use beui::ItemSize;
 use ui::InputSettingsView;
 
 const INTRINSIC_WIDTH: f32 = 420.0;
@@ -31,11 +30,9 @@ impl be_sdk_beui::BeuiRoot for InputSettingsRoot {
                                 value={device}
                                 key={|device: bool| device}
                             >|_device: ReadSignal<bool>|
-                                <InputSettingsView
-                                    editor={editor}
-                                    settings={settings}
-                                    @sizing=ItemSize::Percent(100.0)
-                                />
+                                <ListItem grow=1.0>
+                                    <InputSettingsView editor={editor} settings={settings} />
+                                </ListItem>
                             </Keyed>
                         </List>
                     }

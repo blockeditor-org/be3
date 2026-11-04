@@ -20,8 +20,8 @@ Each crate's `lib.rs` re-exports are the list of what exists. Code outside beui 
 
 [core.md](core.md) covers the base layer. What trips component code:
 
-- `List` is the only row and column; there are no `Row`/`Column` aliases ([decision](../../decisions/beui_list_props_over_row_column_aliases.md)). A shrinking or `Percent` child never gets less than its `Element::min_width`.
-- A `Frame`'s `max` caps the room it takes, not its content (CSS `max-width` on a block): `Extent::at_most(320.0)` is 320 wide however little its content needs. A box as wide as its content up to a cap is a list child sized `ItemSize::Intrinsic.max(..)`. A rotated frame takes input unturned, so `rotate` suits pictures, not controls.
+- `List` is the only row and column; there are no `Row`/`Column` aliases ([decision](../../decisions/beui_list_props_over_row_column_aliases.md)). A shrinking or growing child never gets less than its `Element::min_width`.
+- A `Frame`'s `max` caps the room it takes, not its content (CSS `max-width` on a block): `Extent::at_most(320.0)` is 320 wide however little its content needs. A box as wide as its content up to a cap is a list child in `<ListItem max=..>`. A rotated frame takes input unturned, so `rotate` suits pictures, not controls.
 - Nothing has a hidden state while in the tree: use `Show` (`ShowKeepAlive` to keep state), inside a `Layers` in a one-child slot.
 - A node no `Portal` shows keeps the arena parent of the last portal that showed it, so code walking up checks each parent still lists it.
 

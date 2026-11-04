@@ -22,7 +22,7 @@ pub(crate) mod moves;
 mod play;
 mod skin;
 
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 use board::Stage;
 use layout::Layout;
 use moves::MoveTable;
@@ -205,7 +205,9 @@ pub(crate) fn Game(
                 value={snapshot}
                 key={|snapshot: GameSnapshot| snapshot.shape()}
             >|snapshot: ReadSignal<GameSnapshot>|
-                <GameShape editor game snapshot @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <GameShape editor game snapshot />
+                </ListItem>
             </Keyed>
         </List>
     }
@@ -224,18 +226,17 @@ fn GameShape(
     view! {
         <List spacing=Space::None>
             <Show condition=loading>
-                <LoadingPane @sizing=ItemSize::Percent(100.0) label="Loading the game" />
+                <ListItem grow=1.0>
+                    <LoadingPane label="Loading the game" />
+                </ListItem>
             </Show>
             <Show condition=failed>
                 <GameError snapshot={snapshot} />
             </Show>
             <Show condition=playing>
-                <GamePlay
-                    editor={editor}
-                    game={game}
-                    snapshot={snapshot}
-                    @sizing=ItemSize::Percent(100.0)
-                />
+                <ListItem grow=1.0>
+                    <GamePlay editor={editor} game={game} snapshot={snapshot} />
+                </ListItem>
             </Show>
         </List>
     }
@@ -331,28 +332,14 @@ fn GamePlay(
             <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
                 match chrome.get_untracked() {
                     true => view! {
-                        <GameDock
-                            @sizing=ItemSize::Percent(100.0)
-                            editor
-                            stage
-                            play
-                            drawn
-                            layout
-                            hand
-                            panel
-                        />
+                        <ListItem grow=1.0>
+                            <GameDock editor stage play drawn layout hand panel />
+                        </ListItem>
                     },
                     false => view! {
-                        <Stage
-                            @sizing=ItemSize::Percent(100.0)
-                            content={stage}
-                            editor
-                            play
-                            drawn
-                            layout
-                            hand
-                            steps
-                        />
+                        <ListItem grow=1.0>
+                            <Stage content={stage} editor play drawn layout hand steps />
+                        </ListItem>
                     },
                 }
             }</Keyed>
@@ -443,22 +430,23 @@ fn SeatPicker(game: Stored<Rc<dyn GameModel>>, seat: Memo<Seat>) -> NodeId {
     };
     view! {
         <List spacing=Space::None>
-            <Select
-                options={view! {
-                    <ForEach keys={seat_keys}>|seat: usize| {
-                        let label = create_memo(move || {
-                            names.with(|names| names.get(seat).cloned().unwrap_or_default())
-                        });
-                        view! {
-                            <ChoiceOption label />
-                        }
-                    }</ForEach>
-                }}
-                selected={Binding::new(playing, seated)}
-                label="Playing as"
-                @test_id={"game.player"}
-                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-            />
+            <ListItem shrink=1.0>
+                <Select
+                    options={view! {
+                        <ForEach keys={seat_keys}>|seat: usize| {
+                            let label = create_memo(move || {
+                                names.with(|names| names.get(seat).cloned().unwrap_or_default())
+                            });
+                            view! {
+                                <ChoiceOption label />
+                            }
+                        }</ForEach>
+                    }}
+                    selected={Binding::new(playing, seated)}
+                    label="Playing as"
+                    @test_id={"game.player"}
+                />
+            </ListItem>
         </List>
     }
 }

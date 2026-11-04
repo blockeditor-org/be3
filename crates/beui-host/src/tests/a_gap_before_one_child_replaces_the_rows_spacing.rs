@@ -11,12 +11,9 @@ fn a_gap_before_one_child_replaces_the_rows_spacing() {
             <List direction=Direction::Horizontal spacing=4.0>
                 <Frame width=10.0 height=10.0 />
                 <Frame @node_ref=&second width=10.0 height=10.0 />
-                <Frame
-                    @sizing={ItemSize::Intrinsic.gap(24.0)}
-                    @node_ref=&third
-                    width=10.0
-                    height=10.0
-                />
+                <ListItem gap=24.0>
+                    <Frame @node_ref=&third width=10.0 height=10.0 />
+                </ListItem>
             </List>
         }
     });

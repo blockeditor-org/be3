@@ -264,7 +264,9 @@ pub(crate) fn DockedTabBody(tabs: Rc<DockedTabs>, tab: u64) -> NodeId {
     });
     view! {
         <beui::styled::List spacing=beui::styled::Space::None>
-            <beui::styled::Portal @sizing=beui::ItemSize::Percent(100.0) node={node} />
+            <ListItem grow=1.0>
+                <beui::styled::Portal node={node} />
+            </ListItem>
         </beui::styled::List>
     }
 }
@@ -904,12 +906,13 @@ fn DockTabBody(editor: Editor, shown: Option<(ChildId, DockTabPath)>) -> NodeId 
     let placed = shown.map(|(child, path)| crate::SubregionContent::DockTab(path.through(child)));
     view! {
         <beui::styled::List spacing=beui::styled::Space::None>
-            <Subregion
-                @sizing=beui::ItemSize::Percent(100.0)
-                editor={editor}
-                placed={Prop::Static(placed)}
-                mode=api::ChildMode::Live
-            />
+            <ListItem grow=1.0>
+                <Subregion
+                    editor={editor}
+                    placed={Prop::Static(placed)}
+                    mode=api::ChildMode::Live
+                />
+            </ListItem>
         </beui::styled::List>
     }
 }

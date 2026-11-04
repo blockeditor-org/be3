@@ -2,7 +2,7 @@ use super::*;
 use crate::reactive::*;
 
 #[component]
-fn Shell(children: Children<ListChild>) -> NodeId {
+fn Shell(children: Children<ListItem>) -> NodeId {
     view! {
         <primitives::List spacing=0.0>
             <styled::Text>"Inside"</styled::Text>

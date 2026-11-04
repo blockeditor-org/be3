@@ -11,15 +11,17 @@ fn rows_removed_under_a_scroll_at_its_end_leave_it_at_the_new_end() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={rows}>|index: usize|
-                        <LabelledButton
-                            @test_id={format!("row.{index}")}
-                            label={format!("Row {index}")}
-                            on_click={|| {}}
-                        />
-                    </ForEach>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <ForEach keys={rows}>|index: usize|
+                            <LabelledButton
+                                @test_id={format!("row.{index}")}
+                                label={format!("Row {index}")}
+                                on_click={|| {}}
+                            />
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

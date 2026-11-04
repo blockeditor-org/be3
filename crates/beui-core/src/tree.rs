@@ -14,7 +14,7 @@ use beui_types::node::{CoreHooks, NodeCell, install_core_hooks};
 use crate::base::canvas::CanvasNode;
 use crate::base::grid::{GridItem, GridNode};
 use crate::base::layers::LayersNode;
-use crate::base::list::{ListItem, ListNode};
+use crate::base::list::{ListEntry, ListNode};
 use crate::base::text::{TextNode, TextPart};
 use crate::child_list::ChildHost;
 use crate::current::with_document;
@@ -151,7 +151,7 @@ pub trait ParentKind: ChildHost<Stored: Clone + 'static> + Sized {
 
 pub type Data<P> = <<P as ParentKind>::Kind as beui_types::tree::ParentKind>::Data;
 
-pub type ListChild = Placed<ListKind>;
+pub type ListItem = Placed<ListKind>;
 
 fn store_in<P: ParentKind>(
     child: Placed<P::Kind>,
@@ -234,8 +234,8 @@ impl<P: ParentKind> IntoSlotHost<Placed<P::Kind>> for NodeOf<P> {
 impl ParentKind for ListNode {
     type Kind = ListKind;
 
-    fn item(node: NodeId, size: Sizing) -> ListItem {
-        ListItem { child: node, size }
+    fn item(node: NodeId, size: Sizing) -> ListEntry {
+        ListEntry { child: node, size }
     }
 
     fn update(document: &mut Document, list: NodeOf<Self>, node: NodeId, size: Sizing) {

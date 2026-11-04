@@ -14,7 +14,7 @@ use be_sdk_beui::beui::TextAlign;
 use be_sdk_shell::{
     BlockAction, Refs, TabInfo, TabItem, Watched, Workspace, apply, permissions, read_info,
 };
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const SHEET_PADDING: Space = Space::Lg;
 const SECTION_PADDING: Space = Space::Md;
@@ -46,10 +46,14 @@ pub(crate) fn DetailsSheet(workspace: Workspace, sheet: Signal<PhoneSheet>) -> N
                 <Dynamic value={shown}>|tab: Option<TabId>| {
                     match tab {
                         Some(tab) => view! {
-                            <DetailsBody @sizing=ItemSize::Percent(100.0) workspace sheet tab />
+                            <ListItem grow=1.0>
+                                <DetailsBody workspace sheet tab />
+                            </ListItem>
                         },
                         None => view! {
-                            <Frame @sizing=ItemSize::Percent(100.0) />
+                            <ListItem grow=1.0>
+                                <Frame />
+                            </ListItem>
                         },
                     }
                 }</Dynamic>
@@ -151,10 +155,12 @@ fn DetailsBody(workspace: Workspace, sheet: Signal<PhoneSheet>, tab: TabId) -> N
                         <Text color=TextColor::Accent align=TextAlign::Center>
                             <Icon glyph={glyph} />
                         </Text>
-                        <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
-                            <Text style=TextStyle::HEADING>{name}</Text>
-                            <Text style=TextStyle::CAPTION>{kind}</Text>
-                        </List>
+                        <ListItem grow=1.0>
+                            <List spacing=Space::Xs2>
+                                <Text style=TextStyle::HEADING>{name}</Text>
+                                <Text style=TextStyle::CAPTION>{kind}</Text>
+                            </List>
+                        </ListItem>
                     </List>
                 </Frame>
                 <ActionRow

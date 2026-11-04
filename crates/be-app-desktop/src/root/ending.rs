@@ -4,7 +4,7 @@ use be_sdk_beui::beui::{LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placemen
 use be_sdk_beui::desktop;
 use be_sdk_beui::{EndingAnswer, PowerWatch, SessionEnd};
 use be_sdk_shell::Workspace;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const MARGIN: Space = Space::Lg;
 const PADDING: Padding = Padding::symmetric(Space::Lg, Space::Md);
@@ -96,7 +96,7 @@ pub(crate) fn EndingBar(workspace: Workspace, area: Memo<Rect>) -> NodeId {
                                 align=Align::Center
                                 spacing=SPACING
                             >
-                                <Spacer @sizing=ItemSize::Percent(100.0) />
+                                <Spacer />
                                 <Button
                                     label="Cancel"
                                     variant=ButtonVariant::Secondary

@@ -15,7 +15,7 @@ use crate::{DockBarControl, use_dock_bar};
 #[component]
 pub fn DockBarSurface(
     #[prop(default = Space::Xs2)] spacing: Prop<Space>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let bar = use_dock_bar();
     let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));

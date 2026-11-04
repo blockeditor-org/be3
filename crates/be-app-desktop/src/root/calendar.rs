@@ -13,7 +13,7 @@ use be_sdk_shell::Workspace;
 use be_type_database::database::{Database, DatabaseContent, DatabaseValue};
 use be_type_database::database_schema::{DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent};
 use be_type_database::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
-use beui::{Align, Direction, Extent, ItemSize};
+use beui::{Align, Direction, Extent};
 use uuid::Uuid;
 
 pub(crate) const CALENDAR_STATE: &str = "desktop.calendar";
@@ -95,7 +95,9 @@ fn EventRow(event: DayEvent) -> NodeId {
             <Frame width=TIME_WIDTH>
                 <Text style=TextStyle::CAPTION>{at}</Text>
             </Frame>
-            <Text @sizing={ItemSize::Intrinsic.shrink(1.0)}>{event.title}</Text>
+            <ListItem shrink=1.0>
+                <Text>{event.title}</Text>
+            </ListItem>
         </List>
     }
 }

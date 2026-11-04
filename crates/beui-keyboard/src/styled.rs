@@ -17,7 +17,7 @@ use beui_components_styled::frame::{ColorRole, Frame, Radius};
 use beui_components_styled::scroll::Scroll;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
-use beui_view::types::{Align, Align2, Direction, ItemSize, Justify};
+use beui_view::types::{Align, Align2, Direction, Justify};
 
 pub const BAR_HEIGHT: f32 = 32.0;
 pub const PADDING: Space = Space::Xs;
@@ -54,20 +54,25 @@ pub fn SoftwareKeyboard() -> NodeId {
     view! {
         <List spacing=Space::None>
             <Separator />
-            <Frame @sizing=ItemSize::Percent(100.0) fill=ColorRole::Background padding=PADDING>
-                <List spacing=Space::None>
-                    <KeyboardBar @sizing=ItemSize::Fixed(BAR_HEIGHT) />
-                    <keyboard::SoftwareKeyboard
-                        @sizing=ItemSize::Percent(100.0)
-                        cap={|handle: KeyCapHandle| view! {
-                            <KeyCap handle />
-                        }}
-                        emoji={|keyboard: KeyboardHandle| view! {
-                            <EmojiPanel keyboard />
-                        }}
-                    />
-                </List>
-            </Frame>
+            <ListItem grow=1.0>
+                <Frame fill=ColorRole::Background padding=PADDING>
+                    <List spacing=Space::None>
+                        <ListItem length=BAR_HEIGHT>
+                            <KeyboardBar />
+                        </ListItem>
+                        <ListItem grow=1.0>
+                            <keyboard::SoftwareKeyboard
+                                cap={|handle: KeyCapHandle| view! {
+                                    <KeyCap handle />
+                                }}
+                                emoji={|keyboard: KeyboardHandle| view! {
+                                    <EmojiPanel keyboard />
+                                }}
+                            />
+                        </ListItem>
+                    </List>
+                </Frame>
+            </ListItem>
         </List>
     }
 }
@@ -255,46 +260,50 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
     let groups: Vec<usize> = (0..EMOJI_GROUPS.len()).collect();
     view! {
         <List spacing=Space::None>
-            <List
-                direction=Direction::Horizontal
-                spacing=Space::None
-                justify=Justify::SpaceEvenly
-                @sizing=ItemSize::Fixed(EMOJI_SIZE)
-            >
-                <ForEach keys={groups}>|index: usize| {
-                    {
-                        let (_, emoji, label) = EMOJI_GROUPS[index];
-                        let selected = create_memo(move || group.get() == index);
-                        view! {
-                            <EmojiTab emoji label selected on_click={move || group.set(index)} />
+            <ListItem length=EMOJI_SIZE>
+                <List
+                    direction=Direction::Horizontal
+                    spacing=Space::None
+                    justify=Justify::SpaceEvenly
+                >
+                    <ForEach keys={groups}>|index: usize| {
+                        {
+                            let (_, emoji, label) = EMOJI_GROUPS[index];
+                            let selected = create_memo(move || group.get() == index);
+                            view! {
+                                <EmojiTab
+                                    emoji
+                                    label
+                                    selected
+                                    on_click={move || group.set(index)}
+                                />
+                            }
                         }
-                    }
-                }</ForEach>
-            </List>
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <List direction=Direction::Horizontal wrap=true spacing=Space::None>
-                    <ForEach keys={shown}>|emoji: &'static str|
-                        <EmojiKey emoji keyboard />
-                    </ForEach>
+                    }</ForEach>
                 </List>
-            </Scroll>
-            <List
-                direction=Direction::Horizontal
-                spacing=Space::None
-                @sizing=ItemSize::Fixed(EMOJI_SIZE)
-            >
-                <PanelKey
-                    @sizing=ItemSize::Percent(1.5)
-                    keyboard
-                    value={Value::Layer(Layer::Text)}
-                />
-                <PanelKey @sizing=ItemSize::Percent(7.0) keyboard value={Value::Char(' ')} />
-                <PanelKey
-                    @sizing=ItemSize::Percent(1.5)
-                    keyboard
-                    value={Value::Key(Key::Backspace)}
-                />
-            </List>
+            </ListItem>
+            <ListItem grow=1.0>
+                <Scroll>
+                    <List direction=Direction::Horizontal wrap=true spacing=Space::None>
+                        <ForEach keys={shown}>|emoji: &'static str|
+                            <EmojiKey emoji keyboard />
+                        </ForEach>
+                    </List>
+                </Scroll>
+            </ListItem>
+            <ListItem length=EMOJI_SIZE>
+                <List direction=Direction::Horizontal spacing=Space::None>
+                    <ListItem grow=1.5>
+                        <PanelKey keyboard value={Value::Layer(Layer::Text)} />
+                    </ListItem>
+                    <ListItem grow=7.0>
+                        <PanelKey keyboard value={Value::Char(' ')} />
+                    </ListItem>
+                    <ListItem grow=1.5>
+                        <PanelKey keyboard value={Value::Key(Key::Backspace)} />
+                    </ListItem>
+                </List>
+            </ListItem>
         </List>
     }
 }

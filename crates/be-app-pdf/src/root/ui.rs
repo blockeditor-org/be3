@@ -14,7 +14,6 @@ use be_sdk_beui::{Editor, FileChooser, SIDE_PANEL_WIDTH};
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
 use be_type_pdf::PdfContent;
-use beui::ItemSize;
 use beui::unstyled::gestures;
 
 const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
@@ -116,17 +115,14 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
             <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
                 match chrome.get_untracked() {
                     true => view! {
-                        <PdfDock
-                            @sizing=ItemSize::Percent(100.0)
-                            editor
-                            content
-                            shown
-                            controls
-                            details
-                        />
+                        <ListItem grow=1.0>
+                            <PdfDock editor content shown controls details />
+                        </ListItem>
                     },
                     false => view! {
-                        <Viewer @sizing=ItemSize::Percent(100.0) editor content shown />
+                        <ListItem grow=1.0>
+                            <Viewer editor content shown />
+                        </ListItem>
                     },
                 }
             }</Keyed>
@@ -291,37 +287,43 @@ fn PageCanvas(
     let reason = create_memo(move || shown.get().error.unwrap_or_default());
     view! {
         <List spacing=Space::None>
-            <Canvas @sizing=ItemSize::Percent(100.0) view={view}>
-                <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                    <Frame fill={ColorRole::Custom(PAGE_FILL.into())} />
-                </CanvasItem>
-                <ForEach keys={keys}>|index: usize| {
-                    let tile = create_memo(move || {
-                        shown.with(|shown| shown.tiles.get(index).cloned())
-                    });
-                    let x = create_memo(move || {
-                        tile.get().map_or(0.0, |(rect, _)| rect.min.x)
-                    });
-                    let y = create_memo(move || {
-                        tile.get().map_or(0.0, |(rect, _)| rect.min.y)
-                    });
-                    let width = create_memo(move || {
-                        tile.get().map_or(0.0, |(rect, _)| rect.width())
-                    });
-                    let height = create_memo(move || {
-                        tile.get().map_or(0.0, |(rect, _)| rect.height())
-                    });
-                    let image = create_memo(move || {
-                        tile.get().map(|(_, image)| image)
-                    });
-                    let element_test_id = format!("pdf.tile.{index}");
-                    view! {
-                        <CanvasItem x={x} y={y} width={width} height={height}>
-                            <Picture image={image} fit=ImageFit::Fill @test_id={element_test_id} />
-                        </CanvasItem>
-                    }
-                }</ForEach>
-            </Canvas>
+            <ListItem grow=1.0>
+                <Canvas view={view}>
+                    <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                        <Frame fill={ColorRole::Custom(PAGE_FILL.into())} />
+                    </CanvasItem>
+                    <ForEach keys={keys}>|index: usize| {
+                        let tile = create_memo(move || {
+                            shown.with(|shown| shown.tiles.get(index).cloned())
+                        });
+                        let x = create_memo(move || {
+                            tile.get().map_or(0.0, |(rect, _)| rect.min.x)
+                        });
+                        let y = create_memo(move || {
+                            tile.get().map_or(0.0, |(rect, _)| rect.min.y)
+                        });
+                        let width = create_memo(move || {
+                            tile.get().map_or(0.0, |(rect, _)| rect.width())
+                        });
+                        let height = create_memo(move || {
+                            tile.get().map_or(0.0, |(rect, _)| rect.height())
+                        });
+                        let image = create_memo(move || {
+                            tile.get().map(|(_, image)| image)
+                        });
+                        let element_test_id = format!("pdf.tile.{index}");
+                        view! {
+                            <CanvasItem x={x} y={y} width={width} height={height}>
+                                <Picture
+                                    image={image}
+                                    fit=ImageFit::Fill
+                                    @test_id={element_test_id}
+                                />
+                            </CanvasItem>
+                        }
+                    }</ForEach>
+                </Canvas>
+            </ListItem>
             <Show condition={failed}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={"pdf.error"}>
                     {reason}
