@@ -520,6 +520,10 @@ into_prop_via!(Sides, f32, Sides::all);
 into_prop_via!(Corners, f32, Corners::all);
 into_prop_via!(Align2, Align, Align2::all);
 
+/// Places every `CanvasItem arranged=KEY` at the rect returned for KEY (empty if
+/// none), called during the canvas's own layout with its laid-out size, so the
+/// items do not lag a layout behind as children placed from `measure` would.
+/// Compared by identity: hand a new one (from a memo) when what it places changes.
 #[derive(Clone)]
 pub struct CanvasArrangement(std::rc::Rc<dyn Fn(Vec2) -> Vec<(u64, Rect)>>);
 
@@ -547,6 +551,9 @@ impl std::fmt::Debug for CanvasArrangement {
 
 pub use be_lib_geometry::CanvasView;
 
+/// `rect` is in window coordinates (the space of `PointerPress::pos`), through
+/// every space's scale; `size` is the node's size in its own units before any
+/// zoom, so content built from it answers the same at every zoom.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Measured {
     pub rect: Rect,
