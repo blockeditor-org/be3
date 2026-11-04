@@ -27,6 +27,7 @@ const SLIDE_HEIGHT: f32 = 540.0;
 const DEFAULT_RATIO: f32 = 16.0 / 9.0;
 const FILL: f32 = 0.0;
 const FILMSTRIP_PADDING: Space = Space::Sm;
+const TILE_INSET: Space = Space::Xs;
 const TILE_SPACING: Space = Space::Md;
 const PRESENTING: Color32 = Color32::BLACK;
 const PLAYBACK_SHADE: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 180);
@@ -477,6 +478,7 @@ fn SlideTile(
             @node_ref=&tile
             reorder
             item=id
+            margin={Padding::all(TILE_INSET)}
             cursor=CursorIcon::PointingHand
             on_click={select}
         >|_: ReorderItemHandle|

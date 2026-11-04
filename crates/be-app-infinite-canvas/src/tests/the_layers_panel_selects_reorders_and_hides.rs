@@ -39,7 +39,7 @@ fn the_layers_panel_selects_reorders_and_hides() {
     let dragged = row(&editor, middle).center();
     let onto = row(&editor, front);
     editor.drag(dragged, onto.center() - Vec2::new(0.0, onto.height() / 4.0));
-    editor.run();
+    editor.settle();
     assert_eq!(
         order(&editor),
         vec![front, middle],

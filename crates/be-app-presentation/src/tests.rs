@@ -9,6 +9,7 @@ use crate::root::PresentationRoot;
 
 mod a_card_shows_only_the_stage;
 mod a_carried_slide_parts_the_filmstrip_and_settles_where_it_is_dropped;
+mod a_slide_dragged_along_a_wide_filmstrip_passes_the_slide_beside_it;
 mod a_slide_template_makes_a_canvas_with_its_placeholders;
 mod a_slide_with_no_picture_of_its_own_shows_its_name_in_the_filmstrip;
 mod detaching_a_slide_takes_it_off_the_deck;
