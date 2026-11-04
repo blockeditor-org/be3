@@ -286,6 +286,9 @@ impl Loaded {
 
 pub type Sources = Box<dyn Fn() -> Vec<be_block_type_host::Source>>;
 
+/// `be`'s view of an organization: it lists blocks lazily (the top, then a
+/// block's children when a name needs them) and keeps what it listed for the
+/// rest of the command, so it never lists the whole organization.
 pub struct Tracker<S: ObjectStore> {
     peer: Arc<Peer<S>>,
     index: Mutex<Index>,
@@ -303,6 +306,8 @@ impl<S: ObjectStore> Tracker<S> {
         }
     }
 
+    /// The type modules, started on first use so commands that only list
+    /// (`be ls`) compile none.
     pub async fn types(&self) -> MappedMutexGuard<'_, Modules> {
         let mut held = self.types.lock().await;
         if held.is_none() {
@@ -373,6 +378,10 @@ impl<S: ObjectStore> Tracker<S> {
         }
     }
 
+    /// Reads the block's head, makes new content with `make` and publishes it
+    /// against that head, retrying on the new head when rejected, so it never
+    /// overwrites a save it didn't see. An editor with the block open merges
+    /// the new head like any outside publish.
     async fn edit(
         &self,
         block: Uuid,
@@ -497,6 +506,10 @@ impl<S: ObjectStore> Tracker<S> {
             .is_ok_and(|entry| entry.access.can_view())
     }
 
+    /// A block by full id, by the id's last eight hex digits (UUIDv7's random
+    /// end) or by name, searched a level at a time from the top; the shallowest
+    /// level with a match decides. A view and its database share a name, and
+    /// the name means the database.
     pub async fn find(&self, text: &str, accept: impl Fn(&Entry) -> bool) -> Result<Entry, String> {
         let wanted = text.trim();
         if let Ok(id) = Uuid::parse_str(wanted.rsplit('/').next().unwrap_or(wanted)) {

@@ -6,6 +6,8 @@ use crate::{ChildChange, Root};
 
 pub use crate::resolution::{Resolution, ResolutionLayers, SettingsSource};
 
+/// A settings kind: one block per kind in each layer, combined by
+/// `Resolution`. `over` combines an upper layer with a lower one.
 pub trait Layered: Root + Clone + Default {
     const NAME: &'static str;
     const FOLLOWS: Follows = Follows::Viewer;
@@ -15,20 +17,30 @@ pub trait Layered: Root + Clone + Default {
     fn over(&self, lower: &Self) -> Self;
 }
 
+/// Whether the block layer applies. See
+/// decisions/settings_follow_the_block_or_the_viewer.md.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Follows {
+    /// The data's settings, resolved from the nearest block above it that has
+    /// this kind.
     Block,
+    /// The viewer's own preference: the block layer is skipped.
     Viewer,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum KindRule {
+    /// Later layers win.
     Default,
+    /// The block layer's set fields are locked against the user's own layers.
     Policy,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum KindVisibility {
+    /// The client grants the kind View to `ANYONE_INSIDE` when it makes it, so
+    /// anyone viewing any block inside the owner reads it (a block shared alone
+    /// still resolves its row ids and shows its tags).
     Inside,
     #[default]
     Members,
