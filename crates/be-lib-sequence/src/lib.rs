@@ -6,11 +6,15 @@ use std::{
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeSeq};
 
+/// The client that owns the content a session loaded; edits cannot allocate positions under it,
+/// and the server numbers real clients from 1. The text editor's end anchor is `Pos { client:
+/// LOADED, offset: next_offset(LOADED) }`, a sentinel past the initial buffer.
 pub const LOADED: u64 = 0;
 
 #[cfg(not(any(test, feature = "fuzzing")))]
 const CHUNK: usize = 64;
 
+/// Tiny in test and fuzzing builds so the multi-chunk paths run constantly.
 #[cfg(any(test, feature = "fuzzing"))]
 const CHUNK: usize = 2;
 
@@ -53,6 +57,10 @@ impl Span {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum SeqOp<T> {
+    /// Refused unless `start` is the next offset of that client's buffer or when `after` is
+    /// unknown. An insert (or replace) with the right `start` uses up its offsets even when
+    /// refused for another reason, so the client's later inserts, numbered as if it applied,
+    /// still land. Of two inserts after the same element the later-ordered one comes first.
     Insert {
         after: Option<Pos>,
         client: u64,
@@ -66,6 +74,8 @@ pub enum SeqOp<T> {
         spans: Vec<Span>,
         items: Vec<T>,
     },
+    /// All or nothing: applies only if every span is still visible. Typing over a selection
+    /// stays a delete and an insert; this is for edits like toggling a markdown checkbox.
     Replace {
         spans: Vec<Span>,
         client: u64,
@@ -77,6 +87,8 @@ pub enum SeqOp<T> {
         show: Vec<Span>,
         items: Vec<T>,
     },
+    /// Moves tombstones and concurrent inserts inside the range too. Ends out of order, or a
+    /// destination inside the range, change nothing. Its undo is unconditional.
     Move {
         first: Pos,
         last: Pos,

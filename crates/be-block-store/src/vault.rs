@@ -143,6 +143,10 @@ impl std::fmt::Debug for Keyring {
     }
 }
 
+/// Seals with a key it names by id from its `Keyring`, and opens by the id the sealed bytes
+/// carry. The nonce is derived from the key and the plaintext, so identical content
+/// deduplicates under one key and shares nothing across keys
+/// (decisions/deterministic_seal_nonce.md).
 pub struct Vault<S> {
     store: S,
     keys: Keyring,
@@ -275,6 +279,10 @@ impl<S: ObjectStore> Vault<S> {
         Ok(missing)
     }
 
+    /// Stores a value as a CBOR map by field name (`encode_value`), so a later build can add a
+    /// field with `#[serde(default)]`. Values stored this way (commits, version-control trees)
+    /// are encrypted, so only a client could rewrite one, and that would change its hash and
+    /// every id naming it: read them as they were written, forever.
     pub fn put_value<T: Serialize>(&self, key: Uuid, value: &T) -> Result<Hash, StoreError> {
         self.store.put(&self.seal(key, &encode_value(value)?)?)
     }

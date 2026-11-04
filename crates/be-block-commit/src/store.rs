@@ -5,6 +5,9 @@ use uuid::Uuid;
 
 use crate::{Commit, CommitId};
 
+/// Walks the commit DAG tolerating pruned history: a missing commit truncates a chain instead
+/// of breaking it, so `first_parent_chain`, `ancestry` and `common_ancestor` keep working after
+/// retention runs.
 pub struct CommitStore<S> {
     vault: Vault<S>,
 }
