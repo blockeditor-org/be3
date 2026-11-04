@@ -4,7 +4,6 @@ use be_sdk_beui::be_block::{
     OfflineSettings, OfflineSettingsContent, SettingsContent, SettingsProfileContent, TagsContent,
     WORKSPACE_TYPE,
 };
-use be_sdk_beui::be_sdk_ui::bytes_label;
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::icons::{
     ICON_BUILDING, ICON_CLOUD_OFF, ICON_COLUMNS_3, ICON_FOLDER_COG, ICON_HARD_DRIVE, ICON_KEYBOARD,
@@ -14,9 +13,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
 use be_sdk_beui::root_settings::is_own_settings;
-use be_sdk_beui::{
-    BlockParent, BlockQuery, ContentProjection, Editor, LayeredSettings, StorageUsageWatch,
-};
+use be_sdk_beui::{BlockParent, BlockQuery, ContentProjection, Editor, LayeredSettings};
 use be_type_settings::EditorSettingsContent;
 use beui::Overflow;
 use uuid::Uuid;
@@ -127,26 +124,16 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     }
 }
 
+/// The way into the Storage page. It says no numbers: the page follows the server's usage
+/// while it is open, and the list, open far more often, opens no stream for it.
 #[component]
 fn StorageRow(editor: Editor) -> NodeId {
-    let usage = editor.watch::<StorageUsageWatch>();
-    let detail = create_memo(move || match usage.get() {
-        Some(usage) => match usage.quota {
-            Some(quota) => format!(
-                "{} of {} used",
-                bytes_label(usage.held + usage.pending),
-                bytes_label(quota)
-            ),
-            None => format!("{} used", bytes_label(usage.held + usage.pending)),
-        },
-        None => "What your blocks take on the server".to_owned(),
-    });
     let block = editor.block_id();
     let selected = shown_with(editor, block, STORAGE_EDITOR);
     view! {
         <SettingRow
             label="Storage"
-            detail={detail}
+            detail="What your blocks take on the server"
             glyph=ICON_HARD_DRIVE
             selected={selected}
             @test_id={"settings.storage"}
