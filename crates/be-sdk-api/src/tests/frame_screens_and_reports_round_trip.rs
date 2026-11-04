@@ -99,6 +99,12 @@ fn frame_screens_and_reports_round_trip() {
             }),
             anchored: None,
             work_area: None,
+            backdrop: Some(crate::accessibility::Color {
+                red: 16,
+                green: 18,
+                blue: 24,
+                alpha: 255,
+            }),
         }],
         ..frame(1)
     };

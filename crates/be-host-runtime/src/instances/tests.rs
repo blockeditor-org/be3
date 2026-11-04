@@ -387,6 +387,7 @@ fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
                 description: None,
                 anchored: Some(layer.placement),
                 work_area: None,
+                backdrop: None,
             }
         })
         .collect();

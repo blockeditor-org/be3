@@ -699,7 +699,7 @@ fn host_anchored(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> 
                         let rect = scrim.rect.translate(to_host).intersect(bounds);
                         rect.is_positive().then(|| beui::layer::Scrim {
                             rect,
-                            color: crate::runtime::scrim_color(&scrim.color),
+                            color: crate::runtime::reported_color(&scrim.color),
                             radius: scrim.radius,
                         })
                     })

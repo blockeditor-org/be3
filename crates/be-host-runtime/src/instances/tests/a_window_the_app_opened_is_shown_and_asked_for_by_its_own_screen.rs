@@ -46,6 +46,7 @@ fn a_window_the_app_opened_is_shown_and_asked_for_by_its_own_screen() {
         description: None,
         anchored: None,
         work_area: None,
+        backdrop: None,
     };
     instances.set_frame_reports(vec![report.clone()]);
     assert_eq!(

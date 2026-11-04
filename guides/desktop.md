@@ -121,7 +121,8 @@ arguments are not saved (decisions/kept_windows_store_no_program_arguments.md).
 
 **Drawing.** be-host-desktop's `PlacedWindow` draws a placed window child: the platform's
 `WindowSurface` inside `WindowBody` (`window_body.rs`), which fades where the program's buffer
-overhangs the rect, says "Too small for" below the program's least size, and draws the "not
+overhangs the rect, fills with the theme's background what the buffer does not cover yet (a window
+being resized before the program draws the new size), says "Too small for" below the program's least size, and draws the "not
 responding" Wait and Force close. Window drawings paint (`Paints` on `WindowDraw`), so paintings and
 `drive paint` show what programs drew. be-host's `compositor/editors.rs` turns `close-child`,
 fullscreen and the keyboard into requests to the program.

@@ -633,6 +633,13 @@ interface types {
         /// on the edges where that area is inset. `none` when the view
         /// keeps no such area.
         work-area: option<insets>,
+        /// The opaque color the view is cleared to, when it is opaque: the
+        /// host fills the view's rect with it under the view's children, so
+        /// space the view leaves for a child shows it, never what is behind
+        /// the view, until the child draws there or after it is gone. `none`
+        /// for a view that shows what is behind it (a child placed over a
+        /// canvas, a bar, a translucent window).
+        backdrop: option<color>,
     }
 
     record screen-window {
