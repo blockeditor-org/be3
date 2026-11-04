@@ -221,3 +221,55 @@ impl Drop for Anonymous {
         self.of.held.lock().unwrap().remove(self.id);
     }
 }
+
+/// Counts what each address (see [`unsigned_key`]) does in each `window`, up to `limit`.
+pub(crate) struct Rate {
+    held: Mutex<RateHeld>,
+    limit: u32,
+    window: std::time::Duration,
+}
+
+#[derive(Default)]
+struct RateHeld {
+    counts: HashMap<IpAddr, (tokio::time::Instant, u32)>,
+    /// How many addresses were counted after the last pass dropping finished windows; the next
+    /// pass waits until there are twice as many, so passes cost O(1) a call on average.
+    pruned: usize,
+}
+
+/// The fewest addresses counted before finished windows are dropped.
+const RATE_PRUNE_AT: usize = 1024;
+
+impl Rate {
+    pub(crate) fn new(limit: u32, window: std::time::Duration) -> Self {
+        Self {
+            held: Mutex::new(RateHeld::default()),
+            limit,
+            window,
+        }
+    }
+
+    /// Counts one more for `address`, or answers false once it did `limit` in this window.
+    pub(crate) fn allow(&self, address: IpAddr) -> bool {
+        let now = tokio::time::Instant::now();
+        let mut held = self.held.lock().unwrap();
+        if held.counts.len() >= (2 * held.pruned).max(RATE_PRUNE_AT) {
+            let window = self.window;
+            held.counts.retain(|_, (start, _)| *start + window > now);
+            held.pruned = held.counts.len();
+        }
+        let (start, count) = held
+            .counts
+            .entry(unsigned_key(address))
+            .or_insert((now, 0));
+        if *start + self.window <= now {
+            *start = now;
+            *count = 0;
+        }
+        if *count >= self.limit {
+            return false;
+        }
+        *count += 1;
+        true
+    }
+}

@@ -24,8 +24,8 @@ async fn from(
     Ok(TestClient::over(socket))
 }
 
-/// One address holds only so many connections that are not signed in; a browser sign-in keeps a
-/// connection open only while the sign-in is still its own.
+/// One address holds only so many connections that are not signed in, and those that do not sign
+/// in are closed.
 #[tokio::test]
 async fn clients_not_signed_in_hold_only_their_share() {
     let harness = Harness::configured(ServerConfig {
@@ -54,15 +54,9 @@ async fn clients_not_signed_in_hold_only_their_share() {
         .call(|peer| client::account::authenticate(peer, Some(token)))
         .await;
     assert!(response.is_ok(), "{response:?}");
-    let mut began = crowd.pop().unwrap();
-
-    let (code, secret) = begin_session(&mut began).await;
-    let mut taker = from(&harness, "198.51.100.2").await.unwrap();
-    let waiting = client::account::finish_browser_login(&taker.peer, code, secret);
-    taker.round_trip().await;
-    began.ended().await;
-    taker.round_trip().await;
-    drop(waiting);
+    for mut waiting in crowd {
+        waiting.ended().await;
+    }
     signed.round_trip().await;
     harness.stop().await;
 }

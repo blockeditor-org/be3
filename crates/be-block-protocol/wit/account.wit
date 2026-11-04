@@ -12,10 +12,26 @@ interface account {
     use types.{account-id, client-id, error};
 
     /// A browser sign-in waiting for approval: the code a person approves in
-    /// the browser, and the secret that proves this client began it.
+    /// the browser, the secret that proves this client began it, the fewest
+    /// seconds between two polls of it, and the seconds until it expires.
     record browser-login {
         code: string,
         secret: string,
+        interval: u32,
+        expires: u32,
+    }
+
+    /// Where a browser sign-in stands, as a poll finds it.
+    variant browser-login-state {
+        /// Not yet approved or denied.
+        pending,
+        /// Approved: the account and a token for it, handed out to this one
+        /// poll; the sign-in is then gone.
+        approved(authenticated),
+        /// Denied in the browser.
+        denied,
+        /// Expired, already handed out, or never begun with this secret.
+        expired,
     }
 
     /// A signed-in connection. `token` is empty when the token came in the
@@ -45,15 +61,14 @@ interface account {
         quota: option<u64>,
     }
 
-    /// Starts a browser sign-in.
+    /// Starts a browser sign-in. Made as a one-shot call (`POST .../call`),
+    /// like `poll-browser-login`: a connection's first call is `authenticate`.
     begin-browser-login: async func() -> result<browser-login, error>;
 
-    /// Waits until the browser approved the sign-in begun with `code` and
-    /// `secret`, then signs this connection in. Fails at once with a wrong
-    /// secret, and once the browser denied the sign-in or it expired. A client
-    /// that lost its connection calls it again on the next one, which then
-    /// waits in its place.
-    finish-browser-login: async func(code: string, secret: string) -> result<authenticated, error>;
+    /// Where the sign-in begun with `code` and `secret` stands. Polled again
+    /// sooner than its interval, it fails with `slow-down`, and the interval
+    /// grows by five seconds (RFC 8628).
+    poll-browser-login: async func(code: string, secret: string) -> result<browser-login-state, error>;
 
     /// Makes a profile on this device's own server and signs in to it.
     create-local-profile: async func(display-name: string) -> result<authenticated, error>;

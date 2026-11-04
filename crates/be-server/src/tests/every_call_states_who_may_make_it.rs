@@ -5,14 +5,6 @@ use be_block_protocol::embed::METHODS;
 
 use super::*;
 
-/// The calls a connection makes before it is signed in.
-const SIGNING_IN: [&str; 5] = [
-    "ping",
-    "begin-browser-login",
-    "finish-browser-login",
-    "create-local-profile",
-    "authenticate",
-];
 
 #[derive(Debug, PartialEq)]
 enum Answered {
@@ -77,9 +69,9 @@ impl TestClient {
                 answered(client::account::begin_browser_login(peer).await),
             ),
             (
-                "finish-browser-login",
+                "poll-browser-login",
                 answered(
-                    client::account::finish_browser_login(peer, "code".into(), "secret".into())
+                    client::account::poll_browser_login(peer, "code".into(), "secret".into())
                         .await,
                 ),
             ),
@@ -460,24 +452,21 @@ async fn every_call_states_who_may_make_it() {
 
     let mut stranger = harness.client().await;
     let answers = stranger.everything(block, organization).await;
-    stranger.assert_called_everything();
     let names: BTreeSet<&str> = answers.iter().map(|(name, _)| *name).collect();
     assert_eq!(names.len(), answers.len(), "a call was made twice");
+    // Its first call (after a ping, which the socket answers) did not sign it in, so the
+    // connection was closed: nothing answered it.
     for (name, answer) in &answers {
-        match SIGNING_IN.contains(name) {
-            true => assert_ne!(
-                *answer,
-                Answered::Refused(ErrorCode::NotAuthenticated),
-                "{name} is made before signing in"
-            ),
-            false => assert!(
-                matches!(
-                    answer,
-                    Answered::Denied | Answered::Refused(ErrorCode::NotAuthenticated)
-                ),
-                "{name} answered a connection that is not signed in: {answer:?}"
-            ),
+        if *name == "ping" {
+            continue;
         }
+        assert!(
+            matches!(
+                answer,
+                Answered::Denied | Answered::Refused(ErrorCode::NotAuthenticated)
+            ),
+            "{name} answered a connection that is not signed in: {answer:?}"
+        );
     }
 
     let mut knower = harness.client().await;
@@ -505,6 +494,7 @@ async fn every_call_states_who_may_make_it() {
     assert!(response.is_ok(), "{response:?}");
     assert_eq!(knower.read_block(block).await.access, Access::KnowExists);
     let answers = knower.everything(block, organization).await;
+    knower.assert_called_everything();
     let viewing = [
         "hold-objects",
         "create-block",

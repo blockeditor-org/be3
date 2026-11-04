@@ -23,6 +23,7 @@ mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_block_shared_from_a_hidden_folder_is_listed_as_shared;
 mod a_blocks_references_are_listed_and_announced_together;
+mod a_browser_sign_in_waits_on_polls_and_holds_no_connection;
 mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_also_refuses_browser_registration_and_login;
@@ -72,7 +73,6 @@ mod another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashe
 mod another_build_is_greeted_and_turned_away;
 mod block_sizes_add_up_their_subtrees_and_follow_moves;
 mod blocks_publish_and_read_back_through_the_server;
-mod browser_authorization_survives_disconnecting_before_approval;
 mod browser_forms_enforce_origin_policy_and_deny_sign_in;
 mod browser_pages_escape_codes_and_keep_available_actions;
 mod clients_not_signed_in_hold_only_their_share;
@@ -97,6 +97,7 @@ mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod objects_are_served_only_from_blocks_the_reader_can_see;
 mod old_database_backups_thin_out_by_age;
 mod one_address_holds_only_so_many_connections_and_http_sessions;
+mod one_shot_calls_only_sign_in_and_are_rate_limited;
 mod only_a_manager_lets_go_of_a_blocks_settings;
 mod only_a_manager_shares_and_a_lower_grant_reduces_nothing;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
@@ -950,12 +951,93 @@ async fn http(
     let status = response.split_whitespace().nth(1).unwrap().parse().unwrap();
     (status, response)
 }
-async fn begin_session(client: &mut TestClient) -> (String, String) {
-    let begun = client
-        .call(|peer| client::account::begin_browser_login(peer))
+async fn begin_session(harness: &Harness) -> (String, String) {
+    let begun = harness
+        .once(|peer| client::account::begin_browser_login(peer))
         .await
         .expect("a browser authorization session starts");
     (begun.code, begun.secret)
+}
+
+/// Polls a browser sign-in once, as a one-shot call.
+async fn poll_login(
+    harness: &Harness,
+    code: &str,
+    secret: &str,
+) -> Result<be_block_protocol::BrowserLoginState, Error> {
+    let (code, secret) = (code.to_owned(), secret.to_owned());
+    harness
+        .once(|peer| client::account::poll_browser_login(peer, code, secret))
+        .await
+}
+
+/// Posts `body` to `path` and answers the status and the body of the answer.
+async fn post_bytes(harness: &Harness, path: &str, body: &[u8]) -> (u16, Vec<u8>) {
+    let address = harness.address;
+    let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+    stream
+        .write_all(
+            format!(
+                "POST {path} HTTP/1.1\r\nHost: {address}\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n",
+                body.len()
+            )
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+    stream.write_all(body).await.unwrap();
+    let mut bytes = Vec::new();
+    stream.read_to_end(&mut bytes).await.unwrap();
+    let end = bytes
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .expect("an HTTP answer");
+    let head = String::from_utf8_lossy(&bytes[..end]).to_string();
+    let status = head.split_whitespace().nth(1).unwrap().parse().unwrap();
+    (status, bytes[end + 4..].to_vec())
+}
+
+fn framed(frames: &[Vec<u8>]) -> Vec<u8> {
+    let mut body = Vec::new();
+    for frame in frames {
+        body.extend_from_slice(&(frame.len() as u32).to_be_bytes());
+        body.extend_from_slice(frame);
+    }
+    body
+}
+
+fn unframed(mut body: &[u8]) -> Vec<Vec<u8>> {
+    let mut frames = Vec::new();
+    while body.len() >= 4 {
+        let size = u32::from_be_bytes(body[..4].try_into().unwrap()) as usize;
+        frames.push(body[4..4 + size].to_vec());
+        body = &body[4 + size..];
+    }
+    frames
+}
+
+impl Harness {
+    /// Makes one call as a one-shot post (`POST /api/be/call`), as a client signing in does.
+    async fn once<T: 'static, E: be_wasm_ops::wire::Decode<Result<T, Error>>>(
+        &self,
+        start: impl FnOnce(&Peer) -> Pending<Result<T, Error>, E>,
+    ) -> Result<T, Error> {
+        let (sending, mut sent) = tokio::sync::mpsc::unbounded_channel();
+        let peer = Peer::new(be_wasm_ops::Side::Guest, move |frame| {
+            let _ = sending.send(frame);
+        });
+        let mut pending = start(&peer);
+        let _ = poll(&mut pending);
+        let call = sent.try_recv().expect("the call was started");
+        let (status, answer) = post_bytes(self, "/api/be/call", &framed(&[hello(BUILD), call])).await;
+        assert_eq!(status, 200, "{}", String::from_utf8_lossy(&answer));
+        let frames = unframed(&answer);
+        assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
+        for frame in &frames[1..] {
+            peer.receive(frame).unwrap();
+        }
+        pending.await.expect("the call was answered")
+    }
 }
 async fn fixture_account(
     directory: &std::path::Path,

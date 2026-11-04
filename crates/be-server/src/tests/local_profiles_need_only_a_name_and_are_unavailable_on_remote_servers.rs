@@ -4,12 +4,12 @@ use super::*;
 async fn local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers() {
     let remote = Harness::start().await;
     let mut client = remote.client().await;
-    assert!(matches!(
-        client
-            .call(|peer| client::account::create_local_profile(peer, "Ada".into()))
-            .await,
-        Err(_)
-    ));
+    let created = client::account::create_local_profile(&client.peer, "Ada".into()).await;
+    assert!(
+        !matches!(created, Ok(Ok(_))),
+        "a remote server made a local profile: {created:?}"
+    );
+    client.ended().await;
     let local = Harness::configured(ServerConfig {
         local_profiles: true,
         ..ServerConfig::default()

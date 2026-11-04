@@ -8,14 +8,14 @@ async fn an_unauthenticated_connection_cannot_touch_blocks() {
     let block = owner.create_block(BlockParent::Root).await;
 
     let mut stranger = harness.client().await;
-    let response = stranger
-        .call(|peer| client::blocks::read_block(peer, block))
-        .await;
+    let response = client::blocks::read_block(&stranger.peer, block).await;
     assert!(
-        matches!(response, Err(Error { code, .. }) if code == ErrorCode::NotAuthenticated),
-        "{response:?}"
+        !matches!(response, Ok(Ok(_))),
+        "a connection read a block before signing in: {response:?}"
     );
+    stranger.ended().await;
 
+    let mut stranger = harness.client().await;
     let response = stranger
         .call(|peer| client::account::authenticate(peer, Some("not a token".into())))
         .await;

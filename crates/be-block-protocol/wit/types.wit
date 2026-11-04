@@ -42,6 +42,8 @@ interface types {
         policy-unreadable,
         policy-refused,
         over-quota,
+        /// A sign-in was polled sooner than its interval allows.
+        slow-down,
     }
 
     /// A connection, as the server numbers them; a session's participants and

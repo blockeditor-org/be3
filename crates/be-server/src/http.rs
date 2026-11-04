@@ -24,6 +24,15 @@ use crate::{
 };
 
 const PATH_SUFFIX: &str = "/http";
+/// Where a one-shot call is posted: a greeting and one call that needs no sign-in, answered and
+/// closed with no session (`one_shot`).
+const CALL_SUFFIX: &str = "/call";
+/// A one-shot call's body: a greeting and a call of a few short strings.
+const MAX_CALL_BYTES: usize = 16 * 1024;
+/// One-shot calls one address may make in each `CALLS_WINDOW`. Each sign-in is also polled no
+/// faster than its interval.
+pub(crate) const MAX_CALLS_PER_ADDRESS: u32 = 60;
+pub(crate) const CALLS_WINDOW: Duration = Duration::from_secs(60);
 const SESSION_HEADER: &str = "be3-session";
 /// Set on an answer when the session has more to say, or frames of the post still to carry
 /// out; the client posts again at once, with an empty body if it has nothing to send.
@@ -94,11 +103,10 @@ impl Session {
     /// Whether the session should end: unheard from for too long, out of time to sign in (or
     /// let go of for a newer session that is not signed in), or holding more than it may for a
     /// client that does not collect it.
-    fn lapsed(&mut self) -> bool {
+    fn lapsed(&self) -> bool {
         self.heard.elapsed() > IDLE_TIMEOUT
             || self.queued.overflowed()
-            || self.client.as_mut().is_some_and(|client| {
-                client.connection.forget_ended_sign_in();
+            || self.client.as_ref().is_some_and(|client| {
                 client
                     .connection
                     .sign_in_deadline()
@@ -305,14 +313,12 @@ pub(crate) async fn route(
         .await?;
         return Ok(None);
     }
-    if head.method == "POST"
-        && head
-            .path
-            .split('?')
-            .next()
-            .unwrap_or_default()
-            .ends_with(PATH_SUFFIX)
-    {
+    let path = head.path.split('?').next().unwrap_or_default();
+    if head.method == "POST" && path.ends_with(CALL_SUFFIX) {
+        one_shot(stream, buffer, client, (anonymous, eviction), services).await?;
+        return Ok(None);
+    }
+    if head.method == "POST" && path.ends_with(PATH_SUFFIX) {
         serve(stream, peer, buffer, anonymous, services).await?;
         return Ok(None);
     }
@@ -579,7 +585,7 @@ async fn answer(
                     Client::open(
                         services,
                         address,
-                        &services.http.unsigned,
+                        false,
                         (anonymous, eviction),
                         move |frame| {
                             if queued.queue(frame.len()) {
@@ -682,6 +688,7 @@ async fn answer(
         return Ok(Answer::refused(400, &error.to_string(), false));
     }
     let signed_in = client.connection.account.is_some();
+    let closing = client.connection.closing;
     let mut answers = Vec::new();
     let mut size = 0;
     while size < OUTBOUND_BYTES
@@ -691,6 +698,21 @@ async fn answer(
         queued.sent(frame.len());
         answers.push(frame);
     }
+    if closing {
+        // The session's first call did not sign it in, or it logged out: answer what it said,
+        // then end it.
+        if let Some(client) = held.client.take() {
+            client.close().await;
+        }
+        return Ok(Answer {
+            status: 200,
+            session: None,
+            body: framed(&answers),
+            keep: false,
+            more: false,
+            signed_in: false,
+        });
+    }
     Ok(Answer {
         status: 200,
         session: None,
@@ -699,6 +721,79 @@ async fn answer(
         more: !waiting.is_empty() || !outbound.is_empty(),
         signed_in,
     })
+}
+
+/// Answers one call that needs no sign-in (`begin-browser-login`, `poll-browser-login`, and
+/// `create-local-profile` where local profiles are on) posted after a greeting, then closes:
+/// signing in through the browser holds no connection while the person approves it.
+async fn one_shot(
+    mut stream: TcpStream,
+    mut buffer: Vec<u8>,
+    address: IpAddr,
+    anonymous: (Anonymous, Arc<Eviction>),
+    services: &Services,
+) -> Result<(), ServerError> {
+    let head = Head::parse(&buffer)?;
+    if head.length > MAX_CALL_BYTES {
+        return refuse(&mut stream, 413, "a one-shot call is short").await;
+    }
+    if !services.calls.allow(address) {
+        return refuse(&mut stream, 429, "too many calls from this address; wait a minute").await;
+    }
+    let mut body = buffer.split_off(head.size);
+    let read = tokio::time::timeout(
+        HANDSHAKE_TIMEOUT,
+        read_body(&mut stream, &mut body, head.length),
+    )
+    .await
+    .map_err(|_| ServerError::Socket("the call timed out".into()))??;
+    if !read {
+        return Ok(());
+    }
+    let Some([greeting_frame, call]) = unframed(&body[..head.length])
+        .and_then(|frames| <[&[u8]; 2]>::try_from(frames).ok())
+    else {
+        return refuse(&mut stream, 400, "post a greeting and one call").await;
+    };
+    let (ours, compatible) = greeting(read_hello(greeting_frame).as_deref())?;
+    if !compatible {
+        return respond_once(&mut stream, framed(&[ours])).await;
+    }
+    let method = match be_wasm_ops::decode_frame::<be_wasm_ops::Frame>(call) {
+        Ok(be_wasm_ops::Frame::Start { method, .. }) => method,
+        _ => return refuse(&mut stream, 400, "post a greeting and one call").await,
+    };
+    let allowed = method == be_block_protocol::__args::ACCOUNT_BEGIN_BROWSER_LOGIN
+        || method == be_block_protocol::__args::ACCOUNT_POLL_BROWSER_LOGIN
+        || (method == be_block_protocol::__args::ACCOUNT_CREATE_LOCAL_PROFILE
+            && services.config.local_profiles);
+    if !allowed {
+        return refuse(
+            &mut stream,
+            403,
+            "only signing in is a one-shot call; connect and authenticate for the rest",
+        )
+        .await;
+    }
+    let (sending, mut answered) = mpsc::unbounded_channel();
+    let mut client = Client::open(services, address, true, anonymous, move |frame| {
+        let _ = sending.send(frame);
+    })
+    .await;
+    let carried = client.receive(call).await;
+    client.close().await;
+    carried?;
+    let mut frames = vec![ours];
+    while let Ok(frame) = answered.try_recv() {
+        frames.push(frame);
+    }
+    respond_once(&mut stream, framed(&frames)).await
+}
+
+async fn respond_once(stream: &mut TcpStream, body: Vec<u8>) -> Result<(), ServerError> {
+    respond(stream, 200, None, false, "application/octet-stream", &body).await?;
+    stream.shutdown().await?;
+    Ok(())
 }
 
 async fn catch_up(client: &mut Client) -> Result<(), ServerError> {

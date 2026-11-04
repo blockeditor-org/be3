@@ -5,8 +5,7 @@ async fn a_remembered_account_approves_a_manually_entered_code_and_can_switch_ac
     let harness = Harness::start().await;
     harness.member("first@example.com").await;
     harness.member("second@example.com").await;
-    let mut app = harness.client().await;
-    let (code, secret) = begin_session(&mut app).await;
+    let (code, secret) = begin_session(&harness).await;
     let mut browser = Browser::default();
     browser
         .login(&harness, "first@example.com", "correct horse battery")
@@ -60,7 +59,9 @@ async fn a_remembered_account_approves_a_manually_entered_code_and_can_switch_ac
             .0,
         303
     );
-    assert!(
-        matches!(app.call(|peer| client::account::finish_browser_login(peer, code, secret)).await, Ok(Authenticated { email, .. }) if email == "second@example.com")
-    );
+    assert!(matches!(
+        poll_login(&harness, &code, &secret).await,
+        Ok(be_block_protocol::BrowserLoginState::Approved(Authenticated { email, .. }))
+            if email == "second@example.com"
+    ));
 }

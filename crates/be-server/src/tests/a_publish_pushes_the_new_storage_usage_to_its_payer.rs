@@ -47,7 +47,7 @@ async fn a_publish_pushes_the_new_storage_usage_to_its_payer() {
         refused.recv().await.is_none(),
         "a connection that has not signed in is refused"
     );
-    stranger.round_trip().await;
+    stranger.ended().await;
 
     let mut unopened = harness.client().await;
     unopened.register("unopened@example.com").await;

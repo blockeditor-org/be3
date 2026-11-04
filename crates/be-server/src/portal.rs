@@ -274,7 +274,7 @@ pub(crate) async fn handle(
         }),
         code,
         code_problem,
-        csrf: services.browser_auth.form(token, client)?,
+        csrf: services.browser_auth.form(token, client),
         problem: (!error.is_empty()).then(|| Problem::from_message(&error)),
         mail_token: value("token").into(),
         sessions: sessions.into_iter().map(session).collect(),

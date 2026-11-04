@@ -1,12 +1,15 @@
+use be_block_protocol::BrowserLoginState;
+
 use super::*;
+
 #[tokio::test]
 async fn the_browser_authorization_requires_the_private_secret_and_works_once() {
-    let harness = Harness::start().await;
-    let mut app = harness.client().await;
-    let mut other = harness.client().await;
-    let (code, secret) = begin_session(&mut app).await;
-    let mut finishing =
-        client::account::finish_browser_login(&app.peer, code.clone(), secret.clone());
+    let harness = Harness::configured(ServerConfig {
+        sign_in_poll_interval: Duration::ZERO,
+        ..ServerConfig::OPEN
+    })
+    .await;
+    let (code, secret) = begin_session(&harness).await;
     let mut browser = Browser::default();
     let (status, page) = browser
         .submit(
@@ -25,9 +28,11 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
         .await;
     assert_eq!(status, 303, "{page}");
     assert!(!page.contains("correct horse"));
-    app.round_trip().await;
     assert!(
-        poll(&mut finishing).is_pending(),
+        matches!(
+            poll_login(&harness, &code, &secret).await,
+            Ok(BrowserLoginState::Pending)
+        ),
         "a sign-in finished before the browser approved it"
     );
     let token = harness.mail_token("ada@example.com");
@@ -39,9 +44,11 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
             .0,
         303
     );
-    app.round_trip().await;
     assert!(
-        poll(&mut finishing).is_pending(),
+        matches!(
+            poll_login(&harness, &code, &secret).await,
+            Ok(BrowserLoginState::Pending)
+        ),
         "a sign-in finished before the browser approved it"
     );
     assert_eq!(
@@ -56,26 +63,26 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
             .0,
         303
     );
-    assert!(matches!(
-        other
-            .call(|peer| client::account::finish_browser_login(
-                peer,
-                code.clone(),
-                "wrong secret".into()
-            ))
-            .await,
-        Err(_)
-    ));
-    let session = finishing.await.expect("the connection stayed open");
-    let Ok(Authenticated { token, email, .. }) = session else {
-        panic!("{session:?}")
+    assert!(
+        matches!(
+            poll_login(&harness, &code, "wrong secret").await,
+            Ok(BrowserLoginState::Expired)
+        ),
+        "a wrong secret read the sign-in"
+    );
+    let approved = poll_login(&harness, &code, &secret).await;
+    let Ok(BrowserLoginState::Approved(Authenticated { token, email, .. })) = approved else {
+        panic!("{approved:?}")
     };
     assert_eq!(email, "ada@example.com");
-    assert!(matches!(
-        app.call(|peer| client::account::finish_browser_login(peer, code, secret))
-            .await,
-        Err(_)
-    ));
+    assert!(
+        matches!(
+            poll_login(&harness, &code, &secret).await,
+            Ok(BrowserLoginState::Expired)
+        ),
+        "the token was handed out twice"
+    );
+    let mut other = harness.client().await;
     assert!(matches!(
         other
             .call(|peer| client::account::authenticate(peer, Some(token)))

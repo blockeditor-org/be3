@@ -1,5 +1,5 @@
 use super::*;
-mod a_full_table_lets_go_of_its_oldest_and_tells_its_connection;
-mod a_newer_wait_on_a_sign_in_replaces_the_older;
+mod a_full_table_lets_go_of_its_oldest;
+mod a_sign_in_is_polled_no_faster_than_its_interval_and_hands_its_token_out_once;
 mod cancelled_and_expired_authorizations_cannot_be_claimed;
 mod one_address_cannot_fill_the_pending_sign_ins_or_forms;

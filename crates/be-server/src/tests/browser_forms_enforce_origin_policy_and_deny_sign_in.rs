@@ -1,10 +1,12 @@
 use super::*;
 #[tokio::test]
 async fn browser_forms_enforce_origin_policy_and_deny_sign_in() {
-    let harness = Harness::start().await;
-    let mut app = harness.client().await;
-    let (code, secret) = begin_session(&mut app).await;
-    let finishing = client::account::finish_browser_login(&app.peer, code.clone(), secret.clone());
+    let harness = Harness::configured(ServerConfig {
+        sign_in_poll_interval: Duration::ZERO,
+        ..ServerConfig::OPEN
+    })
+    .await;
+    let (code, secret) = begin_session(&harness).await;
     let page = http(&harness, "GET", "/auth", "", None).await.1;
     let body = format!("csrf={}&code={code}", csrf(&page));
     assert_eq!(
@@ -28,13 +30,15 @@ async fn browser_forms_enforce_origin_policy_and_deny_sign_in() {
         303
     );
     assert!(
-        matches!(finishing.await, Ok(Err(_))),
+        matches!(
+            poll_login(&harness, &code, &secret).await,
+            Ok(be_block_protocol::BrowserLoginState::Denied)
+        ),
         "a sign-in denied in the browser was not refused"
     );
     assert!(matches!(
-        app.call(|peer| client::account::finish_browser_login(peer, code, secret))
-            .await,
-        Err(_)
+        poll_login(&harness, &code, &secret).await,
+        Ok(be_block_protocol::BrowserLoginState::Expired)
     ));
     assert_eq!(
         browser

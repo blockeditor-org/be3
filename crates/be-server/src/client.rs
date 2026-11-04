@@ -6,7 +6,8 @@ use std::{
 
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
-    AccountStorage, Authenticated, BlockChange, BlockEvent, BlockSummary, BrowserLogin, Collected,
+    AccountStorage, Authenticated, BlockChange, BlockEvent, BlockSummary, BrowserLogin, BrowserLoginState,
+    Collected,
     Contents, CreatedAgent, Error, ErrorCode, Listing, OrganizationOpened, PairingMessage,
     RecoveryKey, SessionEvent, SessionState, embed,
 };
@@ -18,7 +19,7 @@ use uuid::Uuid;
 use crate::{
     CONTENTS_BYTES, Identity, PublishOutcome, ServerConfig, ServerError, ServerStore, Services,
     SessionRegistry, WatchHub,
-    address::{Anonymous, Eviction, Unsigned},
+    address::{Anonymous, Eviction},
     browser_auth, contacts,
     limits::{
         MAX_PAIRING_BYTES, MAX_RELAY_BYTES, MAX_SESSIONS_PER_CONNECTION, MAX_STREAMS_PER_CONNECTION,
@@ -68,7 +69,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
         Call::Connection(embed::connection::Call::Ping { .. }) => Rule::Anyone,
         Call::Account(call) => match call {
             account::Call::BeginBrowserLogin { .. }
-            | account::Call::FinishBrowserLogin { .. }
+            | account::Call::PollBrowserLogin { .. }
             | account::Call::CreateLocalProfile { .. }
             | account::Call::Authenticate { .. } => Rule::Anyone,
             account::Call::StorageUsage { .. } | account::Call::StorageChanged { .. } => {
@@ -163,6 +164,27 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
     }
 }
 
+/// Whether a session's connection may make `call` first: only a call that signs it in. Signing
+/// in through the browser is one-shot calls (`http.rs`, `one_shot`), so no connection waits on it.
+pub(crate) fn signs_in(call: &embed::Call, local_profiles: bool) -> bool {
+    match call {
+        embed::Call::Account(embed::account::Call::Authenticate { .. }) => true,
+        embed::Call::Account(embed::account::Call::CreateLocalProfile { .. }) => local_profiles,
+        _ => false,
+    }
+}
+
+fn login_disabled() -> ServerError {
+    ServerError::Refused(
+        ErrorCode::LoginDisabled,
+        "This server is not accepting sign-ins.".into(),
+    )
+}
+
+fn seconds(duration: std::time::Duration) -> u32 {
+    u32::try_from(duration.as_secs()).unwrap_or(u32::MAX)
+}
+
 fn administrators_only() -> ServerError {
     ServerError::Refused(
         ErrorCode::PermissionDenied,
@@ -178,11 +200,6 @@ fn not_joined() -> ServerError {
 }
 
 pub(crate) enum Late {
-    SignedIn {
-        reply: Reply<Result<Authenticated, Error>>,
-        profile: store::Profile,
-        token: String,
-    },
     /// The usage of the account this connection follows may have changed.
     Storage,
 }
@@ -285,14 +302,16 @@ pub(crate) struct Connection {
     pub(crate) address: IpAddr,
     /// Since when the connection has had no account.
     anonymous_since: tokio::time::Instant,
-    /// The browser sign-in this connection began or waits on, which keeps it open longer.
-    pub(crate) signing_in: Option<browser_auth::SigningIn>,
-    /// The connection's place among those not signed in, while it has no account.
+    /// The connection's place among those not signed in, until it signs in.
     anonymous: Option<Anonymous>,
-    /// Where `anonymous` came from, to take a place again after a logout.
-    unsigned: Arc<Unsigned>,
     /// Tells when `anonymous` was let go of for a newer connection.
     pub(crate) eviction: Arc<Eviction>,
+    /// Whether the connection serves a session, which must sign in with its first call, or one
+    /// one-shot call (`http.rs`, `one_shot`).
+    one_shot: bool,
+    /// Set once the connection should be closed after what it has answered: its first call was
+    /// not one that signs in, or it logged out.
+    pub(crate) closing: bool,
 }
 
 pub(crate) struct Client {
@@ -308,12 +327,13 @@ pub(crate) struct Client {
 }
 
 impl Client {
-    /// A client from `address`, holding `anonymous`, its place in `unsigned` that `eviction`
-    /// tells the loss of, until it signs in.
+    /// A client from `address`, holding `anonymous`, its place among those not signed in, which
+    /// `eviction` tells the loss of, until it signs in. A `one_shot` client answers one call that
+    /// needs no sign-in; any other must sign in with its first call.
     pub(crate) async fn open(
         services: &Services,
         address: IpAddr,
-        unsigned: &Arc<Unsigned>,
+        one_shot: bool,
         (anonymous, eviction): (Anonymous, Arc<Eviction>),
         sink: impl Fn(Vec<u8>) + Send + Sync + 'static,
     ) -> Self {
@@ -335,10 +355,10 @@ impl Client {
                 config: services.config.clone(),
                 address,
                 anonymous_since: tokio::time::Instant::now(),
-                signing_in: None,
                 anonymous: Some(anonymous),
-                unsigned: Arc::clone(unsigned),
                 eviction,
+                one_shot,
+                closing: false,
             },
             peer: Peer::new(be_wasm_ops::Side::Host, sink),
             pushes,
@@ -390,14 +410,6 @@ impl Client {
 
     pub(crate) async fn late(&mut self, late: Late) {
         match late {
-            Late::SignedIn {
-                reply,
-                profile,
-                token,
-            } => {
-                let authenticated = self.connection.authenticated(profile, token).await;
-                self.reply(reply, Ok(authenticated));
-            }
             Late::Storage => self.send_storage().await,
         }
     }
@@ -627,6 +639,14 @@ impl Client {
             }
             call => call,
         };
+        if self.connection.account.is_none()
+            && !self.connection.one_shot
+            && !signs_in(&call, self.connection.config.local_profiles)
+        {
+            tracing::debug!("closing a connection whose first call does not sign it in");
+            self.connection.closing = true;
+            return;
+        }
         let prelude = self.prelude().await;
         let rule = rule(&call);
         let prelude = match prelude {
@@ -703,61 +723,53 @@ impl Client {
         match call {
             Call::BeginBrowserLogin { reply } => {
                 let begun = prelude.and_then(|()| {
-                    let connection = &mut self.connection;
-                    let previous = connection
-                        .signing_in
-                        .as_ref()
-                        .map(|began| began.code.as_str());
-                    let (code, secret, signing_in) = connection.browser_auth.begin(
-                        connection.client,
-                        connection.address,
-                        previous,
-                    )?;
-                    connection.signing_in = Some(signing_in);
-                    Ok(BrowserLogin { code, secret })
+                    let connection = &self.connection;
+                    if !connection.config.allow_login {
+                        return Err(login_disabled());
+                    }
+                    let (code, secret, interval, expires) =
+                        connection.browser_auth.begin(connection.address);
+                    Ok(BrowserLogin {
+                        code,
+                        secret,
+                        interval: seconds(interval),
+                        expires: seconds(expires),
+                    })
                 });
                 self.reply(reply, begun);
             }
-            Call::FinishBrowserLogin {
+            Call::PollBrowserLogin {
                 reply,
                 code,
                 secret,
             } => {
-                let finished = prelude.and_then(|()| {
-                    if !self.connection.config.allow_login {
-                        return Err(ServerError::Refused(
-                            ErrorCode::LoginDisabled,
-                            "This server is not accepting sign-ins.".into(),
-                        ));
+                let polled = async {
+                    prelude?;
+                    let connection = &self.connection;
+                    if !connection.config.allow_login {
+                        return Err(login_disabled());
                     }
-                    self.connection
-                        .browser_auth
-                        .finish(self.connection.client, &code, &secret)
-                });
-                let waiting = match finished {
-                    Err(error) => return self.reply(reply, Err(error)),
-                    Ok(browser_auth::Finished::Approved { account, issuer }) => {
-                        let signed_in = async {
-                            let connection = &self.connection;
+                    Ok(match connection.browser_auth.poll(&code, &secret)? {
+                        browser_auth::Polled::Pending => BrowserLoginState::Pending,
+                        browser_auth::Polled::Denied => BrowserLoginState::Denied,
+                        browser_auth::Polled::Expired => BrowserLoginState::Expired,
+                        browser_auth::Polled::Approved { account, issuer } => {
                             let token = connection
                                 .store
                                 .claim_browser_session(account, &issuer)
                                 .await?;
                             let profile = connection.store.resolve_token(&token).await?;
-                            Ok::<_, ServerError>(
-                                self.connection.authenticated(profile, token).await,
-                            )
-                        };
-                        let signed_in = signed_in.await;
-                        return self.reply(reply, signed_in);
-                    }
-                    Ok(browser_auth::Finished::Waiting(waiting)) => waiting,
-                };
-                let mut waiting = waiting;
-                if let Some(signing_in) = waiting.signing_in.take() {
-                    self.connection.signing_in = Some(signing_in);
+                            BrowserLoginState::Approved(Authenticated {
+                                account: profile.account,
+                                email: profile.email,
+                                display_name: profile.display_name,
+                                token,
+                            })
+                        }
+                    })
                 }
-                self.wait_for_browser(reply, code, secret, waiting);
+                .await;
+                self.reply(reply, polled);
             }
             Call::CreateLocalProfile {
                 reply,
@@ -811,13 +823,7 @@ impl Client {
                         connection.store.logout(&token).await?;
                     }
                     connection.account = None;
-                    connection.anonymous_since = tokio::time::Instant::now();
-                    connection.anonymous = connection
-                        .unsigned
-                        .admit(connection.address, &connection.eviction);
-                    if connection.anonymous.is_none() {
-                        connection.eviction.evict();
-                    }
+                    connection.closing = true;
                     connection.identity = None;
                     connection.hub.leave_account(connection.client).await;
                     Ok(())
@@ -906,66 +912,6 @@ impl Client {
                 }
             }
         }
-    }
-
-    fn wait_for_browser(
-        &self,
-        reply: Reply<Result<Authenticated, Error>>,
-        code: String,
-        secret: String,
-        mut waiting: browser_auth::Waiting,
-    ) {
-        let peer = self.peer.clone();
-        let late = self.late.clone();
-        let sessions = Arc::clone(&self.connection.browser_auth);
-        let store = Arc::clone(&self.connection.store);
-        let client = self.connection.client;
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    biased;
-                    () = peer.canceled(reply.op()) => {
-                        reply.fail(&mut peer.lock(), OpError::Canceled);
-                        return;
-                    }
-                    _ = waiting.decided.changed() => {}
-                    // A newer call for the same code waits in this one's place.
-                    _ = &mut waiting.replaced => {
-                        reply.fail(&mut peer.lock(), OpError::Canceled);
-                        return;
-                    }
-                }
-                let approved = match sessions.finish(client, &code, &secret) {
-                    Err(error) => {
-                        reply.send(&mut peer.lock(), &Err(wire(error)));
-                        return;
-                    }
-                    Ok(browser_auth::Finished::Waiting(next)) => {
-                        waiting = next;
-                        continue;
-                    }
-                    Ok(browser_auth::Finished::Approved { account, issuer }) => {
-                        async {
-                            let token = store.claim_browser_session(account, &issuer).await?;
-                            let profile = store.resolve_token(&token).await?;
-                            Ok::<_, ServerError>((profile, token))
-                        }
-                        .await
-                    }
-                };
-                match approved {
-                    Ok((profile, token)) => {
-                        let _ = late.send(Late::SignedIn {
-                            reply,
-                            profile,
-                            token,
-                        });
-                    }
-                    Err(error) => reply.send(&mut peer.lock(), &Err(wire(error))),
-                }
-                return;
-            }
-        });
     }
 
     async fn organizations(
@@ -2024,9 +1970,7 @@ impl Client {
 
 impl Connection {
     /// When the connection is closed unless it signs in first, or none once it has an account.
-    /// A browser sign-in it began or waits on keeps it open until the sign-in ends, at most
-    /// `browser_auth::LIFETIME` after it stopped having an account; one let go of to make room
-    /// for a newer connection closes at once.
+    /// One let go of to make room for a newer connection closes at once.
     pub(crate) fn sign_in_deadline(&self) -> Option<tokio::time::Instant> {
         if self.account.is_some() {
             return None;
@@ -2034,30 +1978,13 @@ impl Connection {
         if self.eviction.evicted() {
             return Some(self.anonymous_since);
         }
-        let deadline = self.anonymous_since + self.config.sign_in_timeout;
-        let longest = self.anonymous_since + browser_auth::LIFETIME;
-        Some(self.signing_in.as_ref().map_or(deadline, |signing_in| {
-            signing_in.until.min(longest).max(deadline)
-        }))
-    }
-
-    /// Forgets a browser sign-in that is no longer this connection's, so it no longer keeps the
-    /// connection open.
-    pub(crate) fn forget_ended_sign_in(&mut self) {
-        if self
-            .signing_in
-            .as_mut()
-            .is_some_and(browser_auth::SigningIn::ended)
-        {
-            self.signing_in = None;
-        }
+        Some(self.anonymous_since + self.config.sign_in_timeout)
     }
 
     async fn authenticated(&mut self, profile: store::Profile, token: String) -> Authenticated {
         self.hub.join_account(self.client, profile.account).await;
         self.account = Some(profile.account);
         self.anonymous = None;
-        self.signing_in = None;
         self.token = Some(token.clone());
         self.checked = None;
         Authenticated {

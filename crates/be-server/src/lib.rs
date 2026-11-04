@@ -138,9 +138,11 @@ pub struct ServerConfig {
     /// Peers whose `X-Forwarded-For` names the client; anyone else's is ignored. By default
     /// only this host, where the reverse proxy runs.
     pub trusted_proxies: Cow<'static, [IpAddr]>,
-    /// How long a connection may stay without an account after its greeting, unless it is
-    /// waiting on a browser sign-in, before it is closed.
+    /// How long a connection may go after its greeting before its first call signs it in.
     pub sign_in_timeout: Duration,
+    /// The fewest seconds between two polls of a browser sign-in, at first; tests that poll
+    /// one sign-in again at once set it to zero.
+    pub sign_in_poll_interval: Duration,
 }
 
 impl ServerConfig {
@@ -158,6 +160,7 @@ impl ServerConfig {
             IpAddr::V6(Ipv6Addr::LOCALHOST),
         ]),
         sign_in_timeout: SIGN_IN_TIMEOUT,
+        sign_in_poll_interval: browser_auth::POLL_INTERVAL,
     };
 
     pub const OPEN: Self = Self {
@@ -185,7 +188,7 @@ const MAX_UNSIGNED_CONNECTIONS: usize = MAX_CONNECTIONS / 4;
 pub(crate) const MAX_UNSIGNED_CONNECTIONS_PER_ADDRESS: usize = 8;
 pub(crate) const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 /// The default for [`ServerConfig::sign_in_timeout`].
-const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(30);
+const SIGN_IN_TIMEOUT: Duration = HANDSHAKE_TIMEOUT;
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 pub(crate) const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
@@ -312,6 +315,7 @@ pub async fn serve_with_mail(
     if let Some(origin) = &config.auth_origin {
         mail::validate_origin(origin).map_err(ServerError::Socket)?;
     }
+    let interval = config.sign_in_poll_interval;
     let services = Services {
         portal: config
             .portal
@@ -328,12 +332,16 @@ pub async fn serve_with_mail(
         config,
         mail,
         http: Arc::new(http::Sessions::default()),
-        browser_auth: Arc::new(browser_auth::Sessions::default()),
+        browser_auth: Arc::new(browser_auth::Sessions::polled_every(interval)),
         addresses: address::PerAddress::new(MAX_CONNECTIONS_PER_ADDRESS),
         unsigned: address::Unsigned::new(
             MAX_UNSIGNED_CONNECTIONS,
             MAX_UNSIGNED_CONNECTIONS_PER_ADDRESS,
         ),
+        calls: Arc::new(address::Rate::new(
+            http::MAX_CALLS_PER_ADDRESS,
+            http::CALLS_WINDOW,
+        )),
     };
     let slots = Arc::new(Semaphore::new(MAX_CONNECTIONS));
     let upkeep = tokio::spawn(upkeep(services.clone()));
@@ -426,6 +434,8 @@ pub(crate) struct Services {
     addresses: Arc<address::PerAddress>,
     /// Connections and requests that are not signed in.
     unsigned: Arc<address::Unsigned>,
+    /// One-shot calls (`http::one_shot`) per address.
+    calls: Arc<address::Rate>,
 }
 
 /// What a connection was let in with: its place among its address's connections and among
@@ -648,7 +658,7 @@ where
         Client::open(
             services,
             address,
-            &services.unsigned,
+            false,
             anonymous,
             move |frame| {
                 if queued.queue(frame.len()) {
@@ -735,9 +745,6 @@ where
                         let _ = outgoing.send(Message::Close(None));
                         return Ok(());
                     }
-                    () = sign_in_ended(&mut client.connection.signing_in) => {
-                        client.connection.signing_in = None;
-                    }
                     () = sleep_until_some(deadline) => {
                         if client.connection.sign_in_deadline().is_some_and(|deadline| deadline <= tokio::time::Instant::now()) {
                             tracing::debug!("closing a connection that did not sign in in time");
@@ -772,11 +779,17 @@ where
                             return Ok(());
                         }
                     }
-                    arrived = arriving.recv(), if roomy => match arrived {
-                        None => return Ok(()),
-                        Some(Arrived::Frame(bytes)) => client.receive(&bytes).await?,
-                        Some(Arrived::Events(events)) => client.handle(events).await,
-                    },
+                    arrived = arriving.recv(), if roomy => {
+                        match arrived {
+                            None => return Ok(()),
+                            Some(Arrived::Frame(bytes)) => client.receive(&bytes).await?,
+                            Some(Arrived::Events(events)) => client.handle(events).await,
+                        }
+                        if client.connection.closing {
+                            let _ = outgoing.send(Message::Close(None));
+                            return Ok(());
+                        }
+                    }
                     () = queued.room.notified() => {}
                 }
             }
@@ -801,16 +814,6 @@ where
 
     client.close().await;
     outcome
-}
-
-/// Ends once the connection's browser sign-in is no longer its own.
-async fn sign_in_ended(signing_in: &mut Option<browser_auth::SigningIn>) {
-    match signing_in {
-        Some(signing_in) => {
-            let _ = (&mut signing_in.gone).await;
-        }
-        None => std::future::pending().await,
-    }
 }
 
 async fn sleep_until_some(deadline: Option<tokio::time::Instant>) {

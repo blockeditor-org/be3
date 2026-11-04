@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeSet, HashMap},
     net::IpAddr,
-    sync::{Arc, Mutex},
+    sync::Mutex,
     time::Duration,
 };
 
@@ -11,8 +11,7 @@ use uuid::Uuid;
 
 use crate::{ServerError, Services, address::address_key};
 
-/// How long a pending sign-in or a form token lasts, and so the longest a connection that is not
-/// signed in stays open while it waits on one.
+/// How long a pending sign-in or a form token lasts.
 pub(crate) const LIFETIME: Duration = Duration::from_secs(600);
 /// Pending sign-ins, and open form tokens, the whole server holds at once. Making one more
 /// lets go of the oldest, so filling it locks no one out.
@@ -22,18 +21,21 @@ pub(crate) const LIMIT: usize = 65536;
 pub(crate) const PENDING_PER_ADDRESS: usize = 8;
 /// Form tokens one address holds; issuing another lets go of its oldest.
 const FORMS_PER_ADDRESS: usize = 64;
+/// The fewest seconds a client waits between two polls of a sign-in, at first.
+pub(crate) const POLL_INTERVAL: Duration = Duration::from_secs(3);
+/// What polling too soon adds to a sign-in's interval (RFC 8628).
+pub(crate) const SLOW_DOWN: Duration = Duration::from_secs(5);
 
 pub(crate) struct Sessions {
     pending: Mutex<Bounded<Pending>>,
     forms: Mutex<Bounded<Form>>,
+    /// A new sign-in's interval (`ServerConfig::sign_in_poll_interval`).
+    interval: Duration,
 }
 
 impl Default for Sessions {
     fn default() -> Self {
-        Self {
-            pending: Mutex::new(Bounded::new(LIMIT, PENDING_PER_ADDRESS)),
-            forms: Mutex::new(Bounded::new(LIMIT, FORMS_PER_ADDRESS)),
-        }
+        Self::polled_every(POLL_INTERVAL)
     }
 }
 
@@ -137,52 +139,26 @@ struct Form {
 }
 
 struct Pending {
-    client: u64,
     secret: String,
     denied: bool,
     expires: Instant,
     account: Option<Uuid>,
     approved_by: String,
-    decided: tokio::sync::watch::Sender<()>,
-    /// The one call waiting on this sign-in; replacing it tells the older call to stop.
-    waiter: Option<tokio::sync::oneshot::Sender<()>>,
-    /// Held for the connection whose sign-in this is; dropped, and so telling it, once the
-    /// sign-in ends, expires, is let go of, or another connection takes it over.
-    holder: tokio::sync::oneshot::Sender<()>,
-    _cancel: tokio::sync::oneshot::Sender<()>,
+    /// The fewest seconds between two polls; polling sooner adds `SLOW_DOWN` to it.
+    interval: Duration,
+    polled: Option<Instant>,
 }
 
-/// A browser sign-in a connection began or waits on, which keeps the connection open while it is
-/// pending, at most `LIFETIME` after the connection stopped having an account.
-pub(crate) struct SigningIn {
-    pub(crate) code: String,
-    pub(crate) until: Instant,
-    /// Ends once the sign-in is no longer this connection's.
-    pub(crate) gone: tokio::sync::oneshot::Receiver<()>,
-}
-
-impl SigningIn {
-    /// Whether the sign-in is no longer this connection's.
-    pub(crate) fn ended(&mut self) -> bool {
-        matches!(
-            self.gone.try_recv(),
-            Err(tokio::sync::oneshot::error::TryRecvError::Closed)
-        )
-    }
-}
-
-pub(crate) enum Finished {
-    Approved { account: Uuid, issuer: String },
-    Waiting(Waiting),
-}
-
-pub(crate) struct Waiting {
-    /// Changes once the browser decides, and ends if the sign-in expires.
-    pub(crate) decided: tokio::sync::watch::Receiver<()>,
-    /// Ends once a newer call waits on the same sign-in.
-    pub(crate) replaced: tokio::sync::oneshot::Receiver<()>,
-    /// The sign-in, when this call moved it to its connection from another.
-    pub(crate) signing_in: Option<SigningIn>,
+/// Where a pending sign-in stands, as a poll finds it.
+pub(crate) enum Polled {
+    Pending,
+    /// Approved by `issuer`, the browser session that approved it; the sign-in is gone.
+    Approved {
+        account: Uuid,
+        issuer: String,
+    },
+    Denied,
+    Expired,
 }
 
 fn invalid(message: &str) -> ServerError {
@@ -190,99 +166,78 @@ fn invalid(message: &str) -> ServerError {
 }
 
 impl Sessions {
-    /// Begins a browser sign-in for connection `client`, letting go of the one it began before,
-    /// `previous`, so a connection holds one at a time.
-    pub(crate) fn begin(
-        self: &Arc<Self>,
-        client: u64,
-        address: IpAddr,
-        previous: Option<&str>,
-    ) -> Result<(String, String, SigningIn), ServerError> {
-        let mut pending = self.pending.lock().unwrap();
-        if let Some(previous) = previous
-            && pending
-                .get(previous)
-                .is_some_and(|entry| entry.client == client)
-        {
-            pending.remove(previous);
+    pub(crate) fn polled_every(interval: Duration) -> Self {
+        Self {
+            pending: Mutex::new(Bounded::new(LIMIT, PENDING_PER_ADDRESS)),
+            forms: Mutex::new(Bounded::new(LIMIT, FORMS_PER_ADDRESS)),
+            interval,
         }
+    }
+
+    /// Begins a browser sign-in from `address`: its code, its secret, the fewest seconds between
+    /// polls and the seconds it lasts.
+    pub(crate) fn begin(&self, address: IpAddr) -> (String, String, Duration, Duration) {
         let random = Uuid::new_v4().simple().to_string();
         let code = format!("{}-{}-{}", &random[..4], &random[4..8], &random[8..12]);
         let secret = Uuid::new_v4().to_string();
-        let (cancel, cancelled) = tokio::sync::oneshot::channel();
-        let (holder, gone) = tokio::sync::oneshot::channel();
-        let expires = Instant::now() + LIFETIME;
-        pending.insert(
+        self.pending.lock().unwrap().insert(
             code.clone(),
             Pending {
-                client,
                 secret: secret.clone(),
                 denied: false,
-                expires,
+                expires: Instant::now() + LIFETIME,
                 account: None,
                 approved_by: String::new(),
-                decided: tokio::sync::watch::Sender::new(()),
-                waiter: None,
-                holder,
-                _cancel: cancel,
+                interval: self.interval,
+                polled: None,
             },
             address,
         );
-        let sessions = Arc::downgrade(self);
-        let expiring = code.clone();
-        tokio::spawn(async move {
-            tokio::select! { _ = tokio::time::sleep(LIFETIME) => {}, _ = cancelled => return }
-            if let Some(sessions) = sessions.upgrade() {
-                sessions.pending.lock().unwrap().remove(&expiring);
-            }
-        });
-        let signing_in = SigningIn {
-            code: code.clone(),
-            until: expires,
-            gone,
-        };
-        Ok((code, secret, signing_in))
+        (code, secret, self.interval, LIFETIME)
     }
 
-    pub(crate) fn finish(
-        &self,
-        client: u64,
-        code: &str,
-        secret: &str,
-    ) -> Result<Finished, ServerError> {
+    /// Where the sign-in begun with `code` and `secret` stands. A poll sooner than its interval
+    /// is refused with `SlowDown`, and the interval grows by `SLOW_DOWN`. An approved or denied
+    /// sign-in is answered once and let go of; a wrong secret reads as expired.
+    pub(crate) fn poll(&self, code: &str, secret: &str) -> Result<Polled, ServerError> {
         let mut pending = self.pending.lock().unwrap();
-        let entry = pending
+        let now = Instant::now();
+        let Some(entry) = pending
             .get_mut(code)
-            .filter(|entry| entry.secret == secret && entry.expires > Instant::now())
-            .ok_or_else(|| invalid("this sign-in expired or was cancelled"))?;
-        if entry.denied {
-            return Err(invalid("Sign-in was denied in the browser."));
+            .filter(|entry| entry.secret == secret)
+        else {
+            return Ok(Polled::Expired);
+        };
+        if entry.expires <= now {
+            pending.remove(code);
+            return Ok(Polled::Expired);
         }
-        let moved = std::mem::replace(&mut entry.client, client) != client;
+        if let Some(polled) = entry.polled
+            && polled + entry.interval > now
+        {
+            entry.interval += SLOW_DOWN;
+            return Err(ServerError::Refused(
+                ErrorCode::SlowDown,
+                format!(
+                    "poll this sign-in at most every {} seconds",
+                    entry.interval.as_secs()
+                ),
+            ));
+        }
+        entry.polled = Some(now);
+        if entry.denied {
+            pending.remove(code);
+            return Ok(Polled::Denied);
+        }
         let Some(account) = entry.account else {
-            let (waiter, replaced) = tokio::sync::oneshot::channel();
-            entry.waiter = Some(waiter);
-            let signing_in = moved.then(|| {
-                let (holder, gone) = tokio::sync::oneshot::channel();
-                entry.holder = holder;
-                SigningIn {
-                    code: code.to_owned(),
-                    until: entry.expires,
-                    gone,
-                }
-            });
-            return Ok(Finished::Waiting(Waiting {
-                decided: entry.decided.subscribe(),
-                replaced,
-                signing_in,
-            }));
+            return Ok(Polled::Pending);
         };
         let issuer = entry.approved_by.clone();
         pending.remove(code);
-        Ok(Finished::Approved { account, issuer })
+        Ok(Polled::Approved { account, issuer })
     }
 
-    pub(crate) fn form(&self, owner: &str, address: IpAddr) -> Result<String, ServerError> {
+    pub(crate) fn form(&self, owner: &str, address: IpAddr) -> String {
         let mut forms = self.forms.lock().unwrap();
         let token = Uuid::new_v4().to_string();
         forms.insert(
@@ -293,7 +248,7 @@ impl Sessions {
             },
             address,
         );
-        Ok(token)
+        token
     }
 
     pub(crate) fn consume_form(&self, token: &str, owner: &str) -> Result<(), ServerError> {
@@ -349,7 +304,6 @@ pub(crate) async fn decide(
     entry.account = account;
     entry.approved_by = issuer.into();
     entry.denied = account.is_none();
-    entry.decided.send_replace(());
     Ok(())
 }
 
