@@ -88,36 +88,14 @@ compare against main with `--apk`.
 
 ## Signing the APK
 
-Both APKs require Android 7 (API 24), matching the native toolchain, and are
-signed with APK Signature Scheme v2 alone (decisions/android_apks_signed_with_v2_only.md).
-`target_sdk` is 35. Buck builds aligned,
-unsigned templates without build metadata for every Android variant. `buck run`
-adds `assets/build-info.json` and signs locally, writing
-`target/android/be-host.apk` or `target/android/be-launcher.apk`.
-`buck build --out` copies an unsigned template, not an installable APK.
+Both APKs require Android 7 (API 24), matching the native toolchain, target SDK 35, and are
+signed with APK Signature Scheme v2 alone (decisions/android_apks_signed_with_v2_only.md). Buck
+builds only aligned, unsigned templates without build metadata; `buck build --out` gives one of
+those, which cannot be installed. `buck run` adds `assets/build-info.json` and signs on this
+machine with `be-tool-local apk-sign` (its doc comment has the key sources and flags), writing
+`target/android/be-host.apk` or `target/android/be-launcher.apk`. The build helper
+(guides/build_server.md) and `./scripts/deploy` sign through the same tool, so no key is ever an
+action input.
 
-The finalizer is `be-tool-local apk-sign` (`crates/be-tool-local/src/apk_sign.rs`),
-shared by local runs, the build helper (guides/build_server.md), and
-`./scripts/deploy` before hashing and uploading the release APK. It writes the
-v2 signing block itself, with RSA keys read through `p12-keystore` and `jks`.
-No Java or Android SDK is needed to produce signed APKs. `--install` needs adb,
-found through `ADB`, the SDK environment variables, standard SDK locations, or
-PATH.
-
-The dev key is `target/android-debug.keystore`, generated on first use.
-`--keystore FILE` overrides it; `--password-file FILE` overrides password
-`android`. Keys are RSA, in binary JKS/PKCS12 or base64 of either. `--signing
-ci` reads `BE3_ANDROID_CI_KEYSTORE` or `buck/android/ci-keystore.base64`; the
-build helper passes CI's key as `--keystore` instead. Release reads
-`BE3_ANDROID_RELEASE_KEYSTORE` or
-`~/.config/be3/android-release-keystore.base64` (under `XDG_CONFIG_HOME` when
-set), asking at a terminal to generate or import a key when missing. An installed
-app accepts an update only when it is signed with the same key, so losing an existing key or
-certificate means its installs cannot be updated. No key is a Buck attribute or action input.
-
-`./scripts/buck run //crates/be-tool-local:bin -- apk-sign --in INPUT.apk --out OUTPUT.apk --keystore KEYSTORE`
-finalizes a template directly. `--build-info FILE` appends metadata before
-signing and requires an APK without `assets/build-info.json`. Appending
-preserves existing entries' offsets, including 16 KB native library
-alignment. Tests sign with keytool's JKS and PKCS12 keystores and generated
-keys, and check the result with Google's apksigner and `zipalign -c -P 16 4`.
+Android accepts an update only when it is signed with the same key as the installed app, so
+losing a key means its installs can never be updated; replacing one means uninstalling first.

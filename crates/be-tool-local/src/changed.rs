@@ -7,6 +7,10 @@ use crate::previews::{PAINTINGS, generate, stage};
 
 const USAGE: &str = "usage: local-tools changed [--base REVISION] [--images FOLDER]";
 
+/// `be-tool-local changed`: for every painting in a crate's `snapshots/` that differs from HEAD
+/// (or `--base`), untracked ones included, says what moved and which frames changed, and writes
+/// a before, an after and a changes PNG for each changed frame into `target/changed-paintings`
+/// (or `--images`), as the pull request's painting comment does.
 pub fn main(arguments: Vec<String>) -> ExitCode {
     match run(arguments) {
         Ok(()) => ExitCode::SUCCESS,

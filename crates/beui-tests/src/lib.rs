@@ -1,3 +1,18 @@
+//! Screens that must behave the same on beui's native and HTML cores, each driven by the
+//! `drive -` script `src/drive/NAME.drive` (guides/testing_a_gui.md, 7).
+//!
+//! A script uses only commands both cores answer: `settle`, `pause`, `clock stop|run`, `tree`,
+//! `ids`, `find`, `wait`, `gone`, `click` (also `double`, `right`, `middle`), `move`,
+//! `down`/`up`, `drag`, `wheel` (a tick is 40 pixels in the browser), `type`, `key` and
+//! `resize WxH`. Text metrics differ between the cores, so a script names nodes by test id or by
+//! text the screen writes itself; a screen checking a layout prints what it `measure`s in a
+//! `Text`. The browser alone also answers `selection none|some`, `role ROLE NAME [STATE...]`
+//! (Playwright's `getByRole`; `modal` and `inert` read Chrome's accessibility tree over CDP) and
+//! `roles ROLE COUNT`, for scripts that run only there (crates/beui-demo-html's).
+//!
+//! The browser run's `settle` waits until no frame is wanted at once; a frame a timer will ask
+//! for later (an indeterminate progress bar's tick) does not count, as natively.
+
 use beui::primitives::*;
 use beui::reactive::*;
 use beui::{

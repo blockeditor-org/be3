@@ -1,3 +1,24 @@
+//! Renders a browser painting (`NAME.browser.paint`, beui-paint-snapshot's `BrowserSnapshot`) to
+//! a PNG in Chromium through Playwright, for the pull request's painting comment and
+//! `be-tool-local rasterize`. Tests never run it: they compare the painting's bytes.
+//!
+//! It serves the captured document at `https://snapshot.invalid/` and blocks every request it
+//! did not capture, except beui's bundled fonts (`beui_fonts::FACES`), served at the origin's
+//! root unless the painting embeds that path. It waits for fonts and images, disables
+//! animations, and fails on a missing resource or a failed script rather than drawing an
+//! incomplete page.
+//!
+//! It needs a Python with Playwright (`BE3_PLAYWRIGHT_PYTHON`), set up once with:
+//!
+//! ```text
+//! python3 -m venv ~/.cache/be3/browser-rasterizer
+//! ~/.cache/be3/browser-rasterizer/bin/pip install -r crates/be-tool-browser-rasterizer/requirements.txt
+//! ~/.cache/be3/browser-rasterizer/bin/python -m playwright install --with-deps chromium
+//! export BE3_PLAYWRIGHT_PYTHON=~/.cache/be3/browser-rasterizer/bin/python
+//! ```
+//!
+//! `BE3_CHROME` names a Chrome or Chromium to use instead of Playwright's download, as CI does.
+
 use std::io::Write as _;
 use std::process::{Command, Stdio};
 

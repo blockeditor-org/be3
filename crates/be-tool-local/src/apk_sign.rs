@@ -30,6 +30,18 @@ const BLOCK_MAGIC: &[u8; 16] = b"APK Sig Block 42";
 const V2_BLOCK: u32 = 0x7109_871a;
 const RSA_PKCS1_SHA256: u32 = 0x0103;
 
+/// `be-tool-local apk-sign`: turns the unsigned, aligned template every Android target builds
+/// into an installable APK, writing the APK Signature Scheme v2 block itself (no Java or Android
+/// SDK). Local runs, the build helper and `./scripts/deploy` all finalize through it, so no key
+/// is ever a Buck attribute or action input.
+///
+/// Keys are RSA, in binary JKS/PKCS12 or base64 of either, password `android` unless
+/// `--password-file`. `--signing dev` uses `target/android-debug.keystore`, made on first use;
+/// `ci` reads `BE3_ANDROID_CI_KEYSTORE` or `buck/android/ci-keystore.base64`; `release` reads
+/// `BE3_ANDROID_RELEASE_KEYSTORE` or `~/.config/be3/android-release-keystore.base64`, offering
+/// at a terminal to generate or import one. `--build-info` appends `assets/build-info.json`
+/// without moving existing entries, so 16 KB native library alignment survives. `--install`
+/// finds adb through `ADB`, the SDK variables, standard SDK locations or `PATH`.
 pub fn main(arguments: Vec<String>) -> ExitCode {
     match run(arguments) {
         Ok(()) => ExitCode::SUCCESS,
