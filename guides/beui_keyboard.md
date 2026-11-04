@@ -90,8 +90,8 @@ reaches it, so only host and window capture listeners hear its keys; with
 window for everything but media keys.
 
 `on_shortcut(handler)` is a tree capture listener at the registering component,
-seeing every press before the focused control (the dock's Ctrl+Tab, which
-works from a text input in a pane but not past a dialog). `on_global_key(handler)` is a
+seeing every press before the focused control (the dock's Ctrl+Tab, which works from a text input
+in a pane but not past a dialog; guides/beui/docking.md). `on_global_key(handler)` is a
 window capture listener, handed a `KeyEvent` with the target's kind (typing,
 program). `held_modifiers()` is a signal of the modifiers held; hold-and-release
 shortcuts (a switcher) are built from these two.
@@ -146,7 +146,7 @@ take a key from a focused program (the desktop's Super+F and media keys); only
 chords with Ctrl, Alt or Super, or media keys, are offered over a program. With
 `inhibits_shortcuts` (a remote desktop, a VM) only `.at(KeyAt::Host).capture()`
 actions answer: be-host's Super+L lock and be-host-wayland's Super+Escape
-(guides/desktop/linux.md).
+(guides/desktop/wayland.md, Input).
 
 A document inside a host - an app's - intercepts the same way: the chords of
 its enabled capturing host and window actions are
@@ -188,8 +188,8 @@ fills its `InputBatch` with it, so an app's runner sees what a window's does.
 An event goes through, in order:
 
 1. The runner. `beui-platform-drm` drops the input that wakes a blanked screen
-   (`wake.rs`, guides/desktop/linux.md), on libinput's clock before the keymap
-   sees it. A key is one `Event::Key` with its text and evdev code;
+   (`wake.rs`; guides/desktop/login_session.md, Screens turning
+   off), on libinput's clock before the keymap sees it. A key is one `Event::Key` with its text and evdev code;
    `Event::Text` is text with no key.
 2. `InputState::begin_frame` turns events into `PointerEvent`s, each where the
    pointer was then. A mouse event landing on a finger is the platform's copy
