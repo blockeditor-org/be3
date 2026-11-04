@@ -33,6 +33,9 @@ control's exact keys are in its code and tests. The patterns that span them:
   it: a dialog runs its confirm action on an Enter nothing took, unless that
   action is disabled or destructive. A multiline area takes Tab to indent;
   Escape then Tab leaves it.
+- In a multiline text area Up and Down move through the rows on screen, so a
+  wrapped line takes one press per row, keeping the column they started from
+  (guides/beui/text.md, Text areas); Home and End go to the source line's ends.
 - The context menu opens on Shift+F10 or the Menu key with the focus in its
   `ContextMenu` or on the control it is part of; Escape closes one level.
 - The inspector is a document of its own; Ctrl+Shift+F moves the focus into

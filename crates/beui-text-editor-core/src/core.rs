@@ -6,9 +6,12 @@ use similar::{Algorithm, DiffTag, capture_diff_slices};
 
 mod ime;
 mod rich;
+mod rows;
 
 pub use ime::{ImeCommand, ImeState};
 pub use rich::Transform;
+use rows::step_row;
+pub use rows::{RowStep, VerticalMoveStart, VisualRows};
 
 use crate::{
     Highlighter, Language, Pos, SyntaxHighlight,
@@ -59,7 +62,7 @@ impl Selection {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CursorPosition {
     pub pos: Selection,
-    pub vertical_move_start: Option<(Position, VerticalMoveMode)>,
+    pub vertical_move_start: Option<VerticalMoveStart>,
     pub node_select_start: Option<Selection>,
     pub drag_info: Option<DragInfo>,
 }
@@ -126,12 +129,17 @@ pub enum CursorLeftRightStop {
     VisualLine,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CursorHorizontalPositionMetric {
+/// What a vertical move keeps steady across rows.
+#[derive(Clone, Copy)]
+pub enum CursorHorizontalPositionMetric<'a> {
+    /// The byte column, by source line: a soft-wrapped line is crossed in one move.
     Byte,
     Codepoint,
     UnicodeGraphemeCluster,
-    Screen,
+    /// The position across the rows the view shows, which it decides (wrapped rows,
+    /// a hex view's fixed chunks). Where the view cannot answer for a caret, that
+    /// caret moves as [`Self::Byte`] does.
+    Screen(&'a dyn VisualRows),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -210,7 +218,7 @@ pub enum EditorCommand<'a> {
     MoveCursorUpDown {
         direction: UDDirection,
         mode: VerticalMoveMode,
-        metric: CursorHorizontalPositionMetric,
+        metric: CursorHorizontalPositionMetric<'a>,
         stop: CursorLeftRightStop,
     },
     SelectAll,
@@ -993,12 +1001,15 @@ impl Core {
         &mut self,
         direction: UDDirection,
         mode: VerticalMoveMode,
-        metric: CursorHorizontalPositionMetric,
+        metric: CursorHorizontalPositionMetric<'_>,
         stop: CursorLeftRightStop,
     ) {
-        if metric != CursorHorizontalPositionMetric::Byte {
-            return;
-        }
+        let rows = match metric {
+            CursorHorizontalPositionMetric::Byte => None,
+            CursorHorizontalPositionMetric::Screen(rows) => Some(rows),
+            CursorHorizontalPositionMetric::Codepoint
+            | CursorHorizontalPositionMetric::UnicodeGraphemeCluster => return,
+        };
         if mode == VerticalMoveMode::Move && self.open_line_past_edge(direction) {
             return;
         }
@@ -1008,71 +1019,44 @@ impl Core {
         };
         let document = DocumentView::new(&*read);
         let sections = self.collapsible_sections_in(&document, revision);
+        let stops = self.cursor_stops();
         let original_len = self.cursor_positions.len();
         for index in 0..original_len {
             let cursor = self.cursor_positions[index];
             let focus = cursor.pos.focus.resolve(&document);
-            let target_position = match cursor.vertical_move_start {
-                Some((start, start_mode)) if start_mode == mode => start,
-                _ => cursor.pos.focus,
+            let start = match cursor.vertical_move_start {
+                Some(start) if start.mode == mode => start,
+                _ => VerticalMoveStart::new(cursor.pos.focus, mode, None),
             };
-            let target_index = target_position.resolve(&document);
-            let target_column = target_index - line_start(document.bytes(), target_index);
-            let current_line_start = line_start(document.bytes(), focus);
-            let new_line_start = match direction {
-                UDDirection::Up => {
-                    if current_line_start == 0 {
-                        0
-                    } else {
-                        line_start(document.bytes(), current_line_start - 1)
-                    }
-                }
-                UDDirection::Down => next_line_start(document.bytes(), current_line_start),
-            };
-            let new_line_start =
-                skip_hidden_line(document.bytes(), &sections, new_line_start, direction);
-            let new_line_end = line_end(document.bytes(), new_line_start);
-            let stopped = if direction == UDDirection::Up && current_line_start == 0 {
-                0
-            } else if direction == UDDirection::Down
-                && line_end(document.bytes(), current_line_start) == document.len()
-            {
-                new_line_end
-            } else {
-                let approximate = (new_line_start + target_column).min(new_line_end);
-                let left = to_boundary(
-                    document.bytes(),
-                    approximate,
-                    LRDirection::Left,
-                    stop,
-                    BoundaryMode::Select,
-                    true,
-                    self.cursor_stops(),
-                );
-                let right = to_boundary(
-                    document.bytes(),
-                    approximate,
-                    LRDirection::Right,
-                    stop,
-                    BoundaryMode::Select,
-                    true,
-                    self.cursor_stops(),
-                );
-                let left_column = left - line_start(document.bytes(), left);
-                let right_column = right - line_start(document.bytes(), right);
-                if left_column.abs_diff(target_column) < right_column.abs_diff(target_column) {
-                    left
-                } else {
-                    right
-                }
-            };
+            let start_index = start.position.resolve(&document);
+            let x = rows.and_then(|rows| start.x().or_else(|| rows.caret_x(start_index)));
+            let stopped = rows
+                .zip(x)
+                .and_then(|(rows, x)| {
+                    step_row(&document, &sections, rows, focus, direction, x, stop, stops)
+                })
+                .unwrap_or_else(|| {
+                    step_line(
+                        &document,
+                        &sections,
+                        focus,
+                        start_index,
+                        direction,
+                        stop,
+                        stops,
+                    )
+                });
             let stopped_position = Position::at(&document, stopped);
-            let target_position = Position::at(&document, target_index);
+            let start = Some(VerticalMoveStart::new(
+                Position::at(&document, start_index),
+                mode,
+                x,
+            ));
             match mode {
                 VerticalMoveMode::Move => {
                     self.cursor_positions[index] = CursorPosition {
                         pos: Selection::at(stopped_position),
-                        vertical_move_start: Some((target_position, mode)),
+                        vertical_move_start: start,
                         node_select_start: None,
                         drag_info: None,
                     };
@@ -1080,14 +1064,14 @@ impl Core {
                 VerticalMoveMode::Select => {
                     self.cursor_positions[index] = CursorPosition {
                         pos: Selection::range(cursor.pos.anchor, stopped_position),
-                        vertical_move_start: Some((target_position, mode)),
+                        vertical_move_start: start,
                         node_select_start: None,
                         drag_info: cursor.drag_info,
                     };
                 }
                 VerticalMoveMode::Duplicate => self.cursor_positions.push(CursorPosition {
                     pos: Selection::at(stopped_position),
-                    vertical_move_start: Some((target_position, mode)),
+                    vertical_move_start: start,
                     node_select_start: None,
                     drag_info: None,
                 }),
@@ -2320,6 +2304,60 @@ fn collapsible_section_end(bytes: &[u8], language: TextLanguage, start: usize) -
         TextLanguage::Markdown => markdown_section_end(bytes, start),
         TextLanguage::RichText => None,
         _ => indent_section_end(bytes, start),
+    }
+}
+
+/// Moves a caret to the previous or next source line, at the byte column of
+/// `goal` in its own line: what vertical moves do when no view answers.
+fn step_line(
+    document: &DocumentView<'_>,
+    sections: &[CollapsibleSection],
+    focus: usize,
+    goal: usize,
+    direction: UDDirection,
+    stop: CursorLeftRightStop,
+    stops: CursorStops,
+) -> usize {
+    let bytes = document.bytes();
+    let target_column = goal - line_start(bytes, goal);
+    let current_line_start = line_start(bytes, focus);
+    if direction == UDDirection::Up && current_line_start == 0 {
+        return 0;
+    }
+    let new_line_start = match direction {
+        UDDirection::Up => line_start(bytes, current_line_start - 1),
+        UDDirection::Down => next_line_start(bytes, current_line_start),
+    };
+    let new_line_start = skip_hidden_line(bytes, sections, new_line_start, direction);
+    let new_line_end = line_end(bytes, new_line_start);
+    if direction == UDDirection::Down && line_end(bytes, current_line_start) == document.len() {
+        return new_line_end;
+    }
+    let approximate = (new_line_start + target_column).min(new_line_end);
+    let left = to_boundary(
+        bytes,
+        approximate,
+        LRDirection::Left,
+        stop,
+        BoundaryMode::Select,
+        true,
+        stops,
+    );
+    let right = to_boundary(
+        bytes,
+        approximate,
+        LRDirection::Right,
+        stop,
+        BoundaryMode::Select,
+        true,
+        stops,
+    );
+    let left_column = left - line_start(bytes, left);
+    let right_column = right - line_start(bytes, right);
+    if left_column.abs_diff(target_column) < right_column.abs_diff(target_column) {
+        left
+    } else {
+        right
     }
 }
 

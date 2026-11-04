@@ -48,6 +48,8 @@ mod typing_continues_at_the_caret_after_a_peer_edits_around_it;
 mod typing_continues_where_a_peer_deleted_the_text_around_the_caret;
 mod typing_follows_a_replacement_of_the_carets_byte;
 mod typing_inserts_text_into_the_document;
+mod up_and_down_step_through_the_rows_of_a_wrapped_paragraph;
+mod up_and_down_step_through_the_rows_of_wrapped_code;
 mod whitespace_markers_sit_over_real_spaces;
 
 fn editor(text: &str) -> BeuiTest<TextRoot> {
@@ -120,4 +122,66 @@ fn shown_cursor(editor: &mut BeuiTest<TextRoot>) -> Option<Option<serde_json::Va
                 .value
                 .map(|value| serde_json::from_slice(&value).unwrap())
         })
+}
+
+/// Presses `key` and returns where the caret then is, as shown to peers.
+fn caret_after(editor: &mut BeuiTest<TextRoot>, key: Key) -> u64 {
+    editor.key(key, Modifiers::NONE);
+    editor.run();
+    let cursor = shown_cursor(editor)
+        .flatten()
+        .expect("the editor shows its caret to its peers");
+    cursor["focus"]["offset"]
+        .as_u64()
+        .expect("the caret has an offset")
+}
+
+/// Walks the caret from `start` down to the line after the wrapped line that
+/// begins at `wrapped`, then back up, checking it crosses the wrapped line a row at
+/// a time and comes back to where it began.
+fn step_through_wrapped_line(
+    editor: &mut BeuiTest<TextRoot>,
+    start: usize,
+    wrapped: std::ops::Range<usize>,
+) {
+    editor.presence_visible(true);
+    editor.click("text.surface");
+    editor.run();
+    for _ in 0..wrapped.end {
+        if caret_after(editor, Key::ArrowUp) == 0 {
+            break;
+        }
+    }
+    for _ in 0..start {
+        editor.key(Key::ArrowRight, Modifiers::NONE);
+        editor.run();
+    }
+    editor.record();
+    let mut downs = Vec::new();
+    while downs.last().is_none_or(|at| *at < wrapped.end as u64) && downs.len() < 20 {
+        downs.push(caret_after(editor, Key::ArrowDown));
+        editor.record();
+    }
+    let inside = downs
+        .iter()
+        .filter(|at| wrapped.contains(&(**at as usize)))
+        .count();
+    assert!(
+        inside >= 3,
+        "Down stops on each row of the wrapped line: {downs:?}"
+    );
+    assert!(
+        downs.windows(2).all(|pair| pair[0] < pair[1]),
+        "every Down moves on: {downs:?}"
+    );
+    let mut ups = Vec::new();
+    for _ in 0..downs.len() {
+        ups.push(caret_after(editor, Key::ArrowUp));
+        editor.record();
+    }
+    let mut back = downs.clone();
+    back.pop();
+    back.reverse();
+    back.push(start as u64);
+    assert_eq!(ups, back, "Up retraces the rows Down took");
 }

@@ -1,6 +1,6 @@
 use beui_text_editor_core::{
-    CopyMode, CursorHorizontalPositionMetric, CursorLeftRightStop, EditorCommand, LRDirection,
-    MoveMode, SyntaxNodeDirection, UDDirection, VerticalMoveMode,
+    CopyMode, CursorLeftRightStop, EditorCommand, LRDirection, MoveMode, SyntaxNodeDirection,
+    UDDirection, VerticalMoveMode,
 };
 
 use beui_view::reactive::*;
@@ -130,12 +130,7 @@ fn command(cx: &Context, press: KeyPress) -> bool {
             _ => UDDirection::Down,
         };
         if modifiers.alt && modifiers.ctrl {
-            state.execute(EditorCommand::MoveCursorUpDown {
-                direction,
-                mode: VerticalMoveMode::Duplicate,
-                metric: CursorHorizontalPositionMetric::Byte,
-                stop: CursorLeftRightStop::UnicodeGraphemeCluster,
-            });
+            state.move_by_row(direction, VerticalMoveMode::Duplicate);
         } else if modifiers.alt {
             state.execute(EditorCommand::SelectSyntaxNode(
                 match direction == UDDirection::Up {
@@ -144,15 +139,13 @@ fn command(cx: &Context, press: KeyPress) -> bool {
                 },
             ));
         } else {
-            state.execute(EditorCommand::MoveCursorUpDown {
+            state.move_by_row(
                 direction,
-                mode: match modifiers.shift {
+                match modifiers.shift {
                     true => VerticalMoveMode::Select,
                     false => VerticalMoveMode::Move,
                 },
-                metric: CursorHorizontalPositionMetric::Byte,
-                stop: CursorLeftRightStop::UnicodeGraphemeCluster,
-            });
+            );
         }
         return true;
     }
