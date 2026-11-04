@@ -2297,6 +2297,10 @@ impl Document {
         self.layout_parent
     }
 
+    /// Called during layout by content that moved what lies above the scroll's anchor
+    /// (a `VirtualList` whose rows above the view measured other than their estimate).
+    /// The nearest enclosing `Offset` adds it to the anchor's drift and any reveal,
+    /// and moves by the sum in the frame's next layout.
     pub fn report_anchor_shift(&mut self, shift: f32) {
         self.anchor_shift += shift;
     }

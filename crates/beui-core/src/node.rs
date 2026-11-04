@@ -115,6 +115,11 @@ pub trait Element: Any {
         0.0
     }
 
+    /// How short the node can be along `direction` without overflowing, for content
+    /// longer than its scroll (like a flex box in `overflow: auto`). `None` counts
+    /// its natural length. Unlike `min_width` it never undercounts. Walk the subtree
+    /// once through `layout::least_length`, stopping at scrolls along the same axis,
+    /// so a full layout stays linear.
     fn least_length(
         &self,
         _doc: &mut Document,
@@ -159,6 +164,10 @@ pub trait Element: Any {
         true
     }
 
+    /// Whether a scroll looking for its anchor (the node at the top of its viewport,
+    /// held in place when rows above it change size) may walk through this node to
+    /// its children: true for nodes that lay children out in place (`List`, an
+    /// unmoved `Frame`).
     fn passes_scroll_anchor(&self) -> bool {
         false
     }
@@ -187,6 +196,10 @@ pub trait Element: Any {
     /// holding one child keeps it in an `Option`.
     fn remove_child(&mut self, child: NodeId);
 
+    /// Lets Tab order run over children not built yet (a `VirtualList`'s unbuilt
+    /// rows). Tab reaching them builds them one at a time with `build_for_focus`,
+    /// from the end it comes in at, releasing each with `release_for_focus` until one
+    /// has a tab stop, and gives up after 4096 (`TAB_BUILD_LIMIT`).
     fn focus_children(&self) -> Option<Vec<FocusChild>> {
         None
     }
