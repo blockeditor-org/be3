@@ -121,6 +121,11 @@ where conventions compete, pick the better one. Never ask with a menu.
 - The drop action for each source and target is the implementer's to choose,
   by the rule in Drag and drop.
 
-## Open
+## Later
 
-- Whether the first text fragment carries rich text's marks.
+- Rich text's marks in text fragments, done together with `text/html` on the
+  clipboard (generated from marks for other programs, read back into marks on
+  paste). Marks travel as byte ranges within each chunk, keys only mean
+  something under the same schema (others drop or convert them), and embeds
+  bring block references with them. The first fragment carries bytes only;
+  the format is not frozen, so adding marks costs nothing beyond the work.
