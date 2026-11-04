@@ -17,8 +17,15 @@ else may still change freely.
   contacts and key changes, the `keys` and `wrapped_keys` rows, pinned escrow
   keys, pending rotations and agents, which edit kinds were ever opened to
   anyone inside (`opened_kinds`), who uploaded each object in each
-  organization (`object_uploads`, with its size and first upload time), and
-  the server's own account
+  organization (`object_uploads`, with its size, first upload time, the account
+  it is charged to and whether a block holds it yet), storage accounting
+  (`object_sizes`, `block_sizes` with each block's own and subtree size and who
+  pays for it, `account_objects`, `account_usage`, `organization_usage`, and
+  `server_backfills`, naming the one-time walks a server has done on open, such
+  as the one that counts sizes for data from before accounting), invite codes
+  (`invite_codes`, kept as hashes with their limits and uses, and the hash a
+  pending registration in `account_mail` was made with, with the address that
+  asked), and the server's own account
   (`server_account`: its account id and the secret of the key that blocks
   shared with the server are sealed to).
 - **The server's backups**: `databases/*.sealed`, sealed with the backup key,
@@ -49,8 +56,11 @@ else may still change freely.
   `Workspace`, `Database`, `DatabaseSchema` and `DatabaseView`, and their
   content type ids.
 
-What is read forever starts at the data `crates/be-block-frozen`'s snapshots
-hold, from 2026-10-16 on; data saved before then is not read.
+What is read forever starts at the data `crates/be-block-frozen` holds. Block
+content (block files and the frozen block types) is read from 2026-10-16 on.
+The server's own format (its data directory and backups) was reset on
+2026-11-04, when the one deployed server was wiped, and is frozen again from
+the snapshot taken that day; server data saved before then is not read.
 
 Section 1 of `plans/settings.md` is a one-time break: its changes (metadata
 that points to a block, with `ARTIFACT` now pointing to its source; the access
@@ -99,7 +109,10 @@ data still reads:
   it, zipped, made by the `freeze` example from `scene.rs` (whose doc comment lists what is in
   it). The test serves each and reads it as the host and `be` do: signing in by password, token
   and phrase, keys, names, content and history, contacts, the escrow chain, links, invitations,
-  and restoring the backup.
+  storage (block and subtree sizes, each account's usage, an upload no block holds, the quota
+  policy, an agent charged to its creator), invite codes, and restoring the backup. It serves
+  with an upload grace longer than any snapshot's age, so a snapshot's pending upload is never
+  collected.
 
 A snapshot, a fixture, a `frozen_*.rs` module and the values in `scene.rs` are what old data
 looks like, so editing or regenerating one stops its test guarding that data. A failure means

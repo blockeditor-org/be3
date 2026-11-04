@@ -1,17 +1,28 @@
 //! What the `freeze` example writes into a real server before it zips the data directory and a
 //! backup into `src/snapshots/NAME.zip`: a company organization (My files with notes, a Team
-//! workspace holding a tracker database shared with an agent, an administrator demoted so the
-//! escrow key rotated, a grant revoked so Team's scope key rotated, a pending invitation, and
-//! from 2026_10_25 the organization's settings shared with the server, holding a policy it
-//! enforces) and the personal organization (a folder shared with a contact made by link, a
-//! pending link carrying a grant, and that contact's change of recovery phrase).
+//! workspace holding a tracker database shared with an agent and a note the agent saved, an
+//! administrator demoted so the escrow key rotated, a grant revoked so Team's scope key rotated,
+//! a pending invitation, and the organization's settings shared with the server, holding policies
+//! it enforces: no sharing outside and a storage quota in bytes), the personal organization (a
+//! folder shared with a contact made by link, who added a note to it that is charged to the
+//! folder's owner, a pending link carrying a grant, and that contact's change of recovery phrase), an object the owner uploaded that no block holds yet, and two
+//! invite codes that each make one account, one already used.
 //!
 //! These values are what old data looks like: changing one stops the snapshots' test guarding
 //! that data. Add to the scene, with a `*_SINCE` snapshot name, rather than edit it.
 
 pub const ORGANIZATION: &str = "Frozen";
-pub const POLICIES_SINCE: &str = "2026_10_25";
-pub const SESSIONS_KEPT_SINCE: &str = "2026_10_25";
+
+/// The organization's storage quota, in bytes.
+pub const STORAGE_QUOTA: u64 = 3 * 1024 * 1024 * 1024;
+pub const AGENT_NOTE: &str = "Filed by the tracker agent.\n";
+/// What the friend wrote into the owner's shared folder.
+pub const FRIEND_NOTE: &str = "The train leaves at nine.\n";
+/// What the owner uploaded and never published.
+pub const PENDING_UPLOAD: &[u8] = b"an upload no block holds yet";
+pub const REGISTERED_EMAIL: &str = "registered@example.com";
+pub const REGISTERED_NAME: &str = "Registered";
+pub const REGISTERED_PASSWORD: &str = "registered with an invite code";
 
 pub const OWNER_EMAIL: &str = "owner@example.com";
 pub const OWNER_NAME: &str = "Owner";
