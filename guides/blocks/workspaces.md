@@ -82,7 +82,7 @@ applies implements `local_settings::LocalSettings` and is kept by a
   display settings to the host and the seat.
 - `DisplaySettings` holds the theme, motion and scale (`sync_ui_settings`: the
   host's layer of beui's preferences, so an unset one follows the system,
-  guides/beui/components.md, preferences; scale multiplies into the screen's pixels per point), a
+  guides/beui/components.md, "Preferences"; scale multiplies into the screen's pixels per point), a
   `ScreenSettings` per screen (mode and rotation, keyed by EDID make, model and
   serial or by connector; applied live through
   `beui_platform_drm::DisplayControl`; guides/desktop/login_session.md, "Rotation and pointing devices"), bar buttons,
