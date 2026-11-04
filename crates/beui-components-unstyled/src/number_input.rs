@@ -55,6 +55,10 @@ struct Parts {
     editing: ReadSignal<bool>,
 }
 
+/// A number shown as a face that a horizontal drag scrubs and a click or
+/// Space/Enter turns into a text field. In the field, Enter or losing the focus
+/// keeps the typed number, clamped to `min` and `max`; Escape reverts it and
+/// returns the focus to the face.
 #[component]
 pub fn NumberInput(
     #[prop(default = ComponentRef::new())] api: ComponentRef<NumberInputApi>,

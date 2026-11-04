@@ -187,6 +187,9 @@ impl DialogBodyHandle {
     }
 }
 
+/// Enter (without modifiers) that the focused control leaves unused runs the
+/// primary action, unless it is disabled or the main action is destructive; a
+/// focused button still answers Enter itself.
 #[component]
 pub fn DialogBody(
     kind: DialogKind,

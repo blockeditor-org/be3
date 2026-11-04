@@ -296,6 +296,13 @@ struct State {
     on_select: Callback<(Vec<usize>, MenuThen)>,
 }
 
+/// The keyboard of every menu, popup and submenu: one Tab stop, which Tab stays
+/// on while the menu is open. Up/Down move between items and wrap; Home/End
+/// reach the first and last. In a grid of tiles the arrows move by a tile and a
+/// row. Right opens an item's submenu and focuses its first item, or expands an
+/// inline group and then moves into it; Left collapses an expanded group, moves
+/// to its parent row, or else closes the submenu and refocuses the item that
+/// opened it. Escape closes one submenu level at a time.
 #[component]
 pub(crate) fn MenuList(
     #[prop(default = ComponentRef::new())] api: ComponentRef<MenuListApi>,

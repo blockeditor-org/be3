@@ -844,6 +844,13 @@ fn Scrolling(
 /// On the HTML core this is a real `overflow: auto` element (`BrowserScroll`): the
 /// browser scrolls and chains it, with none of the momentum, band or drawn bar,
 /// and `ScrollApi::animating` is always false.
+///
+/// Keys scroll it only while it can scroll that way, so one at its end leaves
+/// the key to the scroll around it: the arrows along its axis move 40 points
+/// and Home/End to the ends, and a vertical one also takes Page Up/Down and
+/// Space/Shift+Space by a page. Keys the focused control inside leaves unused
+/// bubble here. It is a Tab stop only while it overflows and nothing inside it
+/// is one.
 #[component]
 pub fn Scroll(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ScrollApi>,

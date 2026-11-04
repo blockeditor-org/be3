@@ -58,6 +58,14 @@ struct State {
     typeahead: Stored<RefCell<Typeahead>>,
 }
 
+/// Tabs, a radio group or a single-select listbox, by `kind`.
+///
+/// One Tab stop, at the selected option or the first. Moving selects. Radio
+/// arrows go either way and wrap. Tabs wrap along their `direction` and ignore
+/// the other arrows. A listbox's Up/Down stop at the ends. Home/End select the
+/// first and last option. Typing selects the next option whose label starts
+/// with what was typed in the last second, ignoring case; repeating one letter
+/// cycles through its matches.
 #[component]
 pub fn Choice(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ChoiceApi>,

@@ -35,6 +35,13 @@ struct State {
     columns: usize,
 }
 
+/// A list of times every `step_minutes`, laid out in up to `max_columns`
+/// columns.
+///
+/// One Tab stop, at the selected time. In one column, Up/Down move a time and
+/// Page Up/Down an hour. As a grid, Left/Right move a time, Up/Down a row and
+/// Page Up/Down four rows. Home/End reach the first and last time; moves stop
+/// at the ends.
 #[component]
 pub fn TimeList(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TimeListApi>,

@@ -5,6 +5,8 @@ use beui_components_unstyled::{Choice, ChoiceOption};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
+/// Horizontal tabs, with `Choice`'s tab keys. Without room for every tab it
+/// becomes a `Select`, with its keys.
 #[component]
 pub fn Tabs(
     #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ChoiceApi>,

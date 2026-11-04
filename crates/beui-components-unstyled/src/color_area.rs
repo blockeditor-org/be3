@@ -24,6 +24,11 @@ pub struct ColorAreaHandle {
     pub disabled: Memo<bool>,
 }
 
+/// A saturation (x) by brightness (y) square.
+///
+/// Left/Right change the saturation and Up/Down the brightness by 1%, or 10%
+/// with Shift; Page Up/Down change the brightness by 10%; Home/End set no and
+/// full saturation.
 #[component]
 pub fn ColorArea(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ColorAreaApi>,
