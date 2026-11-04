@@ -64,7 +64,7 @@ pub struct EditorDocument {
     pub capabilities: EditorCapabilities,
     #[serde(default)]
     pub resize: ResizeMode,
-    /// The screens the host may give an instance: `Frame`, `Preview`, `ArtifactSettings`.
+    /// The screens the host may give an instance: `Main`, `Preview`, `ArtifactSettings`.
     pub views: Vec<ParentView>,
     /// For a shell editor: the requests it takes from editors inside it. The host hands a
     /// request to the nearest enclosing editor that accepts it, and its own requests to the

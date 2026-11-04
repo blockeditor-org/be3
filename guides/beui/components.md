@@ -70,7 +70,7 @@ The platform escape, `beui::escape::html_escape`, puts a browser element into th
 
 ## Drag and drop
 
-Within a document: `Draggable` on what moves, `DropTarget` on where it lands, meeting on `unstyled::drag_board()`, one `Board` per document; nothing else wires them. Of the accepting targets under the pointer the one painted last wins, so nested slots each take their own drops. The native core drives the board across windows through `beui_view::drag::drive`; the HTML core leaves dragging to the `Draggable`. A finger drag on a `Draggable` in a scrolling list needs `touch_drags`, or the list scrolls. A drag between editors crosses apps and goes through the host (`Editor::drag`, guides/adding_an_app.md), which carries it on its own board with each app region a `DropTarget`.
+Within a document: `Draggable` on what moves, `DropTarget` on where it lands, meeting on `unstyled::drag_board()`, one `Board` per document; nothing else wires them. Of the accepting targets under the pointer the one painted last wins, so nested slots each take their own drops. The native core drives the board across windows through `beui_view::drag::drive`; the HTML core leaves dragging to the `Draggable`. A finger drag on a `Draggable` in a scrolling list needs `touch_drags`, or the list scrolls. A drag between editors crosses apps and goes through the host (`Editor::drag`, guides/apps/host_services.md), which carries it on its own board with each app region a `DropTarget`.
 
 ## Touch and pen
 

@@ -1,7 +1,7 @@
 # Pan and zoom
 
 Pan and zoom is an app capability (`capabilities.pan_and_zoom` in the
-manifest, guides/adding_an_app.md). An editor with it draws a world at a
+manifest, guides/apps/editor.md, Pan and zoom). An editor with it draws a world at a
 position and scale, but the camera is the host's: the editor is handed it and
 asks to move it, and never keeps an offset or zoom of its own
 (decisions/pan_and_zoom_camera_belongs_to_the_host.md). So the same editor
@@ -101,7 +101,7 @@ the parent draws, so the host does not wait: beui marks each `Embed` inside a
 panning `Canvas` (`Document::panned_by_canvas`), the app reports those
 children as `follows_view`, and the host maps the child's last rectangle from
 the view sent at the serial that placed it to the view it is about to send
-(`view_rect` on `HostChild`; guides/adding_an_app.md, "6. Frames and pacing").
+(`view_rect` on `HostChild`; guides/apps/runtime.md, "Frames and pacing").
 A card needs none of that: a pan only moves its rectangle, so the host moves
 its last texture.
 
@@ -144,9 +144,12 @@ editor paints at the new size, both on takeover and when handing the frame
 back, rather than stretching it.
 
 That only looks right if the editor paints just its content and chrome. A
-frame is transparent wherever the editor does not paint, and an opaque
-background around the whole view - fine in a tab - covers the entire canvas
-underneath once the editor is a focused child. So fixed chrome gets its own
+frame is cleared to its `Root`'s `clear_color` (guides/adding_an_app.md,
+Drawing the block itself), but while the editor is a placed child the
+framework punches everything outside its placed rect through to the parent's
+world (`PlacedHole` in `crates/be-sdk-beui/src/beui_frame.rs`). An opaque
+background the editor paints around the whole view - fine in a tab - covers
+that, and with it the entire canvas underneath. So fixed chrome gets its own
 background where it needs one, and nothing solid wraps the pannable area. A
 dock paints its panes' background only while its editor is not placed on a
 parent's canvas (`provide_dock_shows_through` in

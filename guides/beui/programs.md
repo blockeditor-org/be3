@@ -250,7 +250,7 @@ the picker's creation dialog, and `BeuiRoot::create_block` makes the block.
 
 An app's `Window` (a dock's floating window) is an overlay inside its region's
 window, except where the host shows windows as its own (the screen request's
-`windows`; guides/adding_an_app.md): then each becomes a host-placed view.
+`windows`; guides/apps/framework.md, Windows): then each becomes a host-placed view.
 be-host keeps those in `compositor/desktop.rs` (`Floated`): the desktop shell
 draws them on the displays, and under space each is a `Panel` holding an
 `AppView` (`PanelWindows` in `compositor/app_view.rs`). be-sdk-beui places the

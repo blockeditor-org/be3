@@ -41,7 +41,7 @@ status indicator already do.
 
 ## Offline and flaky connections
 
-The host is offline-first (guides/the_new_block_stack.md). Left:
+The host is offline-first (guides/blocks/host.md, Disconnects, offline and stopping). Left:
 
 - Commands that need the server themselves hold the worker's loop while it is
   silent, as do `peer.attach` after a reconnect, opening a block never seen

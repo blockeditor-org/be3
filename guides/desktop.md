@@ -179,7 +179,7 @@ try it: Apps panel > Menu > Running Apps, then Crash or Kill beside `be3.desktop
 ## A layout that cannot be read
 
 When the `layout` view state does not decode, the desktop starts nothing from it and saves nothing
-over it: be-sdk-shell's notice (`workspace.layout`; guides/the_new_block_stack.md, View state)
+over it: be-sdk-shell's notice (`workspace.layout`; guides/blocks/workspaces.md, View state)
 offers Reset layout, Exit and Copy report. Running programs show behind it as windows but are not
 saved until a reset. Exit is Log out in a login session. The same holds for further displays' bar
 layouts (guides/desktop/shell.md).

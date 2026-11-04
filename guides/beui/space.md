@@ -258,7 +258,7 @@ for something that types nothing, except in space, where the person placed it.
 **Typing.** The engine makes `Input::Key`s with real modifier presses and no
 physical key (`evdev` is `None`, built by `beui_core::input::typing`, which
 `drive type` uses too, so a Wayland program gets the key that makes each
-character in its own layout; guides/desktop/linux.md), and `Input::Text` for
+character in its own layout; guides/desktop/wayland.md, Keyboard layouts), and `Input::Text` for
 what no key types. The runner feeds them back as the next frame's input
 (`FrameOutput::typed`), so a beui field, an app and a Wayland program all take
 them as from a real keyboard. On the HTML core the keyboard shows only

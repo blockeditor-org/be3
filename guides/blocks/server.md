@@ -167,7 +167,7 @@ failures. `Be3-Gateway-Authorization` is left to a gateway in front.
 
 An administrator `Invite`s an email under an id the inviting client picks;
 only an account with that email can read or accept it, once, and the id
-reaches the invitee only in the link (guides/blocks/keys.md, "Inviting").
+reaches the invitee only in the link (guides/blocks/keys.md, "Identity, new phrases and devices").
 `CreateAgent` makes a passwordless editor account with a token
 (guides/tracker.md); only its creator lists or removes it. Accepting an
 invitation, or creating an agent, makes the two accounts contacts.

@@ -158,7 +158,7 @@ released, which is how Alt+Tab works over any window. be-host takes intercepted
 keys only from the shell's frame, and not while the view has the keyboard
 itself (`be_host_runtime::view_has_keyboard`), when it hears them in order
 instead. A document with a focus-trapping layer open reports
-`WindowRequests::wants_keyboard`, so be-host gives an app's view the focus
+`WindowRequests::wants_keyboard` (guides/apps/framework.md, Views), so be-host gives an app's view the focus
 while its dialog is open.
 
 `styled::CommandPalette` lists the actions live where the focus was when it

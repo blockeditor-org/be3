@@ -131,7 +131,7 @@ The host's debugging panels (`HostPanel`) are drawn by the host but placed by
 the workspace as dock windows holding `SubregionContent::Host(panel)`.
 
 Program windows are placed the same way. On Linux the host is a Wayland
-compositor (guides/desktop/linux.md); `editor.watch::<WindowsWatch>()` lists
+compositor (guides/desktop/wayland.md); `editor.watch::<WindowsWatch>()` lists
 its windows, answered only to the shell. be-sdk-shell's `Workspace` gives each
 top window a program tab holding `SubregionContent::Window(id)`, and a window
 with a parent a `DockDialog` hanging from its tab. The rest (title, icon,

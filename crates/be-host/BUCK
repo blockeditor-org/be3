@@ -248,7 +248,7 @@ export_file(
 # be-host with its apps installed under /usr/local (or the prefix given after
 # `--`), with a wayland-sessions entry that runs it as a login session
 # (BEUI_PLATFORM=drm and --desktop), for a display manager to offer on its login
-# screen: guides/desktop/linux.md.
+# screen: guides/desktop/login_session.md, Installing it.
 command_alias(
     name = "install-login-session",
     args = [

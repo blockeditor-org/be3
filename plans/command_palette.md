@@ -21,8 +21,7 @@ marked **(ask)** need a decision from the user during the work.
 - **The frame menu already reaches the host.** An editor sends its frame
   menu's actions to the host as a tree of `MenuEntry` values (label, glyph,
   enabled, first shortcut, check) whenever an entry changes, and runs the
-  command whose id the host sends back (`MenuPick`); guides/adding_an_app.md
-  describes it. Actions not in the menu do not cross.
+  command whose id the host sends back (`MenuPick`; guides/apps/editor.md, The frame and its menu). Actions not in the menu do not cross.
 - **Keyboard focus in the host.** be-host-runtime tracks which instance has
   the keyboard (`crates/be-host-runtime/src/input.rs`, `instances.rs`); key,
   text and IME events go only to it. The host knows every child instance's

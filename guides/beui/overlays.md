@@ -263,7 +263,7 @@ to the host's; `bounds` is where layers may go, in host coordinates. Native
 be-host, tests and standalone programs never set one. In the app protocol an
 escaped layer is an anchored view and a layer space is its view's anchor space;
 be-sdk-beui-platform's `escaped.rs` maps one onto the other
-(guides/adding_an_app.md).
+(guides/apps/framework.md, Anchored views).
 
 `Placement::escapes()` decides what escapes: the anchored placements, `Center`
 and `Edge` (a sheet on an edge of the bounds, as `ModalSheet` uses) do; `Fill`,

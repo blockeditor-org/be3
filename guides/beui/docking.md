@@ -92,7 +92,7 @@ Pressing a pane's chrome (bar, tab, grip) gives the keyboard to the tab it shows
 `beui-dock-host/src/unstyled/keyboard.rs` puts the focus back where that tab last had it, or on its
 first focusable. Content whose keyboard lives in another document (a program's window, a child
 block) follows `DockTabControl::keyboard` and `brought_forward` and asks its host for the keys
-(`focus_child`, guides/adding_an_app.md).
+(`focus_child`, guides/apps/children.md, Focus).
 
 Ctrl+Tab walks the focused pane's tabs (an `on_shortcut`, so it works from inside a text input).
 The dock binds no other key: the switcher and window actions are actions the shell binds.

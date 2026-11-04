@@ -35,7 +35,7 @@ while working on it.
   stylus does, and the rest at 1,000 a frame, so `canvas.line-draw` measures the work the samples
   cause rather than 10,000 frames. Each slow stretch reports its longest host frame and canvas
   app step (`drive frames`) and how long the ink takes to catch up with the pen (`-catch-up`). A
-  host frame waits for apps only until its deadline, so the canvas's share shows on the app's
+  host frame waits for apps only until its deadline (guides/apps/runtime.md, Settling), so the canvas's share shows on the app's
   line. The export must hold exactly the samples the canvas keeps (667 of 10,001,
   `canvas.line-points`).
 - It does not measure GPU drawing, frame pacing, TLS setup, bandwidth, a large organization, a
@@ -93,7 +93,7 @@ the canvas model. Measured in October 2026 (p50 wall):
 
 What keeps a gesture's cost independent of the document's size:
 
-- Every frame of a gesture writes the document (guides/adding_an_app.md), but nothing walks it:
+- Every frame of a gesture writes the document (guides/adding_an_app.md, Gestures), but nothing walks it:
   a be-block-model `Document` updates its block references from what each edit touched; the
   host's worker encodes a snapshot only every few hundred operations; and pending edits rebase
   under a peer's by what either touched (`Document::rebase`), with followers told by a `Beneath`

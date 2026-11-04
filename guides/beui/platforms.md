@@ -204,7 +204,7 @@ draws nothing.
 
 `Drm` (offered through `RunOptions::platforms`, picked with
 `BEUI_PLATFORM=drm`) drives the displays and input devices itself; the Linux
-login session runs on it (guides/desktop/linux.md). It shows no main window
+login session runs on it (guides/desktop/login_session.md). It shows no main window
 and opens only windows it placed (`WindowHosting::Placed`), one per display.
 The program gets a `beui_platform_drm::Displays` handle through `Setup`, opens
 a `Window` at `displays.placement(id)` and the display's size for each

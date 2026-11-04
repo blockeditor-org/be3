@@ -100,10 +100,10 @@ fn visit(
         let name = name.unwrap_or_else(|| "this item".to_owned());
         violations.push(match core_file {
             true => format!(
-                "public item in a core: {relative}:{line} `{name}` is public in a per-core module; the cores give only pub(crate) bodies, so declare it once in shared code (beui-types, or beui-view's shared modules with a private per-core field) and call the core from there (guides/beui.md, Cores)"
+                "public item in a core: {relative}:{line} `{name}` is public in a per-core module; the cores give only pub(crate) bodies, so declare it once in shared code (beui-types, or beui-view's shared modules with a private per-core field) and call the core from there (guides/beui/core.md, Cores)"
             ),
             false => format!(
-                "one-core public item: {relative}:{line} `{name}` is public under a cfg(beui_html) choice, so code using it compiles on one core only; declare it once in shared code with a body per core, or put it in one of the one-core modules fix-rust-source's core_api.rs lists, with a reason (guides/beui.md, Cores)"
+                "one-core public item: {relative}:{line} `{name}` is public under a cfg(beui_html) choice, so code using it compiles on one core only; declare it once in shared code with a body per core, or put it in one of the one-core modules fix-rust-source's core_api.rs lists, with a reason (guides/beui/core.md, Cores)"
             ),
         });
     }
