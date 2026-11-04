@@ -191,7 +191,7 @@ fn SelectPopup(children: Child) -> NodeId {
     view! {
         <Frame
             width=POPUP_WIDTH
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Md
             padding=POPUP_PADDING

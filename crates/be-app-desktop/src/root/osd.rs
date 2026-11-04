@@ -142,7 +142,7 @@ fn OsdCard(
         >
             <Frame
                 opacity={opacity}
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Surface
                 border={Border::DEFAULT}
                 radius=Radius::Lg
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
