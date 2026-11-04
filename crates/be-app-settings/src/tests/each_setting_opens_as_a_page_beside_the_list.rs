@@ -2,7 +2,7 @@ use be_sdk_beui::FocusedBlock;
 use be_sdk_beui::be_block::{OfflineSettingsContent, WORKSPACE_TYPE, organization_settings};
 
 use super::*;
-use crate::root::{DEVICES_EDITOR, ORGANIZATION_EDITOR};
+use crate::root::{DEVICES_EDITOR, ORGANIZATION_EDITOR, STORAGE_EDITOR};
 
 #[test]
 fn each_setting_opens_as_a_page_beside_the_list() {
@@ -77,8 +77,18 @@ fn each_setting_opens_as_a_page_beside_the_list() {
     settings.host().report_focus(FocusedBlock {
         block_id: Some(tablet),
         block_type: SettingsProfileContent::CONTENT_TYPE,
+        editor: None,
         via: Vec::new(),
     });
     settings.run();
     settings.snapshot("the_list_marks_the_page_shown_beside_it");
+
+    settings.host().report_focus(FocusedBlock {
+        block_id: Some(block),
+        block_type: SettingsContent::CONTENT_TYPE,
+        editor: Some(STORAGE_EDITOR),
+        via: Vec::new(),
+    });
+    settings.run();
+    settings.snapshot("the_list_marks_storage_not_devices_when_storage_is_shown");
 }

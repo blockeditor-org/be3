@@ -152,7 +152,11 @@ has nothing to send).
   which the cached `BlockGraph` mirrors as `BlockNode::size` and `tree_size`
   (`add_size`, `set_parent` and `remove` carry a subtree's bytes up its
   ancestors). `BlockSummary` reports both; `account.storage-usage` reports the
-  account's `held`, `pending` and `quota`. The first time a server opens data
+  account's `held`, `pending` and `quota`, and `account.storage-changed` streams
+  it: its value on opening, then again whenever the payer's `account_usage` row
+  changes (`ServerStore::usage_changes`, a broadcast of payers each connection
+  following its own filters; one that falls `USAGE_CHANGES_QUEUED` behind reads
+  again). The first time a server opens data
   kept before these tables, `usage::backfill` fills them once
   (`server_backfills`), and counts objects on disk that nothing holds as
   uploads by nobody.

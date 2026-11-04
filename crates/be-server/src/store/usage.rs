@@ -110,6 +110,7 @@ impl ServerStore {
             grew += bytes;
             if count_account_object(connection, holding.payer, *hash, true)? {
                 shift_usage(connection, holding.payer, Column::Held, bytes, true)?;
+                self.usage_changed(holding.payer);
             }
         }
         for hash in &holding.new_to_organization {
@@ -117,7 +118,9 @@ impl ServerStore {
             shift_organization(connection, holding.organization, bytes, true)?;
         }
         for hash in &holding.unreferenced {
-            stop_pending(connection, *hash, self.object_bytes(connection, *hash)?)?;
+            for payer in stop_pending(connection, *hash, self.object_bytes(connection, *hash)?)? {
+                self.usage_changed(payer);
+            }
         }
         let after = usage_of(connection, holding.payer)?;
         if let Some(quota) = self.limits.account_quota
@@ -158,6 +161,7 @@ impl ServerStore {
                 shrank += bytes;
                 if count_account_object(connection, payer, hash, false)? {
                     shift_usage(connection, payer, Column::Held, bytes, false)?;
+                    self.usage_changed(payer);
                 }
             }
             if !held_in_organization(connection, organization, hash)? {
@@ -306,6 +310,9 @@ impl ServerStore {
         }
         shift_usage(&transaction, payer, Column::Pending, pending, true)?;
         transaction.commit()?;
+        if pending > 0 {
+            self.usage_changed(payer);
+        }
         Ok(())
     }
 
@@ -347,6 +354,7 @@ impl ServerStore {
                     .query_row(params![hex, account], |row| row.get(0))?;
                 if !charged_elsewhere && let Ok(payer) = Uuid::parse_str(payer) {
                     shift_usage(&transaction, payer, Column::Pending, bytes, false)?;
+                    self.usage_changed(payer);
                 }
                 let still_pending: bool = transaction
                     .prepare_cached(
@@ -367,6 +375,18 @@ impl ServerStore {
                 return Ok(deleted);
             }
         }
+    }
+
+    /// Tells the connections following `payer`'s storage that it changed. The change may not be
+    /// committed yet; they read it under the database lock this caller holds, so after it.
+    fn usage_changed(&self, payer: Uuid) {
+        let _ = self.usage_changes.send(payer);
+    }
+
+    /// The account whose quota `account`'s uploads count against: its own, or an agent's
+    /// creator's.
+    pub async fn payer(&self, account: Uuid) -> Result<Uuid, ServerError> {
+        payer_of(&*self.database().lock().await, account)
     }
 
     pub async fn storage_usage(&self, identity: Identity) -> Result<AccountStorage, ServerError> {
@@ -568,7 +588,8 @@ fn count_account_object(
 }
 
 /// A block took an object nothing held: it stops being charged to whoever uploaded it.
-fn stop_pending(connection: &Connection, hash: Hash, bytes: u64) -> Result<(), ServerError> {
+/// Answers those it was charged to.
+fn stop_pending(connection: &Connection, hash: Hash, bytes: u64) -> Result<Vec<Uuid>, ServerError> {
     let payers: Vec<String> = {
         let mut statement = connection.prepare_cached(
             "SELECT MIN(payer) FROM object_uploads WHERE hash = ?1 AND pending = 1
@@ -577,16 +598,18 @@ fn stop_pending(connection: &Connection, hash: Hash, bytes: u64) -> Result<(), S
         let rows = statement.query_map([hash.to_hex()], |row| row.get(0))?;
         rows.collect::<Result<_, _>>()?
     };
+    let mut uncharged = Vec::new();
     for payer in payers {
         if let Ok(payer) = Uuid::parse_str(&payer) {
             shift_usage(connection, payer, Column::Pending, bytes, false)?;
+            uncharged.push(payer);
         }
     }
     connection.execute(
         "UPDATE object_uploads SET pending = 0 WHERE hash = ?1",
         [hash.to_hex()],
     )?;
-    Ok(())
+    Ok(uncharged)
 }
 
 #[derive(Clone, Copy, Debug, Default)]

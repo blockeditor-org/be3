@@ -2417,7 +2417,7 @@ impl HostCore {
             }
         }
         if refocused && let Some(focus) = self.focus(shell) {
-            be_host_runtime::set_focus(focus.block, focus.via);
+            be_host_runtime::set_focus(focus.block, focus.editor, focus.via);
         }
         if rewatched {
             self.watch_artifacts(self.watched());
@@ -2441,6 +2441,7 @@ impl HostCore {
         }
         Some(editors::FocusReport {
             block: report.block,
+            editor: report.editor,
             via: report.via.clone(),
         })
     }

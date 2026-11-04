@@ -511,6 +511,7 @@ impl AppEditor {
         be_host_runtime::take_focus_report(&app.identity.id, self.instance).map(|focus| {
             FocusReport {
                 block: focus.block,
+                editor: focus.editor,
                 via: focus.via,
             }
         })

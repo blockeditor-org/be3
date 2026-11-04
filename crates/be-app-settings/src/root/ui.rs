@@ -142,11 +142,13 @@ fn StorageRow(editor: Editor) -> NodeId {
         None => "What your blocks take on the server".to_owned(),
     });
     let block = editor.block_id();
+    let selected = shown_with(editor, block, STORAGE_EDITOR);
     view! {
         <SettingRow
             label="Storage"
             detail={detail}
             glyph=ICON_HARD_DRIVE
+            selected={selected}
             @test_id={"settings.storage"}
             on_click={move || {
                 editor
@@ -276,7 +278,7 @@ fn Devices(
     let client = editor.host().client_id();
     let used = settings.project(move |settings| settings.root().profile(client));
     let children = editor.watch_blocks(BlockQuery::Children(block));
-    let comparing = create_memo(move || shown.get() == Some(block));
+    let comparing = shown_with(editor, block, DEVICES_EDITOR);
     view! {
         <Section title="Devices" caption="">
             <List spacing=ROW_SPACING>
@@ -560,6 +562,15 @@ fn SettingRow(
 fn shown_block(editor: Editor) -> Memo<Option<Uuid>> {
     let focused = editor.focused_block();
     create_memo(move || focused.with(|focused| focused.block_id))
+}
+
+/// Whether `block` is shown beside the list in the editor `with`, for the pages that open a
+/// block with an editor of their own.
+fn shown_with(editor: Editor, block: Uuid, with: Uuid) -> Memo<bool> {
+    let focused = editor.focused_block();
+    create_memo(move || {
+        focused.with(|focused| focused.block_id == Some(block) && focused.editor == Some(with))
+    })
 }
 
 fn blocked<C: Layer>(editor: Editor, layer: ContentProjection<C>, own: Memo<bool>) -> Memo<bool> {

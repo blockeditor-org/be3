@@ -380,6 +380,10 @@ impl TestClient {
             ("changes", Opened::Changes(client::blocks::changes(peer))),
             ("paired", Opened::Paired(client::account::paired(peer))),
             (
+                "storage-changed",
+                Opened::Storage(client::account::storage_changed(peer)),
+            ),
+            (
                 "contacts-changed",
                 Opened::Unit(client::contacts::contacts_changed(peer)),
             ),
@@ -392,6 +396,7 @@ impl TestClient {
             let answer = match stream {
                 Opened::Changes(stream) => self.opened(stream).await,
                 Opened::Paired(stream) => self.opened(stream).await,
+                Opened::Storage(stream) => self.opened(stream).await,
                 Opened::Unit(stream) => self.opened(stream).await,
                 Opened::Watch(stream) => self.opened(stream).await,
             };
@@ -439,6 +444,7 @@ impl TestClient {
 enum Opened {
     Changes(Stream<BlockChange>),
     Paired(Stream<PairingMessage>),
+    Storage(Stream<be_block_protocol::AccountStorage>),
     Unit(Stream<()>),
     Watch(Stream<BlockEvent>),
 }

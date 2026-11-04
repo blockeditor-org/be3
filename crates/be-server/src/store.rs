@@ -61,10 +61,16 @@ pub struct ServerStore {
     server: crate::organization::ServerKey,
     policies: std::sync::Mutex<HashMap<Uuid, crate::organization::HeldPolicies>>,
     limits: StorageLimits,
+    /// Each payer whose `account_usage` row changes, for the connections following it.
+    pub(crate) usage_changes: tokio::sync::broadcast::Sender<Uuid>,
 }
 
 /// Agents one account may have created and not yet removed.
 pub const MAX_AGENTS_PER_CREATOR: i64 = 16;
+
+/// Payers whose usage changed that a connection following its storage may fall behind by;
+/// one further behind reads its usage again rather than missing a change.
+pub const USAGE_CHANGES_QUEUED: usize = 256;
 
 impl ServerStore {
     pub fn open(root: impl AsRef<Path>) -> Result<Self, ServerError> {
@@ -93,6 +99,7 @@ impl ServerStore {
             server,
             policies: std::sync::Mutex::new(HashMap::new()),
             limits,
+            usage_changes: tokio::sync::broadcast::channel(USAGE_CHANGES_QUEUED).0,
         })
     }
 

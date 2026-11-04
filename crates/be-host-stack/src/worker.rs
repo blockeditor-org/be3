@@ -83,7 +83,7 @@ pub(super) enum Command {
     },
     #[cfg(any(test, feature = "testing"))]
     Close(Uuid),
-    /// Ask the server for the account's storage again.
+    /// Start or stop following the account's storage, as `Shared::storage_watched` says.
     Storage,
     Operate(Uuid, Vec<u8>, Instant),
     ChangeChild {
@@ -1509,23 +1509,6 @@ async fn approve_pairing(
     Ok(())
 }
 
-async fn fetch_storage(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-    match ask(client::account::storage_usage(&peer.connection())).await {
-        Ok(usage) => {
-            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            if held.storage.as_ref() != Some(&usage) {
-                held.storage = Some(usage);
-                held.storage_revision += 1;
-                drop(held);
-                be_host_base::host::wake();
-            }
-        }
-        Err(error) => {
-            eprintln!("be-host-stack: the server did not say the account's storage: {error}")
-        }
-    }
-}
-
 async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     let identity = peer.keys().identity();
     match be_block_client::contacts::finish_links(&peer.connection(), identity, peer.organization())
@@ -2453,8 +2436,6 @@ async fn heard(
             if block.opens_inside {
                 held.graph.relist_open_settings();
             }
-            drop(held);
-            tasks.storage(peer, shared);
         }
         Some(Event::BlockRemoved { block, revision }) => {
             shared
@@ -2601,15 +2582,11 @@ pub(super) struct Tasks {
     finished: tokio::sync::mpsc::UnboundedSender<()>,
     contacts: Arc<tokio::sync::Mutex<()>>,
     outbox: std::rc::Rc<std::cell::RefCell<Outbox>>,
-    storage: std::rc::Rc<std::cell::Cell<Asking>>,
+    /// Stops the task following the account's storage, while one does.
+    storage: std::rc::Rc<std::cell::RefCell<Option<tokio::sync::oneshot::Sender<()>>>>,
 }
 
-/// Whether a storage usage call is out, and whether something changed since it left.
-#[derive(Clone, Copy, Default)]
-struct Asking {
-    out: bool,
-    again: bool,
-}
+const STORAGE_FAILED: &str = "The server stopped saying how much storage this account uses.";
 
 #[derive(Default)]
 struct Outbox {
@@ -2695,44 +2672,52 @@ impl Tasks {
         self.spawn(async move { tasks.sync_contacts(&peer, &shared).await });
     }
 
-    /// Asks the server for the account's storage while an editor watches it, one call at a
-    /// time: a change while one is out asks once more when it answers.
+    /// Follows the account's storage on the server's `storage-changed` stream while an editor
+    /// watches it, and stops following once none does. A stream that ends while the connection
+    /// holds is a failure the host shows.
     fn storage(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         let watched = shared
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .storage_watched;
-        if !watched || !peer.is_attached() {
+        let mut following = self.storage.borrow_mut();
+        if !watched {
+            following.take();
             return;
         }
-        let asking = self.storage.get();
-        if asking.out {
-            self.storage.set(Asking {
-                again: true,
-                ..asking
-            });
+        if following.as_ref().is_some_and(|stop| !stop.is_closed()) || !peer.is_attached() {
             return;
         }
-        self.storage.set(Asking {
-            out: true,
-            again: false,
-        });
-        let (peer, shared, storage) = (
-            Arc::clone(peer),
-            Arc::clone(shared),
-            std::rc::Rc::clone(&self.storage),
-        );
+        let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+        *following = Some(stop);
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         self.spawn(async move {
+            let mut usage = client::account::storage_changed(&peer.connection());
+            let mut stopped = std::pin::pin!(stopped);
             loop {
-                fetch_storage(&peer, &shared).await;
-                if !storage.get().again || !peer.is_attached() {
-                    storage.set(Asking::default());
-                    break;
+                let next = match select(std::pin::pin!(usage.recv()), stopped.as_mut()).await {
+                    Either::Left((next, _)) => next,
+                    Either::Right(_) => return,
+                };
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                match next {
+                    Some(next) => {
+                        if held.storage.as_ref() != Some(&next) {
+                            held.storage = Some(next);
+                            held.storage_revision += 1;
+                        }
+                    }
+                    None => {
+                        if peer.is_attached() {
+                            held.error = Some(STORAGE_FAILED.to_owned());
+                        }
+                        drop(held);
+                        be_host_base::host::wake();
+                        return;
+                    }
                 }
-                storage.set(Asking {
-                    out: true,
-                    again: false,
-                });
+                drop(held);
+                be_host_base::host::wake();
             }
         });
     }

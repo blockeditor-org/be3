@@ -1941,10 +1941,10 @@ pub fn flush() {
     });
 }
 
-pub fn set_focus(block: Option<(Uuid, Uuid)>, via: Vec<Uuid>) {
+pub fn set_focus(block: Option<(Uuid, Uuid)>, editor: Option<Uuid>, via: Vec<Uuid>) {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let focus = Focus { block, via };
+        let focus = Focus { block, editor, via };
         if host.focus == focus {
             return;
         }
