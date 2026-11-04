@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -14,21 +13,23 @@ fn a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0)>
-                    <Frame height={Extent::at_least(VIEWPORT.y)}>
-                        <List spacing=0.0>
-                            <VirtualList
-                                @node_ref=&list
-                                keys={indices(ROWS)}
-                                item_size=ESTIMATE
-                            >|_: ReadSignal<usize>|
-                                <Frame height=ACTUAL>
-                                    <Spacer />
-                                </Frame>
-                            </VirtualList>
-                        </List>
-                    </Frame>
-                </Offset>
+                <ListItem grow=1.0>
+                    <Offset>
+                        <Frame height={Extent::at_least(VIEWPORT.y)}>
+                            <List spacing=0.0>
+                                <VirtualList
+                                    @node_ref=&list
+                                    keys={indices(ROWS)}
+                                    item_size=ESTIMATE
+                                >|_: ReadSignal<usize>|
+                                    <Frame height=ACTUAL>
+                                        <Frame />
+                                    </Frame>
+                                </VirtualList>
+                            </List>
+                        </Frame>
+                    </Offset>
+                </ListItem>
             </List>
         }
     });

@@ -32,7 +32,7 @@ use super::text::{
 };
 use crate::raster::nearest_upscaled;
 use be_type_image::ImageContent;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 pub(crate) const PADDING: f32 = 16.0;
 pub(crate) const SCALES: [f32; 3] = [1.0, 2.0, 3.0];
@@ -1085,7 +1085,9 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
                         align=Align::Center
                         spacing=DIALOG_SPACING
                     >
-                        <Text @sizing=ItemSize::Percent(100.0)>"Scale"</Text>
+                        <ListItem grow=1.0>
+                            <Text>"Scale"</Text>
+                        </ListItem>
                         <Select
                             options={view! {
                                 <ChoiceOption label="1x" />
@@ -1099,7 +1101,9 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
                     </List>
                 </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=DIALOG_SPACING>
-                    <Text @sizing=ItemSize::Percent(100.0)>"Background"</Text>
+                    <ListItem grow=1.0>
+                        <Text>"Background"</Text>
+                    </ListItem>
                     <Switch
                         on={Binding::new(background, set_background)}
                         label="Background"

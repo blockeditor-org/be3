@@ -17,7 +17,7 @@ use crate::database_view::groups::{Group, GroupKey};
 use crate::database_view::root::data::Data;
 use crate::database_view::root::row::RowPanel;
 use crate::database_view::sort::BlockLabels;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const LINE_HEIGHT: f32 = 38.0;
 const CODE_WIDTH: f32 = 76.0;
@@ -108,10 +108,14 @@ pub fn OpenRow(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
             <Dynamic value={row}>|row: Option<ObjectId>| {
                 match row {
                     Some(row) => view! {
-                        <RowPanel @sizing=ItemSize::Percent(100.0) data={data} row={row} />
+                        <ListItem grow=1.0>
+                            <RowPanel data={data} row={row} />
+                        </ListItem>
                     },
                     None => view! {
-                        <Frame @sizing=ItemSize::Percent(100.0) />
+                        <ListItem grow=1.0>
+                            <Frame />
+                        </ListItem>
                     },
                 }
             }</Dynamic>
@@ -193,7 +197,9 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
                 </Show>
                 <Text>{label}</Text>
                 <Text style=TextStyle::CAPTION>{count}</Text>
-                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
                 <Button
                     icon_only=true
                     glyph=ICON_PLUS
@@ -355,16 +361,17 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>, viewport: ReadSignal<Vec2>) 
             <List spacing=Space::None>
                 <Show condition={wide}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Frame @sizing=ItemSize::Fixed(CODE_WIDTH)>
-                            <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{code}</Text>
-                        </Frame>
+                        <ListItem length=CODE_WIDTH>
+                            <Frame>
+                                <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                                    {code}
+                                </Text>
+                            </Frame>
+                        </ListItem>
                         <Marks data={data} entry={entry} marks={marks} />
-                        <Text
-                            @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                            overflow=Overflow::Ellipsis
-                        >
-                            {title}
-                        </Text>
+                        <ListItem grow=1.0 shrink=1.0>
+                            <Text overflow=Overflow::Ellipsis>{title}</Text>
+                        </ListItem>
                         <Parts parts={parts} keys={part_keys} />
                     </List>
                 </Show>
@@ -372,7 +379,9 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>, viewport: ReadSignal<Vec2>) 
                     <List spacing=Space::Xs>
                         <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
                             <Marks data={data} entry={entry} marks={marks} />
-                            <Text @sizing=ItemSize::Percent(100.0)>{title}</Text>
+                            <ListItem grow=1.0>
+                                <Text>{title}</Text>
+                            </ListItem>
                         </List>
                         <List
                             direction=Direction::Horizontal

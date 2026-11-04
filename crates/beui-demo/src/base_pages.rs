@@ -88,9 +88,15 @@ fn FrameSwatches() -> NodeId {
 fn FrameAlignment() -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing={ROW_SPACING.px()}>
-            <AlignedBox @sizing=ItemSize::Percent(33.0) align=Align::Start />
-            <AlignedBox @sizing=ItemSize::Percent(33.0) align=Align::Center />
-            <AlignedBox @sizing=ItemSize::Percent(33.0) align=Align::End />
+            <ListItem grow=1.0>
+                <AlignedBox align=Align::Start />
+            </ListItem>
+            <ListItem grow=1.0>
+                <AlignedBox align=Align::Center />
+            </ListItem>
+            <ListItem grow=1.0>
+                <AlignedBox align=Align::End />
+            </ListItem>
         </List>
     }
 }
@@ -402,8 +408,12 @@ fn ColumnsForWidth() -> NodeId {
     let label = create_memo(move || format!("{:.0} wide", width.get()));
     let columns = view! {
         <List direction spacing=8.0>
-            <Tile @sizing=ItemSize::Percent(100.0) label />
-            <Tile @sizing=ItemSize::Percent(100.0) label="Side by side from 480" />
+            <ListItem grow=1.0>
+                <Tile label />
+            </ListItem>
+            <ListItem grow=1.0>
+                <Tile label="Side by side from 480" />
+            </ListItem>
         </List>
     };
     let measured = measure(columns);
@@ -423,16 +433,24 @@ fn ListDirections() -> NodeId {
             <List direction=Direction::Horizontal spacing=8.0>
                 <Tile label="One" />
                 <Tile label="Two" />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
                 <Tile label="Pushed to the end" />
             </List>
             <List direction=Direction::Horizontal spacing=8.0>
-                <Tile @sizing=ItemSize::Percent(25.0) label="25%" />
-                <Tile @sizing=ItemSize::Percent(75.0) label="75%" />
+                <ListItem grow=0.25>
+                    <Tile label="25%" />
+                </ListItem>
+                <ListItem grow=0.75>
+                    <Tile label="75%" />
+                </ListItem>
             </List>
             <List direction=Direction::Horizontal spacing=8.0>
-                <Tile @sizing=ItemSize::Fixed(120.0) label="120 wide" />
-                <Tile @sizing=ItemSize::Percent(100.0) label="The rest" />
+                <ListItem length=120.0>
+                    <Tile label="120 wide" />
+                </ListItem>
+                <ListItem grow=1.0>
+                    <Tile label="The rest" />
+                </ListItem>
             </List>
         </List>
     }

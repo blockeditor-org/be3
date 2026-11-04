@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
@@ -17,23 +16,25 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <VirtualList
-                        @node_ref=&list
-                        keys={indices(ROWS)}
-                        item_size=ESTIMATE
-                    >|index: ReadSignal<usize>| {
-                        create_binding(move || {
-                            let index = index.get();
-                            built.update(|built| built.push(index));
-                        });
-                        view! {
-                            <Frame height=ACTUAL>
-                                <Spacer />
-                            </Frame>
-                        }
-                    }</VirtualList>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={indices(ROWS)}
+                            item_size=ESTIMATE
+                        >|index: ReadSignal<usize>| {
+                            create_binding(move || {
+                                let index = index.get();
+                                built.update(|built| built.push(index));
+                            });
+                            view! {
+                                <Frame height=ACTUAL>
+                                    <Frame />
+                                </Frame>
+                            }
+                        }</VirtualList>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
@@ -19,28 +18,30 @@ fn a_following_virtual_list_of_uneven_rows_settles_while_its_scroll_comes_into_v
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&page>
-                    <Frame height=280.0 />
-                    <Frame height=LOG_HEIGHT>
-                        <Scroll @node_ref=&log follow_end=true>
-                            <Frame padding={Sides::symmetric(0.0, 8.0)}>
-                                <VirtualList
-                                    @node_ref=&list
-                                    keys={keys}
-                                    item_size=ESTIMATE
-                                >|index: ReadSignal<usize>| {
-                                    let tall = create_memo(move || height(index.get()));
-                                    view! {
-                                        <Frame height={tall}>
-                                            <Spacer />
-                                        </Frame>
-                                    }
-                                }</VirtualList>
-                            </Frame>
-                        </Scroll>
-                    </Frame>
-                    <Frame height=600.0 />
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&page>
+                        <Frame height=280.0 />
+                        <Frame height=LOG_HEIGHT>
+                            <Scroll @node_ref=&log follow_end=true>
+                                <Frame padding={Sides::symmetric(0.0, 8.0)}>
+                                    <VirtualList
+                                        @node_ref=&list
+                                        keys={keys}
+                                        item_size=ESTIMATE
+                                    >|index: ReadSignal<usize>| {
+                                        let tall = create_memo(move || height(index.get()));
+                                        view! {
+                                            <Frame height={tall}>
+                                                <Frame />
+                                            </Frame>
+                                        }
+                                    }</VirtualList>
+                                </Frame>
+                            </Scroll>
+                        </Frame>
+                        <Frame height=600.0 />
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

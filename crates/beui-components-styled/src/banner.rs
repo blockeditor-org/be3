@@ -8,7 +8,7 @@ use crate::frame::{ColorRole, Frame};
 use crate::list::List;
 use crate::text::{Text, TextColor};
 use crate::tokens::{Padding, Space};
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 
 /// An inline bar across an editor saying what failed until dismissed; shows
 /// nothing while `message` is `None`. Its test ids are `{id}` and `{id}.dismiss`,
@@ -51,7 +51,9 @@ fn BannerBar(
         <unstyled::Banner label={text} @test_id={id}>
             <Frame fill=ColorRole::DangerSoft padding={Padding::symmetric(Space::Lg, Space::Sm)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text @sizing={ItemSize::Percent(100.0)} color=TextColor::Danger>{text}</Text>
+                    <ListItem grow=1.0>
+                        <Text color=TextColor::Danger>{text}</Text>
+                    </ListItem>
                     <Show condition=dismissable>
                         <Button
                             label={dismiss_label.clone()}

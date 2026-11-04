@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
@@ -12,18 +11,20 @@ fn touch_overscroll_bands_without_hovering_a_row() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <Interactive on_hover_change={hovered}>
-                        <Frame padding={Sides::symmetric(0.0, 20.0)}>
-                            <Spacer />
-                        </Frame>
-                    </Interactive>
-                    <ForEach keys={indices(20)}>|_: usize|
-                        <Frame padding={Sides::symmetric(0.0, 20.0)}>
-                            <Spacer />
-                        </Frame>
-                    </ForEach>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <Interactive on_hover_change={hovered}>
+                            <Frame padding={Sides::symmetric(0.0, 20.0)}>
+                                <Frame />
+                            </Frame>
+                        </Interactive>
+                        <ForEach keys={indices(20)}>|_: usize|
+                            <Frame padding={Sides::symmetric(0.0, 20.0)}>
+                                <Frame />
+                            </Frame>
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

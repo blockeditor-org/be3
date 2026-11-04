@@ -24,7 +24,7 @@ use beui_view::reactive::NodeId;
 use beui_view::types::Color;
 use beui_view::types::PickedFile;
 use beui_view::types::icons::ICON_COPY;
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 use beui_view::types::{Rect, Vec2};
 
 use crate::list::List;
@@ -171,51 +171,52 @@ pub fn TextArea(
             <Show condition={find}>||
                 <FindBar state={state} read_only />
             </Show>
-            <unstyled::TextContextMenu
-                @sizing=ItemSize::Percent(100.0)
-                state={state}
-                menu={Some(menu_style())}
-                masked={password}
-                disabled
-                read_only
-                child_size=ItemSize::Percent(100.0)
-            >|open_menu: Callback<Option<Rect>>|
-                <unstyled::TextArea
-                    @node_ref=&surface
+            <ListItem grow=1.0>
+                <unstyled::TextContextMenu
                     state={state}
-                    widgets
-                    colors
-                    font_size
-                    padding
-                    prose
+                    menu={Some(menu_style())}
+                    masked={password}
                     disabled
                     read_only
-                    focused
-                    line_numbers
-                    find
-                    on_content_size
-                    remote_cursors
-                    drop_caret
-                    placeholder
-                    password
-                    show_runs
-                    client_colors
-                    scrollbar={scrollbar_style()}
-                    on_widget_press={on_widget_press}
-                    on_focus_change={on_focus_change}
-                    pastes_images
-                    on_image_paste={on_image_paste}
-                    on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
-                    block={block}
-                    selected_widget={selected_widget}
-                    look
-                    completer={match emoji {
-                        true => unstyled::emoji_completer(),
-                        false => Completer::none(),
-                    }}
-                    completion_menu={emoji_menu()}
-                />
-            </unstyled::TextContextMenu>
+                    child_grow=1.0
+                >|open_menu: Callback<Option<Rect>>|
+                    <unstyled::TextArea
+                        @node_ref=&surface
+                        state={state}
+                        widgets
+                        colors
+                        font_size
+                        padding
+                        prose
+                        disabled
+                        read_only
+                        focused
+                        line_numbers
+                        find
+                        on_content_size
+                        remote_cursors
+                        drop_caret
+                        placeholder
+                        password
+                        show_runs
+                        client_colors
+                        scrollbar={scrollbar_style()}
+                        on_widget_press={on_widget_press}
+                        on_focus_change={on_focus_change}
+                        pastes_images
+                        on_image_paste={on_image_paste}
+                        on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
+                        block={block}
+                        selected_widget={selected_widget}
+                        look
+                        completer={match emoji {
+                            true => unstyled::emoji_completer(),
+                            false => Completer::none(),
+                        }}
+                        completion_menu={emoji_menu()}
+                    />
+                </unstyled::TextContextMenu>
+            </ListItem>
         </List>
     }
 }

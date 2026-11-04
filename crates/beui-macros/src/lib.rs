@@ -1825,14 +1825,15 @@ mod tests;
 /// - `@path=value` is a modifier: `path(built, value)` runs after all props and children
 ///   are built, in source order, and may change the type; its value is evaluated then too,
 ///   so compute one before `view!` if a child closure will move what it needs. Without
-///   `=` the path is its own value. `{expr} @sizing=..` puts one on an expression child.
+///   `=` the path is its own value. A modifier works on the node; how a parent places a child
+///   (a list child's length, a grid cell's span) is a wrapping tag, `<ListItem grow=1.0>` or
+///   `<GridCell span=2>`, which builds the child its parent takes.
 /// - A slot that hands over a value names it after the opening tag, as a closure does
 ///   (`<Container>|size| <Card size /></Container>`, or `|size| { ...; view! {..} }` for
 ///   statements first). Tags without `|value|` ignore it. The closure is always `move`, and
 ///   a `RenderFn` slot may run it again, so clone what it hands on. The body is exactly one
 ///   child unless the slot returns `Children<T>`.
-/// - More than one root makes a `Children`; `view! {}` is the empty one. `@sizing` on a
-///   lone root makes a `ListChild`.
+/// - More than one root makes a `Children`; `view! {}` is the empty one.
 #[proc_macro]
 pub fn view(item: TokenStream) -> TokenStream {
     let view = parse_macro_input!(item as View);

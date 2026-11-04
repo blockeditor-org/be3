@@ -1,8 +1,8 @@
 use super::*;
 
 #[test]
-fn percent_items_split_an_odd_space_into_whole_pixels() {
-    let sizes = [ItemSize::Percent(50.0), ItemSize::Percent(50.0)];
+fn growing_items_split_an_odd_space_into_whole_pixels() {
+    let sizes = [ItemSize::Grow(0.5), ItemSize::Grow(0.5)];
     let intrinsic_lengths = [0.0, 0.0];
 
     let lengths =

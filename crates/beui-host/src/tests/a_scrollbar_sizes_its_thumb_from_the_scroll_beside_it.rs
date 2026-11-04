@@ -18,19 +18,23 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
         let position = create_signal(ScrollPosition::ZERO);
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) on_change={position}>
-                    <VirtualList
-                        keys={indices(ROWS)}
-                        item_size=ROW_HEIGHT
-                    >|index: ReadSignal<usize>|
-                        <Frame height=ROW_HEIGHT>
-                            <Text color=Color32::WHITE>
-                                {create_memo(move || format!("Row {}", index.get()))}
-                            </Text>
-                        </Frame>
-                    </VirtualList>
-                </Offset>
-                <Scrollbar @sizing=ItemSize::Fixed(BAR_HEIGHT) @node_ref=&thumb position />
+                <ListItem grow=1.0>
+                    <Offset on_change={position}>
+                        <VirtualList
+                            keys={indices(ROWS)}
+                            item_size=ROW_HEIGHT
+                        >|index: ReadSignal<usize>|
+                            <Frame height=ROW_HEIGHT>
+                                <Text color=Color32::WHITE>
+                                    {create_memo(move || format!("Row {}", index.get()))}
+                                </Text>
+                            </Frame>
+                        </VirtualList>
+                    </Offset>
+                </ListItem>
+                <ListItem length=BAR_HEIGHT>
+                    <Scrollbar @node_ref=&thumb position />
+                </ListItem>
             </List>
         }
     });

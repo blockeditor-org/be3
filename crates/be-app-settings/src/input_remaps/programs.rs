@@ -3,10 +3,10 @@
 //! can't name.
 
 use be_host_remap::rules::exe_name;
+use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{ICON_APP_WINDOW, ICON_LAYOUT_GRID, ICON_SEARCH};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{ItemSize, NodeId};
 use be_sdk_beui::desktop;
 use be_sdk_beui::{
     Editor, HostProgram, OpenProgram, OpenProgramsWatch, ProgramAction, ProgramsWatch,
@@ -390,19 +390,20 @@ fn ProgramList(
                         item.get().is_some_and(|item| chosen.get().as_deref() == Some(item.key.as_str()))
                     });
                     view! {
-                        <ListRow
-                            @sizing=ItemSize::Percent(100.0)
-                            label={name}
-                            detail={detail}
-                            glyph={Some(glyph)}
-                            selected={selected}
-                            @test_id={format!("input-remaps.programs.{kind}.{index}")}
-                            on_click={move || {
-                                if let Some(item) = item.get_untracked() {
-                                    choose.call(item);
-                                }
-                            }}
-                        />
+                        <ListItem grow=1.0>
+                            <ListRow
+                                label={name}
+                                detail={detail}
+                                glyph={Some(glyph)}
+                                selected={selected}
+                                @test_id={format!("input-remaps.programs.{kind}.{index}")}
+                                on_click={move || {
+                                    if let Some(item) = item.get_untracked() {
+                                        choose.call(item);
+                                    }
+                                }}
+                            />
+                        </ListItem>
                     }
                 }</ForEach>
             </List>

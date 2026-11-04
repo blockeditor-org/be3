@@ -13,7 +13,6 @@ use beui_components_unstyled::datetime::{Date, Weekday};
 use beui_components_unstyled::{CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::ItemSize;
 use beui_view::types::icons::{
     ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CHEVRON_UP,
 };
@@ -95,27 +94,24 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                 disabled={no_previous}
                 on_click={move || previous.call(())}
             />
-            <List
-                @sizing=ItemSize::Percent(100.0)
-                direction=Direction::Horizontal
-                justify=Justify::Center
-                spacing=Space::None
-            >
-                <Show condition={month_shown}>
+            <ListItem grow=1.0>
+                <List direction=Direction::Horizontal justify=Justify::Center spacing=Space::None>
+                    <Show condition={month_shown}>
+                        <HeaderToggle
+                            label={month_label}
+                            accessibility={month_toggle}
+                            open={months_open}
+                            on_click={move || show_months.call(())}
+                        />
+                    </Show>
                     <HeaderToggle
-                        label={month_label}
-                        accessibility={month_toggle}
-                        open={months_open}
-                        on_click={move || show_months.call(())}
+                        label={year_label}
+                        accessibility={year_toggle}
+                        open={years_open}
+                        on_click={move || show_years.call(())}
                     />
-                </Show>
-                <HeaderToggle
-                    label={year_label}
-                    accessibility={year_toggle}
-                    open={years_open}
-                    on_click={move || show_years.call(())}
-                />
-            </List>
+                </List>
+            </ListItem>
             <Button
                 icon_only=true
                 glyph=ICON_CHEVRON_RIGHT

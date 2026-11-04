@@ -7,7 +7,6 @@ use accesskit::{Node, Role};
 use beui_text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 use beui_view::types::Color;
-use beui_view::types::ItemSize;
 use beui_view::types::{CursorIcon, FontId, Pos2, Rect};
 
 use crate::ContextMenuApi;
@@ -274,9 +273,9 @@ pub fn TextInput(
                 menu
                 masked={masked}
                 disabled={disabled}
-                child_size={match padded {
-                    true => ItemSize::Intrinsic,
-                    false => ItemSize::Percent(100.0),
+                child_grow={match padded {
+                    true => 0.0,
+                    false => 1.0,
                 }}
             >|open: Callback<Option<Rect>>| {
                 opener.with(|opener| opener.set(Some(open)));

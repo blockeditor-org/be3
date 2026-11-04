@@ -1,6 +1,5 @@
 use super::*;
 use crate::native::with_document;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -19,26 +18,28 @@ fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_on
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <VirtualList
-                        @node_ref=&list
-                        keys={indices(ROWS)}
-                        item_size=ESTIMATE
-                    >|index: ReadSignal<usize>| {
-                        create_binding(move || {
-                            index.get();
-                            let walk = with_document(|document| {
-                                document.laying_out().map(|_| document.layout_pass())
+                <ListItem grow=1.0>
+                    <Offset @node_ref=&scroll>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={indices(ROWS)}
+                            item_size=ESTIMATE
+                        >|index: ReadSignal<usize>| {
+                            create_binding(move || {
+                                index.get();
+                                let walk = with_document(|document| {
+                                    document.laying_out().map(|_| document.layout_pass())
+                                });
+                                built.update(|built| built.push(walk));
                             });
-                            built.update(|built| built.push(walk));
-                        });
-                        view! {
-                            <Frame height={create_memo(move || height(index.get()))}>
-                                <Spacer />
-                            </Frame>
-                        }
-                    }</VirtualList>
-                </Offset>
+                            view! {
+                                <Frame height={create_memo(move || height(index.get()))}>
+                                    <Frame />
+                                </Frame>
+                            }
+                        }</VirtualList>
+                    </Offset>
+                </ListItem>
             </List>
         }
     });

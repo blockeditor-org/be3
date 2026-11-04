@@ -21,7 +21,7 @@ use uuid::Uuid;
 use super::block;
 use super::setup::{DeviceSection, DeviceSetup, DifferencesSection, SetUpDone, SetUpHeading};
 use super::{DEVICES_EDITOR, ORGANIZATION_EDITOR};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const PADDING: Space = Space::Xl;
 const SPACING: Space = Space::Md;
@@ -505,14 +505,16 @@ fn SettingRow(
                     <Text color={icon_color} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                        <Text color={text_color} overflow=Overflow::Ellipsis>{label}</Text>
-                        <Show condition={has_detail}>
-                            <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
-                                {detail}
-                            </Text>
-                        </Show>
-                    </List>
+                    <ListItem grow=1.0>
+                        <List spacing=Space::None>
+                            <Text color={text_color} overflow=Overflow::Ellipsis>{label}</Text>
+                            <Show condition={has_detail}>
+                                <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                                    {detail}
+                                </Text>
+                            </Show>
+                        </List>
+                    </ListItem>
                 </List>
             </Frame>
         </ListRow>

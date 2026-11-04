@@ -3,8 +3,8 @@ use beui::icons::{ICON_ARROW_LEFT, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Align, Align2, CursorIcon, Direction, ImageFit, ItemSize, NodeId, PointerPress, Rect,
-    TextAlign, Vec2, pos2,
+    Align, Align2, CursorIcon, Direction, ImageFit, NodeId, PointerPress, Rect, TextAlign, Vec2,
+    pos2,
 };
 
 use crate::Shortcuts;
@@ -78,7 +78,9 @@ pub(crate) fn Viewer(review: Review) -> NodeId {
             <Header review={review} />
             <Controls review={review} />
             <Separator />
-            <Stage @sizing=ItemSize::Percent(100.0) review={review} />
+            <ListItem grow=1.0>
+                <Stage review={review} />
+            </ListItem>
             <Separator />
             <Shortcuts hints={HINTS.to_vec()} />
         </List>
@@ -127,15 +129,16 @@ fn Header(review: Review) -> NodeId {
                         @test_id="paint_review.back"
                         on_click={move || review.close()}
                     />
-                    <Text
-                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                        style=TextStyle::HEADING
-                        family=Family::Mono
-                        overflow=Overflow::Ellipsis
-                        @test_id={"paint_review.name"}
-                    >
-                        {name}
-                    </Text>
+                    <ListItem shrink=1.0>
+                        <Text
+                            style=TextStyle::HEADING
+                            family=Family::Mono
+                            overflow=Overflow::Ellipsis
+                            @test_id={"paint_review.name"}
+                        >
+                            {name}
+                        </Text>
+                    </ListItem>
                     <Dynamic value={status}>|status: Status|
                         <StatusBadge status />
                     </Dynamic>

@@ -28,25 +28,27 @@ fn check_compact_rows(inset: f32) {
         view! {
             <List spacing=0.0>
                 <Switch @node_ref=&switch on={compact} />
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <VirtualList
-                        @node_ref=&list
-                        keys={indices(VIRTUAL_ITEM_COUNT)}
-                        item_size={item_height}
-                    >|index: ReadSignal<usize>| {
-                        create_binding(move || {
-                            let index = index.get();
-                            built.update(|built| built.push(index));
-                        });
-                        view! {
-                            <Frame
-                                padding={create_memo(move || Sides::symmetric(0.0, padding.get()))}
-                            >
-                                <Spacer />
-                            </Frame>
-                        }
-                    }</VirtualList>
-                </Offset>
+                <ListItem grow=1.0>
+                    <Offset @node_ref=&scroll>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            item_size={item_height}
+                        >|index: ReadSignal<usize>| {
+                            create_binding(move || {
+                                let index = index.get();
+                                built.update(|built| built.push(index));
+                            });
+                            view! {
+                                <Frame
+                                    padding={create_memo(move || Sides::symmetric(0.0, padding.get()))}
+                                >
+                                    <Frame />
+                                </Frame>
+                            }
+                        }</VirtualList>
+                    </Offset>
+                </ListItem>
             </List>
         }
     });

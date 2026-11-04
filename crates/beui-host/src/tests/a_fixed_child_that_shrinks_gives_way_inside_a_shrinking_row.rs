@@ -9,16 +9,16 @@ fn a_fixed_child_that_shrinks_gives_way_inside_a_shrinking_row() {
     let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
-                <Frame @sizing={ItemSize::Intrinsic.shrink(1.0)}>
-                    <List direction=Direction::Horizontal spacing=10.0>
-                        <Frame
-                            @sizing={ItemSize::Fixed(300.0).shrink(1.0)}
-                            @node_ref=&field
-                            height=20.0
-                        />
-                        <Frame @node_ref=&button width=60.0 height=20.0 />
-                    </List>
-                </Frame>
+                <ListItem shrink=1.0>
+                    <Frame>
+                        <List direction=Direction::Horizontal spacing=10.0>
+                            <ListItem length=300.0 shrink=1.0>
+                                <Frame @node_ref=&field height=20.0 />
+                            </ListItem>
+                            <Frame @node_ref=&button width=60.0 height=20.0 />
+                        </List>
+                    </Frame>
+                </ListItem>
             </List>
         }
     });

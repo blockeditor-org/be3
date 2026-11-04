@@ -21,7 +21,7 @@ use crate::viewer::ImageViewer;
 #[cfg(not(target_os = "android"))]
 use crate::workspace::Workspace;
 use beui::TextAlign;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 #[cfg(not(target_os = "android"))]
 const SIDEBAR_WIDTH: f32 = 380.0;
@@ -57,48 +57,49 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Show condition={listing}>
-                <Portal @sizing=ItemSize::Percent(100.0) node={Some(sidebar)} />
+                <ListItem grow=1.0>
+                    <Portal node={Some(sidebar)} />
+                </ListItem>
             </Show>
             <Show condition={reading}>
-                <BackSlide
-                    @sizing=ItemSize::Percent(100.0)
-                    on_back={back}
-                    shade={shade}
-                    behind={move || view! {
-                        <Portal node={Some(sidebar)} />
-                    }}
-                >
-                    <Frame fill={ColorRole::custom(page)}>
-                        <List spacing=Space::None>
-                            <Frame padding={Padding::symmetric(Space::Md, Space::Xs)}>
-                                <Button
-                                    icon_only=true
-                                    glyph=ICON_ARROW_LEFT
-                                    label="Back to the pull requests"
-                                    on_click={back}
-                                />
-                            </Frame>
-                            <ForEach keys={opened}>|number: u64| {
-                                let pull_request = create_memo(move || {
-                                    model.opened.with(|opened| {
-                                        opened
-                                            .iter()
-                                            .find(|pull_request| pull_request.number == number)
-                                            .cloned()
-                                            .unwrap_or_else(|| placeholder(number))
-                                    })
-                                });
-                                view! {
-                                    <Detail
-                                        @sizing=ItemSize::Percent(100.0)
-                                        model={model}
-                                        pull_request
+                <ListItem grow=1.0>
+                    <BackSlide
+                        on_back={back}
+                        shade={shade}
+                        behind={move || view! {
+                            <Portal node={Some(sidebar)} />
+                        }}
+                    >
+                        <Frame fill={ColorRole::custom(page)}>
+                            <List spacing=Space::None>
+                                <Frame padding={Padding::symmetric(Space::Md, Space::Xs)}>
+                                    <Button
+                                        icon_only=true
+                                        glyph=ICON_ARROW_LEFT
+                                        label="Back to the pull requests"
+                                        on_click={back}
                                     />
-                                }
-                            }</ForEach>
-                        </List>
-                    </Frame>
-                </BackSlide>
+                                </Frame>
+                                <ForEach keys={opened}>|number: u64| {
+                                    let pull_request = create_memo(move || {
+                                        model.opened.with(|opened| {
+                                            opened
+                                                .iter()
+                                                .find(|pull_request| pull_request.number == number)
+                                                .cloned()
+                                                .unwrap_or_else(|| placeholder(number))
+                                        })
+                                    });
+                                    view! {
+                                        <ListItem grow=1.0>
+                                            <Detail model={model} pull_request />
+                                        </ListItem>
+                                    }
+                                }</ForEach>
+                            </List>
+                        </Frame>
+                    </BackSlide>
+                </ListItem>
             </Show>
             <ImageViewer model={model} />
         </List>
@@ -110,13 +111,17 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
 pub(crate) fn Launcher(model: Model) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) fill=ColorRole::Surface>
-                <Sidebar model={model} />
-            </Frame>
+            <ListItem length=SIDEBAR_WIDTH>
+                <Frame fill=ColorRole::Surface>
+                    <Sidebar model={model} />
+                </Frame>
+            </ListItem>
             <Separator direction=Direction::Vertical />
-            <Frame @sizing=ItemSize::Percent(100.0)>
-                <Workspace model />
-            </Frame>
+            <ListItem grow=1.0>
+                <Frame>
+                    <Workspace model />
+                </Frame>
+            </ListItem>
             <ImageViewer model={model} />
         </List>
     }
@@ -177,10 +182,12 @@ fn Sidebar(model: Model) -> NodeId {
             <Frame padding=PADDING>
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
-                            <Text style=TextStyle::HEADING>"Pull requests"</Text>
-                            <Text style=TextStyle::CAPTION>{repository}</Text>
-                        </List>
+                        <ListItem grow=1.0>
+                            <List spacing=Space::Xs2>
+                                <Text style=TextStyle::HEADING>"Pull requests"</Text>
+                                <Text style=TextStyle::CAPTION>{repository}</Text>
+                            </List>
+                        </ListItem>
                         <Button
                             icon_only=true
                             glyph=ICON_SCAN_SEARCH
@@ -207,12 +214,13 @@ fn Sidebar(model: Model) -> NodeId {
                         <Text color=TextColor::Muted align=TextAlign::Center>
                             <Icon glyph=ICON_SEARCH />
                         </Text>
-                        <TextInput
-                            @sizing=ItemSize::Percent(100.0)
-                            value={query}
-                            placeholder="Filter by title, author, branch or number"
-                            label="Filter pull requests"
-                        />
+                        <ListItem grow=1.0>
+                            <TextInput
+                                value={query}
+                                placeholder="Filter by title, author, branch or number"
+                                label="Filter pull requests"
+                            />
+                        </ListItem>
                     </List>
                     <Show condition={loading}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -228,19 +236,21 @@ fn Sidebar(model: Model) -> NodeId {
                     </Show>
                 </List>
             </Frame>
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding={Padding::horizontal(PADDING).bottom(PADDING)}>
-                    <List spacing=Space::None>
-                        <ForEach keys={visible}>|number: u64| {
-                            let pull_request = model.pull_requests.get(&number);
-                            let pull_request = create_memo(move || pull_request.get());
-                            view! {
-                                <PullRequestRow model={model} pull_request />
-                            }
-                        }</ForEach>
-                    </List>
-                </Frame>
-            </Scroll>
+            <ListItem grow=1.0>
+                <Scroll>
+                    <Frame padding={Padding::horizontal(PADDING).bottom(PADDING)}>
+                        <List spacing=Space::None>
+                            <ForEach keys={visible}>|number: u64| {
+                                let pull_request = model.pull_requests.get(&number);
+                                let pull_request = create_memo(move || pull_request.get());
+                                view! {
+                                    <PullRequestRow model={model} pull_request />
+                                }
+                            }</ForEach>
+                        </List>
+                    </Frame>
+                </Scroll>
+            </ListItem>
         </List>
     }
 }
@@ -284,13 +294,15 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
         <ListRow @test_id={format!("launcher.pull_request.{number}")} selected on_click={open}>
             <List direction=Direction::Horizontal spacing=Space::Md>
                 <StateIcon state />
-                <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                    <Text>{title}</Text>
-                    <Text style=TextStyle::CAPTION>{details}</Text>
-                    <Show condition={has_tags}>
-                        <Labels labels={labels} checked_out={checked_out} />
-                    </Show>
-                </List>
+                <ListItem grow=1.0>
+                    <List spacing=ROW_SPACING>
+                        <Text>{title}</Text>
+                        <Text style=TextStyle::CAPTION>{details}</Text>
+                        <Show condition={has_tags}>
+                            <Labels labels={labels} checked_out={checked_out} />
+                        </Show>
+                    </List>
+                </ListItem>
             </List>
         </ListRow>
     }
@@ -338,7 +350,7 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
                     <Chip text color />
                 }
             }</ForEach>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Spacer />
         </List>
     }
 }

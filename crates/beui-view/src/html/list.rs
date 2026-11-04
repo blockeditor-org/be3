@@ -16,7 +16,7 @@ pub(crate) fn list(
     justify: Prop<Justify>,
     wrap: Prop<bool>,
     spacing: Prop<f32>,
-    children: Children<crate::reactive::ListChild>,
+    children: Children<crate::reactive::ListItem>,
 ) -> NodeId {
     let list = create("List", "div");
     set_style(list, "display", Some("flex".to_owned()));

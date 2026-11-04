@@ -19,7 +19,7 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
                 >|_: unstyled::ButtonHandle|
                     <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                         <Text>"a row that opens something"</Text>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Spacer />
                         <unstyled::Button
                             @node_ref=&inner
                             tab_stop=false

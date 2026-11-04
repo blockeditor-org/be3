@@ -11,7 +11,6 @@ pub use beui_types::node::BuildsNode;
 use beui_types::node::{CoreHooks, install_core_hooks};
 pub use beui_types::tree::{
     BareChild, CanvasKind, FromPlaced, GridKind, LayersKind, ListKind, Placed, PlacedItem,
-    WithSizing, with_sizing,
 };
 use beui_types::{Align, Direction, ItemSize, Sizing};
 
@@ -171,7 +170,7 @@ pub fn host<P: ParentKind>(parent: NodeId) -> Rc<dyn SlotHost<Placed<P>>> {
     })
 }
 
-pub type ListChild = Placed<ListKind>;
+pub type ListItem = Placed<ListKind>;
 
 fn align_css(align: Align) -> &'static str {
     match align {
@@ -192,7 +191,7 @@ impl ParentKind for ListKind {
         let flex = match sizing.size {
             ItemSize::Intrinsic => format!("0 {} auto", sizing.shrink),
             ItemSize::Fixed(length) => format!("0 {} {}", sizing.shrink, px(length)),
-            ItemSize::Percent(share) => format!("{share} {} 0%", sizing.shrink),
+            ItemSize::Grow(share) => format!("{share} {} 0%", sizing.shrink),
         };
         set_placed_style(child, "flex", Some(flex));
         let held_at_content = sizing.size == ItemSize::Intrinsic && sizing.shrink <= 0.0;

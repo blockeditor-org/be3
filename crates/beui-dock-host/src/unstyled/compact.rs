@@ -36,26 +36,23 @@ pub(super) fn DockCompactView(dock: State, tree: Tree) -> NodeId {
                 };
                 match (gathered, folded) {
                     (false, _) => view! {
-                        <List spacing=0.0 @sizing=ItemSize::Percent(100.0)>
-                            {stage} @sizing=ItemSize::Percent(100.0)
-                        </List>
+                        <ListItem grow=1.0>
+                            <List spacing=0.0>
+                                <ListItem grow=1.0>{stage}</ListItem>
+                            </List>
+                        </ListItem>
                     },
                     (true, true) => {
-                        let across = match portrait {
-                            true => ItemSize::Intrinsic,
-                            false => ItemSize::Fixed(dock.icon_sidebar_width),
-                        };
+                        let across = (!portrait).then_some(dock.icon_sidebar_width);
                         view! {
-                            <List direction spacing=0.0 @sizing=ItemSize::Percent(100.0)>
-                                {stage} @sizing=ItemSize::Percent(100.0)
-                                <DockGathered
-                                    dock
-                                    tree
-                                    vertical={!portrait}
-                                    folded=true
-                                    @sizing={across}
-                                />
-                            </List>
+                            <ListItem grow=1.0>
+                                <List direction spacing=0.0>
+                                    <ListItem grow=1.0>{stage}</ListItem>
+                                    <ListItem length=across>
+                                        <DockGathered dock tree vertical={!portrait} folded=true />
+                                    </ListItem>
+                                </List>
+                            </ListItem>
                         }
                     }
                     (true, false) => {
@@ -71,21 +68,23 @@ pub(super) fn DockCompactView(dock: State, tree: Tree) -> NodeId {
                             }))
                         });
                         view! {
-                            <Canvas arrangement @sizing=ItemSize::Percent(100.0)>
-                                <CanvasItem arranged={STAGE}>{stage}</CanvasItem>
-                                <CanvasItem arranged={GATHERED}>
-                                    <DockGathered dock tree vertical=false folded=false />
-                                </CanvasItem>
-                                <CanvasItem arranged={SPLITTER}>
-                                    <DockCompactSplitter
-                                        dock
-                                        tree
-                                        direction
-                                        wanted
-                                        area={area.read_only()}
-                                    />
-                                </CanvasItem>
-                            </Canvas>
+                            <ListItem grow=1.0>
+                                <Canvas arrangement>
+                                    <CanvasItem arranged={STAGE}>{stage}</CanvasItem>
+                                    <CanvasItem arranged={GATHERED}>
+                                        <DockGathered dock tree vertical=false folded=false />
+                                    </CanvasItem>
+                                    <CanvasItem arranged={SPLITTER}>
+                                        <DockCompactSplitter
+                                            dock
+                                            tree
+                                            direction
+                                            wanted
+                                            area={area.read_only()}
+                                        />
+                                    </CanvasItem>
+                                </Canvas>
+                            </ListItem>
                         }
                     }
                 }

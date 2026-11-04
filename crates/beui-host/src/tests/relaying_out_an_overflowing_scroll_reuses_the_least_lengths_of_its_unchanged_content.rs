@@ -17,12 +17,11 @@ fn relaying_out_an_overflowing_scroll_reuses_the_least_lengths_of_its_unchanged_
                 <Frame width={create_memo(move || Extent::px(width.get()))} height=40.0>
                     <Scroll direction=Direction::Horizontal>
                         <ForEach keys={(0..LABELS).collect::<Vec<_>>()}>|label: usize|
-                            <Text
-                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                overflow=Overflow::Ellipsis
-                            >
-                                {format!("Label number {label}")}
-                            </Text>
+                            <ListItem shrink=1.0>
+                                <Text overflow=Overflow::Ellipsis>
+                                    {format!("Label number {label}")}
+                                </Text>
+                            </ListItem>
                         </ForEach>
                     </Scroll>
                 </Frame>

@@ -10,14 +10,16 @@ fn keys_an_inner_scroll_cannot_use_scroll_the_one_around_it() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">
-                    <Frame height=100.0>
-                        <Scroll @test_id="inner">
-                            <Rows count=20 />
-                        </Scroll>
-                    </Frame>
-                    <Rows count=20 />
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @test_id="outer">
+                        <Frame height=100.0>
+                            <Scroll @test_id="inner">
+                                <Rows count=20 />
+                            </Scroll>
+                        </Frame>
+                        <Rows count=20 />
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });
@@ -49,7 +51,7 @@ fn keys_an_inner_scroll_cannot_use_scroll_the_one_around_it() {
 }
 
 #[component]
-fn Rows(count: usize) -> DynamicSegment<ListChild> {
+fn Rows(count: usize) -> DynamicSegment<ListItem> {
     view! {
         <ForEach keys={indices(count)}>|index: usize|
             <Text color=Color32::WHITE font={FontId::proportional(20.0)}>

@@ -12,7 +12,9 @@ fn a_sheet_pulled_past_its_top_stretches_and_springs_back() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
                 <ModalSheet @node_ref=&sheet open={open} fit=true on_close={|| ()}>
                     <Frame height=120.0 />
                 </ModalSheet>

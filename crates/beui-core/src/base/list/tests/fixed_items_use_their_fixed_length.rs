@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn fixed_items_use_their_fixed_length() {
-    let sizes = [ItemSize::Fixed(30.0), ItemSize::Percent(100.0)];
+    let sizes = [ItemSize::Fixed(30.0), ItemSize::Grow(1.0)];
     let intrinsic_lengths = [0.0, 0.0];
 
     let lengths =

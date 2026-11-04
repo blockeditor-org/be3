@@ -25,17 +25,19 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Canvas @sizing=ItemSize::Percent(100.0)>
-                    <CanvasItem x=0.0 y=0.0 width={WIDE.x} height={WIDE.y}>
-                        <Interactive
-                            on_forward={move |input: ForwardedInput| {
-                                heard.update(|heard| heard.extend(flattened(input)))
-                            }}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
+                <ListItem grow=1.0>
+                    <Canvas>
+                        <CanvasItem x=0.0 y=0.0 width={WIDE.x} height={WIDE.y}>
+                            <Interactive
+                                on_forward={move |input: ForwardedInput| {
+                                    heard.update(|heard| heard.extend(flattened(input)))
+                                }}
+                            >
+                                <Frame />
+                            </Interactive>
+                        </CanvasItem>
+                    </Canvas>
+                </ListItem>
                 <Dialog
                     open={open}
                     title="Event"

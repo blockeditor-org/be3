@@ -7,7 +7,6 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 use crate::{DockEntry, DockKey, DockingLayout};
-use beui_view::types::ItemSize;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DockSlot(u64);
@@ -244,7 +243,10 @@ where
     view! {
         <List spacing=0.0>
             <Keyed value={document.content} key={identity}>|content: ReadSignal<T>| {
-                sizing(body.call(content), ItemSize::Percent(100.0))
+                let body = body.call(content);
+                view! {
+                    <ListItem grow=1.0>{body}</ListItem>
+                }
             }</Keyed>
         </List>
     }

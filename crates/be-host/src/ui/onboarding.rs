@@ -11,7 +11,7 @@ use uuid::Uuid;
 use super::{AccountForm, ErrorAction, HostUiStore, OrganizationsState, UiCommand, send};
 use crate::root_settings::{SESSION_TYPES, session_type_name};
 use be_host_base::platform;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 #[component]
 pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
@@ -383,14 +383,16 @@ pub(super) fn AddAccountDialog(
                                         align=Align::Center
                                         spacing=Space::Lg
                                     >
-                                        <SelectableText
-                                            @sizing=ItemSize::Percent(100.0)
-                                            child_size=ItemSize::Percent(100.0)
-                                        >
-                                            <Text size=TextSize::Xl @test_id="account.browser-code">
-                                                {browser_code}
-                                            </Text>
-                                        </SelectableText>
+                                        <ListItem grow=1.0>
+                                            <SelectableText child_grow=1.0>
+                                                <Text
+                                                    size=TextSize::Xl
+                                                    @test_id="account.browser-code"
+                                                >
+                                                    {browser_code}
+                                                </Text>
+                                            </SelectableText>
+                                        </ListItem>
                                         <Button
                                             icon_only=true
                                             label="Copy code"
@@ -409,17 +411,16 @@ pub(super) fn AddAccountDialog(
                                         align=Align::Center
                                         spacing=Space::Lg
                                     >
-                                        <SelectableText
-                                            @sizing=ItemSize::Percent(100.0)
-                                            child_size=ItemSize::Percent(100.0)
-                                        >
-                                            <Text
-                                                style=TextStyle::CAPTION
-                                                @test_id="account.browser-url"
-                                            >
-                                                {browser_url}
-                                            </Text>
-                                        </SelectableText>
+                                        <ListItem grow=1.0>
+                                            <SelectableText child_grow=1.0>
+                                                <Text
+                                                    style=TextStyle::CAPTION
+                                                    @test_id="account.browser-url"
+                                                >
+                                                    {browser_url}
+                                                </Text>
+                                            </SelectableText>
+                                        </ListItem>
                                         <Button
                                             icon_only=true
                                             label="Copy link"
@@ -469,7 +470,9 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
     view! {
         <Column>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                <Text style=TextStyle::TITLE @sizing=ItemSize::Percent(100.0)>"Organizations"</Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::TITLE>"Organizations"</Text>
+                </ListItem>
                 <MenuButton
                     label="Account options"
                     glyph=ICON_ELLIPSIS
@@ -492,10 +495,12 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
             </List>
             <Card>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs>
-                        <Text size=TextSize::Lg>{name}</Text>
-                        <AccountDetails account />
-                    </List>
+                    <ListItem grow=1.0>
+                        <List spacing=Space::Xs>
+                            <Text size=TextSize::Lg>{name}</Text>
+                            <AccountDetails account />
+                        </List>
+                    </ListItem>
                     <Button
                         label="Switch account"
                         glyph=ICON_USERS_ROUND
@@ -516,13 +521,14 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                 });
                 view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                        <Button
-                            @sizing=ItemSize::Percent(100.0)
-                            label={label}
-                            glyph=ICON_BOXES
-                            variant=ButtonVariant::Secondary
-                            on_click={move || send(UiCommand::OpenOrganization(id))}
-                        />
+                        <ListItem grow=1.0>
+                            <Button
+                                label={label}
+                                glyph=ICON_BOXES
+                                variant=ButtonVariant::Secondary
+                                on_click={move || send(UiCommand::OpenOrganization(id))}
+                            />
+                        </ListItem>
                         <Button
                             icon_only=true
                             glyph=ICON_CHEVRON_DOWN
@@ -580,10 +586,12 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
             <Show condition={asking}>
                 <Card>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                        <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
-                            <Text size=TextSize::Lg>{title}</Text>
-                            <Text style=TextStyle::CAPTION>{invited}</Text>
-                        </List>
+                        <ListItem grow=1.0>
+                            <List spacing=Space::Xs2>
+                                <Text size=TextSize::Lg>{title}</Text>
+                                <Text style=TextStyle::CAPTION>{invited}</Text>
+                            </List>
+                        </ListItem>
                         <Button
                             label="Cancel"
                             variant=ButtonVariant::Secondary
@@ -604,14 +612,15 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
                 <List spacing=Space::Md>
                     <Text style=TextStyle::CAPTION>"Paste the invite link someone sent you."</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                        <TextInput
-                            @sizing=ItemSize::Percent(100.0)
-                            value={link}
-                            label="Invite link"
-                            placeholder="https://…/#invite/…"
-                            @test_id={"host.join.link"}
-                            on_submit={move |_value: String| open()}
-                        />
+                        <ListItem grow=1.0>
+                            <TextInput
+                                value={link}
+                                label="Invite link"
+                                placeholder="https://…/#invite/…"
+                                @test_id={"host.join.link"}
+                                on_submit={move |_value: String| open()}
+                            />
+                        </ListItem>
                         <Button
                             label="Open"
                             variant=ButtonVariant::Secondary
@@ -697,7 +706,9 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
                 on_click={|| send(UiCommand::NewProfile)}
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>"Session"</Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::HEADING>"Session"</Text>
+                </ListItem>
                 <Text style=TextStyle::CAPTION>"Show every type"</Text>
                 <Switch
                     on={Binding::new(every_type, |every: bool| send(UiCommand::EverySessionType(every)))}
@@ -812,13 +823,14 @@ fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-            <TextInput
-                @sizing=ItemSize::Percent(100.0)
-                value={name}
-                placeholder="Organization name"
-                label="Organization name"
-                on_submit={move |_value: String| create()}
-            />
+            <ListItem grow=1.0>
+                <TextInput
+                    value={name}
+                    placeholder="Organization name"
+                    label="Organization name"
+                    on_submit={move |_value: String| create()}
+                />
+            </ListItem>
             <Button
                 label="Create"
                 variant=ButtonVariant::Primary

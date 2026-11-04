@@ -10,7 +10,6 @@ use beui_view::components::selectable::{
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::ItemSize;
 use beui_view::types::Rect;
 
 /// Makes the plain text nodes under it selectable together: a drag selects from
@@ -26,7 +25,7 @@ use beui_view::types::Rect;
 pub fn SelectableText(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,
     children: Child,
-    #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
+    #[prop(default = 0.0)] child_grow: Prop<f32>,
     #[prop(default = Some(COPY_KEY))] copy_key: Prop<Option<Chord>>,
     #[prop(default = Some(SELECT_ALL_KEY))] select_all_key: Prop<Option<Chord>>,
 ) -> NodeId {
@@ -41,7 +40,7 @@ pub fn SelectableText(
         create_memo(move || select_all_key.get().map(Chord::label).unwrap_or_default());
     view! {
         <ContextMenu
-            child_size
+            child_grow
             selection=true
             toolbar_at
             opens_on_hold=false

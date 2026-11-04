@@ -11,18 +11,22 @@ fn a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over() {
     let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(50.0)>
-                    <List spacing=0.0>
-                        <Frame @node_ref=&left height=400.0 />
-                        <Frame height=400.0 />
-                    </List>
-                </Scroll>
-                <Scroll @sizing=ItemSize::Percent(50.0)>
-                    <List spacing=0.0>
-                        <Frame @node_ref=&right height=400.0 />
-                        <Frame height=400.0 />
-                    </List>
-                </Scroll>
+                <ListItem grow=0.5>
+                    <Scroll>
+                        <List spacing=0.0>
+                            <Frame @node_ref=&left height=400.0 />
+                            <Frame height=400.0 />
+                        </List>
+                    </Scroll>
+                </ListItem>
+                <ListItem grow=0.5>
+                    <Scroll>
+                        <List spacing=0.0>
+                            <Frame @node_ref=&right height=400.0 />
+                            <Frame height=400.0 />
+                        </List>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

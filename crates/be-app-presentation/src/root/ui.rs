@@ -17,7 +17,7 @@ use be_sdk_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor};
 use uuid::Uuid;
 
 use super::slides::Slides;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const FILMSTRIP: &str = "filmstrip";
 const STAGE: &str = "stage";
@@ -69,17 +69,18 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                     </Show>
                     <Show condition={bare}>
                         <List spacing=Space::None>
-                            <Stage
-                                @sizing=ItemSize::Percent(100.0)
-                                @node_ref={&bare_stage}
-                                editor={editor}
-                                slides={slides}
-                                selected={slides.selected()}
-                                mode=ChildMode::Live
-                                own_frame={editing}
-                                fit={presenting}
-                                report_size=true
-                            />
+                            <ListItem grow=1.0>
+                                <Stage
+                                    @node_ref={&bare_stage}
+                                    editor={editor}
+                                    slides={slides}
+                                    selected={slides.selected()}
+                                    mode=ChildMode::Live
+                                    own_frame={editing}
+                                    fit={presenting}
+                                    report_size=true
+                                />
+                            </ListItem>
                             <Show condition={presenting}>
                                 <Playback editor={editor} slides={slides} />
                             </Show>
@@ -375,17 +376,19 @@ fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
                                 </Text>
                             </Frame>
                         </Show>
-                        <Scroll
-                            @sizing=ItemSize::Percent(100.0)
-                            direction={direction}
-                            @test_id={"presentation.filmstrip"}
-                        >
-                            <Frame padding=FILMSTRIP_PADDING>
-                                <List direction={direction} align=Align::Start spacing=TILE_SPACING>
-                                    <ForEach keys={keys} view={tiles} />
-                                </List>
-                            </Frame>
-                        </Scroll>
+                        <ListItem grow=1.0>
+                            <Scroll direction={direction} @test_id={"presentation.filmstrip"}>
+                                <Frame padding=FILMSTRIP_PADDING>
+                                    <List
+                                        direction={direction}
+                                        align=Align::Start
+                                        spacing=TILE_SPACING
+                                    >
+                                        <ForEach keys={keys} view={tiles} />
+                                    </List>
+                                </Frame>
+                            </Scroll>
+                        </ListItem>
                     </List>
                 }
             }</Container>
@@ -499,13 +502,9 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                     </DropTarget>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION>{number}</Text>
-                        <Text
-                            overflow=Overflow::Ellipsis
-                            style=TextStyle::CAPTION
-                            @sizing=ItemSize::Percent(100.0)
-                        >
-                            {name}
-                        </Text>
+                        <ListItem grow=1.0>
+                            <Text overflow=Overflow::Ellipsis style=TextStyle::CAPTION>{name}</Text>
+                        </ListItem>
                         <Button
                             icon_only=true
                             glyph=ICON_TRASH

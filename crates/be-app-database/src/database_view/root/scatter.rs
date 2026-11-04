@@ -6,7 +6,6 @@ use be_type_database::database_schema::DatabaseField;
 use uuid::Uuid;
 
 use crate::database_view::root::data::Data;
-use beui::ItemSize;
 
 const AXIS_LEFT: f32 = 48.0;
 const AXIS_BOTTOM: f32 = 32.0;
@@ -41,7 +40,9 @@ pub fn Scatter(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    <Plot @sizing=ItemSize::Percent(100.0) data={data} axes={axes} />
+                    <ListItem grow=1.0>
+                        <Plot data={data} axes={axes} />
+                    </ListItem>
                 </Show>
             </List>
         </Frame>

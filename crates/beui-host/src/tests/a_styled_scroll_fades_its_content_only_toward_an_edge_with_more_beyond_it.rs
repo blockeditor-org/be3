@@ -3,7 +3,6 @@ use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::Scroll;
 use crate::styled::theme::SCROLL_FADE;
-use crate::styled::*;
 use beui_core::display::{Group, Layer, Part};
 
 #[test]
@@ -17,7 +16,7 @@ fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
             <Scroll @node_ref=&scroll>
                 <ForEach keys>|_: usize|
                     <Frame height=40.0>
-                        <Spacer />
+                        <Frame />
                     </Frame>
                 </ForEach>
             </Scroll>

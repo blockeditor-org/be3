@@ -2,7 +2,7 @@ use beui::Overflow;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled;
-use beui::{Align, Align2, Direction, ImageFit, ItemSize, NodeId, Vec2};
+use beui::{Align, Align2, Direction, ImageFit, NodeId, Vec2};
 
 use crate::Shortcuts;
 use crate::images::ImageState;
@@ -60,32 +60,34 @@ pub(crate) fn Gallery(review: Review) -> NodeId {
             </Frame>
             <Shortcuts hints={HINTS.to_vec()} />
             <Separator />
-            <Container @sizing=ItemSize::Percent(100.0)>|size: ReadSignal<Vec2>| {
-                create_effect(move || {
-                    let inner = size.get().x - 2.0 * PADDING.px();
-                    let columns = ((inner + gap) / (tile_width + gap)).floor().max(1.0);
-                    review.columns.set(columns as usize);
-                });
-                view! {
-                    <Layers>
-                        <Scroll>
-                            <Frame padding=PADDING>
-                                <List
-                                    direction=Direction::Horizontal
-                                    spacing=TILE_SPACING
-                                    wrap=true
-                                    @test_id={"paint_review.grid"}
-                                >
-                                    <ForEach keys={keys}>|index: usize|
-                                        <Tile review index />
-                                    </ForEach>
-                                </List>
-                            </Frame>
-                        </Scroll>
-                        <Preview review size />
-                    </Layers>
-                }
-            }</Container>
+            <ListItem grow=1.0>
+                <Container>|size: ReadSignal<Vec2>| {
+                    create_effect(move || {
+                        let inner = size.get().x - 2.0 * PADDING.px();
+                        let columns = ((inner + gap) / (tile_width + gap)).floor().max(1.0);
+                        review.columns.set(columns as usize);
+                    });
+                    view! {
+                        <Layers>
+                            <Scroll>
+                                <Frame padding=PADDING>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        spacing=TILE_SPACING
+                                        wrap=true
+                                        @test_id={"paint_review.grid"}
+                                    >
+                                        <ForEach keys={keys}>|index: usize|
+                                            <Tile review index />
+                                        </ForEach>
+                                    </List>
+                                </Frame>
+                            </Scroll>
+                            <Preview review size />
+                        </Layers>
+                    }
+                }</Container>
+            </ListItem>
         </List>
     }
 }
@@ -185,14 +187,15 @@ fn Tile(review: Review, index: usize) -> NodeId {
                             <Text size=TextSize::Sm color={color(status)}>
                                 <Icon glyph={glyph(status).to_owned()} />
                             </Text>
-                            <Text
-                                @sizing={ItemSize::Fixed(THUMBNAIL_WIDTH).shrink(1.0)}
-                                overflow=Overflow::Ellipsis
-                                family=Family::Mono
-                                size=TextSize::Sm
-                            >
-                                {name.clone()}
-                            </Text>
+                            <ListItem length=THUMBNAIL_WIDTH shrink=1.0>
+                                <Text
+                                    overflow=Overflow::Ellipsis
+                                    family=Family::Mono
+                                    size=TextSize::Sm
+                                >
+                                    {name.clone()}
+                                </Text>
+                            </ListItem>
                         </List>
                     </List>
                 </Frame>

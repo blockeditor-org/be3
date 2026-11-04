@@ -33,7 +33,7 @@ use beui::unstyled::{
     SyntaxColors, narrower_than,
 };
 use beui::{
-    Color32, Direction, FontId, Image, ImageFit, ItemSize, Key, Modifiers, NodeId, PreferenceLayer,
+    Color32, Direction, FontId, Image, ImageFit, Key, Modifiers, NodeId, PreferenceLayer,
     PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
@@ -591,56 +591,58 @@ fn DemoShell() -> NodeId {
                 <DemoToolbar pages />
             </Frame>
             <Separator />
-            <DockHost @sizing=ItemSize::Percent(100.0) layout=host drag_modifier>
-                <Docking layout>
-                    <DockSplit id="shell" size={SplitSize::Fraction(1.0 - PAGE_SHARE)}>
-                        <DockPane id="catalog" locked=true>
-                            <DockTab id=CATALOG title="Components" icon=ICON_BLOCKS>
-                                <CatalogPanel pages active={active} />
-                            </DockTab>
-                        </DockPane>
-                        <DockPane
-                            id="pages"
-                            empty={move || view! {
-                                <EmptyPanel />
-                            }}
-                        >
-                            <DockDocumentTabs
-                                documents={pages.documents}
-                            >|document: DockDocument<TabId, Page, Page>| {
-                                let page = document.content();
-                                view! {
-                                    <DockTab
-                                        id={document.key()}
-                                        title={create_memo(move || page.get().title().to_owned())}
-                                        icon={create_memo(move || page.get().icon().to_owned())}
-                                        on_close={move || pages.close(document)}
-                                    >
-                                        <DockDocumentBody document>|page: ReadSignal<Page>|
-                                            <Container>|_|
-                                                <PageView page={page.get_untracked()} />
-                                            </Container>
-                                        </DockDocumentBody>
-                                    </DockTab>
-                                }
-                            }</DockDocumentTabs>
-                        </DockPane>
-                    </DockSplit>
-                    <ForEach keys={attached}>|dialog: DemoDialog|
-                        <DockDialog
-                            id={dialog.id}
-                            parent={dialog.parent}
-                            modal={dialog.modal}
-                            title={dialog.title()}
-                            icon=ICON_EXTERNAL_LINK
-                            size={dialog.size()}
-                            on_close={move || dialogs.close(dialog.id)}
-                        >
-                            <AttachedDialog modal={dialog.modal} />
-                        </DockDialog>
-                    </ForEach>
-                </Docking>
-            </DockHost>
+            <ListItem grow=1.0>
+                <DockHost layout=host drag_modifier>
+                    <Docking layout>
+                        <DockSplit id="shell" size={SplitSize::Fraction(1.0 - PAGE_SHARE)}>
+                            <DockPane id="catalog" locked=true>
+                                <DockTab id=CATALOG title="Components" icon=ICON_BLOCKS>
+                                    <CatalogPanel pages active={active} />
+                                </DockTab>
+                            </DockPane>
+                            <DockPane
+                                id="pages"
+                                empty={move || view! {
+                                    <EmptyPanel />
+                                }}
+                            >
+                                <DockDocumentTabs
+                                    documents={pages.documents}
+                                >|document: DockDocument<TabId, Page, Page>| {
+                                    let page = document.content();
+                                    view! {
+                                        <DockTab
+                                            id={document.key()}
+                                            title={create_memo(move || page.get().title().to_owned())}
+                                            icon={create_memo(move || page.get().icon().to_owned())}
+                                            on_close={move || pages.close(document)}
+                                        >
+                                            <DockDocumentBody document>|page: ReadSignal<Page>|
+                                                <Container>|_|
+                                                    <PageView page={page.get_untracked()} />
+                                                </Container>
+                                            </DockDocumentBody>
+                                        </DockTab>
+                                    }
+                                }</DockDocumentTabs>
+                            </DockPane>
+                        </DockSplit>
+                        <ForEach keys={attached}>|dialog: DemoDialog|
+                            <DockDialog
+                                id={dialog.id}
+                                parent={dialog.parent}
+                                modal={dialog.modal}
+                                title={dialog.title()}
+                                icon=ICON_EXTERNAL_LINK
+                                size={dialog.size()}
+                                on_close={move || dialogs.close(dialog.id)}
+                            >
+                                <AttachedDialog modal={dialog.modal} />
+                            </DockDialog>
+                        </ForEach>
+                    </Docking>
+                </DockHost>
+            </ListItem>
         </List>
     }
 }
@@ -770,7 +772,7 @@ fn DemoToolbar(pages: Pages) -> NodeId {
             <Show condition={wide}>
                 <Text style=TextStyle::CAPTION>"retained mode ui"</Text>
             </Show>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Spacer />
             <Select
                 label="Theme"
                 options={view! {
@@ -907,12 +909,14 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
                 <Text align=TextAlign::Center>
                     <Icon glyph={page.icon()} />
                 </Text>
-                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                    <Text>{page.title()}</Text>
-                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
-                        {page.summary()}
-                    </Text>
-                </List>
+                <ListItem grow=1.0>
+                    <List spacing=Space::None>
+                        <Text>{page.title()}</Text>
+                        <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                            {page.summary()}
+                        </Text>
+                    </List>
+                </ListItem>
             </List>
         </ListRow>
     }

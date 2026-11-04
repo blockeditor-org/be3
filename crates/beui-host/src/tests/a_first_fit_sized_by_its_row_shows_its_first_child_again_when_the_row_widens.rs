@@ -9,10 +9,12 @@ fn a_first_fit_sized_by_its_row_shows_its_first_child_again_when_the_row_widens(
     let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
-                <unstyled::FirstFit @sizing={ItemSize::Intrinsic.shrink(1.0)}>
-                    <Frame @node_ref=&wide width=300.0 height=20.0 fill=Color32::WHITE />
-                    <Frame @node_ref=&narrow width=100.0 height=20.0 fill=Color32::WHITE />
-                </unstyled::FirstFit>
+                <ListItem shrink=1.0>
+                    <unstyled::FirstFit>
+                        <Frame @node_ref=&wide width=300.0 height=20.0 fill=Color32::WHITE />
+                        <Frame @node_ref=&narrow width=100.0 height=20.0 fill=Color32::WHITE />
+                    </unstyled::FirstFit>
+                </ListItem>
             </List>
         }
     });

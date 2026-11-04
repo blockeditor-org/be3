@@ -250,8 +250,7 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
     let SliderHandle {
         fraction, focused, ..
     } = handle;
-    let filled = create_memo(move || ItemSize::Percent(fraction.get() * 100.0));
-    let rest = create_memo(move || ItemSize::Percent((1.0 - fraction.get()) * 100.0));
+    let rest = create_memo(move || 1.0 - fraction.get());
     view! {
         <Frame
             height=METER_HEIGHT
@@ -260,13 +259,10 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
             border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus).offset(Stroke::Focus))}
         >
             <List direction=Direction::Horizontal spacing=Space::None>
-                <Frame
-                    @sizing={filled}
-                    height=METER_HEIGHT
-                    fill=ColorRole::Accent
-                    radius=Radius::Md
-                />
-                <Spacer @sizing={rest} />
+                <ListItem grow=fraction>
+                    <Frame height=METER_HEIGHT fill=ColorRole::Accent radius=Radius::Md />
+                </ListItem>
+                <Spacer grow=rest />
             </List>
         </Frame>
     }
@@ -820,8 +816,12 @@ fn FruitBins() -> NodeId {
     let bins = create_signal(vec![0usize, 0, 0, 1, 1, 1]);
     view! {
         <List direction=Direction::Horizontal spacing=ROW_SPACING>
-            <FruitBin @sizing=ItemSize::Percent(50.0) bin=0 bins />
-            <FruitBin @sizing=ItemSize::Percent(50.0) bin=1 bins />
+            <ListItem grow=0.5>
+                <FruitBin bin=0 bins />
+            </ListItem>
+            <ListItem grow=0.5>
+                <FruitBin bin=1 bins />
+            </ListItem>
         </List>
     }
 }
@@ -903,18 +903,19 @@ fn ThinScroll() -> NodeId {
     view! {
         <Frame border={Border::new(ColorRole::Border).width(Stroke::Hairline)} radius=Radius::Lg>
             <List spacing=Space::None>
-                <unstyled::Scroll
-                    @sizing=ItemSize::Fixed(SCROLL_HEIGHT)
-                    scrollbar={thin_scrollbar()}
-                >
-                    <Frame padding=Space::Lg>
-                        <List spacing=Space::Sm>
-                            <ForEach keys={(1..=SCROLL_LINES).collect::<Vec<usize>>()}>|line: usize|
-                                <Text>{format!("Line {line}")}</Text>
-                            </ForEach>
-                        </List>
-                    </Frame>
-                </unstyled::Scroll>
+                <ListItem length=SCROLL_HEIGHT>
+                    <unstyled::Scroll scrollbar={thin_scrollbar()}>
+                        <Frame padding=Space::Lg>
+                            <List spacing=Space::Sm>
+                                <ForEach
+                                    keys={(1..=SCROLL_LINES).collect::<Vec<usize>>()}
+                                >|line: usize|
+                                    <Text>{format!("Line {line}")}</Text>
+                                </ForEach>
+                            </List>
+                        </Frame>
+                    </unstyled::Scroll>
+                </ListItem>
             </List>
         </Frame>
     }
@@ -1148,15 +1149,16 @@ fn HueAndHex() -> NodeId {
                     radius=Radius::Md
                     fill={ColorRole::custom(shown)}
                 />
-                <unstyled::TextInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={hex.text()}
-                    placeholder={hex.placeholder()}
-                    style={underlined_style()}
-                    on_submit={move |typed: String| hex.submit(typed)}
-                >|handle: TextInputHandle|
-                    <UnderlinedField handle />
-                </unstyled::TextInput>
+                <ListItem grow=1.0>
+                    <unstyled::TextInput
+                        value={hex.text()}
+                        placeholder={hex.placeholder()}
+                        style={underlined_style()}
+                        on_submit={move |typed: String| hex.submit(typed)}
+                    >|handle: TextInputHandle|
+                        <UnderlinedField handle />
+                    </unstyled::TextInput>
+                </ListItem>
             </List>
         </List>
     }
@@ -1236,24 +1238,26 @@ fn FolderTree() -> NodeId {
     view! {
         <Frame width=PANEL_WIDTH height=TREE_HEIGHT>
             <List spacing=Space::None>
-                <unstyled::Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
-                    <unstyled::Tree
-                        api=tree
-                        keys
-                        item
-                        selected={selected}
-                        ancestors={|key: usize| OUTLINE[key].2.into_iter().collect::<Vec<usize>>()}
-                        on_select={move |key: usize| selected.set(Some(key))}
-                        on_expand={move |(key, open): (usize, bool)| {
-                            expanded.update(|expanded| match open {
-                                true => expanded.push(key),
-                                false => expanded.retain(|held| *held != key),
-                            });
-                        }}
-                    >|handle: TreeRowHandle<usize>|
-                        <FolderRow handle />
-                    </unstyled::Tree>
-                </unstyled::Scroll>
+                <ListItem grow=1.0>
+                    <unstyled::Scroll @node_ref={&viewport}>
+                        <unstyled::Tree
+                            api=tree
+                            keys
+                            item
+                            selected={selected}
+                            ancestors={|key: usize| OUTLINE[key].2.into_iter().collect::<Vec<usize>>()}
+                            on_select={move |key: usize| selected.set(Some(key))}
+                            on_expand={move |(key, open): (usize, bool)| {
+                                expanded.update(|expanded| match open {
+                                    true => expanded.push(key),
+                                    false => expanded.retain(|held| *held != key),
+                                });
+                            }}
+                        >|handle: TreeRowHandle<usize>|
+                            <FolderRow handle />
+                        </unstyled::Tree>
+                    </unstyled::Scroll>
+                </ListItem>
                 <unstyled::TreeReveal
                     tree
                     viewport
@@ -1285,7 +1289,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
         target,
         ..
     } = handle;
-    let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * 16.0));
+    let indent = create_memo(move || item.get().depth as f32 * 16.0);
     let label = create_memo(move || item.get().label);
     let fill = create_memo(
         move || match (selected.get(), marked.get(), hovered.get()) {
@@ -1297,7 +1301,9 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
     );
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-            <Spacer @sizing={indent} />
+            <ListItem length=indent>
+                <Frame />
+            </ListItem>
             <Frame width={Size::Xs}>
                 <List spacing=Space::None>
                     <unstyled::TreeToggle item={item} toggle={toggle}>|handle: TreeToggleHandle| {
@@ -1311,17 +1317,18 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
                     }</unstyled::TreeToggle>
                 </List>
             </Frame>
-            <Frame
-                @sizing=ItemSize::Percent(100.0)
-                fill={fill}
-                radius=Radius::Md
-                border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
-                padding={Padding::symmetric(Space::Sm, Space::Xs2)}
-            >
-                <unstyled::TreeRowArea target>
-                    <Text>{label}</Text>
-                </unstyled::TreeRowArea>
-            </Frame>
+            <ListItem grow=1.0>
+                <Frame
+                    fill={fill}
+                    radius=Radius::Md
+                    border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+                    padding={Padding::symmetric(Space::Sm, Space::Xs2)}
+                >
+                    <unstyled::TreeRowArea target>
+                        <Text>{label}</Text>
+                    </unstyled::TreeRowArea>
+                </Frame>
+            </ListItem>
         </List>
     }
 }
@@ -1395,7 +1402,7 @@ fn PlainNote() -> NodeId {
                                     <ToolbarStrip>{keys}</ToolbarStrip>
                                 },
                             ))}
-                child_size=ItemSize::Percent(100.0)
+                child_grow=1.0
             >|open_menu: Callback<Option<Rect>>|
                 <unstyled::TextArea
                     state

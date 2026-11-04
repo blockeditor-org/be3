@@ -7,7 +7,7 @@ use beui::{CursorIcon, ImageFit, NodeId, TextAlign};
 use super::glyph::{GLYPH_HEIGHT, GLYPH_WIDTH, Glyph};
 use super::session::Session;
 use super::*;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const SLOT_SIZE: f32 = 64.0;
 const SLOT_INSET: f32 = 4.0;
@@ -130,13 +130,9 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                             on_click={up}
                         />
                     </SlotDrop>
-                    <Text
-                        overflow=Overflow::Ellipsis
-                        style=TextStyle::CAPTION
-                        @sizing=ItemSize::Percent(100.0)
-                    >
-                        {title}
-                    </Text>
+                    <ListItem grow=1.0>
+                        <Text overflow=Overflow::Ellipsis style=TextStyle::CAPTION>{title}</Text>
+                    </ListItem>
                     <MenuButton
                         label="Hotbar actions"
                         glyph=ICON_PLUS
@@ -153,13 +149,11 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
             </HotbarHeader>
             <List direction=Direction::Horizontal spacing=COLUMN_GAP>
                 <ForEach keys={columns}>|column: usize|
-                    <HotbarColumn
-                        @sizing=ItemSize::Fixed(COLUMN_WIDTH)
-                        session={session}
-                        column={column}
-                    />
+                    <ListItem length=COLUMN_WIDTH>
+                        <HotbarColumn session={session} column={column} />
+                    </ListItem>
                 </ForEach>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
             <ResetDialog session={session} />
         </List>

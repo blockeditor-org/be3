@@ -12,7 +12,6 @@ mod power;
 mod screens;
 mod ui;
 
-use beui::ItemSize;
 use ui::DisplaySettingsView;
 
 const INTRINSIC_WIDTH: f32 = 420.0;
@@ -35,11 +34,9 @@ impl be_sdk_beui::BeuiRoot for DisplaySettingsRoot {
                                 value={device}
                                 key={|device: bool| device}
                             >|_device: ReadSignal<bool>|
-                                <DisplaySettingsView
-                                    editor={editor}
-                                    settings={settings}
-                                    @sizing=ItemSize::Percent(100.0)
-                                />
+                                <ListItem grow=1.0>
+                                    <DisplaySettingsView editor={editor} settings={settings} />
+                                </ListItem>
                             </Keyed>
                         </List>
                     }

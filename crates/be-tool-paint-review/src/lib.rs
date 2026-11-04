@@ -14,7 +14,7 @@ mod viewer;
 pub use images::{ImageRequest, ImageState, Images};
 
 use be_tool_paint_review_manifest::Manifest;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 use beui_host::native::build;
 use gallery::Gallery;
 use review::Review;
@@ -97,42 +97,49 @@ fn PaintReview(
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
                 <Show condition={loading}>
-                    <Frame @sizing=ItemSize::Percent(100.0) align=Align::Center>
-                        <List
-                            align=Align::Center
-                            spacing=MESSAGE_SPACING
-                            @test_id={"paint_review.loading"}
-                        >
-                            <Progress width=INLINE_PROGRESS_WIDTH label="Loading the paintings" />
-                            <Text style=TextStyle::CAPTION>"Loading the paintings"</Text>
-                        </List>
-                    </Frame>
+                    <ListItem grow=1.0>
+                        <Frame align=Align::Center>
+                            <List
+                                align=Align::Center
+                                spacing=MESSAGE_SPACING
+                                @test_id={"paint_review.loading"}
+                            >
+                                <Progress
+                                    width=INLINE_PROGRESS_WIDTH
+                                    label="Loading the paintings"
+                                />
+                                <Text style=TextStyle::CAPTION>"Loading the paintings"</Text>
+                            </List>
+                        </Frame>
+                    </ListItem>
                 </Show>
                 <Show condition={failed}>
-                    <Frame
-                        @sizing=ItemSize::Percent(100.0)
-                        align=Align::Center
-                        padding=MESSAGE_PADDING
-                    >
-                        <List spacing=MESSAGE_SPACING @test_id={"paint_review.failed"}>
-                            <Text
-                                style=TextStyle::HEADING
-                                color=TextColor::Danger
-                                align=beui::TextAlign::Center
-                            >
-                                "The paintings could not be loaded"
-                            </Text>
-                            <Text style=TextStyle::CAPTION align=beui::TextAlign::Center>
-                                {reason}
-                            </Text>
-                        </List>
-                    </Frame>
+                    <ListItem grow=1.0>
+                        <Frame align=Align::Center padding=MESSAGE_PADDING>
+                            <List spacing=MESSAGE_SPACING @test_id={"paint_review.failed"}>
+                                <Text
+                                    style=TextStyle::HEADING
+                                    color=TextColor::Danger
+                                    align=beui::TextAlign::Center
+                                >
+                                    "The paintings could not be loaded"
+                                </Text>
+                                <Text style=TextStyle::CAPTION align=beui::TextAlign::Center>
+                                    {reason}
+                                </Text>
+                            </List>
+                        </Frame>
+                    </ListItem>
                 </Show>
                 <Show condition={browsing}>
-                    <Gallery @sizing=ItemSize::Percent(100.0) review={review} />
+                    <ListItem grow=1.0>
+                        <Gallery review={review} />
+                    </ListItem>
                 </Show>
                 <Show condition={opened}>
-                    <Viewer @sizing=ItemSize::Percent(100.0) review={review} />
+                    <ListItem grow=1.0>
+                        <Viewer review={review} />
+                    </ListItem>
                 </Show>
             </List>
         </Frame>
@@ -167,7 +174,7 @@ fn shortcut(review: Review, press: KeyPress) -> bool {
 
 #[component]
 fn Shortcuts(hints: Vec<(&'static str, &'static str)>) -> NodeId {
-    let hints: Children<ListChild> = hints
+    let hints: Children<ListItem> = hints
         .into_iter()
         .map(|(keys, description)| {
             view! {

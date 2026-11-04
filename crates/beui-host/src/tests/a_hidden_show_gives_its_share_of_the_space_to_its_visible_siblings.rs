@@ -10,10 +10,14 @@ fn a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings() {
         view! {
             <List spacing=0.0>
                 <Show condition=false>
-                    <Frame @sizing=ItemSize::Percent(100.0) />
+                    <ListItem grow=1.0>
+                        <Frame />
+                    </ListItem>
                 </Show>
                 <Show condition=true>
-                    <Frame @sizing=ItemSize::Percent(100.0) @node_ref=&shown />
+                    <ListItem grow=1.0>
+                        <Frame @node_ref=&shown />
+                    </ListItem>
                 </Show>
             </List>
         }

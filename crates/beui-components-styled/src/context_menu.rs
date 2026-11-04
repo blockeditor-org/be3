@@ -23,7 +23,7 @@ use beui_view::types::TextAlign;
 use beui_view::types::icons::{
     ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_DOT,
 };
-use beui_view::types::{Align, Align2, Direction, ItemSize};
+use beui_view::types::{Align, Align2, Direction};
 use beui_view::types::{Pos2, Rect};
 
 const PADDING_HORIZONTAL: Space = Space::Lg;
@@ -47,7 +47,7 @@ const TREE_CHEVRON: Size = Size::Xs;
 pub fn ContextMenu(
     children: Child,
     items: Children<MenuItem>,
-    #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
+    #[prop(default = 0.0)] child_grow: Prop<f32>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
     #[prop(default = true)] open_at_focuses: bool,
@@ -63,7 +63,7 @@ pub fn ContextMenu(
         <unstyled::ContextMenu
             items
             menu={menu_style()}
-            child_size={child_size}
+            child_grow={child_grow}
             disabled={disabled}
             open_at={open_at}
             open_at_focuses
@@ -283,30 +283,29 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                     <Show condition={has_glyph}>
                         <GlyphSlot glyph color={icon_color} />
                     </Show>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
-                        <Text color align=TextAlign::Start overflow=Overflow::Ellipsis>
-                            {label}
-                        </Text>
-                        <Show condition={has_detail}>
-                            <Text
-                                size=TextSize::Sm
-                                color=TextColor::Muted
-                                align=TextAlign::Start
-                                overflow=Overflow::Ellipsis
-                            >
-                                {detail}
+                    <ListItem grow=1.0>
+                        <List spacing=Space::Xs2>
+                            <Text color align=TextAlign::Start overflow=Overflow::Ellipsis>
+                                {label}
                             </Text>
-                        </Show>
-                    </List>
+                            <Show condition={has_detail}>
+                                <Text
+                                    size=TextSize::Sm
+                                    color=TextColor::Muted
+                                    align=TextAlign::Start
+                                    overflow=Overflow::Ellipsis
+                                >
+                                    {detail}
+                                </Text>
+                            </Show>
+                        </List>
+                    </ListItem>
                     <Show condition={has_shortcut}>
-                        <Text
-                            @sizing={ItemSize::Intrinsic.gap(SHORTCUT_SPACING.px())}
-                            size=TextSize::Sm
-                            color=TextColor::Muted
-                            align=TextAlign::End
-                        >
-                            {shortcut}
-                        </Text>
+                        <ListItem gap={SHORTCUT_SPACING.px()}>
+                            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
+                                {shortcut}
+                            </Text>
+                        </ListItem>
                     </Show>
                     <Show condition={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
@@ -373,7 +372,7 @@ pub(crate) fn MenuTreeLead(
     toggle: ClickCallback,
     indent: Space,
     chevron: Size,
-) -> DynamicSegment<ListChild> {
+) -> DynamicSegment<ListItem> {
     let indent = use_space(indent);
     let depth = create_memo(move || depth.get());
     let in_tree = create_memo(move || depth.get().is_some());
@@ -565,22 +564,20 @@ fn MenuPanel(min_width: Size, children: Child) -> NodeId {
     let min_width = use_size(min_width).get_untracked();
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <Frame
-                @sizing={ItemSize::Intrinsic.min(min_width).max(MENU_MAX_WIDTH).shrink(1.0)}
-                fill=ColorRole::Surface
-                border={Border::DEFAULT}
-                radius=Radius::Md
-            >
-                <List spacing=Space::None>
-                    <unstyled::Scroll
-                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                        fit=true
-                        scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
-                    >
-                        <Frame padding=MENU_PADDING>{children}</Frame>
-                    </unstyled::Scroll>
-                </List>
-            </Frame>
+            <ListItem min=min_width max=MENU_MAX_WIDTH shrink=1.0>
+                <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius=Radius::Md>
+                    <List spacing=Space::None>
+                        <ListItem shrink=1.0>
+                            <unstyled::Scroll
+                                fit=true
+                                scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
+                            >
+                                <Frame padding=MENU_PADDING>{children}</Frame>
+                            </unstyled::Scroll>
+                        </ListItem>
+                    </List>
+                </Frame>
+            </ListItem>
         </List>
     }
 }

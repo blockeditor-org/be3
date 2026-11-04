@@ -9,7 +9,9 @@ fn a_closed_sheet_gives_its_space_back() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame @node_ref=&filler @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <Frame @node_ref=&filler />
+                </ListItem>
                 <styled::Sheet extent=600.0 open={open} on_close={|| ()}>
                     <Frame height=1000.0 />
                 </styled::Sheet>

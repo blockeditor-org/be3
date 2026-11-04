@@ -8,7 +8,7 @@ use be_sdk_beui::{BlockParent, Editor, LayeredSettingsRow};
 use uuid::Uuid;
 
 use super::ui::Settings;
-use beui::{Extent, ItemSize};
+use beui::Extent;
 
 #[component]
 pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Memo<bool>) -> NodeId {
@@ -118,30 +118,31 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                 locked={read_only}
                 id={"input.remapper".to_owned()}
             >
-                <Select
-                    @sizing=ItemSize::Percent(100.0)
-                    width={Extent::fraction(1.0)}
-                    options={view! {
-                        <ForEach keys={keys}>|remapper: Uuid| {
-                            let label = create_memo(move || {
-                                remappers.with(|remappers| {
-                                    remappers
-                                        .iter()
-                                        .find(|(id, _)| *id == remapper)
-                                        .map(|(_, name)| name.clone())
-                                        .unwrap_or_default()
-                                })
-                            });
-                            view! {
-                                <ChoiceOption label={label} />
-                            }
-                        }</ForEach>
-                    }}
-                    selected={Binding::new(selected, choose)}
-                    label="Remapper"
-                    disabled={read_only}
-                    @test_id={"input.remapper"}
-                />
+                <ListItem grow=1.0>
+                    <Select
+                        width={Extent::fraction(1.0)}
+                        options={view! {
+                            <ForEach keys={keys}>|remapper: Uuid| {
+                                let label = create_memo(move || {
+                                    remappers.with(|remappers| {
+                                        remappers
+                                            .iter()
+                                            .find(|(id, _)| *id == remapper)
+                                            .map(|(_, name)| name.clone())
+                                            .unwrap_or_default()
+                                    })
+                                });
+                                view! {
+                                    <ChoiceOption label={label} />
+                                }
+                            }</ForEach>
+                        }}
+                        selected={Binding::new(selected, choose)}
+                        label="Remapper"
+                        disabled={read_only}
+                        @test_id={"input.remapper"}
+                    />
+                </ListItem>
             </LayeredSettingsRow>
             <SettingsLink
                 label="Remaps"

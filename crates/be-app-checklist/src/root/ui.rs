@@ -4,7 +4,7 @@ use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
 use be_sdk_beui::{ContentProjection, Editor};
 use be_type_checklist::{Checklist as ChecklistModel, ChecklistContent, ChecklistItem};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const PAGE_PADDING: Space = Space::Xl3;
 const SECTION_SPACING: Space = Space::Xl;
@@ -84,16 +84,17 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 <Card>
                     <List spacing=Space::Lg>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                            <TextInput
-                                @sizing=ItemSize::Percent(100.0)
-                                value={draft}
-                                placeholder="What needs doing?"
-                                label="New checklist item"
-                                @test_id={"checklist.draft"}
-                                on_submit={move |value| {
-                                    add_item(&checklist, draft, value);
-                                }}
-                            />
+                            <ListItem grow=1.0>
+                                <TextInput
+                                    value={draft}
+                                    placeholder="What needs doing?"
+                                    label="New checklist item"
+                                    @test_id={"checklist.draft"}
+                                    on_submit={move |value| {
+                                        add_item(&checklist, draft, value);
+                                    }}
+                                />
+                            </ListItem>
                             <Button
                                 label="Add task"
                                 variant=ButtonVariant::Primary
@@ -104,28 +105,29 @@ pub fn Checklist(editor: Editor) -> NodeId {
                             />
                         </List>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                            <List
-                                @sizing=ItemSize::Percent(100.0)
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=Space::Sm
-                            >
-                                <ToggleButton
-                                    label="All"
-                                    pressed={Binding::new(selected_filter.memo(Filter::All), move |_| filter.set(Filter::All))}
-                                    @test_id={"checklist.filter.all"}
-                                />
-                                <ToggleButton
-                                    label="Open"
-                                    pressed={Binding::new(selected_filter.memo(Filter::Open), move |_| filter.set(Filter::Open))}
-                                    @test_id={"checklist.filter.open"}
-                                />
-                                <ToggleButton
-                                    label="Done"
-                                    pressed={Binding::new(selected_filter.memo(Filter::Done), move |_| filter.set(Filter::Done))}
-                                    @test_id={"checklist.filter.done"}
-                                />
-                            </List>
+                            <ListItem grow=1.0>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Sm
+                                >
+                                    <ToggleButton
+                                        label="All"
+                                        pressed={Binding::new(selected_filter.memo(Filter::All), move |_| filter.set(Filter::All))}
+                                        @test_id={"checklist.filter.all"}
+                                    />
+                                    <ToggleButton
+                                        label="Open"
+                                        pressed={Binding::new(selected_filter.memo(Filter::Open), move |_| filter.set(Filter::Open))}
+                                        @test_id={"checklist.filter.open"}
+                                    />
+                                    <ToggleButton
+                                        label="Done"
+                                        pressed={Binding::new(selected_filter.memo(Filter::Done), move |_| filter.set(Filter::Done))}
+                                        @test_id={"checklist.filter.done"}
+                                    />
+                                </List>
+                            </ListItem>
                             <Button
                                 label="Clear completed"
                                 variant=ButtonVariant::Secondary
@@ -140,18 +142,22 @@ pub fn Checklist(editor: Editor) -> NodeId {
                         </List>
                     </List>
                 </Card>
-                <Card @sizing=ItemSize::Percent(100.0)>
-                    <List spacing=Space::Md>
-                        <Show condition={empty}>
-                            <Text align=TextAlign::Center>"No tasks match this view."</Text>
-                        </Show>
-                        <Scroll @sizing=ItemSize::Percent(100.0)>
-                            <List spacing=Space::Md>
-                                <ForEach keys={visible} view={rows} />
-                            </List>
-                        </Scroll>
-                    </List>
-                </Card>
+                <ListItem grow=1.0>
+                    <Card>
+                        <List spacing=Space::Md>
+                            <Show condition={empty}>
+                                <Text align=TextAlign::Center>"No tasks match this view."</Text>
+                            </Show>
+                            <ListItem grow=1.0>
+                                <Scroll>
+                                    <List spacing=Space::Md>
+                                        <ForEach keys={visible} view={rows} />
+                                    </List>
+                                </Scroll>
+                            </ListItem>
+                        </List>
+                    </Card>
+                </ListItem>
             </List>
         </Frame>
     }
@@ -184,14 +190,15 @@ fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
             padding={Padding::symmetric(Space::Lg, Space::Md)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                <Checkbox
-                    @sizing=ItemSize::Percent(100.0)
-                    label={label}
-                    checked={Binding::new(done, move |done| {
-                        checklist.operate(ChecklistModel::set_done(id, done));
-                    })}
-                    @test_id={format!("checklist.item.{id}.done")}
-                />
+                <ListItem grow=1.0>
+                    <Checkbox
+                        label={label}
+                        checked={Binding::new(done, move |done| {
+                            checklist.operate(ChecklistModel::set_done(id, done));
+                        })}
+                        @test_id={format!("checklist.item.{id}.done")}
+                    />
+                </ListItem>
                 <Button
                     label="Remove"
                     variant=ButtonVariant::Secondary

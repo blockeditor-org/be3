@@ -16,7 +16,7 @@ use super::rename::Renaming;
 use super::rows::{RowKey, Tree as FileTree};
 use super::ui::{Picker, add_to_section, row_test_id};
 use super::zoom::Zoom;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const SPACING: Space = Space::Sm;
 
@@ -31,31 +31,35 @@ pub(crate) struct Adding {
 }
 
 #[component]
-pub(crate) fn FilesToolbar(adding: Adding, shown: Memo<bool>) -> DynamicSegment<ListChild> {
+pub(crate) fn FilesToolbar(adding: Adding, shown: Memo<bool>) -> DynamicSegment<ListItem> {
     let Adding { editor, zoom, .. } = adding;
     let account = NodeRef::new();
     let focus = zoom.focus();
     let zoomed = create_memo(move || focus.with(Option::is_some));
     view! {
         <Toolbar shown={shown} fit=true>
-            <List @sizing=ItemSize::Percent(100.0) spacing=SPACING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <FilterField zoom query={adding.query} @sizing=ItemSize::Percent(100.0) />
-                    <NewButton adding />
-                    <Button
-                        icon_only=true
-                        @node_ref={&account}
-                        glyph=ICON_CIRCLE_USER_ROUND
-                        label="Account and settings"
-                        variant=ButtonVariant::Ghost
-                        @test_id={"file-tree.host-menu"}
-                        on_click={move || editor.show_host_menu(account)}
-                    />
+            <ListItem grow=1.0>
+                <List spacing=SPACING>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <ListItem grow=1.0>
+                            <FilterField zoom query={adding.query} />
+                        </ListItem>
+                        <NewButton adding />
+                        <Button
+                            icon_only=true
+                            @node_ref={&account}
+                            glyph=ICON_CIRCLE_USER_ROUND
+                            label="Account and settings"
+                            variant=ButtonVariant::Ghost
+                            @test_id={"file-tree.host-menu"}
+                            on_click={move || editor.show_host_menu(account)}
+                        />
+                    </List>
+                    <Show condition={zoomed}>
+                        <Location zoom />
+                    </Show>
                 </List>
-                <Show condition={zoomed}>
-                    <Location zoom />
-                </Show>
-            </List>
+            </ListItem>
         </Toolbar>
     }
 }
@@ -264,14 +268,11 @@ fn Location(zoom: Zoom) -> NodeId {
                     </List>
                 }
             }</ForEach>
-            <Text
-                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                weight=Weight::Bold
-                overflow=Overflow::Ellipsis
-                @test_id={"file-tree.here"}
-            >
-                {name}
-            </Text>
+            <ListItem shrink=1.0>
+                <Text weight=Weight::Bold overflow=Overflow::Ellipsis @test_id={"file-tree.here"}>
+                    {name}
+                </Text>
+            </ListItem>
         </List>
     }
 }

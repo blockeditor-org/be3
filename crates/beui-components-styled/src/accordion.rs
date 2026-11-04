@@ -10,7 +10,7 @@ use beui_components_unstyled::DisclosureHandle;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 use beui_view::types::{Overflow, TextAlign};
 
 const SPACING: Space = Space::Md;
@@ -71,25 +71,23 @@ fn AccordionHeader(
             padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <List
-                    @sizing=ItemSize::Percent(100.0)
-                    direction=Direction::Horizontal
-                    align=Align::Center
-                    spacing=SPACING
-                >
-                    <Text size={size} color={title_color} align=TextAlign::Start>{title}</Text>
-                    <Show condition={detailed}>
-                        <Text
-                            @sizing=ItemSize::Percent(100.0)
-                            overflow=Overflow::Ellipsis
-                            size=TextSize::Sm
-                            color=TextColor::Muted
-                            align=TextAlign::Start
-                        >
-                            {detail}
-                        </Text>
-                    </Show>
-                </List>
+                <ListItem grow=1.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <Text size={size} color={title_color} align=TextAlign::Start>{title}</Text>
+                        <Show condition={detailed}>
+                            <ListItem grow=1.0>
+                                <Text
+                                    overflow=Overflow::Ellipsis
+                                    size=TextSize::Sm
+                                    color=TextColor::Muted
+                                    align=TextAlign::Start
+                                >
+                                    {detail}
+                                </Text>
+                            </ListItem>
+                        </Show>
+                    </List>
+                </ListItem>
                 <Text size=TextSize::Sm color={marker_color} align=TextAlign::Center>
                     <Icon glyph={marker_glyph} />
                 </Text>

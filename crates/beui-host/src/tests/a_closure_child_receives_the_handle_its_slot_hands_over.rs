@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Container;
@@ -20,7 +19,7 @@ fn a_closure_child_receives_the_handle_its_slot_hands_over() {
                     measured.update(|measured| *measured = Some(size));
                     view! {
                         <Frame @node_ref=&item height=ITEM_HEIGHT>
-                            <Spacer />
+                            <Frame />
                         </Frame>
                     }
                 }</Container>

@@ -11,18 +11,21 @@ fn a_tap_beside_a_flinging_scroll_reaches_the_control_it_lands_on() {
     let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(50.0) @node_ref=&scroll>
-                    <ForEach keys={indices(300)}>|index: usize|
-                        <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
-                    </ForEach>
-                </Scroll>
-                <Interactive
-                    @node_ref=&beside
-                    @sizing=ItemSize::Percent(50.0)
-                    on_click={move || clicks.update(|clicks| *clicks += 1)}
-                >
-                    <Frame />
-                </Interactive>
+                <ListItem grow=0.5>
+                    <Scroll @node_ref=&scroll>
+                        <ForEach keys={indices(300)}>|index: usize|
+                            <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
+                <ListItem grow=0.5>
+                    <Interactive
+                        @node_ref=&beside
+                        on_click={move || clicks.update(|clicks| *clicks += 1)}
+                    >
+                        <Frame />
+                    </Interactive>
+                </ListItem>
             </List>
         }
     });

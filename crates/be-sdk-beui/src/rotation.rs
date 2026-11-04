@@ -6,7 +6,7 @@ use beui::styled::*;
 use beui::{NodeId, TextAlign};
 
 use crate::HostDisplay;
-use beui::{Align, Align2, Direction, ItemSize};
+use beui::{Align, Align2, Direction};
 
 const ITEM_WIDTH: Size = Size::Xl3;
 const TILE: Size = Size::Custom(56.0);
@@ -162,9 +162,11 @@ fn LittleScreen(size: Memo<(f32, f32)>) -> NodeId {
         >
             <List spacing=Space::None>
                 <Frame height=TITLE_BAR fill=ColorRole::Accent />
-                <Frame @sizing=ItemSize::Percent(100.0) align=Align2::CENTER>
-                    <Text size=TextSize::Xs>"Aa"</Text>
-                </Frame>
+                <ListItem grow=1.0>
+                    <Frame align=Align2::CENTER>
+                        <Text size=TextSize::Xs>"Aa"</Text>
+                    </Frame>
+                </ListItem>
             </List>
         </Frame>
     }

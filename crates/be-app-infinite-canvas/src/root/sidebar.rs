@@ -19,7 +19,7 @@ use super::raster::RasterPanel;
 use super::selection_bar::Swatch;
 use super::state::{Alignment, CanvasCommand, CanvasState, CommonValue, common_value};
 use super::style::{BACKGROUNDS as SOFT, STROKES};
-use beui::{Align, Align2, Direction, ItemSize, Track};
+use beui::{Align, Align2, Direction, Track};
 
 const SPACING: Space = Space::Md;
 
@@ -413,16 +413,17 @@ fn TransformFields(state: CanvasState) -> NodeId {
             </Grid>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text style=TextStyle::CAPTION>"Rotation"</Text>
-                <NumberInput
-                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
-                    @sizing=ItemSize::Percent(100.0)
-                    label="Rotation"
-                    value={Binding::new(angle, rotation)}
-                    disabled={no_rotation}
-                    decimals={Some(2)}
-                    @test_id={"infinite-canvas.transform.rotation"}
-                    on_preview={rotation_preview}
-                />
+                <ListItem grow=1.0>
+                    <NumberInput
+                        on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                        label="Rotation"
+                        value={Binding::new(angle, rotation)}
+                        disabled={no_rotation}
+                        decimals={Some(2)}
+                        @test_id={"infinite-canvas.transform.rotation"}
+                        on_preview={rotation_preview}
+                    />
+                </ListItem>
             </List>
         </List>
     }
@@ -503,17 +504,18 @@ fn EditorScale(state: CanvasState) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
             <Text style=TextStyle::CAPTION>"Scale"</Text>
-            <NumberInput
-                on_scrub={move |scrubbing| state.scrub(scrubbing)}
-                @sizing=ItemSize::Percent(100.0)
-                label="Scale"
-                min=10.0
-                max=800.0
-                value={Binding::new(scale, changed)}
-                disabled={locked}
-                drag={NumberDrag::Linear { speed: 1.0 }}
-                @test_id={"infinite-canvas.editor-scale"}
-            />
+            <ListItem grow=1.0>
+                <NumberInput
+                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                    label="Scale"
+                    min=10.0
+                    max=800.0
+                    value={Binding::new(scale, changed)}
+                    disabled={locked}
+                    drag={NumberDrag::Linear { speed: 1.0 }}
+                    @test_id={"infinite-canvas.editor-scale"}
+                />
+            </ListItem>
         </List>
     }
 }
@@ -797,7 +799,7 @@ fn MixedLabel(label: &'static str, mixed: Memo<bool>) -> NodeId {
             <Show condition={mixed}>
                 <Text style=TextStyle::CAPTION>"Mixed"</Text>
             </Show>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Spacer />
         </List>
     }
 }
@@ -1132,30 +1134,32 @@ fn TextOptions(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION>"Text"</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION>"Font size"</Text>
-                        <NumberInput
-                            on_scrub={move |scrubbing| state.scrub(scrubbing)}
-                            @sizing=ItemSize::Percent(100.0)
-                            label="Font size"
-                            min=4.0
-                            max=256.0
-                            value={Binding::new(font_size, sized)}
-                            decimals={Some(2)}
-                            @test_id={"infinite-canvas.font-size"}
-                        />
+                        <ListItem grow=1.0>
+                            <NumberInput
+                                on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                                label="Font size"
+                                min=4.0
+                                max=256.0
+                                value={Binding::new(font_size, sized)}
+                                decimals={Some(2)}
+                                @test_id={"infinite-canvas.font-size"}
+                            />
+                        </ListItem>
                     </List>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION>"Line height"</Text>
-                        <NumberInput
-                            on_scrub={move |scrubbing| state.scrub(scrubbing)}
-                            @sizing=ItemSize::Percent(100.0)
-                            label="Line height"
-                            min=0.5
-                            max=4.0
-                            value={Binding::new(line_height, spaced)}
-                            decimals={Some(2)}
-                            drag={NumberDrag::Linear { speed: 0.05 }}
-                            @test_id={"infinite-canvas.line-height"}
-                        />
+                        <ListItem grow=1.0>
+                            <NumberInput
+                                on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                                label="Line height"
+                                min=0.5
+                                max=4.0
+                                value={Binding::new(line_height, spaced)}
+                                decimals={Some(2)}
+                                drag={NumberDrag::Linear { speed: 0.05 }}
+                                @test_id={"infinite-canvas.line-height"}
+                            />
+                        </ListItem>
                     </List>
                     <Checkbox
                         label="Bold"

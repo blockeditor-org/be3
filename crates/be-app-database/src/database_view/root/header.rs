@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::database_view::root::data::Data;
 use crate::database_view::root::display::DisplayOptions;
 use crate::database_view::root::filters::{FilterBar, FilterList};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const GUTTER: Space = Space::Lg;
 const SPACING: Space = Space::Md;
@@ -53,17 +53,20 @@ fn WideHeader(data: Data) -> NodeId {
             <List spacing=Space::Sm>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text style=TextStyle::HEADING>{data.name}</Text>
-                    <Scroll
-                        @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                        direction=Direction::Horizontal
-                    >
-                        <ViewTabs data={data} />
-                    </Scroll>
-                    <SearchField @sizing=ItemSize::Fixed(SEARCH_WIDTH) data={data} />
+                    <ListItem grow=1.0 shrink=1.0>
+                        <Scroll direction=Direction::Horizontal>
+                            <ViewTabs data={data} />
+                        </Scroll>
+                    </ListItem>
+                    <ListItem length=SEARCH_WIDTH>
+                        <SearchField data={data} />
+                    </ListItem>
                     <NewRow data={data} compact=false />
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <FilterBar @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
+                    <ListItem grow=1.0 shrink=1.0>
+                        <FilterBar data={data} />
+                    </ListItem>
                     <Text style=TextStyle::CAPTION>{count}</Text>
                     <Popover
                         label="Display"
@@ -94,9 +97,9 @@ fn NarrowHeader(data: Data) -> NodeId {
         <Frame padding={Padding::symmetric(GUTTER, Space::Md)}>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
-                        {data.name}
-                    </Text>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::HEADING>{data.name}</Text>
+                    </ListItem>
                     <Text style=TextStyle::CAPTION>{count}</Text>
                     <NewRow data={data} compact=true />
                 </List>
@@ -104,7 +107,9 @@ fn NarrowHeader(data: Data) -> NodeId {
                     <ViewTabs data={data} />
                 </Scroll>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <SearchField @sizing=ItemSize::Percent(100.0) data={data} />
+                    <ListItem grow=1.0>
+                        <SearchField data={data} />
+                    </ListItem>
                     <Button
                         label={filtered}
                         glyph=ICON_SLIDERS_HORIZONTAL

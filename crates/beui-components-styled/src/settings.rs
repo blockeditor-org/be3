@@ -17,7 +17,7 @@ use beui_view::reactive::NodeId;
 use crate::list::List;
 use crate::tokens::{Padding, Size, Space, use_space};
 use beui_view::reactive::*;
-use beui_view::types::{Align, Align2, Direction, Extent, ItemSize, Justify};
+use beui_view::types::{Align, Align2, Direction, Extent, Justify};
 
 const PAGE_MAX_WIDTH: f32 = 680.0;
 const SECTION_INSET: Space = Space::Xl2;
@@ -33,8 +33,8 @@ const STACKED_SPACING: Space = Space::Md;
 const LABEL_SPACING: Space = Space::Xs2;
 const CONTROL_SPACING: Space = Space::Md;
 const STACK_BELOW: f32 = 400.0;
-const LABEL_WEIGHT: f32 = 55.0;
-const CONTROL_WEIGHT: f32 = 45.0;
+const LABEL_WEIGHT: f32 = 0.55;
+const CONTROL_WEIGHT: f32 = 0.45;
 const MARKER_WIDTH: Size = Size::Custom(4.0);
 const CONTENT_INSET: Space = Space::Lg;
 const EDGE_TO_EDGE_BELOW: f32 = 520.0;
@@ -44,7 +44,7 @@ const NOTE: TextStyle = TextStyle::CAPTION.color(TextColor::Accent);
 const MENU_INSET: Space = Space::Md;
 
 #[component]
-pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
+pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListItem>>) -> NodeId {
     view! {
         <Scroll>
             <Frame
@@ -65,7 +65,7 @@ pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListChild>>)
 pub fn SettingsSection(
     #[prop(default = String::new())] title: Prop<String>,
     #[prop(default = String::new())] description: Prop<String>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let title = create_memo(move || title.get());
     let description = create_memo(move || description.get());
@@ -131,7 +131,7 @@ pub fn SettingsRow(
     #[prop(default = String::new())] note: Prop<String>,
     #[prop(default = String::new())] menu_test_id: Prop<String>,
     menu: Children<MenuItem>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let description = create_memo(move || description.get());
@@ -147,12 +147,9 @@ pub fn SettingsRow(
         true => ColorRole::Accent,
         false => ColorRole::None,
     });
-    let (label_size, control_size) = match compact {
-        true => (ItemSize::Percent(100.0), ItemSize::Intrinsic),
-        false => (
-            ItemSize::Percent(LABEL_WEIGHT),
-            ItemSize::Percent(CONTROL_WEIGHT),
-        ),
+    let (label_grow, control_grow) = match compact {
+        true => (1.0, 0.0),
+        false => (LABEL_WEIGHT, CONTROL_WEIGHT),
     };
     let menu_button = has_menu.then(|| {
         view! {
@@ -190,31 +187,33 @@ pub fn SettingsRow(
                 <Frame padding={Padding::vertical(ROW_PADDING_VERTICAL)}>
                     <Frame width=MARKER_WIDTH fill={marker} radius=Radius::Full />
                 </Frame>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    padding={Padding::symmetric(CONTENT_INSET, ROW_PADDING_VERTICAL)}
-                >
-                    <unstyled::Stack spacing={spacing} narrow={narrow}>
-                        <List @sizing={label_size} justify=Justify::Center spacing=LABEL_SPACING>
-                            <Text>{label}</Text>
-                            <Show condition={described}>
-                                <Text style=TextStyle::CAPTION>{description}</Text>
-                            </Show>
-                            <Show condition={noted}>
-                                <Text style=NOTE>{note}</Text>
-                            </Show>
-                        </List>
-                        <List
-                            @sizing={control_size}
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            justify=Justify::End
-                            spacing=CONTROL_SPACING
-                        >
-                            {children}
-                        </List>
-                    </unstyled::Stack>
-                </Frame>
+                <ListItem grow=1.0>
+                    <Frame padding={Padding::symmetric(CONTENT_INSET, ROW_PADDING_VERTICAL)}>
+                        <unstyled::Stack spacing={spacing} narrow={narrow}>
+                            <ListItem grow=label_grow>
+                                <List justify=Justify::Center spacing=LABEL_SPACING>
+                                    <Text>{label}</Text>
+                                    <Show condition={described}>
+                                        <Text style=TextStyle::CAPTION>{description}</Text>
+                                    </Show>
+                                    <Show condition={noted}>
+                                        <Text style=NOTE>{note}</Text>
+                                    </Show>
+                                </List>
+                            </ListItem>
+                            <ListItem grow=control_grow>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    justify=Justify::End
+                                    spacing=CONTROL_SPACING
+                                >
+                                    {children}
+                                </List>
+                            </ListItem>
+                        </unstyled::Stack>
+                    </Frame>
+                </ListItem>
                 {menu_button}
             </List>
         </List>
@@ -248,27 +247,26 @@ pub fn SettingsLink(
                 <Frame padding={Padding::vertical(ROW_PADDING_VERTICAL)}>
                     <Frame width=MARKER_WIDTH fill={marker} radius=Radius::Full />
                 </Frame>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    padding={Padding::all(LINK_INSET).left(Space::None)}
-                >
-                    <unstyled::Button
-                        label
-                        disabled
-                        on_click={on_click}
-                    >|handle: unstyled::ButtonHandle|
-                        <RowFace
-                            hovered={handle.hovered}
-                            active={handle.active}
-                            focused={handle.focused}
-                            disabled={handle.disabled}
-                            size=RowSize::Regular
-                            label={handle.label}
-                            detail={description}
-                            trailing=RowTrailing::Chevron
-                        />
-                    </unstyled::Button>
-                </Frame>
+                <ListItem grow=1.0>
+                    <Frame padding={Padding::all(LINK_INSET).left(Space::None)}>
+                        <unstyled::Button
+                            label
+                            disabled
+                            on_click={on_click}
+                        >|handle: unstyled::ButtonHandle|
+                            <RowFace
+                                hovered={handle.hovered}
+                                active={handle.active}
+                                focused={handle.focused}
+                                disabled={handle.disabled}
+                                size=RowSize::Regular
+                                label={handle.label}
+                                detail={description}
+                                trailing=RowTrailing::Chevron
+                            />
+                        </unstyled::Button>
+                    </Frame>
+                </ListItem>
             </List>
         </List>
     }

@@ -11,7 +11,7 @@ use be_sdk_beui::{AudioStatus, Editor, FileChooser, SIDE_PANEL_WIDTH};
 
 use super::{decode, filter, format_micros};
 use be_type_audio::AudioContent;
-use beui::{Align, ItemSize};
+use beui::Align;
 
 const PADDING: Space = Space::Lg;
 const SPACING: Space = Space::Md;
@@ -149,14 +149,15 @@ fn Track(editor: Editor) -> NodeId {
                     <Icon glyph=ICON_FILE_HEADPHONE />
                 </Text>
                 <Text align=TextAlign::Center>{source}</Text>
-                <Button
-                    icon_only=true
-                    @sizing={ItemSize::Intrinsic.align(Align::Center)}
-                    glyph={glyph}
-                    label={action}
-                    @test_id={"audio.play"}
-                    on_click={toggle}
-                />
+                <ListItem align=Align::Center>
+                    <Button
+                        icon_only=true
+                        glyph={glyph}
+                        label={action}
+                        @test_id={"audio.play"}
+                        on_click={toggle}
+                    />
+                </ListItem>
                 <Text style=TextStyle::CAPTION align=TextAlign::Center @test_id={"audio.position"}>
                     {elapsed}
                 </Text>

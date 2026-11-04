@@ -8,7 +8,6 @@ use be_sdk_beui::beui::styled::*;
 
 use super::actions::CanvasActions;
 use super::state::Tool;
-use beui::ItemSize;
 
 const TOOLS: [Tool; 11] = [
     Tool::Select,
@@ -206,7 +205,7 @@ pub(crate) fn CanvasMenu(disabled: bool, children: Child) -> NodeId {
             items={view! {
                 <MenuNodes nodes test_prefix={"infinite-canvas.menu".to_owned()} />
             }}
-            child_size=ItemSize::Percent(100.0)
+            child_grow=1.0
             disabled={disabled}
         >
             {children}

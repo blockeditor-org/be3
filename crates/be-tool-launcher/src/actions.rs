@@ -10,7 +10,7 @@ use crate::model::{Loaded, Model};
 #[cfg(target_os = "android")]
 use crate::pane::TerminalPane;
 use crate::runs::{Runs, Stage, Work};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const MEGABYTE: f64 = 1_000_000.0;
 #[cfg(target_os = "android")]
@@ -133,7 +133,9 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     view! {
         <List spacing=Space::Md>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{summary}</Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CAPTION>{summary}</Text>
+                </ListItem>
                 <RunButton
                     model
                     slot={Slot::Main}
@@ -150,7 +152,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
 }
 
 #[component]
-fn KeyEntry(runs: Runs) -> DynamicSegment<ListChild> {
+fn KeyEntry(runs: Runs) -> DynamicSegment<ListItem> {
     let shown = runs.needs_key;
     let key = create_signal(String::new());
     let save = move || {
@@ -167,12 +169,13 @@ fn KeyEntry(runs: Runs) -> DynamicSegment<ListChild> {
                     "The build helper is behind the API gateway: enter its key to build."
                 </Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <TextInput
-                        @sizing=ItemSize::Percent(100.0)
-                        value={key}
-                        placeholder="The API gateway's key"
-                        label="The API gateway's key"
-                    />
+                    <ListItem grow=1.0>
+                        <TextInput
+                            value={key}
+                            placeholder="The API gateway's key"
+                            label="The API gateway's key"
+                        />
+                    </ListItem>
                     <Button
                         label="Save"
                         glyph=ICON_KEY_ROUND
@@ -245,7 +248,7 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
 
 #[cfg(not(target_os = "android"))]
 #[component]
-fn SlotLog(model: Model, slot: Slot) -> DynamicSegment<ListChild> {
+fn SlotLog(model: Model, slot: Slot) -> DynamicSegment<ListItem> {
     let runs = model.runs;
     let logged = create_memo(move || runs.logged.get() == Some(slot));
     view! {
@@ -283,9 +286,11 @@ fn SlotLog(model: Model, slot: Slot) -> NodeId {
                 <Button label glyph=ICON_TERMINAL variant=ButtonVariant::Ghost on_click={toggle} />
             </Show>
             <Show condition={shown}>
-                <Frame @sizing=ItemSize::Fixed(LOG_HEIGHT)>
-                    <TerminalPane pane />
-                </Frame>
+                <ListItem length=LOG_HEIGHT>
+                    <Frame>
+                        <TerminalPane pane />
+                    </Frame>
+                </ListItem>
             </Show>
         </List>
     }

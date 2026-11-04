@@ -16,7 +16,6 @@ use super::keys::PairingDialog;
 use super::{HostUiStore, StatusView, SyncState, UiCommand, send};
 use crate::compositor::{ConflictSurface, PresentingSurface};
 use crate::surfaces::MainSurface;
-use beui::ItemSize;
 
 #[component]
 pub(super) fn OrganizationScreen(view: HostUiStore) -> NodeId {
@@ -38,7 +37,9 @@ fn OrganizationBody(view: HostUiStore) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Show condition={normal}>
-                <MainSurface @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <MainSurface />
+                </ListItem>
             </Show>
             <PresentingSurface />
             <ConflictSurface />

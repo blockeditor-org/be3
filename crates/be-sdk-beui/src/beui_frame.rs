@@ -15,7 +15,6 @@ use crate::chrome::ChromeRoot;
 use crate::docked::DockedTabs;
 use crate::picking::Pickers;
 use crate::{BlockInfo, BlockList, BlockQuery, Editor};
-use beui::ItemSize;
 
 const PALETTE: Chord = Chord::ctrl(Key::P).shift();
 
@@ -150,15 +149,17 @@ pub(crate) fn FrameChrome(
                     on_exit={move || exit_writer.set(true)}
                 />
                 <CommandPalette open={palette} shown_in />
-                <ChromeRoot @sizing=ItemSize::Percent(100.0)>|| {
-                    hosting.hosting(move || {
-                        let built = view();
-                        let content = built.child();
-                        rooted.set(Some(built));
-                        content_slot_writer.set(Some(content));
-                        content
-                    })
-                }</ChromeRoot>
+                <ListItem grow=1.0>
+                    <ChromeRoot>|| {
+                        hosting.hosting(move || {
+                            let built = view();
+                            let content = built.child();
+                            rooted.set(Some(built));
+                            content_slot_writer.set(Some(content));
+                            content
+                        })
+                    }</ChromeRoot>
+                </ListItem>
             </List>
             <Pickers editor />
         </Layers>

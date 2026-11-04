@@ -8,7 +8,7 @@ use be_type_database::database_schema::DatabaseFieldType;
 use uuid::Uuid;
 
 use crate::database_view::root::data::Data;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 mod month;
 mod timeline;
@@ -116,7 +116,9 @@ pub fn CalendarView(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    <Calendar @sizing=ItemSize::Percent(100.0) data={data} />
+                    <ListItem grow=1.0>
+                        <Calendar data={data} />
+                    </ListItem>
                 </Show>
             </List>
         </Frame>
@@ -187,43 +189,42 @@ fn Calendar(data: Data) -> NodeId {
                     />
                 </List>
             </Frame>
-            <Frame
-                @sizing=ItemSize::Percent(100.0)
-                padding={Padding::horizontal(GUTTER).bottom(GUTTER)}
-            >
-                <List spacing=Space::None>
-                    <Dynamic value={layout}>|shown: Layout| {
-                        match shown {
-                            Layout::Month => view! {
-                                <MonthGrid
-                                    anchor={create_memo(move || anchor.get())}
-                                    events={events}
-                                    on_pick_day={pick_day}
-                                    on_pick_event={pick_event}
-                                />
-                            },
-                            Layout::Week => view! {
-                                <Timeline
-                                    first_day={create_memo(move || week_start(anchor.get()))}
-                                    days=7
-                                    events={events}
-                                    on_pick_slot={pick_slot}
-                                    on_pick_event={pick_event}
-                                />
-                            },
-                            Layout::Day => view! {
-                                <Timeline
-                                    first_day={create_memo(move || anchor.get())}
-                                    days=1
-                                    events={events}
-                                    on_pick_slot={pick_slot}
-                                    on_pick_event={pick_event}
-                                />
-                            },
-                        }
-                    }</Dynamic>
-                </List>
-            </Frame>
+            <ListItem grow=1.0>
+                <Frame padding={Padding::horizontal(GUTTER).bottom(GUTTER)}>
+                    <List spacing=Space::None>
+                        <Dynamic value={layout}>|shown: Layout| {
+                            match shown {
+                                Layout::Month => view! {
+                                    <MonthGrid
+                                        anchor={create_memo(move || anchor.get())}
+                                        events={events}
+                                        on_pick_day={pick_day}
+                                        on_pick_event={pick_event}
+                                    />
+                                },
+                                Layout::Week => view! {
+                                    <Timeline
+                                        first_day={create_memo(move || week_start(anchor.get()))}
+                                        days=7
+                                        events={events}
+                                        on_pick_slot={pick_slot}
+                                        on_pick_event={pick_event}
+                                    />
+                                },
+                                Layout::Day => view! {
+                                    <Timeline
+                                        first_day={create_memo(move || anchor.get())}
+                                        days=1
+                                        events={events}
+                                        on_pick_slot={pick_slot}
+                                        on_pick_event={pick_event}
+                                    />
+                                },
+                            }
+                        }</Dynamic>
+                    </List>
+                </Frame>
+            </ListItem>
         </List>
     }
 }

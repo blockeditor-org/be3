@@ -19,6 +19,7 @@ pub use crate::animation::{
 };
 pub use crate::colors::{color_scheme, define_colors, resolve_color};
 pub use crate::component_ref::ComponentRef;
+pub use crate::components::list::ListItem;
 pub use crate::file_picker::{FileFilter, FilePick, FilePicker, create_file_picker, pick_file};
 pub use crate::file_saver::{FileSave, SavedFile, save_file};
 pub use crate::measure::{
@@ -29,10 +30,7 @@ pub use crate::painter::{Draw, Painter, TextBlock};
 pub use crate::types::keys::{KeyAt, KeyEvent, KeyInput};
 pub use crate::types::layer::OverlayAnchor;
 pub use crate::types::node::{BuildsNode, ImeCursor, NodeId, NodeRef};
-pub use crate::types::tree::{
-    BareChild, FromPlaced, ListChild, ParentKind, Placed, WithSizing, with_sizing,
-    with_sizing as sizing,
-};
+pub use crate::types::tree::{BareChild, FromPlaced, ParentKind, Placed};
 
 pub type Child = NodeId;
 

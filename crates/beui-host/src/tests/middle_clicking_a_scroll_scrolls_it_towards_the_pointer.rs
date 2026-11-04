@@ -10,11 +10,13 @@ fn middle_clicking_a_scroll_scrolls_it_towards_the_pointer() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={indices(100)}>|index: usize|
-                        <LabelledButton label={format!("Row {index}")} />
-                    </ForEach>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <ForEach keys={indices(100)}>|index: usize|
+                            <LabelledButton label={format!("Row {index}")} />
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

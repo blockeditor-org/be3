@@ -5,7 +5,7 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align, Align2, Direction, Extent, ItemSize, Justify, NodeId, TextAlign};
+use beui::{Align, Align2, Direction, Extent, Justify, NodeId, TextAlign};
 
 use crate::form::{Field, PageLink, PortalForm, Submit, fixed};
 
@@ -106,10 +106,12 @@ fn Brand(page: Shown) -> NodeId {
             <Text size=TextSize::Xl2 color=TextColor::Accent>
                 <Icon glyph=ICON_BLOCKS />
             </Text>
-            <Text size=TextSize::Lg weight=Weight::Bold @sizing=ItemSize::Percent(100.0)>
-                {PRODUCT}
-                <Span color=TextColor::Muted>" account"</Span>
-            </Text>
+            <ListItem grow=1.0>
+                <Text size=TextSize::Lg weight=Weight::Bold>
+                    {PRODUCT}
+                    <Span color=TextColor::Muted>" account"</Span>
+                </Text>
+            </ListItem>
             <Show condition={elsewhere}>
                 <PageLink label="Your account" href="/auth" />
             </Show>
@@ -168,7 +170,7 @@ fn Heading(
 }
 
 #[component]
-fn Notice(text: String, #[prop(default = false)] good: bool) -> DynamicSegment<ListChild> {
+fn Notice(text: String, #[prop(default = false)] good: bool) -> DynamicSegment<ListItem> {
     let shown = !text.is_empty();
     let text = fixed(text);
     let (fill, color, glyph) = match good {
@@ -182,7 +184,9 @@ fn Notice(text: String, #[prop(default = false)] good: bool) -> DynamicSegment<L
                     <Text color>
                         <Icon glyph />
                     </Text>
-                    <Text @sizing=ItemSize::Percent(100.0)>{text}</Text>
+                    <ListItem grow=1.0>
+                        <Text>{text}</Text>
+                    </ListItem>
                 </List>
             </Frame>
         </Show>
@@ -658,9 +662,9 @@ fn Approve(page: Shown) -> NodeId {
                 </PortalForm>
                 <Separator />
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>
-                        "Not your account?"
-                    </Text>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::CAPTION>"Not your account?"</Text>
+                    </ListItem>
                     <PortalForm action="/auth/logout" csrf={page.csrf()} code={page.code()}>
                         <Submit
                             label="Use another account"
@@ -720,16 +724,18 @@ fn Destination(glyph: Glyph, label: String, detail: String, href: String) -> Nod
             <Text size=TextSize::Lg color=TextColor::Muted>
                 <Icon glyph />
             </Text>
-            <List spacing=Space::Xs2 @sizing=ItemSize::Percent(100.0)>
-                <PageLink label href />
-                <Text style=TextStyle::CAPTION>{detail.clone()}</Text>
-            </List>
+            <ListItem grow=1.0>
+                <List spacing=Space::Xs2>
+                    <PageLink label href />
+                    <Text style=TextStyle::CAPTION>{detail.clone()}</Text>
+                </List>
+            </ListItem>
         </List>
     }
 }
 
 #[component]
-fn Section(title: String, lead: String, children: Children<ListChild>) -> NodeId {
+fn Section(title: String, lead: String, children: Children<ListItem>) -> NodeId {
     view! {
         <Card>
             <List spacing=Space::Lg>
@@ -867,10 +873,12 @@ fn SessionRow(session: Session, csrf: String) -> NodeId {
             <Text size=TextSize::Lg color=TextColor::Muted>
                 <Icon glyph />
             </Text>
-            <List spacing=Space::Xs2 @sizing=ItemSize::Percent(100.0)>
-                <Text weight=Weight::Bold>{kind}</Text>
-                <Text style=TextStyle::CAPTION>{detail.clone()}</Text>
-            </List>
+            <ListItem grow=1.0>
+                <List spacing=Space::Xs2>
+                    <Text weight=Weight::Bold>{kind}</Text>
+                    <Text style=TextStyle::CAPTION>{detail.clone()}</Text>
+                </List>
+            </ListItem>
             <PortalForm
                 action="/auth/sessions/revoke"
                 csrf={csrf.clone()}

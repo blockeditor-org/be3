@@ -19,7 +19,7 @@ use super::model::{
     link_rows, place_rows, slides, tile_key,
 };
 use super::picking::Picker;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const MENU_WIDTH: Size = Size::Custom(256.0);
 const SURFACE_SIZE: Vec2 = Vec2::new(520.0, 560.0);
@@ -547,13 +547,19 @@ fn PickerSurface(picker: Picker) -> NodeId {
             <Dynamic value={shown}>|shown: Option<Option<Stage>>| {
                 match shown {
                     Some(None) => view! {
-                        <CreateBody @sizing=ItemSize::Intrinsic picker held />
+                        <ListItem>
+                            <CreateBody picker held />
+                        </ListItem>
                     },
                     Some(Some(Stage::Link)) => view! {
-                        <LinkBody @sizing=ItemSize::Percent(100.0) picker held act />
+                        <ListItem grow=1.0>
+                            <LinkBody picker held act />
+                        </ListItem>
                     },
                     Some(Some(Stage::More | Stage::Menu)) | None => view! {
-                        <MoreBody @sizing=ItemSize::Percent(100.0) picker held act />
+                        <ListItem grow=1.0>
+                            <MoreBody picker held act />
+                        </ListItem>
                     },
                 }
             }</Dynamic>
@@ -591,7 +597,9 @@ fn SurfaceHeader(
                     variant=ButtonVariant::Ghost
                     on_click={move || act.call(PickAction::Stage(Stage::Menu))}
                 />
-                <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE>{title}</Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::TITLE>{title}</Text>
+                </ListItem>
             </List>
             <TextInput
                 @node_ref={&field}
@@ -652,21 +660,23 @@ fn MoreBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
             on_dismiss={move || act.call(PickAction::Close)}
         >
             <SurfaceHeader title search={search_of(held)} placeholder="Search block types" act />
-            <Scroll @sizing=ItemSize::Percent(100.0) bleed=SIDE_BLEED>
-                <List spacing=ROW_SPACING>
-                    <Show condition={empty}>
-                        <Text style=TextStyle::CAPTION>"No block types match."</Text>
-                    </Show>
-                    <ForEach keys={titles}>|title: String| {
-                        let group = create_memo({ let title = title.clone(); move || {
-                            groups.get().into_iter().find(|group| group.title == title)
-                        } });
-                        view! {
-                            <TypeGroupView act group />
-                        }
-                    }</ForEach>
-                </List>
-            </Scroll>
+            <ListItem grow=1.0>
+                <Scroll bleed=SIDE_BLEED>
+                    <List spacing=ROW_SPACING>
+                        <Show condition={empty}>
+                            <Text style=TextStyle::CAPTION>"No block types match."</Text>
+                        </Show>
+                        <ForEach keys={titles}>|title: String| {
+                            let group = create_memo({ let title = title.clone(); move || {
+                                groups.get().into_iter().find(|group| group.title == title)
+                            } });
+                            view! {
+                                <TypeGroupView act group />
+                            }
+                        }</ForEach>
+                    </List>
+                </Scroll>
+            </ListItem>
         </DialogBody>
     }
 }
@@ -807,31 +817,32 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
             <Show condition={empty}>
                 <Text style=TextStyle::CAPTION>{empty_text}</Text>
             </Show>
-            <Tree
-                @sizing=ItemSize::Percent(100.0)
-                keys
-                item
-                selected={selected_key}
-                spacing=Space::Xs2
-                bleed=SIDE_BLEED
-                row_test_id={move |key: TreeKey| match key.id() {
-                    Some(id) => format!("picker.link.{id}"),
-                    None => "picker.link.shared".to_owned(),
-                }}
-                on_select={move |key: TreeKey| act.call(PickAction::Select(key))}
-                on_open={move |key: TreeKey| {
-                    if let Some(row) = rows.with_untracked(|rows| rows.iter().find(|row| row.key == key).cloned()) {
-                        link(row);
+            <ListItem grow=1.0>
+                <Tree
+                    keys
+                    item
+                    selected={selected_key}
+                    spacing=Space::Xs2
+                    bleed=SIDE_BLEED
+                    row_test_id={move |key: TreeKey| match key.id() {
+                        Some(id) => format!("picker.link.{id}"),
+                        None => "picker.link.shared".to_owned(),
+                    }}
+                    on_select={move |key: TreeKey| act.call(PickAction::Select(key))}
+                    on_open={move |key: TreeKey| {
+                        if let Some(row) = rows.with_untracked(|rows| rows.iter().find(|row| row.key == key).cloned()) {
+                            link(row);
+                        }
+                    }}
+                    on_expand={move |(key, open): (TreeKey, bool)| act.call(PickAction::Unfold(key, open))}
+                >|face: TreeRowFace<TreeKey>| {
+                    let key = face.key.clone();
+                    let row = create_memo(move || rows.with(|rows| rows.iter().find(|row| row.key == key).cloned()));
+                    view! {
+                        <LinkRowFace row />
                     }
-                }}
-                on_expand={move |(key, open): (TreeKey, bool)| act.call(PickAction::Unfold(key, open))}
-            >|face: TreeRowFace<TreeKey>| {
-                let key = face.key.clone();
-                let row = create_memo(move || rows.with(|rows| rows.iter().find(|row| row.key == key).cloned()));
-                view! {
-                    <LinkRowFace row />
-                }
-            }</Tree>
+                }</Tree>
+            </ListItem>
             <Show condition={named}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
                     <Show condition={has_above}>
@@ -871,9 +882,9 @@ fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
             <Text color=TextColor::Muted size=TextSize::Sm align=TextAlign::Center>
                 <Icon glyph={glyph} />
             </Text>
-            <Text @sizing=ItemSize::Percent(100.0) color weight overflow=Overflow::Ellipsis>
-                {label}
-            </Text>
+            <ListItem grow=1.0>
+                <Text color weight overflow=Overflow::Ellipsis>{label}</Text>
+            </ListItem>
             <Text size=TextSize::Sm color=TextColor::Muted>{detail}</Text>
         </List>
     }

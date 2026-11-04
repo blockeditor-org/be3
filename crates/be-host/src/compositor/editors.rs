@@ -26,7 +26,7 @@ use crate::ui::HostPanelSurface;
 use be_host_desktop::host_item::{HostItem, HostItemFace};
 use be_host_desktop::window_body::WindowStatus;
 use be_host_runtime::{ChildCommit, HostChild, HostChildStatus, HostContent};
-use beui::{Align, Direction, ItemSize, Placement};
+use beui::{Align, Direction, Placement};
 
 const CHILD_UNAVAILABLE: &str = "the block is already open above this editor";
 const NO_PICKER: &str = "No editor can pick blocks here.";
@@ -727,16 +727,12 @@ fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>
                     "Both devices changed this block while apart, and the block now holds both changes merged. Keep the merge, or go back to one of the versions."
                 </Text>
                 <List direction=Direction::Horizontal spacing=Space::Lg>
-                    <ConflictSide
-                        @sizing=ItemSize::Percent(50.0)
-                        comparison
-                        side=be_host_stack::conflicts::Side::Ours
-                    />
-                    <ConflictSide
-                        @sizing=ItemSize::Percent(50.0)
-                        comparison
-                        side=be_host_stack::conflicts::Side::Theirs
-                    />
+                    <ListItem grow=0.5>
+                        <ConflictSide comparison side=be_host_stack::conflicts::Side::Ours />
+                    </ListItem>
+                    <ListItem grow=0.5>
+                        <ConflictSide comparison side=be_host_stack::conflicts::Side::Theirs />
+                    </ListItem>
                 </List>
                 <Show condition={failed}>
                     <Text color=TextColor::Danger>{error}</Text>

@@ -16,7 +16,6 @@ use super::panels::{Panels, StorageDialog};
 use super::session::Session;
 use super::*;
 use crate::renderer::GridScene;
-use beui::ItemSize;
 use beui::native::draw_gpu;
 
 const ZOOM_STEP: f32 = 1.25;
@@ -37,13 +36,19 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Show condition={waiting}>
-                <LoadingPane @sizing=ItemSize::Percent(100.0) label="Loading the grid" />
+                <ListItem grow=1.0>
+                    <LoadingPane label="Loading the grid" />
+                </ListItem>
             </Show>
             <Show condition={loaded}>
-                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                    <GridDock @sizing=ItemSize::Percent(100.0) session={session} chrome={chrome} />
-                    <StorageDialog session={session} />
-                </List>
+                <ListItem grow=1.0>
+                    <List spacing=Space::None>
+                        <ListItem grow=1.0>
+                            <GridDock session={session} chrome={chrome} />
+                        </ListItem>
+                        <StorageDialog session={session} />
+                    </List>
+                </ListItem>
             </Show>
         </List>
     }

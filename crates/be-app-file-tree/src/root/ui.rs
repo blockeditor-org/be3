@@ -22,7 +22,7 @@ use super::toolbar::{Adding, FilesToolbar};
 use super::zoom::{Zoom, zooms};
 use be_sdk_beui::beui::TextAlign;
 use be_sdk_beui::beui::styled::Span;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const PADDING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Sm;
@@ -177,78 +177,84 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     view! {
         <List spacing=Space::None>
             <FilesToolbar adding shown={toolbar} />
-            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                <BackSlide enabled={swipes} on_back={move || zoom.up()}>
-                    <Frame fill=ColorRole::Background>
-                        <List spacing=Space::None>
-                            <Show condition={filtering}>
-                                <Frame
-                                    padding={Padding::ZERO.top(PADDING).left(PADDING).right(PADDING)}
-                                >
-                                    <Text style=TextStyle::CAPTION @test_id={"file-tree.matches"}>
-                                        {count}
-                                    </Text>
-                                </Frame>
-                            </Show>
-                            <Show condition={failed}>
-                                <Frame padding=PADDING>
-                                    <Text style=TextStyle::CAPTION color=TextColor::Danger>
-                                        {reason}
-                                    </Text>
-                                </Frame>
-                            </Show>
-                            <Tree
-                                @sizing=ItemSize::Percent(100.0)
-                                api=tree_ref
-                                keys={shown_keys}
-                                item={item}
-                                selected={focused}
-                                ancestors={move |key: RowKey| ancestors(&key)}
-                                spacing=Space::Xs2
-                                padding=PADDING
-                                row_test_id={move |key: RowKey| row_test_id(&key)}
-                                reveal_test_id={"file-tree.reveal".to_owned()}
-                                outline={outline}
-                                menu={move |key: RowKey| view! {
-                                    <RowMenu tools key />
-                                }}
-                                editing={renaming.editing()}
-                                on_select={open}
-                                on_expand={expand}
-                                on_reveal={reveal}
-                                on_drag_start={start}
-                                on_edit={move |key: RowKey| renaming.start(key)}
-                                on_rename={move |(key, name): (RowKey, String)| renaming.rename(&key, &name)}
-                                on_cancel_edit={move |key: RowKey| renaming.finish(&key)}
-                                leading={move |face: TreeRowFace<RowKey>| view! {
-                                    <RowGlyph row={tree.row(face.key)} />
-                                }}
-                            >|face: TreeRowFace<RowKey>| {
-                                let row = tree.row(face.key.clone());
-                                let workspace = row.get_untracked().is_some_and(|row| row.is_workspace());
-                                if workspace {
-                                    return view! {
-                                        <SectionRow
-                                            editor={editor}
-                                            row={row}
-                                            face={face}
-                                            filter={filter}
-                                        />
-                                    };
-                                }
-                                view! {
-                                    <TreeRow
-                                        editor={editor}
-                                        row={row}
-                                        face={face}
-                                        filter={filter}
-                                    />
-                                }
-                            }</Tree>
-                        </List>
-                    </Frame>
-                </BackSlide>
-            </Frame>
+            <ListItem grow=1.0>
+                <Frame @node_ref={&content}>
+                    <BackSlide enabled={swipes} on_back={move || zoom.up()}>
+                        <Frame fill=ColorRole::Background>
+                            <List spacing=Space::None>
+                                <Show condition={filtering}>
+                                    <Frame
+                                        padding={Padding::ZERO.top(PADDING).left(PADDING).right(PADDING)}
+                                    >
+                                        <Text
+                                            style=TextStyle::CAPTION
+                                            @test_id={"file-tree.matches"}
+                                        >
+                                            {count}
+                                        </Text>
+                                    </Frame>
+                                </Show>
+                                <Show condition={failed}>
+                                    <Frame padding=PADDING>
+                                        <Text style=TextStyle::CAPTION color=TextColor::Danger>
+                                            {reason}
+                                        </Text>
+                                    </Frame>
+                                </Show>
+                                <ListItem grow=1.0>
+                                    <Tree
+                                        api=tree_ref
+                                        keys={shown_keys}
+                                        item={item}
+                                        selected={focused}
+                                        ancestors={move |key: RowKey| ancestors(&key)}
+                                        spacing=Space::Xs2
+                                        padding=PADDING
+                                        row_test_id={move |key: RowKey| row_test_id(&key)}
+                                        reveal_test_id={"file-tree.reveal".to_owned()}
+                                        outline={outline}
+                                        menu={move |key: RowKey| view! {
+                                            <RowMenu tools key />
+                                        }}
+                                        editing={renaming.editing()}
+                                        on_select={open}
+                                        on_expand={expand}
+                                        on_reveal={reveal}
+                                        on_drag_start={start}
+                                        on_edit={move |key: RowKey| renaming.start(key)}
+                                        on_rename={move |(key, name): (RowKey, String)| renaming.rename(&key, &name)}
+                                        on_cancel_edit={move |key: RowKey| renaming.finish(&key)}
+                                        leading={move |face: TreeRowFace<RowKey>| view! {
+                                            <RowGlyph row={tree.row(face.key)} />
+                                        }}
+                                    >|face: TreeRowFace<RowKey>| {
+                                        let row = tree.row(face.key.clone());
+                                        let workspace = row.get_untracked().is_some_and(|row| row.is_workspace());
+                                        if workspace {
+                                            return view! {
+                                                <SectionRow
+                                                    editor={editor}
+                                                    row={row}
+                                                    face={face}
+                                                    filter={filter}
+                                                />
+                                            };
+                                        }
+                                        view! {
+                                            <TreeRow
+                                                editor={editor}
+                                                row={row}
+                                                face={face}
+                                                filter={filter}
+                                            />
+                                        }
+                                    }</Tree>
+                                </ListItem>
+                            </List>
+                        </Frame>
+                    </BackSlide>
+                </Frame>
+            </ListItem>
             <Inspector inspecting={inspecting} opened_from={inspected_from} />
         </List>
     }
@@ -412,16 +418,18 @@ fn TreeRow(
     });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-            <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                <Text color={color} weight={weight} overflow=Overflow::Ellipsis>
-                    {before}
-                    <Span background=ColorRole::AccentSoft>{hit}</Span>
-                    {after}
-                </Text>
-                <Show condition={detailed}>
-                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
-                </Show>
-            </List>
+            <ListItem grow=1.0>
+                <List spacing=Space::None>
+                    <Text color={color} weight={weight} overflow=Overflow::Ellipsis>
+                        {before}
+                        <Span background=ColorRole::AccentSoft>{hit}</Span>
+                        {after}
+                    </Text>
+                    <Show condition={detailed}>
+                        <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
+                    </Show>
+                </List>
+            </ListItem>
             <ForEach keys={tag_keys}>|tag: Uuid| {
                 let shown = create_memo(move || {
                     row.get()
@@ -459,7 +467,7 @@ fn TreeRow(
 }
 
 #[component]
-fn RowGlyph(row: Memo<Option<Row>>) -> Children<ListChild> {
+fn RowGlyph(row: Memo<Option<Row>>) -> Children<ListItem> {
     let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
     let has_glyph = create_memo(move || glyph.get().is_some());
     let glyph_size = glyph_size();
@@ -493,16 +501,18 @@ fn SectionRow(
     let (detail, detailed) = detail(editor, row);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-            <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                <Text weight=Weight::Bold overflow=Overflow::Ellipsis>
-                    {before}
-                    <Span background=ColorRole::AccentSoft>{hit}</Span>
-                    {after}
-                </Text>
-                <Show condition={detailed}>
-                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
-                </Show>
-            </List>
+            <ListItem grow=1.0>
+                <List spacing=Space::None>
+                    <Text weight=Weight::Bold overflow=Overflow::Ellipsis>
+                        {before}
+                        <Span background=ColorRole::AccentSoft>{hit}</Span>
+                        {after}
+                    </Text>
+                    <Show condition={detailed}>
+                        <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
+                    </Show>
+                </List>
+            </ListItem>
             <Show condition={actions}>
                 <RowActions
                     editor={editor}

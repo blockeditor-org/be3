@@ -10,14 +10,16 @@ fn text_culled_out_of_sight_is_not_an_overflow_after_the_window_narrows() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <List spacing=0.0>
-                        <Frame height=3000.0 />
-                        <Text @node_ref=&text>
-                            "a line long enough to wrap once the window is narrower than it"
-                        </Text>
-                    </List>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll>
+                        <List spacing=0.0>
+                            <Frame height=3000.0 />
+                            <Text @node_ref=&text>
+                                "a line long enough to wrap once the window is narrower than it"
+                            </Text>
+                        </List>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

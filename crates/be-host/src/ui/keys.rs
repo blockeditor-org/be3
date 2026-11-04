@@ -4,7 +4,7 @@ use beui::styled::*;
 
 use super::{HostUiStore, UiCommand, send};
 use be_host_accounts_ui::{Column, ErrorText};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 #[component]
 pub(super) fn RecoveryScreen(view: HostUiStore) -> NodeId {
@@ -93,7 +93,7 @@ pub(super) fn RecoveryScreen(view: HostUiStore) -> NodeId {
                 <Show condition={busy}>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
                 <Show condition={first_time}>
                     <Button
                         label="Switch account"
@@ -149,7 +149,7 @@ pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
                     on_submit={move |_value: String| open()}
                 />
                 <List direction=Direction::Horizontal spacing=Space::Md>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Spacer />
                     <Button
                         label="Unlock"
                         variant=ButtonVariant::Primary
@@ -161,9 +161,11 @@ pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
             <Text style=TextStyle::HEADING>"With another device"</Text>
             <Show condition={idle}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text style=TextStyle::PARAGRAPH @sizing=ItemSize::Percent(100.0)>
-                        "Open any organization of this account on a device that is unlocked, and it will ask for a code."
-                    </Text>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::PARAGRAPH>
+                            "Open any organization of this account on a device that is unlocked, and it will ask for a code."
+                        </Text>
+                    </ListItem>
                     <Button
                         label="Show a code"
                         variant=ButtonVariant::Secondary
@@ -178,7 +180,7 @@ pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Progress width=INLINE_PROGRESS_WIDTH />
                         <Text style=TextStyle::CAPTION>"Waiting for the other device…"</Text>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Spacer />
                         <Button
                             label="Cancel"
                             variant=ButtonVariant::Secondary

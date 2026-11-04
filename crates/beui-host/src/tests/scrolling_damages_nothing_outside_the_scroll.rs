@@ -40,7 +40,7 @@ fn scrolling_damages_nothing_outside_the_scroll() {
 }
 
 #[component]
-fn Bands(count: usize) -> DynamicSegment<ListChild> {
+fn Bands(count: usize) -> DynamicSegment<ListItem> {
     view! {
         <ForEach keys={indices(count)}>|index: usize|
             <Frame height=40.0 fill={Color32::from_gray((index * 10) as u8)} radius=0.0 />

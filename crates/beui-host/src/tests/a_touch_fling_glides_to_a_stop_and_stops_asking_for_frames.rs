@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
@@ -11,13 +10,15 @@ fn a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={indices(400)}>|_: usize|
-                        <Frame padding={Sides::symmetric(0.0, 20.0)}>
-                            <Spacer />
-                        </Frame>
-                    </ForEach>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <ForEach keys={indices(400)}>|_: usize|
+                            <Frame padding={Sides::symmetric(0.0, 20.0)}>
+                                <Frame />
+                            </Frame>
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

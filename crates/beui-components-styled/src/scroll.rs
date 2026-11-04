@@ -17,7 +17,7 @@ use beui_view::reactive::*;
 use beui_view::types::Outline;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{ICON_MOVE_HORIZONTAL, ICON_MOVE_VERTICAL};
-use beui_view::types::{Align, Direction, ItemSize, ScrollPosition, Sides};
+use beui_view::types::{Align, Direction, ScrollPosition, Sides};
 
 const FOCUS_RING_WIDTH: Stroke = Stroke::Focus;
 const FOCUS_RING_OFFSET: Stroke = Stroke::Custom(-1.0);
@@ -104,7 +104,7 @@ pub fn Scroll(
     #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Bleed::NONE)] bleed: Prop<Bleed>,
     on_change: Callback<ScrollPosition>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let theme = use_theme();
     let bounded = !matches!(max_length, Prop::Static(None));
@@ -132,11 +132,13 @@ pub fn Scroll(
     }
     let length = use_size(max_length.map(|length| length.unwrap_or(Size::Custom(0.0))));
     let bound = create_memo(move || match max_length.get() {
-        Some(_) => ItemSize::Intrinsic.max(length.get()),
-        None => ItemSize::Intrinsic.into(),
+        Some(_) => length.get(),
+        None => f32::INFINITY,
     });
     view! {
-        <List direction={direction} spacing=Space::None>{scroll} @sizing={bound}</List>
+        <List direction={direction} spacing=Space::None>
+            <ListItem max=bound>{scroll}</ListItem>
+        </List>
     }
 }
 
@@ -177,11 +179,11 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
             border={Border::DEFAULT}
         >
             <List align=Align::Center spacing=Space::None>
-                <Spacer @sizing=ItemSize::Percent(50.0) />
+                <Spacer grow=0.5 />
                 <Text align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
-                <Spacer @sizing=ItemSize::Percent(50.0) />
+                <Spacer grow=0.5 />
             </List>
         </Frame>
     }

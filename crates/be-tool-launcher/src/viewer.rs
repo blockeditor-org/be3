@@ -4,7 +4,7 @@ use beui::styled::*;
 use beui::{CursorIcon, Image, ImageFit, Key, KeyPress, NodeId, TextAlign, Vec2};
 
 use crate::model::{Loaded, Model};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const PADDING: Space = Space::Xl;
 const HINT_HEIGHT: f32 = 18.0;
@@ -79,14 +79,11 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
                         on_browse={browse}
                         on_close={close}
                     />
-                    <Interactive
-                        focusable=true
-                        @sizing=ItemSize::Percent(100.0)
-                        focused={open}
-                        on_key={keys}
-                    >
-                        <ImageStage picture />
-                    </Interactive>
+                    <ListItem grow=1.0>
+                        <Interactive focusable=true focused={open} on_key={keys}>
+                            <ImageStage picture />
+                        </Interactive>
+                    </ListItem>
                 </List>
             </Frame>
         </Fullscreen>
@@ -105,7 +102,9 @@ pub(crate) fn ViewerBar(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{position}</Text>
+            <ListItem grow=1.0>
+                <Text style=TextStyle::CAPTION>{position}</Text>
+            </ListItem>
             <Button
                 icon_only=true
                 glyph=ICON_CHEVRON_LEFT
@@ -173,28 +172,28 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
     let built = view! {
         <List spacing=Space::Md>
             <Show condition={fitted}>
-                <Interactive @sizing=ItemSize::Percent(100.0) cursor={cursor} on_click={zoom_in}>
-                    <Picture image={picture} fit=ImageFit::ScaleDown smooth={shrunk} />
-                </Interactive>
+                <ListItem grow=1.0>
+                    <Interactive cursor={cursor} on_click={zoom_in}>
+                        <Picture image={picture} fit=ImageFit::ScaleDown smooth={shrunk} />
+                    </Interactive>
+                </ListItem>
             </Show>
             <Show condition={zoomed}>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Scroll direction=Direction::Horizontal>
-                        <Interactive cursor=CursorIcon::PointingHand on_click={zoom_out}>
-                            <Frame width=width height=height>
-                                <Picture image={picture} fit=ImageFit::Fill smooth=false />
-                            </Frame>
-                        </Interactive>
+                <ListItem grow=1.0>
+                    <Scroll>
+                        <Scroll direction=Direction::Horizontal>
+                            <Interactive cursor=CursorIcon::PointingHand on_click={zoom_out}>
+                                <Frame width=width height=height>
+                                    <Picture image={picture} fit=ImageFit::Fill smooth=false />
+                                </Frame>
+                            </Interactive>
+                        </Scroll>
                     </Scroll>
-                </Scroll>
+                </ListItem>
             </Show>
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Fixed(HINT_HEIGHT)
-                align=TextAlign::Center
-            >
-                {hint}
-            </Text>
+            <ListItem length=HINT_HEIGHT>
+                <Text style=TextStyle::CAPTION align=TextAlign::Center>{hint}</Text>
+            </ListItem>
         </List>
     };
     let size_measured = measure(built);

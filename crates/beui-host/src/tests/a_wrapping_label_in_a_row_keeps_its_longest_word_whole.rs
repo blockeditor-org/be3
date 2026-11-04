@@ -11,7 +11,9 @@ fn a_wrapping_label_in_a_row_keeps_its_longest_word_whole() {
     let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
-                <Text @node_ref=&text @sizing=ItemSize::Percent(100.0)>{LABEL}</Text>
+                <ListItem grow=1.0>
+                    <Text @node_ref=&text>{LABEL}</Text>
+                </ListItem>
                 <Frame width=180.0 height=20.0 />
             </List>
         }

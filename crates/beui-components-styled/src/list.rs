@@ -15,7 +15,7 @@ pub fn List(
     #[prop(default = Justify::Start)] justify: Prop<Justify>,
     #[prop(default = false)] wrap: Prop<bool>,
     spacing: Prop<Space>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let spacing = resolved(spacing, Space::resolve);
     view! {
@@ -33,15 +33,26 @@ fn spaced(space: Space, density: Density) -> Extent {
     }
 }
 
+/// An empty child of a `List` or `Stack`. With neither `width` nor `height` it grows,
+/// taking the length the other children leave; with either it is that size and does not
+/// grow. `grow` sets the weight either way.
 #[component]
 pub fn Spacer(
-    #[prop(default = Space::None)] width: Prop<Space>,
-    #[prop(default = Space::None)] height: Prop<Space>,
-) -> NodeId {
-    let width = resolved(width, spaced);
-    let height = resolved(height, spaced);
+    width: Option<Prop<Space>>,
+    height: Option<Prop<Space>>,
+    grow: Option<Prop<f32>>,
+) -> ListItem {
+    let sized = width.is_some() || height.is_some();
+    let grow = grow.unwrap_or(Prop::Static(match sized {
+        true => 0.0,
+        false => 1.0,
+    }));
+    let width = resolved(width.unwrap_or(Prop::Static(Space::None)), spaced);
+    let height = resolved(height.unwrap_or(Prop::Static(Space::None)), spaced);
     view! {
-        <primitives::Frame width height />
+        <primitives::ListItem grow>
+            <primitives::Frame width height />
+        </primitives::ListItem>
     }
 }
 

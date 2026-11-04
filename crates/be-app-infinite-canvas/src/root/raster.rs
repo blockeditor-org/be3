@@ -27,7 +27,7 @@ use super::actions::CanvasActions;
 use super::export::DIALOG_SPACING;
 use super::sidebar::{OpacityRow, ShortcutsSection};
 use super::state::{CanvasState, Gesture, Tool};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const SPACING: Space = Space::Md;
 const GRID_MIN_CELL: f32 = 12.0;
@@ -660,13 +660,14 @@ fn ColorSection(state: CanvasState) -> NodeId {
                         radius=Radius::Xs
                         on_click={move || {}}
                     />
-                    <TextInput
-                        @sizing=ItemSize::Percent(100.0)
-                        value={Binding::new(text, typed)}
-                        label="Colour"
-                        placeholder="#RRGGBBAA"
-                        @test_id={"infinite-canvas.raster.hex"}
-                    />
+                    <ListItem grow=1.0>
+                        <TextInput
+                            value={Binding::new(text, typed)}
+                            label="Colour"
+                            placeholder="#RRGGBBAA"
+                            @test_id={"infinite-canvas.raster.hex"}
+                        />
+                    </ListItem>
                 </List>
                 <List direction=Direction::Horizontal wrap=true spacing=Space::Xs>
                     <ForEach keys={swatches}>|index: usize| {
@@ -733,9 +734,9 @@ fn LayerSection(state: CanvasState) -> NodeId {
         <Accordion title="Raster layer" open={open}>
             <List spacing=Space::Sm>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                    <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::CAPTION>
-                        {dimensions}
-                    </Text>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::CAPTION>{dimensions}</Text>
+                    </ListItem>
                     <Button
                         icon_only=true
                         glyph=ICON_SCALING
@@ -846,24 +847,26 @@ pub(crate) fn RasterDialogs(state: CanvasState) -> NodeId {
                         align=Align::Center
                         spacing=DIALOG_SPACING
                     >
-                        <NumberInput
-                            @sizing=ItemSize::Percent(100.0)
-                            value={Binding::new(width_value, dimension(width))}
-                            min=1.0
-                            max={f64::from(MAX_RASTER_SIZE)}
-                            decimals={Some(0)}
-                            label="Width"
-                            @test_id={"infinite-canvas.raster.resize-width"}
-                        />
-                        <NumberInput
-                            @sizing=ItemSize::Percent(100.0)
-                            value={Binding::new(height_value, dimension(height))}
-                            min=1.0
-                            max={f64::from(MAX_RASTER_SIZE)}
-                            decimals={Some(0)}
-                            label="Height"
-                            @test_id={"infinite-canvas.raster.resize-height"}
-                        />
+                        <ListItem grow=1.0>
+                            <NumberInput
+                                value={Binding::new(width_value, dimension(width))}
+                                min=1.0
+                                max={f64::from(MAX_RASTER_SIZE)}
+                                decimals={Some(0)}
+                                label="Width"
+                                @test_id={"infinite-canvas.raster.resize-width"}
+                            />
+                        </ListItem>
+                        <ListItem grow=1.0>
+                            <NumberInput
+                                value={Binding::new(height_value, dimension(height))}
+                                min=1.0
+                                max={f64::from(MAX_RASTER_SIZE)}
+                                decimals={Some(0)}
+                                label="Height"
+                                @test_id={"infinite-canvas.raster.resize-height"}
+                            />
+                        </ListItem>
                     </List>
                     <Text style=TextStyle::CAPTION>"Anchor"</Text>
                     <ForEach keys={rows}>|row: usize|

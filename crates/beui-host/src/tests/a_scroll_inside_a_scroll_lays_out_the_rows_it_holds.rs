@@ -10,14 +10,16 @@ fn a_scroll_inside_a_scroll_lays_out_the_rows_it_holds() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0)>
-                    <Offset direction=Direction::Horizontal>
-                        <List spacing=0.0>
-                            <Frame @node_ref=&row width=1200.0 height=40.0 />
-                            <Frame width=1200.0 height=40.0 />
-                        </List>
+                <ListItem grow=1.0>
+                    <Offset>
+                        <Offset direction=Direction::Horizontal>
+                            <List spacing=0.0>
+                                <Frame @node_ref=&row width=1200.0 height=40.0 />
+                                <Frame width=1200.0 height=40.0 />
+                            </List>
+                        </Offset>
                     </Offset>
-                </Offset>
+                </ListItem>
             </List>
         }
     });

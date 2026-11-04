@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::{TreeApi, TreeItem, TreeRowHandle};
@@ -30,10 +29,14 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
                 let TreeRowHandle { key, select, .. } = handle;
                 view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                        <Spacer @sizing=ItemSize::Fixed(MARGIN) />
-                        <Interactive @sizing=ItemSize::Percent(100.0) on_click={select}>
-                            <Text @test_id={format!("name.{key}")}>{format!("row {key}")}</Text>
-                        </Interactive>
+                        <ListItem length=MARGIN>
+                            <Frame />
+                        </ListItem>
+                        <ListItem grow=1.0>
+                            <Interactive on_click={select}>
+                                <Text @test_id={format!("name.{key}")}>{format!("row {key}")}</Text>
+                            </Interactive>
+                        </ListItem>
                     </List>
                 }
             }</unstyled::Tree>

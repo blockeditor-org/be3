@@ -23,7 +23,7 @@ use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};
 use super::{DEFAULT_WIDTH, InspectorTab, State, entry_label};
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 
 const HEADER_SPACING: Space = Space::Md;
 const BODY_PADDING: Space = Space::Md;
@@ -34,7 +34,7 @@ const PERFORMANCE_SPACING: Space = Space::Md;
 const TIMING_SPACING: Space = Space::Xs;
 const BLUR_MIDPOINT: f32 = 12.0;
 const RENDERER_LABEL_WIDTH: f32 = 104.0;
-const PROPERTIES_SHARE: f32 = 45.0;
+const PROPERTIES_SHARE: f32 = 0.45;
 pub const PICK: &str = "inspector.pick";
 pub const CLOSE: &str = "inspector.close";
 const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
@@ -337,39 +337,41 @@ fn TreePanel(
     }));
     view! {
         <List spacing=Space::None>
-            <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                <Tree
-                    @sizing=ItemSize::Percent(100.0 - PROPERTIES_SHARE)
-                    api=tree
-                    keys
-                    item={move |key: Key| item(&entries, key)}
-                    selected={selected}
-                    ancestors={move |key: Key| ancestors(selection.read_only(), key)}
-                    padding=BODY_PADDING
-                    row_test_id={move |key: Key| key.test_id()}
-                    reveal_test_id={"inspector.reveal".to_owned()}
-                    on_select={move |key: Key| state.value().select_row(key)}
-                    on_expand={move |(key, expanded): (Key, bool)| {
-                        state.value().set_expanded(key, expanded);
-                    }}
-                    on_reveal={move |key: Key| {
-                        state.value().expand_ancestors(&ancestors(selection.read_only(), key));
-                    }}
-                    on_hover_change={move |(key, hovered): (Key, bool)| {
-                        state.value().hover(key.node(), hovered);
-                    }}
-                >|row: TreeRowFace<Key>|
-                    <TreeCells row_key={row.key} entries={entries} />
-                </Tree>
-                <Show condition={has_properties}>
-                    <Frame
-                        @sizing={ItemSize::Percent(PROPERTIES_SHARE)}
-                        @test_id={"inspector.properties"}
-                    >
-                        <PropertiesSection properties />
-                    </Frame>
-                </Show>
-            </List>
+            <ListItem grow=1.0>
+                <List spacing=Space::None>
+                    <ListItem grow={1.0 - PROPERTIES_SHARE}>
+                        <Tree
+                            api=tree
+                            keys
+                            item={move |key: Key| item(&entries, key)}
+                            selected={selected}
+                            ancestors={move |key: Key| ancestors(selection.read_only(), key)}
+                            padding=BODY_PADDING
+                            row_test_id={move |key: Key| key.test_id()}
+                            reveal_test_id={"inspector.reveal".to_owned()}
+                            on_select={move |key: Key| state.value().select_row(key)}
+                            on_expand={move |(key, expanded): (Key, bool)| {
+                                state.value().set_expanded(key, expanded);
+                            }}
+                            on_reveal={move |key: Key| {
+                                state.value().expand_ancestors(&ancestors(selection.read_only(), key));
+                            }}
+                            on_hover_change={move |(key, hovered): (Key, bool)| {
+                                state.value().hover(key.node(), hovered);
+                            }}
+                        >|row: TreeRowFace<Key>|
+                            <TreeCells row_key={row.key} entries={entries} />
+                        </Tree>
+                    </ListItem>
+                    <Show condition={has_properties}>
+                        <ListItem grow=PROPERTIES_SHARE>
+                            <Frame @test_id={"inspector.properties"}>
+                                <PropertiesSection properties />
+                            </Frame>
+                        </ListItem>
+                    </Show>
+                </List>
+            </ListItem>
             <Separator />
             <Frame padding=FOOTER_PADDING>
                 <List spacing=FOOTER_SPACING>
@@ -379,13 +381,9 @@ fn TreePanel(
                         align=Align::Center
                         spacing=HEADER_SPACING
                     >
-                        <Text
-                            style=TextStyle::CODE
-                            color=TextColor::Muted
-                            @sizing=ItemSize::Percent(100.0)
-                        >
-                            {bounds_text}
-                        </Text>
+                        <ListItem grow=1.0>
+                            <Text style=TextStyle::CODE color=TextColor::Muted>{bounds_text}</Text>
+                        </ListItem>
                         <Text style=TextStyle::CAPTION>{count_text}</Text>
                     </List>
                 </List>
@@ -405,13 +403,9 @@ fn PerformanceTool(
     dock_menu(create_memo(move || vec![MenuNode::action(&close)]));
     view! {
         <List spacing=Space::None>
-            <PerformancePanel
-                @sizing=ItemSize::Percent(100.0)
-                @test_id={"inspector.performance"}
-                performance
-                renderer
-                state
-            />
+            <ListItem grow=1.0>
+                <PerformancePanel @test_id={"inspector.performance"} performance renderer state />
+            </ListItem>
             <Separator />
             <Frame padding=FOOTER_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
@@ -420,13 +414,9 @@ fn PerformanceTool(
                         variant=ButtonVariant::Secondary
                         on_click={move || state.value().reset_performance()}
                     />
-                    <Text
-                        style=TextStyle::CAPTION
-                        @sizing=ItemSize::Percent(100.0)
-                        align=TextAlign::End
-                    >
-                        {samples}
-                    </Text>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::CAPTION align=TextAlign::End>{samples}</Text>
+                    </ListItem>
                 </List>
             </Frame>
         </List>
@@ -443,7 +433,9 @@ fn SimulationTool(state: Stored<State>, summary: Signal<Summary>) -> NodeId {
     dock_menu(create_memo(move || vec![MenuNode::action(&close)]));
     view! {
         <List spacing=Space::None>
-            <SimulationPanel @sizing=ItemSize::Percent(100.0) state responsive handles_back />
+            <ListItem grow=1.0>
+                <SimulationPanel state responsive handles_back />
+            </ListItem>
             <Separator />
             <Frame padding=FOOTER_PADDING>
                 <Text style=TextStyle::CODE color=TextColor::Muted>{native_pixel_ratio_text}</Text>
@@ -751,20 +743,22 @@ fn CommandRow(row: usize, state: Stored<State>) -> NodeId {
     let (right_label, right_id, right) = COMMANDS[row * 2 + 1];
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Button
-                @sizing=ItemSize::Percent(100.0)
-                @test_id={format!("inspector.screen_reader.{left_id}")}
-                label={left_label.to_owned()}
-                variant=ButtonVariant::Secondary
-                on_click={move || state.value().command(left)}
-            />
-            <Button
-                @sizing=ItemSize::Percent(100.0)
-                @test_id={format!("inspector.screen_reader.{right_id}")}
-                label={right_label.to_owned()}
-                variant=ButtonVariant::Secondary
-                on_click={move || state.value().command(right)}
-            />
+            <ListItem grow=1.0>
+                <Button
+                    @test_id={format!("inspector.screen_reader.{left_id}")}
+                    label={left_label.to_owned()}
+                    variant=ButtonVariant::Secondary
+                    on_click={move || state.value().command(left)}
+                />
+            </ListItem>
+            <ListItem grow=1.0>
+                <Button
+                    @test_id={format!("inspector.screen_reader.{right_id}")}
+                    label={right_label.to_owned()}
+                    variant=ButtonVariant::Secondary
+                    on_click={move || state.value().command(right)}
+                />
+            </ListItem>
         </List>
     }
 }
@@ -809,9 +803,9 @@ fn PerformancePanel(
                             align=Align::Center
                             spacing=TIMING_SPACING
                         >
-                            <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
-                                "CPU time"
-                            </Text>
+                            <ListItem grow=1.0>
+                                <Text style=TextStyle::HEADING>"CPU time"</Text>
+                            </ListItem>
                             <Text style=TextStyle::CAPTION>"milliseconds"</Text>
                         </List>
                         <TimingHeader />
@@ -865,16 +859,18 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Separator />
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding=BODY_PADDING>
-                    <List spacing=TIMING_SPACING>
-                        <Text style=TextStyle::HEADING>"Properties"</Text>
-                        <ForEach keys={properties}>|(label, value): (String, String)|
-                            <LabeledRow label value />
-                        </ForEach>
-                    </List>
-                </Frame>
-            </Scroll>
+            <ListItem grow=1.0>
+                <Scroll>
+                    <Frame padding=BODY_PADDING>
+                        <List spacing=TIMING_SPACING>
+                            <Text style=TextStyle::HEADING>"Properties"</Text>
+                            <ForEach keys={properties}>|(label, value): (String, String)|
+                                <LabeledRow label value />
+                            </ForEach>
+                        </List>
+                    </Frame>
+                </Scroll>
+            </ListItem>
         </List>
     }
 }
@@ -883,16 +879,12 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
 fn LabeledRow(label: String, value: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH)>
-                {label}
-            </Text>
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Percent(100.0)
-                color=TextColor::Default
-            >
-                {value}
-            </Text>
+            <ListItem length=RENDERER_LABEL_WIDTH>
+                <Text style=TextStyle::CAPTION>{label}</Text>
+            </ListItem>
+            <ListItem grow=1.0>
+                <Text style=TextStyle::CAPTION color=TextColor::Default>{value}</Text>
+            </ListItem>
         </List>
     }
 }
@@ -901,16 +893,16 @@ fn LabeledRow(label: String, value: String) -> NodeId {
 fn TimingHeader() -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                "Current"
-            </Text>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                "Average"
-            </Text>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                "Peak"
-            </Text>
+            <Spacer />
+            <ListItem length=54.0>
+                <Text style=TextStyle::CAPTION align=TextAlign::End>"Current"</Text>
+            </ListItem>
+            <ListItem length=54.0>
+                <Text style=TextStyle::CAPTION align=TextAlign::End>"Average"</Text>
+            </ListItem>
+            <ListItem length=54.0>
+                <Text style=TextStyle::CAPTION align=TextAlign::End>"Peak"</Text>
+            </ListItem>
         </List>
     }
 }
@@ -920,22 +912,18 @@ fn TimingRow(label: String, values: [Memo<String>; 3]) -> NodeId {
     let [current, average, peak] = values;
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Text
-                overflow=Overflow::Ellipsis
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Percent(100.0)
-            >
-                {label}
-            </Text>
-            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                {current}
-            </Text>
-            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                {average}
-            </Text>
-            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                {peak}
-            </Text>
+            <ListItem grow=1.0>
+                <Text overflow=Overflow::Ellipsis style=TextStyle::CAPTION>{label}</Text>
+            </ListItem>
+            <ListItem length=54.0>
+                <Text style=TextStyle::CODE align=TextAlign::End>{current}</Text>
+            </ListItem>
+            <ListItem length=54.0>
+                <Text style=TextStyle::CODE align=TextAlign::End>{average}</Text>
+            </ListItem>
+            <ListItem length=54.0>
+                <Text style=TextStyle::CODE align=TextAlign::End>{peak}</Text>
+            </ListItem>
         </List>
     }
 }
@@ -993,14 +981,11 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
             spacing=ROW_SPACING
         >
             <Text style=TextStyle::CODE>{kind}</Text>
-            <Text
-                overflow=Overflow::Ellipsis
-                style=TextStyle::CODE
-                @sizing=ItemSize::Percent(100.0)
-                color=TextColor::Muted
-            >
-                {detail}
-            </Text>
+            <ListItem grow=1.0>
+                <Text overflow=Overflow::Ellipsis style=TextStyle::CODE color=TextColor::Muted>
+                    {detail}
+                </Text>
+            </ListItem>
             <Text style=TextStyle::CODE color=TextColor::Muted align=TextAlign::End>{size}</Text>
         </List>
     }

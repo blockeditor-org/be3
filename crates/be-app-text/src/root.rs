@@ -17,7 +17,6 @@ use uuid::Uuid;
 
 use crate::hex::HexView;
 
-use beui::ItemSize;
 use import_error::ImportError;
 use state::State;
 use surface::TextSurface;
@@ -56,27 +55,33 @@ pub fn TextEditor(editor: Editor) -> NodeId {
     let hex_shown = create_memo(move || hex.get());
     let text_surface = move || {
         view! {
-            <TextSurface @sizing=ItemSize::Percent(100.0) state={state} />
+            <ListItem grow=1.0>
+                <TextSurface state={state} />
+            </ListItem>
         }
     };
     let hex_surface = move || {
         view! {
-            <HexView @sizing=ItemSize::Percent(100.0) state={state} />
+            <ListItem grow=1.0>
+                <HexView state={state} />
+            </ListItem>
         }
     };
     view! {
         <List @node_ref=&content spacing=Space::None>
             <EditorMenu state={state} />
             <ImportError state={state} />
-            <Loaded @sizing=ItemSize::Percent(100.0) label="Loading the text">|| {
-                editor.block_content::<TextContent>();
-                view! {
-                    <List spacing=Space::None>
-                        <Show condition={text_shown} then={text_surface} />
-                        <Show condition={hex_shown} then={hex_surface} />
-                    </List>
-                }
-            }</Loaded>
+            <ListItem grow=1.0>
+                <Loaded label="Loading the text">|| {
+                    editor.block_content::<TextContent>();
+                    view! {
+                        <List spacing=Space::None>
+                            <Show condition={text_shown} then={text_surface} />
+                            <Show condition={hex_shown} then={hex_surface} />
+                        </List>
+                    }
+                }</Loaded>
+            </ListItem>
             <FormatBar state={state} formats />
         </List>
     }

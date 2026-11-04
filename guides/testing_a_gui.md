@@ -131,7 +131,7 @@ Every frame is compared, so keep recordings to the frames that say something.
 out from under, text drawn outside its box, or an outline (a focus ring) cut by a clip while
 its frame shows whole. Each line names the node, its nearest ancestor with a test id and both
 rectangles. Fix the layout, not the test: wrap or ellipsize the text, let the row shrink
-(`ItemSize::Intrinsic.shrink(1.0)`), scroll it, put padding inside the scroll, or give a scroll
+(`<ListItem shrink=1.0>`), scroll it, put padding inside the scroll, or give a scroll
 in a padded surface `bleed` so a ring at its edge has room. beui-demo's
 `tabbing_through_every_page_shows_each_focus_ring_whole` checks every page's focus rings.
 

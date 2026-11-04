@@ -12,13 +12,15 @@ fn a_shifted_child_in_a_scrolled_view_still_paints() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <unstyled::Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <Frame height=500.0 />
-                    <Frame translate={vec2(10.0, 0.0)}>
-                        <Frame height=50.0 fill=MARK />
-                    </Frame>
-                    <Frame height=500.0 />
-                </unstyled::Scroll>
+                <ListItem grow=1.0>
+                    <unstyled::Scroll @node_ref=&scroll>
+                        <Frame height=500.0 />
+                        <Frame translate={vec2(10.0, 0.0)}>
+                            <Frame height=50.0 fill=MARK />
+                        </Frame>
+                        <Frame height=500.0 />
+                    </unstyled::Scroll>
+                </ListItem>
             </List>
         }
     });

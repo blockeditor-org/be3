@@ -9,7 +9,6 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Direction;
-use beui_view::types::ItemSize;
 use beui_view::types::{Key, KeyPress};
 
 const PAGE_MINUTES: u32 = 60;
@@ -109,13 +108,15 @@ pub fn TimeList(
         create_memo(move || (0..times.with(Vec::len).div_ceil(columns)).collect::<Vec<usize>>());
     view! {
         <TimeListBox label>
-            <unstyled::Scroll @sizing=ItemSize::Percent(100.0) offset={shown} scrollbar>
-                <List spacing>
-                    <ForEach keys={rows}>|row: usize|
-                        <TimeRow state={state} row spacing hour_cycle face={option} />
-                    </ForEach>
-                </List>
-            </unstyled::Scroll>
+            <ListItem grow=1.0>
+                <unstyled::Scroll offset={shown} scrollbar>
+                    <List spacing>
+                        <ForEach keys={rows}>|row: usize|
+                            <TimeRow state={state} row spacing hour_cycle face={option} />
+                        </ForEach>
+                    </List>
+                </unstyled::Scroll>
+            </ListItem>
         </TimeListBox>
     }
 }
@@ -143,20 +144,16 @@ fn TimeRow(
     view! {
         <List direction=Direction::Horizontal spacing>
             <ForEach keys={cells}>|minutes: u32|
-                <TimeOption
-                    @sizing=ItemSize::Percent(100.0)
-                    state={state}
-                    minutes
-                    hour_cycle
-                    face={face}
-                />
+                <ListItem grow=1.0>
+                    <TimeOption state={state} minutes hour_cycle face={face} />
+                </ListItem>
             </ForEach>
         </List>
     }
 }
 
 #[component]
-fn TimeListBox(label: Prop<String>, children: Children<ListChild>) -> NodeId {
+fn TimeListBox(label: Prop<String>, children: Children<ListItem>) -> NodeId {
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::ListBox);
         let label = label.get();

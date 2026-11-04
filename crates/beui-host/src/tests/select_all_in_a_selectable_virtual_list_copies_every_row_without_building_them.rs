@@ -26,17 +26,19 @@ fn select_all_in_a_selectable_virtual_list_copies_every_row_without_building_the
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @node_ref=&scroll @sizing=ItemSize::Fixed(100.0)>
-                    <SelectableText>
-                        <VirtualList
-                            keys={(0..ROWS).collect::<Vec<usize>>()}
-                            item_size=20.0
-                            text={label}
-                        >|index: ReadSignal<usize>|
-                            <Line index built />
-                        </VirtualList>
-                    </SelectableText>
-                </Scroll>
+                <ListItem length=100.0>
+                    <Scroll @node_ref=&scroll>
+                        <SelectableText>
+                            <VirtualList
+                                keys={(0..ROWS).collect::<Vec<usize>>()}
+                                item_size=20.0
+                                text={label}
+                            >|index: ReadSignal<usize>|
+                                <Line index built />
+                            </VirtualList>
+                        </SelectableText>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

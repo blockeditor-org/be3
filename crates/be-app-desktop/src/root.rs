@@ -36,7 +36,6 @@ use uuid::Uuid;
 use bar::{
     Bars, PROGRAMS_PLACE, ProgramsBar, STATUS_PLACE, Shell, StatusBar, WINDOWS_PLACE, WindowsBar,
 };
-use beui::ItemSize;
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
 use programs_panel::{ProgramsPanel, ProgramsPanelKey, ProgramsPanelOverlay};
@@ -137,25 +136,26 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
     view! {
         <Frame>
             <List spacing=Space::None>
-                <DockHost
-                    @sizing=ItemSize::Percent(100.0)
-                    @test_id={format!("desktop.dock.{display}")}
-                    layout=host
-                    drag_modifier={Some(Modifiers::LOGO)}
-                >
-                    <Docking layout>
-                        <DockPane id={"desktop".to_owned()} bare=true></DockPane>
-                        <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
-                            <ProgramsBar shell display layout />
-                        </DockBar>
-                        <DockBar id={bars.windows} placement=WINDOWS_PLACE>
-                            <WindowsBar shell display />
-                        </DockBar>
-                        <DockBar id={bars.status} placement=STATUS_PLACE>
-                            <StatusBar shell display />
-                        </DockBar>
-                    </Docking>
-                </DockHost>
+                <ListItem grow=1.0>
+                    <DockHost
+                        @test_id={format!("desktop.dock.{display}")}
+                        layout=host
+                        drag_modifier={Some(Modifiers::LOGO)}
+                    >
+                        <Docking layout>
+                            <DockPane id={"desktop".to_owned()} bare=true></DockPane>
+                            <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
+                                <ProgramsBar shell display layout />
+                            </DockBar>
+                            <DockBar id={bars.windows} placement=WINDOWS_PLACE>
+                                <WindowsBar shell display />
+                            </DockBar>
+                            <DockBar id={bars.status} placement=STATUS_PLACE>
+                                <StatusBar shell display />
+                            </DockBar>
+                        </Docking>
+                    </DockHost>
+                </ListItem>
                 <media::LevelDisplay osd={desktop.osd} area display />
                 <Show condition={launches}>
                     <ProgramsPanelKey
@@ -224,45 +224,46 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
         <Frame @node_ref={&surface}>
             <List spacing=Space::None>
                 <Failure failed={failed} reason={reason} />
-                <DockHost
-                    @sizing=ItemSize::Percent(100.0)
-                    @test_id={"desktop.dock"}
-                    layout=host
-                    drag_modifier={Some(Modifiers::LOGO)}
-                >
-                    <Docking layout>
-                        <DockPane
-                            id={"desktop".to_owned()}
-                            hide_empty_bar=true
-                            empty={move || view! {
-                                <Frame />
-                            }}
-                        ></DockPane>
-                        <ForEach keys={block_windows}>|tab: TabId|
-                            <BlockWindow workspace tab />
-                        </ForEach>
-                        <ForEach keys={program_windows}>|tab: TabId|
-                            <ProgramWindow workspace tab />
-                        </ForEach>
-                        <ForEach
-                            keys={dialog_windows}
-                        >|(window, parent): (HostWindowId, HostWindowId)|
-                            <WindowDialog workspace window parent />
-                        </ForEach>
-                        <ForEach keys={panels}>|panel: HostPanel|
-                            <PanelWindow workspace panel />
-                        </ForEach>
-                        <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
-                            <ProgramsBar shell display=0 layout />
-                        </DockBar>
-                        <DockBar id={bars.windows} placement=WINDOWS_PLACE>
-                            <WindowsBar shell display=0 />
-                        </DockBar>
-                        <DockBar id={bars.status} placement=STATUS_PLACE>
-                            <StatusBar shell display=0 />
-                        </DockBar>
-                    </Docking>
-                </DockHost>
+                <ListItem grow=1.0>
+                    <DockHost
+                        @test_id={"desktop.dock"}
+                        layout=host
+                        drag_modifier={Some(Modifiers::LOGO)}
+                    >
+                        <Docking layout>
+                            <DockPane
+                                id={"desktop".to_owned()}
+                                hide_empty_bar=true
+                                empty={move || view! {
+                                    <Frame />
+                                }}
+                            ></DockPane>
+                            <ForEach keys={block_windows}>|tab: TabId|
+                                <BlockWindow workspace tab />
+                            </ForEach>
+                            <ForEach keys={program_windows}>|tab: TabId|
+                                <ProgramWindow workspace tab />
+                            </ForEach>
+                            <ForEach
+                                keys={dialog_windows}
+                            >|(window, parent): (HostWindowId, HostWindowId)|
+                                <WindowDialog workspace window parent />
+                            </ForEach>
+                            <ForEach keys={panels}>|panel: HostPanel|
+                                <PanelWindow workspace panel />
+                            </ForEach>
+                            <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
+                                <ProgramsBar shell display=0 layout />
+                            </DockBar>
+                            <DockBar id={bars.windows} placement=WINDOWS_PLACE>
+                                <WindowsBar shell display=0 />
+                            </DockBar>
+                            <DockBar id={bars.status} placement=STATUS_PLACE>
+                                <StatusBar shell display=0 />
+                            </DockBar>
+                        </Docking>
+                    </DockHost>
+                </ListItem>
                 <WorkspaceDialogs workspace />
                 <UnshownWindows workspace />
                 <bar::UnreadableBarsDialog editor />

@@ -16,7 +16,6 @@ use beui_components_unstyled::{
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Color32;
-use beui_view::types::ItemSize;
 use beui_view::types::{Align, Direction};
 
 const SWATCH_WIDTH: Size = Size::Lg;
@@ -67,7 +66,7 @@ pub fn ColorInput(
             view! {
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     {swatch}
-                    {field} @sizing=ItemSize::Percent(100.0)
+                    <ListItem grow=1.0>{field}</ListItem>
                 </List>
             }
         }</unstyled::ColorInput>

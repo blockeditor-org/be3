@@ -1,7 +1,7 @@
 use beui::icons::{ICON_CHEVRON_DOWN, ICON_CLOUD, ICON_ELLIPSIS, ICON_MONITOR, ICON_PLUS};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align, Direction, Extent, ItemSize, Justify, NodeId, TextAlign};
+use beui::{Align, Direction, Extent, Justify, NodeId, TextAlign};
 
 const COLUMN_WIDTH: f32 = 460.0;
 
@@ -31,7 +31,7 @@ pub fn ErrorText(text: Memo<Option<String>>) -> NodeId {
 }
 
 #[component]
-pub fn Column(children: Children<ListChild>) -> NodeId {
+pub fn Column(children: Children<ListItem>) -> NodeId {
     view! {
         <Scroll>
             <List spacing=Space::None align=Align::Center>
@@ -112,7 +112,9 @@ fn AccountCard(
         <Card>
             <List spacing=Space::Sm>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text size=TextSize::Lg @sizing=ItemSize::Percent(100.0)>{name}</Text>
+                    <ListItem grow=1.0>
+                        <Text size=TextSize::Lg>{name}</Text>
+                    </ListItem>
                     <MenuButton
                         label="Account options"
                         glyph=ICON_ELLIPSIS

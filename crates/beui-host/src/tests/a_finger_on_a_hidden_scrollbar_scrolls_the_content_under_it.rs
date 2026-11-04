@@ -13,9 +13,11 @@ fn a_finger_on_a_hidden_scrollbar_scrolls_the_content_under_it() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame height=2000.0 />
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <Frame height=2000.0 />
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

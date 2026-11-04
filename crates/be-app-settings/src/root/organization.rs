@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use super::block::name_of;
 use super::ui::workspaces;
-use beui::{Extent, ItemSize};
+use beui::Extent;
 
 const ABOUT: &str = "Applies to every member. Only its administrators change it, and the server reads it to enforce sharing, workspaces, history and storage.";
 const OFFLINE_ABOUT: &str = "Whether this device keeps a workspace's blocks so they open without a connection. When off, this device forgets them when the app closes, except edits that have not reached the server yet.";
@@ -317,19 +317,20 @@ fn PolicyRow(
             separated={separated}
             locked={locked}
         >
-            <Select
-                @sizing=ItemSize::Percent(100.0)
-                width={Extent::fraction(1.0)}
-                options={view! {
-                    <ForEach keys={options}>|label: String|
-                        <ChoiceOption label={label} />
-                    </ForEach>
-                }}
-                selected={Binding::new(selected, move |chosen: Option<usize>| choose.call(chosen))}
-                label={label.to_owned()}
-                disabled={locked}
-                @test_id={format!("settings.organization.{key}")}
-            />
+            <ListItem grow=1.0>
+                <Select
+                    width={Extent::fraction(1.0)}
+                    options={view! {
+                        <ForEach keys={options}>|label: String|
+                            <ChoiceOption label={label} />
+                        </ForEach>
+                    }}
+                    selected={Binding::new(selected, move |chosen: Option<usize>| choose.call(chosen))}
+                    label={label.to_owned()}
+                    disabled={locked}
+                    @test_id={format!("settings.organization.{key}")}
+                />
+            </ListItem>
         </SettingsRow>
     }
 }
