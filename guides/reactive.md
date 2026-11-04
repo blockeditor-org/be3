@@ -145,8 +145,7 @@ is held that way, so `<Text>{name}</Text>` takes one directly. Traps:
 An editor reads block content through a `ContentProjection` (`be_sdk_beui`):
 `editor.block_content::<C>()` for its own block, `editor.content_of::<C>(block)`
 for another. These are be-sdk-beui's signals over be-sdk's `LiveContent`, which
-has none of its own (guides/the_new_block_stack.md, "State and change
-callbacks"); `Blocks` and `BlockList` do the same for the block graph. The app
+has none of its own (guides/blocks/apps.md); `Blocks` and `BlockList` do the same for the block graph. The app
 framework pumps them at the top of every frame. A projection is a `Copy` handle
 the `Editor` owns; one made outside an editor is an `OwnedContentProjection`.
 
