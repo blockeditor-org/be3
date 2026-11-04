@@ -9,7 +9,7 @@ fn a_row_let_go_away_from_every_list_glides_home_without_the_list_jumping() {
     harness.settle();
     let grab = harness.center(harness.find("row.2"));
     let away = pos2(REORDER_COLUMN + 10.0, grab.y + 30.0);
-    harness.press_at(grab);
+    harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 6.0))]);
     harness.frame(vec![Input::PointerMoved(away)]);
     harness.settle();
@@ -18,7 +18,7 @@ fn a_row_let_go_away_from_every_list_glides_home_without_the_list_jumping() {
         REORDER_ROW,
         "pulled out of its list towards another that takes it, the row leaves no gap behind"
     );
-    harness.release_at(away);
+    harness.up(away, PointerButton::Primary);
     assert!(!harness.document().dragging());
     let mut last = REORDER_ROW;
     for _ in 0..4 {

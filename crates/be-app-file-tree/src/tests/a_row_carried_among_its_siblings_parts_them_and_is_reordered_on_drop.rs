@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockCommand, BlockQuery};
+use be_sdk_beui::{BlockCommand, BlockQuery};
 
 use super::*;
 

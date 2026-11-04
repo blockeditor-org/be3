@@ -48,7 +48,7 @@ fn a_locked_dock_tab_over_a_pane_outside_its_area_draws_no_drop_marker() {
 
     let first = harness.center(dock_tab(harness.document(), root, "Tab 2"));
 
-    harness.press_at(locked);
+    harness.down(locked, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(outside)]);
     harness.frames_to_settle();
 
@@ -64,7 +64,7 @@ fn a_locked_dock_tab_over_a_pane_outside_its_area_draws_no_drop_marker() {
 
     harness.frame(vec![Input::PointerMoved(inside)]);
     harness.frames_to_settle();
-    harness.release_at(inside);
+    harness.up(inside, PointerButton::Primary);
     harness.frames_to_settle();
 
     let carried = harness.center(dock_tab(harness.document(), root, "Tab 10"));

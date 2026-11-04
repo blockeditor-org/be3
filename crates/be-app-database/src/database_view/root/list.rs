@@ -84,7 +84,7 @@ pub fn ListView(data: Data) -> NodeId {
         view! {
             <Frame
                 width={Size::Custom(PANEL_WIDTH)}
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Control
                 border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Md
                 padding={Padding::symmetric(Space::Md, Space::Sm)}

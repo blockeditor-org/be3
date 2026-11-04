@@ -10,7 +10,7 @@ fn a_virtual_list_reorders_its_rows_by_key() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0)>
+                <ListItem grow=1.0><Offset>
                     <Reorder
                         keys={keys}
                         payload={Func::new(|key: u32| Some(key))}
@@ -34,14 +34,14 @@ fn a_virtual_list_reorders_its_rows_by_key() {
                             </ReorderItem>
                         </VirtualList>
                     </Reorder>
-                </Offset>
+                </Offset></ListItem>
             </List>
         }
     });
     let mut harness = Harness::new(document);
     harness.settle();
     let grab = harness.center(harness.find("row.0"));
-    harness.press_at(grab);
+    harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 6.0))]);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 45.0))]);
     harness.settle();
@@ -56,7 +56,7 @@ fn a_virtual_list_reorders_its_rows_by_key() {
         "the rows it passed moved up"
     );
     assert_eq!(top_of(&harness, "row.2"), REORDER_ROW);
-    harness.release_at(grab + vec2(0.0, 45.0));
+    harness.up(grab + vec2(0.0, 45.0), PointerButton::Primary);
     assert_eq!(keys.get_untracked()[..4], [1, 2, 0, 3]);
     harness.settle();
     assert_eq!(top_of(&harness, "row.0"), 2.0 * REORDER_ROW);

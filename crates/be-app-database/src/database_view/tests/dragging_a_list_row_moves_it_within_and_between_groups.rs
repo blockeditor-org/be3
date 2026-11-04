@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use database_types::database_view::{DatabaseViewSort, SortDirection};
+use be_type_database::database_view::{DatabaseViewSort, SortDirection};
 
 use super::*;
 

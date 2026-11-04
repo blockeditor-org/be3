@@ -1,5 +1,5 @@
 use super::*;
-use workspace_ui_types::FolderContent;
+use be_type_workspace::FolderContent;
 
 use be_block::ChildChange;
 

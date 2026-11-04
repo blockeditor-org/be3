@@ -96,7 +96,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
         view! {
             <Frame
                 width=NAME_WIDTH
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Control
                 border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Md
                 padding={Padding::symmetric(Space::Md, Space::Sm)}

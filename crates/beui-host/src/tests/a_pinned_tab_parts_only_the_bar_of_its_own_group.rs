@@ -35,7 +35,7 @@ fn a_pinned_tab_parts_only_the_bar_of_its_own_group() {
     let outside = label(&harness, "Tab 1");
     let inside = label(&harness, "Tab 11");
 
-    harness.press_at(pinned);
+    harness.down(pinned, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(outside.center())]);
     harness.frames_to_settle();
 
@@ -57,6 +57,6 @@ fn a_pinned_tab_parts_only_the_bar_of_its_own_group() {
         label(&harness, "Tab 11").left() < inside.left() - 10.0,
         "in its own group's bar the tab it passes glides aside"
     );
-    harness.release_at(past);
+    harness.up(past, PointerButton::Primary);
     harness.frames_to_settle();
 }

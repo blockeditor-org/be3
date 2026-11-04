@@ -9,7 +9,7 @@ fn a_row_carried_into_another_list_opens_a_gap_and_drops_into_it() {
     harness.settle();
     let grab = harness.center(harness.find("row.1"));
     let into = harness.center(harness.find("row.4")) - vec2(0.0, 4.0);
-    harness.press_at(grab);
+    harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(30.0, 0.0))]);
     harness.frame(vec![Input::PointerMoved(into)]);
     harness.settle();
@@ -25,7 +25,7 @@ fn a_row_carried_into_another_list_opens_a_gap_and_drops_into_it() {
         "the list it is over parts by the carried row's height before the row it would land ahead of"
     );
 
-    harness.release_at(into);
+    harness.up(into, PointerButton::Primary);
     assert_eq!(state.list(0), vec![2]);
     assert_eq!(state.list(1), vec![3, 1, 4]);
     let moves = state.moves.get_untracked();

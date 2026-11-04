@@ -8,7 +8,7 @@ fn the_gap_a_row_leaves_closes_over_frames() {
     let mut harness = Harness::new(reorder_lists(state));
     harness.settle();
     let grab = harness.center(harness.find("row.2"));
-    harness.press_at(grab);
+    harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 6.0))]);
     harness.frame(vec![Input::PointerMoved(pos2(
         REORDER_COLUMN + 10.0,

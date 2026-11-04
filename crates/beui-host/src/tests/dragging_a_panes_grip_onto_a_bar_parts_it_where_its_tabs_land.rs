@@ -38,7 +38,7 @@ fn dragging_a_panes_grip_onto_a_bar_parts_it_where_its_tabs_land() {
     let grip = pos2(label.left() - 25.0, label.center().y);
     let over = pos2(second.left() - 4.0, second.center().y);
 
-    harness.press_at(grip);
+    harness.down(grip, PointerButton::Primary);
     for step in 1..=6 {
         let at = grip + (over - grip) * (step as f32 / 6.0);
         harness.frame(vec![Input::PointerMoved(at)]);
@@ -53,7 +53,7 @@ fn dragging_a_panes_grip_onto_a_bar_parts_it_where_its_tabs_land() {
         "the bar opens a gap where the pane's tabs would land"
     );
 
-    harness.release_at(over);
+    harness.up(over, PointerButton::Primary);
     harness.frames_to_settle();
 
     let state = harness.document().api::<DockApi>(dock).state();

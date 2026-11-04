@@ -136,7 +136,7 @@ impl Fixture {
             .is_some_and(|root| says_within(&document, root, words))
     }
 
-    fn row(&self, block: Uuid) -> block_editor_beui::beui::Rect {
+    fn row(&self, block: Uuid) -> be_sdk_beui::beui::Rect {
         self.test.rect_of(&format!("file-tree.{block}.row"))
     }
 
@@ -293,7 +293,7 @@ fn phone() -> Fixture {
     fixture
 }
 
-fn across(row: block_editor_beui::beui::Rect, fraction: f32) -> Pos2 {
+fn across(row: be_sdk_beui::beui::Rect, fraction: f32) -> Pos2 {
     Pos2::new(row.center().x, row.top() + row.height() * fraction)
 }
 
@@ -302,11 +302,11 @@ fn named_block(
     block_type: Uuid,
     parent: Uuid,
     name: &str,
-) -> block_editor_beui::BlockInfo {
-    let mut block = block_editor_beui::BlockInfo::new(
+) -> be_sdk_beui::BlockInfo {
+    let mut block = be_sdk_beui::BlockInfo::new(
         Uuid::from_u128(id),
         block_type,
-        block_editor_beui::BlockParent::Block(parent),
+        be_sdk_beui::BlockParent::Block(parent),
     );
     block.set_name(name);
     block
@@ -316,21 +316,21 @@ fn folder_of(
     fixture: &mut Fixture,
     id: u128,
     name: &str,
-    inside: Vec<block_editor_beui::BlockInfo>,
-) -> block_editor_beui::BlockInfo {
-    use block_editor_beui::be_block::BlockContent;
+    inside: Vec<be_sdk_beui::BlockInfo>,
+) -> be_sdk_beui::BlockInfo {
+    use be_sdk_beui::be_block::BlockContent;
     let mut folder = named_block(id, FolderContent::CONTENT_TYPE, MY_FILES, name);
     folder.references = inside.iter().map(|block| block.id).collect();
     fixture
         .host
-        .set_blocks(block_editor_beui::BlockQuery::References(folder.id), inside);
+        .set_blocks(be_sdk_beui::BlockQuery::References(folder.id), inside);
     folder
 }
 
 fn expand(
     fixture: &mut Fixture,
-    folder: &block_editor_beui::BlockInfo,
-    inside: Vec<block_editor_beui::BlockInfo>,
+    folder: &be_sdk_beui::BlockInfo,
+    inside: Vec<be_sdk_beui::BlockInfo>,
 ) {
     fixture
         .test
@@ -338,7 +338,7 @@ fn expand(
     fixture.test.run();
     fixture
         .host
-        .set_blocks(block_editor_beui::BlockQuery::References(folder.id), inside);
+        .set_blocks(be_sdk_beui::BlockQuery::References(folder.id), inside);
     fixture.settle();
 }
 

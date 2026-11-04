@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockCommand, ChildOperations};
+use be_sdk_beui::{BlockCommand, ChildOperations};
 
 use super::*;
 

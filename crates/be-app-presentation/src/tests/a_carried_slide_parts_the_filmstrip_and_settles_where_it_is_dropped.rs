@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{PointerButton, Vec2};
+use be_sdk_beui::beui::{PointerButton, Vec2};
 use std::time::Duration;
 
 #[test]

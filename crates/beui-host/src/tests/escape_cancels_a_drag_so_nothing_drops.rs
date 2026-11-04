@@ -36,7 +36,7 @@ fn escape_cancels_a_drag_so_nothing_drops() {
     harness.frame(Vec::new());
 
     let to = harness.center(target);
-    harness.press_at(harness.center(source));
+    harness.down(harness.center(source), PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(to)]);
     assert!(over.get_untracked(), "the drag is over the target");
     assert!(dragging.get_untracked());
@@ -52,7 +52,7 @@ fn escape_cancels_a_drag_so_nothing_drops() {
         !harness.document().dragging(),
         "moving on with the button held does not lift it again"
     );
-    harness.release_at(to);
+    harness.up(to, PointerButton::Primary);
     assert_eq!(dropped.get_untracked(), None, "nothing drops");
     assert_eq!(cancelled.get_untracked(), 1);
 }

@@ -21,11 +21,11 @@ fn holding_a_drag_at_the_edge_of_a_scroll_scrolls_it() {
                 >|_: DragHandle|
                     <Frame width=40.0 height=40.0 />
                 </Draggable>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                <ListItem grow=1.0><Scroll @node_ref=&scroll>
                     <ForEach keys={indices(100)}>|index: usize|
                         <LabelledButton label={format!("Row {index}")} />
                     </ForEach>
-                </Scroll>
+                </Scroll></ListItem>
             </List>
         }
     });
@@ -34,7 +34,7 @@ fn holding_a_drag_at_the_edge_of_a_scroll_scrolls_it() {
     harness.frame(Vec::new());
     let viewport = harness.rect(scroll);
 
-    harness.press_at(harness.center(source));
+    harness.down(harness.center(source), PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(viewport.center())]);
     harness.frame(Vec::new());
     assert_eq!(
@@ -70,7 +70,7 @@ fn holding_a_drag_at_the_edge_of_a_scroll_scrolls_it() {
 
     harness.frame(vec![Input::PointerMoved(edge)]);
     harness.frame(Vec::new());
-    harness.release_at(edge);
+    harness.up(edge, PointerButton::Primary);
     let dropped = harness.document().scroll_offset(scroll);
     for _ in 0..5 {
         harness.frame(Vec::new());

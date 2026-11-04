@@ -1,7 +1,7 @@
 use super::*;
 use crate::folder::{Folder, FolderContent};
 use be_block::{ChildChange, Root};
-use be_model::Edit;
+use be_block_model::Edit;
 use uuid::Uuid;
 
 #[test]

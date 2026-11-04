@@ -20,7 +20,7 @@ fn a_tab_carried_over_a_windows_bar_parts_it_where_it_would_land() {
 
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
     let over = pos2(floated.left() - 10.0, floated.center().y);
-    harness.press_at(tab);
+    harness.down(tab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(over)]);
     harness.frames_to_settle();
 
@@ -39,7 +39,7 @@ fn a_tab_carried_over_a_windows_bar_parts_it_where_it_would_land() {
     );
     assert_eq!(state.surface_tabs(window), vec![TabId::new(2)]);
 
-    harness.release_at(over);
+    harness.up(over, PointerButton::Primary);
     harness.frames_to_settle();
 
     let state = harness.document().api::<DockApi>(dock).state();

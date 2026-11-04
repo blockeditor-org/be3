@@ -8,7 +8,7 @@ fn escape_glides_a_lifted_row_back_and_moves_nothing() {
     let mut harness = Harness::new(reorder_lists(state));
     harness.settle();
     let grab = harness.center(harness.find("row.1"));
-    harness.press_at(grab);
+    harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 35.0))]);
     harness.settle();
     assert_eq!(top_of(&harness, "row.1"), 35.0);
@@ -26,7 +26,7 @@ fn escape_glides_a_lifted_row_back_and_moves_nothing() {
         back > 0.0 && back <= 35.0,
         "it glides back from where it was rather than jumping, at {back}"
     );
-    harness.release_at(grab + vec2(0.0, 35.0));
+    harness.up(grab + vec2(0.0, 35.0), PointerButton::Primary);
     harness.settle();
     assert_eq!(top_of(&harness, "row.1"), 0.0);
     assert_eq!(top_of(&harness, "row.3"), 2.0 * REORDER_ROW);

@@ -1,5 +1,5 @@
-use block_editor_beui::beui::{PointerButton, Pos2, Vec2};
-use database_types::database_schema::DatabaseFieldType;
+use be_sdk_beui::beui::{PointerButton, Pos2, Vec2};
+use be_type_database::database_schema::DatabaseFieldType;
 
 use super::*;
 

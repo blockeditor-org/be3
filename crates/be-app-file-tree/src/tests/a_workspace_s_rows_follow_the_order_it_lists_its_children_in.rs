@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
+use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery};
 
 use super::*;
 
@@ -43,7 +43,7 @@ fn a_workspace_s_rows_follow_the_order_it_lists_its_children_in() {
     assert!(
         asked.iter().any(|(block, command)| *block == todo.id
             && *command
-                == block_editor_beui::BlockCommand::Reorder {
+                == be_sdk_beui::BlockCommand::Reorder {
                     parent: MY_FILES.into_bytes(),
                     after: Some(notes.id.into_bytes()),
                 }),

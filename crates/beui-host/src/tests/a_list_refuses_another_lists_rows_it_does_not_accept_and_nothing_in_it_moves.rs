@@ -12,7 +12,7 @@ fn a_list_refuses_another_lists_rows_it_does_not_accept_and_nothing_in_it_moves(
     harness.settle();
     let grab = harness.center(harness.find("row.1"));
     let over = harness.center(harness.find("row.5")) - vec2(0.0, 4.0);
-    harness.press_at(grab);
+    harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(30.0, 0.0))]);
     harness.frame(vec![Input::PointerMoved(over)]);
     harness.settle();
@@ -23,7 +23,7 @@ fn a_list_refuses_another_lists_rows_it_does_not_accept_and_nothing_in_it_moves(
         "a list that does not accept the row opens no gap for it"
     );
 
-    harness.release_at(over);
+    harness.up(over, PointerButton::Primary);
     harness.settle();
     assert_eq!(state.list(2), vec![4, 5], "and nothing in it moves");
     assert_eq!(

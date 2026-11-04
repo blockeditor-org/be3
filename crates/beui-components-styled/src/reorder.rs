@@ -43,7 +43,7 @@ where
                 false => ColorRole::None,
             });
             let fill = create_memo(move || match lifted.get() {
-                true => ColorRole::SurfaceRaised,
+                true => ColorRole::Control,
                 false => ColorRole::None,
             });
             let border = create_memo(move || {

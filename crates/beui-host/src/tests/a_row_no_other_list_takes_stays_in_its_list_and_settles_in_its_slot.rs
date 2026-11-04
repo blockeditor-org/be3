@@ -9,7 +9,7 @@ fn a_row_no_other_list_takes_stays_in_its_list_and_settles_in_its_slot() {
     harness.settle();
     let grab = harness.center(harness.find("row.1"));
     let away = grab + vec2(150.0, 200.0);
-    harness.press_at(grab);
+    harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 6.0))]);
     harness.frame(vec![Input::PointerMoved(away)]);
     harness.settle();
@@ -26,7 +26,7 @@ fn a_row_no_other_list_takes_stays_in_its_list_and_settles_in_its_slot() {
     );
     assert_eq!(top_of(&harness, "row.3"), REORDER_ROW);
 
-    harness.release_at(away);
+    harness.up(away, PointerButton::Primary);
     harness.settle();
     assert_eq!(
         state.list(0),

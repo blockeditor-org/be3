@@ -10,7 +10,7 @@ fn a_row_flicked_out_of_its_list_leaves_at_once_and_drops_where_it_is_let_go() {
     let grab = harness.center(harness.find("row.1"));
     let between = pos2(REORDER_COLUMN + 10.0, grab.y);
     let into = harness.center(harness.find("row.4")) - vec2(0.0, 4.0);
-    harness.press_at(grab);
+    harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(between)]);
     harness.settle();
     assert_eq!(
@@ -24,7 +24,7 @@ fn a_row_flicked_out_of_its_list_leaves_at_once_and_drops_where_it_is_let_go() {
         "and the gap behind it closes"
     );
 
-    harness.release_at(into);
+    harness.up(into, PointerButton::Primary);
     assert_eq!(state.list(0), vec![2]);
     assert_eq!(
         state.list(1),

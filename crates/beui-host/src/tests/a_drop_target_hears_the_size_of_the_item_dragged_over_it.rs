@@ -35,7 +35,7 @@ fn a_drop_target_hears_the_size_of_the_item_dragged_over_it() {
     assert_eq!(harness.rect(source).height(), 30.0);
 
     let grabbed = harness.rect(source).min + Vec2::new(10.0, 5.0);
-    harness.press_at(grabbed);
+    harness.down(grabbed, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(harness.center(target))]);
 
     assert_eq!(

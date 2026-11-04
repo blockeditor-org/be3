@@ -8,7 +8,7 @@ fn a_narrow_tab_trades_places_with_a_wide_one_once_it_covers_half_of_it() {
     let mut harness = Harness::new(tab_strip(keys));
     harness.settle();
     let grab = harness.center(harness.find("tab.1"));
-    harness.press_at(grab);
+    harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab - vec2(6.0, 0.0))]);
     let wide = |harness: &mut Harness, by: f32| {
         drag_tab_to(harness, grab, by);
@@ -35,7 +35,7 @@ fn a_narrow_tab_trades_places_with_a_wide_one_once_it_covers_half_of_it() {
         "and trade back once it passes it"
     );
     wide(&mut harness, -45.0);
-    harness.release_at(grab - vec2(45.0, 0.0));
+    harness.up(grab - vec2(45.0, 0.0), PointerButton::Primary);
     assert_eq!(keys.get_untracked(), vec![1, 0, 2]);
     harness.settle();
     assert_eq!(tab_left(&harness, 1), 0.0);

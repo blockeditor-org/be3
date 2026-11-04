@@ -1,4 +1,4 @@
-use database_types::database_view::FilterCondition;
+use be_type_database::database_view::FilterCondition;
 
 use super::*;
 

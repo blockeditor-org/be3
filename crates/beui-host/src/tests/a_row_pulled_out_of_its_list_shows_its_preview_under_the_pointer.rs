@@ -10,7 +10,7 @@ fn a_row_pulled_out_of_its_list_shows_its_preview_under_the_pointer() {
     let row = harness.rect(harness.find("row.1"));
     let grab = row.min + vec2(30.0, 5.0);
     let away = pos2(REORDER_COLUMN + 10.0, grab.y + 30.0);
-    harness.press_at(grab);
+    harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 6.0))]);
     harness.frame(vec![Input::PointerMoved(away)]);
     harness.settle();

@@ -10,7 +10,7 @@ fn holding_alt_over_a_tab_bar_floats_the_carried_tab_into_a_window() {
     let from = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
     let over = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
 
-    harness.press_at(from);
+    harness.down(from, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(over)]);
     harness.frames_to_settle();
     harness.frame(vec![Input::Modifiers(Modifiers::ALT)]);

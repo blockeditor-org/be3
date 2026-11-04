@@ -34,7 +34,7 @@ fn a_panes_only_tab_carried_into_another_bar_opens_a_gap_there_and_leaves_no_roo
     let from = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
     let over = pos2(second.left(), second.center().y);
 
-    harness.press_at(from);
+    harness.down(from, PointerButton::Primary);
     for step in 1..=6 {
         let at = from + (over - from) * (step as f32 / 6.0);
         harness.frame(vec![Input::PointerMoved(at)]);
@@ -49,7 +49,7 @@ fn a_panes_only_tab_carried_into_another_bar_opens_a_gap_there_and_leaves_no_roo
         parted.left()
     );
 
-    harness.release_at(over);
+    harness.up(over, PointerButton::Primary);
     harness.frames_to_settle();
 
     let state = harness.document().api::<DockApi>(dock).state();

@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockCommand, BlockParent};
+use be_sdk_beui::{BlockCommand, BlockParent};
 
 use super::*;
 

@@ -10,7 +10,7 @@ fn dragging_a_row_past_the_middle_of_the_next_reorders_the_list() {
     let grab = harness.center(harness.find("row.1"));
     assert_eq!(top_of(&harness, "row.1"), 0.0);
 
-    harness.press_at(grab);
+    harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 8.0))]);
     harness.frame(Vec::new());
     assert!(
@@ -58,7 +58,7 @@ fn dragging_a_row_past_the_middle_of_the_next_reorders_the_list() {
     );
 
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 26.0))]);
-    harness.release_at(grab + vec2(0.0, 26.0));
+    harness.up(grab + vec2(0.0, 26.0), PointerButton::Primary);
     assert_eq!(
         state.list(0),
         vec![2, 1, 3, 4],

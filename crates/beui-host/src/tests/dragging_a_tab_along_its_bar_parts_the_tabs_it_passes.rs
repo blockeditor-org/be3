@@ -15,7 +15,7 @@ fn dragging_a_tab_along_its_bar_parts_the_tabs_it_passes() {
         from.y,
     );
 
-    harness.press_at(from);
+    harness.down(from, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(over)]);
     harness.frames_to_settle();
 
@@ -40,7 +40,7 @@ fn dragging_a_tab_along_its_bar_parts_the_tabs_it_passes() {
         "nothing moves in the dock while the tab is carried"
     );
 
-    harness.release_at(over);
+    harness.up(over, PointerButton::Primary);
     harness.frames_to_settle();
 
     let state = harness.document().api::<DockApi>(dock).state();
