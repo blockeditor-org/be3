@@ -4,9 +4,10 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use beui_text_editor_core::{
-    CollapsibleSection, CopyMode, Core, CursorPosition, EditorCommand, FindDirection, FindStatus,
-    Formats, MarkdownCommand, Position, Schema, Selected, SyntaxHighlight, TextChange,
-    TextIndentation, TextLanguage, TextRun,
+    CollapsibleSection, CopyMode, Core, CursorHorizontalPositionMetric, CursorLeftRightStop,
+    CursorPosition, EditorCommand, FindDirection, FindStatus, Formats, MarkdownCommand, Position,
+    RowStep, Schema, Selected, SyntaxHighlight, TextChange, TextIndentation, TextLanguage, TextRun,
+    UDDirection, VerticalMoveMode, VisualRows,
 };
 
 use beui_view::reactive::*;
@@ -61,7 +62,10 @@ impl Snapshot {
     }
 }
 
-pub trait AreaGeometry {
+/// What the area's view publishes about where it drew the text. As [`VisualRows`] it
+/// answers for the rows a caret moves through, in unscaled pixels from the canvas's
+/// left edge.
+pub trait AreaGeometry: VisualRows {
     fn caret_rect(&self, byte: usize) -> Option<Rect>;
     fn index_at(&self, pos: Pos2) -> Option<usize>;
 }
@@ -84,6 +88,19 @@ impl TextAreaLayout {
 
     pub fn index_at(&self, pos: Pos2) -> Option<usize> {
         self.geometry.as_ref()?.index_at(pos)
+    }
+}
+
+impl VisualRows for TextAreaLayout {
+    fn caret_x(&self, index: usize) -> Option<f32> {
+        self.geometry.as_ref()?.caret_x(index)
+    }
+
+    fn step(&self, index: usize, direction: UDDirection, x: f32) -> RowStep {
+        match &self.geometry {
+            Some(geometry) => geometry.step(index, direction, x),
+            None => RowStep::Unknown,
+        }
     }
 }
 
@@ -232,6 +249,19 @@ impl TextAreaState {
         self.sync();
     }
 
+    /// Moves every caret a row up or down through the rows the area shows, so a
+    /// wrapped line is crossed a row at a time. Carets whose rows are not laid out
+    /// move by source line.
+    pub fn move_by_row(&self, direction: UDDirection, mode: VerticalMoveMode) {
+        let layout = self.0.with(|inner| inner.layout.get_untracked());
+        self.execute(EditorCommand::MoveCursorUpDown {
+            direction,
+            mode,
+            metric: CursorHorizontalPositionMetric::Screen(&layout),
+            stop: CursorLeftRightStop::UnicodeGraphemeCluster,
+        });
+    }
+
     pub fn copy(&self, mode: CopyMode) -> String {
         let inner = self.0.value();
         let text = inner.core.borrow_mut().copy_utf8(mode);
@@ -348,6 +378,13 @@ impl TextAreaState {
             .iter()
             .filter_map(|cursor| core.selection_range(cursor))
             .collect()
+    }
+
+    /// The input method's composing range as of the last sync. Read from what the
+    /// area published rather than the `Core`, so memos the view recomputes while the
+    /// core runs a command (asking the view for rows) never borrow it.
+    pub fn composition(&self) -> Option<Range<usize>> {
+        self.0.with(|inner| inner.cursor_cache.borrow().2.clone())
     }
 
     pub fn caret_indices(&self) -> Vec<usize> {

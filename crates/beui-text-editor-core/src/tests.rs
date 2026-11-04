@@ -23,6 +23,7 @@ mod find_next_cycles_through_matches_and_wraps;
 mod find_previous_cycles_through_matches_and_wraps;
 mod find_status_reports_current_match_index;
 mod has_stop;
+mod home_and_end_at_a_line_edge_stay_on_the_line;
 mod ime_a_composing_region_over_existing_text_is_recomposed;
 mod ime_any_other_command_ends_the_composition;
 mod ime_commit_replaces_the_composition_and_ends_it;
@@ -93,6 +94,12 @@ mod toggle_collapse_at_moves_the_cursor_out_of_a_newly_hidden_section;
 mod toml_syn_hl;
 mod up_arrow_skips_past_a_collapsed_section;
 mod virtual_end_anchors_follow_edits_without_adding_a_byte;
+mod visual_rows_a_caret_in_an_unbuilt_row_moves_by_source_line;
+mod visual_rows_a_row_ending_in_a_wrap_settles_before_it;
+mod visual_rows_a_row_inside_a_collapsed_section_falls_back_to_source_lines;
+mod visual_rows_duplicate_adds_a_caret_on_the_next_row;
+mod visual_rows_select_extends_every_cursor_by_a_row;
+mod visual_rows_up_and_down_follow_wrapped_rows;
 mod zig_syn_hl;
 
 fn rendered_highlight(tester: &mut EditorTester, offset: usize) -> String {
@@ -264,6 +271,71 @@ impl EditorTester {
 fn backspace() -> EditorCommand<'static> {
     EditorCommand::Delete {
         direction: LRDirection::Left,
+        stop: CursorLeftRightStop::UnicodeGraphemeCluster,
+    }
+}
+
+/// A view that shows the text in the rows it is given, one column per byte.
+/// Rows outside `built` are not laid out.
+struct Grid {
+    rows: Vec<std::ops::Range<usize>>,
+    built: std::ops::Range<usize>,
+}
+
+impl Grid {
+    fn new(rows: Vec<std::ops::Range<usize>>) -> Self {
+        let built = 0..rows.len();
+        Self { rows, built }
+    }
+
+    fn row_of(&self, index: usize) -> usize {
+        self.rows
+            .partition_point(|row| row.start <= index)
+            .saturating_sub(1)
+    }
+}
+
+impl VisualRows for Grid {
+    fn caret_x(&self, index: usize) -> Option<f32> {
+        let row = self.row_of(index);
+        self.built
+            .contains(&row)
+            .then(|| (index - self.rows[row].start) as f32)
+    }
+
+    fn step(&self, index: usize, direction: UDDirection, x: f32) -> RowStep {
+        let row = self.row_of(index);
+        let target = match direction {
+            UDDirection::Up => row.checked_sub(1),
+            UDDirection::Down => Some(row + 1).filter(|target| *target < self.rows.len()),
+        };
+        let Some(target) = target else {
+            return RowStep::Edge;
+        };
+        if !self.built.contains(&row) || !self.built.contains(&target) {
+            return RowStep::Unknown;
+        }
+        let bytes = self.rows[target].clone();
+        RowStep::Row {
+            nearest: (bytes.start + x.round() as usize).min(bytes.end),
+            wrapped_end: self
+                .rows
+                .get(target + 1)
+                .is_some_and(|next| next.start == bytes.end),
+            bytes,
+        }
+    }
+}
+
+fn by_row(
+    rows: &dyn VisualRows,
+    direction: UDDirection,
+    mode: VerticalMoveMode,
+) -> EditorCommand<'_> {
+    EditorCommand::MoveCursorUpDown {
+        direction,
+        mode,
+        metric: CursorHorizontalPositionMetric::Screen(rows),
         stop: CursorLeftRightStop::UnicodeGraphemeCluster,
     }
 }
