@@ -21,6 +21,8 @@ fn node(id: Uuid) -> Node {
         locked: false,
         held: true,
         sets_access: false,
+        size: 0,
+        tree_size: 0,
     }
 }
 

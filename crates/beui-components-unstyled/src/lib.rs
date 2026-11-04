@@ -58,6 +58,7 @@ pub mod toast;
 pub mod toggle;
 pub mod tooltip;
 pub mod tree;
+pub mod treemap;
 pub mod typeahead;
 mod watched;
 
@@ -158,4 +159,8 @@ pub use tree::{
     Tree, TreeApi, TreeItem, TreeMenu, TreeMenus, TreeReveal, TreeRevealHandle, TreeRowArea,
     TreeRowEdit, TreeRowEditor, TreeRowHandle, TreeRowMenu, TreeRowMenuButton, TreeRowTarget,
     TreeToggle, TreeToggleHandle,
+};
+pub use treemap::{
+    TREEMAP_MOST_TILES, Treemap, TreemapHandle, TreemapItem, TreemapTile, TreemapTileHandle,
+    TreemapTileKey,
 };

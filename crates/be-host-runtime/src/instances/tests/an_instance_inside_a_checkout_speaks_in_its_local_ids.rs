@@ -19,6 +19,8 @@ fn info(block: Uuid, parent: Uuid, references: Vec<Uuid>) -> BlockInfo {
         locked: false,
         deleted: false,
         sets_access: false,
+        size: 0,
+        tree_size: 0,
     }
 }
 

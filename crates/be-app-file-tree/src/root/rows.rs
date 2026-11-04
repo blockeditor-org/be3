@@ -1,4 +1,5 @@
 use be_sdk_beui::be_block::ViewState;
+use be_sdk_beui::be_sdk_ui::bytes_label;
 use be_sdk_beui::beui::icons::Glyph;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -79,6 +80,10 @@ pub(crate) struct Inspection {
     pub(crate) access: String,
     pub(crate) generated: String,
     pub(crate) shown_as: String,
+    /// The bytes the server keeps for the block and everything below it.
+    pub(crate) size: String,
+    /// What `size` says on a row, empty for a block that holds nothing yet.
+    pub(crate) tree_size: String,
 }
 
 impl Row {
@@ -972,6 +977,18 @@ fn inspect(
         shown_as: match is_reference {
             true => "A link to a block that lives elsewhere".to_owned(),
             false => "The block itself".to_owned(),
+        },
+        size: match block.tree_size == block.size {
+            true => bytes_label(block.size),
+            false => format!(
+                "{} with what is inside, {} itself",
+                bytes_label(block.tree_size),
+                bytes_label(block.size)
+            ),
+        },
+        tree_size: match block.tree_size {
+            0 => String::new(),
+            bytes => bytes_label(bytes),
         },
     }
 }

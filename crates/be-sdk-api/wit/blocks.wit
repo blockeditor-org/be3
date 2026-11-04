@@ -43,6 +43,10 @@ interface blocks {
         deleted: bool,
         /// The block has a grant of its own to an account.
         sets-access: bool,
+        /// Bytes the server keeps for this block alone, history included.
+        size: u64,
+        /// `size` plus each child's `tree-size`, as the server counts them.
+        tree-size: u64,
     }
 
     enum artifact-action {
