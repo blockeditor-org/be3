@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use be_block::be_block_model::{Document, Edit};
 use be_block::{BlockContent, Layered, Layers, LiveEdit, Root, SettingsLayer, layered};
 use uuid::Uuid;
@@ -17,8 +19,14 @@ pub(crate) struct SettingsSync<R> {
     seen: Option<Vec<(Uuid, u64)>>,
     contents: Option<LayerContents<R>>,
     applied: Option<R>,
-    outboxes: [Outbox; 2],
+    outboxes: [Outbox<R>; 2],
 }
+
+/// An edit the host writes to a layer, made from what that layer holds each time it
+/// is applied or sent. A screen's settings are one entry, so an edit made once would
+/// put back the rest of the entry as it was then; made again, it keeps a rotation
+/// written to the same screen while it was on its way.
+pub(crate) type LayerEdit<R> = Rc<dyn Fn(&R) -> Edit>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct LayerContents<R> {
@@ -85,33 +93,43 @@ fn slot(layer: SettingsLayer) -> usize {
 
 const LAYERS: [SettingsLayer; 2] = [SettingsLayer::EveryDevice, SettingsLayer::ThisDevice];
 
-#[derive(Default)]
-struct Outbox {
-    unwritten: Vec<Edit>,
-    sent: Vec<Edit>,
+struct Outbox<R> {
+    unwritten: Vec<LayerEdit<R>>,
+    sent: Vec<LayerEdit<R>>,
     sent_at: Option<u64>,
 }
 
-impl Outbox {
-    fn queue(&mut self, edits: Vec<Edit>) {
-        self.unwritten.extend(edits);
+impl<R> Default for Outbox<R> {
+    fn default() -> Self {
+        Self {
+            unwritten: Vec::new(),
+            sent: Vec::new(),
+            sent_at: None,
+        }
+    }
+}
+
+impl<R: LocalSettings> Outbox<R> {
+    fn queue(&mut self, edit: LayerEdit<R>) {
+        self.unwritten.push(edit);
     }
 
-    fn send(&mut self, revision: u64) -> Vec<Edit> {
+    fn send(&mut self, revision: u64, own: &R) -> Vec<Edit> {
         if self.unwritten.is_empty() {
             return Vec::new();
         }
         let edits = std::mem::take(&mut self.unwritten);
-        self.sent.extend(edits.iter().cloned());
+        let (_, made) = made(own, &edits);
+        self.sent.extend(edits);
         self.sent_at = Some(revision);
-        edits
+        made
     }
 
-    fn overlay<R: LocalSettings>(&mut self, revision: u64, content: R) -> (R, Vec<Edit>) {
+    fn overlay(&mut self, revision: u64, content: R) -> (R, Vec<Edit>) {
         if self.sent.is_empty() {
             return (content, Vec::new());
         }
-        let overlaid = edited(&content, &self.sent);
+        let (overlaid, made) = made(&content, &self.sent);
         if overlaid == content {
             self.sent.clear();
             self.sent_at = None;
@@ -121,7 +139,7 @@ impl Outbox {
             true => Vec::new(),
             false => {
                 self.sent_at = Some(revision);
-                self.sent.clone()
+                made
             }
         };
         (overlaid, resend)
@@ -132,12 +150,18 @@ impl Outbox {
     }
 }
 
-fn edited<R: Root>(settings: &R, edits: &[Edit]) -> R {
-    let mut document = Document::new(settings);
-    for edit in edits {
-        document.apply(edit);
-    }
-    document.root()
+/// Applies `edits` in turn, each made from what the ones before it left.
+fn made<R: Root>(own: &R, edits: &[LayerEdit<R>]) -> (R, Vec<Edit>) {
+    let mut document = Document::new(own);
+    let made = edits
+        .iter()
+        .map(|edit| {
+            let made = edit(&document.root());
+            document.apply(&made);
+            made
+        })
+        .collect();
+    (document.root(), made)
 }
 
 impl<R> Default for SettingsSync<R> {
@@ -208,7 +232,8 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
                 return;
             };
             revisions.push((block, revision));
-            Self::write(block, self.outboxes[slot(layer)].send(revision));
+            let own = self.layers().own(layer);
+            Self::write(block, self.outboxes[slot(layer)].send(revision, &own));
         }
         if self.seen.as_ref() == Some(&revisions) {
             return;
@@ -245,21 +270,25 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         self.applied = Some(settings);
     }
 
-    pub(crate) fn commit(&mut self, store: &HostStateStore, edits: Vec<(SettingsLayer, Edit)>) {
+    pub(crate) fn commit(
+        &mut self,
+        store: &HostStateStore,
+        edits: Vec<(SettingsLayer, LayerEdit<R>)>,
+    ) {
         let mut contents = self.contents.clone().unwrap_or_default();
         let mut applied = self.applied.clone().unwrap_or_default();
         let mut written = false;
         for (layer, edit) in edits {
             match contents.target(layer) {
                 Some(target) => {
-                    let content = edited(&contents.own(target), std::slice::from_ref(&edit));
+                    let (content, _) = made(&contents.own(target), std::slice::from_ref(&edit));
                     contents.set(target, content);
-                    self.outboxes[slot(target)].queue(vec![edit]);
+                    self.outboxes[slot(target)].queue(edit);
                     written = true;
                 }
                 None => {
-                    applied = edited(&applied, std::slice::from_ref(&edit));
-                    self.outboxes[slot(layer)].queue(vec![edit]);
+                    (applied, _) = made(&applied, std::slice::from_ref(&edit));
+                    self.outboxes[slot(layer)].queue(edit);
                 }
             }
         }
@@ -276,7 +305,8 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
             if let Some(block) = self.blocks.block(layer)
                 && let Some(revision) = be_host_stack::content_revision(block)
             {
-                Self::write(block, self.outboxes[slot(layer)].send(revision));
+                let own = self.layers().own(layer);
+                Self::write(block, self.outboxes[slot(layer)].send(revision, &own));
             }
         }
     }

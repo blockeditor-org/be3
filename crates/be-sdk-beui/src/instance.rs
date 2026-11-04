@@ -96,7 +96,7 @@ impl<A: BeuiRoot> Parts<A> {
                 let host = host.clone();
                 let control = Rc::clone(&control);
                 let node = beui::reactive::view! {
-                    <beui::styled::Root clear_color=beui::styled::ColorRole::SurfaceRaised>
+                    <beui::styled::Root clear_color=beui::styled::ColorRole::Surface>
                         <AppDialog host control>|| {
                             let creation = creation.clone();
                             let children = creation.children();
@@ -191,6 +191,8 @@ impl<A: BeuiRoot> Parts<A> {
             painted: vec![beui::Rect::from_min_size(beui::Pos2::ZERO, view_size)],
             floating: document.overlay_rects(window),
             floating_painted: document.overlay_painted_rects(window),
+            marks: document.mark_rects(window),
+            marks_painted: document.mark_painted_rects(window),
             scrims: document.overlay_scrims(window),
             drawing: document.drawing_rects(window),
             claims: document
@@ -216,7 +218,7 @@ impl<A: BeuiRoot> Parts<A> {
             let host = host.clone();
             let control = Rc::clone(&control);
             let node = beui::reactive::view! {
-                <beui::styled::Root clear_color=beui::styled::ColorRole::SurfaceRaised>
+                <beui::styled::Root clear_color=beui::styled::ColorRole::Surface>
                     <AppDialog host control>|| {
                         let outer = artifacts.clone();
                         let inner = artifacts.clone();
@@ -260,6 +262,8 @@ impl<A: BeuiRoot> Parts<A> {
             painted: vec![rect],
             floating: document.overlay_rects(window),
             floating_painted: document.overlay_painted_rects(window),
+            marks: document.mark_rects(window),
+            marks_painted: document.mark_painted_rects(window),
             scrims: document.overlay_scrims(window),
             drawing: document.drawing_rects(window),
             claims: document

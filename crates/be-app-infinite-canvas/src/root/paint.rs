@@ -45,6 +45,7 @@ pub(crate) fn resolve_color(color: CanvasColor, auto: Color32) -> Color32 {
 pub(crate) struct Palette {
     pub(crate) auto: Color32,
     pub(crate) surface: Color32,
+    pub(crate) control: Color32,
     pub(crate) border: Color32,
     pub(crate) muted: Color32,
 }

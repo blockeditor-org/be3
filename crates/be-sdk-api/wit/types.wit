@@ -610,6 +610,13 @@ interface types {
         /// view's children and under the content, so the children show
         /// dimmed through it.
         floating-painted: list<rect>,
+        /// The parts of `floating` that are marks over the view's own
+        /// children (a dock splitter reaching over them), not overlays, and
+        /// of `floating-painted`, `marks-painted`. The host keeps the
+        /// windows the view opens above the marks, for drawing and input,
+        /// and only the overlays above those windows.
+        marks: list<rect>,
+        marks-painted: list<rect>,
         scrims: list<scrim>,
         drawing: list<rect>,
         claims: list<press-claim>,
@@ -882,7 +889,8 @@ interface types {
     /// locks it; in a layout also a pane split off a locked one. `empty`, in
     /// a declaration, names a body that is no tab of the tree: the view its
     /// owner draws in the pane while the pane holds no tab. A
-    /// `bare` pane shows its one tab with no tab bar and takes no other.
+    /// `bare` pane shows its one tab with no tab bar and takes no other. A
+    /// `hide-empty-bar` pane draws no bar while it holds no tab.
     record dock-pane {
         key: string,
         active: option<u32>,
@@ -893,6 +901,7 @@ interface types {
         area: option<string>,
         empty: option<dock-tab-path>,
         bare: bool,
+        hide-empty-bar: bool,
     }
 
     /// A group of tabs shown as one entry of a pane, whose root (a split or

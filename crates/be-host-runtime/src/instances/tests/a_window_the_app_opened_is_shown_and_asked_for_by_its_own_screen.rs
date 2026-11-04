@@ -38,6 +38,8 @@ fn a_window_the_app_opened_is_shown_and_asked_for_by_its_own_screen() {
         painted: vec![Rect::from_min_size(Pos2::ZERO, vec2(200.0, 100.0))],
         floating: Vec::new(),
         floating_painted: Vec::new(),
+        marks: Vec::new(),
+        marks_painted: Vec::new(),
         scrims: Vec::new(),
         drawing: Vec::new(),
         claims: Vec::new(),

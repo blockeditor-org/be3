@@ -28,7 +28,7 @@ use smithay::backend::drm::{
 };
 use smithay::backend::input::Event as _;
 use smithay::backend::input::{
-    AbsolutePositionEvent, Axis, ButtonState, GestureBeginEvent, GestureEndEvent,
+    AbsolutePositionEvent, Axis, AxisSource, ButtonState, GestureBeginEvent, GestureEndEvent,
     GesturePinchUpdateEvent, GestureSwipeUpdateEvent, InputEvent, KeyState, KeyboardKeyEvent,
     PointerAxisEvent, PointerButtonEvent, PointerMotionEvent, ProximityState,
     TabletToolButtonEvent, TabletToolEvent, TabletToolProximityEvent, TabletToolTipEvent,
@@ -124,6 +124,9 @@ pub struct Session {
     darken_retry: Option<RegistrationToken>,
     lost: Arc<AtomicBool>,
     problems: Problems,
+    /// Fingers are on a trackpad, scrolling: libinput has sent a finger
+    /// scroll and not yet the zero that ends it.
+    fingers_scrolling: bool,
 }
 
 struct Pointed {
@@ -310,6 +313,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         darken_retry: None,
         lost,
         problems,
+        fingers_scrolling: false,
     };
     if let Some(config) = session.display_control.take() {
         session.display_config = config;
@@ -1071,8 +1075,12 @@ impl Session {
     }
 
     fn scroll(&mut self, delta: ScrollDelta) {
+        self.scroll_phase(beui::Input::Scroll(delta));
+    }
+
+    fn scroll_phase(&mut self, input: beui::Input) {
         let (window, _) = self.at(self.pointer());
-        self.push_sample(Incoming::points(beui::Input::Scroll(delta)).in_window(window));
+        self.push_sample(Incoming::points(input).in_window(window));
     }
 
     fn touchpad(&mut self, gesture: TouchpadGesture) {
@@ -1383,9 +1391,23 @@ impl Session {
                     return;
                 }
                 let amount = |axis| -event.amount(axis).unwrap_or(0.0) as f32;
-                let delta =
-                    ScrollDelta::Pixels(vec2(amount(Axis::Horizontal), amount(Axis::Vertical)));
-                self.scroll(delta);
+                let delta = vec2(amount(Axis::Horizontal), amount(Axis::Vertical));
+                if event.source() != AxisSource::Finger {
+                    self.scroll(ScrollDelta::Pixels(delta));
+                    return;
+                }
+                // libinput ends a finger scroll with an event whose values are
+                // zero, once the fingers lift.
+                if delta == beui::Vec2::ZERO {
+                    if std::mem::take(&mut self.fingers_scrolling) {
+                        self.scroll_phase(beui::Input::ScrollEnded);
+                    }
+                    return;
+                }
+                if !std::mem::replace(&mut self.fingers_scrolling, true) {
+                    self.scroll_phase(beui::Input::ScrollStarted);
+                }
+                self.scroll(ScrollDelta::Pixels(delta));
             }
             InputEvent::TouchDown { event } => {
                 self.escape_touch(event.slot(), true);

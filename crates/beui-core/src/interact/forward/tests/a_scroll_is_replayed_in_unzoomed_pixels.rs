@@ -9,7 +9,13 @@ fn a_scroll_is_replayed_in_unzoomed_pixels() {
             &mut replay,
             vec![
                 mouse(PointerPhase::ScrollStarted, at),
-                mouse(PointerPhase::Scroll(vec2(-8.0, 40.0)), at),
+                mouse(
+                    PointerPhase::Scroll {
+                        delta: vec2(-8.0, 40.0),
+                        notches: None,
+                    },
+                    at
+                ),
                 mouse(
                     PointerPhase::ScrollEnded {
                         fling: vec2(0.0, 100.0)

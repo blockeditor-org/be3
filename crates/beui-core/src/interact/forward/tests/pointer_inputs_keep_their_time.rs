@@ -22,7 +22,13 @@ fn pointer_inputs_keep_their_time() {
         vec![
             sent(moved),
             sent(touched),
-            mouse(PointerPhase::Scroll(vec2(0.0, 10.0)), pos2(100.0, 50.0)),
+            mouse(
+                PointerPhase::Scroll {
+                    delta: vec2(0.0, 10.0),
+                    notches: None,
+                },
+                pos2(100.0, 50.0),
+            ),
             key(Key::A, Modifiers::NONE, None),
         ],
         1.0,

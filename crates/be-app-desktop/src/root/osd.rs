@@ -5,9 +5,9 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::unstyled::{Progress as BareProgress, ProgressHandle};
 use be_sdk_beui::beui::{
-    LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Rect, TextAlign,
+    LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Rect, TextAlign, vec2,
 };
-use beui::{Align, Direction, ItemSize, Sides};
+use beui::{Align, Direction, ItemSize};
 
 pub(crate) const OSD_DURATION: Duration = Duration::from_millis(1500);
 
@@ -90,29 +90,33 @@ pub(crate) fn LevelOsd(
         });
     });
     let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
-    let below = create_memo(move || area.get().height() * (1.0 - SCREEN_HEIGHT_FRACTION));
+    // The margin goes on the anchor, not around the card: an overlay's whole content
+    // rect covers the program windows under it, so transparent padding would hide them.
+    let anchor = create_memo(move || {
+        let area = area.get();
+        let below = area.height() * (1.0 - SCREEN_HEIGHT_FRACTION);
+        OverlayAnchor::Rect(Rect::from_min_max(
+            area.min + vec2(MARGIN, MARGIN),
+            area.max - vec2(MARGIN, below),
+        ))
+    });
     view! {
         <Overlay
-            anchor={create_memo(move || OverlayAnchor::Rect(area.get()))}
+            anchor={anchor}
             placement=Placement::InsideBottom
             policy=LayerPolicy::Inert
             level=LayerLevel::Top
             traps_focus=false
             open={open}
             content={move || { let id = id.clone(); view! {
-                <OsdCard level opacity={opacity.read_only()} below id />
+                <OsdCard level opacity={opacity.read_only()} id />
             } }}
         />
     }
 }
 
 #[component]
-fn OsdCard(
-    level: Memo<Option<OsdLevel>>,
-    opacity: ReadSignal<f32>,
-    below: Memo<f32>,
-    id: String,
-) -> NodeId {
+fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) -> NodeId {
     let muted =
         create_memo(move || level.with(|level| level.as_ref().is_some_and(|level| level.muted)));
     let glyph_ink = create_memo(move || match muted.get() {
@@ -138,30 +142,26 @@ fn OsdCard(
     });
     view! {
         <Frame
-            padding={create_memo(move || Padding::custom(Sides::all(MARGIN).bottom(below.get())))}
+            opacity={opacity}
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+            padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+            @test_id={id}
         >
-            <Frame
-                opacity={opacity}
-                fill=ColorRole::SurfaceRaised
-                border={Border::DEFAULT}
-                radius=Radius::Lg
-                padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
-                @test_id={id}
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Text size=TextSize::Xl color={glyph_ink} align=TextAlign::Center>
-                        <Icon glyph={glyph} />
-                    </Text>
-                    <Show condition={present}>
-                        <LevelBar value label fill />
-                    </Show>
-                    <Show condition={absent}>
-                        <Frame width=BAR_WIDTH>
-                            <Text color=TextColor::Muted>{label}</Text>
-                        </Frame>
-                    </Show>
-                </List>
-            </Frame>
+            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                <Text size=TextSize::Xl color={glyph_ink} align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
+                <Show condition={present}>
+                    <LevelBar value label fill />
+                </Show>
+                <Show condition={absent}>
+                    <Frame width=BAR_WIDTH>
+                        <Text color=TextColor::Muted>{label}</Text>
+                    </Frame>
+                </Show>
+            </List>
         </Frame>
     }
 }

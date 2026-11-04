@@ -259,6 +259,7 @@ struct Leaf {
     keep: bool,
     area: Option<String>,
     bare: bool,
+    hide_empty_bar: bool,
 }
 
 impl Leaf {
@@ -274,6 +275,7 @@ impl Leaf {
             keep: false,
             area: None,
             bare: false,
+            hide_empty_bar: false,
         }
     }
 }
@@ -952,6 +954,11 @@ impl DockState {
         self.leaf(leaf).is_some_and(|leaf| leaf.bare)
     }
 
+    /// Whether the leaf draws no bar while it holds no tab (`DockSpecPane::hide_empty_bar`).
+    pub fn hides_empty_bar(&self, leaf: LeafId) -> bool {
+        self.leaf(leaf).is_some_and(|leaf| leaf.hide_empty_bar)
+    }
+
     pub fn is_one_bare_pane(&self) -> bool {
         self.surfaces.len() == 1
             && matches!(self.leaves(self.main()).as_slice(), [leaf] if self.is_bare(*leaf))
@@ -1553,6 +1560,7 @@ impl DockState {
                 leaf.keep = like.keep;
                 leaf.area.clone_from(&like.area);
                 leaf.bare = like.bare;
+                leaf.hide_empty_bar = like.hide_empty_bar;
             }
         }
     }

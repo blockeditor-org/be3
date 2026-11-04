@@ -39,6 +39,7 @@ fn one(key: &str, tab: u64, menu: &[&str]) -> DockDeclaration {
                         area: None,
                         empty: None,
                         bare: false,
+                        hide_empty_bar: false,
                     }),
                 },
                 DockItem {

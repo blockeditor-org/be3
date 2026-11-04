@@ -1244,12 +1244,12 @@ fn LightSwitches() -> NodeId {
 
 #[sample]
 #[component]
-fn RaisedSwitches() -> NodeId {
+fn PanelSwitches() -> NodeId {
     let muted = create_signal(false);
     let wifi = create_signal(true);
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Lg
             padding={Padding::all(Space::Lg)}
@@ -1283,10 +1283,10 @@ pub(crate) fn ChoicesPage() -> NodeId {
                 <LightSwitches />
             </Sample>
             <Sample
-                title="Switches on a raised surface"
-                code={vec![RaisedSwitches::SOURCE, LabelledSwitch::SOURCE]}
+                title="Switches on a panel"
+                code={vec![PanelSwitches::SOURCE, LabelledSwitch::SOURCE]}
             >
-                <RaisedSwitches />
+                <PanelSwitches />
             </Sample>
             <Sample title="Tabs" code={vec![ScaleTabs::SOURCE]}>
                 <ScaleTabs />
@@ -3324,7 +3324,7 @@ fn StripCard(index: ReadSignal<usize>) -> NodeId {
     view! {
         <Frame padding={Padding::symmetric(Space::Xs, Space::None)}>
             <Frame
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Control
                 border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Md
                 padding={Padding::symmetric(Space::Lg, Space::Md)}
@@ -4241,7 +4241,7 @@ fn StageCard(card: (f32, f32, f32, f32, &'static str)) -> CanvasItem {
     view! {
         <CanvasItem x y width height scales=true>
             <Frame
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Control
                 border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Lg
                 padding=STAGE_PADDING
@@ -4316,7 +4316,6 @@ fn WindowSample() -> NodeId {
                 options={view! {
                     <ChoiceOption label="Background" />
                     <ChoiceOption label="Surface" />
-                    <ChoiceOption label="Raised surface" />
                 }}
                 selected={window.background}
             />
@@ -4622,13 +4621,21 @@ pub(crate) fn WindowManagerPage() -> NodeId {
                          window: close it, hide it, snap it to half of its area, fill its area, \
                          move it to the other area keeping its place, or switch to the next \
                          window of its group (the two notes). Show desktop hides every window and \
-                         brings them back. A shell binds its own keys to the same actions."
+                         brings them back. A tab dropped in the middle of the desk fills it beneath the \
+                         windows, and one dropped at its edge splits it; emptied, the desk shows no \
+                         bar. A shell binds its own keys to the same actions."
                     </Text>
                 </List>
             </Frame>
             <DockHost @sizing=ItemSize::Percent(100.0) layout=host>
                 <Docking layout>
-                    <DockPane id="desk" bare=true></DockPane>
+                    <DockPane
+                        id="desk"
+                        hide_empty_bar=true
+                        empty={move || view! {
+                            <Frame @test_id="wm.desk" />
+                        }}
+                    ></DockPane>
                     <ForEach keys={open}>|id: u64| {
                         let (_, title, group, at) = DESK_WINDOWS[id as usize - 1];
                         view! {

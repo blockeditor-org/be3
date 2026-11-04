@@ -62,6 +62,8 @@ fn commit(serial: u64, sheet: AnchoredPlacement) {
                 painted: vec![own],
                 floating: vec![own],
                 floating_painted: Vec::new(),
+                marks: Vec::new(),
+                marks_painted: Vec::new(),
                 scrims: Vec::new(),
                 drawing: Vec::new(),
                 claims: Vec::new(),

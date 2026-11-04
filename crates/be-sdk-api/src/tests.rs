@@ -49,6 +49,8 @@ fn anchored_report(screen: ScreenId, placement: AnchoredPlacement) -> FrameRepor
         painted: vec![Rect::from_min_size(Pos2::ZERO, size)],
         floating: vec![Rect::from_min_size(Pos2::ZERO, size)],
         floating_painted: Vec::new(),
+        marks: Vec::new(),
+        marks_painted: Vec::new(),
         scrims: Vec::new(),
         drawing: Vec::new(),
         claims: Vec::new(),
@@ -193,6 +195,7 @@ fn pane(depth: u32, key: &str, locked: bool) -> DockItem {
             area: locked.then(|| key.into()),
             empty: None,
             bare: false,
+            hide_empty_bar: false,
         }),
     }
 }

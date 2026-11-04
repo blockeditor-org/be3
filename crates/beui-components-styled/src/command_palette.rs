@@ -80,7 +80,7 @@ fn PalettePanel(children: Child) -> NodeId {
         <Frame padding=MARGIN>
             <Frame
                 width={Extent::at_most(WIDTH)}
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Surface
                 border={Border::DEFAULT}
                 radius=Radius::Lg
                 padding=PADDING
