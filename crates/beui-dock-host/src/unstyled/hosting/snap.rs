@@ -37,6 +37,8 @@ fn same(left: Rect, right: Rect) -> bool {
 }
 
 impl DockHostLayout {
+    /// Only while the window stays at the snapped rect: moved or resized away, it is unsnapped with
+    /// nothing to go back to.
     pub fn window_snap(&self, tab: TabId) -> Option<DockSnap> {
         let rect = self.window_rect(tab)?;
         self.snaps.with(|snaps| {
@@ -47,6 +49,8 @@ impl DockHostLayout {
         })
     }
 
+    /// Remembers the window's rect before the first snap for `unsnap_window`. `area` is in the dock's
+    /// window points, as `window_rect`.
     pub fn snap_window(&self, tab: TabId, snap: DockSnap, area: Rect) {
         let Some(rect) = untrack(|| self.window_rect(tab)) else {
             return;

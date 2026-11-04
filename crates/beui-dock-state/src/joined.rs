@@ -21,6 +21,7 @@ pub fn joined_prefix(host: TabId) -> String {
     format!("{}/", joined_key(host))
 }
 
+/// Where a tab moved out of a joined group went, so restoring the inner dock can put it back.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockOutside {
     pub tab: TabId,
@@ -235,6 +236,8 @@ impl DockState {
             .map(|group| group.id)
     }
 
+    /// A group of one bare pane stands for its hosting tab: its tab wears the host's title, icon and
+    /// close, and the host's home holds it.
     pub fn stands_for(&self, group: GroupId) -> Option<TabId> {
         let host = joined_host(self.group(group)?.key.as_deref()?)?;
         let [leaf] = self.tree_leaves(Tree::Group(group))[..] else {

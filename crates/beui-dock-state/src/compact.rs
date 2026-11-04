@@ -1,5 +1,7 @@
 use super::{DockState, Entry, LeafId, Node, SplitSize, TabId, Tree};
 
+/// A gathered tree's sizes, fold and shown tab, kept per stage tab and saved apart from the tiled
+/// splits so switching sizes mixes neither.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DockCompact {
     pub stage: TabId,
@@ -25,6 +27,7 @@ pub const COMPACT_SHARE: f32 = 0.4;
 pub const COMPACT_SIDE: f32 = 280.0;
 
 impl DockState {
+    /// A bare pane among others: an editor's stage, which a compact dock keeps while gathering the rest.
     pub fn stage_of(&self, tree: Tree) -> Option<LeafId> {
         let leaves = self.tree_leaves(tree);
         if leaves.len() < 2 {
@@ -70,6 +73,7 @@ impl DockState {
             .collect()
     }
 
+    /// Lists a gathered tree by its stage alone.
     pub fn switchable(&self, tabs: Vec<TabId>) -> Vec<TabId> {
         tabs.into_iter()
             .filter(|tab| {

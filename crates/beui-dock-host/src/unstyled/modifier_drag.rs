@@ -1,3 +1,8 @@
+//! `DockHost`'s `drag_modifier`: each floating window and docked pane claims presses with those
+//! modifiers (a `Claim`), so neither tabs nor content see them. A primary drag moves a window (and
+//! is swallowed on a docked pane); a secondary drag resizes a window from the nearest edge or corner,
+//! by thirds, or moves a docked pane's nearest split.
+
 use beui_reactive::Get;
 use std::cell::Cell;
 

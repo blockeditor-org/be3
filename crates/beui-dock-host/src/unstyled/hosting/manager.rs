@@ -1,3 +1,6 @@
+//! The dock as window manager of its floating windows, for any shell: areas (displays), hiding and
+//! show-desktop, groups, closing and the window actions. The shell picks the keys.
+
 use beui_view::reactive::*;
 use beui_view::types::icons::{
     ICON_ARROW_LEFT_TO_LINE, ICON_ARROW_RIGHT_TO_LINE, ICON_BRING_TO_FRONT, ICON_CIRCLE_X,
@@ -82,6 +85,7 @@ impl DockHostLayout {
         }
     }
 
+    /// The area (`set_areas`, one per display) the window overlaps most.
     pub fn area_of_window(&self, tab: TabId) -> Option<usize> {
         let rect = self.window_rect(tab)?;
         holding_area(rect, &self.areas())
@@ -92,6 +96,7 @@ impl DockHostLayout {
         self.areas().get(area).copied()
     }
 
+    /// Keeps the window's place in proportion, inside the area, and keeps a snapped window snapped.
     pub fn move_to_area(&self, tab: TabId, area: usize) {
         let areas = untrack(|| self.areas());
         let (Some(from), Some(to)) = (
@@ -185,6 +190,8 @@ impl DockHostLayout {
         self.cleared.with(Option::is_some) && self.cleared_windows().is_empty()
     }
 
+    /// Hides every shown window; pressed again while none has been shown since, brings back what it hid.
+    /// Anything shown meanwhile ends it, so the next press hides again.
     pub fn show_desktop(&self) {
         let shown = untrack(|| self.cleared_windows());
         if shown.is_empty()
@@ -239,6 +246,7 @@ impl DockHostLayout {
         same
     }
 
+    /// Cycles the shown windows' tabs of the same `DockTab` `group` (one app's windows), in tab order.
     pub fn next_of_group(&self, tab: TabId, backwards: bool) {
         let same = untrack(|| self.group_mates(tab));
         let Some(at) = same.iter().position(|other| *other == tab) else {
@@ -254,6 +262,7 @@ impl DockHostLayout {
         self.show(next);
     }
 
+    /// Closes through the tab's own `on_close`, so the shell decides what closing means.
     pub fn close_tab(&self, tab: TabId) {
         self.close(tab);
     }
@@ -299,6 +308,11 @@ impl DockHostLayout {
         Some(self.dialog_root(focused))
     }
 
+    /// The window manager's actions, with ids, labels and icons but no keys: the shell binds them.
+    /// Each acts on the focused window (its focused tab, or a focused dock dialog) when that window floats
+    /// and is shown, and is disabled while `disabled` is true (the desktop's lock screen).
+    /// `dock.switch.next` and `previous` commit at once unless Alt, Ctrl or Super is held, in which case
+    /// letting go of all of them commits.
     pub fn window_actions(&self, disabled: Memo<bool>) -> DockWindowActions {
         let layout = *self;
         let focused = create_memo(move || match disabled.get() {

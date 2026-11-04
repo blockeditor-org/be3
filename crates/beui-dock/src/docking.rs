@@ -83,6 +83,9 @@ struct LayoutInner<K: 'static> {
     place: Cell<Option<RenderFn<TabId, NodeId>>>,
 }
 
+/// The caller's handle on a dock: where everything is, keyed by the caller's `DockKey`. `Copy`, and
+/// owned by the scope that made it; `OwnedDockingLayout` makes one outside a scope. In a dock that
+/// joined another, every call goes through the outer dock.
 pub struct DockingLayout<K: 'static> {
     state: Signal<DockState>,
     mode: Signal<DockMode>,
@@ -202,6 +205,9 @@ impl<K: DockKey> DockingLayout<K> {
         map
     }
 
+    /// Call before the effects of the write that declares the snapshot's tabs run (writes made
+    /// together, with no `flush()` between, qualify): a tab not declared when the dock reconciles is
+    /// closed. For a joined dock, a restore made before it joins is grafted in once its group stands.
     pub fn restore(&self, snapshot: DockingSnapshot<K>) {
         let DockingSnapshot { state, keys } = snapshot;
         let inner = self.inner();
@@ -234,6 +240,9 @@ impl<K: DockKey> DockingLayout<K> {
         self.restores.update(|restores| *restores += 1);
     }
 
+    /// Has no serialized form: save be-sdk-beui's `SavedDockLayout::of(snapshot)`. Fullscreen, snaps,
+    /// hidden windows, dialogs and a switch in progress are not in it. The outer dock's snapshot keeps
+    /// only a joined dock's hosting tab; the joined dock's owner saves this one.
     pub fn snapshot(&self) -> DockingSnapshot<K> {
         let mut state = self.state.get();
         let inner = self.inner();

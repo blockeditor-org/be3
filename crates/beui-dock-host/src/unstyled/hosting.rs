@@ -137,6 +137,8 @@ struct HostInner {
     hosts: Signal<Vec<TabId>>,
 }
 
+/// The host's handle on a dock, keyed by `TabId` (`DockingLayout::tab_of` converts): the area,
+/// covers, windows and window manager, and the switch.
 pub struct DockHostLayout {
     state: Signal<DockState>,
     mode: Signal<DockMode>,
@@ -227,12 +229,16 @@ impl DockHostLayout {
         self.area.get()
     }
 
+    /// Says something outside covers the dock, so its floating dock bars drop from `LayerLevel::Raised`
+    /// to `Normal` under it, as they do under a fullscreen tab.
     pub fn set_covered(&self, covered: bool) {
         if self.covered.get_untracked() != covered {
             self.covered.set(covered);
         }
     }
 
+    /// Where the dock bars floating over this place are, in the dock's coordinates, so the owner can keep
+    /// toasts and the like clear of them.
     pub fn over_bars_rect(&self, edge: DockEdge, align: DockAlign) -> Option<Rect> {
         self.floats
             .with(|floats| floats.get(&(edge, align)).copied())
@@ -885,6 +891,11 @@ fn join_bars(layout: DockHostLayout, link: Rc<dyn DockHostLink>) {
     });
 }
 
+/// Lays out and draws the `Docking` below it, in its place, and owns the tree, drags and keyboard.
+/// Given `bars` (or inside a `DockHost` that was), it is joined by bars only: it declares its owned
+/// bars to that link and draws none of them while the link hosts them. `drag_modifier` (none by
+/// default) turns a drag anywhere in a floating window into a move, and a secondary drag into a
+/// resize, while those modifiers are held.
 #[component]
 pub fn DockHost(
     #[prop(default = DockHostLayout::new())] layout: DockHostLayout,
