@@ -14,14 +14,13 @@ fn keeping_a_mode_leaves_a_lower_layers_rotation_alone() {
         every_device: Some(DisplaySettings::default()),
         this_device: None,
     };
-    let edits: Vec<Edit> = written(&layers, &changes)
-        .into_iter()
-        .map(|(layer, edit)| {
+    let kept = written(&layers, &changes).into_iter().fold(
+        DisplaySettings::default(),
+        |own, (layer, edit)| {
             assert_eq!(layer, SettingsLayer::EveryDevice);
-            edit
-        })
-        .collect();
-    let kept = edited(&DisplaySettings::default(), &edits);
+            edited(&own, &[edit(&own)])
+        },
+    );
 
     assert_eq!(kept.mode(MONITOR), Some(fast()));
     assert_eq!(

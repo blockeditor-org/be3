@@ -173,7 +173,7 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
             width=MARKER_SIZE
             height=MARKER_SIZE
             radius=Radius::Full
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Control
             border={Border::DEFAULT}
         >
             <List align=Align::Center spacing=Space::None>

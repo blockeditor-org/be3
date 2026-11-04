@@ -229,7 +229,7 @@ clipboard, rendering and the frame rectangle.
 
 `View` returns the editor's own `Root`, whose `clear_color` the surface is
 cleared to; the protocol carries no title. A preview, drawn over something of
-the host's, is rooted in a transparent `Root`; an app dialog in `SurfaceRaised`.
+the host's, is rooted in a transparent `Root`; an app dialog in `Surface`, like every floating panel.
 
 `Editor` carries everything the instance was given:
 

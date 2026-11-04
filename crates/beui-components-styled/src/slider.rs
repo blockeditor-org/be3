@@ -122,7 +122,7 @@ fn rest_size(value: f32) -> ItemSize {
 
 fn knob_fill_color(dragging: bool, disabled: bool) -> ColorRole {
     match (disabled, dragging) {
-        (true, _) => ColorRole::SurfaceRaised,
+        (true, _) => ColorRole::Control,
         (false, true) => ColorRole::AccentHover,
         (false, false) => ColorRole::Knob,
     }

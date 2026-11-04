@@ -127,7 +127,7 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
 fn LayerGhost(label: be_sdk_beui::beui::reactive::Memo<String>) -> NodeId {
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Control
             radius=ROW_RADIUS
             padding={Padding::symmetric(Space::Md, ROW_PADDING)}
         >

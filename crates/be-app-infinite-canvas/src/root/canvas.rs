@@ -672,7 +672,8 @@ fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {
 pub(crate) fn palette(theme: &be_sdk_beui::beui::styled::ThemeStore) -> Palette {
     Palette {
         auto: beui::reactive::resolve_color(theme.text.get()),
-        surface: beui::reactive::resolve_color(theme.surface_raised.get()),
+        surface: beui::reactive::resolve_color(theme.surface.get()),
+        control: beui::reactive::resolve_color(theme.control.get()),
         border: beui::reactive::resolve_color(theme.border.get()),
         muted: beui::reactive::resolve_color(theme.text_muted.get()),
     }

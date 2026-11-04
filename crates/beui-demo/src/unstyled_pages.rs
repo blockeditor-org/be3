@@ -71,7 +71,7 @@ fn PressCounter() -> NodeId {
     let fill = create_memo(move || match (active.get(), hovered.get()) {
         (true, _) => ColorRole::Pressed,
         (false, true) => ColorRole::Hover,
-        (false, false) => ColorRole::SurfaceRaised,
+        (false, false) => ColorRole::Control,
     });
     let label = create_memo(move || format!("Pressed {} times", presses.get()));
     view! {
@@ -408,7 +408,7 @@ pub(crate) fn SelectingPage() -> NodeId {
 fn SegmentedControl() -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <Frame fill=ColorRole::SurfaceRaised radius=PILL_RADIUS padding=Space::Xs>
+            <Frame fill=ColorRole::Control radius=PILL_RADIUS padding=Space::Xs>
                 <unstyled::Choice
                     options={view! {
                         <ChoiceOption label="List" />
@@ -636,7 +636,7 @@ fn PopupPanel(children: Child) -> NodeId {
     view! {
         <Frame
             width=PANEL_WIDTH
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
             radius=Radius::Lg
             padding=Space::Lg
@@ -691,7 +691,7 @@ fn HintTooltip() -> NodeId {
                 }}
             >
                 <Frame
-                    fill=ColorRole::SurfaceRaised
+                    fill=ColorRole::Control
                     radius=Radius::Md
                     padding={Padding::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
                 >
@@ -874,7 +874,7 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
 fn FruitChip(fruit: usize, lifted: Prop<bool>) -> NodeId {
     let fill = create_memo(move || match lifted.get() {
         true => ColorRole::AccentSoft,
-        false => ColorRole::SurfaceRaised,
+        false => ColorRole::Control,
     });
     view! {
         <Frame fill={fill} radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Sm)}>
@@ -1060,7 +1060,7 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
     let fill = create_memo(move || match (active.get(), hovered.get()) {
         (true, _) => ColorRole::Pressed,
         (false, true) => ColorRole::Hover,
-        (false, false) => ColorRole::SurfaceRaised,
+        (false, false) => ColorRole::Control,
     });
     view! {
         <Frame
@@ -1290,7 +1290,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
     let fill = create_memo(
         move || match (selected.get(), marked.get(), hovered.get()) {
             (true, _, _) => ColorRole::AccentSoft,
-            (false, true, _) => ColorRole::SurfaceRaised,
+            (false, true, _) => ColorRole::Control,
             (false, false, true) => ColorRole::Hover,
             (false, false, false) => ColorRole::None,
         },
@@ -1352,7 +1352,7 @@ fn ToolbarKey(handle: ButtonHandle) -> NodeId {
 fn ToolbarStrip(children: Child) -> NodeId {
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
             radius=Radius::Md
             padding=Space::Xs

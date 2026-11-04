@@ -9,6 +9,7 @@ use crate::display::{self, Screen};
 mod a_committed_mode_keeps_the_rotation_of_the_layer_under_it;
 mod a_display_mode_is_saved_only_once_it_is_kept;
 mod a_reverted_display_mode_is_never_saved;
+mod an_edit_sent_again_keeps_a_rotation_written_over_it;
 mod edits_written_to_the_block_cover_its_content_until_it_holds_them;
 
 const MONITOR: &str = "DEL|U2723QE|1234";
@@ -65,4 +66,8 @@ fn showing(mode: DisplayMode) -> DisplaySettings {
     let mut document = Document::new(&DisplaySettings::default());
     document.apply(&DisplaySettings::default().set_mode(MONITOR, Some(mode)));
     document.root()
+}
+
+fn slow_mode() -> LayerEdit<DisplaySettings> {
+    Rc::new(|own| own.set_mode(MONITOR, Some(SLOW)))
 }

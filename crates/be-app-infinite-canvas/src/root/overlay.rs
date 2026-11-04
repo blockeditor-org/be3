@@ -102,7 +102,7 @@ impl Badge {
     fn draw(&self, painter: &Painter, at: Pos2, palette: &Palette) {
         let center = pos2(at.x, at.y + BADGE_BELOW);
         let badge = Rect::from_center_size(center, Vec2::splat(BADGE_SIDE));
-        painter.rect_filled(badge, 5.0, palette.surface);
+        painter.rect_filled(badge, 5.0, palette.control);
         painter.rect_stroke(badge, 5.0, 1.0, palette.border);
         let icon = painter.lay_out_text(
             self.glyph.as_str(),
@@ -243,7 +243,7 @@ impl Overlay {
                 self.camera.to_screen(point(*middle)),
                 Vec2::splat(HANDLE_RADIUS - 1.0),
             );
-            painter.fill_path(&ring, FillRule::NonZero, self.palette.surface);
+            painter.fill_path(&ring, FillRule::NonZero, self.palette.control);
             painter.stroke_path(&ring, &Stroke::new(1.5), SELECTION);
         }
         for at in &grips.points {
