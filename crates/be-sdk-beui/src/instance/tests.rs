@@ -20,10 +20,12 @@ mod a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view;
 mod a_nested_docks_own_bar_is_declared_with_the_tab_its_group_shows;
 mod a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab;
 mod a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks;
+mod a_root_focuses_the_joined_empty_pane_the_host_focuses;
 mod a_root_gives_a_joined_editors_dock_bar_to_the_tab_hosting_it;
 mod a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog;
 mod a_root_hosts_a_childs_dock_again_after_the_child_withdraws_and_redeclares_it;
 mod a_root_places_bars_of_one_kind_together_and_others_apart;
+mod a_root_shows_the_joined_tab_whose_body_the_host_focuses;
 mod a_visible_editor_shows_its_user_as_active;
 mod a_window_opened_in_a_docked_tab_body_opens_over_that_tab;
 mod an_editor_not_docked_draws_its_dock_itself_and_declares_nothing;
@@ -360,4 +362,136 @@ impl crate::BeuiRoot for DockBarredRoot {
 fn dock_barred_session() -> EditorSession {
     BAR.with(|held| held.set(None));
     session::<DockBarredRoot>(Uuid::new_v4())
+}
+
+struct TwoPaneRoot;
+
+#[beui::reactive::component]
+impl crate::BeuiRoot for TwoPaneRoot {
+    #[beui::reactive::component]
+    fn View(editor: crate::Editor) -> beui::styled::Root {
+        use beui::dock::{DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize};
+        use beui::reactive::*;
+        let layout = DockingLayout::<u64>::new();
+        LAYOUT.with(|held| held.set(Some(layout)));
+        view! {
+            <beui::styled::Root>
+                <Docking layout>
+                    <DockSplit id="root" size={SplitSize::Fraction(0.5)}>
+                        <DockPane id="joined">
+                            <DockTab id=1u64 title="One">
+                                <CountedBody editor />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="other">
+                            <DockTab id=2u64 title="Two">
+                                <beui::styled::Frame />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </Docking>
+            </beui::styled::Root>
+        }
+    }
+}
+
+/// Wide enough that the dock tiles both panes rather than stacking the focused one.
+const WIDE: &[(View, u64)] = &[(View::MAIN, 4)];
+
+/// A root whose tab 1 holds a child that joins `joined_dock` to the root's dock, with the focus
+/// then given to tab 2 in the other pane.
+fn joined_then_away() -> (EditorSession, beui::dock::DockingLayout<u64>) {
+    use be_sdk_api::{DockDeclaredChild, DockUpdate};
+    DOCK_TABS.with(|tabs| tabs.borrow_mut().clear());
+    let mut session = session::<TwoPaneRoot>(Uuid::new_v4());
+    show_docked(&mut session, WIDE, false);
+    let child = session.placed_children(ViewId::MAIN)[0].child;
+    dock_messages(&mut session);
+    session
+        .host()
+        .receive_dock_updates(vec![DockUpdate::Child(DockDeclaredChild {
+            child,
+            declaration: Some(joined_dock()),
+        })]);
+    show_docked(&mut session, WIDE, false);
+    show_docked(&mut session, WIDE, false);
+    dock_messages(&mut session);
+    let layout = LAYOUT
+        .with(std::cell::Cell::get)
+        .expect("the app made its layout");
+    layout.show(&2);
+    show_docked(&mut session, WIDE, false);
+    assert_eq!(
+        layout.focused(),
+        Some(2),
+        "the other pane's tab has the focus"
+    );
+    (session, layout)
+}
+
+/// The child the root placed for the joined dock's view of `tab`: a tab's body, or an empty pane's.
+fn joined_body(session: &EditorSession, tab: u64) -> be_sdk_api::ChildId {
+    session
+        .placed_children(ViewId::MAIN)
+        .iter()
+        .find(|placed| {
+            matches!(&placed.content, be_sdk_api::ChildContent::DockTab(path) if path.tab == tab)
+        })
+        .map(|placed| placed.child)
+        .unwrap_or_else(|| panic!("the root places the joined dock's view of {tab}"))
+}
+
+/// A joined dock as a session's: a files pane holding tab 5 beside an editors pane with no tabs,
+/// whose empty view is 9, both locked as the workspace's are.
+fn joined_dock() -> be_sdk_api::DockDeclaration {
+    use be_sdk_api::{
+        DockDeclaration, DockDirection, DockItem, DockItemKind, DockPane, DockSplit, DockSplitSize,
+        DockTab, DockTabPath, DockTree,
+    };
+    let pane = |key: &str, empty: Option<DockTabPath>| DockItem {
+        depth: 1,
+        kind: DockItemKind::Pane(DockPane {
+            key: key.to_owned(),
+            active: None,
+            vertical: false,
+            icons_only: false,
+            sidebar: 180.0,
+            keep: true,
+            area: Some(key.to_owned()),
+            empty,
+            bare: false,
+        }),
+    };
+    DockDeclaration {
+        tree: DockTree {
+            items: vec![
+                DockItem {
+                    depth: 0,
+                    kind: DockItemKind::Split(DockSplit {
+                        key: "main".to_owned(),
+                        direction: DockDirection::Horizontal,
+                        size: DockSplitSize::Fraction(0.5),
+                    }),
+                },
+                pane("files", None),
+                DockItem {
+                    depth: 2,
+                    kind: DockItemKind::Tab(DockTabPath::own(5)),
+                },
+                pane("editors", Some(DockTabPath::own(9))),
+            ],
+            focus: None,
+        },
+        tabs: vec![DockTab {
+            tab: DockTabPath::own(5),
+            key: "5".to_owned(),
+            title: "Files".to_owned(),
+            glyph: String::new(),
+            closable: false,
+            back_closes: true,
+            menu: Vec::new(),
+        }],
+        dialogs: Vec::new(),
+        bars: Vec::new(),
+    }
 }
