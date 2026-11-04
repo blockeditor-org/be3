@@ -267,7 +267,7 @@ pub fn show_with_keyboard(
     show: impl FnOnce(&mut Document, Rect),
 ) {
     let mut host = document.take_keyboard_host();
-    let (placed, changed, moved, left, hidden) = ctx.keyboard(|state| {
+    let (placed, changed, moved, uncovered, left, hidden) = ctx.keyboard(|state| {
         let changed = state.decide(ctx.opens_windows() && ctx.keyboard_in_a_window());
         let shown = state.rect.is_some() || state.shown_in.is_some();
         let placed = state.place(document, ctx, rect, host.as_mut());
@@ -281,8 +281,19 @@ pub fn show_with_keyboard(
         state.window = window;
         let after = (state.window, state.rect);
         let moved = (before != after).then_some([before.0, after.0]);
+        let uncovered = before
+            .1
+            .filter(|_| before != after)
+            .map(|rect| (before.0, rect));
         let left = std::mem::replace(&mut state.shown_in, own).filter(|_| own.is_none());
-        (placed, changed, moved, left, shown && placed.is_none())
+        (
+            placed,
+            changed,
+            moved,
+            uncovered,
+            left,
+            shown && placed.is_none(),
+        )
     });
     for window in moved
         .into_iter()
@@ -307,6 +318,7 @@ pub fn show_with_keyboard(
             state.elsewhere.clear();
         });
         show(document, rect);
+        damage_uncovered(ctx, uncovered);
         remember(ctx);
         if let Some(host) = host {
             document.set_keyboard_host(host);
@@ -324,6 +336,7 @@ pub fn show_with_keyboard(
         },
         || show(document, content),
     );
+    damage_uncovered(ctx, uncovered);
     remember(ctx);
     if let Some(mut host) = host {
         let typing_in = ctx.keyboard_window();
@@ -347,6 +360,16 @@ pub fn show_with_keyboard(
         );
         ctx.set_keyboard_window(typing_in);
         document.set_keyboard_host(host);
+    }
+}
+
+/// Where the keyboard was painted until this frame, it paints no more, and the
+/// window's own content may not cover the spot (a window's clear colour shows
+/// there), so nothing in the retained tree damages it. Runs after the window is
+/// shown, so a hosted window has its frame to take the damage.
+fn damage_uncovered(ctx: &Context, uncovered: Option<(WindowId, Rect)>) {
+    if let Some((window, rect)) = uncovered {
+        ctx.draw_into(window, || ctx.report_damage(rect));
     }
 }
 
