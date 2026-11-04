@@ -128,7 +128,11 @@ Per-device behaviour that spans platforms:
   stretch, and the lift flings. A wheel with no start (a mouse) clamps at the
   ends. winit maps `MouseWheel` phases and on macOS drops the system's momentum
   (`wheel.rs`, [decision](../../decisions/beui_winit_drops_macos_scroll_momentum.md)).
-  The browser reports no phases, so web wheel scrolls never stretch or fling.
+  DRM brackets libinput's finger scrolls, which end with a zero. The browser
+  reports no phases, so web wheel scrolls never stretch or fling.
+- **Wheel notches.** A platform reports a mouse wheel in `ScrollDelta::Lines`,
+  each `SCROLL_LINE` points; `Event::Scroll` and `PointerPhase::Scroll` keep the
+  count as `notches`, so a forwarding node can hand on a wheel as a wheel.
 - **Cancelling.** `Input::PointersCancelled` ends every press, touch and pen
   without a release, and cancels a pointer grab. winit and the web send it on
   losing focus; winit on Wayland also when the pointer leaves with a button

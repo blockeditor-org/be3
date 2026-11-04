@@ -224,9 +224,13 @@ impl Replay {
                         pressed,
                     }));
                 }
-                PointerPhase::Scroll(delta) => {
+                PointerPhase::Scroll { delta, notches } => {
                     self.modifiers(event.modifiers, out);
-                    out.push(Input::Scroll(ScrollDelta::Pixels(delta / zoom)).into());
+                    let scroll = match notches {
+                        Some(notches) => ScrollDelta::Lines(notches),
+                        None => ScrollDelta::Pixels(delta / zoom),
+                    };
+                    out.push(Input::Scroll(scroll).into());
                 }
                 PointerPhase::ScrollStarted => out.push(Input::ScrollStarted.into()),
                 PointerPhase::ScrollEnded { .. } => out.push(Input::ScrollEnded.into()),

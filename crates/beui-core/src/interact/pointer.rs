@@ -431,7 +431,7 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
             wheel(doc, frame, event, Vec2::ZERO, Vec2::ZERO);
             catch_wheel(doc, frame, event);
         }
-        PointerPhase::Scroll(delta) => wheel(doc, frame, event, delta, Vec2::ZERO),
+        PointerPhase::Scroll { delta, .. } => wheel(doc, frame, event, delta, Vec2::ZERO),
         PointerPhase::ScrollEnded { fling } => {
             let held = std::mem::take(&mut doc.pointers.wheel_held);
             wheel(doc, frame, event, Vec2::ZERO, fling);
