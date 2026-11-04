@@ -1,14 +1,11 @@
-//! Storage accounting (decisions/storage_is_charged_to_the_author.md): each object's size, each
+//! Storage accounting (decisions/storage_is_charged_to_the_trees_owner.md): each object's size, each
 //! block's own and subtree size, and each account's usage against its quota. Every counter is
 //! kept incrementally where objects are held, released, uploaded and collected, so nothing here
-//! walks an organization; the one walk is the backfill the first time a server opens its data.
+//! walks an organization.
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    time::Duration,
-};
+use std::{collections::BTreeSet, time::Duration};
 
-use be_block_graph::{BlockGraph, ObjectRefs};
+use be_block_graph::{BlockGraph, BlockParent};
 use be_block_protocol::{AccountStorage, ErrorCode};
 use be_block_store::{Hash, ObjectStore};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -28,7 +25,6 @@ pub const DEFAULT_UPLOAD_GRACE: Duration = Duration::from_secs(24 * 60 * 60);
 pub(crate) const UPLOAD_SWEEP_INTERVAL: Duration = Duration::from_secs(60 * 60);
 /// Uploads collected in one transaction, so a large sweep never holds the database for long.
 const UPLOADS_SWEPT_AT_ONCE: usize = 1024;
-const SIZES_BACKFILL: &str = "sizes";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StorageLimits {
@@ -53,11 +49,11 @@ impl Default for StorageLimits {
 /// What a block held of some objects before it took them: taken by `before_holding` before the
 /// rows are written, and charged by `charge_holding` after.
 pub(crate) struct Holding {
-    organization: Uuid,
+    identity: Identity,
     payer: Uuid,
+    hashes: Vec<Hash>,
     new_to_block: Vec<Hash>,
     new_to_organization: Vec<Hash>,
-    unreferenced: Vec<Hash>,
 }
 
 impl ServerStore {
@@ -65,28 +61,27 @@ impl ServerStore {
         &self,
         connection: &Connection,
         graph: &BlockGraph,
-        refs: &ObjectRefs,
-        organization: Uuid,
+        identity: Identity,
         block: Uuid,
         hashes: &[Hash],
     ) -> Result<Holding, ServerError> {
-        let author = graph.get(block).ok_or(ServerError::Corrupt)?.author;
+        let organization = identity.organization;
+        if !graph.contains(block) {
+            return Err(ServerError::Corrupt);
+        }
         let mut holding = Holding {
-            organization,
-            payer: block_payer(connection, organization, block, author)?,
+            identity,
+            payer: block_payer(connection, organization, block)?,
+            hashes: distinct(hashes),
             new_to_block: Vec::new(),
             new_to_organization: Vec::new(),
-            unreferenced: Vec::new(),
         };
-        for hash in distinct(hashes) {
-            if !held_by_block(connection, organization, block, hash)? {
-                holding.new_to_block.push(hash);
+        for hash in &holding.hashes {
+            if !held_by_block(connection, organization, block, *hash)? {
+                holding.new_to_block.push(*hash);
             }
-            if !held_in_organization(connection, organization, hash)? {
-                holding.new_to_organization.push(hash);
-            }
-            if refs.count(hash) == 0 {
-                holding.unreferenced.push(hash);
+            if !held_in_organization(connection, organization, *hash)? {
+                holding.new_to_organization.push(*hash);
             }
         }
         Ok(holding)
@@ -103,7 +98,8 @@ impl ServerStore {
         holding: &Holding,
     ) -> Result<u64, ServerError> {
         let before = usage_of(connection, holding.payer)?;
-        let organization_before = organization_bytes(connection, holding.organization)?;
+        let organization = holding.identity.organization;
+        let organization_before = organization_bytes(connection, organization)?;
         let mut grew = 0;
         for hash in &holding.new_to_block {
             let bytes = self.object_bytes(connection, *hash)?;
@@ -115,13 +111,9 @@ impl ServerStore {
         }
         for hash in &holding.new_to_organization {
             let bytes = self.object_bytes(connection, *hash)?;
-            shift_organization(connection, holding.organization, bytes, true)?;
+            shift_organization(connection, organization, bytes, true)?;
         }
-        for hash in &holding.unreferenced {
-            for payer in stop_pending(connection, *hash, self.object_bytes(connection, *hash)?)? {
-                self.usage_changed(payer);
-            }
-        }
+        self.take_uploads(connection, holding.identity, &holding.hashes)?;
         let after = usage_of(connection, holding.payer)?;
         if let Some(quota) = self.limits.account_quota
             && after.total() > before.total()
@@ -129,11 +121,8 @@ impl ServerStore {
         {
             return Err(over_account_quota(quota, after.total()));
         }
-        if let Some(quota) = self
-            .policies(graph, connection, holding.organization)?
-            .quota()
-        {
-            let organization_after = organization_bytes(connection, holding.organization)?;
+        if let Some(quota) = self.policies(graph, connection, organization)?.quota() {
+            let organization_after = organization_bytes(connection, organization)?;
             if organization_after > organization_before && organization_after > quota {
                 return Err(over_organization_quota(quota, organization_after));
             }
@@ -152,8 +141,10 @@ impl ServerStore {
         block: Uuid,
         hashes: &[Hash],
     ) -> Result<u64, ServerError> {
-        let author = graph.get(block).ok_or(ServerError::Corrupt)?.author;
-        let payer = block_payer(connection, organization, block, author)?;
+        if !graph.contains(block) {
+            return Err(ServerError::Corrupt);
+        }
+        let payer = block_payer(connection, organization, block)?;
         let mut shrank = 0;
         for hash in distinct(hashes) {
             if !held_by_block(connection, organization, block, hash)? {
@@ -240,13 +231,6 @@ impl ServerStore {
         let payer = payer_of(&transaction, identity.account)?;
         let account = identity.account.to_string();
         let now = be_block_commit::now_milliseconds();
-        let refs: BTreeMap<Hash, u32> = {
-            let refs = self.object_refs();
-            sized
-                .iter()
-                .map(|(hash, _)| (*hash, refs.count(*hash)))
-                .collect()
-        };
         let mut pending = 0;
         let mut new_to_organization = 0;
         let mut seen = BTreeSet::new();
@@ -258,14 +242,7 @@ impl ServerStore {
                 "INSERT OR IGNORE INTO object_sizes (hash, bytes) VALUES (?1, ?2)",
                 params![hash.to_hex(), to_sql(*bytes)],
             )?;
-            let unreferenced = refs.get(hash).copied().unwrap_or(0) == 0;
-            let already: bool = transaction
-                .prepare_cached(
-                    "SELECT EXISTS(SELECT 1 FROM object_uploads INDEXED BY object_uploads_object
-                                   WHERE hash = ?1 AND account_id = ?2 AND pending = 1)",
-                )?
-                .query_row(params![hash.to_hex(), account], |row| row.get(0))?;
-            if unreferenced && !already {
+            if !upload_charged(&transaction, payer, *hash)? {
                 pending += bytes;
             }
             if !held_in_organization(&transaction, identity.organization, *hash)? {
@@ -273,23 +250,17 @@ impl ServerStore {
             }
             transaction
                 .prepare_cached(
-                    "INSERT INTO object_uploads
-                        (organization_id, account_id, hash, size, uploaded, payer, pending)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-                     ON CONFLICT (organization_id, account_id, hash) DO UPDATE SET
-                        uploaded = CASE WHEN excluded.pending = 1 THEN excluded.uploaded
-                                        ELSE uploaded END,
-                        payer = excluded.payer,
-                        pending = excluded.pending",
+                    "INSERT INTO object_uploads (organization_id, account_id, hash, payer, uploaded)
+                     VALUES (?1, ?2, ?3, ?4, ?5)
+                     ON CONFLICT (organization_id, account_id, hash)
+                     DO UPDATE SET uploaded = excluded.uploaded",
                 )?
                 .execute(params![
                     identity.organization.to_string(),
                     account,
                     hash.to_hex(),
-                    to_sql(*bytes),
-                    now,
                     payer.to_string(),
-                    unreferenced
+                    now
                 ])?;
         }
         if pending > 0
@@ -327,60 +298,156 @@ impl ServerStore {
         let cutoff = be_block_commit::now_milliseconds().saturating_sub(grace);
         let mut deleted = 0;
         loop {
-            let (freed, more) = self.with_database(move |store, database| {
-                let transaction = database.unchecked_transaction()?;
-                let expired: Vec<(String, String, String, String)> = {
-                    let mut statement = transaction.prepare_cached(
-                        "SELECT organization_id, hash, account_id, payer FROM object_uploads
-                         WHERE pending = 1 AND uploaded <= ?1 LIMIT ?2",
-                    )?;
-                    let rows = statement.query_map(
-                        params![cutoff, to_sql(UPLOADS_SWEPT_AT_ONCE as u64)],
-                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-                    )?;
-                    rows.collect::<Result<_, _>>()?
-                };
-                let mut freed = Vec::new();
-                for (organization, hex, account, payer) in &expired {
-                    let hash = Hash::from_hex(hex).ok_or(ServerError::Corrupt)?;
-                    let bytes = store.object_bytes(&transaction, hash)?;
-                    transaction.execute(
-                        "DELETE FROM object_uploads
-                         WHERE organization_id = ?1 AND hash = ?2 AND account_id = ?3",
-                        params![organization, hex, account],
-                    )?;
-                    let charged_elsewhere: bool = transaction
-                        .prepare_cached(
-                            "SELECT EXISTS(SELECT 1 FROM object_uploads INDEXED BY object_uploads_object
-                                           WHERE hash = ?1 AND account_id = ?2 AND pending = 1)",
-                        )?
-                        .query_row(params![hex, account], |row| row.get(0))?;
-                    if !charged_elsewhere && let Ok(payer) = Uuid::parse_str(payer) {
-                        shift_usage(&transaction, payer, Column::Pending, bytes, false)?;
-                        store.usage_changed(payer);
+            let (freed, more) = self
+                .with_database(move |store, database| {
+                    let transaction = database.unchecked_transaction()?;
+                    let expired: Vec<(String, String, String, String)> = {
+                        let mut statement = transaction.prepare_cached(
+                            "SELECT organization_id, account_id, hash, payer FROM object_uploads
+                         WHERE uploaded <= ?1 LIMIT ?2",
+                        )?;
+                        let rows = statement.query_map(
+                            params![cutoff, to_sql(UPLOADS_SWEPT_AT_ONCE as u64)],
+                            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                        )?;
+                        rows.collect::<Result<_, _>>()?
+                    };
+                    let mut freed = Vec::new();
+                    for (organization, account, hex, payer) in &expired {
+                        let hash = Hash::from_hex(hex).ok_or(ServerError::Corrupt)?;
+                        transaction.execute(
+                            "DELETE FROM object_uploads
+                         WHERE organization_id = ?1 AND account_id = ?2 AND hash = ?3",
+                            params![organization, account, hex],
+                        )?;
+                        store.uncharge_upload(&transaction, parse_uuid(payer)?, hash)?;
+                        if store.object_refs().count(hash) == 0 {
+                            freed.push(hash);
+                        }
                     }
-                    let still_pending: bool = transaction
-                        .prepare_cached(
-                            "SELECT EXISTS(SELECT 1 FROM object_uploads INDEXED BY object_uploads_object WHERE hash = ?1 AND pending = 1)",
-                        )?
-                        .query_row([hex], |row| row.get(0))?;
-                    if !still_pending && store.object_refs().count(hash) == 0 {
-                        freed.push(hash);
+                    let freed = forget_objects(&transaction, &freed)?;
+                    transaction.commit()?;
+                    for hash in &freed {
+                        store.objects().remove(*hash)?;
                     }
-                }
-                forget_objects(&transaction, &freed)?;
-                transaction.commit()?;
-                for hash in &freed {
-                    store.objects().remove(*hash)?;
-                }
-                Ok((freed.len(), expired.len() >= UPLOADS_SWEPT_AT_ONCE))
-            })
-            .await?;
+                    Ok((freed.len(), expired.len() >= UPLOADS_SWEPT_AT_ONCE))
+                })
+                .await?;
             deleted += freed;
             if !more {
                 return Ok(deleted);
             }
         }
+    }
+
+    /// Moves the charge for `block`'s subtree to the payer of where it is going: the new parent's
+    /// payer, or its author's at the top. Moving to the trash changes nothing until it is
+    /// collected. Re-charging touches each block of the moved subtree and its objects, nothing
+    /// else, and is refused when it would take the new payer past its quota. Call it before
+    /// `BlockGraph::set_parent`, inside the move's transaction.
+    pub(crate) fn follow_payer(
+        &self,
+        graph: &BlockGraph,
+        connection: &Connection,
+        organization: Uuid,
+        block: Uuid,
+        parent: BlockParent,
+    ) -> Result<(), ServerError> {
+        let author = graph.get(block).ok_or(ServerError::Corrupt)?.author;
+        let payer = match parent {
+            BlockParent::Detached => return Ok(()),
+            BlockParent::Block(parent) => block_payer(connection, organization, parent)?,
+            BlockParent::Root => payer_of(connection, author)?,
+        };
+        if block_payer(connection, organization, block)? == payer {
+            return Ok(());
+        }
+        let before = usage_of(connection, payer)?;
+        let mut changed = BTreeSet::from([payer]);
+        for below in graph.subtree(block) {
+            let old = block_payer(connection, organization, below)?;
+            if old == payer {
+                continue;
+            }
+            for hash in block_objects(connection, organization, below)? {
+                let bytes = self.object_bytes(connection, hash)?;
+                if count_account_object(connection, old, hash, false)? {
+                    shift_usage(connection, old, Column::Held, bytes, false)?;
+                    changed.insert(old);
+                }
+                if count_account_object(connection, payer, hash, true)? {
+                    shift_usage(connection, payer, Column::Held, bytes, true)?;
+                }
+            }
+            connection
+                .prepare_cached(
+                    "UPDATE blocks SET payer = ?3 WHERE organization_id = ?1 AND id = ?2",
+                )?
+                .execute(params![
+                    organization.to_string(),
+                    below.to_string(),
+                    payer.to_string()
+                ])?;
+        }
+        let after = usage_of(connection, payer)?;
+        if let Some(quota) = self.limits.account_quota
+            && after.total() > before.total()
+            && after.total() > quota
+        {
+            return Err(over_account_quota(quota, after.total()));
+        }
+        for account in changed {
+            self.usage_changed(account);
+        }
+        Ok(())
+    }
+
+    /// The caller's blocks took these objects: its uploads of them are used, so they stop
+    /// counting as its pending storage, and from now on access to a block that holds them
+    /// decides who may hold them again.
+    fn take_uploads(
+        &self,
+        connection: &Connection,
+        identity: Identity,
+        hashes: &[Hash],
+    ) -> Result<(), ServerError> {
+        for hash in hashes {
+            let payer: Option<String> = connection
+                .prepare_cached(
+                    "DELETE FROM object_uploads
+                     WHERE organization_id = ?1 AND account_id = ?2 AND hash = ?3
+                     RETURNING payer",
+                )?
+                .query_row(
+                    params![
+                        identity.organization.to_string(),
+                        identity.account.to_string(),
+                        hash.to_hex()
+                    ],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if let Some(payer) = payer {
+                self.uncharge_upload(connection, parse_uuid(&payer)?, *hash)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// After an upload row of `payer`'s for `hash` went, stops charging it unless another of
+    /// its uploads still holds the same object.
+    fn uncharge_upload(
+        &self,
+        connection: &Connection,
+        payer: Uuid,
+        hash: Hash,
+    ) -> Result<(), ServerError> {
+        if !upload_charged(connection, payer, hash)? {
+            let bytes = self.object_bytes(connection, hash)?;
+            shift_usage(connection, payer, Column::Pending, bytes, false)?;
+            self.usage_changed(payer);
+        }
+        Ok(())
     }
 
     /// Tells the connections following `payer`'s storage that it changed. The change may not be
@@ -420,18 +487,16 @@ pub(crate) fn persist_sizes(
     for block in distinct_ids(blocks) {
         match graph.get(block) {
             Some(node) => {
-                let payer = payer_of(connection, node.author)?;
                 connection
                     .prepare_cached(
-                        "INSERT INTO block_sizes (organization_id, block_id, payer, size, tree_size)
-                         VALUES (?1, ?2, ?3, ?4, ?5)
+                        "INSERT INTO block_sizes (organization_id, block_id, size, tree_size)
+                         VALUES (?1, ?2, ?3, ?4)
                          ON CONFLICT (organization_id, block_id)
                          DO UPDATE SET size = excluded.size, tree_size = excluded.tree_size",
                     )?
                     .execute(params![
                         organization_id,
                         block.to_string(),
-                        payer.to_string(),
                         to_sql(node.size),
                         to_sql(node.tree_size)
                     ])?;
@@ -476,16 +541,40 @@ pub(crate) fn load_sizes(
     Ok(())
 }
 
-/// Drops what the server kept about objects it deleted.
-pub(crate) fn forget_objects(connection: &Connection, freed: &[Hash]) -> Result<(), ServerError> {
-    for hash in freed {
+/// Of objects no block holds any more, answers those that may be deleted, and forgets their
+/// sizes: an object someone has uploaded and not yet used stays until its upload is collected,
+/// so a free never races an upload of the same object into an untracked file.
+pub(crate) fn forget_objects(
+    connection: &Connection,
+    freed: &[Hash],
+) -> Result<Vec<Hash>, ServerError> {
+    let mut removable = Vec::new();
+    for hash in distinct(freed) {
+        let uploaded: bool = connection
+            .prepare_cached("SELECT EXISTS(SELECT 1 FROM object_uploads WHERE hash = ?1)")?
+            .query_row([hash.to_hex()], |row| row.get(0))?;
+        if uploaded {
+            continue;
+        }
         connection.execute("DELETE FROM object_sizes WHERE hash = ?1", [hash.to_hex()])?;
-        connection.execute(
-            "DELETE FROM object_uploads WHERE hash = ?1",
-            [hash.to_hex()],
-        )?;
+        removable.push(hash);
     }
-    Ok(())
+    Ok(removable)
+}
+
+/// Who pays for a new block: its parent's payer, so whatever anyone makes inside someone's tree
+/// is that tree's owner's; at the top, its author, or an agent's creator. It is stored on the
+/// block, so removing an agent never moves what it made onto a fresh quota.
+pub(crate) fn payer_for_new(
+    connection: &Connection,
+    organization: Uuid,
+    parent: BlockParent,
+    author: Uuid,
+) -> Result<Uuid, ServerError> {
+    match parent {
+        BlockParent::Block(parent) => block_payer(connection, organization, parent),
+        BlockParent::Root | BlockParent::Detached => payer_of(connection, author),
+    }
 }
 
 /// The account that pays for what `account` stores: an agent's creator, or the account itself.
@@ -500,27 +589,45 @@ pub(crate) fn payer_of(connection: &Connection, account: Uuid) -> Result<Uuid, S
     }
 }
 
-/// The account a block's objects are charged to, fixed when the block first held anything, so
-/// a later change to who pays for its author never strands a charge.
+/// The account a block's objects are charged to (`payer_for_new`, then moves).
 fn block_payer(
     connection: &Connection,
     organization: Uuid,
     block: Uuid,
-    author: Uuid,
 ) -> Result<Uuid, ServerError> {
-    let stored: Option<String> = connection
-        .prepare_cached(
-            "SELECT payer FROM block_sizes WHERE organization_id = ?1 AND block_id = ?2",
-        )?
+    let (payer, author): (String, String) = connection
+        .prepare_cached("SELECT payer, author FROM blocks WHERE organization_id = ?1 AND id = ?2")?
         .query_row(
             params![organization.to_string(), block.to_string()],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
-        .optional()?;
-    match stored {
-        Some(payer) => parse_uuid(&payer),
-        None => payer_of(connection, author),
+        .optional()?
+        .ok_or(ServerError::Corrupt)?;
+    match payer.is_empty() {
+        true => payer_of(connection, parse_uuid(&author)?),
+        false => parse_uuid(&payer),
     }
+}
+
+/// The distinct objects a block holds, by any version or by `HoldObjects`.
+fn block_objects(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<Vec<Hash>, ServerError> {
+    let mut statement = connection.prepare_cached(
+        "SELECT hash FROM commit_objects WHERE organization_id = ?1 AND block_id = ?2
+         UNION SELECT hash FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
+    )?;
+    let rows = statement.query_map(
+        params![organization.to_string(), block.to_string()],
+        |row| row.get::<_, String>(0),
+    )?;
+    let mut hashes = Vec::new();
+    for row in rows {
+        hashes.push(Hash::from_hex(&row?).ok_or(ServerError::Corrupt)?);
+    }
+    Ok(hashes)
 }
 
 fn held_by_block(
@@ -596,29 +703,14 @@ fn count_account_object(
     }
 }
 
-/// A block took an object nothing held: it stops being charged to whoever uploaded it.
-/// Answers those it was charged to.
-fn stop_pending(connection: &Connection, hash: Hash, bytes: u64) -> Result<Vec<Uuid>, ServerError> {
-    let payers: Vec<String> = {
-        let mut statement = connection.prepare_cached(
-            "SELECT MIN(payer) FROM object_uploads INDEXED BY object_uploads_object WHERE hash = ?1 AND pending = 1
-                 GROUP BY account_id",
-        )?;
-        let rows = statement.query_map([hash.to_hex()], |row| row.get(0))?;
-        rows.collect::<Result<_, _>>()?
-    };
-    let mut uncharged = Vec::new();
-    for payer in payers {
-        if let Ok(payer) = Uuid::parse_str(&payer) {
-            shift_usage(connection, payer, Column::Pending, bytes, false)?;
-            uncharged.push(payer);
-        }
-    }
-    connection.execute(
-        "UPDATE object_uploads SET pending = 0 WHERE hash = ?1",
-        [hash.to_hex()],
-    )?;
-    Ok(uncharged)
+/// Whether `payer` is already charged for an upload of `hash`, by any account it pays for, in
+/// any organization.
+fn upload_charged(connection: &Connection, payer: Uuid, hash: Hash) -> Result<bool, ServerError> {
+    Ok(connection
+        .prepare_cached(
+            "SELECT EXISTS(SELECT 1 FROM object_uploads WHERE payer = ?1 AND hash = ?2)",
+        )?
+        .query_row(params![payer.to_string(), hash.to_hex()], |row| row.get(0))?)
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -740,127 +832,4 @@ fn distinct(hashes: &[Hash]) -> Vec<Hash> {
 fn distinct_ids(ids: impl IntoIterator<Item = Uuid>) -> Vec<Uuid> {
     let mut seen = BTreeSet::new();
     ids.into_iter().filter(|id| seen.insert(*id)).collect()
-}
-
-/// Fills the counters from what the data already holds, the first time a server that keeps them
-/// opens it. Objects on disk that nothing holds count as uploads made now, by nobody, so they are
-/// collected once their grace has passed.
-pub(crate) fn backfill(
-    connection: &Connection,
-    objects: &be_block_store::FileStore,
-) -> Result<(), ServerError> {
-    let done: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM server_backfills WHERE name = ?1)",
-        [SIZES_BACKFILL],
-        |row| row.get(0),
-    )?;
-    if done {
-        return Ok(());
-    }
-    let transaction = connection.unchecked_transaction()?;
-    let referenced: BTreeSet<Hash> = {
-        let mut statement = transaction.prepare("SELECT hash FROM object_refs WHERE count > 0")?;
-        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
-        let mut referenced = BTreeSet::new();
-        for row in rows {
-            referenced.insert(Hash::from_hex(&row?).ok_or(ServerError::Corrupt)?);
-        }
-        referenced
-    };
-    let mut sizes = BTreeMap::new();
-    for hash in &referenced {
-        let bytes = objects.len(*hash)?.unwrap_or(0) as u64;
-        sizes.insert(*hash, bytes);
-    }
-    let now = be_block_commit::now_milliseconds();
-    let nobody = Uuid::nil().to_string();
-    for hash in objects.hashes()? {
-        if referenced.contains(&hash) {
-            continue;
-        }
-        let bytes = objects.len(hash)?.unwrap_or(0) as u64;
-        sizes.insert(hash, bytes);
-        transaction.execute(
-            "INSERT OR IGNORE INTO object_uploads
-                (organization_id, account_id, hash, size, uploaded, payer, pending)
-             VALUES (?2, ?2, ?1, ?4, ?3, ?2, 1)",
-            params![hash.to_hex(), nobody, now, to_sql(bytes)],
-        )?;
-    }
-    for (hash, bytes) in &sizes {
-        transaction.execute(
-            "INSERT OR IGNORE INTO object_sizes (hash, bytes) VALUES (?1, ?2)",
-            params![hash.to_hex(), to_sql(*bytes)],
-        )?;
-    }
-    let organizations: Vec<String> = {
-        let mut statement = transaction.prepare("SELECT id FROM organizations")?;
-        let rows = statement.query_map([], |row| row.get(0))?;
-        rows.collect::<Result<_, _>>()?
-    };
-    let mut account_objects: BTreeMap<(Uuid, Hash), i64> = BTreeMap::new();
-    for organization in organizations {
-        let organization = parse_uuid(&organization)?;
-        let mut graph = super::load_graph(&transaction, organization)?;
-        let held: Vec<(Uuid, Hash)> = {
-            let mut statement = transaction.prepare(
-                "SELECT block_id, hash FROM commit_objects WHERE organization_id = ?1
-                 UNION SELECT block_id, hash FROM block_objects WHERE organization_id = ?1",
-            )?;
-            let rows = statement.query_map([organization.to_string()], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            })?;
-            let mut held = Vec::new();
-            for row in rows {
-                let (block, hash) = row?;
-                held.push((
-                    parse_uuid(&block)?,
-                    Hash::from_hex(&hash).ok_or(ServerError::Corrupt)?,
-                ));
-            }
-            held
-        };
-        let mut payers = BTreeMap::new();
-        let mut in_organization = BTreeSet::new();
-        for (block, hash) in held {
-            let bytes = sizes.get(&hash).copied().unwrap_or(0);
-            if graph.contains(block) {
-                graph.add_size(block, bytes, true)?;
-            }
-            let author = graph.get(block).map_or(Uuid::nil(), |node| node.author);
-            let payer = match payers.get(&author) {
-                Some(payer) => *payer,
-                None => {
-                    let payer = payer_of(&transaction, author)?;
-                    payers.insert(author, payer);
-                    payer
-                }
-            };
-            *account_objects.entry((payer, hash)).or_default() += 1;
-            in_organization.insert(hash);
-        }
-        let organization_total: u64 = in_organization
-            .iter()
-            .map(|hash| sizes.get(hash).copied().unwrap_or(0))
-            .sum();
-        shift_organization(&transaction, organization, organization_total, true)?;
-        persist_sizes(&transaction, &graph, organization, graph.ids())?;
-    }
-    let mut held: BTreeMap<Uuid, u64> = BTreeMap::new();
-    for ((payer, hash), count) in &account_objects {
-        transaction.execute(
-            "INSERT OR REPLACE INTO account_objects (account_id, hash, count) VALUES (?1, ?2, ?3)",
-            params![payer.to_string(), hash.to_hex(), count],
-        )?;
-        *held.entry(*payer).or_default() += sizes.get(hash).copied().unwrap_or(0);
-    }
-    for (payer, bytes) in held {
-        shift_usage(&transaction, payer, Column::Held, bytes, true)?;
-    }
-    transaction.execute(
-        "INSERT INTO server_backfills (name) VALUES (?1)",
-        [SIZES_BACKFILL],
-    )?;
-    transaction.commit()?;
-    Ok(())
 }

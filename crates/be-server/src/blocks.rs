@@ -17,7 +17,7 @@ use crate::{
     limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_METADATA_BYTES},
     store::{
         Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid,
-        usage::{forget_objects, persist_sizes},
+        usage::{forget_objects, payer_for_new, persist_sizes},
     },
 };
 
@@ -258,10 +258,12 @@ impl ServerStore {
             graph.insert(block, node)?;
             let (kind, parent_id) = encode_parent(parent);
             let transaction = database.unchecked_transaction()?;
+            let payer = payer_for_new(&transaction, identity.organization, parent, identity.account)?;
             transaction.execute(
                 "INSERT INTO blocks
-                    (organization_id, id, content_type, author, parent_kind, parent_id, head, metadata)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7)",
+                    (organization_id, id, content_type, author, parent_kind, parent_id, head, metadata,
+                     payer)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8)",
                 params![
                     identity.organization.to_string(),
                     block.to_string(),
@@ -270,6 +272,7 @@ impl ServerStore {
                     kind,
                     parent_id,
                     metadata,
+                    payer.to_string(),
                 ],
             )?;
             store_edges(
@@ -531,14 +534,7 @@ impl ServerStore {
                 .optional()?;
             if existing.is_none() {
                 store.require_holdable(graph, database, identity, &held, "published")?;
-                let holding = store.before_holding(
-                    &transaction,
-                    graph,
-                    &store.object_refs(),
-                    identity.organization,
-                    block,
-                    &held,
-                )?;
+                let holding = store.before_holding(&transaction, graph, identity, block, &held)?;
                 transaction.execute(
                     "INSERT INTO block_commits
                         (organization_id, block_id, commit_id, parents, time, pinned, received)
@@ -692,14 +688,7 @@ impl ServerStore {
             require_edit(graph, &visibility(identity), block)?;
             store.require_holdable(graph, database, identity, &objects, "held")?;
             let transaction = database.unchecked_transaction()?;
-            let holding = store.before_holding(
-                &transaction,
-                graph,
-                &store.object_refs(),
-                identity.organization,
-                block,
-                &objects,
-            )?;
+            let holding = store.before_holding(&transaction, graph, identity, block, &objects)?;
             let organization = identity.organization.to_string();
             let mut fresh = Vec::new();
             for hash in objects {
@@ -785,6 +774,7 @@ impl ServerStore {
                         && seen.can_view(graph, owner)
                 },
             )?;
+            store.follow_payer(graph, &transaction, identity.organization, block, parent)?;
             let mut resized = chain(graph, block);
             graph.set_parent(block, parent)?;
             graph.touch(block)?;
@@ -1005,7 +995,7 @@ impl ServerStore {
                 block,
                 &released,
             )?;
-            forget_objects(&transaction, &freed)?;
+            let freed = forget_objects(&transaction, &freed)?;
             graph.add_size(block, shrank, false)?;
             persist_sizes(
                 &transaction,
@@ -1114,7 +1104,7 @@ impl ServerStore {
                 removed.push(block);
             }
             std::mem::drop(refs);
-            forget_objects(&transaction, &freed)?;
+            let freed = forget_objects(&transaction, &freed)?;
             transaction.commit()?;
             remove_objects(store.objects(), &freed)?;
             Ok(Collected {

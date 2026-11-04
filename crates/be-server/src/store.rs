@@ -153,7 +153,6 @@ impl ServerStore {
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         reader.busy_timeout(Duration::from_secs(5))?;
-        usage::backfill(&connection, &objects)?;
         Ok(Self(Arc::new(Shared {
             database: Arc::new(Mutex::new(connection)),
             session_changes: tokio::sync::watch::channel(0).0,

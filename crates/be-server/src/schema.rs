@@ -113,6 +113,7 @@ const SCHEMA: &str = "
         metadata        BLOB NOT NULL DEFAULT x'',
         version         INTEGER NOT NULL DEFAULT 0,
         key_id          TEXT NOT NULL DEFAULT '',
+        payer           TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (organization_id, id)
     );
 
@@ -261,26 +262,23 @@ const SCHEMA: &str = "
         organization_id TEXT NOT NULL,
         account_id      TEXT NOT NULL,
         hash            TEXT NOT NULL,
-        size            INTEGER NOT NULL,
+        payer           TEXT NOT NULL,
         uploaded        INTEGER NOT NULL,
-        payer           TEXT NOT NULL DEFAULT '',
-        pending         INTEGER NOT NULL DEFAULT 0 CHECK (pending IN (0, 1)),
         PRIMARY KEY (organization_id, account_id, hash)
     );
 
-    CREATE INDEX object_uploads_hash
-        ON object_uploads (organization_id, hash);
+    CREATE INDEX object_uploads_payer
+        ON object_uploads (payer, hash);
 
     CREATE INDEX object_uploads_object
         ON object_uploads (hash);
 
-    CREATE INDEX object_uploads_pending
-        ON object_uploads (pending, uploaded);
+    CREATE INDEX object_uploads_uploaded
+        ON object_uploads (uploaded);
 
     CREATE TABLE block_sizes (
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,
-        payer           TEXT NOT NULL,
         size            INTEGER NOT NULL DEFAULT 0,
         tree_size       INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, block_id)
@@ -302,9 +300,5 @@ const SCHEMA: &str = "
     CREATE TABLE organization_usage (
         organization_id TEXT PRIMARY KEY,
         bytes           INTEGER NOT NULL DEFAULT 0
-    );
-
-    CREATE TABLE server_backfills (
-        name            TEXT PRIMARY KEY
     );
 ";

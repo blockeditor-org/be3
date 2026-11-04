@@ -90,29 +90,6 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
         "sizes outlive a restart"
     );
 
-    let connection = rusqlite::Connection::open(harness.directory.join("metadata.sqlite")).unwrap();
-    connection
-        .execute_batch(
-            "DELETE FROM server_backfills; DELETE FROM block_sizes; DELETE FROM account_objects;
-             DELETE FROM account_usage; DELETE FROM organization_usage; DELETE FROM object_sizes;",
-        )
-        .unwrap();
-    drop(connection);
-    let harness = harness.restart().await;
-    let mut client = harness.second_connection(&token, organization).await;
-    let summary = client.read_block(child).await;
-    assert_eq!(
-        (summary.size, summary.tree_size),
-        (size, size),
-        "opening data kept before sizes were fills them in"
-    );
-    assert_eq!(client.read_block(elsewhere).await.tree_size, size);
-    let usage = client
-        .call(|peer| client::account::storage_usage(peer))
-        .await
-        .unwrap();
-    assert_eq!(usage.held, size);
-
     let deleted = client
         .call(|peer| client::blocks::delete_block(peer, child))
         .await;

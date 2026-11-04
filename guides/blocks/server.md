@@ -155,16 +155,21 @@ with no bytes moving either way, so a large post on a slow link goes through.
 - **Publishing** is a compare-and-swap on the head: a stale publish comes back
   `Rejected` with the head to merge against. It writes the head, the edges the
   commit declares and refcounts for its new chunks.
-- **Storage** is charged to each block's author (an agent's creator), counting
-  each distinct object once per account and every version a block keeps
-  (`decisions/storage_is_charged_to_the_author.md`; `store/usage.rs`). An
+- **Storage** is charged to each block's payer (`blocks.payer`): its parent's
+  payer, or at the top its author (an agent's creator), counting each distinct
+  object once per payer and every version a block keeps. A move re-charges the
+  moved subtree to the payer of where it goes (`follow_payer`); the trash
+  changes nothing
+  (`decisions/storage_is_charged_to_the_trees_owner.md`; `store/usage.rs`). An
   account may store `ServerConfig::account_quota` bytes, and an organization
   its settings' `storage_quota` bytes; an upload, publish or hold that would
   pass either is refused with `OverQuota` before anything is written, and
-  nothing that frees space is ever refused. `PutObjects` charges objects no
-  block holds to the uploader (`object_uploads`, `pending`) until a block takes
-  them; `collect_uploads` deletes them after `upload_grace`, when the server
-  starts and every `UPLOAD_SWEEP_INTERVAL`. Counters are kept incrementally:
+  nothing that frees space is ever refused. Each `PutObjects` upload is a row in `object_uploads` (per
+  organization, account and object, with its payer) charged to the payer as
+  `pending`, once per payer and object, until one of the uploader's own
+  publishes or holds uses it, which deletes the row; `collect_uploads` deletes
+  rows older than `upload_grace` (and the object, when no block holds it), when
+  the server starts and every `UPLOAD_SWEEP_INTERVAL`. Counters are kept incrementally:
   `object_sizes`, `account_objects` (per payer and object, how many of its
   blocks hold it), `account_usage`, `organization_usage`, and `block_sizes`,
   which the cached `BlockGraph` mirrors as `BlockNode::size` and `tree_size`
@@ -175,17 +180,15 @@ with no bytes moving either way, so a large post on a slow link goes through.
   changes (`ServerStore::usage_changes`, a broadcast of payers each connection
   following its own filters; one that falls `USAGE_CHANGES_QUEUED` behind reads
   again). It needs an organization open, and a connection keeps one: opening
-  another ends the first. The first time a server opens data
-  kept before these tables, `usage::backfill` fills them once
-  (`server_backfills`), and counts objects on disk that nothing holds as
-  uploads by nobody.
+  another ends the first. An object no block holds any more stays while an
+  upload row names it (`forget_objects`), so a free never races an upload that
+  is about to write the same file.
 - **Objects** are served only to a member who can view a block that holds them
   (by a commit, `commit_objects`, or by `HoldObjects`); anything else reads as
   missing. A merge commit holds its extra parents' objects, so a stash that was
-  never a head stays readable. Each upload is recorded per organization and
-  account (`object_uploads`: size and first upload time), and a block may hold
-  or publish an object only if its caller uploaded it there or may already read
-  it (`holdable` in `blocks.rs`); `MissingObjects` answers by the same rule, so
+  never a head stays readable. A block may hold or publish an object only if
+  its caller has an unused upload of it there (`object_uploads`) or may already
+  read it (`holdable` in `blocks.rs`); `MissingObjects` answers by the same rule, so
   knowing a hash neither reads it nor tells whether someone else stored it.
 - **Watches and live sessions** are keyed by organization and block
   (`watch::Place`): a block id is the client's choice, so another organization
