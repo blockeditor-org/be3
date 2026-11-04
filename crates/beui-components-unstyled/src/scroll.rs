@@ -13,7 +13,7 @@ use crate::drag_board::drag_board;
 use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
 use beui_view::components::overlay::Overlay;
 use beui_view::drag::EdgeScroller;
-use beui_view::escape::beui_html::{Event as HtmlEvent, Node as HtmlNode, elements as html, on};
+use beui_view::escape::beui_html::{Event as HtmlEvent, Node as HtmlNode, attr, elements as html, on};
 use beui_view::escape::html_escape;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
@@ -263,6 +263,20 @@ impl Momentum {
 }
 
 const EDGE_GAIN: f32 = 3.0;
+
+/// A browser scroll's content box, as long as what it holds along the scroll and at least
+/// as long as the scroll, clips what is painted past it: a lifted or gliding item's
+/// translation would otherwise add to what the browser lets the scroll reach.
+fn content_clip(direction: Direction) -> String {
+    let (length, least) = match direction {
+        Direction::Vertical => ("height", "min-height"),
+        Direction::Horizontal => ("width", "min-width"),
+    };
+    format!(
+        "display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); \
+         {length}: max-content; {least}: 100%; overflow: clip"
+    )
+}
 
 fn edge_scroll(
     node: NodeRef,
@@ -1093,7 +1107,9 @@ fn BrowserScroll(
                 on_blur={move |_: HtmlEvent| focused.set(false)}
                 @on={("scroll", move |_: HtmlEvent| scrolled())}
             >
-                {content}
+                <html::Div @attr={("style", Prop::dynamic(move || Some(content_clip(direction.get()))))}>
+                    {content}
+                </html::Div>
             </html::Div>
         };
         scroller.with(|held| *held.borrow_mut() = Some(element.clone()));

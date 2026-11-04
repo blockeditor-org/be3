@@ -39,5 +39,10 @@ move '#long.view+60,80'
 move '#long.view+60,156'
 pause 3000
 wait 'value="Long list at the end, row 1 above the fold"'
+# Carried on past the end of the scroll, the item it holds does not let the
+# scroll reach any further.
+move '#long.view+60,260'
+pause 100
+wait 'value="Long list at the end, row 1 above the fold"'
 up
 wait 'value="Long list at the end, row 1 below the fold"'
