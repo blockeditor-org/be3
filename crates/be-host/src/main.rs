@@ -38,7 +38,7 @@ use be_host_base::{host, host_state, notices, panic_guard, performance, platform
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_host_runtime::{BlockOpen, EditorAction};
 #[cfg(target_os = "linux")]
-use be_host_services::{media, notifications, tray, wifi};
+use be_host_services::{media, notifications, screenshot, tray, wifi};
 #[cfg(not(target_arch = "wasm32"))]
 use be_host_stack::embedded_server;
 use be_host_stack::{accounts, invite_link, keys, offline_choice};
@@ -631,6 +631,8 @@ struct HostCore {
     #[cfg(target_os = "linux")]
     notifications: Option<notifications::Notifications>,
     #[cfg(target_os = "linux")]
+    screenshots: Option<screenshot::Screenshots>,
+    #[cfg(target_os = "linux")]
     tray: Option<tray::Tray>,
     #[cfg(target_os = "linux")]
     wifi: Option<wifi::Wifi>,
@@ -912,6 +914,8 @@ impl HostCore {
             #[cfg(target_os = "linux")]
             notifications: None,
             #[cfg(target_os = "linux")]
+            screenshots: None,
+            #[cfg(target_os = "linux")]
             tray: None,
             #[cfg(target_os = "linux")]
             wifi: None,
@@ -936,6 +940,11 @@ impl HostCore {
             }
             if self.tray.is_none() {
                 self.tray = Some(tray::Tray::start());
+            }
+            if self.screenshots.is_none() {
+                self.screenshots = Some(screenshot::Screenshots::start(
+                    be_host_desktop::desktop_host::screenshot,
+                ));
             }
         }
     }

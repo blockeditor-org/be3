@@ -15,8 +15,9 @@ installs be-host with its apps in `PREFIX/lib/be-host` (`/usr/local` by default)
 `PREFIX/bin/be-host`, and writes `/usr/share/wayland-sessions/be-host.desktop` (from
 `src/login_session/be-host.desktop`) whatever the prefix, since LightDM's slick-greeter never reads
 `/usr/local/share`. It also adds the entry to a LightDM `sessions-directory` that leaves that one
-out, a line to `/etc/greetd/environments` when that file exists, and `/etc/pam.d/be-host` unless
-one is there. `PREFIX/bin/be-host --uninstall-login-session [PREFIX]` removes exactly what
+out, a line to `/etc/greetd/environments` when that file exists, `/etc/pam.d/be-host` unless
+one is there, and the screenshot portal's `be-host.portal` and `be-host-portals.conf` under
+`/usr/share/xdg-desktop-portal` (guides/desktop/linux_services.md, Screenshots). `PREFIX/bin/be-host --uninstall-login-session [PREFIX]` removes exactly what
 `PREFIX/lib/be-host/installed.json` records, leaving anything someone changed since.
 
 - It installs exactly the files `buck/program/stage.sh` listed in `program-files.txt`, and refuses

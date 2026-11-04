@@ -1,0 +1,4 @@
+[portal]
+DBusName=org.freedesktop.impl.portal.desktop.behost
+Interfaces=org.freedesktop.impl.portal.Screenshot
+UseIn=be-host
