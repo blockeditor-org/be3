@@ -13,9 +13,7 @@ use crate::drag_board::drag_board;
 use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
 use beui_view::components::overlay::Overlay;
 use beui_view::drag::EdgeScroller;
-use beui_view::escape::beui_html::{
-    Event as HtmlEvent, Node as HtmlNode, elements as html, on,
-};
+use beui_view::escape::beui_html::{Event as HtmlEvent, Node as HtmlNode, elements as html, on};
 use beui_view::escape::html_escape;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
