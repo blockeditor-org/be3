@@ -28,7 +28,7 @@ use super::{
     DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
 };
 use beui_components_unstyled::menu_popup::MenuStyle;
-pub use manager::{DockWindowActions, holding_area};
+pub use manager::{DockArea, DockWindowActions, holding_area};
 pub use snap::DockSnap;
 use snap::Snapped;
 
@@ -147,7 +147,7 @@ pub struct DockHostLayout {
     covered: Signal<bool>,
     area: Signal<Rect>,
     snaps: Signal<HashMap<TabId, Snapped>>,
-    areas: Signal<Vec<Rect>>,
+    areas: Signal<Vec<DockArea>>,
     cleared: Signal<Option<Vec<TabId>>>,
     declared: Signal<Option<Rc<Declared>>>,
     inner: Stored<HostInner>,

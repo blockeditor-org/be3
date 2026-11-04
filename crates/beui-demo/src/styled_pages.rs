@@ -4601,8 +4601,8 @@ pub(crate) fn WindowManagerPage() -> NodeId {
         let area = host.area();
         let middle = (area.min.x + area.width() / 2.0).round();
         let halves = vec![
-            Rect::from_min_max(area.min, beui::pos2(middle, area.max.y)),
-            Rect::from_min_max(beui::pos2(middle, area.min.y), area.max),
+            DockArea::whole(Rect::from_min_max(area.min, beui::pos2(middle, area.max.y))),
+            DockArea::whole(Rect::from_min_max(beui::pos2(middle, area.min.y), area.max)),
         ];
         untrack(|| host.set_areas(halves));
     });

@@ -1,6 +1,6 @@
 use be_sdk_beui::beui::accesskit::{Node, Role, Toggled};
 use be_sdk_beui::beui::dock::TabId;
-use be_sdk_beui::beui::dock_host::unstyled::holding_area;
+use be_sdk_beui::beui::dock_host::unstyled::{DockArea, holding_area};
 use be_sdk_beui::beui::icons::{
     ICON_APP_WINDOW, ICON_ARCHIVE_RESTORE, ICON_EXTERNAL_LINK, ICON_EYE, ICON_EYE_OFF,
     ICON_MONITOR, ICON_X,
@@ -113,12 +113,14 @@ impl DeskWindows {
                             }),
                         };
                         let inside = inside.filter(|inside| inside.is_positive());
-                        match (at, inside) {
+                        let screen = whole.translate(display.min - first);
+                        let work = match (at, inside) {
                             (0, Some(inside)) => inside,
                             (_, inside) => inside.unwrap_or(whole).translate(display.min - first),
-                        }
+                        };
+                        DockArea { screen, work }
                     })
-                    .collect::<Vec<Rect>>()
+                    .collect::<Vec<DockArea>>()
             })
         });
         create_effect(move || {

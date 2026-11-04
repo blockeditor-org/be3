@@ -59,7 +59,7 @@ pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
 use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
-pub use hosting::{DockHost, DockHostLayout, DockSnap, DockWindowActions, holding_area};
+pub use hosting::{DockArea, DockHost, DockHostLayout, DockSnap, DockWindowActions, holding_area};
 use modifier_drag::{Resized, modifier_resize};
 use switch::DockSwitchView;
 pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
@@ -1977,6 +1977,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
                 size={window_size}
                 placement={window_placement}
                 open={windowed}
+                fullscreen=true
                 keep_alive=true
                 on_report={move |report: WindowReport| {
                     if let WindowReport::Focused { focused: true, .. } = report

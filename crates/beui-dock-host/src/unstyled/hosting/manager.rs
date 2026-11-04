@@ -29,6 +29,26 @@ pub struct DockWindowActions {
     pub switch_cancel: ActionBuilder,
 }
 
+/// One display the dock's floating windows live on, in the dock's coordinates.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DockArea {
+    /// The whole display, which a fullscreen window covers, bars and all.
+    pub screen: Rect,
+    /// The display less what the shell keeps clear of windows (its bars): where windows are kept,
+    /// snapped and maximized.
+    pub work: Rect,
+}
+
+impl DockArea {
+    /// An area with nothing kept clear.
+    pub fn whole(screen: Rect) -> Self {
+        Self {
+            screen,
+            work: screen,
+        }
+    }
+}
+
 fn overlap(left: Rect, right: Rect) -> f32 {
     let shared = left.intersect(right);
     shared.width().max(0.0) * shared.height().max(0.0)
@@ -71,14 +91,17 @@ fn floating_surface(state: &DockState, tab: TabId) -> Option<SurfaceId> {
 }
 
 impl DockHostLayout {
-    pub fn set_areas(&self, areas: Vec<Rect>) {
+    pub fn set_areas(&self, areas: Vec<DockArea>) {
         if self.areas.with_untracked(|held| *held != areas) {
             self.areas.set(areas);
         }
     }
 
+    /// The work areas (`DockArea::work`), one per display; a dock given none has its own `area`.
     pub fn areas(&self) -> Vec<Rect> {
-        let areas = self.areas.get();
+        let areas = self
+            .areas
+            .with(|areas| areas.iter().map(|area| area.work).collect::<Vec<_>>());
         match areas.is_empty() {
             true => vec![self.area()],
             false => areas,
@@ -94,6 +117,14 @@ impl DockHostLayout {
     fn window_area(&self, tab: TabId) -> Option<Rect> {
         let area = self.area_of_window(tab)?;
         self.areas().get(area).copied()
+    }
+
+    /// The whole display the window overlaps most; `None` for a dock given no areas, whose
+    /// fullscreen fills the dock.
+    fn window_screen(&self, tab: TabId) -> Option<Rect> {
+        let area = self.area_of_window(tab)?;
+        self.areas
+            .with(|areas| areas.get(area).map(|area| area.screen))
     }
 
     /// Keeps the window's place in proportion, inside the area, and keeps a snapped window snapped.
@@ -271,8 +302,8 @@ impl DockHostLayout {
         match untrack(|| self.fullscreen()) == Some(tab) {
             true => self.leave_fullscreen(),
             false => {
-                let area = untrack(|| self.window_area(tab));
-                self.enter_fullscreen(tab, area);
+                let screen = untrack(|| self.window_screen(tab));
+                self.enter_fullscreen(tab, screen);
             }
         }
     }
