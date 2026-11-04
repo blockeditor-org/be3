@@ -29,7 +29,8 @@ Notes on particular calls:
 
 - `fetch(url)` is the app's only network, on every platform, and only to host
   names in the manifest's `network`.
-- Files are picked with beui's own picker (guides/beui/components.md), which
+- Files are picked with beui's own picker (guides/beui/components.md, Inputs and
+  forms), which
   inside an app forwards to the host's; `be_sdk_beui::FileChooser` adds the
   import step. `save_file` saves through the platform's dialog or as a
   browser download.

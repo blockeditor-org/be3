@@ -2,11 +2,12 @@
 
 Every editor in be-host is an app: a wasm module that runs beside the host (a
 thread under wasmtime, a worker in the browser), speaks the app protocol, and
-hands back the surfaces it painted. The host signs the user in, hosts apps,
+hands back the surfaces it painted (guides/blocks/apps.md covers blocks on the
+app protocol). The host signs the user in, hosts apps,
 draws the host menu and owns the dialogs an app cannot draw for itself.
 Everything else on screen, the dock of tabs and the pane of files included, is
 `crates/be-app-workspace`, an ordinary app the host opens on the session's view
-block; it places the file tree and each tab's block as children, so every
+block (guides/blocks/workspaces.md, Sessions); it places the file tree and each tab's block as children, so every
 editor on screen is an app instance the host only composites.
 
 This guide is the how-to for writing one. The rest is under `guides/apps/`:

@@ -128,7 +128,7 @@ press outside (decisions/app_dialogs_are_drawn_by_the_app_with_dialog_body.md).
 It says what to make with `creation.on_create(..)`. `content_file_creation::<C>`
 is the whole dialog for a block made from a picked file. "Import a file…"
 makes a block with no editor at all, by the type module that claims the file
-(guides/type_modules.md).
+(guides/blocks/host.md, Exporting and importing).
 
 ## Artifacts
 

@@ -4,8 +4,7 @@ A block type lives in its app's *type module*: a pure wasm guest
 (guides/app_libraries.md, Pure guests) holding the device's one replica of
 every open block of its types (content, live session, undo stack), which
 talks to its host only through typed operations. be-host's peer, `be` and
-`be sync` hold every block through these modules (guides/the_new_block_stack.md,
-How the host holds content). An app names its module in its manifest's
+`be sync` hold every block through these modules (guides/blocks/host.md). An app names its module in its manifest's
 `block_types` (guides/adding_a_block.md); the types be-host applies itself
 (`crates/be-sdk-type-host`) run in process.
 
@@ -166,8 +165,7 @@ the editor's messages are `editor::FromEditor` (operations, gestures,
 replace, presence) and the replica answers `editor::ToEditor` (a snapshot on
 attach, then operations and peers' presence). A replica drops edits from an
 editor attached read-only. On the app protocol both directions travel
-through the editor's `replica` resource (guides/the_new_block_stack.md,
-Content on the app protocol); `editor::EditorMirror` is the editor's side,
+through the editor's `replica` resource (guides/blocks/apps.md, Content on the app protocol); `editor::EditorMirror` is the editor's side,
 which `ContentProjection` is built on. Undo and redo are host `change`s, not
 editor messages, since a shortcut may undo a block no editor shows.
 
@@ -215,7 +213,7 @@ process in tests:
   module's types are taken only if its manifest declares them
   (`Source::declaring`).
 - `replicas`: `Replicas<H: Host>`, the replica IO of
-  guides/the_new_block_stack.md (The peer and its registry) for any host.
+  guides/blocks/host.md (The peer and its registry) for any host.
 
 be-host stages each app's type module beside the app. `be` carries every
 app's manifest and type module inside its executable (`APP_TYPES`), so its
