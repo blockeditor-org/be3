@@ -3,6 +3,12 @@ use beui_reactive::{Get, Set, Signal, check_tracked_read, create_signal, untrack
 use crate::callback::{Callback, IntoCallback};
 use crate::prop::{Getter, IntoProp, Prop};
 
+/// State a component both shows and changes (a toggle's `checked`), instead of a prop and an
+/// `on_change`. The caller picks the owner: leave it out (the component's own signal), pass
+/// a `Signal<T>` (no allocation), a plain value (seeds a signal the component owns), or
+/// `Binding::new(read, write)` for derived state. With `new` the component shows what
+/// `read` says, so a write the callback ignores changes nothing, and `set` skips a write
+/// equal to what `read` gives. A binding is also `IntoProp` and `IntoCallback`.
 pub struct Binding<T>(Source<T>);
 
 enum Source<T> {

@@ -643,6 +643,20 @@ fn is_named_type(ty: &Type, name: &str) -> bool {
         .is_some_and(|segment| segment.ident == name)
 }
 
+/// Makes a function a component, used as a tag in `view!`.
+///
+/// Every prop is required unless its type or attributes say otherwise: `Prop<T>` is as
+/// required as `T`. `#[prop(default = <expr>)]` makes one optional; `Option<Prop<T>>`
+/// tells "unset" apart from any value, but settles at build time, so a prop that must go
+/// back to nothing while alive is `Prop<Option<T>>` with `#[prop(default = None)]` (its
+/// attribute takes a plain `T` or a signal of one and lifts it into `Some`). `Callback`,
+/// `Children` and `Binding<T>` props are never required; an unset binding is a signal in
+/// the component's scope holding the default. An `Option<T>` prop also takes a plain `T`,
+/// except for primitives (so a literal keeps its type) and `String`. A missing or
+/// repeated prop is a compile error at the tag.
+///
+/// The prop named `children`, or the one marked `#[prop(children)]`, is filled by the
+/// block between the tags; a component has at most one, and `children` wins.
 #[proc_macro_attribute]
 pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
     parse_macro_input!(attr as syn::parse::Nothing);
@@ -1802,6 +1816,23 @@ fn written_source(item: TokenStream) -> Option<String> {
 #[cfg(test)]
 mod tests;
 
+/// Builds a tree once, the moment it runs.
+///
+/// - An attribute value in braces is any expression. Literals, paths, a call on a path, a
+///   unary expression and a reference to a path may drop the braces. A bare name is
+///   shorthand for `name={name}`; there is no boolean shorthand. A `String` prop takes a
+///   string literal.
+/// - `@path=value` is a modifier: `path(built, value)` runs after all props and children
+///   are built, in source order, and may change the type; its value is evaluated then too,
+///   so compute one before `view!` if a child closure will move what it needs. Without
+///   `=` the path is its own value. `{expr} @sizing=..` puts one on an expression child.
+/// - A slot that hands over a value names it after the opening tag, as a closure does
+///   (`<Container>|size| <Card size /></Container>`, or `|size| { ...; view! {..} }` for
+///   statements first). Tags without `|value|` ignore it. The closure is always `move`, and
+///   a `RenderFn` slot may run it again, so clone what it hands on. The body is exactly one
+///   child unless the slot returns `Children<T>`.
+/// - More than one root makes a `Children`; `view! {}` is the empty one. `@sizing` on a
+///   lone root makes a `ListChild`.
 #[proc_macro]
 pub fn view(item: TokenStream) -> TokenStream {
     let view = parse_macro_input!(item as View);

@@ -13,8 +13,9 @@ demo, editor `crates/be-app-example-beui-gallery`): a page per group of styled,
 unstyled and base components, each sample shown beside its source (`#[sample]`
 gives a component a `Name::SOURCE`). New components go there too.
 
-[reactive.md](reactive.md) is the reference for signals, attribute syntax,
-children and render props, bindings, keyed lists, scopes and context.
+[reactive.md](reactive.md): the reactive graph: scopes, when effects run,
+loading, and how beui binds it. The `view!` and `#[component]` grammar is on
+those macros' doc comments.
 
 ## Writing components
 
