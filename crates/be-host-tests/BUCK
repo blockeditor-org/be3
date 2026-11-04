@@ -103,6 +103,12 @@ APPS = {
 
 cargo_library()
 
+# To reproduce a flake that shows only under load, run the harness here, all
+# the tests at once and as often as needed: build :test-harness, :host-with-all
+# and the sysroot targets run_env names, then run
+# buck-out/v2/art/root/*/crates/be-host-tests/__test-harness__/app_tests with
+# each run_env variable set to its output under buck-out and
+# CARGO_MANIFEST_DIR set to crates/be-host-tests.
 cargo_test(
     apart_env = host_test_apps(APPS),
     paints = True,

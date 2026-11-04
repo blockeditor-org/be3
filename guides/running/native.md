@@ -75,19 +75,8 @@ of the headless copy, then stop that copy).
 
 Profile a release build: `./scripts/buck run //crates/beui-demo:dev -m release` (or be-host's
 `:dev`) runs it headless with debug info, ready for `drive`. The inspector's Perf tab
-(guides/beui.md, The inspector) times each frame of the document: open it with
-`drive key ctrl+shift+i` and `drive click '"Perf"'`, act, then read the Peak column from
-`drive tree`; Reset samples starts over. Interaction covers whatever the input ran, so a
-component built in response to a click is counted there, not in Layout. Take the median of
-several runs: the headless renderer draws on the CPU and competes for the same cores.
-
-For where the time goes, `sudo apt-get install linux-tools-generic` installs `perf` as
-`/usr/lib/linux-tools-*/perf`. The VM has no hardware counters, so it samples the software
-clock, and the binary has no frame pointers, so it unwinds with DWARF:
-
-    perf record -F 10000 --call-graph dwarf,16384 -p "$(pgrep -x demo)" -o out.data
-
-To record only some of the time, start it paused with `-D -1 --control=fifo:ctl,ack` and
-write `enable` and `disable` to the `ctl` fifo around the drive commands to measure.
-`perf report` and `perf script` need `--no-inline`, or they spend minutes resolving inlined
-frames. The headless renderer's shaders show up as `[JIT]`; leave them out of a beui profile.
+(guides/beui/programs.md, the inspector) times each frame: `drive key ctrl+shift+i`,
+`drive click '"Perf"'`, act, then read the Peak column from `drive tree`. Interaction covers
+whatever the input ran, so a component built in response to a click counts there, not in
+Layout. Take the median of several runs: the headless renderer draws on the CPU and competes
+for the same cores. For perf, see guides/performance.md, Profiling.
