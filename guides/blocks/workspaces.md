@@ -85,7 +85,7 @@ applies implements `local_settings::LocalSettings` and is kept by a
   guides/beui/components.md, preferences; scale multiplies into the screen's pixels per point), a
   `ScreenSettings` per screen (mode and rotation, keyed by EDID make, model and
   serial or by connector; applied live through
-  `beui_platform_drm::DisplayControl`, guides/desktop/linux.md), bar buttons,
+  `beui_platform_drm::DisplayControl`; guides/desktop/login_session.md, "Rotation and pointing devices"), bar buttons,
   and screen-off and lock times.
 - Every setting is an `Option`; unset means the default libinput or the monitor
   reports, read by editors as the `InputDevices` and `Displays` host values.
