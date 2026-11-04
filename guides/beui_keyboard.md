@@ -219,7 +219,8 @@ the focus and `holds_focus(node_ref)` is a memo of whether it is inside a node.
 
 `Input::Focus(false)` from a host means the window lost the keyboard only: the
 runner lets go of modifiers and beui of held keys, but a press continues. A
-press whose release will not come ends with `Input::PointersCancelled`.
+press whose release will not come ends with `Input::PointersCancelled`
+(guides/beui/platforms.md, Input).
 
 ## Text and the input method
 
@@ -232,7 +233,8 @@ through `on_text`. A text area passes them to beui-text-editor-core as
 reports `ime_cursor` and `ime_text` so the candidate window sits by the caret
 (`ImeMirror` in `beui-web-input` keeps the web's hidden textarea in step). Copy and cut return text in `FrameOutput::copied_text` for the host to
 write to its clipboard. `clipboard_keys` on an `Interactive` (a terminal) tells
-the web platform not to let the browser run its own copy, cut and select-all.
+the web platform not to let the browser run its own copy, cut and select-all
+(guides/beui/platforms.md, Clipboard and paste).
 
 `ImeArea::keyboard` says whether to show an on-screen keyboard.
 `Keyboard::Held` is a focusable with `keyboard=SoftKeyboard::OnPress` focused
@@ -242,7 +244,8 @@ keyboard waits for a tap or a non-media key. Otherwise it is
 tap reopens a keyboard the person closed. The web refocuses its hidden
 textarea within the press, since browsers open a keyboard only during a
 gesture. An app's view passes its editor's answer
-on as `Interactive`'s `keyboard`, replacing the document's own.
+on as `Interactive`'s `keyboard`, replacing the document's own. beui's own
+on-screen keyboard is in guides/beui/space.md, The on-screen keyboard.
 
 ## Touch
 

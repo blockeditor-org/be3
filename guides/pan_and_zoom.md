@@ -56,7 +56,8 @@ outermost `Interactive` on the hit path whose `gesture_area` holds the point,
 ahead of the app view's input forwarder, so the app never sees them; the
 `Camera` claims its content rectangle less the floating chrome (dock bars) the
 editor reports. `capabilities.pan` picks which: `TwoFinger` (default), `None`,
-or `OneFinger`, which adds a plain drag. Only the editor can tell that drag
+or `OneFinger`, which adds a plain drag. A trackpad's two-finger scroll and pinch
+are that wheel and pinch on the web too (guides/beui/platforms.md, Input). Only the editor can tell that drag
 from one on its own content, so the press goes to the editor, which calls
 `editor.pan_drag()` when it pressed on nothing; the host then cancels the
 pointer in the editor and pans until release. A finger on a rectangle the
