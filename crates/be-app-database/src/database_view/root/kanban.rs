@@ -268,7 +268,7 @@ fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
 fn CardFace(data: Data, row: usize) -> NodeId {
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Control
             border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
             radius={Radius::Tab}
             padding={Padding::symmetric(Space::Md, Space::Md)}

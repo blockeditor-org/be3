@@ -174,7 +174,7 @@ fn PickerCard(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
                 }
             }}
         >
-            <Frame fill=ColorRole::SurfaceRaised>
+            <Frame fill=ColorRole::Surface>
                 <PickerSurface picker />
             </Frame>
         </Overlay>
@@ -982,7 +982,7 @@ fn PickerError(picker: Picker, error: Memo<Option<String>>, act: Act, node: Node
             <Frame
                 @node_ref={&node}
                 width={Size::Popover}
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Surface
                 border={Border::DEFAULT}
                 radius=Radius::Lg
             >

@@ -103,7 +103,7 @@ fn SelectTrigger(
     });
     let fill = create_memo(move || match disabled.get() {
         true => ColorRole::Surface,
-        false => ColorRole::SurfaceRaised,
+        false => ColorRole::Control,
     });
     let text_color = create_memo(move || match disabled.get() || empty.get() {
         true => TextColor::Muted,

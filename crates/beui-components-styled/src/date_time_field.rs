@@ -114,7 +114,7 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
     });
     let fill = create_memo(move || match disabled.get() {
         true => ColorRole::Surface,
-        false => ColorRole::SurfaceRaised,
+        false => ColorRole::Control,
     });
     let outer = trigger.is_some();
     let ring = create_memo(move || outer && focused.get());

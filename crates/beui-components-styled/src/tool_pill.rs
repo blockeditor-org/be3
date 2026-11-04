@@ -26,7 +26,7 @@ pub fn ToolPill(
     arrow_focus(row, direction);
     let fill = create_memo(move || match band.get() {
         true => BAND_FILL,
-        false => ColorRole::SurfaceRaised,
+        false => ColorRole::Control,
     });
     let border = create_memo(move || (!band.get()).then_some(Border::DEFAULT));
     let radius = create_memo(move || match band.get() {
