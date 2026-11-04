@@ -170,7 +170,8 @@ theme (`cursors.rs`, CSS names then X11 names). Over a window, a `wp_cursor_shap
 its `CursorIcon` (`Windows::cursor`); a `wl_pointer.set_cursor` surface reaches the DRM platform as
 a `beui_platform_drm::SoftwareCursor` texture (be-host-desktop's `desktop_host/linux.rs`), and other
 platforms as `cursor_image` (`Windows::cursor_image`, shm buffers only; winit shows it, headless
-reports it in `drive state`). Under `BEUI_LAYERS=space` the layer draws its own cursor from the
+reports it in `drive state`). A null cursor, or a cursor surface with no buffer (how GTK clients
+such as Firefox hide the pointer over a video), is `CursorIcon::None`. Under `BEUI_LAYERS=space` the layer draws its own cursor from the
 `CursorIcon`.
 
 ## Frame pacing
