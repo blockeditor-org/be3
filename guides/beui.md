@@ -106,21 +106,23 @@ how to test on both.
 
 ## The other beui guides
 
-- [beui/core.md](beui/core.md): writing views; the frame, layout and
-  measurement; coordinates; the runner and input; developing a base component;
-  the HTML core and HTML strings and live DOM; testing beui.
+- [beui/core.md](beui/core.md): writing views, the frame, layout and
+  measurement, coordinates, base components, the HTML core and `beui-html`,
+  testing.
 - [beui/components.md](beui/components.md): the unstyled and styled layers and
-  tokens, text, scrolling and lists, inputs and forms, timers and animation,
-  drag and drop, drawing with the gpu, writing unstyled and styled components.
-- [beui/overlays.md](beui/overlays.md): overlays, layers and placement,
-  dismissing, focus, modals, dialogs, toasts, trees, layers that escape their
-  window.
-- [beui/docking.md](beui/docking.md): docking, dock hosts and the window
-  manager, windows and window hosts.
-- [beui/programs.md](beui/programs.md): standalone programs, `Root`, features
-  and platforms, `RunOptions`, drivers, layers, displays under drm, the
-  inspector, responsive mode, filters, the screen reader simulation, beui in an
-  app.
-- [beui/space.md](beui/space.md): the Space VR simulator layer, XR headsets,
-  the on-screen keyboard.
+  tokens, controls, scrolling and long lists, forms, drag and drop, timers,
+  drawing with the gpu, writing components.
+- [beui/text.md](beui/text.md): `Text`, styled text, fonts and icons, text
+  areas, rich text, selecting text.
+- [beui/overlays.md](beui/overlays.md): layers, placement, policies,
+  dismissing, focus, modals and dialogs, toasts, trees, escaping layers.
+- [beui/docking.md](beui/docking.md): the dock and window manager, and windows
+  and window hosts.
+- [beui/programs.md](beui/programs.md): standalone programs, `Root`,
+  `RunOptions`, layers, drivers, the inspector and simulation tools, beui in
+  an app.
+- [beui/platforms.md](beui/platforms.md): the runner, input, the clipboard,
+  renderers, each platform, displays under drm.
+- [beui/space.md](beui/space.md): the Space VR simulator, XR headsets, the
+  on-screen keyboard.
 - [beui_keyboard.md](beui_keyboard.md): focus and keyboard input.
