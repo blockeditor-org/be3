@@ -67,6 +67,7 @@ impl<V> Bounded<V> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.entries.len()
     }

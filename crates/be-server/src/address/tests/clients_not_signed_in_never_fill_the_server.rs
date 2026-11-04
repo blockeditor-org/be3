@@ -34,9 +34,17 @@ async fn clients_not_signed_in_never_fill_the_server() {
     assert!(!newest.1.evicted());
 
     drop(first);
-    assert_eq!(unsigned.len(), 4, "dropping an evicted place freed another's");
+    assert_eq!(
+        unsigned.len(),
+        4,
+        "dropping an evicted place freed another's"
+    );
     drop(newest);
-    assert_eq!(unsigned.len(), 3, "a place signed in or ended was not given back");
+    assert_eq!(
+        unsigned.len(),
+        3,
+        "a place signed in or ended was not given back"
+    );
     assert!(
         admit(IpAddr::from(std::net::Ipv6Addr::from(site | 5))).is_some(),
         "the /48 did not get its evicted place back"

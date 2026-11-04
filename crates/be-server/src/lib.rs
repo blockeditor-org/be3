@@ -645,11 +645,17 @@ where
     let queued = Arc::new(Outbound::default());
     let mut client = {
         let (outgoing, queued) = (outgoing.clone(), Arc::clone(&queued));
-        Client::open(services, address, &services.unsigned, anonymous, move |frame| {
-            if queued.queue(frame.len()) {
-                let _ = outgoing.send(Message::Binary(frame));
-            }
-        })
+        Client::open(
+            services,
+            address,
+            &services.unsigned,
+            anonymous,
+            move |frame| {
+                if queued.queue(frame.len()) {
+                    let _ = outgoing.send(Message::Binary(frame));
+                }
+            },
+        )
         .await
     };
     let mut session_changes = services.store.session_changes.subscribe();

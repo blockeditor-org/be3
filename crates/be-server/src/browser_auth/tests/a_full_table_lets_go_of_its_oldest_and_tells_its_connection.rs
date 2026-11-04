@@ -29,24 +29,33 @@ async fn a_full_table_lets_go_of_its_oldest_and_tells_its_connection() {
     for client in 2..=PENDING_PER_ADDRESS as u64 {
         sessions.begin(client, address, None).unwrap();
     }
-    assert!(!first.ended(), "a sign-in ended before its address was full");
+    assert!(
+        !first.ended(),
+        "a sign-in ended before its address was full"
+    );
     sessions.begin(100, address, None).unwrap();
     assert!(
         first.ended(),
         "the connection whose sign-in was let go of still waits on it"
     );
 
-    let (code, secret, mut began) = sessions.begin(200, IpAddr::from([203, 0, 113, 1]), None).unwrap();
+    let (code, secret, mut began) = sessions
+        .begin(200, IpAddr::from([203, 0, 113, 1]), None)
+        .unwrap();
     let Ok(Finished::Waiting(waiting)) = sessions.finish(201, &code, &secret) else {
         panic!("another connection could not wait on the sign-in");
     };
-    let mut taken = waiting.signing_in.expect("the sign-in moved to the connection waiting");
+    let mut taken = waiting
+        .signing_in
+        .expect("the sign-in moved to the connection waiting");
     assert!(
         began.ended(),
         "the connection that began a sign-in another took over still waits on it"
     );
     assert!(!taken.ended());
-    let (_, _, again) = sessions.begin(200, IpAddr::from([203, 0, 113, 1]), Some(&code)).unwrap();
+    let (_, _, again) = sessions
+        .begin(200, IpAddr::from([203, 0, 113, 1]), Some(&code))
+        .unwrap();
     assert!(
         !taken.ended(),
         "a connection let go of a sign-in another waits on"

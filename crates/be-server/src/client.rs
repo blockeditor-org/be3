@@ -704,7 +704,10 @@ impl Client {
             Call::BeginBrowserLogin { reply } => {
                 let begun = prelude.and_then(|()| {
                     let connection = &mut self.connection;
-                    let previous = connection.signing_in.as_ref().map(|began| began.code.as_str());
+                    let previous = connection
+                        .signing_in
+                        .as_ref()
+                        .map(|began| began.code.as_str());
                     let (code, secret, signing_in) = connection.browser_auth.begin(
                         connection.client,
                         connection.address,
