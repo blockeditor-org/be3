@@ -476,6 +476,12 @@ pub fn set_keyboard(keyboard: &be_host_wayland::KeyboardConfig) -> bool {
     with(|running| running.compositor.set_keyboard(keyboard)).unwrap_or(true)
 }
 
+/// The whole desktop as the displays show it, for the screenshot portal; `None`
+/// while be-host runs in a window rather than on the displays.
+pub fn screenshot() -> Option<beui::Image> {
+    with(|running| running.displays.as_ref()?.screenshot()).flatten()
+}
+
 pub fn set_layout(index: u32) {
     with(|running| running.compositor.set_layout(index));
 }

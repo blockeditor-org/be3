@@ -9,7 +9,8 @@ fn the_login_session_entry_runs_the_installed_desktop_on_the_displays() {
         entry.contains("\nExec=env BEUI_PLATFORM=drm /opt/block/lib/be-host/be-host --desktop\n")
     );
     assert!(entry.contains("\nTryExec=/opt/block/lib/be-host/be-host\n"));
-    assert!(entry.contains("\nName=Block\n"));
+    assert!(entry.contains("\nName=be-host\n"));
+    assert!(entry.contains("\nDesktopNames=be-host\n"));
     assert!(
         entry.contains("\nX-LightDM-Session-Type=wayland\n"),
         "LightDM runs it as Wayland whichever directory it is in"

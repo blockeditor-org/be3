@@ -21,7 +21,7 @@ use crate::programs::ProgramSource;
 use crate::window_body::{WindowBody, WindowStatus};
 
 #[cfg(target_os = "linux")]
-pub use linux::{Linux as Host, set_keyboard, set_layout};
+pub use linux::{Linux as Host, screenshot, set_keyboard, set_layout};
 #[cfg(windows)]
 pub use win32::Win32 as Host;
 

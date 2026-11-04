@@ -223,5 +223,6 @@ off (`uses`), which is first (`main`), where each sits (`places`) and their
 scales (see its doc comment, `plan.rs` and `layout.rs`). `Monitor`s list every
 connected display, including those off or mirroring. Pointer input goes to the
 window of the display under the pointer, in points, and a press focuses that
-window. Tests make a `Displays` of their own with `Displays::new` and change
+window. `Displays::screenshot` reads every desktop display's last drawn picture
+back (`Screen::capture`) and joins them into one (`screenshot.rs`). Tests make a `Displays` of their own with `Displays::new` and change
 it with `set`.

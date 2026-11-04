@@ -231,6 +231,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         runner.context().set_shows_main(false);
     }
     let displays = Displays::default();
+    let pictured = Rc::downgrade(&outputs);
+    displays.take_screenshots_with(move || pictured.upgrade()?.try_borrow().ok()?.screenshot());
     let mut setup = Setup::new(waker.clone());
     setup.provide(displays.clone());
     setup.provide(Loop(handle.clone()));
