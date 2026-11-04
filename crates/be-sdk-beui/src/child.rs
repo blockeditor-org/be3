@@ -350,7 +350,7 @@ fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
     let has_glyph = create_memo(move || glyph.get().is_some());
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::new(ColorRole::Border)}
             radius=Radius::Md
             padding=Space::Lg

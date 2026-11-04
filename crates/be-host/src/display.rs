@@ -1,11 +1,10 @@
 use std::cell::RefCell;
 use std::time::Duration;
 
-use be_block::be_block_model::Edit;
 use be_block::display_settings::DisplayMode;
 use be_block::{DisplaySettings, SettingsLayer};
 
-use crate::local_settings::{LayerContents, LocalSettings};
+use crate::local_settings::{LayerContents, LayerEdit, LocalSettings};
 use be_host_base::host_state::{HostStateError, HostStateStore};
 
 mod guard;
@@ -71,14 +70,14 @@ pub(crate) fn boot(store: &HostStateStore) {
 pub(crate) fn keep(
     store: &HostStateStore,
     layers: &LayerContents<DisplaySettings>,
-) -> Vec<(SettingsLayer, Edit)> {
+) -> Vec<(SettingsLayer, LayerEdit<DisplaySettings>)> {
     settle(store, layers, Guard::keep)
 }
 
 pub(crate) fn revert(
     store: &HostStateStore,
     layers: &LayerContents<DisplaySettings>,
-) -> Vec<(SettingsLayer, Edit)> {
+) -> Vec<(SettingsLayer, LayerEdit<DisplaySettings>)> {
     settle(store, layers, Guard::revert)
 }
 
@@ -86,7 +85,7 @@ fn settle(
     store: &HostStateStore,
     layers: &LayerContents<DisplaySettings>,
     answer: impl FnOnce(&mut Guard) -> Vec<Change>,
-) -> Vec<(SettingsLayer, Edit)> {
+) -> Vec<(SettingsLayer, LayerEdit<DisplaySettings>)> {
     let (changes, applied, tried) = GUARD.with(|guard| {
         let mut guard = guard.borrow_mut();
         let changes = answer(&mut guard);

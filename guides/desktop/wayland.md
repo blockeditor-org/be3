@@ -106,6 +106,11 @@ over a window it takes nothing (`occluders`), and a press stays with the window 
 Buttons beyond beui's five are `PointerButton::Other` with their evdev code
 (`drive down TARGET button:0x115`).
 
+- **Scrolling** (`State::pointer_axis`): a wheel goes out as `wl_pointer` source `wheel` with
+  `axis_value120` and libinput's 15 per notch, so clients scroll their own wheel step. A slide
+  between `ScrollStarted` and `ScrollEnded` is source `finger` and ends with `axis_stop`, which
+  clients fling from; any other slide is `continuous`, which GTK reads as a trackpoint and Firefox
+  scrolls by as wheel clicks (a tenth of its value each).
 - **Pen** (`tablet.rs`; beui's `Event::Pen` and `Input::Touchpad` are in guides/beui/platforms.md, Input): a `zwp_tablet_tool_v2` of one tablet made on first use, with pressure and
   tilt. A client that never asked for a tablet seat gets the pen as its pointer.
 - **Touch** (`touch.rs`): each finger goes to the surface it went down on, as `wl_touch`; a client

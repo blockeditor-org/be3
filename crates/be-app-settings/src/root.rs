@@ -13,8 +13,16 @@ use be_sdk_beui::BlockQuery;
 use be_sdk_beui::beui::ItemSize;
 use be_sdk_beui::beui::styled::{Frame, List, Space};
 use block::{BlockSettingsView, is_block_settings};
+use devices::DevicesPage;
+use organization::{OfflinePage, OrganizationPage};
 use ui::{SettingsProfileView, SettingsView};
 use uuid::Uuid;
+
+/// The `devices` editor in manifest.json: the user's `Settings` block, compared across devices.
+pub(crate) const DEVICES_EDITOR: Uuid = Uuid::from_u128(0x9900d002_c861_49f7_a966_6243a3c4d1f3);
+/// The `organization` editor in manifest.json: the organization's `Settings` block, as policies.
+pub(crate) const ORGANIZATION_EDITOR: Uuid =
+    Uuid::from_u128(0x1367cb00_ef42_407f_a3d3_67cbd1eaafae);
 
 const INTRINSIC_WIDTH: f32 = 360.0;
 const INTRINSIC_HEIGHT: f32 = 240.0;
@@ -80,5 +88,53 @@ impl be_sdk_beui::BeuiRoot for SettingsProfileRoot {
 
     fn intrinsic_size() -> Option<Vec2> {
         Some(Vec2::new(INTRINSIC_WIDTH, INTRINSIC_HEIGHT))
+    }
+}
+
+pub struct DevicesRoot;
+
+#[component]
+impl be_sdk_beui::BeuiRoot for DevicesRoot {
+    #[component]
+    fn View(editor: Editor) -> Root {
+        view! {
+            <Root>
+                <Loaded>
+                    <DevicesPage editor={editor} />
+                </Loaded>
+            </Root>
+        }
+    }
+}
+
+pub struct OrganizationRoot;
+
+#[component]
+impl be_sdk_beui::BeuiRoot for OrganizationRoot {
+    #[component]
+    fn View(editor: Editor) -> Root {
+        view! {
+            <Root>
+                <Loaded>
+                    <OrganizationPage editor={editor} />
+                </Loaded>
+            </Root>
+        }
+    }
+}
+
+pub struct OfflineRoot;
+
+#[component]
+impl be_sdk_beui::BeuiRoot for OfflineRoot {
+    #[component]
+    fn View(editor: Editor) -> Root {
+        view! {
+            <Root>
+                <Loaded>
+                    <OfflinePage editor={editor} />
+                </Loaded>
+            </Root>
+        }
     }
 }

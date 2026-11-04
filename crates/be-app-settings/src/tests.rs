@@ -22,6 +22,7 @@ mod another_accounts_settings_are_shown_but_not_changed;
 mod changing_the_kind_of_device_keeps_its_defaults_here;
 mod devices_and_profiles_shows_only_what_a_profile_keeps;
 mod each_kind_of_setting_is_a_button_named_for_it;
+mod each_setting_opens_as_a_page_beside_the_list;
 mod opening_display_settings_creates_the_block_once;
 mod opening_input_settings_creates_the_block_once;
 mod settings_another_block_holds_are_not_taken_as_its_own;
@@ -33,9 +34,18 @@ fn editor() -> BeuiTest<SettingsRoot> {
 }
 
 fn editor_for(account: Uuid) -> BeuiTest<SettingsRoot> {
+    editor_as(account)
+}
+
+fn editor_as<R: be_sdk_beui::BeuiRoot>(account: Uuid) -> BeuiTest<R> {
+    editor_in(account, Uuid::nil())
+}
+
+fn editor_in<R: be_sdk_beui::BeuiRoot>(account: Uuid, organization: Uuid) -> BeuiTest<R> {
     let block = Uuid::from_u128(0x5e77_0001);
     let host = EditorHost::default();
     host.set_account_id(account);
+    host.set_organization_id(organization);
     host.set_block_type(SettingsContent::CONTENT_TYPE);
     host.set_editable(true);
     host.set_client_id(Uuid::from_u128(0x5e77_0002));

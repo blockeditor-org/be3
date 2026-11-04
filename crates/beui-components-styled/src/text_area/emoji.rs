@@ -33,7 +33,7 @@ fn EmojiPanel(children: Child) -> NodeId {
     view! {
         <Frame
             width=MENU_WIDTH
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
             radius=Radius::Md
             padding=Space::Xs

@@ -81,7 +81,7 @@ pub fn PopoverPanel(
 ) -> NodeId {
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Lg
             padding=PANEL_PADDING

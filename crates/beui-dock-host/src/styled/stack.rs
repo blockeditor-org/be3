@@ -313,7 +313,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
         <Frame
             height=CARD_HEIGHT
             radius=Radius::Lg
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Control
             border={outline}
             padding=CARD_PADDING
         >

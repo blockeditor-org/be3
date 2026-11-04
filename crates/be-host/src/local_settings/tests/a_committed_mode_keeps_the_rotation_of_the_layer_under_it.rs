@@ -17,7 +17,7 @@ fn a_committed_mode_keeps_the_rotation_of_the_layer_under_it() {
     sync.receive(&store.store, lower.root());
 
     let here = SettingsLayer::ThisDevice;
-    let edit = sync.layers().own(here).set_mode(MONITOR, Some(SLOW));
+    let edit: LayerEdit<DisplaySettings> = Rc::new(|own| own.set_mode(MONITOR, Some(SLOW)));
     sync.commit(&store.store, vec![(here, edit)]);
 
     let applied = sync.applied().expect("settings apply").clone();

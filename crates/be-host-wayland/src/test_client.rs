@@ -84,6 +84,9 @@ pub(crate) struct Received {
     pub(crate) pointer_serial: Option<u32>,
     pub(crate) buttons: Vec<(u32, bool)>,
     pub(crate) scrolled: f64,
+    pub(crate) axis_sources: Vec<wl_pointer::AxisSource>,
+    pub(crate) notched: i32,
+    pub(crate) axis_stops: usize,
     pub(crate) frames: usize,
     pub(crate) released: Vec<wl_buffer::WlBuffer>,
     pub(crate) xdg_decoration: Option<zxdg_toplevel_decoration_v1::Mode>,
@@ -791,6 +794,11 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Received {
                 }
             }
             wl_pointer::Event::Axis { value, .. } => state.scrolled += value,
+            wl_pointer::Event::AxisSource {
+                axis_source: WEnum::Value(source),
+            } => state.axis_sources.push(source),
+            wl_pointer::Event::AxisDiscrete { discrete, .. } => state.notched += discrete,
+            wl_pointer::Event::AxisStop { .. } => state.axis_stops += 1,
             _ => {}
         }
     }

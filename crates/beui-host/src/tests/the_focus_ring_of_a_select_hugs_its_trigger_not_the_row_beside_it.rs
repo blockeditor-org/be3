@@ -25,8 +25,8 @@ fn the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it() {
     assert!(harness.document().focus_is_within(trigger));
     let output = harness.frame(Vec::new());
 
-    let face = painted(&output, styled::Theme::DARK.surface_raised, 0.0)
-        .expect("the trigger painted its face");
+    let face =
+        painted(&output, styled::Theme::DARK.control, 0.0).expect("the trigger painted its face");
     let ring = painted(&output, styled::Theme::DARK.accent, 2.0)
         .expect("the trigger painted a focus ring");
     assert!(

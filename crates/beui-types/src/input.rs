@@ -292,7 +292,13 @@ pub enum Event {
     PointerUnlocked,
     PointerMoved(Pos2),
     ScrollStarted,
-    Scroll(Vec2),
+    /// `delta` is in points. `notches` is set when a mouse wheel turned, and
+    /// counts its notches (each scrolls `SCROLL_LINE` points), with the sign of
+    /// `delta`.
+    Scroll {
+        delta: Vec2,
+        notches: Option<Vec2>,
+    },
     ScrollEnded,
     Text(String),
     Paste(be_lib_ui_types::clipboard::Pasted),
@@ -347,7 +353,7 @@ impl Event {
                 | Self::PointerMotion(_)
                 | Self::PointerMoved(_)
                 | Self::ScrollStarted
-                | Self::Scroll(_)
+                | Self::Scroll { .. }
                 | Self::ScrollEnded
                 | Self::Touch { .. }
                 | Self::Pen { .. }
@@ -389,8 +395,14 @@ pub enum PointerPhase {
     Cancel,
     Gone,
     ScrollStarted,
-    Scroll(Vec2),
-    ScrollEnded { fling: Vec2 },
+    /// As `Event::Scroll`.
+    Scroll {
+        delta: Vec2,
+        notches: Option<Vec2>,
+    },
+    ScrollEnded {
+        fling: Vec2,
+    },
     Zoom(f32),
     Touchpad(TouchpadGesture),
 }

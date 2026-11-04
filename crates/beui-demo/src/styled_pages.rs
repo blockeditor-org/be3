@@ -1244,12 +1244,12 @@ fn LightSwitches() -> NodeId {
 
 #[sample]
 #[component]
-fn RaisedSwitches() -> NodeId {
+fn PanelSwitches() -> NodeId {
     let muted = create_signal(false);
     let wifi = create_signal(true);
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Lg
             padding={Padding::all(Space::Lg)}
@@ -1283,10 +1283,10 @@ pub(crate) fn ChoicesPage() -> NodeId {
                 <LightSwitches />
             </Sample>
             <Sample
-                title="Switches on a raised surface"
-                code={vec![RaisedSwitches::SOURCE, LabelledSwitch::SOURCE]}
+                title="Switches on a panel"
+                code={vec![PanelSwitches::SOURCE, LabelledSwitch::SOURCE]}
             >
-                <RaisedSwitches />
+                <PanelSwitches />
             </Sample>
             <Sample title="Tabs" code={vec![ScaleTabs::SOURCE]}>
                 <ScaleTabs />
@@ -3324,7 +3324,7 @@ fn StripCard(index: ReadSignal<usize>) -> NodeId {
     view! {
         <Frame padding={Padding::symmetric(Space::Xs, Space::None)}>
             <Frame
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Control
                 border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Md
                 padding={Padding::symmetric(Space::Lg, Space::Md)}
@@ -4241,7 +4241,7 @@ fn StageCard(card: (f32, f32, f32, f32, &'static str)) -> CanvasItem {
     view! {
         <CanvasItem x y width height scales=true>
             <Frame
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Control
                 border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Lg
                 padding=STAGE_PADDING
@@ -4316,7 +4316,6 @@ fn WindowSample() -> NodeId {
                 options={view! {
                     <ChoiceOption label="Background" />
                     <ChoiceOption label="Surface" />
-                    <ChoiceOption label="Raised surface" />
                 }}
                 selected={window.background}
             />
