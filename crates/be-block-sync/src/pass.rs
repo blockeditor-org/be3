@@ -187,6 +187,12 @@ impl<S: ObjectStore> Pass<'_, S> {
         }
     }
 
+    /// Gives every path on disk a block id: the index's id for that path, or
+    /// else a vanished path's id with the same inode, a server block not yet
+    /// on disk at the same path, a vanished file with the same bytes, or the
+    /// vanished directory most of its children came from. This is what makes a
+    /// rename or move on disk a move of the same block rather than a delete and
+    /// a new block.
     fn assign(&mut self) -> Result<(), String> {
         let root = self.root();
         self.assigned.insert(String::new(), root);
@@ -752,6 +758,12 @@ impl<S: ObjectStore> Pass<'_, S> {
         })
     }
 
+    /// A file both sides changed merges with its type's `Merge3`: base is the
+    /// content at the index's head, ours the disk's bytes applied to it with
+    /// `FromFile`, theirs the server's. Text conflicts come out between
+    /// `<<<<<<< local` and `>>>>>>> remote`; a blob both changed keeps the
+    /// disk's bytes, the other stays in the block's history. Neither side is
+    /// lost.
     async fn merge(
         &mut self,
         block_type: Uuid,

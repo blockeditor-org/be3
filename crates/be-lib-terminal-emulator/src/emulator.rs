@@ -13,6 +13,9 @@ use be_type_terminal::{
 use super::keys::key_input;
 
 const SCROLLBACK: usize = 4_000;
+/// `feed` reads the rows that scrolled past the anchor after every chunk, so a
+/// large read can't scroll rows out of the emulator's `SCROLLBACK` before
+/// they are read into history.
 const FEED_CHUNK: usize = 256;
 
 pub struct Shown {
