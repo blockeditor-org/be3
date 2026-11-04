@@ -106,7 +106,7 @@ over a window it takes nothing (`occluders`), and a press stays with the window 
 Buttons beyond beui's five are `PointerButton::Other` with their evdev code
 (`drive down TARGET button:0x115`).
 
-- **Pen** (`tablet.rs`): a `zwp_tablet_tool_v2` of one tablet made on first use, with pressure and
+- **Pen** (`tablet.rs`; beui's `Event::Pen` and `Input::Touchpad` are in guides/beui/core.md): a `zwp_tablet_tool_v2` of one tablet made on first use, with pressure and
   tilt. A client that never asked for a tablet seat gets the pen as its pointer.
 - **Touch** (`touch.rs`): each finger goes to the surface it went down on, as `wl_touch`; a client
   with no `wl_touch` gets its first finger as the pointer. The seat offers touch only while a
@@ -114,7 +114,7 @@ Buttons beyond beui's five are `PointerButton::Other` with their evdev code
   interfaces when they see the capability.
 - **Pointer constraints** (`pointer.rs`): a lock or confinement holds only while its surface has
   the pointer and its window the keyboard. A lock sets `pointer_locked` on the view, so the platform
-  hides and holds the cursor and raw motion arrives as relative motion.
+  hides and holds the cursor (guides/beui/components.md, holding the pointer) and raw motion arrives as relative motion.
   `zwp_pointer_gestures_v1` carries touchpad gestures.
 - **Shortcuts inhibitor** (`shortcuts_inhibit.rs`): while its window has the keyboard, the view
   sets `inhibits_shortcuts` and beui keeps window listeners from it (guides/beui_keyboard.md).
@@ -138,7 +138,7 @@ indicator. A keymap that does not compile keeps the last and toasts.
 
 ## The on-screen keyboard
 
-beui's on-screen keyboard (guides/beui.md, The on-screen keyboard) is the desktop's. In a login
+beui's on-screen keyboard (guides/beui/space.md, the on-screen keyboard) is the desktop's. In a login
 session it opens when a field is tapped with no keyboard plugged in; the Quick settings tile and the
 Status bar button open it regardless. The host draws it along the bottom of the focused field's
 window and lays that window out above it.

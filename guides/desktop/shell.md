@@ -20,7 +20,7 @@ each a `DockBarSurface` with a `DockBarGrip`:
   clock.
 
 By default all three share the bottom band. A grip moves a bar like any dock bar (beside an edge,
-floated, or popped out into a window; guides/beui.md, the dock's bars), and the dock saves where
+floated, or popped out into a window; guides/beui/docking.md, the dock's bars), and the dock saves where
 each is and whether it is hidden. Each part lays itself out along its bar's direction
 (`bar::bar_direction`): down a side, chips show only icons and the clock stacks.
 
@@ -104,7 +104,7 @@ the grip stays put), revealing the focused chip. An empty row shows "No windows"
 
 ## Window keys
 
-The window manager is beui-dock-host's (guides/beui.md, the dock's window actions), acting on
+The window manager is beui-dock-host's (guides/beui/docking.md, the dock's window actions), acting on
 program and block windows alike as floating dock windows. Each dock of the desktop sits in its own
 `DockHost`; `DeskWindows` passes every display's area to `DockHostLayout::set_areas`.
 `root/window_keys.rs` binds the dock's `window_actions` at `KeyAt::Window`, capturing, so they work
