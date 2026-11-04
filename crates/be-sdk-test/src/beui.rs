@@ -72,6 +72,16 @@ thread_local! {
 const ADOPTED_EDITOR: [u8; 16] = [0; 16];
 const SCREEN: ScreenId = ScreenId(1);
 
+/// Runs an editor headless through the app's own session (`be_sdk::headless`), acting as
+/// its host: there is no server or block store, and every call goes over a be-wasm-ops
+/// connection encoded as on the wire, so a call the app refuses fails the test.
+///
+/// Gestures (`click`, `drag`, `text`, `tap`, ...) are drive's and only queue input: nothing
+/// they cause shows until the next `run()`, so call it after each one. A click reveals an
+/// out-of-view target first and panics when no node has the test id. Whatever the app sends
+/// the host is kept for the `take_*` methods; `clear_calls` drops it. Calls such as
+/// `set_view` queue what be-host would send; setting the same state on the `EditorHost`
+/// directly skips the protocol and is overwritten by the session on the next frame.
 pub struct BeuiTest<A: BeuiRoot> {
     app: HeadlessApp,
     kind: Kind,
@@ -182,6 +192,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         )
     }
 
+    /// A test of the editor on `block`, with a default `EditorHost` that may edit.
     pub fn editing(block: Uuid) -> Self {
         let host = EditorHost::default();
         host.set_editable(true);
@@ -501,6 +512,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.store.clone()
     }
 
+    /// Gives the host a block's content: `None` for the editor's own, `Some(id)` for a block
+    /// it reads with `content_of`, handed over only once the editor asks for it.
     pub fn hold<C: LiveEdit + Merge + Clone + Default>(&mut self, block: Option<Uuid>, content: C) {
         self.store.hold(block, content);
     }
@@ -517,6 +530,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.store.holds(block)
     }
 
+    /// An edit arriving from someone else.
     pub fn edit<C: LiveEdit + Merge + Clone + Default>(
         &mut self,
         block: Option<Uuid>,
@@ -1020,6 +1034,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.size
     }
 
+    /// Paints the queued frames, then applies the editor's operations to what the host holds
+    /// and sends them back marked as its own, painting again until nothing changes.
     pub fn run(&mut self) {
         let frames = std::mem::take(&mut self.frames);
         if frames.is_empty() {
@@ -1036,11 +1052,16 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
+    /// Moves the test's clock on and paints. The editor's frame clock is this clock, one frame
+    /// interval per painted frame, so timers cost no real time and land on the same frame on
+    /// every machine.
     pub fn advance(&mut self, by: std::time::Duration) {
         self.clock += by;
         self.run();
     }
 
+    /// Moves the clock on without painting and hands the app what the host queued, as a call
+    /// reaches an idle editor between frames; the next `run()` paints the frame that takes it.
     pub fn wait(&mut self, by: std::time::Duration) {
         self.clock += by;
         for message in std::mem::take(&mut self.inbox) {
@@ -1049,6 +1070,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.hear();
     }
 
+    /// Paints until a frame stops asking to be painted again at once. Call it before a
+    /// snapshot of something that animates in.
     pub fn settle(&mut self) {
         self.settle_until("its animations to finish", |test| {
             test.output.as_ref().is_none_or(|output| {
@@ -1057,6 +1080,11 @@ impl<A: BeuiRoot> BeuiTest<A> {
         });
     }
 
+    /// Paints until `ready` holds, failing with `what` at a deadline. Between frames it waits
+    /// as be-host does, for the editor's `Waker` or the delay it asked for, never a fixed
+    /// time; use it for work on another thread, where a few more `run()`s only widen a race.
+    /// Work that lands without waking the editor stalls it until the deadline, as it would
+    /// in be-host.
     pub fn settle_until(&mut self, what: &str, ready: impl Fn(&Self) -> bool) {
         let started = std::time::Instant::now();
         let mut eager = 0;
@@ -1090,6 +1118,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         );
     }
 
+    /// Paints one frame with exactly these events, ignoring what gestures queued.
     pub fn step(&mut self, events: Vec<Input>) {
         self.store.tick(self.clock.as_millis() as u64);
         let mut inbox = std::mem::take(&mut self.inbox);
@@ -2073,6 +2102,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.drive_at("drag", &[from.into(), to.into()], &[]);
     }
 
+    /// Spends a frame on each point and releases in a frame of its own, for a gesture whose
+    /// path matters (a lasso) or that should come to rest where it ends.
     pub fn drag_along(&mut self, points: &[Pos2]) {
         let (Some(&from), Some(&to)) = (points.first(), points.last()) else {
             return;

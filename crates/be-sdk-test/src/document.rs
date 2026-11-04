@@ -6,6 +6,12 @@ use beui::{Rect, Vec2, native::Context};
 use beui_host::native::testing::{Showing, Stepped, Target};
 use beui_host::{native::FontLibrary, native::FreetypeFonts};
 
+/// Paints a beui document that is not an editor (beui-demo's pages), with only beui's
+/// bundled fonts. It is beui's `testing::Stepped`: the document runs through the real
+/// `Runner`, gestures are drive's and answer after the frame that took them, and `click` and
+/// `scroll` move the pointer out of the window afterwards so a painting shows hover only
+/// where the test hovers. Its clock advances one frame interval per frame; `settle` never
+/// finishes on a page that animates forever.
 pub struct DocumentTest {
     stepped: Stepped,
     fonts: FontLibrary,
