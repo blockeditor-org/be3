@@ -94,7 +94,7 @@ block is placed:
   the rectangle's scale, with input mapped back.
 
 A child that has taken the frame keeps the whole frame as its view, so a pan
-changes what it draws, and it must change in the same frame as the canvas
+changes what it draws, and it should change in the same frame as the canvas
 under it. The parent's answer saying where the child sits arrives only after
 the parent draws, so the host does not wait: beui marks each `Embed` inside a
 panning `Canvas` (`Document::panned_by_canvas`), the app reports those
