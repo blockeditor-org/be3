@@ -85,52 +85,32 @@ data still reads:
 
 ## The tests
 
-- The `tests/frozen_*.rs` of the crate that holds a frozen block type (`crates/be-type-database`
-  for the database types, `crates/be-type-text` for text,
-  `crates/be-type-workspace` for the folder and the workspace) hold its registry and a document it saved, checked
-  by `be_block_model::schema::check_frozen` (the stack guide's "Freezing a
-  version"), and a test there checks its registers read without any one field.
+- The `tests/frozen_*.rs` of the crate holding a frozen block type (`crates/be-type-database`,
+  `crates/be-type-text`, `crates/be-type-workspace` for the folder and workspace) hold its
+  registry and a document it saved, checked by `be_block_model::schema::check_frozen` (the stack
+  guide's "Freezing a version"), and a test that its registers read without any one field.
   Moving a type into its app moves these with it.
-- `crates/be-block-frozen` holds `src/fixtures/tracker.block`, a block file the
-  `block-file` example wrote with the code of 2026-10-16: a folder holding a
-  text block and a tracker database (view, database, schema, two rows linked to
-  each other, a row's page). Its test uploads it into a new server the way `be
-  upload` does and reads the folder, the text and the rows back.
-- `crates/be-block-frozen` is also where snapshots of a whole server go: a data
-  directory (`data/`) and a backup of it (`backup/`, whose `objects/` are the
-  data directory's), zipped in `src/snapshots/NAME.zip`, with the tokens,
-  recovery phrases, link and invite codes and keys to open them in
-  `src/snapshots/sNAME.rs`. The `freeze` example makes one by running a real
-  server and writing `scene.rs`'s accounts and blocks through `be_block_client` and
-  `be`'s tracker: a company organization (My files with notes, a Team
-  workspace holding the tracker database shared with an agent, an
-  administrator demoted so the escrow key rotated, a grant revoked so Team's
-  scope key rotated, a pending invitation, and from 2026_10_25 the
-  organization's settings shared with the server, holding a policy it
-  enforces) and the personal organization (a
-  folder shared with a contact made by link, a pending link carrying a grant,
-  and that contact's change of recovery phrase). The test serves each
-  snapshot and reads it the way the host and `be` do: signing in by password,
-  token and phrase, opening the keys, names, content and history, writing on
-  an old commit, the contacts, the escrow chain, accepting the link and the
-  invitation, and restoring the backup.
+- `crates/be-block-frozen/src/fixtures/tracker.block` is a block file written with the code of
+  2026-10-16 (a folder with a text block and a linked tracker database); its test uploads it into
+  a new server as `be upload` does and reads everything back.
+- `crates/be-block-frozen/src/snapshots/` holds whole servers: a data directory and a backup of
+  it, zipped, made by the `freeze` example from `scene.rs` (whose doc comment lists what is in
+  it). The test serves each and reads it as the host and `be` do: signing in by password, token
+  and phrase, keys, names, content and history, contacts, the escrow chain, links, invitations,
+  and restoring the backup.
 
-A snapshot, a fixture, a `frozen_*.rs` module and the values in `scene.rs`
-are what old data looks like, so editing or regenerating one makes its test
-stop guarding that data. A failure means the change broke old data: fix the
-change. Only the test's code follows APIs that are not frozen, such as a
-protocol message.
+A snapshot, a fixture, a `frozen_*.rs` module and the values in `scene.rs` are what old data
+looks like, so editing or regenerating one stops its test guarding that data. A failure means
+the change broke old data: fix the change. Only the tests' code follows APIs that are not
+frozen, such as a protocol message.
 
-When a frozen format gains something worth guarding (a column, a field, a
-newly frozen block type), write it in the `freeze` example and `scene.rs`,
-take a new snapshot and list it in `SNAPSHOTS` (`src/snapshots.rs`, with the
-test that serves them):
+When a frozen format gains something worth guarding (a column, a field, a newly frozen block
+type), add it to the `freeze` example and `scene.rs`, take a new snapshot named by the day's date
+and list it in `SNAPSHOTS` (src/snapshots.rs):
 
 ```
 ./scripts/buck run //crates/be-block-frozen:example-freeze -- $PWD/crates/be-block-frozen/src/snapshots 2026_10_16
 ```
 
-with the day's date as the name. The test then checks the new part only in
-the snapshots that hold it. Freezing a block type also means `Root::FROZEN`, a
-`frozen_*.rs` module and a `registers_accept_missing_fields` check of its kind
-in its crate's tests, and a line in this guide.
+Freezing a block type also means adding it to `Root::FROZEN`, a `frozen_*.rs` module and a
+`registers_accept_missing_fields` check in its crate's tests, and a line in this guide.

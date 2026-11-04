@@ -41,8 +41,8 @@ BEUI_PLATFORM=drm ./scripts/buck run //crates/be-host:native -- --desktop
 `xr` is space on a headset, in space's place: name `xr` alone, not `space,xr`, which stacks a
 second space under it. With no headset it waits, with a notice over the simulator, and finds one
 started or plugged in later. `drm` cannot show space on a headset, and Android reads no `BEUI_*`
-variables. guides/beui.md ("Space: the VR simulator layer", "Headsets") has both layers; the
-login session and its install are guides/desktop/linux.md.
+variables. guides/beui/space.md has both layers; the login session and its install are
+guides/desktop/linux.md.
 
 ## For an agent
 
@@ -80,7 +80,7 @@ An agent shows a visual change with a painting (guides/testing_a_gui.md).
 |---|---|
 | `./scripts/verify` | rustc's check pass over every first-party target on Linux x86_64 and the apps' `wasi_guest`, autofixes, lints, tests and app tests; `--check` writes nothing, `--lint`, `--tests`, `--app-tests` run one part |
 | `./scripts/ci` | what CI runs: `./scripts/verify` and crates/be-tool-bootstrap's release (guides/bootstrap.md), and `--previews BASE OUT` the paint previews |
-| `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it on a worker (below). A path matches anywhere in another crate's paths too: `desktop::tests` also runs be-host's `compositor::desktop::tests`, so name the crate's target (next row) to run one crate's |
+| `./scripts/test adding [--update]` | the tests whose full names contain `adding` (or a module path such as `media::tests`), in every crate. A path matches inside other crates' paths too (`desktop::tests` also runs be-host's `compositor::desktop::tests`), so name the crate's target (next row) to run one crate's |
 | `./scripts/test //crates/be-app-desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
 | `./scripts/buck run //crates/be-host:native` | the host, with every app beside it |
 | `./scripts/test //crates/be-host-tests:test [--update]` | the host tests: be-host headless with the editors each test names, driven and painted as a whole |
@@ -91,8 +91,7 @@ An agent shows a visual change with a painting (guides/testing_a_gui.md).
 | `./scripts/buck run //crates/be-host:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is the build helper's unsigned template, which it signs with CI's key) |
 | `./scripts/buck run //crates/beui-demo:native` | beui's demo in a window |
 | `./scripts/buck run //crates/beui-host:example-survey` | a crate example; every example is `example-<name>` |
-| `./scripts/buck run -m release //crates/beui-host:example-text-bench -- [NAME] [--frames N]` | beui's text benchmarks: per-frame times for resizing wrapped text and labels, editing a paragraph or one span, and typing into a text area; NAME picks the scenarios whose names contain it. Compare a change by running it on the change and on its base |
-| `./scripts/buck run -m release //crates/beui-demo:example-open-bench -- [PAGE]` | times opening each beui-demo page from its catalog row and counts its allocations (guides/performance.md) |
+| `./scripts/buck run //crates/be-tool-bench:suite -- run [NAME]` | every benchmark, built in release (guides/performance.md) |
 | `./scripts/buck run //crates/beui-web-demo:web` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
 | `./scripts/buck run //crates/be-tool-paint-review-web:web -- 127.0.0.1:8075 DIR` | the page reviewing a pull request's paintings, serving the `HASH.json` lists and `HASH.webp` images in DIR beside it on http://127.0.0.1:8075/site/dev/index.html?changes=HASH |
 | `./scripts/buck run //:fuzz` | every fuzz target, taking turns with every core (`BE3_FUZZ_SLICE` seconds each, 600 by default), until it is stopped |
