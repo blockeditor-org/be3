@@ -26,11 +26,18 @@ fn installing_asks_root_only_for_what_it_cannot_write() {
     build(&source);
     let home = root.join("home/qa");
     let entry = root.join("usr/share/wayland-sessions/be-host.desktop");
+    let portals = root.join("usr/share/xdg-desktop-portal");
+    let rooted_files = vec![
+        entry.clone(),
+        portals.join("portals/be-host.portal"),
+        portals.join("be-host-portals.conf"),
+    ];
     let layout = Layout {
         prefix: home.join(".local"),
         sessions: vec![entry.parent().unwrap().to_path_buf()],
         pam: root.join("etc/pam.d"),
         greetd: root.join("etc/greetd/environments"),
+        portals,
     };
     let (changes, _) = plan_install(&source, &layout).unwrap();
     let user = User {
@@ -51,9 +58,9 @@ fn installing_asks_root_only_for_what_it_cannot_write() {
         changes::decide(&changes, &only(&[&home]), &user),
         Ok(Decision::Elevate {
             whole: false,
-            blocked: vec![entry.clone()],
+            blocked: rooted_files.clone(),
         }),
-        "a prefix in your home is yours, and only the entry needs root"
+        "a prefix in your home is yours, and only the entry and the portal's files need root"
     );
     assert_eq!(
         changes::list(&[entry.clone()]),
@@ -107,14 +114,20 @@ fn installing_asks_root_only_for_what_it_cannot_write() {
     assert!(!entry.exists());
 
     changes::apply(&changes, &elevated, |theirs| {
-        assert_eq!(theirs.len(), 1, "sudo is handed the entry alone");
+        assert_eq!(
+            theirs.len(),
+            rooted_files.len(),
+            "sudo is handed the entry and the portal's files alone"
+        );
         let sent = changes::to_json(theirs)?;
         apply_here(&changes::from_json(&sent).unwrap())?;
         Ok(())
     })
     .unwrap();
     assert!(installed.join(EXECUTABLE).is_file());
-    assert!(entry.is_file());
+    for file in &rooted_files {
+        assert!(file.is_file(), "{} is written", file.display());
+    }
     assert_eq!(
         std::fs::read_link(&link).unwrap(),
         installed.join(EXECUTABLE)

@@ -519,6 +519,9 @@ pub(crate) fn TextPage() -> NodeId {
             <Sample title="Shortcuts" code={vec![Shortcuts::SOURCE]}>
                 <Shortcuts />
             </Sample>
+            <Sample title="Key caps" code={vec![KeyCaps::SOURCE]}>
+                <KeyCaps />
+            </Sample>
             <Sample title="Links" code={vec![Links::SOURCE]}>
                 <Links />
             </Sample>
@@ -661,6 +664,22 @@ fn Shortcuts() -> NodeId {
             <Shortcut keys="Ctrl+Z" description="undo an edit in a text field" />
             <Shortcut keys="Ctrl+Shift+I" description="open the inspector" />
             <Shortcut keys="Ctrl+Shift+C" description="pick a node to inspect" />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn KeyCaps() -> NodeId {
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm wrap=true>
+            <KeyCap label="F20" />
+            <Text color=TextColor::Muted>"+"</Text>
+            <KeyCap label="Wheel up" />
+            <Text color=TextColor::Muted>"then"</Text>
+            <KeyCap label="X" />
+            <KeyCap label="wait 80 ms" muted=true />
+            <KeyCap label="Left Ctrl" />
         </List>
     }
 }
@@ -3857,6 +3876,18 @@ fn Accordions() -> NodeId {
                          parts of the tree whose inputs changed are laid out again."
                     </Text>
                 </Accordion>
+                <Separator />
+                <Accordion
+                    title="More options"
+                    detail="Repeats, ends at midnight"
+                    size=TextSize::Base
+                    open=false
+                >
+                    <Text style=TextStyle::PARAGRAPH>
+                        "A smaller one tucks options away inside a form, and says \
+                         what is set while it is closed."
+                    </Text>
+                </Accordion>
             </List>
         </Card>
     }
@@ -4570,8 +4601,8 @@ pub(crate) fn WindowManagerPage() -> NodeId {
         let area = host.area();
         let middle = (area.min.x + area.width() / 2.0).round();
         let halves = vec![
-            Rect::from_min_max(area.min, beui::pos2(middle, area.max.y)),
-            Rect::from_min_max(beui::pos2(middle, area.min.y), area.max),
+            DockArea::whole(Rect::from_min_max(area.min, beui::pos2(middle, area.max.y))),
+            DockArea::whole(Rect::from_min_max(beui::pos2(middle, area.min.y), area.max)),
         ];
         untrack(|| host.set_areas(halves));
     });

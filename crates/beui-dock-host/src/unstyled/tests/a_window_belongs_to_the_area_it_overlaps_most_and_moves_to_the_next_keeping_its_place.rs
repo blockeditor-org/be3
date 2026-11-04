@@ -11,7 +11,7 @@ fn a_window_belongs_to_the_area_it_overlaps_most_and_moves_to_the_next_keeping_i
     layout.restore(state);
     let left = Rect::from_min_size(Pos2::ZERO, Vec2::new(1000.0, 800.0));
     let right = Rect::from_min_size(Pos2::new(1000.0, 0.0), Vec2::new(500.0, 400.0));
-    layout.set_areas(vec![left, right]);
+    layout.set_areas(vec![DockArea::whole(left), DockArea::whole(right)]);
     assert_eq!(
         layout.area_of_window(tab(2)),
         Some(0),

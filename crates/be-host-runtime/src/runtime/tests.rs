@@ -1,4 +1,5 @@
 use super::*;
+mod a_child_comes_or_goes_only_with_the_frame_its_placer_draws_it_in;
 mod a_failed_app_session_is_reported_as_a_crash;
 mod a_frame_carries_damage_only_when_every_present_since_the_last_one_reported_it;
 mod a_frame_waits_for_apps_until_the_next_present_less_its_own_composite;

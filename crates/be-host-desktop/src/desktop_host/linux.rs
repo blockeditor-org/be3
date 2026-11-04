@@ -441,6 +441,7 @@ fn known_window(
         modal: info.modal,
         size: info.size,
         min_size: info.min_size,
+        maximized: info.maximized,
         fullscreen: info.fullscreen,
         responding: info.responding,
         icon: icon.map(|icon| Picture {
@@ -474,6 +475,12 @@ fn with<R>(act: impl FnOnce(&mut Running) -> R) -> Option<R> {
 
 pub fn set_keyboard(keyboard: &be_host_wayland::KeyboardConfig) -> bool {
     with(|running| running.compositor.set_keyboard(keyboard)).unwrap_or(true)
+}
+
+/// The whole desktop as the displays show it, for the screenshot portal; `None`
+/// while be-host runs in a window rather than on the displays.
+pub fn screenshot() -> Option<beui::Image> {
+    with(|running| running.displays.as_ref()?.screenshot()).flatten()
 }
 
 pub fn set_layout(index: u32) {

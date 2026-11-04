@@ -18,8 +18,8 @@ set -euo pipefail
 SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}"
 IMAGE="system-images;android-34;google_apis;x86_64"
 AVD=be3
-PACKAGE=com.be3.block.dev
-ACTIVITY=com.be3.block.MainActivity
+PACKAGE=com.be3.host.dev
+ACTIVITY=com.be3.host.MainActivity
 OUT_DIR="${OUT_DIR:-/tmp/be3-android}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 APK="$REPO/target/android/be-host.apk"

@@ -7,6 +7,13 @@ pub(crate) use changes::apply_elevated;
 use changes::{Access, Change, Decision, Here, User};
 
 const ENTRY: &str = include_str!("be-host.desktop");
+/// xdg-desktop-portal reads backends only from its own data directory, and the
+/// configuration naming them for the `be-host` desktop beside it.
+const PORTALS: &str = "/usr/share/xdg-desktop-portal";
+const PORTAL_FILES: [(&str, &str); 2] = [
+    ("portals/be-host.portal", include_str!("be-host.portal")),
+    ("be-host-portals.conf", include_str!("be-host-portals.conf")),
+];
 const PAM_DIR: &str = super::pam::DIR;
 const EXECUTABLE: &str = "be-host";
 const DEFAULT_PREFIX: &str = "/usr/local";
@@ -29,6 +36,7 @@ pub(crate) struct Layout {
     pub(crate) sessions: Vec<PathBuf>,
     pub(crate) pam: PathBuf,
     pub(crate) greetd: PathBuf,
+    pub(crate) portals: PathBuf,
 }
 
 impl Layout {
@@ -45,6 +53,7 @@ impl Layout {
             sessions: session_dirs(Path::new("/")),
             pam: PathBuf::from(PAM_DIR),
             greetd: PathBuf::from(GREETD_ENVIRONMENTS),
+            portals: PathBuf::from(PORTALS),
         })
     }
 
@@ -59,6 +68,12 @@ impl Layout {
     fn executable(&self) -> PathBuf {
         self.home().join(EXECUTABLE)
     }
+
+    fn portal_files(&self) -> impl Iterator<Item = (PathBuf, &'static str)> + '_ {
+        PORTAL_FILES
+            .iter()
+            .map(|(path, contents)| (self.portals.join(path), *contents))
+    }
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -66,6 +81,7 @@ pub(crate) struct Receipt {
     pub(crate) files: Vec<PathBuf>,
     pub(crate) link: PathBuf,
     pub(crate) entries: Vec<PathBuf>,
+    pub(crate) portal: Vec<PathBuf>,
     pub(crate) pam: Option<(PathBuf, String)>,
     pub(crate) greetd: Option<(PathBuf, String)>,
 }
@@ -81,6 +97,7 @@ impl Receipt {
             "files": self.files.iter().map(|file| file.display().to_string()).collect::<Vec<_>>(),
             "link": self.link.display().to_string(),
             "entries": self.entries.iter().map(|entry| entry.display().to_string()).collect::<Vec<_>>(),
+            "portal": self.portal.iter().map(|file| file.display().to_string()).collect::<Vec<_>>(),
             "pam": pair(&self.pam, "contents"),
             "greetd": pair(&self.greetd, "line"),
         });
@@ -107,6 +124,7 @@ impl Receipt {
             files: paths("files")?,
             link: PathBuf::from(value["link"].as_str()?),
             entries: paths("entries")?,
+            portal: paths("portal").unwrap_or_default(),
             pam: pair("pam", "contents"),
             greetd: pair("greetd", "line"),
         })
@@ -159,7 +177,7 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
             environments.display()
         );
     }
-    println!("Log out and pick Block from the session menu on the login screen.");
+    println!("Log out and pick be-host from the session menu on the login screen.");
     Ok(())
 }
 
@@ -333,6 +351,14 @@ pub(crate) fn plan_install(
             });
         }
     }
+    let mut portal = Vec::new();
+    for (path, contents) in layout.portal_files() {
+        changes.push(Change::Write {
+            path: path.clone(),
+            contents: contents.to_owned(),
+        });
+        portal.push(path);
+    }
     let pam = match pam_to_place(&layout.pam) {
         Some((service, contents)) => {
             changes.push(Change::Write {
@@ -362,6 +388,7 @@ pub(crate) fn plan_install(
         files,
         link,
         entries,
+        portal,
         pam,
         greetd,
     };
@@ -386,6 +413,13 @@ pub(crate) fn plan_uninstall(layout: &Layout) -> Result<Vec<Change>, String> {
             changes.push(Change::Remove {
                 path: entry.clone(),
             });
+        }
+    }
+    for (path, contents) in layout.portal_files() {
+        if receipt.portal.contains(&path)
+            && std::fs::read_to_string(&path).ok().as_deref() == Some(contents)
+        {
+            changes.push(Change::Remove { path });
         }
     }
     if std::fs::read_link(&receipt.link).ok() == Some(layout.executable()) {

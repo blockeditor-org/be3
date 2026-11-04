@@ -108,6 +108,10 @@ impl Stacked for Floated {
     fn above(&self) -> bool {
         self.level == WindowLevel::Above
     }
+
+    fn fullscreen(&self) -> bool {
+        self.level == WindowLevel::Fullscreen
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

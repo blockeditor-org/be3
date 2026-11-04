@@ -38,7 +38,7 @@ use be_host_base::{host, host_state, notices, panic_guard, performance, platform
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_host_runtime::{BlockOpen, EditorAction};
 #[cfg(target_os = "linux")]
-use be_host_services::{media, notifications, tray, wifi};
+use be_host_services::{media, notifications, screenshot, tray, wifi};
 #[cfg(not(target_arch = "wasm32"))]
 use be_host_stack::embedded_server;
 use be_host_stack::{accounts, invite_link, keys, offline_choice};
@@ -63,7 +63,7 @@ use uuid::Uuid;
 fn program_id() -> &'static str {
     be_lib_build_id::metadata()
         .map(|info| info.program_id.as_str())
-        .unwrap_or("BlockDev")
+        .unwrap_or("be-host-dev")
 }
 
 pub(crate) fn build() -> &'static str {
@@ -80,7 +80,7 @@ fn run_options() -> beui_host::native::RunOptions {
 }
 
 #[cfg(target_arch = "wasm32")]
-const WEB_DATA_DIR: &str = "/block";
+const WEB_DATA_DIR: &str = "/be-host";
 
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_dir() -> Option<PathBuf> {
@@ -297,7 +297,7 @@ fn android_main(android: beui_host::native::AndroidApp) {
         }) {
         Ok(()) => 0,
         Err(error) => {
-            eprintln!("Block stopped: {error}");
+            eprintln!("be-host stopped: {error}");
             1
         }
     };
@@ -325,7 +325,7 @@ impl Shell {
             let store = HostUiStore::new(HostUi::default());
             view = Some(store);
             beui::reactive::view! {
-                <beui::styled::Root title="Block">
+                <beui::styled::Root title="be-host">
                     <ui::Displays view={store} />
                 </beui::styled::Root>
             }
@@ -631,6 +631,8 @@ struct HostCore {
     #[cfg(target_os = "linux")]
     notifications: Option<notifications::Notifications>,
     #[cfg(target_os = "linux")]
+    screenshots: Option<screenshot::Screenshots>,
+    #[cfg(target_os = "linux")]
     tray: Option<tray::Tray>,
     #[cfg(target_os = "linux")]
     wifi: Option<wifi::Wifi>,
@@ -912,6 +914,8 @@ impl HostCore {
             #[cfg(target_os = "linux")]
             notifications: None,
             #[cfg(target_os = "linux")]
+            screenshots: None,
+            #[cfg(target_os = "linux")]
             tray: None,
             #[cfg(target_os = "linux")]
             wifi: None,
@@ -936,6 +940,11 @@ impl HostCore {
             }
             if self.tray.is_none() {
                 self.tray = Some(tray::Tray::start());
+            }
+            if self.screenshots.is_none() {
+                self.screenshots = Some(screenshot::Screenshots::start(
+                    be_host_desktop::desktop_host::screenshot,
+                ));
             }
         }
     }
@@ -2374,7 +2383,11 @@ impl HostCore {
         }
         let hidden = be_host_desktop::programs::bound_windows();
         if Some((Host::revision(), hidden.clone())) != self.windows_sent {
-            be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&Host::listed(&hidden));
+            let listed = Host::listed(&hidden);
+            be_host_base::watches::publish::<be_sdk_api::OpenProgramsWatch>(&open_programs(
+                &listed,
+            ));
+            be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&listed);
             self.windows_sent = Some((Host::revision(), hidden));
         }
         let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
@@ -2819,7 +2832,7 @@ impl HostCore {
             return;
         }
         self.crashed(format!(
-            "Block closed after this error the last time it ran.\n\n{report}"
+            "be-host closed after this error the last time it ran.\n\n{report}"
         ));
     }
 
@@ -3604,7 +3617,7 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
             "Discard and switch",
         ),
         PendingDestructiveAction::Close => (
-            "Closing Block Editor will discard changes that are not saved on this device yet. Changes waiting to sync are kept."
+            "Closing be-host will discard changes that are not saved on this device yet. Changes waiting to sync are kept."
                 .to_owned(),
             "Discard and close",
         ),
@@ -3634,3 +3647,21 @@ fn drag_source(location: BlockLocation) -> SidebarDragSource {
 
 #[cfg(test)]
 mod tests;
+
+/// The programs of the listed windows, each once, for apps other than the shell.
+fn open_programs(listed: &[be_sdk_api::HostWindow]) -> Vec<be_sdk_api::OpenProgram> {
+    let mut programs: Vec<be_sdk_api::OpenProgram> = Vec::new();
+    for window in listed {
+        if window.kind != be_sdk_api::WindowKind::Window {
+            continue;
+        }
+        let program = be_sdk_api::OpenProgram {
+            program_id: window.program_id.clone(),
+            command: window.origin.command.clone(),
+        };
+        if !programs.contains(&program) {
+            programs.push(program);
+        }
+    }
+    programs
+}

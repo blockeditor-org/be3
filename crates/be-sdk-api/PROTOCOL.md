@@ -1,4 +1,4 @@
-# Block app protocol
+# The app protocol
 
 The host and an app speak the `be3:app` WIT world `editor-app`
 (`wit/`), carried by be-wasm-ops (guides/type_modules.md, "Operations and WIT"); the
@@ -785,7 +785,13 @@ rounded, on the GPU, so a child shown in a rounded card does not show its
 square corners past the card's edge. A
 child placed above composites against the instance's pixels instead and cannot
 be drawn over. The host draws the children below a view, then the view,
-then the children above it. A painting is never stretched: the host shows each
+then the children above it. Under all of them it fills the view with
+`frame-report.backdrop`, the opaque color the app clears the view to, so a
+cut-out shows that color rather than what is behind the view before its
+child draws, after the child goes and wherever the child leaves it
+uncovered; a view that shows what is behind it through its cut-outs (an
+editor that took its placer's frame, around its content) reports none, and
+a turned or faded view is given none. A painting is never stretched: the host shows each
 frame at the size it was painted, from the view's top-left corner, so while
 a view is resizing ahead of the app the painting is cropped or falls
 short at the right and bottom, and the children, occluders and input method

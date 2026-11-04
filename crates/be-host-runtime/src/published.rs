@@ -98,8 +98,16 @@ pub(super) struct Watched {
 }
 
 impl Watched {
-    pub(super) fn watch(&mut self, open: MethodId) {
-        self.reported.entry(open).or_default();
+    /// A watch that `starts_anew` is not told what was published before it opened.
+    pub(super) fn watch(&mut self, open: MethodId, published: Option<&Arc<Vec<u8>>>) {
+        let reported = self.reported.entry(open).or_default();
+        if be_sdk_api::starts_anew(open) {
+            *reported = published.cloned();
+        }
+    }
+
+    pub(super) fn unwatch(&mut self, open: MethodId) {
+        self.reported.remove(&open);
     }
 
     pub(super) fn call(&mut self, started: Started, shell: bool) -> bool {

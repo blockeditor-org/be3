@@ -80,7 +80,7 @@ hands workers canvases instead (crates/be-host-runtime/src/web):
 
 ## Files and offline
 
-The web build keeps the same files as native be-host, under `/block` in the origin private file
+The web build keeps the same files as native be-host, under `/be-host` in the origin private file
 system. WASI file calls go from `web/wasi.js` to `web/files.js`, a worker that owns the sync
 access handles; without OPFS (some private windows) it answers from memory and nothing
 survives a reload. Traps that shape this code:

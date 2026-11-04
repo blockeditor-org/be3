@@ -76,6 +76,10 @@ parameters, be-tool-verify's flags, the names in scripts/internal/pins,
 build-info.json's path and keys, env vars) has to keep working with it, or that
 commit's verify fails. Renaming one takes steps, each landing after CI pins
 the release built from the step before: first the bootstrap speaks the new name
-while the tree accepts both, then the tree drops the old one. A directory the
+while the tree accepts both, then the tree drops the old one. A value the
+release writes that nothing in verify checks, such as build-info.json's
+`program_id` or default server, changes in one step: until the new pin lands
+that branch's builds carry the old value, and `./scripts/deploy`, the one check
+on it, runs from main after the pin. A directory the
 release writes into needs a tracked file to keep it in a checkout until a
 release that no longer writes there is pinned.

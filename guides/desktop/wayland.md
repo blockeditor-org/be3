@@ -10,9 +10,9 @@ windows is guides/desktop.md.
 The socket is `wayland-<n>` in `XDG_RUNTIME_DIR`, or in a private directory when that is unset (as
 under `:dev`; `runtime_dir.rs`). Programs started by the compositor get `Compositor::environment`:
 `XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`, `DISPLAY` for Xwayland and `DCONF_PROFILE`
-(`gtk_settings.rs`, which hides GTK's window buttons). In a login session `DISPLAY` and
-`WAYLAND_DISPLAY` also go to D-Bus's activation environment and systemd's user manager
-(be-host's `src/login_session/environment.rs`).
+(`gtk_settings.rs`, which hides GTK's window buttons, since the window's frame already has
+them). In a login session all of these also go to D-Bus's activation environment and systemd's
+user manager (be-host's `src/login_session/environment.rs`).
 
 The Apps panel lists the `.desktop` programs of the XDG data dirs (be-host-wayland's `programs.rs`
 reads them and their icons; `programs::load_icon` reads PNG, SVG and XPM) and runs one, or a typed
@@ -35,11 +35,15 @@ both unless it says otherwise.
 **Size.** A window is configured to the rect its view is placed at, always, with the tiled states.
 The dock decides sizes; there is no negotiation. Until first placed it is configured 0×0 so it
 picks its own size: `WindowInfo::size` is the size it last chose itself (a commit not answering a
-size the compositor asked for), which becomes the window child's `intrinsic`. `WindowInfo` also
-carries the min and max size (`set_min_size`/`set_max_size`, X11 `WM_NORMAL_HINTS`). A 1×1 buffer
-(Firefox commits one for server-side-decorated windows) opens at a default size. Maximize is not
+size the compositor asked for), which becomes the window child's `intrinsic` and the listing's
+`host-window.size`, so a new window's tab opens at it. A commit with a side under
+`PLACEHOLDER_SIDE` (`state.rs`, a placeholder buffer such as a 1×1) is no pick, and the listing
+drops a size under the window's own min size (`set_min_size`/`set_max_size`, X11
+`WM_NORMAL_HINTS`, both in `WindowInfo`); such a window opens at a default size. Maximize is not
 offered in `wm_capabilities`, since the dock owns the size, but a request is answered with the
-maximized state.
+maximized state and listed (`host-window.maximized`), and a window that asked before it was
+listed opens snapped to fill its area. Firefox does: it asks to be maximized, then commits GTK's
+148×200 default, under its own 500×120 min size, before it is configured.
 
 **Drawing.** `render.rs` draws a window's last buffer top-left at its own size, clipped to the view,
 never stretched, until the client commits the new size
@@ -161,13 +165,17 @@ text input, so the keyboard never opens by itself over them: use the bar's butto
 
 ## Cursors
 
-In a login session the DRM platform draws the pointer into each output's frame from the XCursor
-theme (`cursors.rs`, CSS names then X11 names). Over a window, a `wp_cursor_shape_v1` shape becomes
+In a login session the DRM platform draws the pointer into each output's frame from
+`beui_core::drawn_cursor`'s icons, rendered once per icon at the displays' scale (`cursors.rs`;
+decisions/our_own_cursors_where_we_draw_them.md). Over a window, a `wp_cursor_shape_v1` shape becomes
 its `CursorIcon` (`Windows::cursor`); a `wl_pointer.set_cursor` surface reaches the DRM platform as
 a `beui_platform_drm::SoftwareCursor` texture (be-host-desktop's `desktop_host/linux.rs`), and other
 platforms as `cursor_image` (`Windows::cursor_image`, shm buffers only; winit shows it, headless
-reports it in `drive state`). Under `BEUI_LAYERS=space` the layer draws its own cursor from the
-`CursorIcon`.
+reports it in `drive state`). A null cursor, or a cursor surface with no buffer (how GTK clients
+such as Firefox hide the pointer over a video), is `CursorIcon::None`. GTK 3 programs (Firefox,
+xfce4-terminal) never use the shape protocol: they draw their own cursor from the theme dconf's
+`org.gnome.desktop.interface cursor-theme` names. Under `BEUI_LAYERS=space` the layer draws its own
+cursor from the `CursorIcon`.
 
 ## Frame pacing
 

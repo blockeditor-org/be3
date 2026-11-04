@@ -50,7 +50,7 @@ the user signs in and explicitly approves the code (verifying email alone approv
 be-host holds a private secret apart from the shown code and waits on one
 `finish-browser-login` call on the connection that began it, reconnecting only if that drops;
 only that secret redeems the approval, once. The portal authenticates the account; unlocking
-encryption and pairing stay in Block.
+encryption and pairing stay in be-host.
 
 Browser sessions last 30 days in an HttpOnly cookie scoped to `/auth` and can't be used as
 be-host credentials. Email goes through `mail::Delivery`, which is `LogDelivery`: the server log
@@ -95,7 +95,7 @@ platform in release in one buck2 command, then:
 1. uploads `be` for Linux x86_64 and arm64 to the Bunny storage zone under `data/BUILD/`, reads
    each back to check its hash, and pins it in `scripts/internal/pins` (guides/tracker.md);
 2. uploads be-host's downloads (every desktop platform, the web bundle, and the release-signed
-   Android APK, id `com.be3.block`) to `data/BUILD/app/` with an index page, and the unpacked
+   Android APK, id `com.be3.host`) to `data/BUILD/app/` with an index page, and the unpacked
    web bundle to `data/BUILD/web/`;
 3. copies `be-server` and `build-info.json` to the VPS, stops the units, swaps the files and
    starts them;

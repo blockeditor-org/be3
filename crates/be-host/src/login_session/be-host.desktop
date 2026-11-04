@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Block
-Comment=Block as the desktop, with Block as the Wayland compositor
+Name=be-host
+Comment=be-host as the desktop and the Wayland compositor
 Exec=env BEUI_PLATFORM=drm be-host --desktop
 TryExec=be-host
-DesktopNames=Block
+DesktopNames=be-host
 X-LightDM-Session-Type=wayland

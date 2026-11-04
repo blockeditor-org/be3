@@ -1,93 +1,20 @@
+//! The pointer's shapes: `beui_core::drawn_cursor`'s icons, rendered once per icon at the
+//! displays' scale. A login session has no system cursor to show, so the session draws the one
+//! space and mouse simulation draw (decisions/our_own_cursors_where_we_draw_them.md).
+
 use be_lib_stable_hash::HashMap;
 use std::rc::Rc;
 
-use beui::{CursorIcon, Vec2, vec2};
+use beui::native::WindowOutput;
+use beui::{Color32, CursorIcon, Pos2, Vec2};
+use beui_core::context::Context;
+use beui_core::drawn_cursor;
+use beui_host::native::{Renderer, Repaint};
 
-use crate::arrow;
 use crate::gpu::{Gpu, Sprite};
-use crate::theme::{Image, Theme};
+use crate::screen::FORMAT;
 
-pub fn legacy_names(icon: CursorIcon) -> &'static [&'static str] {
-    match icon {
-        CursorIcon::Default => &["left_ptr", "arrow", "top_left_arrow", "left_arrow"],
-        CursorIcon::ContextMenu => &[],
-        CursorIcon::Help => &["question_arrow", "whats_this", "left_ptr_help"],
-        CursorIcon::PointingHand => &["hand2", "hand1", "hand", "pointing_hand"],
-        CursorIcon::Progress => &["left_ptr_watch", "half-busy"],
-        CursorIcon::Wait => &["watch"],
-        CursorIcon::Cell => &["plus"],
-        CursorIcon::Crosshair => &["cross", "tcross"],
-        CursorIcon::Text => &["xterm", "ibeam"],
-        CursorIcon::VerticalText => &[],
-        CursorIcon::Alias => &["dnd-link", "link"],
-        CursorIcon::Copy => &["dnd-copy"],
-        CursorIcon::Move => &["fleur", "dnd-move", "size_all"],
-        CursorIcon::NoDrop => &["dnd-no-drop", "dnd-none", "circle", "forbidden"],
-        CursorIcon::NotAllowed => &["crossed_circle", "forbidden", "circle"],
-        CursorIcon::Grab => &["openhand", "hand1"],
-        CursorIcon::Grabbing => &["closedhand", "dnd-none"],
-        CursorIcon::ResizeEast => &["right_side"],
-        CursorIcon::ResizeNorth => &["top_side"],
-        CursorIcon::ResizeNorthEast => &["top_right_corner"],
-        CursorIcon::ResizeNorthWest => &["top_left_corner"],
-        CursorIcon::ResizeSouth => &["bottom_side"],
-        CursorIcon::ResizeSouthEast => &["bottom_right_corner"],
-        CursorIcon::ResizeSouthWest => &["bottom_left_corner"],
-        CursorIcon::ResizeWest => &["left_side"],
-        CursorIcon::ResizeHorizontal => &["sb_h_double_arrow", "h_double_arrow", "size_hor"],
-        CursorIcon::ResizeVertical => &["sb_v_double_arrow", "v_double_arrow", "size_ver"],
-        CursorIcon::ResizeNeSw => &["fd_double_arrow", "size_bdiag"],
-        CursorIcon::ResizeNwSe => &["bd_double_arrow", "size_fdiag"],
-        CursorIcon::ResizeColumn => &["split_h", "sb_h_double_arrow"],
-        CursorIcon::ResizeRow => &["split_v", "sb_v_double_arrow"],
-        CursorIcon::AllScroll => &["fleur", "size_all"],
-        CursorIcon::ZoomIn => &["zoom_in"],
-        CursorIcon::ZoomOut => &["zoom_out"],
-        CursorIcon::None | CursorIcon::Touch => &[],
-    }
-}
-
-pub fn names(icon: CursorIcon) -> Vec<&'static str> {
-    if icon == CursorIcon::None {
-        return Vec::new();
-    }
-    let mut names = vec![icon.name()];
-    names.extend_from_slice(legacy_names(icon));
-    names
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Choice {
-    Hidden,
-    Arrow,
-    Touch(beui::native::touch_cursor::CursorImage),
-    Themed {
-        image: Image,
-        size: Vec2,
-        hotspot: Vec2,
-    },
-}
-
-pub fn choose(theme: &Theme, icon: CursorIcon, scale: f32) -> Choice {
-    match icon {
-        CursorIcon::None => return Choice::Hidden,
-        CursorIcon::Touch => return Choice::Touch(beui::native::touch_cursor::image(scale)),
-        _ => {}
-    }
-    let wanted = (theme.size() as f32 * scale).round().max(1.0) as u32;
-    let image = theme
-        .load(&names(icon), wanted)
-        .or_else(|| theme.load(&names(CursorIcon::Default), wanted));
-    let Some(image) = image else {
-        return Choice::Arrow;
-    };
-    let points = theme.size() as f32 / image.nominal.max(1) as f32;
-    Choice::Themed {
-        size: vec2(image.width as f32, image.height as f32) * points,
-        hotspot: vec2(image.hotspot.0 as f32, image.hotspot.1 as f32) * points,
-        image,
-    }
-}
+pub const COLOR: Color32 = Color32::WHITE;
 
 pub struct Shape {
     pub sprite: Sprite,
@@ -96,51 +23,97 @@ pub struct Shape {
 }
 
 pub struct Cursors {
-    theme: Theme,
+    context: Context,
+    renderer: Option<Renderer>,
     scale: f32,
     loaded: HashMap<CursorIcon, Option<Rc<Shape>>>,
 }
 
 impl Cursors {
-    pub fn new(theme: Theme, scale: f32) -> Self {
+    pub fn new(scale: f32) -> Self {
+        let context = beui_host::native::context();
+        context.set_pixels_per_point(scale);
         Self {
-            theme,
+            context,
+            renderer: None,
             scale,
             loaded: HashMap::default(),
         }
     }
 
     pub fn get(&mut self, gpu: &Gpu, icon: CursorIcon) -> Option<Rc<Shape>> {
-        let (theme, scale) = (&self.theme, self.scale);
-        self.loaded
-            .entry(icon)
-            .or_insert_with(|| {
-                let shape = match choose(theme, icon, scale) {
-                    Choice::Hidden => return None,
-                    Choice::Arrow => Shape {
-                        sprite: gpu.rgba(arrow::WIDTH, arrow::HEIGHT, &arrow::pixels()),
-                        size: vec2(arrow::WIDTH as f32, arrow::HEIGHT as f32),
-                        hotspot: Vec2::ZERO,
-                    },
-                    Choice::Touch(image) => Shape {
-                        sprite: gpu.rgba(image.width, image.height, &image.rgba),
-                        size: Vec2::splat(beui::native::touch_cursor::SIZE),
-                        hotspot: Vec2::splat(beui::native::touch_cursor::SIZE / 2.0),
-                    },
-                    Choice::Themed {
-                        image,
-                        size,
-                        hotspot,
-                    } => Shape {
-                        sprite: gpu.rgba(image.width, image.height, &image.rgba),
-                        size,
-                        hotspot,
-                    },
-                };
-                Some(Rc::new(shape))
-            })
-            .clone()
+        if let Some(shape) = self.loaded.get(&icon) {
+            return shape.clone();
+        }
+        let shape = (icon != CursorIcon::None).then(|| Rc::new(self.draw(gpu, icon)));
+        self.loaded.insert(icon, shape.clone());
+        shape
     }
+
+    fn draw(&mut self, gpu: &Gpu, icon: CursorIcon) -> Shape {
+        let output = picture(&self.context, icon);
+        let side = (drawn_cursor::EXTENT * self.scale).ceil().max(1.0) as u32;
+        let texture = gpu.device().create_texture(&wgpu::TextureDescriptor {
+            label: Some("cursor"),
+            size: wgpu::Extent3d {
+                width: side,
+                height: side,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let renderer = self
+            .renderer
+            .get_or_insert_with(|| Renderer::new(gpu.resources()));
+        renderer.prepare(
+            gpu.device(),
+            gpu.queue(),
+            &output,
+            Vec2::splat(side as f32),
+            self.scale,
+            Repaint::Everything,
+        );
+        let mut encoder = gpu
+            .device()
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("cursor"),
+            });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        renderer.render(
+            gpu.device(),
+            gpu.queue(),
+            &mut encoder,
+            &view,
+            (side, side),
+            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+        );
+        gpu.queue().submit([encoder.finish()]);
+        Shape {
+            sprite: gpu.sprite(&texture, false),
+            size: Vec2::splat(drawn_cursor::EXTENT),
+            hotspot: hotspot().to_vec2(),
+        }
+    }
+}
+
+fn hotspot() -> Pos2 {
+    Pos2::new(drawn_cursor::EXTENT / 2.0, drawn_cursor::EXTENT / 2.0)
+}
+
+/// `icon` as `drawn_cursor` paints it, with its hotspot in the middle of the picture.
+pub fn picture(context: &Context, icon: CursorIcon) -> WindowOutput {
+    let mut output = context.run(|context| {
+        drawn_cursor::paint(&context.painter(), hotspot(), icon, COLOR);
+    });
+    let mut window = output.windows.swap_remove(0);
+    window.size = Vec2::splat(drawn_cursor::EXTENT);
+    window.window.appearance.clear_color = Color32::TRANSPARENT;
+    window
 }
 
 #[cfg(test)]

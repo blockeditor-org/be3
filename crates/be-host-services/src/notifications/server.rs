@@ -227,8 +227,8 @@ impl Server {
     #[zbus(out_args("name", "vendor", "version", "spec_version"))]
     fn get_server_information(&self) -> (String, String, String, String) {
         (
-            "Block".to_owned(),
-            "Block".to_owned(),
+            "be-host".to_owned(),
+            "be-host".to_owned(),
             env!("CARGO_PKG_VERSION").to_owned(),
             "1.2".to_owned(),
         )

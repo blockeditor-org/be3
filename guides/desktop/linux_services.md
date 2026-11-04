@@ -2,7 +2,7 @@
 
 be-host-services (`crates/be-host-services`) does what the desktop app cannot do from wasm: it
 talks to D-Bus and the sound server and hands the results to the shell through `be3:desktop`
-watches (guides/desktop.md). The desktop app (`crates/be-app-desktop/src/root/`) decides
+watches (guides/desktop.md), and serves the screenshot portal's backend. The desktop app (`crates/be-app-desktop/src/root/`) decides
 everything a person sees. Notifications, the tray, media players and the session environment use
 the session bus; Wi-Fi, the backlight and logind use the system bus.
 
@@ -80,6 +80,27 @@ The desktop app's `root/tray.rs` shows every item that is not `Passive` as a `Me
 it, run an indicator program against the bus with the compositor's socket, such as a Python script
 using `gir1.2-ayatanaappindicator3-0.1`: `DBUS_SESSION_BUS_ADDRESS=ADDRESS drive exec python3
 indicator.py`.
+
+## Screenshots
+
+Programs such as flameshot take screenshots through xdg-desktop-portal's
+`org.freedesktop.portal.Screenshot`, which forwards to a backend chosen by the desktop's name.
+Under `--desktop` the host is that backend: it serves `org.freedesktop.impl.portal.Screenshot` as
+`screenshot::NAME` (`src/screenshot.rs`), asks the UI thread for the picture (be-host-desktop's
+`desktop_host::screenshot`, which is `beui_platform_drm::Displays::screenshot`: every desktop
+display's last drawn picture, upright, without the pointer, placed at the largest display scale),
+saves it as a PNG in `$XDG_RUNTIME_DIR/be-host/screenshots` and answers its `file://` URI. It
+reports interface version 1, so xdg-desktop-portal shows no access dialog first; `interactive` is
+ignored. Run in a window, be-host has no picture to give and the request fails.
+
+xdg-desktop-portal finds the backend only through files the login session installs
+(guides/desktop/login_session.md): `portals/be-host.portal`, read only from its own data
+directory, and `be-host-portals.conf`, picked because `XDG_CURRENT_DESKTOP` is `be-host`. The
+session's entry sets that name; be-host started any other way without one gives it to the programs
+it starts and the environment it exports (be-host-wayland's `Compositor::environment`). An
+xdg-desktop-portal already running keeps the name and backends it started with:
+`systemctl --user restart xdg-desktop-portal`. Flameshot before 13 uses the portal only under
+GNOME, KDE or sway.
 
 ## Media and hardware keys
 

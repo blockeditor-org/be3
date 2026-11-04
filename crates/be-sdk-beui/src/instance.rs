@@ -202,6 +202,7 @@ impl<A: BeuiRoot> Parts<A> {
                 .collect(),
             work_area: document.work_area(window),
             fitted: document.fitted_window_size(window),
+            shows_through: false,
         }
     }
 
@@ -272,9 +273,15 @@ impl<A: BeuiRoot> Parts<A> {
                 .collect(),
             work_area: document.work_area(window),
             fitted,
+            shows_through: shows_through(editor.as_ref()),
         };
         (report, views.chrome.exit().take())
     }
+}
+
+/// An editor that took its placer's frame shows the placer's world around its content.
+fn shows_through(editor: Option<&crate::Editor>) -> bool {
+    editor.is_some_and(|editor| editor.placed_content().get_untracked().is_some())
 }
 
 fn steer(document: &mut Document, control: Option<DialogControl>, host: &EditorHost, view: &View) {
@@ -354,10 +361,14 @@ impl<A: BeuiRoot> Shown for Parts<A> {
     }
 
     fn floated(&self, document: &mut Document, window: WindowId, size: beui::Vec2) -> Report {
-        if let Some(editor) = self.views.borrow().editor.as_deref() {
+        let editor = self.views.borrow().editor.as_deref().copied();
+        if let Some(editor) = &editor {
             editor.end_frame(document, window);
         }
-        Self::window_report(size, document, window)
+        Report {
+            shows_through: shows_through(editor.as_ref()),
+            ..Self::window_report(size, document, window)
+        }
     }
 
     fn before(&self, view: &View, context: &beui::native::Context, document: &mut Document) {
@@ -455,10 +466,14 @@ impl<A: BeuiRoot> Shown for Parts<A> {
             }
             ViewPlacement::Anchored => Report::default(),
             ViewPlacement::Host(_) | ViewPlacement::Dock => {
-                if let Some(editor) = self.views.borrow().editor.as_deref() {
+                let editor = self.views.borrow().editor.as_deref().copied();
+                if let Some(editor) = &editor {
                     editor.end_frame(document, window);
                 }
-                Self::window_report(view.size, document, window)
+                Report {
+                    shows_through: shows_through(editor.as_ref()),
+                    ..Self::window_report(view.size, document, window)
+                }
             }
             ViewPlacement::Parent(ParentView::ArtifactSettings) => {
                 if let Some(artifacts) = self.views.borrow().artifacts.as_ref() {

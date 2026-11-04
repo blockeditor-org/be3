@@ -118,7 +118,7 @@ pub(crate) fn start_log() -> Option<File> {
         .as_secs();
     let _ = writeln!(
         file,
-        "Block {} started a login session at {started} seconds after the Unix epoch.",
+        "be-host {} started a login session at {started} seconds after the Unix epoch.",
         crate::build()
     );
     eprintln!("be-host: the login session logs to {}", path.display());

@@ -17,12 +17,12 @@ storage. These variants install side by side:
 
 | Target | Package id | Launcher label |
 | --- | --- | --- |
-| `:android` (local) | `com.be3.block.dev` | Block (Dev) |
-| `:android-dist` (CI) | `com.be3.block.ci` | Block (CI) |
-| `:android-release` (deploy) | `com.be3.block` | Block |
+| `:android` (local) | `com.be3.host.dev` | be-host (Dev) |
+| `:android-dist` (CI) | `com.be3.host.ci` | be-host (CI) |
+| `:android-release` (deploy) | `com.be3.host` | be-host |
 
 Deploy can override its id and label with `--android-id` and `--android-label`.
-The Java activity remains `com.be3.block.MainActivity` in all variants; it is
+The Java activity remains `com.be3.host.MainActivity` in all variants; it is
 independent of the installed package id. The bundle's JSON `program_id` does not
 select the Android package or storage directory.
 
@@ -37,7 +37,7 @@ emulator if it is not running, installs the APK if it changed, launches be-host,
 It exits non-zero if be-host died. It writes `logcat.txt`, `app.log` and `screen.png` to
 `/tmp/be3-android`. `--apk PATH` installs a different APK, which is how to compare a
 branch against main. The runner defaults to the dev package; for a CI or
-deployed APK also pass `--package com.be3.block.ci` or `--package com.be3.block`.
+deployed APK also pass `--package com.be3.host.ci` or `--package com.be3.host`.
 `./scripts/android-emulator stop` shuts the emulator down.
 
 The APK only carries arm64 code, and the emulator is x86_64, so be-host runs under
@@ -69,7 +69,7 @@ be-host's area shrinks to what is left.
     adb shell settings put secure enabled_accessibility_services '""'    # off
 
 The first time it is turned on, TalkBack opens its own tutorial and permission prompts
-over be-host; relaunch it with `adb shell am start -n com.be3.block.dev/com.be3.block.MainActivity`.
+over be-host; relaunch it with `adb shell am start -n com.be3.host.dev/com.be3.host.MainActivity`.
 
 `input tap` is injected past TalkBack's touch exploration, so under TalkBack it still
 clicks. To touch the screen the way a finger does, write to the touchscreen's device with

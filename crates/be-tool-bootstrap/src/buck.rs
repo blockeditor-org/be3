@@ -247,13 +247,13 @@ pub fn write_build_id() -> Result<()> {
     let program_id = std::env::var("BE3_PROGRAM_ID")
         .ok()
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "BlockDev".to_owned());
-    if program_id != "Block" && program_id != "BlockDev" {
+        .unwrap_or_else(|| "be-host-dev".to_owned());
+    if program_id != "be-host" && program_id != "be-host-dev" {
         return Err("Invalid BE3_PROGRAM_ID".to_owned());
     }
     let text = if std::env::var("BE3_DEPLOY_DEFAULT_SERVER").is_ok_and(|value| value == "true") {
         format!(
-            "{{\"id\":\"{id}\",\"program_id\":\"{program_id}\",\"default_server\":{{\"name\":\"Block\",\"api_url\":\"https://api.be3.pfg.pw\",\"auth_url\":\"https://api.be3.pfg.pw/auth\",\"gateway_required\":true}}}}\n"
+            "{{\"id\":\"{id}\",\"program_id\":\"{program_id}\",\"default_server\":{{\"name\":\"be3\",\"api_url\":\"https://api.be3.pfg.pw\",\"auth_url\":\"https://api.be3.pfg.pw/auth\",\"gateway_required\":true}}}}\n"
         )
     } else {
         format!("{{\"id\":\"{id}\",\"program_id\":\"{program_id}\"}}\n")

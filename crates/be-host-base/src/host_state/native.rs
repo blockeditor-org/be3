@@ -96,7 +96,7 @@ impl HostStateStore {
                     }
                 }
                 crate::notices::report(format!(
-                    "This device's saved sign-ins came from an incompatible build of Block, so they were cleared: {problems}"
+                    "This device's saved sign-ins came from an incompatible build of be-host, so they were cleared: {problems}"
                 ));
                 Self::with_connection(be_block_sqlite_schema::open(path)?)
                     .map_err(Opened::into_error)

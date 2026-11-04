@@ -13,6 +13,8 @@ fn host_window_messages_round_trip() {
             command: vec!["foot".into(), "--server".into()],
             launch: Some(9),
         },
+        size: Some(Vec2::new(640.0, 480.0)),
+        maximized: true,
     };
     watched_round_trips::<WindowsWatch>(vec![window.clone()]);
     {

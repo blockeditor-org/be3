@@ -157,7 +157,7 @@ pub(crate) async fn decide(
     let code = code.trim().to_ascii_lowercase();
     let mut pending = services.browser_auth.pending.lock().unwrap();
     let entry = pending.get_mut(&code).filter(|entry| entry.expires > Instant::now() && entry.account.is_none() && !entry.denied)
-        .ok_or_else(|| invalid("This code is invalid, expired, denied, or already approved. Start sign-in again in Block."))?;
+        .ok_or_else(|| invalid("This code is invalid, expired, denied, or already approved. Start sign-in again in be-host."))?;
     entry.account = account;
     entry.approved_by = issuer.into();
     entry.denied = account.is_none();
@@ -169,16 +169,16 @@ pub(crate) fn code_status(services: &Services, code: &str) -> Result<(), ServerE
     let pending = services.browser_auth.pending.lock().unwrap();
     match pending.get(&code.trim().to_ascii_lowercase()) {
         None => Err(invalid(
-            "This code is invalid or expired. Start sign-in again in Block.",
+            "This code is invalid or expired. Start sign-in again in be-host.",
         )),
         Some(entry) if entry.expires <= Instant::now() => Err(invalid(
-            "This sign-in expired. Start sign-in again in Block.",
+            "This sign-in expired. Start sign-in again in be-host.",
         )),
         Some(entry) if entry.denied => Err(invalid(
-            "This sign-in was denied. Start sign-in again in Block.",
+            "This sign-in was denied. Start sign-in again in be-host.",
         )),
         Some(entry) if entry.account.is_some() => Err(invalid(
-            "This sign-in was already approved. Return to Block.",
+            "This sign-in was already approved. Return to be-host.",
         )),
         Some(_) => Ok(()),
     }

@@ -19,7 +19,7 @@ guide is for what that does not cover.
 ## Data directories
 
 The bundle's `build-info.json` selects be-host's identity: local builds, release ones included,
-use `BlockDev` (`~/.local/share/blockdev` on Linux), and deploy uses `Block`. They keep separate
+use `be-host-dev` (`~/.local/share/be-host-dev` on Linux), and deploy uses `be-host`. They keep separate
 accounts, workspaces and caches.
 
 One be-host runs on a data directory at a time: it holds an advisory lock on `instance.lock` there
@@ -40,9 +40,9 @@ with every app beside it. Install the tools first (`sudo apt-get install xvfb xd
 
     Xvfb :99 -screen 0 1280x800x24 -nolisten tcp &
     export DISPLAY=:99
-    BEUI_LAYERS=drive BEUI_DRIVE_SOCKET=/tmp/block.sock XDG_DATA_HOME=/tmp/block-data \
-        ./scripts/buck run //crates/be-host:native -- --dev-workspace > /tmp/block.log 2>&1 &
-    WINDOW=$(xdotool search --sync --onlyvisible --name '^Block$' | head -n 1)
+    BEUI_LAYERS=drive BEUI_DRIVE_SOCKET=/tmp/be-host.sock XDG_DATA_HOME=/tmp/be-host-data \
+        ./scripts/buck run //crates/be-host:native -- --dev-workspace > /tmp/be-host.log 2>&1 &
+    WINDOW=$(xdotool search --sync --onlyvisible --name '^be-host$' | head -n 1)
     xdotool windowfocus --sync $WINDOW
 
 There is no window manager, so nothing else gives the window focus; if keys stop arriving,
@@ -56,8 +56,8 @@ There is no window manager, so nothing else gives the window focus; if keys stop
 Without `--window $WINDOW`, keys go to whichever window has focus. `click 3` is the
 right button and `click 4`/`click 5` scroll; `mousedown 1`, `mousemove` and `mouseup 1` drag.
 xdotool's coordinates are the window's pixels, the same as the tree's, and with
-the drive layer stacked `drive --socket=/tmp/block.sock tree` reads the tree and
-`drive --socket=/tmp/block.sock settle` waits for the host to settle in between. xdotool
+the drive layer stacked `drive --socket=/tmp/be-host.sock tree` reads the tree and
+`drive --socket=/tmp/be-host.sock settle` waits for the host to settle in between. xdotool
 returns before the host has drawn, so settle before reading anything.
 
 A window also shows how apps' frames arrive relative to each other, which the headless

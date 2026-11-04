@@ -137,6 +137,7 @@ pub(super) enum Heard {
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, be_sdk_api::embed::blocks::Call),
     Watch(EditorInstanceId, be_sdk_api::ops::MethodId),
+    Unwatch(EditorInstanceId, be_sdk_api::ops::MethodId),
     Published(EditorInstanceId, be_sdk_api::ops::Started),
     Debug(EditorInstanceId, DebugCall),
     Ended(be_sdk_api::ops::OpId),

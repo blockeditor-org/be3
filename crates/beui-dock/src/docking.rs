@@ -334,7 +334,7 @@ impl<K: DockKey> DockingLayout<K> {
     pub fn focused(&self) -> Option<K> {
         let tab = match self.hosted(|hosted| hosted.focused) {
             Some(focused) => focused?,
-            None => self.state.with(DockState::focused_tab)?,
+            None => self.state.with(DockState::focused_or_host)?,
         };
         self.key_of(self.outermost(tab))
     }

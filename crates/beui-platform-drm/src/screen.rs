@@ -114,6 +114,11 @@ impl Screen {
         self.rotation
     }
 
+    /// Reads back the last picture drawn, upright and without the pointer.
+    pub fn capture(&self, gpu: &Gpu) -> Option<beui_runner::renderer::Capture> {
+        beui_host::native::read_texture(gpu.device(), gpu.queue(), &self.retained)
+    }
+
     fn picture_size(&self) -> Vec2 {
         vec2(self.picture.0 as f32, self.picture.1 as f32)
     }
