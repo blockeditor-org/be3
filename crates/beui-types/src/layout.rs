@@ -55,6 +55,10 @@ pub enum ItemSize {
     #[default]
     Intrinsic,
     Fixed(f32),
+    /// A weight in the bounded space left over. A list measured intrinsically has none
+    /// to share, so its percent children fall back to their intrinsic length there, like
+    /// CSS `height: 50%` in an auto-height parent; a percent scroll, which measures as
+    /// nothing, collapses there, so give it a fixed length.
     Percent(f32),
 }
 
