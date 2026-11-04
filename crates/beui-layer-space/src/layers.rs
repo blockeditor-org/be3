@@ -131,6 +131,13 @@ fn order(a: &Shape, b: &Shape, eye: Vec3) -> Option<Order> {
     }
 }
 
+/// Picks the panels a headset shows as OpenXR composition layers, which the
+/// runtime's compositor samples once, so text stays sharp. A candidate faces the
+/// eye, is held by no gesture, fits the runtime's swapchains and, when bent, needs
+/// cylinder layers; the biggest-looking go first, up to the allowance. Layers are
+/// composited back to front with no depth, so a panel whose order to another
+/// chosen one is unclear (two that can overlap on screen must each lie wholly
+/// behind or in front of the other's plane) stays in the eye buffer instead.
 pub fn choose(candidates: &[Candidate], eye: Vec3, allowance: &Allowance) -> Vec<PanelLayer> {
     let mut usable: Vec<(usize, Shape, f32)> = candidates
         .iter()

@@ -8,6 +8,15 @@ use beui_renderer_wgpu::present::{OpenDevice, OpenGpu, plain_instance};
 use crate::Status;
 use crate::headset::{Missing, RETRY, Runtime, Xr};
 
+/// Finds a headset. It tries at once, then every `RETRY` on its own thread: load
+/// the runtime and make an instance, then ask for a system, keeping the instance
+/// while the answer is `FORM_FACTOR_UNAVAILABLE`, so SteamVR or a headset started
+/// later is found without restarting SteamVR. Each status change wakes the loop.
+///
+/// It is also the renderers' `OpenGpu`, since the runtime picks the GPU: it opens
+/// the device through the `Xr` it found (else a plain one) and reports `stale` once
+/// it has found an `Xr` the device was not opened through, so the renderer reopens
+/// its device as after a lost GPU.
 #[derive(Clone)]
 pub struct Link {
     inner: Arc<Inner>,
@@ -107,6 +116,9 @@ impl Link {
         self.state().waker = Some(waker);
     }
 
+    /// After an instance loss: the device holds its `Xr` only weakly, since the
+    /// Khronos loader allows one instance at a time, so the headset drops it and the
+    /// `Link` looks again.
     pub fn lost(&self, xr: &Xr) {
         let mut state = self.state();
         if state.opened.as_ref().is_some_and(|opened| opened.same(xr)) {
