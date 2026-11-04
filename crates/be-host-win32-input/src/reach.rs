@@ -46,6 +46,7 @@ impl Target {
     }
 }
 
+/// The one place that refuses injection into an elevated window or while the secure desktop is up.
 pub fn target(snapshot: &Snapshot, entry: &Entry) -> Result<Target, InjectError> {
     if snapshot.secure_desktop() {
         return Err(InjectError::SecureDesktop);

@@ -10,6 +10,9 @@ use smithay::wayland::xdg_activation::{
 
 use crate::state::{ServerEvent, State, WindowId};
 
+/// A client's token works once, within this time on the frame clock, and only while the keyboard
+/// is still where it was when the token was made. Tokens the compositor hands to programs it
+/// starts (`XDG_ACTIVATION_TOKEN`) are honoured whatever has the keyboard.
 pub(crate) const TOKEN_LIFETIME: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Copy, Debug)]

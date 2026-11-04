@@ -206,6 +206,9 @@ impl State {
 
 struct EachPointOnItsOwn;
 
+/// Each touch point goes to the surface it went down on. smithay's default grab sends every later
+/// finger to the first one's surface. A side effect: a client's `start_drag` from a touch serial
+/// finds no smithay touch grab to take over, so touch drag and drop does not start.
 impl<D: SeatHandler + 'static> TouchGrab<D> for EachPointOnItsOwn {
     fn down(
         &mut self,

@@ -18,6 +18,12 @@ use crate::reach::{InjectError, Target, target};
 use crate::synth::{Event, INJECTED, LayoutKey, Synth, plan};
 
 // unsafe(ffi)
+/// Injects into an entry with `SendInput` after bringing its window forward.
+///
+/// A key with a physical place goes by its scan code; one without (the on-screen keyboard,
+/// `drive type`) goes as `KEYEVENTF_UNICODE` text, or, for a shortcut, as the virtual key that
+/// types its character on the foreground window's layout (`VkKeyScanExW`); only a named key falls
+/// back to its US scan code, which every layout shares.
 pub fn inject(
     snapshot: &Snapshot,
     entry: &Entry,

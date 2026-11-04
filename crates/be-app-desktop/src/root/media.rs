@@ -28,6 +28,8 @@ pub(crate) enum MediaKey {
     Stop,
 }
 
+/// The one place that says which key does what. Bound as intercepting actions, so they reach the
+/// shell while a program has the keyboard and while the screen is locked.
 pub(crate) const BINDINGS: [(Key, MediaKey); 10] = [
     (Key::VolumeUp, MediaKey::VolumeUp),
     (Key::VolumeDown, MediaKey::VolumeDown),
