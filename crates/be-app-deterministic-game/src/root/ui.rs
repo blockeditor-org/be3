@@ -579,7 +579,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
         <Floating anchor open={open}>
             <Frame padding=BANNER_MARGIN>
                 <Frame
-                    fill=ColorRole::SurfaceRaised
+                    fill=ColorRole::Surface
                     radius={Radius::Tab}
                     padding={Padding::symmetric(Space::Lg, Space::Md)}
                     border={Border::new(ColorRole::Border).width(Stroke::Hairline)}

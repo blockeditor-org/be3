@@ -284,7 +284,7 @@ fn tab_fill(
         move || match (selected.get(), hovered.get() || active.get(), dragged.get()) {
             (_, _, true) => ColorRole::AccentSoft,
             _ if noticed.get() => ColorRole::AccentSoft,
-            (true, _, false) => ColorRole::SurfaceRaised,
+            (true, _, false) => ColorRole::Control,
             (false, true, false) => ColorRole::Hover,
             (false, false, false) => ColorRole::Surface,
         },
@@ -532,7 +532,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
         <Frame
             @node_ref=&card
             width=width
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={dialog_outline(focused, create_memo(move || attention.get()))}
             radius=CARD_RADIUS
             padding=CHROME_PADDING
@@ -989,7 +989,7 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
     view! {
         <Frame
             opacity=PREVIEW_OPACITY
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Control
             border={Border::FOCUS}
             radius=TAB_RADIUS
             height=TAB_HEIGHT

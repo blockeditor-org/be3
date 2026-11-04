@@ -178,7 +178,7 @@ fn AnchoredPopover(
         false => 0.0,
     });
     let fill = create_memo(move || match drawn.get() {
-        true => ColorRole::SurfaceRaised,
+        true => ColorRole::Surface,
         false => ColorRole::None,
     });
     let border = create_memo(move || drawn.get().then_some(Border::DEFAULT));

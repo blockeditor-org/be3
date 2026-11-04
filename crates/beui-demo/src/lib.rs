@@ -313,11 +313,7 @@ impl Page {
 #[derive(Clone, Copy)]
 struct Today(Date);
 
-const WINDOW_BACKGROUNDS: [ColorRole; 3] = [
-    ColorRole::Background,
-    ColorRole::Surface,
-    ColorRole::SurfaceRaised,
-];
+const WINDOW_BACKGROUNDS: [ColorRole; 2] = [ColorRole::Background, ColorRole::Surface];
 
 #[derive(Clone, Copy)]
 struct DemoWindow {

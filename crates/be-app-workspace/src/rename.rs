@@ -14,7 +14,7 @@ impl be_sdk_beui::BeuiRoot for RenameRoot {
         let renaming = editor.host().renaming();
         let clear_color = match renaming.is_some_and(|rename| rename.sheet) {
             true => ColorRole::None,
-            false => ColorRole::SurfaceRaised,
+            false => ColorRole::Surface,
         };
         let shown = match renaming {
             Some(rename) => view! {

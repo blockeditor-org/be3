@@ -22,7 +22,7 @@ pub(crate) fn DockSwitchPanel(handle: DockSwitchHandle) -> NodeId {
         <Frame
             width=PANEL_WIDTH
             radius=Radius::Lg
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             padding=PANEL_PADDING
         >
