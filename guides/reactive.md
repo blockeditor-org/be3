@@ -101,8 +101,8 @@ from anywhere on the UI thread: a write made while another document, or none,
 is installed does not run this document's effects outside its frame. Each
 document registers `wake_zone_with` with the `Context` showing it, which passes
 it to the platform's `Waker`, so the window draws a frame without the writer
-asking. A wake raised during a frame is held to its end and asks for another
-frame only if the zone still has effects parked.
+asking. A wake raised during a frame asks for another only if the zone still
+has effects parked at its end.
 
 ## Pausing
 
@@ -257,8 +257,7 @@ A node belongs to the scope current when it was made, like an effect, and
 disposing that scope removes it; a scope's nodes, effects and cleanups go
 together. Code in `build`'s closure belongs to the document's root scope
 (`Document::reactive_scope`). Anything that drops part of a view on its own
-keeps a `Scope` for it and drops that. A component that returns a value rather
-than a node also lives as long as the scope that built it.
+keeps a `Scope` for it and drops that.
 
 The owning scope and the holding parent can differ: removing a node detaches
 children owned by another live scope (what lets a `Portal` show a subtree built
