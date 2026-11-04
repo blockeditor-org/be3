@@ -771,6 +771,8 @@ impl ContentStore {
         }
     }
 
+    /// Holds the editor's operations back until called with false, to test what the editor
+    /// shows before the host has taken an edit.
     pub fn defer(&self, defer: bool) {
         let deferred = {
             let mut inner = self.0.borrow_mut();
