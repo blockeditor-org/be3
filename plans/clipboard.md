@@ -90,8 +90,9 @@ one; `clipboard_cache` goes.
   reference moves nothing. The first paste uses up the record, so later pastes
   add references. A clip another program wrote can only ask for a reference,
   checked against access.
-- A block cut and never pasted is deleted, as any block its parent no longer
-  shows.
+- A block cut and never pasted needs no work here. Cutting removes it from its
+  parent's content, exactly as deleting it there does, so it is cleaned up the
+  way a deleted block is.
 
 ### Drag and drop
 
