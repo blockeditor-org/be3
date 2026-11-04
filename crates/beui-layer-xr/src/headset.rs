@@ -325,6 +325,11 @@ pub struct Headset {
     lost: Option<Lost>,
 }
 
+/// `Session`: the headset went away; it reopens on the same device once the
+/// system is found again. `Instance`: the runtime quit; everything is dropped and
+/// the `Link` looks again. `Ended`: the runtime closed the session (or swapchains
+/// could not be made); space stays the simulator for the rest of the run, so a
+/// runtime that closes the program is not answered by opening it again.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Lost {
     Session,
@@ -463,6 +468,8 @@ impl Headset {
         }
     }
 
+    /// Blocks in `xrWaitFrame` and returns the predicted display time, which becomes
+    /// the frame clock. A frame begun and not submitted is ended empty here.
     pub fn pace(&mut self) -> Option<Instant> {
         let xr = self.xr.clone();
         let mut state = xr.0.state();
@@ -577,6 +584,8 @@ impl Headset {
         Some(frame)
     }
 
+    /// Locates the eyes again for the frame's display time just before drawing, so
+    /// the views drawn are the ones the projection layer names.
     pub fn relocate(&mut self) -> Option<Vec<View>> {
         let xr = self.xr.clone();
         let mut state = xr.0.state();
@@ -612,6 +621,11 @@ impl Headset {
         }
     }
 
+    /// Keeps a swapchain per layered window, dropped `RETIRED_FRAMES` after it stops
+    /// being layered once the GPU is done with it, and acquires an image only when the
+    /// window's version changed, so an idle panel costs no copy. Layers go under the
+    /// projection layer, farthest first, and the projection layer blends by alpha
+    /// over the holes space leaves for them.
     pub fn submit(
         &mut self,
         device: &wgpu::Device,

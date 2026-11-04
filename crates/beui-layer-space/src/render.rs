@@ -191,6 +191,12 @@ struct Pending {
     whole: bool,
 }
 
+/// A window's texture, mipmapped, at its output's pixels per point, repainting only
+/// its damage after copying its scroll inside the texture. A window that changes
+/// size gets a new texture but keeps its renderer
+/// (decisions/beui_space_keeps_one_renderer_per_texture.md). Panels sample with
+/// a level-of-detail bias (`SHARPEN` in space.wgsl), so a texture up to 1.4 times
+/// the panel's on-screen size is read from its sharpest level.
 struct Panel {
     renderer: beui_renderer_wgpu::Renderer,
     size: (u32, u32),

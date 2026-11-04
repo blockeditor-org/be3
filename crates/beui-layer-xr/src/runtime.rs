@@ -8,6 +8,11 @@ pub struct Loaded {
 }
 
 // unsafe(ffi)
+/// The system's `openxr_loader` if there is one, else the active runtime's own
+/// library found as the Khronos loader finds it (`XR_RUNTIME_JSON`, then
+/// `active_runtime.json` under the XDG config directories, or the `ActiveRuntime`
+/// registry value on Windows) and negotiated with directly, since Windows has no
+/// system loader and SteamVR ships none.
 pub fn load() -> Result<Loaded, String> {
     if let Ok(entry) = unsafe { xr::Entry::load(&()) } {
         return Ok(Loaded {

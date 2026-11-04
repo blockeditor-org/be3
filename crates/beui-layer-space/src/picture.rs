@@ -29,6 +29,13 @@ const GRID_REACH: f32 = 20.0;
 const GRID_SEGMENT: usize = 4;
 const DOT_SIDES: usize = 16;
 
+/// The scene as a painting, which the crate's painting tests compare. Panels are
+/// placed onto their projected surface cell by cell and ordered by depth per
+/// pixel as the GPU's depth test does: two overlapping flat cells are ordered where
+/// their planes' depth difference keeps one sign over the overlap; otherwise the
+/// screen is split into quarters on the pixel grid until each is decided or one
+/// pixel. A tile drops everything under the last opaque cell covering it, so a
+/// scene with no intersections paints as one tile.
 pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
     let scale = frame.pixels_per_point;
     let whole = [rect.min.x, rect.min.y, rect.max.x, rect.max.y];

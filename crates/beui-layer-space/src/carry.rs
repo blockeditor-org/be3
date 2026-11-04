@@ -21,6 +21,11 @@ pub enum Side {
     Behind,
 }
 
+/// A panel moving with a pointer. It keeps its pose relative to the head with the
+/// grabbed point on the pointer's ray (the eye's, or a laser's for `along`) at
+/// `distance`, so the mouse, steering and a laser all carry it. From the grab it
+/// turns over `TURN_SECONDS` to face the viewer and then keeps facing them, so
+/// letting go turns it no further.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Carry {
     pub window: WindowId,
@@ -71,6 +76,9 @@ impl Turn {
     }
 }
 
+/// Points the panel's normal through its centre at the eye with its up along
+/// `up` (the head's), keeping the grabbed point on the ray, so the panel shows
+/// upright however the head is rolled or pitched.
 pub fn facing(eye: Vec3, grab: Vec3, offset: Vec3, up: Vec3) -> Option<Quat> {
     let toward = eye - grab;
     let level = toward.length_squared() - offset.x * offset.x - offset.y * offset.y;
@@ -142,10 +150,14 @@ impl Carry {
         self.turn.turning(now)
     }
 
+    /// Completes the turn at once, so a panel let go mid-turn lands where the turn
+    /// would have put it.
     pub fn finish(&mut self) {
         self.turn.finished = true;
     }
 
+    /// As the mouse swings the ray, the panel turns by the ray's change of yaw about
+    /// the head's up.
     pub fn aim(&mut self, direction: Vec3) {
         let direction = direction.normalize_or(self.direction);
         let yaw = |toward: Vec3| toward.x.atan2(toward.z);
@@ -173,6 +185,16 @@ impl Carry {
             .map(|(_, side)| *side)
     }
 
+    /// Keeps the carried panel from passing through others. It moves along its ray to
+    /// the distance nearest the one asked for at which it stays on its side of every
+    /// panel it overlaps, `contact::CLEARANCE` clear, facing the viewer there.
+    ///
+    /// The side toward each other panel is decided when an overlap begins and kept
+    /// until it ends, so a window popped out in front stays in front. Scrolling (or a
+    /// laser moving) farther into a panel it rests against is held as push lines,
+    /// drawn by `ghost`; once the push reaches `PUSH_LINES` and the ghost is clear of
+    /// the other panel, the side flips. Backing off takes the push back first; letting
+    /// go or sliding off drops it. A two-hand hold is not stopped.
     pub fn settle(
         &mut self,
         head: &Head,
