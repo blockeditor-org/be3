@@ -1,3 +1,10 @@
+//! wgpu's custom backend over the `be3:gpu` guest bindings: an app's wgpu calls, answered
+//! by the host on the app's own thread.
+//!
+//! The API is what browser WebGPU exposes, since the same app runs in a browser; anything
+//! missing is an `unimplemented!` in `objects.rs`. Whatever wgpu marks `unsafe`
+//! (passthrough shaders, pipeline caches) is refused for good: apps are untrusted.
+
 mod convert;
 mod features;
 mod objects;
@@ -21,6 +28,13 @@ pub fn limits() -> wgpu::Limits {
     features::limits(&gpu::limits())
 }
 
+/// The app's device, with only the features it asks for: the guest (`features.rs`) and the
+/// host validate against those, not against what the host's device has.
+/// `indirect-first-instance` cannot be checked (the first instance is in a gpu buffer), so
+/// an app that did not request it gets whatever the host's device does.
+///
+/// Calling it again after `Device::destroy` is how an app gets a working device back:
+/// destroying drops only the app's view of the host's shared device.
 pub fn request_device(
     descriptor: &wgpu::DeviceDescriptor<'_>,
 ) -> Result<(wgpu::Device, wgpu::Queue), String> {
@@ -38,6 +52,9 @@ pub fn request_device(
     ))
 }
 
+/// Runs the callbacks of maps, `on_submitted_work_done`, compilation info and device loss
+/// that settled since the last poll. The host only wakes the app; nothing is called back
+/// until the guest polls, which be-sdk does at the start of every step.
 pub fn poll() {
     objects::settle(false);
 }

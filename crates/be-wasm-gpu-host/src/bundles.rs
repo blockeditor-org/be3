@@ -6,6 +6,9 @@ use crate::{Outcome, convert, slice};
 
 const MAX_COLOR_ATTACHMENTS: usize = 8;
 
+/// A render bundle the host records itself and replays into wgpu's encoder at `finish`,
+/// since wgpu's bundle encoder borrows what it is given. wgpu has no debug markers on
+/// bundle encoders, so an app cannot ask for them.
 pub(crate) struct BundleEncoder {
     label: Option<String>,
     color_formats: Vec<Option<wgpu::TextureFormat>>,
