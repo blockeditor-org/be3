@@ -49,6 +49,12 @@ pub fn spawn(task: impl Future<Output = ()> + Send + 'static) {
         .detach();
 }
 
+/// Builds every connection, the tests' private bus included.
+///
+/// The method timeout makes a peer that never answers fail its call instead of holding the task.
+/// `ObjectManager` is served while connecting because zbus starts a connection's object server
+/// only when the first object is served and drops calls that arrive before it listens, which
+/// would lose a client's first call to a name served right after connecting.
 pub async fn build(builder: Builder<'_>) -> zbus::Result<Connection> {
     builder
         .method_timeout(METHOD_TIMEOUT)
@@ -57,6 +63,9 @@ pub async fn build(builder: Builder<'_>) -> zbus::Result<Connection> {
         .await
 }
 
+/// Runs a service until it ends or the connection closes. A service returns `Break` only when
+/// the desktop no longer wants it, and `Continue` when it cannot work on this connection (another
+/// owner holds its name), which waits for the next connection.
 pub async fn until_closed(
     connection: &Connection,
     service: impl Future<Output = ControlFlow<()>>,

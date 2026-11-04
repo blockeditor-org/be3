@@ -644,6 +644,9 @@ impl Target<'_> {
     }
 }
 
+/// Many items (every libappindicator one) have no `Activate`. As Plasma and waybar do, an item
+/// whose introspection lists none, or whose `Activate` fails with `UnknownMethod`, is published as
+/// `item_is_menu`, and the shell opens its menu instead.
 fn unknown_method(error: &zbus::Error) -> bool {
     match error {
         zbus::Error::MethodError(name, _, _) => name.as_str() == UNKNOWN_METHOD,
