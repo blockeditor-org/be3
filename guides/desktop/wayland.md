@@ -138,7 +138,7 @@ indicator. A keymap that does not compile keeps the last and toasts.
 
 ## The on-screen keyboard
 
-beui's on-screen keyboard (guides/beui/space.md, the on-screen keyboard) is the desktop's. In a login
+beui's on-screen keyboard (guides/beui/space.md, The on-screen keyboard) is the desktop's. In a login
 session it opens when a field is tapped with no keyboard plugged in; the Quick settings tile and the
 Status bar button open it regardless. The host draws it along the bottom of the focused field's
 window and lays that window out above it.
