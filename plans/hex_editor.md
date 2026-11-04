@@ -21,11 +21,16 @@ Not implemented yet. The clipboard parts are in plans/clipboard.md.
   (`options.mask`) is the precedent for showing something other than the
   source: it pushes `•` with the source range of each character. The gutter
   shows line numbers.
-- **Vertical movement.** `MoveCursorUpDown` moves by source line and byte
-  column (`move_up_down` in `beui-text-editor-core/src/core.rs`), like vim,
-  across soft-wrapped lines. `CursorHorizontalPositionMetric::Screen` is the
-  slot for asking the view; it is being built on the branch
-  `claude/text-area-visual-vertical-movement`.
+- **Vertical movement.** `CursorHorizontalPositionMetric::Screen` carries a
+  `VisualRows` (`beui-text-editor-core/src/core/rows.rs`): `caret_x(index)`
+  and `step(index, direction, x)`, which answers the next row's bytes and the
+  caret stop nearest `x`, `Edge`, or `Unknown`. The view decides what a row is;
+  `wrapped_end` marks a row whose end is the next row's start (a soft wrap, a
+  fixed-width chunk), so the caret settles a stop before it. The core keeps the
+  goal x in `VerticalMoveStart`. The text area answers from its laid-out rows
+  (`Surface::row_step`, published through `TextAreaLayout`) for Up/Down and for
+  dragging past the viewport's edge; a row not built answers `Unknown` and the
+  caret moves by source line. Home and End still go by source line.
 - **Bytes.** A text block's body is a `Sequence<u8>` and `to_file` exports it
   unchanged. Import (`claims` in `be-type-text/src/text.rs`) ignores the file
   name and refuses anything that is not UTF-8 or holds a NUL. Readers through
@@ -54,7 +59,16 @@ Not implemented yet. The clipboard parts are in plans/clipboard.md.
 ## Rows the view decides
 
 - Pluggable row breaks: a row every N bytes, the newline byte an ordinary byte.
-- Up/Down through the `Screen` metric; Home/End through the same view query.
+  Each row sets `wrapped_end`, since the next row starts where it ends.
+- Up/Down already go through `VisualRows`. With fixed rows the area can answer
+  every row by arithmetic (row `i / N`, column `i % N`), built or not, so hex
+  mode never answers `Unknown`: the source-line fallback means nothing there.
+- In hex mode `x` is the byte column, not pixels (`VisualRows` lets the view
+  pick the unit). The hex and ASCII columns then agree on it, so a mirrored
+  cursor keeps its goal column (Two linked editors).
+- Home and End by row: add a query for the bytes of the row a caret is in to
+  `VisualRows`, and use it in the text area too, where Home and End still go
+  by source line.
 - Bytes per row is one setting both columns share, chosen from the width
   (16 on a desktop, 8 or fewer on a phone).
 
@@ -85,6 +99,7 @@ cannot take clicks, drags, typing or touch handles.
 - Linked cursors: the focused editor's cursor set is copied into the other
   after every selection change, undo and redo (cursors are anchors into the
   shared document, so nothing is translated). Compositions are not copied.
+  `VerticalMoveStart` is copied too: its x is a byte column in both columns.
 - Selection handles work in either column on a phone; dragging one focuses
   that column.
 - Typing in the ASCII column inserts or overwrites characters.
@@ -97,8 +112,8 @@ cannot take clicks, drags, typing or touch handles.
 
 ## Order
 
-1. The `Screen` metric (in progress).
-2. Intact bytes and error glyphs.
+1. Intact bytes and error glyphs.
+2. Home and End by row through `VisualRows`.
 3. Display transforms, row breaks and hex mode.
 4. Overwrite mode and the pending digit.
 5. Linked editors.
