@@ -13,16 +13,23 @@ interface types {
         playback,
     }
 
+    /// Which gestures over a pan-and-zoom editor's content move the host's camera.
     enum pan-mode {
+        /// The wheel, a pinch or two-finger drag, and a middle- or space-drag.
         two-finger,
+        /// No gesture: only the editor's own controls move the view.
         none,
+        /// Also a plain drag or one finger. The press goes to the editor, which calls
+        /// `pan_drag` when it pressed on nothing of its own.
         one-finger,
     }
 
     record editor-capabilities {
         rotation: bool,
         preserve-aspect-ratio: bool,
+        /// The content has a view of its own, a camera the host owns.
         pan-and-zoom: bool,
+        /// How far past its fitted size the host lets the view zoom; 32 when none.
         max-zoom: option<u32>,
         pan: pan-mode,
     }

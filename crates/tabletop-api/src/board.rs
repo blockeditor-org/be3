@@ -11,11 +11,15 @@ const PILE_GAP: i32 = 28;
 const ROW_GAP: i32 = 20;
 const LAYOUT: u32 = u32::MAX;
 
+/// What is on the table and where. The editor scales the whole table to fit, keeping its
+/// aspect ratio, so only proportions matter; items paint in order.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
 pub struct Board {
     pub width: i32,
     pub height: i32,
     pub items: Vec<Item>,
+    /// The viewer's own cards, not on the table: shown in a bar under the board at a fixed
+    /// size however far the board is zoomed, fanned to fit.
     pub hand: Vec<HandCard>,
 }
 
@@ -85,10 +89,14 @@ impl Area {
     }
 }
 
+/// Names one thing for as long as the game shows it. Keep a piece's or card's id wherever
+/// it goes: when a new screen shows an id elsewhere, the editor slides it there.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 pub struct ItemId(pub u64);
 
 impl ItemId {
+    /// Keeps a game's kinds of thing apart. The two highest groups belong to the board and
+    /// card helpers, so a game numbers its own groups from 0.
     pub const fn new(group: u32, index: u32) -> Self {
         Self(((group as u64) << 32) | index as u64)
     }
@@ -99,6 +107,9 @@ pub struct Item {
     pub id: ItemId,
     pub area: Area,
     pub sprite: Sprite,
+    /// What a gesture names this item by. Every item on one spot is that spot: a click on
+    /// any is a click on it, it highlights as its bottom item's kind, and a drag lifts its
+    /// topmost piece or card.
     pub spot: Option<Spot>,
 }
 
@@ -116,6 +127,8 @@ pub struct HandCard {
     pub spot: Spot,
 }
 
+/// What an item is, never what it looks like: the editor draws each, so a player can pick
+/// their own skin. A `Piece`'s `seat` decides its colour.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Hash, Serialize)]
 pub enum Sprite {
     Frame,
@@ -379,16 +392,23 @@ impl Move {
         }
     }
 
+    /// The history column (seat) this move is written in. A move with none (joining,
+    /// dealing) stays out of the move table.
     pub fn column(mut self, column: u32) -> Self {
         self.column = Some(column);
         self
     }
 
+    /// A move about the game rather than the board (resigning), shown as an icon under the
+    /// move table and confirmed before it plays. Any other move needs a gesture, since the
+    /// editor shows no list of moves.
     pub fn control(mut self, control: Control) -> Self {
         self.gesture = Some(Gesture::Control(control));
         self
     }
 
+    /// What the history shows instead of the label. The history is shown to every player,
+    /// so record what the table saw (`draw`, never which card).
     pub fn recorded(mut self, history: impl Into<String>) -> Self {
         self.recorded = Some(history.into());
         self
@@ -399,6 +419,8 @@ impl Move {
         self
     }
 
+    /// Dragging one spot onto another, or clicking the first and then the second. When
+    /// several moves share a gesture the editor asks which was meant.
     pub fn drag(mut self, from: Spot, to: Spot) -> Self {
         self.gesture = Some(Gesture::Drag { from, to });
         self

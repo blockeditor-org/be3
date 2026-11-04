@@ -208,7 +208,8 @@ The `be_sdk_manifest` types document every field. What is easy to get wrong:
 - An editor with no `templates` is never in the add menu. Templates appear in
   the order written; `category` picks the menu tab.
 - `accepts` and `opens` are for shell editors: which requests from editors
-  inside it it handles (`show_block`, `dialog`, `panel`, `window`, `pick`),
+  inside it it handles (`show_block`, `dialog`, `panel`, `window`; `pick` and `rename`
+  mark the editor picker and rename children run in),
   and which editors it places as soon as it opens.
 - `network` lists the host names `fetch` may reach; `extensions` the protocol
   packages beyond the core it uses (`be_sdk_api::EXTENSIONS`, only

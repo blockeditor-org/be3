@@ -101,6 +101,8 @@ impl<'a> GameHelper<'a> {
         *self.columns.borrow_mut() = names.into_iter().map(Into::into).collect();
     }
 
+    /// Whether the moves being offered are listed for a viewer rather than matched against
+    /// the log: the only time labels are read, so a game can skip costly labels otherwise.
     pub fn listing(&self) -> bool {
         self.listing.get()
     }
@@ -111,6 +113,7 @@ impl<'a> GameHelper<'a> {
         }
     }
 
+    /// Adds to the last history line once the game knows more (chess's `+` for check).
     pub fn annotate(&self, suffix: &str) {
         if let Some(last) = self.history.borrow_mut().last_mut() {
             last.description.push_str(suffix);
@@ -128,6 +131,12 @@ impl<'a> GameHelper<'a> {
         }
     }
 
+    /// Blocks until the log supplies the next move. `body` offers each legal move by calling
+    /// `action(Move::new(..))`, which answers true for the one the log records next, so the
+    /// state update happens inline. A move is identified by its position among the offers
+    /// reached for its actor, never by its label or gesture, so a client can only name a
+    /// move it was offered. While waiting, the host may ask for any player's screen, which is
+    /// answered from `describe` and `body`.
     pub fn action<S: Into<Scene>>(
         &self,
         describe: impl Fn(Uuid) -> S,
@@ -218,6 +227,9 @@ impl<'a> GameHelper<'a> {
         self.screen(describe(player).into(), actions, false)
     }
 
+    /// Waits on the one player whose turn it is, offering the moves `choices` names; everyone
+    /// else is told they are waiting. `choices` changes the game's state, so `board` should
+    /// look at a copy taken before the turn.
     pub fn turn(
         &self,
         whose: Uuid,
@@ -236,6 +248,8 @@ impl<'a> GameHelper<'a> {
         )
     }
 
+    /// Fills the table before play: anyone may join, and once `minimum` have, any of them
+    /// may start. Answers the players in the order they joined.
     pub fn gather(
         &self,
         minimum: usize,
