@@ -9,6 +9,11 @@ pub enum Claim {
     Stale,
 }
 
+/// Session ownership. A claim succeeds only against the generation the claimant last saw, and
+/// only when the lease expired or the owner left, so a stale claim cannot stomp a newer owner.
+/// The owner renews it with `ReportClean` after every seal and every half lease on its
+/// replica's timer. `clean_at` outlives the session going empty, so a peer taking over an
+/// abandoned session can tell whether anything was unpublished.
 #[derive(Clone, Debug)]
 pub struct Lease {
     state: SessionState,

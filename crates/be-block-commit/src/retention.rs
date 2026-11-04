@@ -75,6 +75,10 @@ pub struct RetentionPlan {
     pub drop: Vec<CommitId>,
 }
 
+/// Pins bookmarks, keeps everything inside `keep_all_within`, then thins by widening age
+/// buckets, preferring in each bucket the commit with the longest quiet interval after it: a
+/// state left alone for an hour outranks the keystroke bursts around it. Runs only when a
+/// client calls `Peer::prune`.
 pub fn plan(summaries: &[CommitSummary], now: i64, policy: &RetentionPolicy) -> RetentionPlan {
     let mut ordered: Vec<_> = summaries.to_vec();
     ordered.sort_by(|left, right| right.time.cmp(&left.time).then(right.id.cmp(&left.id)));

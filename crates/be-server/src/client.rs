@@ -19,6 +19,8 @@ use crate::{
     SessionRegistry, WatchHub, browser_auth, contacts, store, watch::Push,
 };
 
+/// Items a stream keeps beyond the credit its consumer granted. A client that lets one fill up
+/// is disconnected, as is one whose hub queue (`PUSHES`) fills.
 const STREAM_BUFFER: usize = 4096;
 const PUSHES: usize = 4096;
 

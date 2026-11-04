@@ -161,6 +161,8 @@ pub(crate) const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 pub(crate) const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
+/// While more than this many frames wait to be written, a connection's loop takes no new frame,
+/// so a client that does not read its socket is slowed rather than buffered.
 const OUTBOUND_FRAMES: usize = 64;
 const INBOUND_FRAMES: usize = 16;
 const PING_FRAME_BYTES: usize = 32;

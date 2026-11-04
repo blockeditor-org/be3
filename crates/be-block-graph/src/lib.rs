@@ -277,6 +277,9 @@ impl BlockGraph {
         };
     }
 
+    /// A parent holds a child only while the parent's references list it. A block whose link
+    /// does not hold is in the trash with its subtree even when something else references it;
+    /// references from anything but the parent keep nothing alive.
     pub fn holds(&self, id: Uuid) -> bool {
         match self.blocks.get(&id).map(|node| node.parent) {
             Some(BlockParent::Root) => true,
@@ -955,6 +958,9 @@ impl BlockGraph {
     }
 }
 
+/// Reclamation is reference counting, not tracing: a block holds its commits, a commit its
+/// chunk hashes, and an object is deleted when its last holder releases it
+/// (decisions/block_reclamation_by_reference_counting.md).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ObjectRefs {
     counts: BTreeMap<Hash, u32>,
