@@ -220,6 +220,8 @@ pub(super) type OpenRequest = crate::BlockOpen;
 #[derive(Clone, Default, PartialEq)]
 pub struct Focus {
     pub block: Option<(Uuid, Uuid)>,
+    /// The editor the block is shown with when one was asked for by id.
+    pub editor: Option<Uuid>,
     pub via: Vec<Uuid>,
 }
 
@@ -2122,6 +2124,7 @@ impl Instances {
                     EditorCall::FocusChanged(be_sdk_api::shell_types::Focus {
                         block_id,
                         block_type,
+                        editor: focus.editor.map(Uuid::into_bytes),
                         via: focus.via.iter().map(|id| id.into_bytes()).collect(),
                     }),
                 ));
@@ -3516,6 +3519,7 @@ impl Instances {
                             Uuid::from_bytes(focus.block_type),
                         )
                     }),
+                    editor: focus.editor.map(Uuid::from_bytes),
                     via: focus.via.into_iter().map(Uuid::from_bytes).collect(),
                 });
             }

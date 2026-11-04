@@ -328,6 +328,7 @@ impl GuestEditor for OpenEditor {
             session.set_focused_block(crate::host::FocusedBlock {
                 block_id: focus.block_id.map(uuid::Uuid::from_bytes),
                 block_type: uuid::Uuid::from_bytes(focus.block_type),
+                editor: focus.editor.map(uuid::Uuid::from_bytes),
                 via: focus.via.into_iter().map(uuid::Uuid::from_bytes).collect(),
             })
         });

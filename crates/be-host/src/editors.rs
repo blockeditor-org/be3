@@ -14,6 +14,7 @@ pub(crate) use self::app::AppEditor;
 
 pub struct FocusReport {
     pub block: Option<(Uuid, Uuid)>,
+    pub editor: Option<Uuid>,
     pub via: Vec<Uuid>,
 }
 

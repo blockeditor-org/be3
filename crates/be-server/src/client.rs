@@ -6,9 +6,9 @@ use std::{
 
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
-    Authenticated, BlockChange, BlockEvent, BlockSummary, BrowserLogin, Collected, Contents,
-    CreatedAgent, Error, ErrorCode, Listing, OrganizationOpened, PairingMessage, RecoveryKey,
-    SessionEvent, SessionState, embed,
+    AccountStorage, Authenticated, BlockChange, BlockEvent, BlockSummary, BrowserLogin, Collected,
+    Contents, CreatedAgent, Error, ErrorCode, Listing, OrganizationOpened, PairingMessage,
+    RecoveryKey, SessionEvent, SessionState, embed,
 };
 use be_block_session::Claim;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
@@ -68,7 +68,8 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             account::Call::StorageUsage { .. } => Rule::Organization,
             account::Call::Logout { .. }
             | account::Call::Pair { .. }
-            | account::Call::Paired { .. } => Rule::SignedIn,
+            | account::Call::Paired { .. }
+            | account::Call::StorageChanged { .. } => Rule::SignedIn,
         },
         Call::Organizations(call) => match call {
             organizations::Call::Invite { organization, .. } => {
@@ -175,6 +176,8 @@ pub(crate) enum Late {
         profile: store::Profile,
         token: String,
     },
+    /// The usage of the account this connection follows may have changed.
+    Storage,
 }
 
 fn wire(error: ServerError) -> Error {
@@ -191,6 +194,7 @@ enum Route {
     Paired,
     Contacts,
     KeyWork,
+    Storage,
     Events { session: OpId, block: Place },
 }
 
@@ -265,6 +269,9 @@ pub(crate) struct Client {
     late: mpsc::UnboundedSender<Late>,
     pub(crate) lates: mpsc::UnboundedReceiver<Late>,
     streams: Streams,
+    /// The storage usage last sent to `Route::Storage`, and whether a task follows the payer's.
+    storage: Option<AccountStorage>,
+    following_storage: bool,
 }
 
 impl Client {
@@ -297,6 +304,8 @@ impl Client {
             late,
             lates,
             streams: Streams::default(),
+            storage: None,
+            following_storage: false,
         }
     }
 
@@ -348,7 +357,56 @@ impl Client {
                 let authenticated = self.connection.authenticated(profile, token).await;
                 self.reply(reply, Ok(authenticated));
             }
+            Late::Storage => self.send_storage().await,
         }
+    }
+
+    /// Sends the account's storage usage to its storage streams when it differs from the last
+    /// sent.
+    async fn send_storage(&mut self) {
+        let Ok(identity) = self.connection.identity() else {
+            return;
+        };
+        let Ok(usage) = self.connection.store.storage_usage(identity).await else {
+            return;
+        };
+        if self.storage.as_ref() == Some(&usage) {
+            return;
+        }
+        let mut lock = self.peer.lock();
+        if self
+            .streams
+            .send(&mut lock, usage.clone(), |route| *route == Route::Storage)
+            .is_ok()
+        {
+            self.storage = Some(usage);
+        }
+    }
+
+    /// Follows the payer's usage changes for this connection's storage streams, until the
+    /// connection closes.
+    fn follow_storage(&mut self, payer: Uuid) {
+        if std::mem::replace(&mut self.following_storage, true) {
+            return;
+        }
+        let mut changes = self.connection.store.usage_changes.subscribe();
+        let late = self.late.clone();
+        tokio::spawn(async move {
+            loop {
+                let changed = tokio::select! {
+                    changed = changes.recv() => changed,
+                    () = late.closed() => return,
+                };
+                let ours = match changed {
+                    Ok(changed) => changed == payer,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => true,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                };
+                if ours && late.send(Late::Storage).is_err() {
+                    return;
+                }
+            }
+        });
     }
 
     pub(crate) async fn close(self) {
@@ -748,6 +806,29 @@ impl Client {
                     return stream.fail(&mut self.peer.lock(), OpError::Denied);
                 }
                 self.streams.open(stream, Route::Paired);
+            }
+            Call::StorageChanged { stream } => {
+                let connection = &self.connection;
+                let payer = async {
+                    prelude?;
+                    connection.store.payer(connection.account()?).await
+                }
+                .await;
+                match payer {
+                    Ok(payer) => {
+                        self.streams
+                            .outlets
+                            .insert(stream, Route::Storage, Backlog::Latest);
+                        self.storage = None;
+                        self.follow_storage(payer);
+                        self.send_storage().await;
+                    }
+                    Err(error) => {
+                        let mut lock = self.peer.lock();
+                        tracing::debug!(%error, "refused a storage stream");
+                        stream.fail(&mut lock, OpError::Denied);
+                    }
+                }
             }
         }
     }

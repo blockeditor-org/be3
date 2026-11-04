@@ -675,13 +675,12 @@ pub fn storage_revision() -> u64 {
     with_shared(|shared| shared.storage_revision).unwrap_or_default()
 }
 
-/// Follows the account's storage while `on`: asks the server now, and again whenever a
-/// block changes.
+/// Follows the account's storage while `on`, from a stream the server sends it on.
 pub fn watch_storage(on: bool) {
-    let turned_on =
-        with_shared_mut(|shared| !std::mem::replace(&mut shared.storage_watched, on) && on)
+    let changed =
+        with_shared_mut(|shared| std::mem::replace(&mut shared.storage_watched, on) != on)
             .unwrap_or(false);
-    if turned_on {
+    if changed {
         send(Command::Storage);
     }
 }

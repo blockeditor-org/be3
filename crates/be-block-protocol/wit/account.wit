@@ -68,6 +68,11 @@ interface account {
     /// The signed-in account's storage usage and quota.
     storage-usage: async func() -> result<account-storage, error>;
 
+    /// The signed-in account's storage usage: its value as the stream opens,
+    /// then each new value as the bytes it pays for change. Ends at once,
+    /// denied, before sign-in.
+    storage-changed: func() -> stream<account-storage>;
+
     /// Sends a pairing message to one of the account's other connections, or
     /// to all of them with no `to`. Fails when `to` is no longer connected.
     pair: async func(to: option<client-id>, payload: list<u8>) -> result<_, error>;

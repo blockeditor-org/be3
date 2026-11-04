@@ -150,8 +150,9 @@ organization.
 
 The account's storage against its quota is not in the graph: while an editor
 watches `StorageUsageWatch`, be-host turns on `be_host_stack::watch_storage`,
-which asks the server (`account.storage-usage`) on connecting and again after
-each `BlockChanged`, one call out at a time, and publishes each new answer.
+which follows the server's `account.storage-changed` stream (opened again on
+reconnecting) and publishes each value; a stream that ends while connected
+sets the stack's error.
 
 Everything asks the mirror through `Query` (`Roots`, `Detached`, `Shared`,
 `Children`, `References`, `Backrefs`, `Parents`, `Block`, `Subtree`), and
