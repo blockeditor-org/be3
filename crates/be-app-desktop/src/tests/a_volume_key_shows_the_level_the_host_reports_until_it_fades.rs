@@ -43,6 +43,23 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
     });
     fixture.settle();
     assert!(fixture.test.shown("desktop.osd.0"), "the new volume shows");
+    let card = fixture.test.rect_of("desktop.osd.0");
+    assert!(
+        fixture
+            .test
+            .occluders()
+            .iter()
+            .any(|occluder| occluder.rect == card),
+        "the level covers the windows under its card"
+    );
+    assert!(
+        fixture
+            .test
+            .occluders()
+            .iter()
+            .all(|occluder| !occluder.rect.contains_rect(card) || occluder.rect == card),
+        "and nothing around the card, so windows show through its margin"
+    );
     fixture.test.snapshot("a_volume_key_shows_the_volume");
 
     assert!(fixture.test.host_key(Modifiers::NONE, Key::BrightnessUp));
