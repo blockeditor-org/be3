@@ -137,6 +137,15 @@ impl<K> Copy for State<K> {}
 
 type Nodes<K> = Stored<RefCell<HashMap<K, NodeRef>>>;
 
+/// Gives each row the tree's keyboard and `TreeItem` accessibility, and
+/// nothing more: where a pointer must land to select is the face's choice,
+/// through the handle's `select`, `toggle` and `hover`.
+///
+/// The arrow keys, Home, End and typing move between rows without selecting;
+/// Enter or Space selects. Given `on_open`, Enter and a second click also
+/// report it. A press that travels a few pixels reports `on_drag_start` and
+/// drops its click, so a row can be dragged out without being selected.
+/// Choosing a row never expands, collapses or scrolls anything.
 #[component]
 pub fn Tree<K>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TreeApi<K>>,
@@ -489,6 +498,12 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
     }
 }
 
+/// The rename field a face places for a row whose handle reads `editing`.
+///
+/// It opens focused with everything selected. Enter or losing focus reports
+/// `on_rename` with the trimmed name; Escape, or an empty or unchanged name,
+/// reports `on_cancel_edit`. Either way the caller clears `editing`, and the
+/// keyboard returns to the row. Keys typed here don't reach the tree.
 #[component]
 pub fn TreeRowEditor(
     edit: TreeRowEdit,
