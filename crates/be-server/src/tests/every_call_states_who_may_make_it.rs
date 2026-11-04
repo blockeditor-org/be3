@@ -88,6 +88,10 @@ impl TestClient {
                 answered(client::account::authenticate(peer, Some("not a token".into())).await),
             ),
             (
+                "storage-usage",
+                answered(client::account::storage_usage(peer).await),
+            ),
+            (
                 "pair",
                 answered(client::account::pair(peer, None, sealed()).await),
             ),

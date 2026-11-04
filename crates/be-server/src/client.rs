@@ -65,6 +65,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             | account::Call::FinishBrowserLogin { .. }
             | account::Call::CreateLocalProfile { .. }
             | account::Call::Authenticate { .. } => Rule::Anyone,
+            account::Call::StorageUsage { .. } => Rule::Organization,
             account::Call::Logout { .. }
             | account::Call::Pair { .. }
             | account::Call::Paired { .. } => Rule::SignedIn,
