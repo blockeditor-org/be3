@@ -20,8 +20,8 @@ impl TextGeometry {
         self.0.bounds()
     }
 
-/// The scale of the space the text sits in: multiply a length of the text's own
-/// (a padding) by it before comparing with window positions.
+    /// The scale of the space the text sits in: multiply a length of the text's own
+    /// (a padding) by it before comparing with window positions.
     pub fn scale(&self) -> f32 {
         self.0.scale()
     }
