@@ -42,7 +42,7 @@ line and a new shell starts. After the shell exits, the next key starts another.
 ## Input
 
 Viewers send `TerminalMessage`s to the client in `Terminal::host` as peer messages
-(guides/the_new_block_stack.md, Peer messages), only while it shows `TerminalHost` and only from
+(guides/blocks/apps.md, Peer messages), only while it shows `TerminalHost` and only from
 a viewer that may edit. The host and be-host are replicas of one session, so both need the same
 build of the type module (guides/type_modules.md); `be` carries that build in its executable.
 

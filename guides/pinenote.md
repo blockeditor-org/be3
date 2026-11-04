@@ -54,5 +54,6 @@ lists `application/epub+zip` in `MimeType` (the AppImage needs one written for i
 Copy DIR to the PineNote and run `DIR/be-host --install-login-session` there; it also lists the
 session in `/etc/greetd/environments` for gtkgreet's menu. On first sign-in be-host finds the
 e-paper panel and makes the device's settings profile an E-paper tablet (E-paper theme, instant
-motion, the rotate button). The panel reports 210 × 157 mm on a `DPI` connector, which gives a
+motion, the rotate button; guides/blocks/workspaces.md, The account's Settings block and device
+profiles). The panel reports 210 × 157 mm on a `DPI` connector, which gives a
 scale of 1.5 (guides/desktop/linux.md, Displays).
