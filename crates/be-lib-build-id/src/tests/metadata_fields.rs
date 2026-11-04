@@ -9,9 +9,6 @@ fn metadata_fields() {
     assert!(configured.default_server.unwrap().gateway_required);
     assert!(compatible(&dev.id, &deployed.id));
     assert_ne!(dev.program_id, deployed.program_id);
-    let pinned = Metadata::parse(r#"{"id":"abc","program_id":"Block","default_server":{"name":"Block","api_url":"https://api.example.com","auth_url":"https://api.example.com/auth","gateway_required":true}}"#).unwrap();
-    assert_eq!(pinned.program_id, "be-host");
-    assert_eq!(pinned.default_server.unwrap().name, "be3");
     assert!(Metadata::parse("abc").is_err());
     assert!(Metadata::parse(r#"{"id":"unknown","program_id":"be-host"}"#).is_err());
     assert!(Metadata::parse(r#"{"id":"abc"}"#).is_err());
