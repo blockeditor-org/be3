@@ -1251,8 +1251,8 @@ impl Document {
         ctx.show_mouse_simulation(rect);
     }
 
-/// Runs once the frame's input has been dispatched and before anything is laid
-/// out, to start work that input caused while the document lays out.
+    /// Runs once the frame's input has been dispatched and before anything is laid
+    /// out, to start work that input caused while the document lays out.
     pub fn on_interacted(&mut self, interacted: impl Fn() + 'static) {
         self.interaction_done = Some(Rc::new(interacted));
     }
@@ -2002,19 +2002,19 @@ impl Document {
             .unwrap_or_else(|| panic!("component has no {} state", std::any::type_name::<T>()))
     }
 
-/// Runs `report` after the layout walk. Reports run together, and whatever they
-/// change is laid out again (only the changed nodes and their ancestors) until
-/// nothing changes, at most eight layouts a frame. Prefer reporting what drives
-/// paint rather than layout: each extra layout costs the frame.
+    /// Runs `report` after the layout walk. Reports run together, and whatever they
+    /// change is laid out again (only the changed nodes and their ancestors) until
+    /// nothing changes, at most eight layouts a frame. Prefer reporting what drives
+    /// paint rather than layout: each extra layout costs the frame.
     pub fn report_after_layout(&mut self, report: impl FnOnce() + 'static) {
         self.reports.push(Box::new(report));
     }
 
-/// Builds `node`'s own subtree while it is being laid out: lends this
-/// `&mut Document` to `with_document` calls inside `build`, and keeps what the
-/// build invalidates from marking `node` or its ancestors, which are mid-layout.
-/// Flush the build with `ScopeContext::flush_owned`; writes to signals outside the
-/// subtree wake their effects once the walk ends.
+    /// Builds `node`'s own subtree while it is being laid out: lends this
+    /// `&mut Document` to `with_document` calls inside `build`, and keeps what the
+    /// build invalidates from marking `node` or its ancestors, which are mid-layout.
+    /// Flush the build with `ScopeContext::flush_owned`; writes to signals outside the
+    /// subtree wake their effects once the walk ends.
     pub fn build_within<R>(&mut self, node: NodeId, build: impl FnOnce() -> R) -> R {
         let outer = self.arena.fence(Some(node));
         let built = crate::current::lend(self, build);
@@ -2022,9 +2022,9 @@ impl Document {
         built
     }
 
-/// For a node whose own size changed while it was laid out (a `VirtualList` whose
-/// rows measured differently): it is measured again in the next layout of this
-/// frame.
+    /// For a node whose own size changed while it was laid out (a `VirtualList` whose
+    /// rows measured differently): it is measured again in the next layout of this
+    /// frame.
     pub fn invalidate_after_layout(&mut self, id: NodeId) {
         self.invalidated.push(id);
     }
