@@ -428,7 +428,10 @@ impl AppEditor {
     }
 
     pub(crate) fn reorder_child(&self, child: Uuid, after: Option<Uuid>) -> Option<bool> {
-        if !be_host_stack::discovery::block_type(self.block_type)?.children.reorder {
+        if !be_host_stack::discovery::block_type(self.block_type)?
+            .children
+            .reorder
+        {
             return Some(false);
         }
         self.change_child(be_block::ChildChange::Reorder {

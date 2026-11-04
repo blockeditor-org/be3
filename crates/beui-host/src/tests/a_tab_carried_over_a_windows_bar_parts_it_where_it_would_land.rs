@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::{TabId};
+use crate::dock::TabId;
 use crate::dock_host::unstyled::DockApi;
 
 #[test]

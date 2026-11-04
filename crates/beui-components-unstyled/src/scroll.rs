@@ -14,7 +14,7 @@ use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
 use beui_view::components::overlay::Overlay;
 use beui_view::drag::EdgeScroller;
 use beui_view::escape::beui_html::{
-    Event as HtmlEvent, Node as HtmlNode, attr, elements as html, on,
+    Event as HtmlEvent, Node as HtmlNode, elements as html, on,
 };
 use beui_view::escape::html_escape;
 use beui_view::primitives::*;
@@ -265,9 +265,6 @@ impl Momentum {
 }
 
 const EDGE_GAIN: f32 = 3.0;
-
-const CONTENT_CLIP: &str =
-    "display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); overflow: clip";
 
 fn edge_scroll(
     node: NodeRef,
@@ -1098,7 +1095,7 @@ fn BrowserScroll(
                 on_blur={move |_: HtmlEvent| focused.set(false)}
                 @on={("scroll", move |_: HtmlEvent| scrolled())}
             >
-                <html::Div @attr={("style", CONTENT_CLIP.to_owned())}>{content}</html::Div>
+                {content}
             </html::Div>
         };
         scroller.with(|held| *held.borrow_mut() = Some(element.clone()));

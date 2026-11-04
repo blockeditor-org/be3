@@ -10,27 +10,27 @@ fn dragging_a_panes_grip_onto_a_bar_parts_it_where_its_tabs_land() {
         let layout = DockingLayout::new();
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
-<dock::Docking layout>
-                <DockSplit id="split">
-                    <DockPane id="left">
-                        <DockTab id=1u64 title="Tab 1">
-                            <Frame @test_id="content.1" />
-                        </DockTab>
-                        <DockTab id=2u64 title="Tab 2">
-                            <Frame @test_id="content.2" />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane id="right">
-                        <DockTab id=3u64 title="Tab 3">
-                            <Frame @test_id="content.3" />
-                        </DockTab>
-                        <DockTab id=4u64 title="Tab 4">
-                            <Frame @test_id="content.4" />
-                        </DockTab>
-                    </DockPane>
-                </DockSplit>
-            </dock::Docking>
-</dock_host::styled::DockHost>
+                <dock::Docking layout>
+                    <DockSplit id="split">
+                        <DockPane id="left">
+                            <DockTab id=1u64 title="Tab 1">
+                                <Frame @test_id="content.1" />
+                            </DockTab>
+                            <DockTab id=2u64 title="Tab 2">
+                                <Frame @test_id="content.2" />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="right">
+                            <DockTab id=3u64 title="Tab 3">
+                                <Frame @test_id="content.3" />
+                            </DockTab>
+                            <DockTab id=4u64 title="Tab 4">
+                                <Frame @test_id="content.4" />
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

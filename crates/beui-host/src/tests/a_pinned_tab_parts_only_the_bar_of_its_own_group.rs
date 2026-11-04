@@ -8,24 +8,24 @@ fn a_pinned_tab_parts_only_the_bar_of_its_own_group() {
         let layout = DockingLayout::new();
         view! {
             <dock_host::styled::DockHost>
-<dock::Docking layout focus=10u64>
-                <DockPane id="main">
-                    <DockTab id=1u64 title="Tab 1">
-                        <Frame @test_id="content.1" />
-                    </DockTab>
-                    <DockGroup id="pinned" pinned=true>
-                        <DockPane id="inside">
-                            <DockTab id=10u64 title="Tab 10">
-                                <Frame @test_id="content.10" />
-                            </DockTab>
-                            <DockTab id=11u64 title="Tab 11">
-                                <Frame @test_id="content.11" />
-                            </DockTab>
-                        </DockPane>
-                    </DockGroup>
-                </DockPane>
-            </dock::Docking>
-</dock_host::styled::DockHost>
+                <dock::Docking layout focus=10u64>
+                    <DockPane id="main">
+                        <DockTab id=1u64 title="Tab 1">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                        <DockGroup id="pinned" pinned=true>
+                            <DockPane id="inside">
+                                <DockTab id=10u64 title="Tab 10">
+                                    <Frame @test_id="content.10" />
+                                </DockTab>
+                                <DockTab id=11u64 title="Tab 11">
+                                    <Frame @test_id="content.11" />
+                                </DockTab>
+                            </DockPane>
+                        </DockGroup>
+                    </DockPane>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

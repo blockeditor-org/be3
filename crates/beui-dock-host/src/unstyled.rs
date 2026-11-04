@@ -1186,12 +1186,10 @@ impl State {
     }
 
     fn takes(&self, point: DragPoint) -> bool {
-        self.drag
-            .get_untracked()
-            .is_none_or(|drag| {
-                matches!(drag.dragged, DockDragged::Bar(_))
-                    || self.admitted(point, drag.dragged).is_some()
-            })
+        self.drag.get_untracked().is_none_or(|drag| {
+            matches!(drag.dragged, DockDragged::Bar(_))
+                || self.admitted(point, drag.dragged).is_some()
+        })
     }
 
     fn drop_at(&self, dragged: DockDragged, point: DragPoint) {
