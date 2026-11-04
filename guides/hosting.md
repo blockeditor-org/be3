@@ -22,6 +22,12 @@ The server speaks WebSockets at `/api/be` and the same protocol over HTTP posts 
 `api.be3.pfg.pw`, routes the API, `/auth` and `/auth/*` to the server and `/build/*` to the build
 helper (guides/build_server.md). be-host's web build is served by Bunny at `be3.pfg.pw`.
 
+be-server takes a client's address from `X-Forwarded-For` only when the connection comes from a
+trusted proxy: loopback, where Caddy runs, or an address named with `--trusted-proxy`. Anyone
+else's header is ignored, so the server can also face the internet directly. Limits per address
+(connections, HTTP sessions, pending sign-ins; guides/blocks/server.md, "Limits") count by that
+address, so a proxy elsewhere must be named or every client counts as the proxy.
+
 The gateway accepts `Be3-Gateway-Authorization` from native clients and, from browsers (whose
 WebSocket API can't set headers), a host-only cookie on `api.be3.pfg.pw` that visiting
 `https://api.be3.pfg.pw/` sets before redirecting to the web build. The public web bundle holds

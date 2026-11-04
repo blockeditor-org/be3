@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_call_dropped_at_once_still_reaches_the_host_which_applies_it;
+mod a_consumer_cannot_grant_more_than_the_first_window;
 mod a_detached_call_sends_no_cancel_and_its_answer_is_ignored;
 mod a_detached_network_call_sends_no_cancel;
 mod a_dropped_reply_answers_that_it_went_unanswered;
@@ -21,6 +22,7 @@ mod bytes_cross_whole_in_every_position;
 mod closing_a_network_resource_waits_for_its_end;
 mod dropping_a_network_call_cancels_it;
 mod every_op_completes_once_even_after_a_cancel;
+mod outlets_hold_back_no_more_bytes_than_their_limit;
 
 fn deliver(from: &mut Connection, to: &mut Connection) {
     for frame in from.take_outbound() {

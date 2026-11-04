@@ -49,9 +49,14 @@ impl Window {
         self.bytes = self.bytes.saturating_sub(bytes as i64);
     }
 
+    /// Gives back room the consumer has freed. The window never grows past its first size, so a
+    /// consumer that grants more than it took cannot make the producer run further ahead.
     pub fn grant(&mut self, items: u32, bytes: u64) {
-        self.items = self.items.saturating_add(items);
-        self.bytes = self.bytes.saturating_add(bytes as i64);
+        self.items = self.items.saturating_add(items).min(STREAM_WINDOW);
+        self.bytes = self
+            .bytes
+            .saturating_add(i64::try_from(bytes).unwrap_or(i64::MAX))
+            .min(STREAM_WINDOW_BYTES as i64);
     }
 }
 
@@ -659,17 +664,32 @@ struct Outlet<K> {
 
 pub struct Outlets<K> {
     outlets: HashMap<OpId, Outlet<K>>,
+    behind_bytes: usize,
+    max_behind_bytes: usize,
 }
 
 impl<K> Default for Outlets<K> {
     fn default() -> Self {
-        Self {
-            outlets: HashMap::new(),
-        }
+        Self::within(usize::MAX)
     }
 }
 
 impl<K> Outlets<K> {
+    /// Outlets that together hold back at most `max_behind_bytes` of items waiting for credit;
+    /// a send that would hold back more fails as a full queue does.
+    pub fn within(max_behind_bytes: usize) -> Self {
+        Self {
+            outlets: HashMap::new(),
+            behind_bytes: 0,
+            max_behind_bytes,
+        }
+    }
+
+    /// Bytes of items held back across every outlet.
+    pub fn behind_bytes(&self) -> usize {
+        self.behind_bytes
+    }
+
     pub fn insert<T>(&mut self, producer: Producer<T>, route: K, backlog: Backlog) {
         let outlet = Outlet {
             route,
@@ -695,6 +715,7 @@ impl<K> Outlets<K> {
                 continue;
             }
             if let Backlog::Latest = outlet.backlog {
+                self.behind_bytes -= outlet.behind.iter().map(Vec::len).sum::<usize>();
                 outlet.behind.clear();
             }
             if outlet.behind.is_empty() && connection.yield_item(*op, &item).is_ok() {
@@ -705,6 +726,10 @@ impl<K> Outlets<K> {
             {
                 return Err(WouldBlock);
             }
+            if self.behind_bytes.saturating_add(item.len()) > self.max_behind_bytes {
+                return Err(WouldBlock);
+            }
+            self.behind_bytes += item.len();
             outlet.behind.push_back(item.clone());
         }
         Ok(())
@@ -718,6 +743,7 @@ impl<K> Outlets<K> {
             if connection.yield_item(op, item).is_err() {
                 break;
             }
+            self.behind_bytes -= item.len();
             outlet.behind.pop_front();
         }
         true
@@ -733,6 +759,7 @@ impl<K> Outlets<K> {
             self.credited(connection, op);
         }
         let outlet = self.outlets.remove(&op)?;
+        self.behind_bytes -= outlet.behind.iter().map(Vec::len).sum::<usize>();
         let outcome = match (error, outlet.behind.is_empty()) {
             (Some(error), _) => Outcome::Err(error),
             (None, false) => Outcome::Err(OpError::Canceled),

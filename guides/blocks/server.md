@@ -59,7 +59,10 @@ websocket. Where a websocket cannot get through, `POST .../http` carries the
 same frames (`http.rs`): the greeting's answer names a session in a
 `Be3-Session` header, and each later post carries queued client frames and is
 answered with whatever the server has for the client; notifications wait for
-the next post.
+the next post. An answer stops taking frames once its replies fill
+`OUTBOUND_BYTES`, keeps the rest for the next post, and says so with
+`Be3-More`, on which the client posts again at once (with an empty body if it
+has nothing to send).
 
 ### Protocol
 
@@ -88,6 +91,31 @@ the next post.
   slowed or disconnected: `STREAM_BUFFER`, `OUTBOUND_FRAMES`. A ping is
   answered by the socket's reader task (`serve_socket`) ahead of queued calls,
   so a slow call never makes a client think the server is gone.
+- **Limits.** Nothing a client sends makes the server hold memory it does not
+  bound, and a client that does not read is disconnected rather than buffered
+  (`lib.rs`, `http.rs`):
+  - A stream's window never grows past its first size (`be_wasm_ops::Window`),
+    and a connection's outlets hold back at most `STREAM_BUFFER_BYTES`.
+  - The loop takes no frame while `OUTBOUND_FRAMES` or `OUTBOUND_BYTES` wait to
+    be written; past `MAX_OUTBOUND_BYTES` waiting (`Outbound`), the connection
+    or HTTP session is closed.
+  - `MAX_CONNECTIONS` overall and `MAX_CONNECTIONS_PER_ADDRESS` for one
+    address; `MAX_HTTP_SESSIONS` and `MAX_HTTP_SESSIONS_PER_ADDRESS` likewise.
+    HTTP sessions are swept every `SWEEP_INTERVAL` by a task off the accept
+    loop, which also closes sessions whose token was revoked.
+  - A connection without an account is closed `sign_in_timeout`
+    (`ServerConfig`) after its greeting or logout, unless it waits on a browser
+    sign-in, until that expires. Pending browser sign-ins and portal form
+    tokens are bounded per address (`PENDING_PER_ADDRESS`,
+    `FORMS_PER_ADDRESS`; another lets go of the address's oldest), and one
+    call waits on a code at a time.
+  - Request bodies grow only as their bytes arrive and stall out after
+    `BODY_READ_TIMEOUT`.
+
+  An address is a client's `Services::client_address`: its peer, or the
+  `X-Forwarded-For` hop nearest it when the peer is in `trusted_proxies`
+  (loopback by default, `--trusted-proxy` for more). Per-address limits count
+  an IPv6 /64 as one address (`address::address_key`).
 - **No batch request.** Calls on one connection are answered in order and both
   transports send whatever is queued together, so independent requests cost one
   round trip; only a chain where each needs the last one's answer costs more.

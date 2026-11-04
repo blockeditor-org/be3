@@ -7,6 +7,7 @@ const USAGE: &str = "\
 Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
             [--build-info-file FILE] [--auth-origin URL] [--account-quota BYTES]
+            [--trusted-proxy ADDR]...
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
@@ -26,6 +27,9 @@ Usage:
   --auth-origin URL         Public origin of the account portal (required outside localhost)
   --account-quota BYTES     Bytes each account may store, or none for no limit
                             (default: 10737418240, 10 GiB)
+  --trusted-proxy ADDR      Also take the client's address from X-Forwarded-For when a
+                            connection comes from ADDR; it is always taken from loopback, where
+                            the reverse proxy runs, and ignored from anyone else
 
 A backup uploads every object the database references that the target does not
 have yet, never deleting one, and then the database, sealed with the backup
@@ -146,6 +150,13 @@ async fn run() -> Result<(), Box<dyn Error>> {
                     "none" => None,
                     bytes => Some(bytes.parse()?),
                 };
+            }
+            "--trusted-proxy" => {
+                let proxy = arguments
+                    .next()
+                    .ok_or("--trusted-proxy needs an address")?
+                    .parse()?;
+                config.trusted_proxies.to_mut().push(proxy);
             }
             "--help" => {
                 println!("{USAGE}");

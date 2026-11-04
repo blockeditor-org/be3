@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    net::IpAddr,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -8,31 +9,76 @@ use be_block_protocol::ErrorCode;
 use tokio::time::Instant;
 use uuid::Uuid;
 
-use crate::{ServerError, Services};
+use crate::{ServerError, Services, address::address_key};
 
 const LIFETIME: Duration = Duration::from_secs(600);
-const LIMIT: usize = 1024;
+/// Pending sign-ins, and open form tokens, the whole server holds at once.
+const LIMIT: usize = 65536;
+/// Pending sign-ins one address (see [`address_key`]) holds; beginning another lets go of its
+/// oldest, so no address can fill `LIMIT` and lock everyone else out.
+const PENDING_PER_ADDRESS: usize = 8;
+/// Form tokens one address holds; issuing another lets go of its oldest.
+const FORMS_PER_ADDRESS: usize = 64;
 
 #[derive(Default)]
 pub(crate) struct Sessions {
     pending: Mutex<HashMap<String, Pending>>,
-    forms: Mutex<HashMap<String, (Instant, String)>>,
+    forms: Mutex<HashMap<String, Form>>,
+}
+
+struct Form {
+    expires: Instant,
+    owner: String,
+    address: IpAddr,
 }
 
 struct Pending {
     client: u64,
+    address: IpAddr,
     secret: String,
     denied: bool,
     expires: Instant,
     account: Option<Uuid>,
     approved_by: String,
     decided: tokio::sync::watch::Sender<()>,
+    /// The one call waiting on this sign-in; replacing it tells the older call to stop.
+    waiter: Option<tokio::sync::oneshot::Sender<()>>,
     _cancel: tokio::sync::oneshot::Sender<()>,
 }
 
 pub(crate) enum Finished {
     Approved { account: Uuid, issuer: String },
-    Waiting(tokio::sync::watch::Receiver<()>),
+    Waiting(Waiting),
+}
+
+pub(crate) struct Waiting {
+    /// Changes once the browser decides, and ends if the sign-in expires.
+    pub(crate) decided: tokio::sync::watch::Receiver<()>,
+    /// Ends once a newer call waits on the same sign-in.
+    pub(crate) replaced: tokio::sync::oneshot::Receiver<()>,
+    pub(crate) expires: Instant,
+}
+
+/// Lets go of `address`'s oldest entries until it holds fewer than `limit`.
+fn make_room<V>(
+    entries: &mut HashMap<String, V>,
+    address: IpAddr,
+    limit: usize,
+    of: impl Fn(&V) -> (IpAddr, Instant),
+) {
+    let key = address_key(address);
+    let mut held: Vec<(Instant, String)> = entries
+        .iter()
+        .filter(|(_, entry)| address_key(of(entry).0) == key)
+        .map(|(id, entry)| (of(entry).1, id.clone()))
+        .collect();
+    if held.len() < limit {
+        return;
+    }
+    held.sort();
+    for (_, id) in &held[..=held.len() - limit] {
+        entries.remove(id);
+    }
 }
 
 fn invalid(message: &str) -> ServerError {
@@ -40,9 +86,16 @@ fn invalid(message: &str) -> ServerError {
 }
 
 impl Sessions {
-    pub(crate) fn begin(self: &Arc<Self>, client: u64) -> Result<(String, String), ServerError> {
+    pub(crate) fn begin(
+        self: &Arc<Self>,
+        client: u64,
+        address: IpAddr,
+    ) -> Result<(String, String, Instant), ServerError> {
         let mut pending = self.pending.lock().unwrap();
         pending.retain(|_, entry| entry.client != client && entry.expires > Instant::now());
+        make_room(&mut pending, address, PENDING_PER_ADDRESS, |entry| {
+            (entry.address, entry.expires)
+        });
         if pending.len() >= LIMIT {
             return Err(invalid("too many pending sign-ins; try again later"));
         }
@@ -50,16 +103,19 @@ impl Sessions {
         let code = format!("{}-{}-{}", &random[..4], &random[4..8], &random[8..12]);
         let secret = Uuid::new_v4().to_string();
         let (cancel, cancelled) = tokio::sync::oneshot::channel();
+        let expires = Instant::now() + LIFETIME;
         pending.insert(
             code.clone(),
             Pending {
                 client,
+                address,
                 secret: secret.clone(),
                 denied: false,
-                expires: Instant::now() + LIFETIME,
+                expires,
                 account: None,
                 approved_by: String::new(),
                 decided: tokio::sync::watch::Sender::new(()),
+                waiter: None,
                 _cancel: cancel,
             },
         );
@@ -71,7 +127,7 @@ impl Sessions {
                 sessions.pending.lock().unwrap().remove(&expiring);
             }
         });
-        Ok((code, secret))
+        Ok((code, secret, expires))
     }
 
     pub(crate) fn finish(
@@ -90,21 +146,37 @@ impl Sessions {
         }
         entry.client = client;
         let Some(account) = entry.account else {
-            return Ok(Finished::Waiting(entry.decided.subscribe()));
+            let (waiter, replaced) = tokio::sync::oneshot::channel();
+            entry.waiter = Some(waiter);
+            return Ok(Finished::Waiting(Waiting {
+                decided: entry.decided.subscribe(),
+                replaced,
+                expires: entry.expires,
+            }));
         };
         let issuer = entry.approved_by.clone();
         pending.remove(code);
         Ok(Finished::Approved { account, issuer })
     }
 
-    pub(crate) fn form(&self, owner: &str) -> Result<String, ServerError> {
+    pub(crate) fn form(&self, owner: &str, address: IpAddr) -> Result<String, ServerError> {
         let mut forms = self.forms.lock().unwrap();
-        forms.retain(|_, (expires, _)| *expires > Instant::now());
+        forms.retain(|_, form| form.expires > Instant::now());
+        make_room(&mut forms, address, FORMS_PER_ADDRESS, |form| {
+            (form.address, form.expires)
+        });
         if forms.len() >= LIMIT {
             return Err(invalid("too many open sign-in pages; try again later"));
         }
         let token = Uuid::new_v4().to_string();
-        forms.insert(token.clone(), (Instant::now() + LIFETIME, owner.into()));
+        forms.insert(
+            token.clone(),
+            Form {
+                expires: Instant::now() + LIFETIME,
+                owner: owner.into(),
+                address,
+            },
+        );
         Ok(token)
     }
 
@@ -113,7 +185,7 @@ impl Sessions {
             .lock()
             .unwrap()
             .remove(token)
-            .filter(|(expires, bound)| *expires > Instant::now() && bound == owner)
+            .filter(|form| form.expires > Instant::now() && form.owner == owner)
             .ok_or_else(|| invalid("this page expired; reload it and try again"))?;
         Ok(())
     }

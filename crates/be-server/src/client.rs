@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeSet, HashMap},
+    net::IpAddr,
     sync::Arc,
 };
 
@@ -21,6 +22,9 @@ use crate::{
 /// Items a stream keeps beyond the credit its consumer granted. A client that lets one fill up
 /// is disconnected, as is one whose hub queue (`PUSHES`) fills.
 const STREAM_BUFFER: usize = 4096;
+/// Bytes every stream of one connection keeps together beyond the credit granted; a client that
+/// holds back more, by not reading what it is sent, is disconnected too.
+pub(crate) const STREAM_BUFFER_BYTES: usize = 4 * be_block_protocol::MAX_FRAME_BYTES;
 const PUSHES: usize = 4096;
 
 pub(crate) enum Late {
@@ -48,10 +52,18 @@ enum Route {
     Events { session: OpId, block: Uuid },
 }
 
-#[derive(Default)]
 struct Streams {
     outlets: Outlets<Route>,
     sessions: HashMap<OpId, Uuid>,
+}
+
+impl Default for Streams {
+    fn default() -> Self {
+        Self {
+            outlets: Outlets::within(STREAM_BUFFER_BYTES),
+            sessions: HashMap::new(),
+        }
+    }
 }
 
 impl Streams {
@@ -95,6 +107,12 @@ pub(crate) struct Connection {
     pub(crate) header_token: Option<String>,
     pub(crate) identity: Option<Identity>,
     pub(crate) config: ServerConfig,
+    /// The address the connection comes from; see [`crate::Services::client_address`].
+    pub(crate) address: IpAddr,
+    /// Since when the connection has had no account.
+    anonymous_since: tokio::time::Instant,
+    /// Until when a browser sign-in this connection began or waits on can still finish.
+    signing_in_until: Option<tokio::time::Instant>,
 }
 
 pub(crate) struct Client {
@@ -109,6 +127,7 @@ pub(crate) struct Client {
 impl Client {
     pub(crate) async fn open(
         services: &Services,
+        address: IpAddr,
         sink: impl Fn(Vec<u8>) + Send + Sync + 'static,
     ) -> Self {
         let (sender, pushes) = mpsc::channel(PUSHES);
@@ -126,6 +145,9 @@ impl Client {
                 header_token: None,
                 identity: None,
                 config: services.config.clone(),
+                address,
+                anonymous_since: tokio::time::Instant::now(),
+                signing_in_until: None,
             },
             peer: Peer::new(be_wasm_ops::Side::Host, sink),
             pushes,
@@ -377,8 +399,11 @@ impl Client {
         match call {
             Call::BeginBrowserLogin { reply } => {
                 let begun = prelude.and_then(|()| {
-                    let (code, secret) =
-                        self.connection.browser_auth.begin(self.connection.client)?;
+                    let connection = &mut self.connection;
+                    let (code, secret, expires) = connection
+                        .browser_auth
+                        .begin(connection.client, connection.address)?;
+                    connection.signing_in_until = Some(expires);
                     Ok(BrowserLogin { code, secret })
                 });
                 self.reply(reply, begun);
@@ -399,7 +424,7 @@ impl Client {
                         .browser_auth
                         .finish(self.connection.client, &code, &secret)
                 });
-                let decided = match finished {
+                let waiting = match finished {
                     Err(error) => return self.reply(reply, Err(error)),
                     Ok(browser_auth::Finished::Approved { account, issuer }) => {
                         let signed_in = async {
@@ -416,9 +441,10 @@ impl Client {
                         let signed_in = signed_in.await;
                         return self.reply(reply, signed_in);
                     }
-                    Ok(browser_auth::Finished::Waiting(decided)) => decided,
+                    Ok(browser_auth::Finished::Waiting(waiting)) => waiting,
                 };
-                self.wait_for_browser(reply, code, secret, decided);
+                self.connection.signing_in_until = Some(waiting.expires);
+                self.wait_for_browser(reply, code, secret, waiting);
             }
             Call::CreateLocalProfile {
                 reply,
@@ -472,6 +498,7 @@ impl Client {
                         connection.store.logout(&token).await?;
                     }
                     connection.account = None;
+                    connection.anonymous_since = tokio::time::Instant::now();
                     connection.identity = None;
                     connection.hub.leave_account(connection.client).await;
                     Ok(())
@@ -523,7 +550,7 @@ impl Client {
         reply: Reply<Result<Authenticated, Error>>,
         code: String,
         secret: String,
-        mut decided: tokio::sync::watch::Receiver<()>,
+        mut waiting: browser_auth::Waiting,
     ) {
         let peer = self.peer.clone();
         let late = self.late.clone();
@@ -533,11 +560,17 @@ impl Client {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
+                    biased;
                     () = peer.canceled(reply.op()) => {
                         reply.fail(&mut peer.lock(), OpError::Canceled);
                         return;
                     }
-                    _ = decided.changed() => {}
+                    _ = waiting.decided.changed() => {}
+                    // A newer call for the same code waits in this one's place.
+                    _ = &mut waiting.replaced => {
+                        reply.fail(&mut peer.lock(), OpError::Canceled);
+                        return;
+                    }
                 }
                 let approved = match sessions.finish(client, &code, &secret) {
                     Err(error) => {
@@ -545,7 +578,7 @@ impl Client {
                         return;
                     }
                     Ok(browser_auth::Finished::Waiting(next)) => {
-                        decided = next;
+                        waiting = next;
                         continue;
                     }
                     Ok(browser_auth::Finished::Approved { account, issuer }) => {
@@ -1585,6 +1618,18 @@ impl Client {
 }
 
 impl Connection {
+    /// When the connection is closed unless it signs in first, or none once it has an account.
+    pub(crate) fn sign_in_deadline(&self) -> Option<tokio::time::Instant> {
+        if self.account.is_some() {
+            return None;
+        }
+        let deadline = self.anonymous_since + self.config.sign_in_timeout;
+        Some(
+            self.signing_in_until
+                .map_or(deadline, |until| until.max(deadline)),
+        )
+    }
+
     async fn authenticated(&mut self, profile: store::Profile, token: String) -> Authenticated {
         self.hub.join_account(self.client, profile.account).await;
         self.account = Some(profile.account);

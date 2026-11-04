@@ -9,6 +9,9 @@ use tokio::{
 use super::{Frame, TUNNEL_WAIT, proxied_tls, proxy_for, tunnel};
 
 const SESSION_HEADER: &str = "be3-session";
+/// Set on an answer when the server has more to send, or frames still to carry out; the client
+/// posts again at once.
+const MORE_HEADER: &str = "be3-more";
 const REQUEST_WAIT: Duration = Duration::from_secs(120);
 const MAX_HEAD_BYTES: usize = 16 * 1024;
 const MAX_HEADERS: usize = 64;
@@ -37,8 +40,15 @@ pub(super) async fn connect(
     let (posts, mut outgoing) = mpsc::unbounded_channel::<Vec<u8>>();
     let (incoming, frames) = mpsc::unbounded_channel();
     tokio::spawn(async move {
-        while let Some(first) = outgoing.recv().await {
-            let mut body = framed(&first);
+        let mut more = false;
+        loop {
+            let mut body = match more {
+                true => Vec::new(),
+                false => match outgoing.recv().await {
+                    Some(first) => framed(&first),
+                    None => return,
+                },
+            };
             while body.len() < BATCH_BYTES {
                 let Ok(next) = outgoing.try_recv() else {
                     break;
@@ -49,7 +59,8 @@ pub(super) async fn connect(
                 .await
                 .unwrap_or_else(|_| Err("the server did not answer in time".to_owned()));
             match answered {
-                Ok(answer) => {
+                Ok((answer, further)) => {
+                    more = further;
                     for frame in answer {
                         if incoming.send(Frame::Binary(frame)).is_err() {
                             return;
@@ -158,12 +169,14 @@ struct Client {
 struct Response {
     status: u16,
     session: Option<String>,
+    more: bool,
     close: bool,
     body: Vec<u8>,
 }
 
 impl Client {
-    async fn post(&mut self, body: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+    /// Posts `body` and returns the frames answered, and whether the server has more.
+    async fn post(&mut self, body: &[u8]) -> Result<(Vec<Vec<u8>>, bool), String> {
         let reused = self.stream.is_some();
         let response = match self.exchange(body).await {
             Err(Stale) if reused => {
@@ -186,7 +199,7 @@ impl Client {
         if let Some(session) = response.session {
             self.session = Some(session);
         }
-        frames(&response.body)
+        Ok((frames(&response.body)?, response.more))
     }
 
     async fn exchange(&mut self, body: &[u8]) -> Result<Result<Response, String>, Stale> {
@@ -263,6 +276,7 @@ async fn read_response(stream: &mut Box<dyn Io>) -> Result<Result<Response, Stri
     };
     let status = parsed.code.unwrap_or_default();
     let session = header(SESSION_HEADER);
+    let more = header(MORE_HEADER).is_some();
     let close = header("connection").is_some_and(|value| value.eq_ignore_ascii_case("close"));
     let chunked = header("transfer-encoding")
         .is_some_and(|value| value.to_ascii_lowercase().contains("chunked"));
@@ -276,6 +290,7 @@ async fn read_response(stream: &mut Box<dyn Io>) -> Result<Result<Response, Stri
     Ok(body.map(|body| Response {
         status,
         session,
+        more,
         close: close || (!chunked && length.is_none()),
         body,
     }))
