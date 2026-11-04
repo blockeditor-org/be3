@@ -53,6 +53,7 @@ APPS = {
     "a_tab_popped_out_in_space_is_a_panel_of_its_own": ["settings"],
     "a_tooltip_from_the_files_reaches_past_them": [],
     "a_window_dragged_over_the_desktops_bars_passes_beneath_them": ["desktop"],
+    "a_window_over_a_tab_docked_on_the_desktop_draws_above_it": ["desktop"],
     "adding_an_account_chooses_a_local_or_custom_server": [],
     "an_active_child_pans_in_the_frame_its_canvas_pans": ["infinite-canvas", "example-pan-zoom"],
     "an_invitation_shows_the_link_to_send_the_invited_person": [],

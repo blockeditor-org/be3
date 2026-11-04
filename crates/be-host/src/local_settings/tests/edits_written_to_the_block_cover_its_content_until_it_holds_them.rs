@@ -4,9 +4,13 @@ use super::*;
 fn edits_written_to_the_block_cover_its_content_until_it_holds_them() {
     let edit = DisplaySettings::default().set_mode(MONITOR, Some(SLOW));
     let mut outbox = Outbox::default();
-    outbox.queue(vec![edit.clone()]);
-    assert_eq!(outbox.send(4), vec![edit.clone()]);
-    assert_eq!(outbox.send(4), Vec::new(), "an edit is sent once");
+    outbox.queue(slow_mode());
+    assert_eq!(outbox.send(4, &showing(FAST)), vec![edit.clone()]);
+    assert_eq!(
+        outbox.send(4, &showing(FAST)),
+        Vec::new(),
+        "an edit is sent once"
+    );
 
     assert_eq!(
         outbox.overlay(4, showing(FAST)),

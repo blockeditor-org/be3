@@ -1,12 +1,11 @@
 use super::*;
+use crate::root::DevicesRoot;
 use be_sdk_beui::be_block::ThemeKind;
 
 #[test]
 fn devices_and_profiles_shows_only_what_a_profile_keeps() {
-    let mut settings = editor();
+    let mut settings = editor_as::<DevicesRoot>(Uuid::nil());
     settings.set_size(Vec2::new(900.0, 640.0));
-    settings.click("settings.devices");
-    settings.run();
     assert!(
         settings.shown("devices.same"),
         "with no profile keeping anything, the page says so"

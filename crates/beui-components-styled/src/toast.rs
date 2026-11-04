@@ -79,7 +79,7 @@ fn ToastsHidden(hidden: Memo<usize>, on_more: ClickCallback) -> NodeId {
     let card = view! {
         <Frame
             @test_id="toasts.more"
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Md
             padding=PADDING
@@ -202,7 +202,7 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
     view! {
         <Frame
             @test_id={format!("toast.{id}")}
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Md
             padding=PADDING

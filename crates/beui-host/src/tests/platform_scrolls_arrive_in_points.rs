@@ -17,9 +17,18 @@ fn platform_scrolls_arrive_in_points() {
     assert_eq!(
         seen,
         [
-            Event::Scroll(vec2(0.0, 15.0)),
-            Event::Scroll(vec2(0.0, -SCROLL_LINE)),
-            Event::Scroll(vec2(SCROLL_PAGE, 0.0)),
+            Event::Scroll {
+                delta: vec2(0.0, 15.0),
+                notches: None,
+            },
+            Event::Scroll {
+                delta: vec2(0.0, -SCROLL_LINE),
+                notches: Some(vec2(0.0, -1.0)),
+            },
+            Event::Scroll {
+                delta: vec2(SCROLL_PAGE, 0.0),
+                notches: None,
+            },
         ]
     );
 }

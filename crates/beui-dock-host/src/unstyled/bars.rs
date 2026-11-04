@@ -1272,7 +1272,7 @@ fn DockBarBand(dock: State, holder: BarHolder, edge: DockEdge) -> NodeId {
     above_embeds(
         band,
         create_memo(move || {
-            (dock.bar_level() == LayerLevel::Raised).then_some(AboveEmbeds::Paints)
+            (dock.bar_level() == LayerLevel::Raised).then_some(AboveEmbeds::Raised)
         }),
     );
     view! {

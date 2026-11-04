@@ -508,7 +508,7 @@ fn paint_item(
         Sprite::Cell => {
             let fill = match mark {
                 Mark::Target | Mark::Over => theme.accent_soft,
-                _ => theme.surface_raised,
+                _ => theme.control,
             };
             painter.rect_filled(rect, CELL_RADIUS * zoom, fill);
         }

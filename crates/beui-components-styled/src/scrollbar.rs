@@ -97,7 +97,7 @@ fn thumb_color(
 
 fn track_color(theme: &ThemeStore, position: ScrollPosition, engaged: bool) -> Color {
     if engaged && position.max_offset() > 0.0 {
-        theme.surface_raised.get()
+        theme.control.get()
     } else {
         Color::TRANSPARENT
     }

@@ -76,6 +76,7 @@ pub(crate) enum NodeKind<K: 'static> {
         sidebar: f32,
         locked: bool,
         bare: bool,
+        hide_empty_bar: bool,
         empty: Option<RenderFn<()>>,
         entries: Run<DockEntry<K>>,
     },
@@ -148,7 +149,8 @@ where
 /// `id` is saved with the layout so a saved layout finds this pane after the code changes.
 /// `bare` hides the tab bar: the pane holds one tab and takes no tab dropped onto it, only a split
 /// at its edge (a joined dock's single pane uses it). A pane with an `empty` view is never closed:
-/// emptied, it shows that view. `locked` makes it an area that keeps its tabs (`DockState::home`).
+/// emptied, it shows that view, under its bar's grip unless `hide_empty_bar` drops the bar while it
+/// is empty. `locked` makes it an area that keeps its tabs (`DockState::home`).
 #[component]
 pub fn DockPane<K>(
     id: String,
@@ -158,6 +160,7 @@ pub fn DockPane<K>(
     #[prop(default = SIDEBAR_WIDTH)] sidebar_width: f32,
     #[prop(default = false)] locked: bool,
     #[prop(default = false)] bare: bool,
+    #[prop(default = false)] hide_empty_bar: bool,
     empty: Option<RenderFn<()>>,
     children: Children<DockEntry<K>>,
 ) -> DockNode<K>
@@ -173,6 +176,7 @@ where
             sidebar: sidebar_width,
             locked,
             bare,
+            hide_empty_bar,
             empty,
             entries: children.into_run(),
         },

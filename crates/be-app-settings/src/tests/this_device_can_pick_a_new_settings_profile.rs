@@ -6,8 +6,6 @@ use be_sdk_beui::{BlockInfo, BlockParent};
 #[test]
 fn this_device_can_pick_a_new_settings_profile() {
     let mut settings = editor();
-    settings.click("settings.devices");
-    settings.run();
     settings.click("settings.new-profile");
     settings.run();
     let [profile] = settings.content::<SettingsContent>(None).root().profiles()[..] else {
@@ -16,6 +14,12 @@ fn this_device_can_pick_a_new_settings_profile() {
     let info = settings.store().block(profile).expect("the profile exists");
     assert_eq!(info.block_type, SettingsProfileContent::CONTENT_TYPE);
     assert_eq!(info.name().as_deref(), Some("Profile 1"));
+    let opens = settings.take_opens();
+    assert_eq!(
+        opens.last().map(|open| open.block_id),
+        Some(profile),
+        "the new profile opens beside the list"
+    );
     settings.snapshot("a_new_settings_profile_is_listed");
 
     let (root, client) = (Uuid::from_u128(0xd0_0001), Uuid::from_u128(0xd0_0002));

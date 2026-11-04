@@ -77,7 +77,7 @@ pub fn EntryOverlay(secure: Memo<bool>, off_screen: Memo<Vec<Rect>>) -> NodeId {
                 <Frame align=Align::Center padding={Padding::all(Space::Md)}>
                     <Frame
                         @test_id="win32.secure-desktop"
-                        fill=ColorRole::SurfaceRaised
+                        fill=ColorRole::Surface
                         border={Border::DEFAULT}
                         radius=Radius::Md
                     >

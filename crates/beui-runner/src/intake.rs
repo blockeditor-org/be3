@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use beui_types::HostTransform;
+use beui_types::ScrollDelta;
 use beui_types::input::enqueue;
 use beui_types::{Event, FileDrag};
 use beui_types::{Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, TouchId, TouchPhase};
@@ -268,10 +269,14 @@ impl Intake {
         let points = |pos: Pos2| Pos2::new(pos.x / scale, pos.y / scale);
         match input {
             Input::Key(stroke) => self.key(stroke, events),
-            Input::Scroll(delta) => {
-                let delta = scrolled(delta, scale);
+            Input::Scroll(scroll) => {
+                let delta = scrolled(scroll, scale);
+                let notches = match scroll {
+                    ScrollDelta::Lines(lines) => Some(lines),
+                    ScrollDelta::Pixels(_) | ScrollDelta::Pages(_) => None,
+                };
                 if delta != Vec2::ZERO {
-                    events.push(Event::Scroll(delta));
+                    events.push(Event::Scroll { delta, notches });
                 }
             }
             Input::Modifiers(modifiers) => self.set_modifiers(modifiers, events),

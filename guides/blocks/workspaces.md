@@ -68,7 +68,7 @@ now applies on every device with Keep on this device only and Undo.
 The settings app's pages use beui's `SettingsPage`, `SettingsSection`,
 `SettingsRow` and `SettingsLink`, and show a section only where the host
 offers the matching host value (`Displays`, `Power`, `InputDevices`; only a
-login session publishes `Power` and `InputDevices`). Devices and profiles
+login session publishes `Power` and `InputDevices`). Compare devices
 (`root/devices.rs`) tables what each profile keeps.
 
 ## Settings the host applies itself

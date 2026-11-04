@@ -38,6 +38,7 @@ fn barred() -> DockDeclaration {
                         area: None,
                         empty: None,
                         bare: true,
+                        hide_empty_bar: false,
                     }),
                 },
                 DockItem {

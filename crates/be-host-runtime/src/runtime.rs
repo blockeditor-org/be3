@@ -2806,8 +2806,15 @@ pub struct PlacedView {
     pub clip: Rect,
     pub loading: bool,
     pub base: Vec<Piece>,
+    /// The overlays' pieces, drawn above the view's children and the windows it opens.
     pub floating: Vec<Piece>,
+    /// The marks' pieces (`frame-report.marks-painted`), above the view's children and
+    /// under the windows it opens.
+    pub marks: Vec<Piece>,
+    /// Where the overlays and marks take input, over the view's children.
     pub floating_rects: Vec<Rect>,
+    /// Where only the overlays take input, over the windows the view opens too.
+    pub overlay_rects: Vec<Rect>,
     pub scrims: Vec<beui::layer::Scrim>,
     pub drawing: Vec<Rect>,
     pub claims: Vec<(beui::Modifiers, Rect)>,
@@ -2839,7 +2846,9 @@ impl PlacedView {
             loading: false,
             base: Vec::new(),
             floating: Vec::new(),
+            marks: Vec::new(),
             floating_rects: Vec::new(),
+            overlay_rects: Vec::new(),
             scrims: Vec::new(),
             drawing: Vec::new(),
             claims: Vec::new(),
@@ -3005,6 +3014,18 @@ fn shown_view(
         };
         let floating_rects = in_region(|report| &report.floating);
         let painted_rects = in_region(|report| &report.floating_painted);
+        let mark_rects = in_region(|report| &report.marks);
+        let marks_painted = in_region(|report| &report.marks_painted);
+        let overlay_rects: Vec<Rect> = floating_rects
+            .iter()
+            .filter(|rect| !mark_rects.contains(rect))
+            .copied()
+            .collect();
+        let overlays_painted: Vec<Rect> = painted_rects
+            .iter()
+            .filter(|rect| !marks_painted.contains(rect))
+            .copied()
+            .collect();
         let scrims = match held {
             Some(_) => Vec::new(),
             None => report
@@ -3052,17 +3073,19 @@ fn shown_view(
             true => vec![visible],
             false => super::pieces::subtract(visible, &painted_rects),
         };
-        let (base, floating) = match held {
+        let (base, floating, marks) = match held {
             Some(_) => (
                 vec![Piece {
                     local: UNIT,
                     source: UNIT,
                 }],
                 Vec::new(),
+                Vec::new(),
             ),
             None => (
                 pieces_of(rect, visible, textured, &base),
-                pieces_of(rect, visible, textured, &painted_rects),
+                pieces_of(rect, visible, textured, &overlays_painted),
+                pieces_of(rect, visible, textured, &marks_painted),
             ),
         };
         let loading = screen.is_none_or(|screen| runtime.layout.placement(screen).is_none());
@@ -3084,7 +3107,9 @@ fn shown_view(
             loading,
             base,
             floating,
+            marks,
             floating_rects,
+            overlay_rects,
             scrims,
             drawing,
             claims,

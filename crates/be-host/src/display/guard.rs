@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
+use std::rc::Rc;
 use std::time::Duration;
 
 use be_block::be_block_model::{Document, Edit};
 use be_block::display_settings::{Arrangement, DisplayMode, ScreenUse};
 use be_block::{DisplaySettings, SettingsLayer};
 
-use crate::local_settings::LayerContents;
+use crate::local_settings::{LayerContents, LayerEdit};
 
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
@@ -234,33 +235,36 @@ impl Guard {
 pub(crate) fn written(
     layers: &LayerContents<DisplaySettings>,
     changes: &[Change],
-) -> Vec<(SettingsLayer, Edit)> {
+) -> Vec<(SettingsLayer, LayerEdit<DisplaySettings>)> {
     let mut layers = layers.clone();
     changes
         .iter()
         .map(|change| {
-            let (layer, edit) = match change {
+            let (layer, edit): (_, LayerEdit<DisplaySettings>) = match change.clone() {
                 Change::Mode(change) => {
                     let setting = DisplaySettings::mode_setting(&change.id);
                     let layer = match change.here {
                         true => SettingsLayer::ThisDevice,
                         false => setting.layer(&layers.own(SettingsLayer::ThisDevice)),
                     };
-                    (layer, setting.set(&layers.own(layer), change.mode))
+                    (layer, Rc::new(move |own| setting.set(own, change.mode)))
                 }
                 Change::Use { id, used } => {
-                    let setting = DisplaySettings::used_setting(id);
+                    let setting = DisplaySettings::used_setting(&id);
                     let layer = setting.layer(&layers.own(SettingsLayer::ThisDevice));
-                    (layer, setting.set(&layers.own(layer), used.clone()))
+                    (layer, Rc::new(move |own| setting.set(own, used.clone())))
                 }
                 Change::Arrangement(arrangement) => {
                     let setting = DisplaySettings::arrangement_setting();
                     let layer = setting.layer(&layers.own(SettingsLayer::ThisDevice));
-                    (layer, setting.set(&layers.own(layer), arrangement.clone()))
+                    (
+                        layer,
+                        Rc::new(move |own| setting.set(own, arrangement.clone())),
+                    )
                 }
             };
             let own = layers.own(layer);
-            layers.set(layer, edited(&own, std::slice::from_ref(&edit)));
+            layers.set(layer, edited(&own, &[edit(&own)]));
             (layer, edit)
         })
         .collect()

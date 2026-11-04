@@ -549,7 +549,7 @@ fn is_activity(event: &Event) -> bool {
             | Event::PointerButton { .. }
             | Event::PointerMotion(_)
             | Event::PointerMoved(_)
-            | Event::Scroll(_)
+            | Event::Scroll { .. }
             | Event::Text(_)
             | Event::Paste(_)
             | Event::Touch { .. }
@@ -582,7 +582,7 @@ fn taps(doc: &mut Document, events: &[Event]) -> Vec<usize> {
                 doc.tapping = None;
             }
             Event::PointerButton { pressed: true, .. }
-            | Event::Scroll(_)
+            | Event::Scroll { .. }
             | Event::Focus(false)
             | Event::Touch {
                 phase: beui_types::TouchPhase::Start,

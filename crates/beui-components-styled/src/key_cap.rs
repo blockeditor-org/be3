@@ -20,7 +20,7 @@ pub fn KeyCap(label: Prop<String>, #[prop(default = false)] muted: Prop<bool>) -
     let muted = create_memo(move || muted.get());
     let fill = create_memo(move || match muted.get() {
         true => ColorRole::None,
-        false => ColorRole::SurfaceRaised,
+        false => ColorRole::Control,
     });
     let border = create_memo(move || {
         Some(Border::new(match muted.get() {

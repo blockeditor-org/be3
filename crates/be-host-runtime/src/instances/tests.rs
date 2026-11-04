@@ -379,6 +379,8 @@ fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
                 painted: vec![own],
                 floating: vec![own],
                 floating_painted: Vec::new(),
+                marks: Vec::new(),
+                marks_painted: Vec::new(),
                 scrims: Vec::new(),
                 drawing: Vec::new(),
                 claims: Vec::new(),

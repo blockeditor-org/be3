@@ -1,17 +1,16 @@
 use be_sdk_beui::be_block::be_block_model::Document;
 use be_sdk_beui::be_block::{
     Allowance, BlockContent, BlockMetadata, Edit, Layered, LiveEdit, LostAccess, OfflinePolicy,
-    OfflineSettings, OrganizationPolicies, Root, Setting, Settings, SettingsContent,
-    WORKSPACE_TYPE, WhoMay,
+    OfflineSettings, OrganizationPolicies, Root, Setting, Settings, SettingsContent, WhoMay,
 };
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{BlockParent, BlockQuery, Editor, LayeredSettings};
+use be_sdk_beui::{BlockParent, Editor, LayeredSettings};
 use uuid::Uuid;
 
 use super::block::name_of;
-use super::ui::Section;
+use super::ui::workspaces;
 use beui::{Extent, ItemSize};
 
 const ABOUT: &str = "Applies to every member. Only its administrators change it, and the server reads it to enforce sharing, workspaces, history and storage.";
@@ -185,54 +184,57 @@ where
 }
 
 #[component]
-pub(super) fn OrganizationSection(editor: Editor) -> NodeId {
-    let settings = create_memo(move || editor.organization_settings());
-    let shown = create_memo(move || settings.get().is_some());
-    let manages = create_memo(move || {
-        settings
-            .get()
-            .is_some_and(|settings| editor.blocks().access(settings).can_manage())
-    });
+pub(super) fn OrganizationPage(editor: Editor) -> NodeId {
+    let block = editor.block_id();
+    let settings = create_memo(move || Some(block));
+    let locked = create_memo(move || !editor.blocks().access(block).can_manage());
+    let organization = |indices: &[usize]| -> Vec<Row> {
+        indices
+            .iter()
+            .map(|index| policy_row::<OrganizationPolicies>(editor, settings, *index))
+            .collect()
+    };
+    let sharing = organization(&[0, 1]);
+    let storage = organization(&[2, 3]);
+    let devices: Vec<Row> = (0..OFFLINE_POLICIES.len())
+        .map(|index| policy_row::<OfflineSettings>(editor, settings, index))
+        .collect();
+    view! {
+        <SettingsPage>
+            <SettingsSection title="Sharing and workspaces" description={ABOUT}>
+                <PolicyRows rows={sharing} locked={locked} />
+            </SettingsSection>
+            <SettingsSection title="History and storage">
+                <PolicyRows rows={storage} locked={locked} />
+            </SettingsSection>
+            <SettingsSection title="Devices">
+                <PolicyRows rows={devices} locked={locked} />
+            </SettingsSection>
+        </SettingsPage>
+    }
+}
+
+#[component]
+fn PolicyRows(rows: Vec<Row>, locked: Memo<bool>) -> NodeId {
+    let rows = std::rc::Rc::new(rows);
+    let keys: Vec<usize> = (0..rows.len()).collect();
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
-                <Section title="Organization" caption={ABOUT}>
-                    <Card>
-                        <ForEach keys={(0..POLICIES.len()).collect::<Vec<_>>()}>|index: usize| {
-                            let row = policy_row::<OrganizationPolicies>(editor, settings, index);
-                            view! {
-                                <PolicyRow
-                                    key={row.key}
-                                    label={row.label}
-                                    description={row.description}
-                                    options={row.options}
-                                    selected={row.selected}
-                                    choose={row.choose}
-                                    locked={create_memo(move || !manages.get())}
-                                    separated={row.separated}
-                                />
-                            }
-                        }</ForEach>
-                        <ForEach
-                            keys={(0..OFFLINE_POLICIES.len()).collect::<Vec<_>>()}
-                        >|index: usize| {
-                            let row = policy_row::<OfflineSettings>(editor, settings, index);
-                            view! {
-                                <PolicyRow
-                                    key={row.key}
-                                    label={row.label}
-                                    description={row.description}
-                                    options={row.options}
-                                    selected={row.selected}
-                                    choose={row.choose}
-                                    locked={create_memo(move || !manages.get())}
-                                    separated={row.separated}
-                                />
-                            }
-                        }</ForEach>
-                    </Card>
-                </Section>
-            </Show>
+            <ForEach keys={keys}>|index: usize| {
+                let row = rows[index].clone();
+                view! {
+                    <PolicyRow
+                        key={row.key}
+                        label={row.label}
+                        description={row.description}
+                        options={row.options}
+                        selected={row.selected}
+                        choose={row.choose}
+                        locked={locked}
+                        separated={index > 0}
+                    />
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -253,6 +255,7 @@ impl Policies for OfflineSettings {
     }
 }
 
+#[derive(Clone)]
 struct Row {
     key: &'static str,
     label: &'static str,
@@ -260,7 +263,6 @@ struct Row {
     options: &'static [&'static str],
     selected: Memo<Option<usize>>,
     choose: Callback<Option<usize>>,
-    separated: bool,
 }
 
 fn policy_row<R: Policies>(editor: Editor, settings: Memo<Option<Uuid>>, index: usize) -> Row
@@ -293,7 +295,6 @@ where
         options: policy.options,
         selected,
         choose,
-        separated: index > 0 || R::CONTENT_TYPE == OfflineSettings::CONTENT_TYPE,
     }
 }
 
@@ -344,72 +345,52 @@ fn keep_setting(workspace: Uuid) -> Setting<OfflineSettings, bool> {
 }
 
 #[component]
-pub(super) fn OfflineSection(editor: Editor) -> NodeId {
-    let roots = editor.watch_blocks(BlockQuery::Roots);
-    let workspaces = create_memo(move || {
-        let mut found: Vec<Uuid> = roots
-            .get()
-            .into_iter()
-            .flatten()
-            .filter(|info| info.block_type == WORKSPACE_TYPE && info.access.can_view())
-            .map(|info| info.id)
-            .collect();
-        found.sort();
-        found
-    });
+pub(super) fn OfflinePage(editor: Editor) -> NodeId {
+    let workspaces = workspaces(editor);
     let listed = create_memo(move || !workspaces.with(Vec::is_empty));
+    let none = create_memo(move || !listed.get());
     let layered = LayeredSettings::<OfflineSettings>::this_device(editor);
     let resolved = editor.resolved_settings::<OfflineSettings>(editor.block_id());
     view! {
-        <List spacing=Space::None>
-            <Show condition={listed}>
-                <Section title="Offline" caption={OFFLINE_ABOUT}>
-                    <Card>
-                        <ForEach keys={workspaces}>|workspace: Uuid| {
-                            let setting = keep_setting(workspace);
-                            let personal = create_memo(move || editor.organization_settings().is_none());
-                            let choice = create_memo(move || {
-                                resolved.with(|resolved| {
-                                    OfflineSettings::choice(resolved, workspace, personal.get())
-                                })
-                            });
-                            let on = create_memo(move || choice.get().keep);
-                            let fixed = create_memo(move || choice.get().fixed);
-                            let note = create_memo(move || match fixed.get() {
-                                true => FIXED.to_owned(),
-                                false => String::new(),
-                            });
-                            let label = create_memo(move || name_of(editor, workspace));
-                            let first = create_memo(move || workspaces.with(|all| all.first() != Some(&workspace)));
-                            view! {
-                                <SettingsRow
-                                    label={label}
-                                    note={note}
-                                    separated={first}
-                                    locked={fixed}
-                                    compact=true
-                                >
-                                    <Switch
-                                        on={Binding::new(on, move |keep: bool| layered.set(&setting, Some(keep)))}
-                                        label="Keep for offline use"
-                                        disabled={fixed}
-                                        @test_id={format!("settings.offline.{workspace}")}
-                                    />
-                                </SettingsRow>
-                            }
-                        }</ForEach>
-                    </Card>
-                </Section>
-            </Show>
-        </List>
-    }
-}
-
-#[component]
-fn Card(children: Children<ListChild>) -> NodeId {
-    view! {
-        <Frame fill=ColorRole::Surface border={Some(Border::DEFAULT)} radius=Radius::Lg>
-            <List spacing=Space::None>{children}</List>
-        </Frame>
+        <SettingsPage>
+            <SettingsSection title="Offline" description={OFFLINE_ABOUT}>
+                <Show condition={none}>
+                    <SettingsRow label="No workspaces yet" compact=true />
+                </Show>
+                <ForEach keys={workspaces}>|workspace: Uuid| {
+                    let setting = keep_setting(workspace);
+                    let personal = create_memo(move || editor.organization_settings().is_none());
+                    let choice = create_memo(move || {
+                        resolved.with(|resolved| {
+                            OfflineSettings::choice(resolved, workspace, personal.get())
+                        })
+                    });
+                    let on = create_memo(move || choice.get().keep);
+                    let fixed = create_memo(move || choice.get().fixed);
+                    let note = create_memo(move || match fixed.get() {
+                        true => FIXED.to_owned(),
+                        false => String::new(),
+                    });
+                    let label = create_memo(move || name_of(editor, workspace));
+                    let first = create_memo(move || workspaces.with(|all| all.first() != Some(&workspace)));
+                    view! {
+                        <SettingsRow
+                            label={label}
+                            note={note}
+                            separated={first}
+                            locked={fixed}
+                            compact=true
+                        >
+                            <Switch
+                                on={Binding::new(on, move |keep: bool| layered.set(&setting, Some(keep)))}
+                                label="Keep for offline use"
+                                disabled={fixed}
+                                @test_id={format!("settings.offline.{workspace}")}
+                            />
+                        </SettingsRow>
+                    }
+                }</ForEach>
+            </SettingsSection>
+        </SettingsPage>
     }
 }

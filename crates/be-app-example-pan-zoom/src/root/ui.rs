@@ -297,7 +297,7 @@ fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>
         >
             <Interactive cursor=CursorIcon::PointingHand on_click={select}>
                 <Frame
-                    fill=ColorRole::SurfaceRaised
+                    fill=ColorRole::Control
                     border={create_memo(move || Some(Border::new(outline.get()).width(Stroke::Custom(outline_width.get()))))}
                     radius={radius}
                     padding=padding

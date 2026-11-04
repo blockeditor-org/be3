@@ -179,7 +179,7 @@ fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
     let done = create_memo(move || item.with(|item| item.as_ref().is_some_and(|item| item.done)));
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Control
             radius=Radius::Md
             padding={Padding::symmetric(Space::Lg, Space::Md)}
         >
