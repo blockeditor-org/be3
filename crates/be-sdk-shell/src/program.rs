@@ -109,6 +109,10 @@ pub(crate) fn listed_windows(entries: &[HostWindow]) -> Vec<HostWindow> {
         .collect()
 }
 
+/// Where a new program window or restored placeholder opens: a cascade step from its tab key,
+/// with fewer steps when the area leaves little room. Applied at the placeholder's size, then once
+/// more at the child's first `intrinsic` size. There is no size negotiation after that: the dock
+/// sizes the window and the host fits the program to it.
 pub(crate) fn cascaded(key: u64, size: Vec2, area: Rect) -> Rect {
     if !area.is_positive() {
         let step = (key % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
@@ -131,6 +135,10 @@ pub fn picture_image(picture: &Picture) -> Option<Image> {
         .then(|| Image::from_rgba(picture.width, picture.height, picture.rgba.clone()))
 }
 
+/// Binds each parentless listed window to a tab: the tab whose key is its `origin.launch`, else a
+/// waiting tab that last held this window id for the same program (a shell restarted over the
+/// same host), else the oldest waiting tab of its program id, else a new tab. While `ending`, a
+/// window that leaves the list and can be started again leaves its tab as a placeholder.
 pub(crate) fn place(
     programs: &mut Programs,
     windows: &[HostWindow],
@@ -618,6 +626,8 @@ impl Workspace {
         });
     }
 
+/// Set from the host's `PowerAvailability::ending`. The programs are asked to close only after
+/// that is published, so every window that closes during the ending is kept as a placeholder.
     pub fn keep_through_ending(&self, ending: bool) {
         if self.ending.get_untracked() != ending {
             self.ending.set(ending);

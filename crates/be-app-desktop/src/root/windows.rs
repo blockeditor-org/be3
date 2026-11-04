@@ -17,6 +17,9 @@ use std::collections::HashMap;
 use super::bar::bar_bounds;
 
 const CHIP_SPACING: Space = Space::Xs;
+/// The row asks for this much per chip, so a band gives it room as if every title were long; the
+/// row then measures the room it got, never its content, so switching to icon-only chips
+/// (below `CHIP_LEAST` each) does not shrink what it asks for.
 const CHIP_WIDTH: Size = Size::Menu;
 const CHIP_LEAST: Size = Size::Custom(2.0 * Size::Xl2.px());
 const BELL_FLASH: std::time::Duration = std::time::Duration::from_millis(400);

@@ -1,3 +1,11 @@
+//! Keeps a self-committing surface's last view until its next buffer arrives.
+//!
+//! A toplevel or desynchronized sub-surface that changes its viewport without attaching a
+//! buffer keeps the view it had with its last buffer. Firefox sets its content's destination to
+//! the new window size as soon as it is configured and commits that before drawing at the new
+//! size, which would otherwise stretch the old buffer. A synchronized sub-surface's viewport
+//! applies with its parent's commit, and a single-pixel buffer's at once.
+
 use std::sync::Mutex;
 
 use smithay::backend::renderer::utils::{RendererSurfaceStateUserData, SurfaceView};

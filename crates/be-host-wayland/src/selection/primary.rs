@@ -1,3 +1,10 @@
+//! Middle-click paste while the input settings turn it off.
+//!
+//! The primary-selection globals stay advertised; every `set_selection` on a primary device, and
+//! `set_primary_selection` on a data-control device, is dropped without cancelling the source, so
+//! the selection stays empty (decisions/middle_click_paste_off_keeps_the_primary_selection_empty.md).
+//! X11 programs keep their own `PRIMARY` in Xwayland, which is not bridged.
+
 use smithay::reexports::wayland_protocols::ext::data_control::v1::server::{
     ext_data_control_device_v1::{self, ExtDataControlDeviceV1},
     ext_data_control_manager_v1::ExtDataControlManagerV1,
