@@ -64,7 +64,7 @@ impl InputState {
                 | Event::Touch { pos, .. }
                 | Event::Pen { pos, .. }
                 | Event::Predicted(pos) => *pos = scale(*pos),
-                Event::Scroll(delta) => *delta *= factor,
+                Event::Scroll { delta, .. } => *delta *= factor,
                 Event::Touchpad(gesture) => *gesture = gesture.scaled(factor),
                 _ => {}
             }
@@ -73,7 +73,7 @@ impl InputState {
             event.pos = scale(event.pos);
             event.predicted = event.predicted.map(scale);
             match &mut event.phase {
-                PointerPhase::Scroll(delta) | PointerPhase::ScrollEnded { fling: delta } => {
+                PointerPhase::Scroll { delta, .. } | PointerPhase::ScrollEnded { fling: delta } => {
                     *delta *= factor;
                 }
                 PointerPhase::Touchpad(gesture) => *gesture = gesture.scaled(factor),
@@ -240,12 +240,15 @@ impl InputState {
                     self.scroll_samples.clear();
                     self.wheel(PointerPhase::ScrollStarted);
                 }
-                Event::Scroll(delta) => {
+                Event::Scroll { delta, notches } => {
                     match self.scroll_samples.back_mut() {
                         Some((when, sum)) if *when == now => *sum += *delta,
                         _ => self.scroll_samples.push_back((now, *delta)),
                     }
-                    self.wheel(PointerPhase::Scroll(*delta));
+                    self.wheel(PointerPhase::Scroll {
+                        delta: *delta,
+                        notches: *notches,
+                    });
                 }
                 Event::ScrollEnded => {
                     let fling = self.fling(now);

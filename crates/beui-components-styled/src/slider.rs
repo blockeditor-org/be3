@@ -107,7 +107,7 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
 
 fn knob_fill_color(dragging: bool, disabled: bool) -> ColorRole {
     match (disabled, dragging) {
-        (true, _) => ColorRole::SurfaceRaised,
+        (true, _) => ColorRole::Control,
         (false, true) => ColorRole::AccentHover,
         (false, false) => ColorRole::Knob,
     }

@@ -1304,7 +1304,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     if watching.open == started.method {
                         let mut watch = be_sdk_api::Watch::default();
                         watch.opened(started.op);
-                        if let Some(value) = self.published.get(&watching.open) {
+                        if let Some(value) = self.published.get(&watching.open)
+                            && !be_sdk_api::starts_anew(watching.open)
+                        {
                             watch.set(connection, value.clone());
                         }
                         self.published_watches

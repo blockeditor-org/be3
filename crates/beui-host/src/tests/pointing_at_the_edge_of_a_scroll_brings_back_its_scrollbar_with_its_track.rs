@@ -26,7 +26,7 @@ fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
     let bar = harness.rect(scrollbar_of(&harness, scroll.get()));
     let track = track_within(&harness, scrollbar_of(&harness, scroll.get()));
     assert!(!thumb_painted(&output, track));
-    assert!(!painted_rect(&output, track, theme.surface_raised));
+    assert!(!painted_rect(&output, track, theme.control));
 
     harness.frame(vec![Input::PointerMoved(pos2(
         bar.center().x,
@@ -38,7 +38,7 @@ fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
         "pointing at the edge shows the bar"
     );
     assert!(
-        painted_rect(&output, track, theme.surface_raised),
+        painted_rect(&output, track, theme.control),
         "and its track, under the pointer"
     );
 
@@ -54,7 +54,7 @@ fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
     )]);
     let output = harness.frame(Vec::new());
     assert!(
-        !painted_rect(&output, track, theme.surface_raised),
+        !painted_rect(&output, track, theme.control),
         "the track goes with the pointer"
     );
     assert!(thumb_painted(&output, track), "and the thumb lingers");

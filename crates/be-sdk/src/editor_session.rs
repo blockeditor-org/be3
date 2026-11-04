@@ -738,7 +738,7 @@ impl EditorSession {
         self.host.push_child_bar_action(child, action);
     }
 
-    pub(crate) fn child_focused(&self, child: ChildId) {
+    pub fn child_focused(&self, child: ChildId) {
         self.host.push_child_focus(child);
     }
 
@@ -987,6 +987,8 @@ impl EditorSession {
                 painted: frame.painted.clone(),
                 floating: frame.floating.clone(),
                 floating_painted: frame.floating_painted.clone(),
+                marks: frame.marks.clone(),
+                marks_painted: frame.marks_painted.clone(),
                 scrims: frame.scrims.clone(),
                 drawing: frame.drawing.clone(),
                 claims: frame
@@ -1007,6 +1009,7 @@ impl EditorSession {
                 work_area: frame
                     .work_area
                     .map(|area| be_sdk_api::Insets::between(host, area)),
+                backdrop: frame.backdrop,
             });
         }
         frame

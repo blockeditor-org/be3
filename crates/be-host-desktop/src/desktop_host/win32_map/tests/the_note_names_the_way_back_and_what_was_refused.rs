@@ -18,7 +18,7 @@ fn the_note_names_the_way_back_and_what_was_refused() {
     notes.hovered = Some(entry.id);
     assert_eq!(
         notes.note(&entry).as_deref(),
-        Some("Click to use this window. Ctrl+Alt+Space comes back to Block")
+        Some("Click to use this window. Ctrl+Alt+Space comes back to be-host")
     );
     notes
         .refused
@@ -30,22 +30,22 @@ fn the_note_names_the_way_back_and_what_was_refused() {
     notes.focused = Some(entry.id);
     assert_eq!(
         notes.note(&entry).as_deref(),
-        Some("Ctrl+Alt+Space comes back to Block")
+        Some("Ctrl+Alt+Space comes back to be-host")
     );
     assert_eq!(notes.note(&display), None);
     notes.hovered = Some(display.id);
     notes.hotkey = HotkeyState::Refused(HotkeyError::Taken(Hotkey::DEFAULT));
     assert_eq!(
         notes.note(&display).as_deref(),
-        Some("Click to use the window under the pointer. Alt+Tab comes back to Block")
+        Some("Click to use the window under the pointer. Alt+Tab comes back to be-host")
     );
     assert_eq!(
         focused_note(&notes.hotkey),
-        "Alt+Tab comes back to Block. The mouse is free, since Ctrl+Alt+Space is taken by another program"
+        "Alt+Tab comes back to be-host. The mouse is free, since Ctrl+Alt+Space is taken by another program"
     );
     assert_eq!(
         focused_note(&HotkeyState::Waiting),
-        "Alt+Tab comes back to Block. The mouse is free, since the shortcut back isn't ready yet"
+        "Alt+Tab comes back to be-host. The mouse is free, since the shortcut back isn't ready yet"
     );
     assert_eq!(Refusal::Elevated.text(), ELEVATED);
 
@@ -60,6 +60,6 @@ fn the_note_names_the_way_back_and_what_was_refused() {
     );
     assert_eq!(
         known.note.as_deref(),
-        Some("Ctrl+Alt+Space comes back to Block")
+        Some("Ctrl+Alt+Space comes back to be-host")
     );
 }

@@ -14,7 +14,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public final class LauncherActivity extends BeuiActivity {
-    private static final String APP = "com.be3.block.ci";
+    private static final String APP = "com.be3.host.ci";
     private static final String INSTALLED = "com.be3.launcher.INSTALLED";
     private static final int COPY_BUFFER_BYTES = 64 * 1024;
     private static LauncherActivity current;

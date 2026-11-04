@@ -231,7 +231,13 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                         drag_modifier={Some(Modifiers::LOGO)}
                     >
                         <Docking layout>
-                            <DockPane id={"desktop".to_owned()} bare=true></DockPane>
+                            <DockPane
+                                id={"desktop".to_owned()}
+                                hide_empty_bar=true
+                                empty={move || view! {
+                                    <Frame />
+                                }}
+                            ></DockPane>
                             <ForEach keys={block_windows}>|tab: TabId|
                                 <BlockWindow workspace tab />
                             </ForEach>

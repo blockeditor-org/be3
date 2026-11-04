@@ -73,7 +73,8 @@ or Start menu program (Windows) matching the window's program id.
 
 `WindowsWatch` lists every entry the host could show: program windows (`kind: window`) and, on
 Windows, whole displays (`kind: display`). Each entry (`host-window`) holds only what the shell
-needs to place it: id, kind, parent, modal, program id and origin. Only the shell instance gets
+needs to place it: id, kind, parent, modal, program id, origin, the size the program picked and
+whether it asked to be maximized. Only the shell instance gets
 this watch; a session opened inside the desktop is a block window and sees no program windows.
 Everything else about a window is its child's `child-status`, and the shell acts on it as on any
 child.
@@ -90,7 +91,11 @@ tab, chip and dialog header; `group` onto `DockTab::group`; a count up of `raise
 and gives it the keyboard; `fullscreen` toggles the tab's full screen, whose state goes back as
 `child-placement.fullscreen`; `rung` flashes the chip; `notice` replaces the tab's title while set
 (the Windows host uses it to say how to get back; Linux sets none); `menu-asked` opens the tab menu;
-a count up of `minimized` hides the tab's dock window; `intrinsic` is the size the program picked.
+a count up of `minimized` hides the tab's dock window; `intrinsic` is the size the program picked,
+which only a dialog's card follows. A new window's dock window opens at the listing's `size` (or a
+default size when there is none), snapped to fill its area when the listing says `maximized`, so
+the program is never told another size first; a window
+filling a placeholder takes the placeholder's place and size (`program::cascaded`).
 `close-child` asks the program to close; the tab stays until the window leaves the list.
 
 **Shown and hidden.** The host keeps no shown state: whether an entry shows is the dock's. A
@@ -121,7 +126,8 @@ arguments are not saved (decisions/kept_windows_store_no_program_arguments.md).
 
 **Drawing.** be-host-desktop's `PlacedWindow` draws a placed window child: the platform's
 `WindowSurface` inside `WindowBody` (`window_body.rs`), which fades where the program's buffer
-overhangs the rect, says "Too small for" below the program's least size, and draws the "not
+overhangs the rect, fills with the theme's background what the buffer does not cover yet (a window
+being resized before the program draws the new size), says "Too small for" below the program's least size, and draws the "not
 responding" Wait and Force close. Window drawings paint (`Paints` on `WindowDraw`), so paintings and
 `drive paint` show what programs drew. be-host's `compositor/editors.rs` turns `close-child`,
 fullscreen and the keyboard into requests to the program.
@@ -147,9 +153,13 @@ side along their bottom edges. `DisplaysWatch` gives each `HostDisplay` its `rec
   `BeginMove`/`BeginResize` hand the press to the host.
 - A display's work area is the display less its bars' bands (`DockHostLayout::area`). The shell
   reports it per view (`frame-report.work-area`), and windows are kept wholly inside it on edges a
-  band insets; a window on no display (unplugged) moves to the nearest.
+  band insets, except a `WindowLevel::Fullscreen` window (the dock's fullscreen), which covers the
+  whole display; a window on no display (unplugged) moves to the nearest.
 - A window is drawn on the display holding most of it, at that display's raster scale; while it is
   moved, on every display it overlaps.
+- The shell's view draws its surface, every child it places (the tabs docked in its own dock)
+  and its marks over them (`frame-report.marks`: a splitter's line and reach) under the
+  windows, and only its overlays (menus, scrims) above them, for drawing and input (`AppView`).
 - A raised dock bar (`bar_level` `Raised`) is a floating layer above windows; a bar popped into its
   own window opens at `WindowLevel::Above`. A fullscreen window drops bars to `Normal`.
 - The pointer crosses display windows with a press held (beui's cross-window rules) and between the

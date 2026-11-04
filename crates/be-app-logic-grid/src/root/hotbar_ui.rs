@@ -209,7 +209,7 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
     let empty = create_memo(move || entries.get().is_empty());
     let fill = create_memo(move || match shown.get().active {
         true => ColorRole::AccentSoft,
-        false => ColorRole::SurfaceRaised,
+        false => ColorRole::Control,
     });
 
     view! {
@@ -335,7 +335,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
         } else if hovered.get() {
             ColorRole::Hover
         } else {
-            ColorRole::SurfaceRaised
+            ColorRole::Control
         }
     });
     let outline = create_memo(move || match shown.get() {

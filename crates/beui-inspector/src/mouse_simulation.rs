@@ -298,10 +298,10 @@ impl MouseSimulation {
         }
         if self.scroll != Vec2::ZERO {
             out.push(Event::Modifiers(modifiers));
-            out.push(Event::Scroll(std::mem::replace(
-                &mut self.scroll,
-                Vec2::ZERO,
-            )));
+            out.push(Event::Scroll {
+                delta: std::mem::replace(&mut self.scroll, Vec2::ZERO),
+                notches: None,
+            });
         }
     }
 
@@ -590,7 +590,7 @@ impl MouseSimulation {
             let fill = if active {
                 Theme::DARK.accent
             } else {
-                Theme::DARK.surface_raised
+                Theme::DARK.control
             };
             let color = if active {
                 Theme::DARK.on_accent

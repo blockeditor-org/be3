@@ -220,7 +220,7 @@ impl Connection {
             .map_err(|error| format!("the server refused the connection: {error:?}"))?;
         connection.version = auth.version.min(protocol::MAX_VERSION);
         let mut props = Props::new();
-        props.set(Prop::ApplicationName, c"Block");
+        props.set(Prop::ApplicationName, c"be-host");
         let _: SetClientNameReply = connection
             .reply(Command::SetClientName(props))
             .await?

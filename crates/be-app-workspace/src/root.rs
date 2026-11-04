@@ -4,7 +4,7 @@ use std::cell::Cell;
 use be_sdk_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent, ViewState};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::{
-    DockEntry, DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId, use_dock_tab,
+    DockEntry, DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId,
 };
 use be_sdk_beui::beui::dock_host::styled::DockHost;
 use be_sdk_beui::beui::icons::{ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS};
@@ -273,7 +273,6 @@ fn SidePanel(
         false => TopBar::Hidden,
     });
     let editor = workspace.editor();
-    let tab = use_dock_tab();
     view! {
         <List spacing=Space::None>
             <ListItem grow=1.0>
@@ -283,7 +282,6 @@ fn SidePanel(
                     mode=ChildMode::Live
                     own_frame=true
                     top_bar={top_bar}
-                    on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
                     @test_id={id}
                 >|handle: ChildBlockHandle|
                     <PanelStatus state={handle.state} loading={loading.to_owned()} />

@@ -20,6 +20,7 @@ pub mod dialog;
 pub mod focus_ring;
 pub mod frame;
 pub mod fullscreen;
+pub mod key_cap;
 pub mod link;
 pub mod list;
 pub mod list_row;
@@ -99,6 +100,7 @@ pub use dialog::{
 pub use focus_ring::FocusRing;
 pub use frame::{Border, ColorRole, Frame, Radius, focus_border};
 pub use fullscreen::Fullscreen;
+pub use key_cap::KeyCap;
 pub use link::Link;
 pub use list::{Grid, List, Spacer};
 pub use list_row::ListRow;

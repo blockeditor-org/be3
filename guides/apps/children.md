@@ -88,11 +88,15 @@ and its toolbar as a `DockBar` lent to the slide canvas's pane.
 
 When the host gives the keyboard to a child, every instance above it hears
 which of its children it went into (`ChildBlock`'s `on_focus`): a press inside
-a child never reaches the placer, so this is how the workspace selects the
-pane holding it. The other way, `EditorHost::focus_child` gives a child the
-keyboard, but only while the keyboard is already inside the editor's views and
-no popover or keyboard-taking layer is open, so it never steals focus from
-elsewhere. `ChildBlock` and `Subregion` in a dock tab ask for it whenever the
+a child never reaches the placer. A `ChildBlock` or `Subregion` in a dock tab
+shows that tab when it hears this, and one in an empty pane's view focuses that
+pane, so a press in a child (a joined dock's tab body or empty pane included)
+focuses what holds it and brings its window in front; `on_focus` is for
+anything more. A child that takes a press without the
+keyboard (one being presented) brings nothing forward. The other way,
+`EditorHost::focus_child` gives a child the keyboard, but only while the
+keyboard is already inside the editor's views and no popover or
+keyboard-taking layer is open, so it never steals focus from elsewhere. `ChildBlock` and `Subregion` in a dock tab ask for it whenever the
 dock gives that tab the keyboard.
 
 ## Docks across apps
@@ -132,7 +136,8 @@ the workspace as dock windows holding `SubregionContent::Host(panel)`.
 
 Program windows are placed the same way. On Linux the host is a Wayland
 compositor (guides/desktop/wayland.md); `editor.watch::<WindowsWatch>()` lists
-its windows, answered only to the shell. be-sdk-shell's `Workspace` gives each
+its windows, answered only to the shell; any app may watch `OpenProgramsWatch`, the programs
+with windows open, without the windows. be-sdk-shell's `Workspace` gives each
 top window a program tab holding `SubregionContent::Window(id)`, and a window
 with a parent a `DockDialog` hanging from its tab. The rest (title, icon,
 raise, fullscreen, attention) is the child's `ChildState`, reported only while

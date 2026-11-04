@@ -4,6 +4,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 mod raster;
+mod tidy;
 
 pub use raster::rasterize;
 

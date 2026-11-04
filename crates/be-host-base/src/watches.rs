@@ -18,6 +18,7 @@ pub trait WatchHost {
 thread_local! {
     static PUBLISHED: RefCell<HashMap<MethodId, Arc<Vec<u8>>>> = RefCell::new(HashMap::new());
     static HOST: Cell<Option<&'static dyn WatchHost>> = const { Cell::new(None) };
+    static OPENINGS: RefCell<HashMap<MethodId, u64>> = RefCell::new(HashMap::new());
 }
 
 pub fn serve(host: &'static dyn WatchHost) {
@@ -53,6 +54,17 @@ pub fn published() -> Vec<(MethodId, Arc<Vec<u8>>)> {
             .map(|(open, value)| (*open, Arc::clone(value)))
             .collect()
     })
+}
+
+/// Counts a watch opened by an editor; the host that serves watches calls it.
+pub fn opened(open: MethodId) {
+    OPENINGS.with(|openings| *openings.borrow_mut().entry(open).or_default() += 1);
+}
+
+/// How many watches of `W` have been opened, for a watch whose every opening starts something
+/// (an input capture), which `watched` alone cannot tell from one kept open.
+pub fn openings<W: Watched>() -> u64 {
+    OPENINGS.with(|openings| openings.borrow().get(&W::OPEN).copied().unwrap_or_default())
 }
 
 pub fn watched<W: Watched>() -> bool {

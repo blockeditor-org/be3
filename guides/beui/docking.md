@@ -16,7 +16,8 @@ follows.
   joined groups. `layout_surface` turns a surface into rectangles. Most behaviour is tested here,
   without a document.
 - **beui-dock** (the client): the declaration components, `DockingLayout`, `DockDocuments`, the
-  per-tab controls (`use_dock_tab()`, `use_dock_bar()`, `dock_menu`) and the seam to a host
+  per-tab controls (`use_dock_tab()`, `use_dock_bar()`, `dock_menu`), an empty pane's
+  `use_dock_pane()`, and the seam to a host
   (`link.rs`).
 - **beui-dock-host**: `DockHost`, which lays out and draws a declared dock and owns the drags, the
   keyboard, the window manager (`unstyled/hosting/`), bars, dialogs, fullscreen and the switcher.
@@ -92,7 +93,11 @@ Pressing a pane's chrome (bar, tab, grip) gives the keyboard to the tab it shows
 `beui-dock-host/src/unstyled/keyboard.rs` puts the focus back where that tab last had it, or on its
 first focusable. Content whose keyboard lives in another document (a program's window, a child
 block) follows `DockTabControl::keyboard` and `brought_forward` and asks its host for the keys
-(`focus_child`, guides/apps/children.md, Focus).
+(`focus_child`, guides/apps/children.md, Focus). The other way, when such content takes the focus
+there it shows its tab (`DockTabControl::show`) or, in an empty pane's view, focuses that pane
+(`DockPaneControl::focus`), which brings the window in front. A focused empty pane in a joined
+group has no tab, so `DockState::focused_or_host` stands the group's host tab in for it: that is
+what `DockingLayout::focused` and `DockHosted::focused` report.
 
 Ctrl+Tab walks the focused pane's tabs (an `on_shortcut`, so it works from inside a text input).
 The dock binds no other key: the switcher and window actions are actions the shell binds.
@@ -145,8 +150,9 @@ follows. Drop targets are resolved in the window the `DragPoint` names, in that 
 coordinates, and never in a window a non-dock layer covers at the pointer.
 
 The window manager (`beui-dock-host/src/unstyled/hosting/manager.rs`, `snap.rs`,
-`beui-dock-state/src/hidden.rs`) is on `DockHostLayout` for any shell: areas (`set_areas`, one per
-display; a window belongs to the area it overlaps most), snapping, hiding and show-desktop,
+`beui-dock-state/src/hidden.rs`) is on `DockHostLayout` for any shell: areas (`set_areas`, one `DockArea`
+per display: the whole screen, where a window goes fullscreen, and the work area it is kept, snapped
+and maximized in; a window belongs to the area it overlaps most), snapping, hiding and show-desktop,
 cycling a `DockTab`'s `group`, and `window_actions(disabled)`, which returns `dock.window.*` and
 `dock.switch.*` actions with no keys, acting on the focused window. The desktop binds them
 (guides/desktop.md); the demo's Window manager page puts them in a menu.

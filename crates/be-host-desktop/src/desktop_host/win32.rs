@@ -25,7 +25,7 @@ use super::win32_overlay::EntryOverlay;
 use super::win32_shape::Shaping;
 
 const HOST_FOREGROUND_REFUSED: &str =
-    "Windows did not let Block come back to the front. Click Block's window to use it again.";
+    "Windows did not let be-host come back to the front. Click be-host's window to use it again.";
 
 struct Gpu {
     device: wgpu::Device,
@@ -614,7 +614,7 @@ fn spawn() {
     eprintln!("be-host: watching Windows' windows and displays");
     watcher.set_host_window(HOST_WINDOW.get());
     if HOST_WINDOW.get().is_none() {
-        eprintln!("be-host: Block's own window is unknown, so focus cannot bring it back");
+        eprintln!("be-host: be-host's own window is unknown, so focus cannot bring it back");
     }
     if let Err(error) = watcher.set_hotkey(Some(Hotkey::DEFAULT)) {
         hotkey_refused(&error);
@@ -628,11 +628,11 @@ fn spawn() {
 
 fn hotkey_refused(error: &be_host_win32::HotkeyError) {
     eprintln!(
-        "be-host: the shortcut back to Block, {}, was not registered: {error}",
+        "be-host: the shortcut back to be-host, {}, was not registered: {error}",
         Hotkey::DEFAULT
     );
     be_host_base::notices::report(format!(
-        "{} cannot bring Block back from a Windows window: {error}",
+        "{} cannot bring be-host back from a Windows window: {error}",
         Hotkey::DEFAULT
     ));
 }
@@ -671,10 +671,10 @@ fn log_event(snapshot: &Snapshot, event: &FocusEvent) {
         FocusEvent::Resumed(id) => eprintln!("be-host: focus mode on {} resumed", name(*id)),
         FocusEvent::Hotkey => eprintln!("be-host: {} pressed", Hotkey::DEFAULT),
         FocusEvent::HostForegroundRefused => {
-            eprintln!("be-host: Windows did not let Block come back to the front");
+            eprintln!("be-host: Windows did not let be-host come back to the front");
         }
         FocusEvent::HotkeySet(Some(hotkey)) => {
-            eprintln!("be-host: {hotkey} brings Block back from a Windows window");
+            eprintln!("be-host: {hotkey} brings be-host back from a Windows window");
         }
         FocusEvent::HotkeySet(None) => {}
         FocusEvent::HotkeyRefused(error) => hotkey_refused(error),

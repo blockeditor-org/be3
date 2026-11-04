@@ -26,7 +26,7 @@ fn sign_in() -> crate::primitives::Root {
                         />
                         <TextInput
                             value={code}
-                            placeholder="Code shown in Block"
+                            placeholder="Code shown in be-host"
                             name="code"
                             autocomplete="one-time-code"
                         />
@@ -57,7 +57,7 @@ fn a_sign_in_form_on_the_html_core() {
         "<input type=\"password\"",
         "value=\"&quot;&gt;secret\"",
         "autocomplete=\"current-password\"",
-        "placeholder=\"Code shown in Block\"",
+        "placeholder=\"Code shown in be-host\"",
         "<button type=\"submit\"",
         "<a href=\"/auth/forgot\"",
     ] {

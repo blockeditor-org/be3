@@ -11,7 +11,7 @@ fn a_crash_report_does_not_leave_a_dev_run_busy() {
         "a dev run is busy until its organization opens"
     );
 
-    core.crashed("Block closed after this error the last time it ran.".to_owned());
+    core.crashed("be-host closed after this error the last time it ran.".to_owned());
 
     assert!(
         core.busy().is_empty(),

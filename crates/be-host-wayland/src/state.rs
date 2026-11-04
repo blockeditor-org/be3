@@ -32,6 +32,7 @@ use crate::server::{Waiter, readable};
 use crate::shortcuts_inhibit::Shortcuts;
 use crate::toplevel_icon::ToplevelIcons;
 use crate::xwayland::XWaylandState;
+use smithay::backend::input::{Axis, AxisSource};
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
 use smithay::delegate_fractional_scale;
@@ -78,6 +79,10 @@ use smithay::xwayland::XWaylandClientData;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WindowId(pub u64);
+
+/// The axis value of one wheel notch: libinput's 15 degrees, which clients
+/// read from every compositor that passes libinput's values on.
+const WHEEL_NOTCH: f64 = 15.0;
 
 pub const PING_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -180,6 +185,9 @@ pub struct State {
     pub(crate) pointer_window: Option<WindowId>,
     pub(crate) pointer_target: Option<(WindowId, Point<f64, Logical>)>,
     buttons: Vec<u32>,
+    /// Fingers are on a trackpad, scrolling, between `ScrollStarted` and
+    /// `ScrollEnded`.
+    fingers_scrolling: bool,
     pub(crate) keyboard_window: Option<WindowId>,
     pings: Vec<Ping>,
     unresponsive: Vec<ClientId>,
@@ -287,6 +295,7 @@ impl State {
             pointer_window: None,
             pointer_target: None,
             buttons: Vec::new(),
+            fingers_scrolling: false,
             keyboard_window: None,
             pings: Vec::new(),
             unresponsive: Vec::new(),
@@ -745,7 +754,13 @@ impl State {
             return None;
         }
         let size = window.chosen.unwrap_or(window.window.geometry().size);
-        (size.w > 0 && size.h > 0).then(|| beui::vec2(size.w as f32, size.h as f32))
+        if size.w <= 0 || size.h <= 0 {
+            return None;
+        }
+        Some(match picked(size) {
+            true => beui::vec2(size.w as f32, size.h as f32),
+            false => beui::Vec2::ZERO,
+        })
     }
 
     pub fn drawn_size(&self, id: WindowId) -> beui::Vec2 {
@@ -891,7 +906,7 @@ impl State {
         let mut layers = Vec::new();
         let origin = Point::from((0, 0)) - window.window.geometry().loc;
         collect_layers(&surface, origin, false, &mut layers);
-        for (popup, offset) in PopupManager::popups_for_surface(&surface) {
+        for (popup, offset) in bottom_up(PopupManager::popups_for_surface(&surface).collect()) {
             let location = offset - popup.geometry().loc;
             collect_layers(popup.wl_surface(), location, true, &mut layers);
         }
@@ -1029,16 +1044,59 @@ impl State {
         }
     }
 
-    pub fn pointer_axis(&mut self, delta: (f64, f64)) {
+    /// Scrolls the pointer's window by `delta` in surface coordinates, the
+    /// way Wayland signs them (positive is down and right). `notches` is set
+    /// when a mouse wheel turned, so the client scrolls its own wheel step
+    /// rather than reading a turn as a slide. A slide between
+    /// `pointer_fingers_scrolling(true)` and `(false)` comes from fingers on a
+    /// trackpad, which clients pan by and fling once they stop.
+    pub fn pointer_axis(&mut self, delta: (f64, f64), notches: Option<(f64, f64)>) {
         let pointer = self.pointer();
-        let mut frame =
-            AxisFrame::new(self.time()).source(smithay::backend::input::AxisSource::Continuous);
-        if delta.0 != 0.0 {
-            frame = frame.value(smithay::backend::input::Axis::Horizontal, delta.0);
+        let mut frame = AxisFrame::new(self.time());
+        let axes = [
+            (Axis::Horizontal, delta.0, notches.map(|n| n.0)),
+            (Axis::Vertical, delta.1, notches.map(|n| n.1)),
+        ];
+        match notches {
+            Some(_) => {
+                frame = frame.source(AxisSource::Wheel);
+                for (axis, _, notches) in axes {
+                    let notches = notches.unwrap_or(0.0);
+                    if notches != 0.0 {
+                        frame = frame
+                            .value(axis, notches * WHEEL_NOTCH)
+                            .v120(axis, (notches * 120.0).round() as i32);
+                    }
+                }
+            }
+            None => {
+                frame = frame.source(match self.fingers_scrolling {
+                    true => AxisSource::Finger,
+                    false => AxisSource::Continuous,
+                });
+                for (axis, delta, _) in axes {
+                    if delta != 0.0 {
+                        frame = frame.value(axis, delta);
+                    }
+                }
+            }
         }
-        if delta.1 != 0.0 {
-            frame = frame.value(smithay::backend::input::Axis::Vertical, delta.1);
+        pointer.axis(self, frame);
+        pointer.frame(self);
+    }
+
+    /// Fingers touch a trackpad to scroll (`true`), or lift off it (`false`),
+    /// which tells the pointer's window the slide stopped so it can fling.
+    pub fn pointer_fingers_scrolling(&mut self, scrolling: bool) {
+        let was = std::mem::replace(&mut self.fingers_scrolling, scrolling);
+        if scrolling || !was {
+            return;
         }
+        let pointer = self.pointer();
+        let frame = AxisFrame::new(self.time())
+            .source(AxisSource::Finger)
+            .stop(Axis::Horizontal)
+            .stop(Axis::Vertical);
         pointer.axis(self, frame);
         pointer.frame(self);
     }
@@ -1165,7 +1223,7 @@ impl State {
             .window
             .toplevel()
             .and_then(|toplevel| toplevel.current_state().size);
-        let chosen = (size.w > 0 && size.h > 0 && asked != Some(size)).then_some(size);
+        let chosen = (picked(size) && asked != Some(size)).then_some(size);
         if let Some(chosen) = chosen
             && window.chosen != Some(chosen)
         {
@@ -1194,6 +1252,14 @@ impl State {
     }
 }
 
+/// A side shorter than this, in points, makes a commit a placeholder rather than a size the
+/// program picked, such as the 1×1 buffer a client commits to map before it is sized.
+const PLACEHOLDER_SIDE: i32 = 8;
+
+fn picked(size: Size<i32, Logical>) -> bool {
+    size.w >= PLACEHOLDER_SIDE && size.h >= PLACEHOLDER_SIDE
+}
+
 fn set_state(
     state: &mut smithay::wayland::shell::xdg::ToplevelState,
     which: xdg_toplevel::State,
@@ -1203,6 +1269,43 @@ fn set_state(
         state.states.set(which);
     } else {
         state.states.unset(which);
+    }
+}
+
+/// Orders a window's popups bottom up, as its layers are drawn. smithay lists them topmost
+/// first, each popup after the ones opened from it, so a context menu opened from a menu would
+/// otherwise be drawn under that menu. Each popup comes before the ones opened from it, and
+/// popups opened from the same parent keep the order they were opened in.
+fn bottom_up(
+    popups: Vec<(PopupKind, Point<i32, Logical>)>,
+) -> Vec<(PopupKind, Point<i32, Logical>)> {
+    fn above(
+        parent: Option<&WlSurface>,
+        popups: &[(PopupKind, Point<i32, Logical>)],
+        ordered: &mut Vec<(PopupKind, Point<i32, Logical>)>,
+    ) {
+        let opened_from = |popup: &PopupKind| match parent {
+            Some(parent) => popup_parent(popup).as_ref() == Some(parent),
+            None => !popup_parent(popup).is_some_and(|parent| {
+                popups
+                    .iter()
+                    .any(|(other, _)| other.wl_surface() == &parent)
+            }),
+        };
+        for (popup, offset) in popups.iter().filter(|(popup, _)| opened_from(popup)) {
+            ordered.push((popup.clone(), *offset));
+            above(Some(popup.wl_surface()), popups, ordered);
+        }
+    }
+    let mut ordered = Vec::with_capacity(popups.len());
+    above(None, &popups, &mut ordered);
+    ordered
+}
+
+fn popup_parent(popup: &PopupKind) -> Option<WlSurface> {
+    match popup {
+        PopupKind::Xdg(popup) => popup.get_parent_surface(),
+        PopupKind::InputMethod(popup) => popup.get_parent().map(|parent| parent.surface.clone()),
     }
 }
 

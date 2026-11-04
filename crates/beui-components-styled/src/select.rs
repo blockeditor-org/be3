@@ -103,7 +103,7 @@ fn SelectTrigger(
     });
     let fill = create_memo(move || match disabled.get() {
         true => ColorRole::Surface,
-        false => ColorRole::SurfaceRaised,
+        false => ColorRole::Control,
     });
     let text_color = create_memo(move || match disabled.get() || empty.get() {
         true => TextColor::Muted,
@@ -188,7 +188,7 @@ fn SelectPopup(children: Child) -> NodeId {
     view! {
         <Frame
             width=POPUP_WIDTH
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Md
             padding=POPUP_PADDING

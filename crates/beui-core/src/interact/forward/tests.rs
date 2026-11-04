@@ -14,6 +14,7 @@ mod a_held_press_is_replayed_where_the_pointer_is_and_leaves_once_over_nothing;
 mod a_mouse_press_the_host_gave_up_is_cancelled;
 mod a_move_carries_its_prediction_along;
 mod a_scroll_is_replayed_in_unzoomed_pixels;
+mod a_wheel_is_replayed_in_its_notches;
 mod an_unnamed_key_is_replayed_as_a_keystroke;
 mod focus_is_replayed_once_for_each_change;
 mod modifiers_are_replayed_only_when_they_change;

@@ -171,7 +171,7 @@ fn StateBadge(state: Memo<State>) -> NodeId {
     let theme = use_theme();
     let fill = create_memo(move || match state.get() {
         State::Open => theme.success.get(),
-        State::Draft => theme.surface_raised.get(),
+        State::Draft => theme.control.get(),
         State::Merged => MERGED.into(),
         State::Closed => theme.danger.get(),
     });
@@ -254,7 +254,7 @@ fn CommentCard(
             >
                 <List spacing=Space::None>
                     <Frame
-                        fill=ColorRole::SurfaceRaised
+                        fill=ColorRole::Shade
                         radius=Radius::Lg
                         corners=CornerSet::TOP
                         padding={Padding::symmetric(CARD_PADDING, Space::Md)}

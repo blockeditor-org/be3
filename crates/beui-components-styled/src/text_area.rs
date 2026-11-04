@@ -40,7 +40,7 @@ pub fn text_area_colors(theme: &ThemeTokens) -> TextAreaColors {
         gutter_border: theme.border,
         gutter_text: theme.text_muted,
         gutter_arrow: theme.text_muted,
-        code_background: theme.surface_raised,
+        code_background: theme.shade,
         widget: theme.pressed,
         broken_widget: theme.danger_soft,
         selection: theme.accent_soft,
@@ -258,7 +258,7 @@ pub fn DocumentLeaf(leaf: TextLeaf) -> Span {
     let background = match leaf.syntax.code {
         true => Prop::dynamic(move || {
             Some(SpanBackground {
-                color: ColorRole::SurfaceRaised.resolve(&theme),
+                color: ColorRole::Shade.resolve(&theme),
                 radius: CODE_RADIUS.px(),
                 outset: Vec2::new(CODE_INSET, -1.0),
             })
@@ -364,7 +364,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
         Padding::custom(Sides::new(side, above, side, below))
     });
     let code = create_memo(move || match look.get().code_block {
-        true => ColorRole::SurfaceRaised,
+        true => ColorRole::Shade,
         false => ColorRole::None,
     });
     let corners = create_memo(move || {

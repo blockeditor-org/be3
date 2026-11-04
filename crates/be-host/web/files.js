@@ -10,7 +10,7 @@
 // shared buffer and waits, and this worker reads and writes what the call
 // points at in the module's shared memory itself.
 //
-// The page starts it before the module (block.js), hands it the module's
+// The page starts it before the module (host.js), hands it the module's
 // memory once there is one, and only then tells wasi.js to forward, so the
 // first path the module opens already finds the one preopened directory, "/".
 // Nothing else in the origin opens these files: the page holds a Web Lock for

@@ -39,7 +39,7 @@ fn a_child_moving_out_of_a_view_during_layout_leaves_no_removed_node_to_paint() 
             let shown = |state: Signal<PlacedView>| create_memo(move || state.get());
             let rect = create_memo(|| Rect::ZERO);
             view! {
-                <Root title="Block">
+                <Root title="be-host">
                     <Layers>
                         <ViewChildren state={shown(main)} rect nodes={outer} below=false />
                         <ViewChildren state={shown(window)} rect nodes={inner} below=false />

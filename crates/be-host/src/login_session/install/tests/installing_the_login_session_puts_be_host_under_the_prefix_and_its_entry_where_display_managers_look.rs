@@ -52,6 +52,29 @@ fn installing_the_login_session_puts_be_host_under_the_prefix_and_its_entry_wher
             session_entry(&home.join(EXECUTABLE))
         );
     }
+    let portals = root.join("usr/share/xdg-desktop-portal");
+    assert_eq!(
+        receipt.portal,
+        [
+            portals.join("portals/be-host.portal"),
+            portals.join("be-host-portals.conf")
+        ]
+    );
+    assert!(
+        std::fs::read_to_string(portals.join("portals/be-host.portal"))
+            .unwrap()
+            .contains(&format!(
+                "DBusName={}\n",
+                be_host_services::screenshot::NAME
+            )),
+        "xdg-desktop-portal finds the screenshot backend be-host serves"
+    );
+    assert!(
+        std::fs::read_to_string(portals.join("be-host-portals.conf"))
+            .unwrap()
+            .contains("org.freedesktop.impl.portal.Screenshot=be-host\n"),
+        "and picks it under the be-host desktop"
+    );
     assert!(
         !old.exists(),
         "an entry under the prefix, which LightDM never reads, is gone"

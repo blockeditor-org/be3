@@ -15,7 +15,7 @@ name = "be-host"
 path = "src/desktop.rs"
 
 [package.metadata.android]
-package = "com.be3.block"
+package = "com.be3.host"
 apk_name = "be-host"
 build_targets = ["aarch64-linux-android"]
 
@@ -31,7 +31,7 @@ path = "../../target/android-debug.keystore"
 keystore_password = "android"
 
 [package.metadata.android.application]
-label = "Block"
+label = "be-host"
 theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
 
 [package.metadata.android.application.activity]

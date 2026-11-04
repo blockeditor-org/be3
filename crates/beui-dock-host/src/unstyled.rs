@@ -59,13 +59,14 @@ pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
 use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
-pub use hosting::{DockHost, DockHostLayout, DockSnap, DockWindowActions, holding_area};
+pub use hosting::{DockArea, DockHost, DockHostLayout, DockSnap, DockWindowActions, holding_area};
 use modifier_drag::{Resized, modifier_resize};
 use switch::DockSwitchView;
 pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 
 use beui_dock::{
-    DockMenus, DockRequest, DockTabControl, DockTabDriver, DockTabMenu, dock_menu_items,
+    DockMenus, DockPaneControl, DockRequest, DockTabControl, DockTabDriver, DockTabMenu,
+    dock_menu_items,
 };
 use beui_dock_state::*;
 
@@ -1983,6 +1984,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
                 size={window_size}
                 placement={window_placement}
                 open={windowed}
+                fullscreen=true
                 keep_alive=true
                 on_report={move |report: WindowReport| {
                     if let WindowReport::Focused { focused: true, .. } = report
@@ -2061,7 +2063,6 @@ fn DockStack(dock: State) -> NodeId {
     let left = create_memo(move || gone.get().is_some() && staged.get().is_none());
     let here =
         create_memo(move || occupied.get() && gone.get().is_none() && staged.get().is_none());
-    let empty = dock.empty;
     view! {
         <BackSlide
             enabled={backward}
@@ -2079,7 +2080,9 @@ fn DockStack(dock: State) -> NodeId {
                     <Portal node={bar} />
                 </Show>
                 <Show condition={vacant}>
-                    <ListItem grow=1.0>{empty.call(state.with_untracked(vacant_leaf))}</ListItem>
+                    <ListItem grow=1.0>
+                        <EmptyPane dock leaf={state.with_untracked(vacant_leaf)} />
+                    </ListItem>
                 </Show>
                 <Show condition={here}>
                     <ListItem grow=1.0>
@@ -2346,6 +2349,7 @@ struct ChromeParts {
     sidebar_width: Memo<f32>,
     sidebar_splitter: Option<NodeId>,
     bar: Option<DockBarHandle>,
+    bar_shown: Memo<bool>,
     leaf: Option<LeafId>,
     body: NodeId,
 }
@@ -2359,6 +2363,7 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
         sidebar_width,
         sidebar_splitter,
         bar,
+        bar_shown,
         leaf,
         body,
     } = parts;
@@ -2384,9 +2389,11 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
     };
     let content = view! {
         <List direction spacing=0.0>
-            {bar.map(|bar| view! {
-                <ListItem length={sidebar_length(vertical, sidebar_width)}>{bar}</ListItem>
-            })}
+            <Show condition={bar_shown}>
+                <ListItem length={sidebar_length(vertical, sidebar_width)}>
+                    <Portal node={bar} />
+                </ListItem>
+            </Show>
             {sidebar_splitter.map(|splitter| view! {
                 <ListItem length={dock.thickness + 2.0 * dock.reach}>{splitter}</ListItem>
             })}
@@ -2630,6 +2637,8 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
         })
     });
     let vacant = create_memo(move || contents.with(Vec::is_empty));
+    let bar_shown =
+        create_memo(move || !(vacant.get() && state.with(|state| state.hides_empty_bar(leaf))));
     let sidebar_width = dock.sidebar_width(Some(leaf));
     let icons_only = dock.icons_only(Some(leaf));
     let close = ClickCallback::new(move || dock.close_leaf(leaf));
@@ -2697,6 +2706,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                             <DockSidebarSplitter dock={dock} leaf />
                         }),
                         bar,
+                        bar_shown,
                         leaf: Some(leaf),
                         body: view! {
                             <DockPanelBody dock={dock} leaf />
@@ -2802,11 +2812,12 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
     let shown = create_memo(move || state.with(|state| state.active_tab(leaf)));
     let vacant = create_memo(move || shown.get().is_none());
     let occupied = create_memo(move || shown.get().is_some());
-    let empty = dock.empty;
     view! {
         <List spacing=0.0>
             <Show condition={vacant}>
-                <ListItem grow=1.0>{empty.call(leaf)}</ListItem>
+                <ListItem grow=1.0>
+                    <EmptyPane dock leaf />
+                </ListItem>
             </Show>
             <Show condition={occupied}>
                 <ListItem grow=1.0>
@@ -2815,6 +2826,20 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
             </Show>
         </List>
     }
+}
+
+/// What an empty pane shows, told which pane it is (`use_dock_pane`).
+#[component]
+fn EmptyPane(dock: State, leaf: LeafId) -> NodeId {
+    provide_context(DockPaneControl::new(
+        leaf,
+        Callback::new(move |leaf: LeafId| {
+            if dock.state.with_untracked(|state| state.focused_leaf()) != Some(leaf) {
+                dock.edit(|state| state.focus(leaf));
+            }
+        }),
+    ));
+    dock.empty.call(leaf)
 }
 
 #[component]
@@ -3859,6 +3884,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                         |leaf| dock.pane_test_id("dock", leaf),
                                                                     ),
                                                                 }),
+                                                                bar_shown: create_memo(|| true),
                                                                 leaf: hoisted,
                                                                 body: pane,
                                                             };

@@ -6,10 +6,15 @@ use std::time::Duration;
 use be_block::be_block_model::Document;
 use be_block::{BlockContent, InputRemapper, InputSettings, Root};
 use be_host_remap_host::Remapper;
+use be_host_remap_host::be_host_remap::Wheel;
 use be_host_remap_host::be_host_remap::protocol::{decode, encode};
 use be_host_remap_host::be_host_remap::rules::exe_name;
 use be_host_remap_host::be_host_remap::{Input, Output, Source, Window};
-use be_sdk_api::{RemapState, RemapsWatch};
+use be_host_remap_host::capture::{Capture, Caught};
+use be_sdk_api::{
+    CapturedChord, CapturedTrigger, InputCapture, InputCaptureWatch, RemapState, RemapsWatch,
+    WheelTurn,
+};
 use beui_platform_drm::{InputControl, InputFilter, RawInput};
 use uuid::Uuid;
 
@@ -36,10 +41,12 @@ struct State {
     save: Option<Option<Vec<u8>>>,
     module: Vec<u8>,
     published: Option<RemapState>,
+    capture_openings: u64,
 }
 
 #[derive(Default)]
 struct Filter {
+    capture: Capture,
     remapper: Option<Remapper>,
     now: Duration,
 }
@@ -51,10 +58,20 @@ thread_local! {
 impl InputFilter for Filter {
     fn input(&mut self, input: RawInput, now: Duration) -> Vec<RawInput> {
         self.now = now;
-        let (Some(remapper), Some(remapped)) = (self.remapper.as_mut(), remap_input(input)) else {
+        let Some(remapped) = remap_input(input) else {
             return vec![input];
         };
-        let outputs = remapper.input(remapped, micros(now));
+        if self.capture.catching() {
+            be_host_base::host::wake();
+        }
+        let passed = self.capture.input(remapped);
+        let Some(remapper) = self.remapper.as_mut() else {
+            return passed.into_iter().map(raw).collect();
+        };
+        let outputs: Vec<Output> = passed
+            .into_iter()
+            .flat_map(|input| remapper.input(input, micros(now)))
+            .collect();
         self.report();
         outputs.into_iter().map(raw).collect()
     }
@@ -77,6 +94,7 @@ impl InputFilter for Filter {
     }
 
     fn forget_held(&mut self) {
+        self.capture.forget_held();
         if let Some(remapper) = self.remapper.as_mut() {
             remapper.forget_held();
         }
@@ -162,7 +180,12 @@ pub fn focus(window: Option<be_host_wayland::WindowInfo>) {
 }
 
 pub fn set_locked(locked: bool) {
-    STATE.with_borrow_mut(|state| state.locked = locked);
+    STATE.with_borrow_mut(|state| {
+        state.locked = locked;
+        if let Some(filter) = &state.filter {
+            filter.borrow_mut().capture.set_locked(locked);
+        }
+    });
     with_remapper(|remapper, _| remapper.set_locked(locked));
 }
 
@@ -175,20 +198,54 @@ pub fn frame(store: &HostStateStore) {
         eprintln!("be-host: the input remapper was not kept for the next session: {error}");
     }
     let shown = STATE.with_borrow(|state| {
-        let value = match state
-            .filter
-            .as_ref()
-            .map(|filter| filter.borrow().remapper.as_ref().map(Remapper::stopped))
-        {
-            Some(Some(false)) => RemapState::On,
-            Some(Some(true)) => RemapState::Stopped,
-            _ => RemapState::Off,
+        let filter = state.filter.as_ref()?.borrow();
+        let value = match filter.remapper.as_ref().map(Remapper::stopped) {
+            Some(false) => RemapState::On,
+            Some(true) => RemapState::Stopped,
+            None => RemapState::Off,
         };
         (state.published != Some(value)).then_some(value)
     });
     if let Some(value) = shown {
         be_host_base::watches::publish::<RemapsWatch>(&value);
         STATE.with_borrow_mut(|state| state.published = Some(value));
+    }
+    capture();
+}
+
+/// Starts a capture at each opening of an `InputCaptureWatch`, stops it once none is open,
+/// and tells the watch what it caught.
+fn capture() {
+    let watched = be_host_base::watches::watched::<InputCaptureWatch>();
+    let openings = be_host_base::watches::openings::<InputCaptureWatch>();
+    let value = STATE.with_borrow_mut(|state| {
+        let filter = state.filter.as_ref()?;
+        let mut filter = filter.borrow_mut();
+        let capture = &mut filter.capture;
+        let opened = std::mem::replace(&mut state.capture_openings, openings) != openings;
+        if watched && opened {
+            capture.start();
+        } else if !watched && capture.catching() {
+            capture.stop();
+        }
+        watched.then(|| InputCapture {
+            held: capture.held().iter().map(|source| source.code()).collect(),
+            chord: capture.chord().map(|chord| CapturedChord {
+                held: chord.held.iter().map(|source| source.code()).collect(),
+                trigger: match chord.trigger {
+                    Caught::Source(source) => CapturedTrigger::Source(source.code()),
+                    Caught::Wheel(wheel) => CapturedTrigger::Wheel(match wheel {
+                        Wheel::Up => WheelTurn::Up,
+                        Wheel::Down => WheelTurn::Down,
+                        Wheel::Left => WheelTurn::Left,
+                        Wheel::Right => WheelTurn::Right,
+                    }),
+                },
+            }),
+        })
+    });
+    if let Some(value) = value {
+        be_host_base::watches::publish::<InputCaptureWatch>(&value);
     }
 }
 

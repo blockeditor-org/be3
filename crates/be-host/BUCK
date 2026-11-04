@@ -102,7 +102,7 @@ wasi_program_module(
     module = "be_host",
 )
 
-web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:block-index"] + ["//buck/program:build-info.json"]
+web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:host-index"] + ["//buck/program:build-info.json"]
 
 # The WASI and be-wasm-threads shims, which beui-web-demo and be-tool-paint-review-web
 # need too, with what thread.js imports, and app.js, which boots an app
@@ -211,7 +211,7 @@ program(
 [
     android_apk(
         name = name,
-        activity = "com.be3.block.MainActivity",
+        activity = "com.be3.host.MainActivity",
         application_id = application_id,
         assets = ":android-assets",
         java = glob(["android/java/**/*.java"]) + ["//crates/beui-platform-android:android-java"],
@@ -219,7 +219,7 @@ program(
         library = ":be-host",
         manifest = "android/AndroidManifest.xml",
         min_sdk = 24,
-        package = "com.be3.block",
+        package = "com.be3.host",
         resources = "android/res",
         signing = signing,
         target_sdk = 35,
@@ -228,12 +228,12 @@ program(
         visibility = ["//crates/be-tool-local:"],
     )
     for name, application_id, label, signing in [
-        ("android", "com.be3.block.dev", "Block (Dev)", "dev"),
-        ("android-dist", "com.be3.block.ci", "Block (CI)", "ci"),
+        ("android", "com.be3.host.dev", "be-host (Dev)", "dev"),
+        ("android-dist", "com.be3.host.ci", "be-host (CI)", "ci"),
         (
             "android-release",
-            read_config("be3", "android_id", "com.be3.block"),
-            read_config("be3", "android_label", "Block"),
+            read_config("be3", "android_id", "com.be3.host"),
+            read_config("be3", "android_label", "be-host"),
             "release",
         ),
     ]
@@ -259,13 +259,13 @@ command_alias(
 
 # The host headless for an agent to drive, signed in with a workspace open:
 # guides/running/drive.md. Each app is its precompiled module alone, half
-# of what :native downloads, and `-c be3.apps=checklist,file-tree` stages
-# only the editors it names, each crates/be-app-NAME by its NAME, and
-# workspace, which draws the workspace itself.
+# of what :native downloads, and `-c be3.apps=checklist,text` stages
+# only the editors it names, each crates/be-app-NAME by its NAME, plus
+# workspace, which draws the workspace itself, and file-tree, its files pane.
 dev_apps = [
     package
     for package in app_packages()
-    if read_config("be3", "apps", "") == "" or package.removeprefix("crates/be-app-") in ["workspace"] + read_config("be3", "apps", "").split(",")
+    if read_config("be3", "apps", "") == "" or package.removeprefix("crates/be-app-") in ["workspace", "file-tree"] + read_config("be3", "apps", "").split(",")
 ]
 
 program(

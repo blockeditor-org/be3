@@ -250,6 +250,8 @@ pub(super) struct Runtime {
     queued: Vec<Outbound>,
     held: Vec<Answer>,
     taking_in: bool,
+    layouts_heard: u64,
+    presents_heard: u64,
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
@@ -289,6 +291,7 @@ enum Answer {
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, be_sdk_api::embed::blocks::Call),
     Watch(EditorInstanceId, be_sdk_api::ops::MethodId),
+    Unwatch(EditorInstanceId, be_sdk_api::ops::MethodId),
     Published(EditorInstanceId, be_sdk_api::ops::Started),
     Debug(EditorInstanceId, be_sdk_api::embed::debug::debug::Call),
     Ended(be_sdk_api::ops::OpId),
@@ -315,6 +318,7 @@ impl From<Heard> for Answer {
             Heard::Paintings(payload) => Self::Paintings(payload),
             Heard::Blocks(instance, call) => Self::Blocks(instance, call),
             Heard::Watch(instance, open) => Self::Watch(instance, open),
+            Heard::Unwatch(instance, open) => Self::Unwatch(instance, open),
             Heard::Published(instance, started) => Self::Published(instance, started),
             Heard::Debug(instance, call) => Self::Debug(instance, call),
             Heard::Ended(op) => Self::Ended(op),
@@ -326,6 +330,10 @@ impl From<Heard> for Answer {
 
 struct Laid {
     serial: u64,
+    /// How many presents the app must have sent before this is applied: the one that follows
+    /// the layout commit it came in. Children come and go only with the frame that punches or
+    /// fills their space, so a closed child never leaves its hole in the placer's old frame.
+    presented_by: u64,
     sizes: Vec<ViewSize>,
     windows: Vec<ScreenWindow>,
     children: Vec<ChildPlacements>,
@@ -478,6 +486,8 @@ impl Runtime {
             queued: Vec::new(),
             held: Vec::new(),
             taking_in: false,
+            layouts_heard: 0,
+            presents_heard: 0,
             instances,
             layout: ScreenLayout::default(),
             pass: 0,
@@ -526,6 +536,8 @@ impl Runtime {
         self.session = session();
         self.queued.clear();
         self.held.clear();
+        self.layouts_heard = 0;
+        self.presents_heard = 0;
         self.error = None;
         self.status = PresenterStatus::waiting();
         self.layout = ScreenLayout::default();
@@ -999,45 +1011,60 @@ impl Runtime {
     }
 
     fn hear(&mut self, forwarded: Vec<Heard>) {
-        let forwarded = match self.taking_in {
-            true => {
-                let mut taken = std::mem::take(&mut self.held);
-                taken.extend(forwarded.into_iter().map(Answer::from));
-                taken
-            }
-            false => {
-                let mut drawing = Vec::with_capacity(forwarded.len());
-                let mut held = false;
-                for heard in forwarded {
-                    match heard {
-                        Heard::LaidOut(commit) => {
-                            let (now, later) = self.split(*commit);
-                            drawing.push(Answer::LaidOut(now));
-                            if let Some(later) = later {
-                                held = true;
-                                self.held.push(Answer::Laid(later));
-                            }
-                        }
-                        heard @ (Heard::Paintings(_)
-                        | Heard::Layout(_)
-                        | Heard::FrameNeeded
-                        | Heard::Presented(_)) => {
-                            drawing.push(Answer::from(heard));
-                        }
-                        heard => {
-                            held = true;
-                            self.held.push(Answer::from(heard));
-                        }
+        let presents = forwarded
+            .iter()
+            .filter(|heard| matches!(heard, Heard::Presented(_)))
+            .count() as u64;
+        self.presents_heard += presents;
+        let mut answers = Vec::with_capacity(forwarded.len());
+        if self.taking_in {
+            self.release_presented(&mut answers);
+        }
+        let mut held = false;
+        for heard in forwarded {
+            match heard {
+                Heard::LaidOut(commit) => {
+                    self.layouts_heard += 1;
+                    let (now, later) = self.split(*commit);
+                    answers.push(Answer::LaidOut(now));
+                    if let Some(later) = later {
+                        held = true;
+                        self.held.push(Answer::Laid(later));
                     }
                 }
-                if held {
-                    host::request_repaint();
+                heard @ (Heard::Paintings(_)
+                | Heard::Layout(_)
+                | Heard::FrameNeeded
+                | Heard::Presented(_)) => {
+                    answers.push(Answer::from(heard));
                 }
-                drawing
+                heard if self.taking_in && self.held.is_empty() => {
+                    answers.push(Answer::from(heard));
+                }
+                heard => {
+                    held = true;
+                    self.held.push(Answer::from(heard));
+                }
             }
-        };
-        self.apply(forwarded);
+        }
+        if self.taking_in {
+            self.release_presented(&mut answers);
+        }
+        if (held || presents > 0) && !self.held.is_empty() {
+            host::request_repaint();
+        }
+        self.apply(answers);
         self.answer();
+    }
+
+    /// Moves the held answers into `answers` in order, up to the first children still waiting on
+    /// the frame they came with.
+    fn release_presented(&mut self, answers: &mut Vec<Answer>) {
+        let waiting = self.held.iter().position(
+            |held| matches!(held, Answer::Laid(laid) if laid.presented_by > self.presents_heard),
+        );
+        let rest = self.held.split_off(waiting.unwrap_or(self.held.len()));
+        answers.extend(std::mem::replace(&mut self.held, rest));
     }
 
     fn export_previews(&mut self, frame: &Frame) -> bool {
@@ -1127,6 +1154,7 @@ impl Runtime {
         commit.children = moving;
         let later = Laid {
             serial: commit.serial,
+            presented_by: self.layouts_heard,
             sizes: Vec::new(),
             windows: std::mem::take(&mut commit.windows),
             children: coming,
@@ -1147,6 +1175,7 @@ impl Runtime {
                 | Answer::Paintings(_)
                 | Answer::Blocks(..)
                 | Answer::Watch(..)
+                | Answer::Unwatch(..)
                 | Answer::Published(..)
                 | Answer::Debug(..)
                 | Answer::Ended(_)
@@ -1240,6 +1269,10 @@ impl Runtime {
                 }
                 Answer::Blocks(instance, call) => self.instances.blocks_call(instance, call),
                 Answer::Watch(instance, open) => self.instances.watch_published(instance, open),
+                Answer::Unwatch(instance, open) => {
+                    self.instances.unwatch_published(instance, open);
+                    false
+                }
                 Answer::Published(instance, started) => {
                     self.instances.published_call(instance, started)
                 }
@@ -1328,6 +1361,7 @@ impl Runtime {
         changed |= self.instances.set_frame_reports(reports);
         changed |= self.lay(Laid {
             serial,
+            presented_by: 0,
             sizes,
             windows,
             children,
@@ -2799,8 +2833,15 @@ pub struct PlacedView {
     pub clip: Rect,
     pub loading: bool,
     pub base: Vec<Piece>,
+    /// The overlays' pieces, drawn above the view's children and the windows it opens.
     pub floating: Vec<Piece>,
+    /// The marks' pieces (`frame-report.marks-painted`), above the view's children and
+    /// under the windows it opens.
+    pub marks: Vec<Piece>,
+    /// Where the overlays and marks take input, over the view's children.
     pub floating_rects: Vec<Rect>,
+    /// Where only the overlays take input, over the windows the view opens too.
+    pub overlay_rects: Vec<Rect>,
     pub scrims: Vec<beui::layer::Scrim>,
     pub drawing: Vec<Rect>,
     pub claims: Vec<(beui::Modifiers, Rect)>,
@@ -2821,6 +2862,9 @@ pub struct PlacedView {
     pub every_sample: bool,
     pub work_area: Option<Rect>,
     pub used: Option<Vec2>,
+    /// The opaque color the app clears the view to, which the host fills the view with under
+    /// its children (`FrameReport::backdrop`).
+    pub backdrop: Option<beui::color::Color32>,
 }
 
 impl PlacedView {
@@ -2832,7 +2876,9 @@ impl PlacedView {
             loading: false,
             base: Vec::new(),
             floating: Vec::new(),
+            marks: Vec::new(),
             floating_rects: Vec::new(),
+            overlay_rects: Vec::new(),
             scrims: Vec::new(),
             drawing: Vec::new(),
             claims: Vec::new(),
@@ -2853,6 +2899,7 @@ impl PlacedView {
             every_sample: false,
             work_area: None,
             used: None,
+            backdrop: None,
         }
     }
 
@@ -2998,6 +3045,18 @@ fn shown_view(
         };
         let floating_rects = in_region(|report| &report.floating);
         let painted_rects = in_region(|report| &report.floating_painted);
+        let mark_rects = in_region(|report| &report.marks);
+        let marks_painted = in_region(|report| &report.marks_painted);
+        let overlay_rects: Vec<Rect> = floating_rects
+            .iter()
+            .filter(|rect| !mark_rects.contains(rect))
+            .copied()
+            .collect();
+        let overlays_painted: Vec<Rect> = painted_rects
+            .iter()
+            .filter(|rect| !marks_painted.contains(rect))
+            .copied()
+            .collect();
         let scrims = match held {
             Some(_) => Vec::new(),
             None => report
@@ -3007,7 +3066,7 @@ fn shown_view(
                         .iter()
                         .map(|scrim| beui::layer::Scrim {
                             rect: scrim.rect.translate(rect.min.to_vec2()),
-                            color: scrim_color(&scrim.color),
+                            color: reported_color(&scrim.color),
                             radius: scrim.radius,
                         })
                         .collect()
@@ -3045,17 +3104,19 @@ fn shown_view(
             true => vec![visible],
             false => super::pieces::subtract(visible, &painted_rects),
         };
-        let (base, floating) = match held {
+        let (base, floating, marks) = match held {
             Some(_) => (
                 vec![Piece {
                     local: UNIT,
                     source: UNIT,
                 }],
                 Vec::new(),
+                Vec::new(),
             ),
             None => (
                 pieces_of(rect, visible, textured, &base),
-                pieces_of(rect, visible, textured, &painted_rects),
+                pieces_of(rect, visible, textured, &overlays_painted),
+                pieces_of(rect, visible, textured, &marks_painted),
             ),
         };
         let loading = screen.is_none_or(|screen| runtime.layout.placement(screen).is_none());
@@ -3077,7 +3138,9 @@ fn shown_view(
             loading,
             base,
             floating,
+            marks,
             floating_rects,
+            overlay_rects,
             scrims,
             drawing,
             claims,
@@ -3108,6 +3171,9 @@ fn shown_view(
                 .and_then(|report| report.work_area)
                 .map(|insets| insets.inside(Rect::from_min_size(Pos2::ZERO, rect.size()))),
             used: runtime.instances.view_size(instance, region),
+            backdrop: report
+                .and_then(|report| report.backdrop.as_ref())
+                .map(reported_color),
         }
     }
 }
@@ -3311,7 +3377,7 @@ pub(super) fn with<R>(app_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> Opti
     })
 }
 
-pub(crate) fn scrim_color(color: &be_sdk_api::accessibility::Color) -> beui::color::Color32 {
+pub(crate) fn reported_color(color: &be_sdk_api::accessibility::Color) -> beui::color::Color32 {
     beui::color::Color32::from_rgba_unmultiplied(color.red, color.green, color.blue, color.alpha)
 }
 

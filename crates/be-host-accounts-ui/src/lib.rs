@@ -65,7 +65,7 @@ pub fn AccountsScreen(
     let empty = create_memo(move || accounts.get().is_empty());
     view! {
         <Column>
-            <Text style=TextStyle::TITLE>"Block Editor"</Text>
+            <Text style=TextStyle::TITLE>"be-host"</Text>
             <Text style=TextStyle::CAPTION>"Choose an account to continue."</Text>
             <ForEach keys={keys}>|key: String| {
                 let account = create_memo(move || {

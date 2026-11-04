@@ -204,6 +204,17 @@ fn SubregionView(
         },
         (true, None, None) => (false, None),
     };
+    let tab = beui::dock::use_dock_tab();
+    let pane = beui::dock::use_dock_pane();
+    let on_focus = Callback::new(move |()| {
+        if let Some(pane) = pane {
+            pane.focus();
+        }
+        if let Some(tab) = tab {
+            tab.show();
+        }
+        on_focus.call(());
+    });
     let state = editor.register_child(
         slot,
         placed.into_prop(),
@@ -222,12 +233,12 @@ fn SubregionView(
         on_focus,
         dock_tab,
         docks,
-        beui::dock::use_dock_tab(),
+        tab,
     );
     if let Some(link) = link {
         crate::docked::bridge_child_dock(editor, link, state, docked_tab);
     }
-    if let Some(tab) = beui::dock::use_dock_tab() {
+    if let Some(tab) = tab {
         follow_tab_keyboard(editor, tab, state, placed, mode);
     }
     let preview = create_memo(move || state.with(|state| state.preview));
@@ -350,7 +361,7 @@ fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
     let has_glyph = create_memo(move || glyph.get().is_some());
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::new(ColorRole::Border)}
             radius=Radius::Md
             padding=Space::Lg

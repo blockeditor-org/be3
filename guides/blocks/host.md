@@ -83,7 +83,7 @@ open organization's escrow key (inviting, creating an agent) goes through the
 worker's `Peer`.
 
 The refs database is one per device, `be-refs.sqlite3` beside `be-objects/`
-(`be_host_stack::refs_in`, `/block` on the web). The worker builds its `Peer`
+(`be_host_stack::refs_in`, `/be-host` on the web). The worker builds its `Peer`
 once per workspace, with `Peer::cached` when the database has a session for
 that server, account and workspace (so the graph and open blocks come up with
 no network), and hands every later connection to it with `attach`.

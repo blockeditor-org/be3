@@ -87,7 +87,7 @@ included.
   as `NeverArrived`.
 - On a display entry, the release point on the monitor (`focus::display_point`) is looked up with
   `WindowFromPoint`; if it is one of be-host's own windows (its mirror in the capture) nothing
-  happens (`FocusError::OnBlock`).
+  happens (`FocusError::OnHost`).
 - The shell's `focus` window action does nothing on Windows (`win32_map::shell_focus`;
   decisions/windows_shell_focus_does_not_start_focus_mode.md).
 - XR controller presses (`PointerId::is_controller`) are injected instead, since a laser has no

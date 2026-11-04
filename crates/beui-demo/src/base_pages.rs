@@ -69,7 +69,7 @@ fn FrameSwatches() -> NodeId {
             <Frame
                 width=SWATCH
                 height=SWATCH
-                fill={theme.surface_raised}
+                fill={theme.control}
                 outline={create_memo(move || Some(Outline::new(theme.accent.get(), 2.0).offset(4.0)))}
                 radius=8.0
             />
@@ -106,13 +106,7 @@ fn FrameAlignment() -> NodeId {
 fn AlignedBox(align: Align) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame
-            height=SWATCH
-            fill={theme.surface_raised}
-            radius={Radius::Md.px()}
-            padding=8.0
-            align=align
-        >
+        <Frame height=SWATCH fill={theme.control} radius={Radius::Md.px()} padding=8.0 align=align>
             <Frame width=BADGE height=BADGE fill={theme.accent} radius=4.0 />
         </Frame>
     }
@@ -126,7 +120,7 @@ fn FrameSizes() -> NodeId {
         <List spacing={SECTION_SPACING.px()}>
             <Frame
                 width={Extent::at_most(320.0)}
-                fill={theme.surface_raised}
+                fill={theme.control}
                 radius={Radius::Md.px()}
                 padding={Sides::symmetric(12.0, 8.0)}
             >
@@ -214,11 +208,7 @@ fn TextInADrawing() -> NodeId {
     let theme = use_theme();
     let font = FontId::proportional(16.0);
     let draw = Prop::dynamic(move || -> Draw {
-        let (fill, ink, accent) = (
-            theme.surface_raised.get(),
-            theme.text.get(),
-            theme.accent.get(),
-        );
+        let (fill, ink, accent) = (theme.control.get(), theme.text.get(), theme.accent.get());
         Rc::new(move |painter: &Painter, rect: Rect| {
             let label = painter.lay_out_text("Placed at its corner", font, TextLayout::DEFAULT);
             painter.rect_filled(Rect::from_min_size(rect.min, label.size()), 0.0, fill);
@@ -251,7 +241,7 @@ fn TextInADrawing() -> NodeId {
             align=Align::Start
             spacing={SECTION_SPACING.px()}
         >
-            <Frame fill={theme.surface_raised}>
+            <Frame fill={theme.control}>
                 <Text color={theme.text} font>"Placed at its corner"</Text>
             </Frame>
             <Drawing draw size={Some(vec2(200.0, 100.0))} />
@@ -275,13 +265,13 @@ fn TextWrapping() -> NodeId {
     };
     view! {
         <List @test_id="demo.text.wrapping" spacing={SECTION_SPACING.px()}>
-            <Frame width=260.0 fill={theme.surface_raised}>
+            <Frame width=260.0 fill={theme.control}>
                 <Text color={theme.text}>{wraps.to_owned()}</Text>
             </Frame>
-            <Frame width=260.0 fill={theme.surface_raised}>
+            <Frame width=260.0 fill={theme.control}>
                 <Text color={theme.text} overflow={two_lines}>{clamped.to_owned()}</Text>
             </Frame>
-            <Frame width=260.0 fill={theme.surface_raised}>
+            <Frame width=260.0 fill={theme.control}>
                 <Text color={theme.text_muted} overflow=Overflow::Ellipsis>
                     {labels.to_owned()}
                 </Text>
@@ -329,7 +319,7 @@ fn TextBreaks() -> NodeId {
                 <Break />
                 "so a copy reads one line."
             </Text>
-            <Frame width=200.0 fill={theme.surface_raised}>
+            <Frame width=200.0 fill={theme.control}>
                 <Text
                     color={theme.text}
                     font={mono}
@@ -375,7 +365,7 @@ fn Tile(label: Prop<String>) -> NodeId {
     view! {
         <Frame
             height={Extent::at_least(TILE_HEIGHT)}
-            fill={theme.surface_raised}
+            fill={theme.control}
             radius={Radius::Md.px()}
             padding={Sides::horizontal(12.0)}
             align={Align2::vertical(Align::Center)}
@@ -615,7 +605,7 @@ fn InteractiveCard() -> NodeId {
         match (active.get(), hovered.get()) {
             (true, _) => theme.pressed,
             (false, true) => theme.hover,
-            (false, false) => theme.surface_raised,
+            (false, false) => theme.control,
         }
     });
     let state = create_memo(move || {
@@ -704,7 +694,7 @@ fn BadgedCard() -> NodeId {
                 <Frame
                     width=200.0
                     height=CARD_HEIGHT
-                    fill={theme.surface_raised}
+                    fill={theme.control}
                     radius={Radius::Lg.px()}
                     padding=12.0
                 >
@@ -737,7 +727,7 @@ fn NudgedTile() -> NodeId {
         true => beui::vec2(SWATCH, 0.0),
         false => beui::Vec2::ZERO,
     });
-    let face = theme.surface_raised;
+    let face = theme.control;
     let ink = theme.text;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
@@ -756,7 +746,7 @@ fn NudgedTile() -> NodeId {
 fn TiltedLabel() -> NodeId {
     let theme = use_theme();
     let angle = create_signal(0.25f32);
-    let face = theme.surface_raised;
+    let face = theme.control;
     let ink = theme.text;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
@@ -784,7 +774,7 @@ fn TiltedLabel() -> NodeId {
 fn TurnedLabel() -> NodeId {
     let theme = use_theme();
     let quarters = create_signal(1u8);
-    let face = theme.surface_raised;
+    let face = theme.control;
     let ink = theme.text;
     let angle = create_memo(move || f32::from(quarters.get()) * std::f32::consts::FRAC_PI_2);
     view! {
@@ -875,7 +865,7 @@ fn AnchoredOverlay() -> NodeId {
     let theme = use_theme();
     let anchor = NodeRef::new();
     let open = create_signal(false);
-    let face = theme.surface_raised;
+    let face = theme.control;
     let ink = theme.text;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
@@ -902,7 +892,7 @@ fn AnchoredOverlay() -> NodeId {
                     <Frame
                         @test_id="demo.overlay.panel"
                         width=PANEL_WIDTH
-                        fill={theme.surface_raised}
+                        fill={theme.surface}
                         outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
                         radius={Radius::Lg.px()}
                         padding=12.0
@@ -923,7 +913,7 @@ fn FloatingWindow() -> NodeId {
     let theme = use_theme();
     let open = create_signal(false);
     let at = create_signal(Pos2::ZERO);
-    let face = theme.surface_raised;
+    let face = theme.control;
     let ink = theme.text;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
@@ -951,7 +941,7 @@ fn FloatingWindow() -> NodeId {
             >|_: WindowHandle|
                 <Frame
                     @test_id="demo.window.panel"
-                    fill={theme.surface_raised}
+                    fill={theme.surface}
                     outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
                     radius={Radius::Lg.px()}
                     padding=12.0
@@ -979,7 +969,7 @@ fn PopupWindow() -> NodeId {
             }
         }
     };
-    let face = theme.surface_raised;
+    let face = theme.control;
     let ink = theme.text;
     let own = use_window().map(|window| window.id);
     let placement = create_memo(move || match own {
@@ -1016,7 +1006,7 @@ fn PopupWindow() -> NodeId {
                 view! {
                     <Frame
                         @test_id="demo.popup.panel"
-                        fill={theme.surface_raised}
+                        fill={theme.surface}
                         outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
                         radius={Radius::Lg.px()}
                         padding=12.0
@@ -1043,7 +1033,7 @@ fn PopupWindow() -> NodeId {
                             >|_: WindowHandle|
                                 <Frame
                                     @test_id="demo.popup.inner"
-                                    fill={theme.surface_raised}
+                                    fill={theme.control}
                                     outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
                                     radius={Radius::Md.px()}
                                     padding=12.0

@@ -47,6 +47,22 @@ struct Copied {
 }
 
 impl DockState {
+    /// The focused tab or, while the focused pane is an empty one inside a joined group, the tab
+    /// that group joins in place of: what has the focus, for a pane with no tab of its own.
+    pub fn focused_or_host(&self) -> Option<TabId> {
+        if let Some(tab) = self.focused_tab() {
+            return Some(tab);
+        }
+        let mut leaf = self.focused_leaf()?;
+        while let Some(Tree::Group(group)) = self.tree_of(leaf) {
+            if let Some(host) = self.group_key(group).and_then(joined_host) {
+                return Some(host);
+            }
+            leaf = self.holder(group)?.0;
+        }
+        None
+    }
+
     pub fn outside(&self) -> &[DockOutside] {
         &self.outside
     }
@@ -526,6 +542,7 @@ impl DockState {
                 copy.keep = keep;
                 copy.area = leaf.area.as_deref().and_then(map.key);
                 copy.bare = leaf.bare;
+                copy.hide_empty_bar = leaf.hide_empty_bar;
                 copied.leaves.insert(leaf.id, copy.id);
                 Some(Node::Leaf(copy))
             }

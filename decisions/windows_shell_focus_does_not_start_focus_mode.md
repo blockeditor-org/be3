@@ -7,8 +7,8 @@ content.
 
 ## Why
 
-- The shell refocuses its panel whenever Block comes back to the foreground, so focus mode
-  started from the shell's focus trapped the person again each time they returned to Block.
+- The shell refocuses its panel whenever be-host comes back to the foreground, so focus mode
+  started from the shell's focus trapped the person again each time they returned to be-host.
 - It broke dragging panels by their title bars.
 
 ## Rejected

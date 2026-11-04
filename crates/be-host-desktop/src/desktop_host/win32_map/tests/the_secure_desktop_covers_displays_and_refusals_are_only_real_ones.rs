@@ -21,7 +21,7 @@ fn the_secure_desktop_covers_displays_and_refusals_are_only_real_ones() {
     );
     assert_eq!(ended_refusal(be_host_win32::EndReason::Hotkey), None);
     assert_eq!(focus_refusal(&FocusError::Returned), None);
-    assert_eq!(focus_refusal(&FocusError::OnBlock), None);
+    assert_eq!(focus_refusal(&FocusError::OnHost), None);
     assert_eq!(
         focus_refusal(&FocusError::OffScreen),
         Some(Refusal::Focus(FocusError::OffScreen))

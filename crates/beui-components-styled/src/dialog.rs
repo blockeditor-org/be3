@@ -151,7 +151,7 @@ pub fn DialogCard(
             <Frame
                 @node_ref=&pointer
                 width={width.map(at_most)}
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Surface
                 border={Border::DEFAULT}
                 radius=Radius::Lg
             >

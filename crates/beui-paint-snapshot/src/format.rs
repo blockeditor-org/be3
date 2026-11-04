@@ -78,27 +78,35 @@ impl Snapshot {
         })
     }
 
+    /// The snapshot of a painting, its frame tidied (`Frame::tidy`) and keeping only the
+    /// textures the tidied frame draws, each keyed by its pixels.
     pub fn of_painting(painting: Painting) -> Result<Self, String> {
+        let mut frame = painting.frame;
+        frame.tidy();
         let mut keys = BTreeMap::new();
         let mut textures = BTreeMap::new();
-        for (key, pixels) in painting.textures {
-            let fingerprint = crate::fingerprint(pixels.size, &pixels.rgba);
-            keys.insert(key, fingerprint);
-            if let std::collections::btree_map::Entry::Vacant(entry) = textures.entry(fingerprint) {
-                entry.insert(Texture::encode(pixels.size, &pixels.rgba)?);
-            }
-        }
-        let rekey = |key: TextureKey| keys.get(&key).copied().unwrap_or(key);
-        let mut frame = painting.frame;
         for primitive in &mut frame.primitives {
-            match &mut primitive.content {
-                beui_paint_format::Content::Mesh(triangles) => {
-                    for triangle in triangles {
-                        triangle.texture = rekey(triangle.texture);
-                    }
+            let used: Vec<&mut TextureKey> = match &mut primitive.content {
+                beui_paint_format::Content::Mesh(triangles) => triangles
+                    .iter_mut()
+                    .map(|triangle| &mut triangle.texture)
+                    .collect(),
+                beui_paint_format::Content::Glyph(glyph) => vec![&mut glyph.texture],
+                _ => Vec::new(),
+            };
+            for key in used {
+                let Some(pixels) = painting.textures.get(key) else {
+                    continue;
+                };
+                let fingerprint = *keys
+                    .entry(*key)
+                    .or_insert_with(|| crate::fingerprint(pixels.size, &pixels.rgba));
+                if let std::collections::btree_map::Entry::Vacant(entry) =
+                    textures.entry(fingerprint)
+                {
+                    entry.insert(Texture::encode(pixels.size, &pixels.rgba)?);
                 }
-                beui_paint_format::Content::Glyph(glyph) => glyph.texture = rekey(glyph.texture),
-                _ => {}
+                *key = fingerprint;
             }
         }
         Ok(Self::of(frame, textures))

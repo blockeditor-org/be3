@@ -62,7 +62,7 @@ pub(crate) fn pointer(doc: &mut Document, rects: &Rects, event: &PointerEvent, h
         PointerPhase::Move if event.pointer.hovers() => (None, PointerStage::Move),
         PointerPhase::Up(button) => (Some(button), PointerStage::Up),
         PointerPhase::Cancel | PointerPhase::Gone => (None, PointerStage::Cancel),
-        PointerPhase::Scroll(delta) => {
+        PointerPhase::Scroll { delta, .. } => {
             let (local, size) = super::pointer::local(rects, id, event.pos);
             let wheel = WheelInput::Scroll(ScrollGesture {
                 delta,

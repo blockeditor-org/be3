@@ -295,7 +295,7 @@ fn new_keystore(bits: usize) -> Result<Vec<u8>, String> {
         SerialNumber::new(&serial).map_err(|error| error.to_string())?,
         Validity::from_now(Duration::from_secs(100 * 365 * 24 * 60 * 60))
             .map_err(|error| error.to_string())?,
-        Name::from_str("CN=Block Android signing").map_err(|error| error.to_string())?,
+        Name::from_str("CN=be-host Android signing").map_err(|error| error.to_string())?,
         public,
         &signer,
     )

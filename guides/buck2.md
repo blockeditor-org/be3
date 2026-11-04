@@ -69,7 +69,7 @@ rebuilds nothing else:
   request's head and the merge queue's commit share every cached bundle and host test.
   `./scripts/buck` rewrites it before each command (`BE3_BUILD_ID` overrides). A client and a
   server refuse each other unless their ids match.
-- `program_id` is `BlockDev`, or `Block` for the deploy (`BE3_PROGRAM_ID`); be-host takes its
+- `program_id` is `be-host-dev`, or `be-host` for the deploy (`BE3_PROGRAM_ID`); be-host takes its
   window title and data directory from it.
 - `default_server`, written only by `./scripts/deploy`, is the server a build connects to.
 

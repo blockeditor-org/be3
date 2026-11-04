@@ -771,6 +771,36 @@ impl EditorHost {
             }));
     }
 
+    /// Opens a watch of `W` of its own and calls `each` with every value the host gives it,
+    /// until the task is cancelled or the editor closes, which closes the watch. Unlike
+    /// `watched`, whose one watch stays open for the editor's life, each call opens a new
+    /// watch: for a watch whose opening starts something on the host, as an input capture's
+    /// does.
+    pub fn follow_watch<W: Watched>(&self, each: impl FnMut(W::Value) + 'static) -> Task {
+        let task = Task::default();
+        let started = task.clone();
+        self.watches
+            .borrow_mut()
+            .opening
+            .push(Box::new(move |host: &EditorHost, instance| {
+                let host = host.clone();
+                let mut each = each;
+                crate::asked::run(&started, async move {
+                    let watch = asking(Some(instance), W::open);
+                    while let Ok(value) = watch.next().await {
+                        each(value);
+                        host.changed();
+                    }
+                });
+            }));
+        let mut tasks = self.tasks.borrow_mut();
+        tasks.retain(|task| !task.is_finished());
+        tasks.push(task.clone());
+        drop(tasks);
+        self.changed();
+        task
+    }
+
     pub fn set_watched<W: Watched>(&self, value: &W::Value) {
         let mut watches = self.watches.borrow_mut();
         let key = TypeId::of::<W>();

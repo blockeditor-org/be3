@@ -228,7 +228,7 @@ impl std::hash::Hash for Tick {
 #[component]
 fn LaneStrip(lane: usize, content: Memo<Rect>) -> CanvasItem {
     let color = match lane {
-        0 => ColorRole::SurfaceRaised,
+        0 => ColorRole::Shade,
         _ => ColorRole::Surface,
     };
     let y = RULER_HEIGHT + lane as f32 * (LANE_HEIGHT + LANE_GAP);

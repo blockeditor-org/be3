@@ -45,7 +45,7 @@ pub fn current() -> Result<&'static str, String> {
 pub fn install(id: &str) {
     let _ = CURRENT.set(Ok(Metadata {
         id: id.to_owned(),
-        program_id: "BlockDev".to_owned(),
+        program_id: "be-host-dev".to_owned(),
         default_server: None,
     }));
 }

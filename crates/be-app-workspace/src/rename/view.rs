@@ -229,7 +229,7 @@ fn RenameBody(
                         width=TILE
                         height=TILE
                         radius=Radius::Md
-                        fill=ColorRole::SurfaceRaised
+                        fill=ColorRole::Shade
                         align={Align2::CENTER}
                     >
                         <Text color={tinted} size=TextSize::Xl align=TextAlign::Center>

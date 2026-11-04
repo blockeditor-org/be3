@@ -2,7 +2,7 @@ use be_lib_stable_hash::HashMap;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use beui_dock_state::{DockAlign, DockBarPlacement, DockEdge, TabId};
+use beui_dock_state::{DockAlign, DockBarPlacement, DockEdge, LeafId, TabId};
 use beui_view::actions::{Action, MenuNode};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -206,6 +206,29 @@ impl DockTabControl {
 
 pub fn use_dock_tab() -> Option<DockTabControl> {
     use_context::<DockTabControl>()
+}
+
+/// The pane an empty pane's view stands in, as `DockTabControl` is a tab body's tab: content that
+/// takes the focus in another document (a child block) focuses the pane with it, which brings the
+/// pane's window in front.
+#[derive(Clone, Copy)]
+pub struct DockPaneControl {
+    leaf: LeafId,
+    focus: Callback<LeafId>,
+}
+
+impl DockPaneControl {
+    pub fn new(leaf: LeafId, focus: Callback<LeafId>) -> Self {
+        Self { leaf, focus }
+    }
+
+    pub fn focus(&self) {
+        self.focus.call(self.leaf);
+    }
+}
+
+pub fn use_dock_pane() -> Option<DockPaneControl> {
+    use_context::<DockPaneControl>()
 }
 
 #[derive(Clone, Copy)]

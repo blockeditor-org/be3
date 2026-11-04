@@ -63,7 +63,7 @@ impl be_block_type_host::Host for Shared {
 
     fn reset_notice() {
         be_host_base::notices::report(
-            "Some of this device's settings were saved by another build of Block, so they were reset."
+            "Some of this device's settings were saved by another build of be-host, so they were reset."
                 .to_owned(),
         );
     }

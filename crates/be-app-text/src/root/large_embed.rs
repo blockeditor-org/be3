@@ -64,7 +64,7 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
             <List spacing={Space::Custom(EMBEDDED_EDITOR_TITLE_GAP)}>
                 <Frame
                     height={Size::Custom(EMBEDDED_EDITOR_TITLE_HEIGHT)}
-                    fill=ColorRole::SurfaceRaised
+                    fill=ColorRole::Shade
                     radius=Radius::Sm
                     padding={Padding::horizontal(TITLE_PADDING)}
                 >

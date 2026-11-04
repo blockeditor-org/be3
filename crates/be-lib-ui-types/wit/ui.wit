@@ -361,11 +361,14 @@ interface types {
 
     /// Where a window stacks among the host's windows. An `above` window,
     /// such as a taskbar or toolbar, stays in front of every `normal` one,
-    /// still behind the host's own menus and lock screen. A window asks again
-    /// with `open` to change its level.
+    /// still behind the host's own menus and lock screen. A `fullscreen`
+    /// window stacks as a `normal` one but covers its whole display, bars and
+    /// all: the host never keeps it out of the display's work area. A window
+    /// asks again with `open` to change its level.
     enum window-level {
         normal,
         above,
+        fullscreen,
     }
 
     record window-request-open {

@@ -9,7 +9,7 @@ use beui::{Align, Align2, Direction, Extent, Justify, NodeId, TextAlign};
 
 use crate::form::{Field, PageLink, PortalForm, Submit, fixed};
 
-const PRODUCT: &str = "Block";
+const PRODUCT: &str = "be3";
 
 pub fn title(page: &Page) -> String {
     let name = match &page.screen {
@@ -264,7 +264,7 @@ fn Body(page: Shown) -> NodeId {
                 glyph=ICON_CIRCLE_CHECK
                 tone=TextColor::Success
                 title="Sign-in approved"
-                text="Return to Block to unlock your encrypted data. You can close this page."
+                text="Return to be-host to unlock your encrypted data. You can close this page."
             />
         },
         Screen::Denied => view! {
@@ -409,10 +409,10 @@ fn SignIn(page: Shown) -> NodeId {
     });
     let lead = match approving {
         true => format!(
-            "Sign in to approve the request from the Block app with the code {}.",
+            "Sign in to approve the request from be-host with the code {}.",
             page.code()
         ),
-        false => "Use the email address and password of your Block account.".to_owned(),
+        false => "Use the email address and password of your be3 account.".to_owned(),
     };
     view! {
         <List spacing=Space::Xl>
@@ -459,7 +459,7 @@ fn SignIn(page: Shown) -> NodeId {
                 <CodeEntry
                     csrf={page.csrf()}
                     code
-                    lead="Signing in on another device? Enter the code Block shows you."
+                    lead="Signing in on another device? Enter the code be-host shows you."
                 />
             </Show>
         </List>
@@ -482,7 +482,7 @@ fn CodeEntry(csrf: String, code: Signal<String>, lead: String) -> NodeId {
                     <Field
                         kind=InputKind::Text
                         name="code"
-                        label="Code shown in Block"
+                        label="Code shown in be-host"
                         autocomplete="off"
                         value={code}
                     />
@@ -513,7 +513,7 @@ fn Register(page: Shown) -> NodeId {
                         name="display_name"
                         label="Display name"
                         autocomplete="nickname"
-                        hint="How other people see you in Block."
+                        hint="How other people see you in be3."
                         value={name}
                         problem={page.problem(Named::DisplayName)}
                     />
@@ -588,7 +588,7 @@ fn Forgot(page: Shown) -> NodeId {
                     <Submit label="Send reset link" />
                 </PortalForm>
                 <Text style=TextStyle::CAPTION>
-                    "This resets your sign-in password only. Encrypted data still needs your recovery phrase or another unlocked device in Block."
+                    "This resets your sign-in password only. Encrypted data still needs your recovery phrase or another unlocked device with be-host."
                 </Text>
                 <PageLink label="Back to sign in" href={page.here("/auth/login")} />
             </List>
@@ -640,8 +640,8 @@ fn Approve(page: Shown) -> NodeId {
             <List spacing=Space::Xl>
                 <Heading
                     glyph={Some(ICON_SHIELD_CHECK)}
-                    title="Approve sign-in to Block?"
-                    lead="Only approve if you started this sign-in yourself and the code below matches the one Block shows."
+                    title="Approve sign-in to be-host?"
+                    lead="Only approve if you started this sign-in yourself and the code below matches the one be-host shows."
                 />
                 <Frame
                     fill=ColorRole::Background
@@ -711,7 +711,7 @@ fn AccountHome(page: Shown) -> NodeId {
             <CodeEntry
                 csrf={page.csrf()}
                 code
-                lead="To sign in to Block on a device, enter the code it shows you."
+                lead="To sign in to be-host on a device, enter the code it shows you."
             />
         </List>
     }
@@ -766,7 +766,7 @@ fn Settings(page: Shown) -> NodeId {
             <Heading title="Account settings" />
             <Notice text={saved} good=true />
             <Notice text={page.general()} />
-            <Section title="Display name" lead="How other people see you in Block.">
+            <Section title="Display name" lead="How other people see you in be3.">
                 <PortalForm action="/auth/settings/name" csrf={page.csrf()}>
                     <Field
                         kind=InputKind::Text
@@ -862,7 +862,7 @@ fn Sessions(page: Shown) -> NodeId {
 fn SessionRow(session: Session, csrf: String) -> NodeId {
     let (glyph, kind) = match session.kind {
         SessionKind::Browser => (ICON_GLOBE, "Browser"),
-        SessionKind::Host => (ICON_LAPTOP, "Block app"),
+        SessionKind::Host => (ICON_LAPTOP, "be-host"),
     };
     let detail = match session.current {
         true => format!("Created {} · this browser", session.age),

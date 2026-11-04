@@ -23,7 +23,7 @@ fn uninstalling_removes_exactly_what_installing_placed() {
     std::fs::write(&kept, "a file the install did not put there").unwrap();
 
     apply_here(&plan_uninstall(&layout).unwrap()).unwrap();
-    for gone in receipt.entries.iter().chain([
+    for gone in receipt.entries.iter().chain(&receipt.portal).chain([
         &receipt.link,
         &receipt.pam.as_ref().unwrap().0,
         &home.join(EXECUTABLE),
@@ -43,6 +43,10 @@ fn uninstalling_removes_exactly_what_installing_placed() {
         "greetd's list loses only its line"
     );
     assert!(others.is_file(), "other sessions' entries stay");
+    assert!(
+        layout.portals.is_dir(),
+        "xdg-desktop-portal's directory stays, only be-host's files go"
+    );
     assert!(bin.is_file(), "other programs in the prefix stay");
     assert!(kept.is_file(), "a file the install did not put there stays");
 

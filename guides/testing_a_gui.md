@@ -116,6 +116,10 @@ Every frame is compared, so keep recordings to the frames that say something.
   frame.
 - What a beui `Drawing` draws (an app's surface, a 3D scene) never reaches the painter: the
   painting keeps the region and nothing inside it, so assert on the block instead.
+- A frame is tidied before it is kept (beui-paint-format's `Frame::tidy`): what paints no pixel
+  (a shape under a later opaque rect or over its own colour, a clip that cuts nothing) is
+  dropped or made plain, so a change only those see leaves the painting's bytes alone. Tidying
+  must never change a pixel `rasterize` paints.
 - The format is beui-paint-format's types as CBOR. Grow it by adding (a variant, or a field that
   skips its default) so existing paintings keep their bytes; renaming, removing or reshaping a
   field bumps `VERSION` (beui-paint-snapshot's format.rs) and verify rewrites every painting.

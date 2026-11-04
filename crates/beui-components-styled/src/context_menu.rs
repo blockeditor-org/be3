@@ -186,7 +186,7 @@ fn ToolbarButton(handle: ButtonHandle) -> NodeId {
 fn ToolbarPanel(children: Child) -> NodeId {
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Md
             padding=MENU_PADDING
@@ -565,7 +565,7 @@ fn MenuPanel(min_width: Size, children: Child) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
             <ListItem min=min_width max=MENU_MAX_WIDTH shrink=1.0>
-                <Frame fill=ColorRole::SurfaceRaised border={Border::DEFAULT} radius=Radius::Md>
+                <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius=Radius::Md>
                     <List spacing=Space::None>
                         <ListItem shrink=1.0>
                             <unstyled::Scroll

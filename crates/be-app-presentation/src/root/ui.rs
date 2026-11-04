@@ -445,7 +445,7 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
         view! {
             <Frame
                 width=THUMBNAIL_WIDTH
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Control
                 border={Border::FOCUS}
                 radius=Radius::Md
                 padding=Space::Md
@@ -472,7 +472,7 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
     view! {
         <Frame @node_ref=&tile padding=TILE_INSET>
             <Frame
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Control
                 border={create_memo(move || Some(outline.get()))}
                 radius=Radius::Md
                 padding=Space::Sm

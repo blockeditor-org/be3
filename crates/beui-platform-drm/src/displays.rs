@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::{HostPlacement, Pos2, Rect, Vec2, WindowPlacement};
+use beui_types::Image;
 
 #[derive(Clone, Debug, PartialEq)]
 /// A display on the desktop. `id` is stable while the monitor stays plugged in;
@@ -25,6 +26,7 @@ impl Display {
 struct Shared {
     displays: RefCell<Vec<Display>>,
     watchers: RefCell<Vec<Rc<dyn Fn()>>>,
+    screenshot: RefCell<Option<Rc<dyn Fn() -> Option<Image>>>>,
 }
 
 #[derive(Clone, Default)]
@@ -58,6 +60,18 @@ impl Displays {
     /// the frame it reaches lays out.
     pub fn watch(&self, watcher: impl Fn() + 'static) {
         self.0.watchers.borrow_mut().push(Rc::new(watcher));
+    }
+
+    /// The whole desktop as its displays last showed it, without the pointer, at the
+    /// largest display scale, with transparency where no display reaches; `None`
+    /// when no display has drawn or the GPU could not read one back.
+    pub fn screenshot(&self) -> Option<Image> {
+        let take = self.0.screenshot.borrow().clone()?;
+        take()
+    }
+
+    pub(crate) fn take_screenshots_with(&self, take: impl Fn() -> Option<Image> + 'static) {
+        *self.0.screenshot.borrow_mut() = Some(Rc::new(take));
     }
 
     pub fn placement(&self, id: &str) -> WindowPlacement {

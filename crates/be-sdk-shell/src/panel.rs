@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use be_sdk_beui::be_sdk_ui::{BlockCatalog, BlockTypes};
 use be_sdk_beui::beui::NodeId;
-use be_sdk_beui::beui::dock::{TabId, dock_menu, use_dock_tab};
+use be_sdk_beui::beui::dock::{TabId, dock_menu};
 use be_sdk_beui::beui::icons::ICON_LOCK;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -320,7 +320,6 @@ fn BlockChild(
             })
         })
     });
-    let tab = use_dock_tab();
     view! {
         <ChildBlock
             editor={editor}
@@ -329,7 +328,6 @@ fn BlockChild(
             own_frame=true
             top_bar={top_bar}
             on_bar={on_bar}
-            on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
             docked_tab={docked_tab}
             @test_id={"workspace.block"}
         >|handle: ChildBlockHandle| {

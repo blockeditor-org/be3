@@ -114,7 +114,7 @@ fn box_fill(disabled: bool, checked: bool, hovered: bool) -> ColorRole {
     match (checked, hovered) {
         (true, false) => ColorRole::Accent,
         (true, true) => ColorRole::AccentHover,
-        (false, false) => ColorRole::SurfaceRaised,
+        (false, false) => ColorRole::Control,
         (false, true) => ColorRole::Pressed,
     }
 }

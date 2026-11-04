@@ -49,8 +49,10 @@ themselves. Fullscreen goes both ways: the program asks with
 `Context::fullscreen`.
 
 **Cursors.** Under touch emulation the cursor is `CursorIcon::Touch`, a finger
-circle defined in `beui_core::touch_cursor`. Hosts that draw their own cursor
-(mouse simulation, space) use `beui_core::drawn_cursor::paint`. A custom
+circle defined in `beui_core::touch_cursor`. A platform with a cursor of its own
+shows the system's; where beui draws the cursor (DRM, mouse simulation, space) it
+draws `beui_core::drawn_cursor::paint`'s icons
+(decisions/our_own_cursors_where_we_draw_them.md). A custom
 `cursor_image` from the hovered `Interactive` wins over its icon; only winit
 shows it, and it is not in the app protocol.
 
@@ -128,7 +130,11 @@ Per-device behaviour that spans platforms:
   stretch, and the lift flings. A wheel with no start (a mouse) clamps at the
   ends. winit maps `MouseWheel` phases and on macOS drops the system's momentum
   (`wheel.rs`, [decision](../../decisions/beui_winit_drops_macos_scroll_momentum.md)).
-  The browser reports no phases, so web wheel scrolls never stretch or fling.
+  DRM brackets libinput's finger scrolls, which end with a zero. The browser
+  reports no phases, so web wheel scrolls never stretch or fling.
+- **Wheel notches.** A platform reports a mouse wheel in `ScrollDelta::Lines`,
+  each `SCROLL_LINE` points; `Event::Scroll` and `PointerPhase::Scroll` keep the
+  count as `notches`, so a forwarding node can hand on a wheel as a wheel.
 - **Cancelling.** `Input::PointersCancelled` ends every press, touch and pen
   without a release, and cancels a pointer grab. winit and the web send it on
   losing focus; winit on Wayland also when the pointer leaves with a button
@@ -219,5 +225,6 @@ off (`uses`), which is first (`main`), where each sits (`places`) and their
 scales (see its doc comment, `plan.rs` and `layout.rs`). `Monitor`s list every
 connected display, including those off or mirroring. Pointer input goes to the
 window of the display under the pointer, in points, and a press focuses that
-window. Tests make a `Displays` of their own with `Displays::new` and change
+window. `Displays::screenshot` reads every desktop display's last drawn picture
+back (`Screen::capture`) and joins them into one (`screenshot.rs`). Tests make a `Displays` of their own with `Displays::new` and change
 it with `set`.
