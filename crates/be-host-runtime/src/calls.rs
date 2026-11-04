@@ -1,11 +1,13 @@
+use be_sdk_api::clipboard::{Blocks, ClipFormat as _, formats};
 use be_sdk_api::{
     AudioStatus, BarAction, BlockIdRole, BlockLocation, Catalog, ChildId, ChildStatus,
     EditorInstanceId, Failure, Fonts, Hello, InputBatch, LayoutCommit, Opening, PickedBlock,
     Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, ViewId, WebViewEvent,
     WebViewId,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
-    shell_types::{DragOver, Dragged, Focus},
+    shell_types::{DragOver, Focus},
 };
+use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Outbound {
@@ -211,6 +213,30 @@ impl BlockIds for LayoutCommit {
     }
 }
 
+/// Visits the ids of a `be3/blocks` item, which cross the protocol inside
+/// clips copied and dragged.
+fn visit_blocks(
+    instance: EditorInstanceId,
+    format: &str,
+    data: &mut Vec<u8>,
+    visit: &mut Visit<'_>,
+) {
+    if format != formats::BLOCKS {
+        return;
+    }
+    let Some(mut blocks) =
+        Blocks::decode(&be_sdk_api::ClipItem::new(formats::BLOCKS, data.clone()))
+    else {
+        return;
+    };
+    for block in &mut blocks.blocks {
+        let mut id = block.id.into_bytes();
+        visit(instance, BlockIdRole::Existing, &mut id);
+        block.id = Uuid::from_bytes(id);
+    }
+    *data = blocks.encode().data;
+}
+
 fn focus_ids(instance: EditorInstanceId, focus: &mut Focus, visit: &mut Visit<'_>) {
     if let Some(block_id) = &mut focus.block_id {
         visit(instance, BlockIdRole::Existing, block_id);
@@ -228,8 +254,8 @@ impl BlockIds for Outbound {
                 focus_ids(*instance, focus, visit);
             }
             Self::Editor(instance, EditorCall::DragOver(drag)) => {
-                if let Dragged::Block(block) = &mut drag.dragged {
-                    visit(*instance, BlockIdRole::Existing, &mut block.block_id);
+                for item in &mut drag.items {
+                    visit_blocks(*instance, &item.format, &mut item.data, visit);
                 }
             }
             Self::Editor(instance, EditorCall::ReplaceChild { old, new, .. }) => {
@@ -268,6 +294,13 @@ impl BlockIds for ShellCall {
                 pick: Ok(Some(PickedBlock { block_id, .. })),
                 ..
             } => visit(instance, BlockIdRole::Existing, block_id),
+            Self::Copy { items, .. } => {
+                for item in items {
+                    if let Some(data) = &mut item.data {
+                        visit_blocks(instance, &item.format, data, visit);
+                    }
+                }
+            }
             _ => {}
         }
     }

@@ -88,6 +88,27 @@ interface host-services {
     /// they cancel.
     import-blocks: async func(parent: block-location) -> result<option<imported-block>, failure>;
 
+    /// A block a paste of `be3/blocks` placed (`paste-blocks`).
+    record pasted-block {
+        block-id: block-id,
+        block-type: block-type-id,
+        /// Whether the paste moved the block here, from the parent it was
+        /// cut from; otherwise the editor adds a reference to it.
+        moved: bool,
+    }
+
+    /// The editor cut references to `blocks` that it holds in `holder`, and
+    /// removes them from its content as a delete does. The host records the
+    /// cut, not the clip: the first paste of a block whose parent `holder` was
+    /// moves it there (`paste-blocks`).
+    cut-blocks: async func(blocks: list<block-id>, holder: block-id);
+
+    /// The editor pastes `be3/blocks` into `parent`. The host answers with the
+    /// blocks the editor may view, which it adds references to; a block cut
+    /// from its parent and not yet pasted moves to `parent`. Every paste
+    /// uses up the cut, so later ones add references.
+    paste-blocks: async func(blocks: list<block-id>, parent: block-location) -> result<list<pasted-block>, failure>;
+
     /// Copies `source` and everything inside it into `parent`.
     copy-blocks: async func(source: block-id, parent: block-location) -> result<option<imported-block>, failure>;
 

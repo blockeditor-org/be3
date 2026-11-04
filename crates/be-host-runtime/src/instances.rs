@@ -31,6 +31,7 @@ use super::{
 };
 use be_host_base::{host, performance};
 
+mod cuts;
 mod services;
 
 thread_local! {
@@ -2322,7 +2323,8 @@ impl Instances {
                     EditorCall::DragOver(be_sdk_api::shell_types::DragOver {
                         view: region,
                         pos: event.position,
-                        dragged: event.dragged,
+                        items: event.items,
+                        action: event.action,
                         dropped: event.dropped,
                     }),
                 )]

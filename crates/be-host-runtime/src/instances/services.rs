@@ -1,7 +1,8 @@
 use be_lib_stable_hash::HashMap;
 
 use be_sdk_api::{
-    AccessListing, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock, SavedFile,
+    AccessListing, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock, PastedBlock,
+    SavedFile,
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply, wire},
 };
@@ -314,6 +315,54 @@ impl Instances {
                         Err(error) => answering.imported(Err(error)),
                     }
                 });
+            }
+            Call::CutBlocks {
+                reply,
+                blocks,
+                holder,
+            } => {
+                self.services.answers.push(reply.answer(&()));
+                let holder = Uuid::from_bytes(holder);
+                if !self.editable(holder) {
+                    return;
+                }
+                let parent = Some(be_block_graph::BlockParent::Block(holder));
+                super::cuts::record(blocks.into_iter().map(Uuid::from_bytes).map(|block| {
+                    let was_parent =
+                        be_host_stack::node(block).is_some_and(|node| node.parent == parent);
+                    (block, super::cuts::Cut { holder, was_parent })
+                }));
+            }
+            Call::PasteBlocks {
+                reply,
+                blocks,
+                parent,
+            } => {
+                let parent = be_host_stack::app_graph::parent_of(parent);
+                let editable = !parent.block().is_some_and(|parent| !self.editable(parent));
+                let mut pasted = Vec::new();
+                for block in blocks.into_iter().map(Uuid::from_bytes) {
+                    let cut = super::cuts::take(block);
+                    let Some(node) =
+                        be_host_stack::node(block).filter(|node| node.access.can_view())
+                    else {
+                        continue;
+                    };
+                    let moved = editable
+                        && cut.is_some_and(|cut| cut.was_parent)
+                        && node.access.can_edit()
+                        && parent != be_block_graph::BlockParent::Detached
+                        && parent.block() != Some(block);
+                    if moved {
+                        be_host_stack::set_parent(block, parent);
+                    }
+                    pasted.push(PastedBlock {
+                        block_id: self.local(instance, block.into_bytes()),
+                        block_type: node.content_type.into_bytes(),
+                        moved,
+                    });
+                }
+                self.answer_now(reply, Ok(pasted));
             }
             Call::CopyBlocks {
                 reply,

@@ -716,15 +716,38 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn drag_block(&mut self, position: Pos2, block_id: Uuid, block_type: Uuid, dropped: bool) {
+        self.drag_block_as(
+            position,
+            block_id,
+            block_type,
+            dropped,
+            be_sdk_api::DropAction::Move,
+        );
+    }
+
+    /// Drags a block over the editor as the host does, with `action` the
+    /// modifiers held picked.
+    pub fn drag_block_as(
+        &mut self,
+        position: Pos2,
+        block_id: Uuid,
+        block_type: Uuid,
+        dropped: bool,
+        action: be_sdk_api::DropAction,
+    ) {
+        let blocks = be_sdk_api::clipboard::Blocks {
+            blocks: vec![be_sdk_api::clipboard::ClipBlock {
+                id: block_id,
+                organization: None,
+                block_type,
+                title: String::new(),
+            }],
+        };
         let drag = be_sdk_api::shell_types::DragOver {
             view: self.view().id,
             pos: position,
-            dragged: be_sdk_api::shell_types::Dragged::Block(
-                be_sdk_api::shell_types::DraggedBlock {
-                    block_id: block_id.into_bytes(),
-                    block_type: block_type.into_bytes(),
-                },
-            ),
+            items: vec![be_sdk_api::clipboard::ClipFormat::encode(&blocks)],
+            action,
             dropped,
         };
         self.call(|editor, connection| {

@@ -15,7 +15,7 @@ use be_sdk_api::{
         OpId,
         guest::{Executor, Sender, oneshot, spawn, with_parent},
     },
-    shell_types::{DragOver, Dragged, Focus},
+    shell_types::{DragOver, Focus},
 };
 
 use crate::asked::follow;
@@ -342,16 +342,24 @@ impl GuestEditor for OpenEditor {
     }
 
     fn drag_over(&self, drag: DragOver) -> impl Future<Output = ()> + 'static {
-        let dragged = match drag.dragged {
-            Dragged::Block(block) => crate::host::Dragged::Block(crate::host::BlockDrag {
+        use be_sdk_api::clipboard::{Blocks, Files};
+        let blocks = drag.items.iter().find_map(|item| item.decode::<Blocks>());
+        let files = drag.items.iter().find_map(|item| item.decode::<Files>());
+        let dragged = match (
+            blocks.and_then(|blocks| blocks.blocks.into_iter().next()),
+            files,
+        ) {
+            (Some(block), _) => Some(crate::host::Dragged::Block(crate::host::BlockDrag {
                 position: drag.pos,
-                block_id: uuid::Uuid::from_bytes(block.block_id),
-                block_type: uuid::Uuid::from_bytes(block.block_type),
+                block_id: block.id,
+                block_type: block.block_type,
                 dropped: drag.dropped,
-            }),
-            Dragged::Files(files) => crate::host::Dragged::Files(crate::host::FileDrop {
+                action: drag.action,
+            })),
+            (None, Some(files)) => Some(crate::host::Dragged::Files(crate::host::FileDrop {
                 position: drag.pos,
                 files: files
+                    .files
                     .into_iter()
                     .map(|file| crate::PickedFile {
                         name: file.name,
@@ -359,10 +367,11 @@ impl GuestEditor for OpenEditor {
                     })
                     .collect(),
                 dropped: drag.dropped,
-            }),
+            })),
+            (None, None) => None,
         };
         self.wire.call(self.instance, move |session| {
-            session.set_drag(Some((drag.view, dragged)))
+            session.set_drag(dragged.map(|dragged| (drag.view, dragged)))
         });
         std::future::ready(())
     }

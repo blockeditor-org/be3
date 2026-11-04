@@ -61,12 +61,14 @@ pub use blocks::{
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
 pub use guest::dock::DockWatch;
-pub use host_services::{AccessGrant, AccessListing, ImportedBlock, Revision, ShellDialog};
+pub use host_services::{
+    AccessGrant, AccessListing, ImportedBlock, PastedBlock, Revision, ShellDialog,
+};
 pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
-    CreationProgress, DialogAnswer, DialogStatus, DroppedFile, EditorDescriptor, FitArea,
+    CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, FitArea,
     OfferedClipItem, PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange,
     WebViewEvent,
 };
@@ -764,6 +766,19 @@ fn string(value: &str) -> Result<(), DecodeError> {
 
 /// A paste as input: one `Paste`, after as many `PastePiece`s as its data
 /// needs to stay within `MAX_TEXT_BYTES` a message; the receiver joins them.
+impl DropAction {
+    /// The action of a drop of blocks with `modifiers` held, as file managers
+    /// pick it: a move, Ctrl or Alt (Option) for a copy, Ctrl+Shift for a
+    /// reference.
+    pub fn of(modifiers: Modifiers) -> Self {
+        match (modifiers.ctrl, modifiers.shift, modifiers.alt) {
+            (true, true, _) => Self::Reference,
+            (true, false, _) | (false, _, true) => Self::Copy,
+            (false, _, false) => Self::Move,
+        }
+    }
+}
+
 pub fn paste_events(item: ClipItem) -> Vec<Input> {
     paste_pieces(item, MAX_TEXT_BYTES)
 }

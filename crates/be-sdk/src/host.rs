@@ -33,6 +33,8 @@ pub struct BlockDrag {
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub dropped: bool,
+    /// Whether the drop moves the block here, copies it, or adds a reference.
+    pub action: be_sdk_api::DropAction,
 }
 
 #[derive(Clone)]
@@ -1685,6 +1687,38 @@ impl EditorHost {
                     )
                 })
             })
+        })
+    }
+
+    /// Records a cut of references to `blocks` held in `holder`, before the
+    /// editor removes them from its content: the first paste of a block
+    /// whose parent `holder` was moves it.
+    pub fn cut_blocks(&self, blocks: &[Uuid], holder: Uuid) {
+        let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
+        self.ask(|| host_services::cut_blocks(blocks, holder.into_bytes()).detach());
+    }
+
+    /// Pastes `be3/blocks` into `parent`: the blocks the editor may view,
+    /// each `(id, type, moved)`, `moved` when the paste moved a cut block
+    /// here rather than adding a reference. None when the host refused.
+    pub fn paste_blocks(
+        &self,
+        blocks: &[Uuid],
+        parent: BlockParent,
+    ) -> Asked<Vec<(Uuid, Uuid, bool)>> {
+        let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
+        Asked::of(self.ask(|| host_services::paste_blocks(blocks, parent.encode()))).map(|pasted| {
+            pasted
+                .unwrap_or_default()
+                .into_iter()
+                .map(|pasted| {
+                    (
+                        Uuid::from_bytes(pasted.block_id),
+                        Uuid::from_bytes(pasted.block_type),
+                        pasted.moved,
+                    )
+                })
+                .collect()
         })
     }
 

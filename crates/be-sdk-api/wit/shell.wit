@@ -6,7 +6,7 @@ interface shell-types {
     use be3:manifest/types@0.1.0.{interaction-mode, editor-capabilities, resize-mode, block-type-descriptor, template-category, edits};
     use types.{block-pick, child-id, editor-id, editor-instance-id, menu-check, menu-command, menu-heading, menu-item, menu-ask, menu-item-kind, menu-pin, picture, size, view-id, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
-    use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
+    use be3:ui/types@0.1.0.{clip-item, key-chord, pos2, rect, vec2};
 
     /// An action of the bar the host draws above a frame or a child.
     enum bar-action {
@@ -20,28 +20,25 @@ interface shell-types {
         data: option<list<u8>>,
     }
 
-    record dropped-file {
-        name: string,
-        data: list<u8>,
+    /// How a drop places what is dragged. The host picks it from what is
+    /// dragged and the modifiers held: a block moves by default, Ctrl (or
+    /// Option) copies it and Ctrl+Shift adds a reference; files from
+    /// outside are always copied in.
+    enum drop-action {
+        move,
+        copy,
+        reference,
     }
 
-    /// What is dragged over the editor: a block from the host, or files from
+    /// Something dragged over the editor, where, and whether it was dropped
+    /// there. What is dragged is a clip like a paste's, richest first:
+    /// `be3/blocks` for blocks from the host, `be3/files` for files from
     /// outside it, whose data comes only with the drop.
-    variant dragged {
-        block(dragged-block),
-        files(list<dropped-file>),
-    }
-
-    record dragged-block {
-        block-id: block-id,
-        block-type: block-type-id,
-    }
-
-    /// Something dragged over the editor, where, and whether it was dropped there.
     record drag-over {
         view: view-id,
         pos: pos2,
-        dragged: dragged,
+        items: list<clip-item>,
+        action: drop-action,
         dropped: bool,
     }
 

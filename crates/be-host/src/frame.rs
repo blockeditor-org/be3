@@ -12,6 +12,15 @@ struct Waiting {
     picks: Vec<(FilePickId, PickSlot)>,
     saves: Vec<(FileSaveId, SaveSlot)>,
     renders: Vec<Render>,
+    exports: Vec<Export>,
+}
+
+/// The files of copied blocks a paste asked for, read by the blocks' types.
+struct Export {
+    read: std::sync::mpsc::Receiver<Option<beui::clipboard::ClipFile>>,
+    left: usize,
+    files: Vec<beui::clipboard::ClipFile>,
+    answer: Box<dyn FnOnce(Option<Vec<u8>>)>,
 }
 
 /// A representation of an app's copy that a paste asked the app to render.
@@ -31,7 +40,14 @@ fn app_clip(copied: host::CopiedClip) -> beui::Clip {
         serial,
         items,
     } = copied;
-    items
+    let blocks = items
+        .iter()
+        .filter(|item| item.format == beui::clipboard::formats::BLOCKS)
+        .find_map(|item| {
+            let item = beui::ClipItem::new(item.format.clone(), item.data.clone()?);
+            item.decode::<beui::clipboard::Blocks>()
+        });
+    let clip = items
         .into_iter()
         .fold(beui::Clip::new(), |clip, item| match item.data {
             Some(data) => clip.with(beui::ClipItem::new(item.format, data)),
@@ -58,7 +74,53 @@ fn app_clip(copied: host::CopiedClip) -> beui::Clip {
                     },
                 )
             }
+        });
+    match blocks {
+        Some(blocks) if !clip.holds(beui::clipboard::formats::FILES) => {
+            let ids = blocks
+                .blocks
+                .iter()
+                .map(|block| block.id)
+                .collect::<Vec<_>>();
+            clip.with_lazy(beui::clipboard::formats::FILES, move |answer| {
+                export_files(&ids, answer)
+            })
+        }
+        _ => clip,
+    }
+}
+
+/// Reads the plain file each block's type writes it as, for a paste of the
+/// blocks' files; a block the person cannot view, or without a file form, is
+/// left out.
+fn export_files(blocks: &[uuid::Uuid], answer: Box<dyn FnOnce(Option<Vec<u8>>)>) {
+    let (send, read) = std::sync::mpsc::channel();
+    let mut left = 0;
+    for block in blocks {
+        if !be_host_stack::access(*block).can_view() {
+            continue;
+        }
+        left += 1;
+        let send = send.clone();
+        be_host_stack::plain_file(*block, move |file| {
+            let file = file.ok().map(|file| beui::clipboard::ClipFile {
+                name: file.name.unwrap_or_default(),
+                data: file.bytes,
+            });
+            let _ = send.send(file);
+        });
+    }
+    if left == 0 {
+        return answer(None);
+    }
+    WAITING.with(|waiting| {
+        waiting.borrow_mut().exports.push(Export {
+            read,
+            left,
+            files: Vec::new(),
+            answer,
         })
+    });
 }
 
 pub(crate) fn begin(context: &beui::native::Context) {
@@ -91,6 +153,28 @@ pub(crate) fn begin(context: &beui::native::Context) {
     });
     for (answer, data) in rendered {
         answer(data);
+    }
+    let exported = WAITING.with(|waiting| {
+        let mut waiting = waiting.borrow_mut();
+        for export in &mut waiting.exports {
+            while let Ok(file) = export.read.try_recv() {
+                export.left -= 1;
+                export.files.extend(file);
+            }
+        }
+        let (done, left) = std::mem::take(&mut waiting.exports)
+            .into_iter()
+            .partition::<Vec<_>, _>(|export| export.left == 0);
+        waiting.exports = left;
+        done
+    });
+    for export in exported {
+        let files = beui::clipboard::Files {
+            files: export.files,
+        };
+        (export.answer)(
+            (!files.files.is_empty()).then(|| beui::clipboard::ClipFormat::encode(&files).data),
+        );
     }
     for (deliver, pick) in picked {
         deliver(pick);

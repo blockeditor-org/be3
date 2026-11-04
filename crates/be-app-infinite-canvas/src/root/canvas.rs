@@ -180,7 +180,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
             focusable=true
             tab_stop={interactive}
             on_key={move |press: KeyPress| state.key(press)}
-            pastes={vec![formats::CANVAS_ITEMS.to_owned(), formats::PNG.to_owned()]}
+            pastes={[formats::CANVAS_ITEMS, formats::BLOCKS, formats::PNG].map(str::to_owned).to_vec()}
             on_paste={move |pasted: ClipItem| state.take_paste(pasted)}
             cursor={cursor}
             touch_drags={interactive}

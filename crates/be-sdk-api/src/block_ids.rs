@@ -101,6 +101,14 @@ impl crate::embed::host_services::Call {
             | Self::MakeContactLink { block, .. } => visit(block),
             Self::ReleaseRevision { preview, .. } => visit(preview),
             Self::ImportBlocks { parent, .. } => location(parent, visit),
+            Self::CutBlocks { blocks, holder, .. } => {
+                blocks.iter_mut().for_each(&mut *visit);
+                visit(holder);
+            }
+            Self::PasteBlocks { blocks, parent, .. } => {
+                blocks.iter_mut().for_each(&mut *visit);
+                location(parent, visit);
+            }
             Self::CopyBlocks { source, parent, .. } => {
                 visit(source);
                 location(parent, visit);

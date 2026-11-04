@@ -12,7 +12,6 @@ use be_sdk_api::{
     FrameSpec, HostPanel, HostTransform, LayoutCommit, Opening, PresentCommit, PresentedFrame,
     PreviewImage, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
     ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
-    shell_types::{Dragged, DraggedBlock},
 };
 use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;
@@ -3251,7 +3250,7 @@ pub fn drag_over_view(
     app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
-    over: Option<(BlockDrag, Pos2)>,
+    over: Option<(BlockDrag, Pos2, be_sdk_api::DropAction)>,
     dropped: bool,
 ) {
     with(app_id, |runtime| {
@@ -3260,13 +3259,21 @@ pub fn drag_over_view(
             .placement(instance, region)
             .map_or(Pos2::ZERO, |placement| placement.rect.min);
         let was = runtime.instances.dragging(instance, region);
-        let event = over.map(|(drag, at)| DragEvent {
-            position: Pos2::ZERO + (at - origin),
-            dragged: Dragged::Block(DraggedBlock {
-                block_id: drag.block_id.into_bytes(),
-                block_type: drag.block_type.into_bytes(),
-            }),
-            dropped,
+        let event = over.map(|(drag, at, action)| {
+            let blocks = be_sdk_api::clipboard::Blocks {
+                blocks: vec![be_sdk_api::clipboard::ClipBlock {
+                    id: drag.block_id,
+                    organization: None,
+                    block_type: drag.block_type,
+                    title: String::new(),
+                }],
+            };
+            DragEvent {
+                position: Pos2::ZERO + (at - origin),
+                items: vec![be_sdk_api::clipboard::ClipFormat::encode(&blocks)],
+                action,
+                dropped,
+            }
         });
         let messages = runtime
             .instances
