@@ -543,12 +543,13 @@ pub(crate) fn AppView(
         revision.get();
         be_host_runtime::view_placed(&app_id.value(), instance, region.id)
     });
-    let drawing = |floating: bool| {
+    let drawing = |part: Part| {
         let shown = create_memo(move || {
             let (pieces, loading, drawn, held, size) = state.with(|view| {
-                let pieces = match floating {
-                    true => view.floating.clone(),
-                    false => view.base.clone(),
+                let pieces = match part {
+                    Part::Base => view.base.clone(),
+                    Part::Marks => view.marks.clone(),
+                    Part::Floating => view.floating.clone(),
                 };
                 (
                     pieces,
@@ -659,8 +660,9 @@ pub(crate) fn AppView(
         });
         Prop::dynamic(move || draw_gpu(drawn.get()))
     };
-    let base = drawing(false);
-    let floating = drawing(true);
+    let base = drawing(Part::Base);
+    let marks = drawing(Part::Marks);
+    let floating = drawing(Part::Floating);
     let cursor = create_memo(move || state.with(|view| view.cursor.unwrap_or(CursorIcon::Default)));
     let handles_back = create_memo(move || state.with(|view| view.handles_back));
     let pastes = create_memo(move || state.with(|view| view.pastes.clone()));
@@ -1108,10 +1110,11 @@ pub(crate) fn AppView(
                     </Embed>
                 </Interactive>
                 <Notices loading failure id={crash_id.clone()} />
+                <ViewChildren state rect nodes={children} below=false />
+                <Drawing draw={marks} />
                 <Show condition={shows_desktop}>||
                     <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
                 </Show>
-                <ViewChildren state rect nodes={children} below=false />
                 <Scrims state />
                 <Drawing draw={floating} />
                 <Show condition={blocked}>||
@@ -1162,6 +1165,15 @@ fn Scrims(state: Memo<PlacedView>) -> NodeId {
     }
 }
 
+/// Which pieces of the view's surface a `Drawing` draws: the base under the view's children,
+/// the marks over them (and under the windows it opens), or its overlays over everything.
+#[derive(Clone, Copy)]
+enum Part {
+    Base,
+    Marks,
+    Floating,
+}
+
 #[component]
 fn DesktopWindows(editor: ViewEditor, state: Memo<PlacedView>, rect: Memo<Rect>) -> NodeId {
     let place = super::desktop::place().unwrap_or_else(|| {
@@ -1179,7 +1191,7 @@ fn DesktopWindows(editor: ViewEditor, state: Memo<PlacedView>, rect: Memo<Rect>)
             .as_ref()
             .map(|inherited| inherited.get())
             .unwrap_or_default();
-        rects.extend(state.with(|view| view.floating_rects.clone()));
+        rects.extend(state.with(|view| view.overlay_rects.clone()));
         rects
     })));
     let block = editor.role.block().map(|block| block.id);

@@ -2333,6 +2333,7 @@ struct ChromeParts {
     sidebar_width: Memo<f32>,
     sidebar_splitter: Option<NodeId>,
     bar: Option<DockBarHandle>,
+    bar_shown: Memo<bool>,
     leaf: Option<LeafId>,
     body: NodeId,
 }
@@ -2346,6 +2347,7 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
         sidebar_width,
         sidebar_splitter,
         bar,
+        bar_shown,
         leaf,
         body,
     } = parts;
@@ -2371,7 +2373,9 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
     };
     let content = view! {
         <List direction spacing=0.0>
-            {bar} @sizing={sidebar_size(vertical, sidebar_width)}
+            <Show condition={bar_shown}>
+                <Portal node={bar} @sizing={sidebar_size(vertical, sidebar_width)} />
+            </Show>
             {sidebar_splitter} @sizing=ItemSize::Fixed(dock.thickness + 2.0 * dock.reach)
             {body} @sizing=ItemSize::Percent(100.0)
         </List>
@@ -2609,6 +2613,8 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
         })
     });
     let vacant = create_memo(move || contents.with(Vec::is_empty));
+    let bar_shown =
+        create_memo(move || !(vacant.get() && state.with(|state| state.hides_empty_bar(leaf))));
     let sidebar_width = dock.sidebar_width(Some(leaf));
     let icons_only = dock.icons_only(Some(leaf));
     let close = ClickCallback::new(move || dock.close_leaf(leaf));
@@ -2676,6 +2682,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                             <DockSidebarSplitter dock={dock} leaf />
                         }),
                         bar,
+                        bar_shown,
                         leaf: Some(leaf),
                         body: view! {
                             <DockPanelBody dock={dock} leaf />
@@ -3829,6 +3836,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                         |leaf| dock.pane_test_id("dock", leaf),
                                                                     ),
                                                                 }),
+                                                                bar_shown: create_memo(|| true),
                                                                 leaf: hoisted,
                                                                 body: pane,
                                                             };

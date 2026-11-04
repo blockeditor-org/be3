@@ -20,6 +20,7 @@ fn inner() -> DockDeclaration {
                         area: None,
                         empty: None,
                         bare: false,
+                        hide_empty_bar: false,
                     }),
                 },
                 DockItem {

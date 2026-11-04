@@ -278,6 +278,7 @@ fn outside_windows(mut spec: DockSpec) -> DockSpec {
                 keep: false,
                 area: None,
                 bare: false,
+                hide_empty_bar: false,
             })),
         });
     }

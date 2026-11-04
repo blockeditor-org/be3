@@ -44,6 +44,7 @@ fn stage_pane() -> DockItem {
             area: None,
             empty: None,
             bare: true,
+            hide_empty_bar: false,
         }),
     }
 }
