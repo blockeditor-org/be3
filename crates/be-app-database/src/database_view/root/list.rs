@@ -3,7 +3,7 @@ use be_sdk_beui::beui::icons::{ICON_CHEVRON_DOWN, ICON_FILE_TEXT, ICON_LINK, ICO
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign, Vec2};
-use be_sdk_beui::narrow_chrome;
+use be_sdk_beui::{SIDE_PANEL_WIDTH, narrow_chrome};
 use be_sdk_database::{ChoiceMark, use_choice_colors};
 use be_sdk_ui_database::cell_text;
 use be_type_database::database::{DatabaseRow, DatabaseValue, short_id};
@@ -83,7 +83,7 @@ pub fn ListView(data: Data) -> NodeId {
     let preview = move |row: ObjectId| {
         view! {
             <Frame
-                width={Size::Custom(PANEL_WIDTH)}
+                width={Size::Custom(SIDE_PANEL_WIDTH)}
                 fill=ColorRole::Control
                 border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Md

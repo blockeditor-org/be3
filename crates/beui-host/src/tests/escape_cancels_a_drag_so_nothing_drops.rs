@@ -36,7 +36,8 @@ fn escape_cancels_a_drag_so_nothing_drops() {
     harness.frame(Vec::new());
 
     let to = harness.center(target);
-    harness.down(harness.center(source), PointerButton::Primary);
+    let at = harness.center(source);
+    harness.down(at, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(to)]);
     assert!(over.get_untracked(), "the drag is over the target");
     assert!(dragging.get_untracked());

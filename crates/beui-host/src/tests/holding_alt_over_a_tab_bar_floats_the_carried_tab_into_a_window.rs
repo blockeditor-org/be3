@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, TabId};
+use crate::dock::{TabId};
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn holding_alt_over_a_tab_bar_floats_the_carried_tab_into_a_window() {

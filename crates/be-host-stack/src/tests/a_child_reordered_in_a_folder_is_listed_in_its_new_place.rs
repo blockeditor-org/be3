@@ -20,7 +20,7 @@ fn a_child_reordered_in_a_folder_is_listed_in_its_new_place() {
     create(
         folder,
         FolderContent::CONTENT_TYPE,
-        be_graph::BlockParent::Root,
+        be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
     );
@@ -28,7 +28,7 @@ fn a_child_reordered_in_a_folder_is_listed_in_its_new_place() {
         create(
             child,
             CounterContent::CONTENT_TYPE,
-            be_graph::BlockParent::Block(folder),
+            be_block_graph::BlockParent::Block(folder),
             be_block::BlockMetadata::default(),
             None,
         );

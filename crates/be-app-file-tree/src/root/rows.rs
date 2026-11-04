@@ -1021,7 +1021,7 @@ pub(crate) fn can_reorder_in(
     container.is_some_and(|id| {
         block_types
             .get(&id)
-            .is_some_and(|block_type| types.child_edits(*block_type).reorder)
+            .is_some_and(|block_type| types.child_operations(*block_type).reorder)
             && client.access(id).can_edit()
     })
 }

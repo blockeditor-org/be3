@@ -5,7 +5,7 @@ fn reordering_needs_a_container_that_keeps_an_order() {
     let client = client();
     let block_types = block_types();
 
-    let unordered = catalog(ChildEdits {
+    let unordered = catalog(ChildOperations {
         add: true,
         delete: true,
         replace: true,
@@ -18,9 +18,9 @@ fn reordering_needs_a_container_that_keeps_an_order() {
         Some(CONTAINER)
     ));
 
-    let ordered = catalog(ChildEdits {
+    let ordered = catalog(ChildOperations {
         reorder: true,
-        ..ChildEdits::default()
+        ..ChildOperations::default()
     });
     assert!(
         !can_reorder_in(&client, &ordered, &block_types, None),

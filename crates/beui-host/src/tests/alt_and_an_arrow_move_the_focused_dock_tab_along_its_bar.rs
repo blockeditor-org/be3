@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, Entry, TabId};
+use crate::dock::{Entry, TabId};
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn alt_and_an_arrow_move_the_focused_dock_tab_along_its_bar() {

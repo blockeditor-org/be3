@@ -1,4 +1,4 @@
-use be_lib_geometry::{Rect, Vec2, vec2};
+use be_lib_geometry::{Pos2, Rect, Vec2, vec2};
 use beui_tree::reactive::into_prop_via;
 use beui_tree::reactive::{Get, IntoProp, Memo, Prop, ReadSignal, Signal};
 

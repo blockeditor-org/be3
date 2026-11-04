@@ -1,9 +1,9 @@
 use std::any::Any;
 
-use crate::callback::Callback;
+use beui_tree::callback::Callback;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::node::{Element, NodeId, NodeOf, Placed, Rects};
+use beui_types::{NodeId, Pos2, Rect, Vec2};
+use crate::node::{Element, NodeOf, Placed, Rects};
 use crate::painter::Painter;
 
 pub use beui_types::layout::{GLIDE_SPRING, GlideHold, GlideMotion};

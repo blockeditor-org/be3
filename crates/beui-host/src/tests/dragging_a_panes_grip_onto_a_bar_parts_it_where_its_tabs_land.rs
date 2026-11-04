@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId};
+use crate::dock::{DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId};
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn dragging_a_panes_grip_onto_a_bar_parts_it_where_its_tabs_land() {
@@ -8,7 +9,8 @@ fn dragging_a_panes_grip_onto_a_bar_parts_it_where_its_tabs_land() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
+            <dock_host::styled::DockHost @node_ref=&dock>
+<dock::Docking layout>
                 <DockSplit id="split">
                     <DockPane id="left">
                         <DockTab id=1u64 title="Tab 1">
@@ -27,7 +29,8 @@ fn dragging_a_panes_grip_onto_a_bar_parts_it_where_its_tabs_land() {
                         </DockTab>
                     </DockPane>
                 </DockSplit>
-            </dock::styled::Docking>
+            </dock::Docking>
+</dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

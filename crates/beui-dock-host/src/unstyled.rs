@@ -1377,6 +1377,7 @@ impl State {
                 next.drop_leaf(pane, target);
                 shown
             }
+            DockDragged::Bar(_) => return None,
         };
         let (landed, _) = next.locate(moved)?;
         (landed != leaf).then_some(onto)
@@ -2673,10 +2674,6 @@ fn DockDropMarker(
             rect.size(),
         ))
     });
-    let face = match refused {
-        true => dock.refused,
-        false => dock.highlight,
-    };
     let shown = create_memo(move || marker.get().is_some());
     let rect = create_memo(move || marker.get().unwrap_or(Rect::ZERO));
     let x = create_memo(move || rect.get().min.x);

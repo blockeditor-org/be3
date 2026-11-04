@@ -19,7 +19,7 @@ fn a_layer_carried_up_the_panel_parts_the_layers_it_passes() {
         .collect();
     let [back, middle, front] = [shapes[0].id, shapes[1].id, shapes[2].id];
     let mut editor = open_sized(&vector(shapes), false, &[], Some(Vec2::new(900.0, 1400.0)));
-    let row = |editor: &BeuiTest<CanvasApp>, id: Uuid| {
+    let row = |editor: &BeuiTest<CanvasRoot>, id: Uuid| {
         editor.rect_of(&format!("infinite-canvas.layer.{id}"))
     };
 
@@ -54,7 +54,7 @@ fn a_layer_carried_up_the_panel_parts_the_layers_it_passes() {
     editor.snapshot("a_layer_carried_up_the_panel_parts_the_layers_it_passes");
 }
 
-fn order(editor: &BeuiTest<CanvasApp>) -> Vec<Uuid> {
+fn order(editor: &BeuiTest<CanvasRoot>) -> Vec<Uuid> {
     entities(editor)
         .into_iter()
         .map(|entity| entity.id)

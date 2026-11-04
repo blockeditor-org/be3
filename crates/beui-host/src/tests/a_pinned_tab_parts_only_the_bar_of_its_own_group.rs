@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
+use crate::dock::{DockGroup, DockPane, DockTab, DockingLayout};
 
 #[test]
 fn a_pinned_tab_parts_only_the_bar_of_its_own_group() {
@@ -7,7 +7,8 @@ fn a_pinned_tab_parts_only_the_bar_of_its_own_group() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking layout focus=10u64>
+            <dock_host::styled::DockHost>
+<dock::Docking layout focus=10u64>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -23,7 +24,8 @@ fn a_pinned_tab_parts_only_the_bar_of_its_own_group() {
                         </DockPane>
                     </DockGroup>
                 </DockPane>
-            </dock::styled::Docking>
+            </dock::Docking>
+</dock_host::styled::DockHost>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

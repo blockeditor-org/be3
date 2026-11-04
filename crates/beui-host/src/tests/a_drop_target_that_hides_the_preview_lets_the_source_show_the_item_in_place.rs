@@ -38,7 +38,9 @@ fn a_drop_target_that_hides_the_preview_lets_the_source_show_the_item_in_place()
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    harness.down(harness.center(source), PointerButton::Primary);
+    let at = harness.center(source);
+
+    harness.down(at, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(harness.center(plain))]);
     let output = harness.frame(Vec::new());
     assert!(
@@ -65,5 +67,6 @@ fn a_drop_target_that_hides_the_preview_lets_the_source_show_the_item_in_place()
         output.test_id_rect("ghost").is_some(),
         "it floats again once it leaves"
     );
-    harness.up(harness.center(plain), PointerButton::Primary);
+    let at = harness.center(plain);
+    harness.up(at, PointerButton::Primary);
 }

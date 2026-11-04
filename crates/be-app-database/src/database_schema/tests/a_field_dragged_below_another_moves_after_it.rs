@@ -15,7 +15,7 @@ fn a_field_dragged_below_another_moves_after_it() {
         })
         .collect();
     harness.run();
-    let order = |harness: &BeuiTest<DatabaseSchemaApp>| {
+    let order = |harness: &BeuiTest<DatabaseSchemaRoot>| {
         schema(harness)
             .fields()
             .iter()

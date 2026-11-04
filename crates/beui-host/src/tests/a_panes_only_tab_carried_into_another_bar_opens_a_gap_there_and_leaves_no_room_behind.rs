@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId};
+use crate::dock::{DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId};
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn a_panes_only_tab_carried_into_another_bar_opens_a_gap_there_and_leaves_no_room_behind() {
@@ -8,7 +9,8 @@ fn a_panes_only_tab_carried_into_another_bar_opens_a_gap_there_and_leaves_no_roo
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <dock::styled::Docking @node_ref=&dock layout>
+            <dock_host::styled::DockHost @node_ref=&dock>
+<dock::Docking layout>
                 <DockSplit id="split">
                     <DockPane id="left">
                         <DockTab id=1u64 title="Tab 1">
@@ -24,7 +26,8 @@ fn a_panes_only_tab_carried_into_another_bar_opens_a_gap_there_and_leaves_no_roo
                         </DockTab>
                     </DockPane>
                 </DockSplit>
-            </dock::styled::Docking>
+            </dock::Docking>
+</dock_host::styled::DockHost>
         }
     });
     let dock = dock.get();

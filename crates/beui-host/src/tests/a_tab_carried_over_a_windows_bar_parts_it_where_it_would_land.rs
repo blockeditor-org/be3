@@ -1,5 +1,6 @@
 use super::*;
-use crate::dock::unstyled::{DockApi, TabId};
+use crate::dock::{TabId};
+use crate::dock_host::unstyled::DockApi;
 
 #[test]
 fn a_tab_carried_over_a_windows_bar_parts_it_where_it_would_land() {
