@@ -62,7 +62,8 @@ answered with whatever the server has for the client; notifications wait for
 the next post. An answer stops taking frames once its replies fill
 `OUTBOUND_BYTES`, keeps the rest for the next post, and says so with
 `Be3-More`, on which the client posts again at once (with an empty body if it
-has nothing to send).
+has nothing to send). The client gives up on a post only after `QUIET_WAIT`
+with no bytes moving either way, so a large post on a slow link goes through.
 
 ### Protocol
 

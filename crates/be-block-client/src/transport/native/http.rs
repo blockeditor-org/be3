@@ -1,7 +1,12 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    pin::Pin,
+    sync::{Arc, Mutex, PoisonError},
+    task::{Context, Poll},
+    time::Duration,
+};
 
 use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf},
     net::TcpStream,
     sync::mpsc,
 };
@@ -12,12 +17,100 @@ const SESSION_HEADER: &str = "be3-session";
 /// Set on an answer when the server has more to send, or frames still to carry out; the client
 /// posts again at once.
 const MORE_HEADER: &str = "be3-more";
-const REQUEST_WAIT: Duration = Duration::from_secs(120);
+/// Longest a post may go with no bytes moving either way before it fails. A large post or answer
+/// on a slow link takes as long as it takes, as long as its bytes keep moving.
+const QUIET_WAIT: Duration = Duration::from_secs(120);
 const MAX_HEAD_BYTES: usize = 16 * 1024;
 const MAX_HEADERS: usize = 64;
 const BATCH_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES;
 
 trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
+
+/// When bytes last moved on a client's connection, either way.
+#[derive(Clone)]
+struct Moved(Arc<Mutex<tokio::time::Instant>>);
+
+impl Moved {
+    fn new() -> Self {
+        Self(Arc::new(Mutex::new(tokio::time::Instant::now())))
+    }
+
+    fn now(&self) {
+        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = tokio::time::Instant::now();
+    }
+
+    fn last(&self) -> tokio::time::Instant {
+        *self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// A connection that notes in its `Moved` each time bytes are read or written.
+struct Moving {
+    inner: Box<dyn Io>,
+    moved: Moved,
+}
+
+impl AsyncRead for Moving {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        buffer: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let before = buffer.filled().len();
+        let polled = Pin::new(&mut self.inner).poll_read(context, buffer);
+        if buffer.filled().len() > before {
+            self.moved.now();
+        }
+        polled
+    }
+}
+
+impl AsyncWrite for Moving {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        buffer: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let polled = Pin::new(&mut self.inner).poll_write(context, buffer);
+        if matches!(polled, Poll::Ready(Ok(written)) if written > 0) {
+            self.moved.now();
+        }
+        polled
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_flush(context)
+    }
+
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_shutdown(context)
+    }
+}
+
+/// Runs `exchange`, failing it once no bytes have moved for `QUIET_WAIT`.
+async fn while_moving<T>(
+    exchange: impl Future<Output = Result<T, String>>,
+    moved: &Moved,
+) -> Result<T, String> {
+    moved.now();
+    let mut exchange = std::pin::pin!(exchange);
+    loop {
+        tokio::select! {
+            done = &mut exchange => return done,
+            () = tokio::time::sleep_until(moved.last() + QUIET_WAIT) => {
+                if moved.last() + QUIET_WAIT <= tokio::time::Instant::now() {
+                    return Err("the server stopped answering".to_owned());
+                }
+            }
+        }
+    }
+}
 
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
 
@@ -35,8 +128,10 @@ pub(super) async fn connect(
         authorization: crate::authorization(url),
         stream: None,
         session: None,
+        moved: Moved::new(),
     };
-    client.stream = Some(client.target.open().await?);
+    let stream = client.target.open().await?;
+    client.stream = Some(client.moving(stream));
     let (posts, mut outgoing) = mpsc::unbounded_channel::<Vec<u8>>();
     let (incoming, frames) = mpsc::unbounded_channel();
     tokio::spawn(async move {
@@ -55,9 +150,8 @@ pub(super) async fn connect(
                 };
                 body.extend_from_slice(&framed(&next));
             }
-            let answered = tokio::time::timeout(REQUEST_WAIT, client.post(&body))
-                .await
-                .unwrap_or_else(|_| Err("the server did not answer in time".to_owned()));
+            let moved = client.moved.clone();
+            let answered = while_moving(client.post(&body), &moved).await;
             match answered {
                 Ok((answer, further)) => {
                     more = further;
@@ -164,6 +258,7 @@ struct Client {
     authorization: Option<String>,
     stream: Option<Box<dyn Io>>,
     session: Option<String>,
+    moved: Moved,
 }
 
 struct Response {
@@ -175,6 +270,13 @@ struct Response {
 }
 
 impl Client {
+    fn moving(&self, inner: Box<dyn Io>) -> Box<dyn Io> {
+        Box::new(Moving {
+            inner,
+            moved: self.moved.clone(),
+        })
+    }
+
     /// Posts `body` and returns the frames answered, and whether the server has more.
     async fn post(&mut self, body: &[u8]) -> Result<(Vec<Vec<u8>>, bool), String> {
         let reused = self.stream.is_some();
@@ -206,7 +308,7 @@ impl Client {
         let stream = match self.stream.take() {
             Some(stream) => stream,
             None => match self.target.open().await {
-                Ok(stream) => stream,
+                Ok(stream) => self.moving(stream),
                 Err(error) => return Ok(Err(error)),
             },
         };
@@ -383,3 +485,6 @@ fn frames(body: &[u8]) -> Result<Vec<Vec<u8>>, String> {
     }
     Ok(frames)
 }
+
+#[cfg(test)]
+mod tests;
