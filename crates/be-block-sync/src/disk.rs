@@ -258,6 +258,10 @@ const FORBIDDEN: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
 const MAX_FILE_NAME_BYTES: usize = 255;
 
+/// Why a block can't be written under this name on Linux, macOS or Windows.
+/// Such blocks are left off and listed in `BE_SYNC_ERRORS.txt`, never renamed;
+/// siblings that clash ignoring case are all left off unless one is already
+/// on disk.
 pub fn name_problem(name: &str) -> Option<String> {
     if name.is_empty() {
         return Some("it has no name".to_owned());

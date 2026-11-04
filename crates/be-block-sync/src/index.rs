@@ -13,6 +13,9 @@ const INDEX_FILE: &str = "index.json";
 const LOCK_FILE: &str = "lock";
 const VERSION: u32 = 1;
 
+/// `.be/index.json`: what the last sync left, the base of the next pass's
+/// three-way merge, like git's index. A file whose `Stat` matches is not read
+/// again, and a block whose head matches is not fetched.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Index {
     pub version: u32,
@@ -47,6 +50,8 @@ pub enum Placed {
         path: String,
         stat: Stat,
     },
+    /// Left off disk (a bad or clashing name, an ignored path, a type with no
+    /// file form), so its absence on disk is never read as a deletion.
     Skipped {
         reason: Skip,
         why: String,

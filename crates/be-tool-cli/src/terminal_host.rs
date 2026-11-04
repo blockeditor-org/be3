@@ -26,6 +26,10 @@ use be_lib_terminal_emulator::Emulator;
 const DEFAULT_SIZE: TerminalSize = TerminalSize { cols: 80, rows: 24 };
 const READ_CHUNK: usize = 16 * 1024;
 const LONGEST_RETRY: Duration = Duration::from_secs(30);
+/// How often a host that isn't writing asks for the session's lease. Ownership
+/// of the live session is the lock between hosts: a host writes only while its
+/// replica owns it. A viewer that owns it seals nothing, so its lease lapses
+/// and the claim is granted.
 const CLAIM_INTERVAL: Duration = Duration::from_secs(3);
 
 type Hosted<S> = Session<S, TerminalContent>;
@@ -447,6 +451,9 @@ impl Host {
     }
 }
 
+/// Another host owns the session, so this one waits instead of claiming. A
+/// quiet host heartbeats only when it seals, so its lease may lapse; nothing
+/// claims it while it still shows `TerminalHost`.
 fn standing_by<S: ObjectStore + 'static>(session: &Hosted<S>) -> bool {
     let Some(owner) = session.state().and_then(|state| state.owner) else {
         return false;

@@ -25,6 +25,8 @@ pub const IGNORE_FILE: &str = ".beignore";
 pub const UNEXPORTED_FILE: &str = "unexported.txt";
 
 const CLIENT: u64 = 0x6265_2d73_796e;
+/// A block whose write failed or was overtaken keeps its old index entry, so
+/// the next pass merges it again; `sync` runs up to this many.
 const PASSES: usize = 4;
 
 pub struct Target {
