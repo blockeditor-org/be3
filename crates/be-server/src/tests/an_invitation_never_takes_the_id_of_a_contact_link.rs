@@ -1,6 +1,11 @@
 use super::*;
 
-async fn invite(admin: &mut TestClient, id: Uuid, organization: Uuid, email: &str) -> Result<(), Error> {
+async fn invite(
+    admin: &mut TestClient,
+    id: Uuid,
+    organization: Uuid,
+    email: &str,
+) -> Result<(), Error> {
     admin
         .call(|peer| {
             client::organizations::invite(
@@ -29,7 +34,10 @@ async fn an_invitation_never_takes_the_id_of_a_contact_link() {
 
     let link = victim.link(None).await;
     let invited = invite(&mut attacker, link, organization, "accomplice@example.com").await;
-    assert!(refused_as(&invited, ErrorCode::InvalidRequest), "{invited:?}");
+    assert!(
+        refused_as(&invited, ErrorCode::InvalidRequest),
+        "{invited:?}"
+    );
 
     let early = Uuid::new_v4();
     let invited = invite(&mut attacker, early, organization, "accomplice@example.com").await;
@@ -48,10 +56,19 @@ async fn an_invitation_never_takes_the_id_of_a_contact_link() {
     assert!(matches!(response, Ok(())), "{response:?}");
     let accepted = accomplice
         .call(|peer| {
-            client::organizations::accept_invitation(peer, early, Vec::new(), Vec::new(), Vec::new())
+            client::organizations::accept_invitation(
+                peer,
+                early,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
-    assert!(refused_as(&accepted, ErrorCode::InvalidRequest), "{accepted:?}");
+    assert!(
+        refused_as(&accepted, ErrorCode::InvalidRequest),
+        "{accepted:?}"
+    );
 
     let links = victim
         .call(|peer| client::contacts::list_contact_links(peer))

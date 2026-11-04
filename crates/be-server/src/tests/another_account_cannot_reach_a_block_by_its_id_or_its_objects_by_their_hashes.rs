@@ -18,7 +18,10 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         .publish(&author, block, commit, chunks.clone(), None, 1_000)
         .await;
     assert!(
-        matches!(published, Ok(be_block_protocol::PublishOutcome::Published(_))),
+        matches!(
+            published,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{published:?}"
     );
     let (unheld, loose) = author.compose(b"uploaded, never published\n", 2_000, Some(commit));
@@ -40,7 +43,10 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     let contents = attacker
         .call(|peer| client::blocks::read_contents(peer, vec![block], Vec::new()))
         .await;
-    assert!(refused_as(&contents, ErrorCode::BlockNotFound), "{contents:?}");
+    assert!(
+        refused_as(&contents, ErrorCode::BlockNotFound),
+        "{contents:?}"
+    );
     let joined = attacker.try_join(block).await;
     assert!(refused_as(&joined, ErrorCode::BlockNotFound), "{joined:?}");
 
@@ -78,7 +84,10 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         let read = attacker
             .call(|peer| client::objects::get_object(peer, *hash))
             .await;
-        assert!(matches!(read, Ok(None)), "the attacker read {hash}: {read:?}");
+        assert!(
+            matches!(read, Ok(None)),
+            "the attacker read {hash}: {read:?}"
+        );
     }
     let contents = attacker
         .call(|peer| client::blocks::read_contents(peer, vec![decoy], Vec::new()))
@@ -116,7 +125,10 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         .publish(&forged, block, fake, fake_chunks, None, 3_000)
         .await;
     assert!(
-        matches!(response, Ok(be_block_protocol::PublishOutcome::Published(_))),
+        matches!(
+            response,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{response:?}"
     );
     let relayed = attacker.relay(block, None, b"forged edit".to_vec()).await;
@@ -142,11 +154,17 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         .claim_ownership(session.generation + 1)
         .await
         .expect("the connection stayed open");
-    assert!(refused_as(&claimed, ErrorCode::PermissionDenied), "{claimed:?}");
+    assert!(
+        refused_as(&claimed, ErrorCode::PermissionDenied),
+        "{claimed:?}"
+    );
     let stolen = viewer
         .call(|peer| client::objects::hold_objects(peer, block, vec![unheld.hash()]))
         .await;
-    assert!(refused_as(&stolen, ErrorCode::PermissionDenied), "{stolen:?}");
+    assert!(
+        refused_as(&stolen, ErrorCode::PermissionDenied),
+        "{stolen:?}"
+    );
 
     // The owner heard nothing of any of it, and its block is as it was.
     owner.round_trip().await;

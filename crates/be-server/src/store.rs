@@ -887,7 +887,6 @@ impl ServerStore {
     pub fn get_object(&self, hash: Hash) -> Result<Option<Vec<u8>>, ServerError> {
         Ok(self.objects.get(hash)?)
     }
-
 }
 
 pub(crate) fn uploaded(

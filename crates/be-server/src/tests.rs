@@ -335,8 +335,7 @@ impl TestClient {
         let started = Arc::new(std::sync::Mutex::new(std::collections::BTreeSet::new()));
         let starting = Arc::clone(&started);
         let peer = Peer::new(be_wasm_ops::Side::Guest, move |frame| {
-            if let Ok(be_wasm_ops::Frame::Start { method, .. }) =
-                be_wasm_ops::decode_frame(&frame)
+            if let Ok(be_wasm_ops::Frame::Start { method, .. }) = be_wasm_ops::decode_frame(&frame)
             {
                 starting.lock().unwrap().insert(method);
             }

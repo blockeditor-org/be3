@@ -891,7 +891,13 @@ impl ServerStore {
         block: Uuid,
     ) -> Result<Vec<HistoryEntry>, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
-            require(graph, &visibility(identity), block, Access::View, "readable")?;
+            require(
+                graph,
+                &visibility(identity),
+                block,
+                Access::View,
+                "readable",
+            )?;
             read_history(database, identity.organization, block)
         })
         .await

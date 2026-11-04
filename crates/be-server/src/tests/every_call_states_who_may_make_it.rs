@@ -45,7 +45,11 @@ impl TestClient {
 
     /// Makes every call of `be3:server` that names a block on `block`, and the rest with arguments
     /// that would do something were the caller allowed to; answers how each was answered.
-    async fn everything(&mut self, block: Uuid, organization: Uuid) -> Vec<(&'static str, Answered)> {
+    async fn everything(
+        &mut self,
+        block: Uuid,
+        organization: Uuid,
+    ) -> Vec<(&'static str, Answered)> {
         let peer = self.peer.clone();
         let peer = &peer;
         let other = Uuid::new_v4();
@@ -126,8 +130,14 @@ impl TestClient {
             (
                 "accept-invitation",
                 answered(
-                    client::organizations::accept_invitation(peer, other, sealed(), sealed(), sealed())
-                        .await,
+                    client::organizations::accept_invitation(
+                        peer,
+                        other,
+                        sealed(),
+                        sealed(),
+                        sealed(),
+                    )
+                    .await,
                 ),
             ),
             (
@@ -180,8 +190,14 @@ impl TestClient {
             (
                 "accept-contact-link",
                 answered(
-                    client::contacts::accept_contact_link(peer, other, sealed(), sealed(), sealed())
-                        .await,
+                    client::contacts::accept_contact_link(
+                        peer,
+                        other,
+                        sealed(),
+                        sealed(),
+                        sealed(),
+                    )
+                    .await,
                 ),
             ),
             (
@@ -241,9 +257,7 @@ impl TestClient {
             ),
             (
                 "set-metadata",
-                answered(
-                    client::blocks::set_metadata(peer, block, sealed(), Vec::new()).await,
-                ),
+                answered(client::blocks::set_metadata(peer, block, sealed(), Vec::new()).await),
             ),
             (
                 "publish",
@@ -283,9 +297,7 @@ impl TestClient {
             ),
             (
                 "unlist",
-                answered(
-                    client::blocks::unlist(peer, Listing::Children(BlockParent::Root)).await,
-                ),
+                answered(client::blocks::unlist(peer, Listing::Children(BlockParent::Root)).await),
             ),
             (
                 "list-history",
@@ -326,8 +338,14 @@ impl TestClient {
             (
                 "set-recovery-key",
                 answered(
-                    client::keys::set_recovery_key(peer, [7; 32], Vec::new(), Vec::new(), Vec::new())
-                        .await,
+                    client::keys::set_recovery_key(
+                        peer,
+                        [7; 32],
+                        Vec::new(),
+                        Vec::new(),
+                        Vec::new(),
+                    )
+                    .await,
                 ),
             ),
             (
@@ -396,11 +414,11 @@ impl TestClient {
             "session-heartbeat",
             answered(session.heartbeat(1, None).await),
         ));
-        answers.push(("session-relay", answered(session.relay(None, sealed()).await)));
         answers.push((
-            "logout",
-            answered(client::account::logout(peer).await),
+            "session-relay",
+            answered(session.relay(None, sealed()).await),
         ));
+        answers.push(("logout", answered(client::account::logout(peer).await)));
         answers
     }
 

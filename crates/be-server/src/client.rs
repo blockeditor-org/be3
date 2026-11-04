@@ -4,12 +4,12 @@ use std::{
     sync::Arc,
 };
 
+use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
     Authenticated, BlockChange, BlockEvent, BlockSummary, BrowserLogin, Collected, Contents,
     CreatedAgent, Error, ErrorCode, Listing, OrganizationOpened, PairingMessage, RecoveryKey,
     SessionEvent, SessionState, embed,
 };
-use be_block_graph::{Access, BlockParent};
 use be_block_session::Claim;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
 use tokio::sync::mpsc;
@@ -116,11 +116,10 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             | blocks::Call::PruneHistory { block: of, .. }
             | blocks::Call::DeleteBlock { block: of, .. } => block(*of, Access::Edit),
             blocks::Call::SetAccess { block: of, .. } => block(*of, Access::KnowExists),
-            blocks::Call::ReadContents { blocks, .. } => {
-                Rule::Blocks(blocks.clone(), Access::View)
+            blocks::Call::ReadContents { blocks, .. } => Rule::Blocks(blocks.clone(), Access::View),
+            blocks::Call::ListHistory { block: of, .. } | blocks::Call::Watch { block: of, .. } => {
+                block(*of, Access::View)
             }
-            blocks::Call::ListHistory { block: of, .. }
-            | blocks::Call::Watch { block: of, .. } => block(*of, Access::View),
             blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
             // Reading a block is listing it (`Connection::list`): the listing is registered
             // before the store answers, which refuses less than `KnowExists` as not found.
@@ -1470,7 +1469,11 @@ impl Client {
                     };
                     connection
                         .hub
-                        .broadcast(place, connection.client, Push::BlockDeleted { block: place })
+                        .broadcast(
+                            place,
+                            connection.client,
+                            Push::BlockDeleted { block: place },
+                        )
                         .await;
                     Ok(())
                 }
@@ -1595,8 +1598,20 @@ impl Client {
                     },
                     |(_, place)| *place,
                 );
-                streams.open(stream, Route::Events { session, block: place });
-                let only = |route: &Route| *route == Route::Events { session, block: place };
+                streams.open(
+                    stream,
+                    Route::Events {
+                        session,
+                        block: place,
+                    },
+                );
+                let only = |route: &Route| {
+                    *route
+                        == Route::Events {
+                            session,
+                            block: place,
+                        }
+                };
                 let event = match joined {
                     Ok((state, _)) => SessionEvent::Joined {
                         client: self.connection.client,
@@ -2019,13 +2034,15 @@ impl Connection {
         let new = self.hub.list(self.client, listing).await;
         let blocks = async {
             Ok::<_, ServerError>(match listing {
-            Listing::Shared => self.store.list_shared(identity).await?,
-            Listing::Children(parent) => self.store.list_children(identity, parent).await?,
-            Listing::Deleted => self.store.list_deleted(identity).await?,
-            Listing::Backrefs(block) => self.store.list_backrefs(identity, block).await?,
-            Listing::References(block) => self.store.list_references(identity, block).await?,
-            Listing::Block(block) => vec![self.store.read_block(identity, block).await?],
-            Listing::OpenSettings(block) => self.store.list_open_settings(identity, block).await?,
+                Listing::Shared => self.store.list_shared(identity).await?,
+                Listing::Children(parent) => self.store.list_children(identity, parent).await?,
+                Listing::Deleted => self.store.list_deleted(identity).await?,
+                Listing::Backrefs(block) => self.store.list_backrefs(identity, block).await?,
+                Listing::References(block) => self.store.list_references(identity, block).await?,
+                Listing::Block(block) => vec![self.store.read_block(identity, block).await?],
+                Listing::OpenSettings(block) => {
+                    self.store.list_open_settings(identity, block).await?
+                }
             })
         }
         .await;
