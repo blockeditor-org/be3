@@ -16,7 +16,9 @@ else may still change freely.
   each, `block_commits.received`, 0 before it was recorded), grants, invitations, contact links,
   contacts and key changes, the `keys` and `wrapped_keys` rows, pinned escrow
   keys, pending rotations and agents, which edit kinds were ever opened to
-  anyone inside (`opened_kinds`), and the server's own account
+  anyone inside (`opened_kinds`), who uploaded each object in each
+  organization (`object_uploads`, with its size and first upload time), and
+  the server's own account
   (`server_account`: its account id and the secret of the key that blocks
   shared with the server are sealed to).
 - **The server's backups**: `databases/*.sealed`, sealed with the backup key,

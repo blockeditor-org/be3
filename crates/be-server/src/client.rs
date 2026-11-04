@@ -9,6 +9,7 @@ use be_block_protocol::{
     CreatedAgent, Error, ErrorCode, Listing, OrganizationOpened, PairingMessage, RecoveryKey,
     SessionEvent, SessionState, embed,
 };
+use be_block_graph::{Access, BlockParent};
 use be_block_session::Claim;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
 use tokio::sync::mpsc;
@@ -16,7 +17,8 @@ use uuid::Uuid;
 
 use crate::{
     CONTENTS_BYTES, Identity, PublishOutcome, ServerConfig, ServerError, ServerStore, Services,
-    SessionRegistry, WatchHub, browser_auth, contacts, store, watch::Push,
+    SessionRegistry, WatchHub, browser_auth, contacts, store,
+    watch::{Place, Push},
 };
 
 /// Items a stream keeps beyond the credit its consumer granted. A client that lets one fill up
@@ -26,6 +28,146 @@ const STREAM_BUFFER: usize = 4096;
 /// holds back more, by not reading what it is sent, is disconnected too.
 pub(crate) const STREAM_BUFFER_BYTES: usize = 4 * be_block_protocol::MAX_FRAME_BYTES;
 const PUSHES: usize = 4096;
+
+/// What a call needs before its handler runs. Every call of `be3:server` has one, stated in `rule`
+/// alone, and the dispatcher (`Client::admit`) applies it; a handler then checks only what its rule
+/// cannot say (a move's destination, a grant's grantee), under the graph lock.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Rule {
+    /// Anyone, signed in or not: the calls that sign in.
+    Anyone,
+    SignedIn,
+    /// Signed in, with an organization open.
+    Organization,
+    /// An administrator of the organization open.
+    Administrator,
+    /// An administrator of the organization named.
+    AdministratorOf(Uuid),
+    /// At least this access to every block named, in the organization open. A block the caller
+    /// may not know exists is refused as one that does not.
+    Blocks(Vec<Uuid>, Access),
+    /// At least this access to the block of a live session.
+    Session(OpId, Access),
+}
+
+fn block(block: Uuid, level: Access) -> Rule {
+    Rule::Blocks(vec![block], level)
+}
+
+/// The one place each call's requirement is stated. Its matches name every call, so a new call
+/// does not compile until it has a rule.
+pub(crate) fn rule(call: &embed::Call) -> Rule {
+    use embed::{Call, account, blocks, contacts, keys, members, objects, organizations};
+    match call {
+        Call::Connection(embed::connection::Call::Ping { .. }) => Rule::Anyone,
+        Call::Account(call) => match call {
+            account::Call::BeginBrowserLogin { .. }
+            | account::Call::FinishBrowserLogin { .. }
+            | account::Call::CreateLocalProfile { .. }
+            | account::Call::Authenticate { .. } => Rule::Anyone,
+            account::Call::Logout { .. }
+            | account::Call::Pair { .. }
+            | account::Call::Paired { .. } => Rule::SignedIn,
+        },
+        Call::Organizations(call) => match call {
+            organizations::Call::Invite { organization, .. } => {
+                Rule::AdministratorOf(*organization)
+            }
+            organizations::Call::ListOrganizations { .. }
+            | organizations::Call::CreateOrganization { .. }
+            | organizations::Call::OpenOrganization { .. }
+            | organizations::Call::GetInvitation { .. }
+            | organizations::Call::AcceptInvitation { .. } => Rule::SignedIn,
+        },
+        Call::Members(call) => match call {
+            members::Call::ListMembers { .. }
+            | members::Call::SetRole { .. }
+            | members::Call::RemoveMember { .. } => Rule::Administrator,
+            members::Call::CreateAgent { .. }
+            | members::Call::ListAgents { .. }
+            | members::Call::RemoveAgent { .. } => Rule::SignedIn,
+        },
+        Call::Contacts(call) => match call {
+            contacts::Call::CreateContactLink { .. }
+            | contacts::Call::GetContactLink { .. }
+            | contacts::Call::AcceptContactLink { .. }
+            | contacts::Call::ListContactLinks { .. }
+            | contacts::Call::DeleteContactLink { .. }
+            | contacts::Call::PutContact { .. }
+            | contacts::Call::ListContacts { .. }
+            | contacts::Call::RemoveContact { .. }
+            | contacts::Call::ContactsChanged { .. } => Rule::SignedIn,
+        },
+        Call::Objects(call) => match call {
+            objects::Call::HoldObjects { block: held, .. } => block(*held, Access::Edit),
+            objects::Call::PutObjects { .. }
+            | objects::Call::GetObject { .. }
+            | objects::Call::MissingObjects { .. } => Rule::Organization,
+        },
+        Call::Blocks(call) => match call {
+            blocks::Call::CreateBlock { parent, .. } => match parent {
+                BlockParent::Block(parent) => block(*parent, Access::Edit),
+                BlockParent::Root | BlockParent::Detached => Rule::Organization,
+            },
+            blocks::Call::SetMetadata { block: of, .. }
+            | blocks::Call::Publish { block: of, .. }
+            | blocks::Call::SetParent { block: of, .. }
+            | blocks::Call::PruneHistory { block: of, .. }
+            | blocks::Call::DeleteBlock { block: of, .. } => block(*of, Access::Edit),
+            blocks::Call::SetAccess { block: of, .. } => block(*of, Access::KnowExists),
+            blocks::Call::ReadContents { blocks, .. } => {
+                Rule::Blocks(blocks.clone(), Access::View)
+            }
+            blocks::Call::ListHistory { block: of, .. }
+            | blocks::Call::Watch { block: of, .. } => block(*of, Access::View),
+            blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
+            // Reading a block is listing it (`Connection::list`): the listing is registered
+            // before the store answers, which refuses less than `KnowExists` as not found.
+            blocks::Call::ReadBlock { .. }
+            | blocks::Call::ListBlocks { .. }
+            | blocks::Call::Unlist { .. }
+            | blocks::Call::CollectDetached { .. } => Rule::Organization,
+            blocks::Call::Changes { .. } => Rule::SignedIn,
+        },
+        Call::Sessions(call) => match call {
+            embed::sessions::Call::SessionNew { .. } => Rule::SignedIn,
+            embed::sessions::Call::SessionJoin { this, .. }
+            | embed::sessions::Call::SessionHeartbeat { this, .. }
+            | embed::sessions::Call::SessionRelay { this, .. } => {
+                Rule::Session(this.op(), Access::View)
+            }
+            embed::sessions::Call::SessionClaimOwnership { this, .. } => {
+                Rule::Session(this.op(), Access::Edit)
+            }
+        },
+        Call::Keys(call) => match call {
+            keys::Call::GetRecoveryKey { .. }
+            | keys::Call::SetRecoveryKey { .. }
+            | keys::Call::ResealKeys { .. } => Rule::SignedIn,
+            keys::Call::CreateEscrow { .. } => Rule::Administrator,
+            keys::Call::Rotate { roots, .. } => Rule::Blocks(roots.clone(), Access::Edit),
+            keys::Call::GetKeys { .. }
+            | keys::Call::PutKeys { .. }
+            | keys::Call::GetKeyWork { .. }
+            | keys::Call::PinEscrow { .. } => Rule::Organization,
+            keys::Call::KeyWorkChanged { .. } => Rule::SignedIn,
+        },
+    }
+}
+
+fn administrators_only() -> ServerError {
+    ServerError::Refused(
+        ErrorCode::PermissionDenied,
+        "only an administrator of the organization may do this".into(),
+    )
+}
+
+fn not_joined() -> ServerError {
+    ServerError::Refused(
+        ErrorCode::PermissionDenied,
+        "join the session before speaking in it".into(),
+    )
+}
 
 pub(crate) enum Late {
     SignedIn {
@@ -44,12 +186,12 @@ fn wire(error: ServerError) -> Error {
 
 #[derive(Clone, Copy, PartialEq)]
 enum Route {
-    Watch(Uuid),
+    Watch(Place),
     Changes,
     Paired,
     Contacts,
     KeyWork,
-    Events { session: OpId, block: Uuid },
+    Events { session: OpId, block: Place },
 }
 
 struct Streams {
@@ -83,13 +225,14 @@ impl Streams {
             .insert(stream, route, Backlog::Queue(STREAM_BUFFER));
     }
 
-    fn events(&self, session: OpId) -> Option<OpId> {
-        self.outlets.routes().find_map(|(op, route)| {
-            matches!(route, Route::Events { session: of, .. } if *of == session).then_some(op)
+    fn events(&self, session: OpId) -> Option<(OpId, Place)> {
+        self.outlets.routes().find_map(|(op, route)| match route {
+            Route::Events { session: of, block } if *of == session => Some((op, *block)),
+            _ => None,
         })
     }
 
-    fn in_session(&self, block: Uuid) -> bool {
+    fn in_session(&self, block: Place) -> bool {
         self.outlets
             .routes()
             .any(|(_, route)| matches!(route, Route::Events { block: of, .. } if *of == block))
@@ -241,7 +384,7 @@ impl Client {
         {
             let mut lock = self.peer.lock();
             let streams = &mut self.streams;
-            let sessions = |block: Uuid| move |route: &Route| matches!(route, Route::Events { block: of, .. } if *of == block);
+            let sessions = |block: Place| move |route: &Route| matches!(route, Route::Events { block: of, .. } if *of == block);
             match push {
                 Push::BlockChanged(block) => {
                     streams.send(&mut lock, BlockChange::Changed(block), |route| {
@@ -323,12 +466,16 @@ impl Client {
         let left = {
             let mut lock = self.peer.lock();
             let streams = &mut self.streams;
-            if let Some(block) = streams.sessions.remove(&op) {
-                if let Some(events) = streams.events(op) {
+            if streams.sessions.remove(&op).is_some() {
+                let joined = streams.events(op);
+                if let Some((events, _)) = joined {
                     streams.outlets.end(&mut lock, events, canceled);
                 }
                 embed::sessions::Session(op).end(&mut lock);
-                (!streams.in_session(block)).then_some((block, true))
+                joined
+                    .map(|(_, block)| block)
+                    .filter(|block| !streams.in_session(*block))
+                    .map(|block| (block, true))
             } else {
                 match streams.outlets.end(&mut lock, op, canceled) {
                     Some(Route::Watch(block)) => {
@@ -381,6 +528,11 @@ impl Client {
             call => call,
         };
         let prelude = self.prelude().await;
+        let rule = rule(&call);
+        let prelude = match prelude {
+            Ok(()) => self.admit(rule).await,
+            refused => refused,
+        };
         match call {
             embed::Call::Connection(_) => {}
             embed::Call::Account(call) => self.account(call, prelude).await,
@@ -391,6 +543,58 @@ impl Client {
             embed::Call::Blocks(call) => self.blocks(call, prelude).await,
             embed::Call::Sessions(call) => self.sessions(call, prelude).await,
             embed::Call::Keys(call) => self.keys(call, prelude).await,
+        }
+    }
+
+    /// Applies a call's rule before its handler runs; each handler starts with `prelude?`, the
+    /// answer this gives.
+    async fn admit(&self, rule: Rule) -> Result<(), ServerError> {
+        let connection = &self.connection;
+        match rule {
+            Rule::Anyone => Ok(()),
+            Rule::SignedIn => connection.account().map(drop),
+            Rule::Organization => connection.identity().map(drop),
+            Rule::Administrator => match connection.identity()?.is_administrator() {
+                true => Ok(()),
+                false => Err(administrators_only()),
+            },
+            Rule::AdministratorOf(organization) => {
+                let account = connection.account()?;
+                match connection.store.membership(account, organization).await? {
+                    be_block_protocol::OrganizationRole::Administrator => Ok(()),
+                    be_block_protocol::OrganizationRole::Editor => Err(administrators_only()),
+                }
+            }
+            Rule::Blocks(blocks, level) => {
+                let identity = connection.identity()?;
+                connection
+                    .store
+                    .require_access(identity, blocks, level)
+                    .await
+            }
+            Rule::Session(session, level) => {
+                let identity = connection.identity()?;
+                let place = match self.streams.events(session) {
+                    Some((_, place)) => place,
+                    None => match self.streams.sessions.get(&session) {
+                        Some(block) => Place {
+                            organization: identity.organization,
+                            block: *block,
+                        },
+                        None => return Err(not_joined()),
+                    },
+                };
+                if place.organization != identity.organization {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "this session is in another organization than the one open".into(),
+                    ));
+                }
+                connection
+                    .store
+                    .require_access(identity, vec![place.block], level)
+                    .await
+            }
         }
     }
 
@@ -540,6 +744,9 @@ impl Client {
                 self.reply(reply, paired);
             }
             Call::Paired { stream } => {
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
                 self.streams.open(stream, Route::Paired);
             }
         }
@@ -944,6 +1151,9 @@ impl Client {
                 self.reply(reply, removed);
             }
             Call::ContactsChanged { stream } => {
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
                 self.streams
                     .outlets
                     .insert(stream, Route::Contacts, Backlog::Latest);
@@ -979,8 +1189,10 @@ impl Client {
             Call::MissingObjects { reply, hashes } => {
                 let missing = async {
                     prelude?;
-                    connection.identity()?;
-                    connection.store.missing_objects(&hashes)
+                    connection
+                        .store
+                        .missing_objects(connection.identity()?, hashes)
+                        .await
                 }
                 .await;
                 self.reply(reply, missing);
@@ -1099,13 +1311,17 @@ impl Client {
                     }
                     Ok(match outcome {
                         PublishOutcome::Published(head, _) => {
+                            let place = Place {
+                                organization: identity.organization,
+                                block,
+                            };
                             connection
                                 .hub
                                 .broadcast(
-                                    block,
+                                    place,
                                     connection.client,
                                     Push::HeadChanged {
-                                        block,
+                                        block: place,
                                         head,
                                         author: identity.account,
                                     },
@@ -1211,6 +1427,9 @@ impl Client {
                 self.reply(reply, unlisted);
             }
             Call::Changes { stream } => {
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
                 self.streams.open(stream, Route::Changes);
             }
             Call::ListHistory { reply, block } => {
@@ -1244,9 +1463,13 @@ impl Client {
                     connection
                         .reannounce(identity, vec![block], true, before)
                         .await;
+                    let place = Place {
+                        organization: identity.organization,
+                        block,
+                    };
                     connection
                         .hub
-                        .broadcast(block, connection.client, Push::BlockDeleted { block })
+                        .broadcast(place, connection.client, Push::BlockDeleted { block: place })
                         .await;
                     Ok(())
                 }
@@ -1312,19 +1535,16 @@ impl Client {
                 self.reply(reply, listed);
             }
             Call::Watch { stream, block } => {
-                let allowed = async {
-                    prelude?;
-                    let identity = connection.identity()?;
-                    connection.store.read_block(identity, block).await?;
-                    Ok::<_, ServerError>(())
-                }
-                .await;
-                if allowed.is_err() {
-                    stream.fail(&mut self.peer.lock(), OpError::Denied);
-                    return;
-                }
-                connection.hub.watch(block, connection.client).await;
-                self.streams.open(stream, Route::Watch(block));
+                let allowed = prelude.and_then(|()| connection.identity());
+                let Ok(identity) = allowed else {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                };
+                let place = Place {
+                    organization: identity.organization,
+                    block,
+                };
+                connection.hub.watch(place, connection.client).await;
+                self.streams.open(stream, Route::Watch(place));
             }
         }
     }
@@ -1333,6 +1553,12 @@ impl Client {
         use embed::sessions::Call;
         match call {
             Call::SessionNew { resource, block } => {
+                if prelude.is_err() {
+                    return self
+                        .peer
+                        .lock()
+                        .complete(resource.op(), be_wasm_ops::Outcome::Err(OpError::Denied));
+                }
                 self.streams.sessions.insert(resource.op(), block);
             }
             Call::SessionJoin { this, stream } => {
@@ -1344,25 +1570,34 @@ impl Client {
                 let connection = &self.connection;
                 let joined = async {
                     prelude?;
-                    let identity = connection.identity()?;
-                    connection.store.read_block(identity, block).await?;
-                    let state = connection.registry.join(block, connection.client).await;
-                    connection.announce(block, &state).await;
-                    Ok::<_, ServerError>(state)
+                    let place = Place {
+                        organization: connection.identity()?.organization,
+                        block,
+                    };
+                    let state = connection.registry.join(place, connection.client).await;
+                    connection.announce(place, &state).await;
+                    Ok::<_, ServerError>((state, place))
                 }
                 .await;
                 let op = stream.op();
                 let mut lock = self.peer.lock();
                 let streams = &mut self.streams;
-                if let Some(before) = streams.events(session) {
+                if let Some((before, _)) = streams.events(session) {
                     streams
                         .outlets
                         .end(&mut lock, before, Some(OpError::Canceled));
                 }
-                streams.open(stream, Route::Events { session, block });
-                let only = |route: &Route| *route == Route::Events { session, block };
+                let place = joined.as_ref().map_or(
+                    Place {
+                        organization: Uuid::nil(),
+                        block,
+                    },
+                    |(_, place)| *place,
+                );
+                streams.open(stream, Route::Events { session, block: place });
+                let only = |route: &Route| *route == Route::Events { session, block: place };
                 let event = match joined {
-                    Ok(state) => SessionEvent::Joined {
+                    Ok((state, _)) => SessionEvent::Joined {
                         client: self.connection.client,
                         state,
                     },
@@ -1383,7 +1618,6 @@ impl Client {
                 let connection = &self.connection;
                 let claimed = async {
                     prelude?;
-                    connection.identity()?;
                     let block = block?;
                     let (claim, state) = connection
                         .registry
@@ -1407,7 +1641,6 @@ impl Client {
                 let connection = &self.connection;
                 let beat = async {
                     prelude?;
-                    connection.identity()?;
                     let block = block?;
                     Ok::<SessionState, ServerError>(
                         match connection
@@ -1433,14 +1666,10 @@ impl Client {
                 let connection = &self.connection;
                 let relayed = async {
                     prelude?;
-                    connection.identity()?;
                     let block = block?;
                     let participants = connection.registry.participants(block).await;
                     if !participants.contains(&connection.client) {
-                        return Err(ServerError::Refused(
-                            ErrorCode::PermissionDenied,
-                            "join the session before speaking in it".into(),
-                        ));
+                        return Err(not_joined());
                     }
                     let message = Push::Relayed {
                         block,
@@ -1472,18 +1701,11 @@ impl Client {
         }
     }
 
-    fn joined(&self, session: OpId) -> Result<Uuid, ServerError> {
+    fn joined(&self, session: OpId) -> Result<Place, ServerError> {
         self.streams
-            .sessions
-            .get(&session)
-            .copied()
-            .filter(|_| self.streams.events(session).is_some())
-            .ok_or_else(|| {
-                ServerError::Refused(
-                    ErrorCode::PermissionDenied,
-                    "join the session before speaking in it".into(),
-                )
-            })
+            .events(session)
+            .map(|(_, block)| block)
+            .ok_or_else(not_joined)
     }
 
     async fn keys(&mut self, call: embed::keys::Call, prelude: Result<(), ServerError>) {
@@ -1567,6 +1789,9 @@ impl Client {
                 self.reply(reply, work);
             }
             Call::KeyWorkChanged { stream } => {
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
                 self.streams
                     .outlets
                     .insert(stream, Route::KeyWork, Backlog::Latest);
@@ -1713,7 +1938,13 @@ impl Connection {
     async fn evict_sessions(&self, organization: Uuid, account: Uuid) {
         for (client, identity) in self.hub.clients_of(organization, account).await {
             for block in self.registry.blocks_of(client).await {
-                if self.store.read_block(identity, block).await.is_ok() {
+                let kept = block.organization != organization
+                    || self
+                        .store
+                        .require_access(identity, vec![block.block], Access::View)
+                        .await
+                        .is_ok();
+                if kept {
                     continue;
                 }
                 self.hub.unwatch(block, client).await;
@@ -1784,8 +2015,9 @@ impl Connection {
 
     async fn list(&self, listing: Listing) -> Result<Vec<BlockSummary>, ServerError> {
         let identity = self.identity()?;
-        self.hub.list(self.client, listing).await;
-        let blocks = match listing {
+        let new = self.hub.list(self.client, listing).await;
+        let blocks = async {
+            Ok::<_, ServerError>(match listing {
             Listing::Shared => self.store.list_shared(identity).await?,
             Listing::Children(parent) => self.store.list_children(identity, parent).await?,
             Listing::Deleted => self.store.list_deleted(identity).await?,
@@ -1793,12 +2025,21 @@ impl Connection {
             Listing::References(block) => self.store.list_references(identity, block).await?,
             Listing::Block(block) => vec![self.store.read_block(identity, block).await?],
             Listing::OpenSettings(block) => self.store.list_open_settings(identity, block).await?,
+            })
+        }
+        .await;
+        let blocks = match blocks {
+            Ok(blocks) => blocks,
+            Err(error) => {
+                self.hub.refused(self.client, listing, new).await;
+                return Err(error);
+            }
         };
         self.hub.listed(self.client, listing, &blocks).await;
         Ok(blocks)
     }
 
-    async fn announce(&self, block: Uuid, state: &SessionState) {
+    async fn announce(&self, block: Place, state: &SessionState) {
         self.hub
             .send_all(
                 &state.participants,

@@ -4,10 +4,11 @@ use be_block_commit::{CommitId, now_milliseconds};
 use be_block_protocol::{ClientId, SessionState};
 use be_block_session::{Claim, Lease};
 use tokio::sync::Mutex;
-use uuid::Uuid;
+
+use crate::watch::Place;
 
 pub struct SessionRegistry {
-    sessions: Mutex<HashMap<Uuid, Lease>>,
+    sessions: Mutex<HashMap<Place, Lease>>,
     lease: i64,
 }
 
@@ -19,7 +20,7 @@ impl SessionRegistry {
         }
     }
 
-    pub async fn join(&self, block: Uuid, client: ClientId) -> SessionState {
+    pub async fn join(&self, block: Place, client: ClientId) -> SessionState {
         let mut sessions = self.sessions.lock().await;
         let lease = sessions
             .entry(block)
@@ -28,7 +29,7 @@ impl SessionRegistry {
         lease.state().clone()
     }
 
-    pub async fn leave(&self, block: Uuid, client: ClientId) -> Option<SessionState> {
+    pub async fn leave(&self, block: Place, client: ClientId) -> Option<SessionState> {
         let mut sessions = self.sessions.lock().await;
         let lease = sessions.get_mut(&block)?;
         lease.leave(client, now_milliseconds());
@@ -39,7 +40,7 @@ impl SessionRegistry {
         Some(state)
     }
 
-    pub async fn leave_all(&self, client: ClientId) -> Vec<(Uuid, SessionState)> {
+    pub async fn leave_all(&self, client: ClientId) -> Vec<(Place, SessionState)> {
         let mut sessions = self.sessions.lock().await;
         let now = now_milliseconds();
         let mut changed = Vec::new();
@@ -62,7 +63,7 @@ impl SessionRegistry {
 
     pub async fn claim(
         &self,
-        block: Uuid,
+        block: Place,
         client: ClientId,
         generation: u64,
     ) -> (Claim, SessionState) {
@@ -76,7 +77,7 @@ impl SessionRegistry {
 
     pub async fn heartbeat(
         &self,
-        block: Uuid,
+        block: Place,
         client: ClientId,
         generation: u64,
         clean_at: Option<CommitId>,
@@ -88,7 +89,7 @@ impl SessionRegistry {
             .then(|| lease.state().clone())
     }
 
-    pub async fn blocks_of(&self, client: ClientId) -> Vec<Uuid> {
+    pub async fn blocks_of(&self, client: ClientId) -> Vec<Place> {
         self.sessions
             .lock()
             .await
@@ -98,7 +99,7 @@ impl SessionRegistry {
             .collect()
     }
 
-    pub async fn state(&self, block: Uuid) -> SessionState {
+    pub async fn state(&self, block: Place) -> SessionState {
         self.sessions
             .lock()
             .await
@@ -107,7 +108,7 @@ impl SessionRegistry {
             .unwrap_or_default()
     }
 
-    pub async fn participants(&self, block: Uuid) -> Vec<ClientId> {
+    pub async fn participants(&self, block: Place) -> Vec<ClientId> {
         self.sessions
             .lock()
             .await

@@ -101,19 +101,39 @@ fn require(
     level: Access,
     verb: &str,
 ) -> Result<(), ServerError> {
-    if graph.get(block).is_none() {
-        return Err(ServerError::Refused(
-            ErrorCode::BlockNotFound,
-            format!("block {block} does not exist"),
-        ));
-    }
-    if seen.inherited(graph, block) >= level {
+    if graph.contains(block) && seen.inherited(graph, block) >= level {
         return Ok(());
     }
-    Err(ServerError::Refused(
-        ErrorCode::PermissionDenied,
-        format!("block {block} is not {verb} by this account"),
-    ))
+    Err(refusal(graph, seen, block, verb))
+}
+
+/// Why a block below the access a call needs is refused. A block the caller may not know exists
+/// answers as one that does not, so no refusal tells anyone what another organization or account
+/// holds.
+fn refusal(graph: &BlockGraph, seen: &Visibility, block: Uuid, verb: &str) -> ServerError {
+    match seen.access(graph, block).can_know_exists() {
+        true => ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            format!("block {block} is not {verb} by this account"),
+        ),
+        false => not_found(block),
+    }
+}
+
+pub(crate) fn not_found(block: Uuid) -> ServerError {
+    ServerError::Refused(
+        ErrorCode::BlockNotFound,
+        format!("block {block} does not exist"),
+    )
+}
+
+fn verb(level: Access) -> &'static str {
+    match level {
+        Access::None | Access::KnowExists => "known",
+        Access::View => "readable",
+        Access::Edit => "editable",
+        Access::Manage => "managed",
+    }
 }
 
 fn require_parent_of(
@@ -179,18 +199,6 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
 }
 
 impl ServerStore {
-    fn require_uploaded(&self, hashes: &[Hash], verb: &str) -> Result<(), ServerError> {
-        for hash in hashes {
-            if !self.objects().has(*hash)? {
-                return Err(ServerError::Refused(
-                    ErrorCode::ObjectNotFound,
-                    format!("object {hash} must be uploaded before it can be {verb}"),
-                ));
-            }
-        }
-        Ok(())
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub async fn create_block(
         &self,
@@ -364,31 +372,45 @@ impl ServerStore {
         .await
     }
 
+    /// Refuses unless the caller has at least `level` on every one of `blocks`: the check the
+    /// dispatcher makes for a call's block arguments before its handler runs. A refusal here
+    /// keeps the cached graph, unlike an error inside a change.
+    pub async fn require_access(
+        &self,
+        identity: Identity,
+        blocks: Vec<Uuid>,
+        level: Access,
+    ) -> Result<(), ServerError> {
+        self.with_graph(identity.organization, move |graph, _| {
+            let seen = visibility(identity);
+            Ok(blocks
+                .into_iter()
+                .find(|block| !graph.contains(*block) || seen.access(graph, *block) < level)
+                .map_or(Ok(()), |block| {
+                    Err(refusal(graph, &seen, block, verb(level)))
+                }))
+        })
+        .await?
+    }
+
     pub async fn read_block(
         &self,
         identity: Identity,
         block: Uuid,
     ) -> Result<BlockSummary, ServerError> {
         self.with_graph(identity.organization, move |graph, _| {
-            if !graph.contains(block) {
-                return Err(ServerError::Refused(
-                    ErrorCode::BlockNotFound,
-                    format!("block {block} does not exist"),
-                ));
-            }
+            let Some(node) = graph.get(block) else {
+                return Err(not_found(block));
+            };
             let seen = visibility(identity);
             if !seen.can_view(graph, block) {
                 let access = graph.effective_access(block, identity.account);
-                let node = graph.get(block).ok_or(ServerError::Corrupt)?;
                 return match access.can_know_exists() {
                     true => Ok(BlockSummary {
                         revision: graph.revision(),
                         ..BlockSummary::no_access(block, node.content_type, access)
                     }),
-                    false => Err(ServerError::Refused(
-                        ErrorCode::PermissionDenied,
-                        format!("block {block} is not readable by this account"),
-                    )),
+                    false => Err(not_found(block)),
                 };
             }
             summary_with(graph, &seen, block).ok_or(ServerError::Corrupt)
@@ -413,18 +435,7 @@ impl ServerStore {
             let mut summaries = Vec::with_capacity(blocks.len());
             let mut objects = Vec::new();
             for block in blocks {
-                if !graph.contains(block) {
-                    return Err(ServerError::Refused(
-                        ErrorCode::BlockNotFound,
-                        format!("block {block} does not exist"),
-                    ));
-                }
-                if !seen.can_view(graph, block) {
-                    return Err(ServerError::Refused(
-                        ErrorCode::PermissionDenied,
-                        format!("block {block} is not readable by this account"),
-                    ));
-                }
+                require(graph, &seen, block, Access::View, "readable")?;
                 let summary = summary_with(graph, &seen, block).ok_or(ServerError::Corrupt)?;
                 if let Some(head) = summary.head
                     && !held.contains(&head)
@@ -491,7 +502,7 @@ impl ServerStore {
                 )
                 .optional()?;
             if existing.is_none() {
-                self.require_uploaded(&held, "published")?;
+                self.require_holdable(graph, database, identity, &held, "published")?;
                 let holding = self.before_holding(
                     &transaction,
                     graph,
@@ -569,24 +580,62 @@ impl ServerStore {
         hash: Hash,
     ) -> Result<bool, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
-            let mut statement = database.prepare(
-                "SELECT block_id FROM commit_objects WHERE organization_id = ?1 AND hash = ?2
-                 UNION
-                 SELECT block_id FROM block_objects WHERE organization_id = ?1 AND hash = ?2",
-            )?;
-            let rows = statement.query_map(
-                params![identity.organization.to_string(), hash.to_hex()],
-                |row| row.get::<_, String>(0),
-            )?;
-            let seen = visibility(identity);
-            for row in rows {
-                if seen.can_view(graph, parse_uuid(&row?)?) {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
+            readable(graph, database, identity, hash)
         })
         .await
+    }
+
+    /// Which of `hashes` the caller lacks, as far as it may know: an object it neither uploaded
+    /// nor may read is missing to it whether or not someone else stored it.
+    pub async fn missing_objects(
+        &self,
+        identity: Identity,
+        hashes: Vec<Hash>,
+    ) -> Result<Vec<Hash>, ServerError> {
+        self.with_graph(identity.organization, move |graph, database| {
+            let mut missing = Vec::new();
+            for hash in hashes {
+                if !self.holdable(graph, database, identity, hash)? {
+                    missing.push(hash);
+                }
+            }
+            Ok(missing)
+        })
+        .await
+    }
+
+    /// Whether the caller may have a block hold `hash`: the server has it, and the caller uploaded
+    /// it in this organization or may already read it. Knowing a hash proves nothing, so a hash
+    /// someone else stored is not the caller's to hold, publish or then read.
+    fn holdable(
+        &self,
+        graph: &BlockGraph,
+        database: &Connection,
+        identity: Identity,
+        hash: Hash,
+    ) -> Result<bool, ServerError> {
+        Ok(self.objects().has(hash)?
+            && (crate::store::uploaded(database, identity, hash)?
+                || readable(graph, database, identity, hash)?))
+    }
+
+    fn require_holdable(
+        &self,
+        graph: &BlockGraph,
+        database: &Connection,
+        identity: Identity,
+        hashes: &[Hash],
+        verb: &str,
+    ) -> Result<(), ServerError> {
+        for hash in hashes {
+            if !self.holdable(graph, database, identity, *hash)? {
+                return Err(ServerError::Refused(
+                    ErrorCode::ObjectNotFound,
+                    format!("object {hash} must be uploaded before it can be {verb}"),
+                ));
+            }
+        }
+        Ok(())
     }
 
     pub async fn hold_objects(
@@ -597,7 +646,7 @@ impl ServerStore {
     ) -> Result<(), ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
-            self.require_uploaded(&objects, "held")?;
+            self.require_holdable(graph, database, identity, &objects, "held")?;
             let transaction = database.unchecked_transaction()?;
             let holding = self.before_holding(
                 &transaction,
@@ -842,12 +891,7 @@ impl ServerStore {
         block: Uuid,
     ) -> Result<Vec<HistoryEntry>, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
-            if !visibility(identity).can_view(graph, block) {
-                return Err(ServerError::Refused(
-                    ErrorCode::PermissionDenied,
-                    format!("block {block} is not readable by this account"),
-                ));
-            }
+            require(graph, &visibility(identity), block, Access::View, "readable")?;
             read_history(database, identity.organization, block)
         })
         .await
@@ -1024,11 +1068,11 @@ impl ServerStore {
         self.with_graph(identity.organization, move |graph, database| {
             let leaving = account == identity.account && access == Access::None;
             match leaving {
-                true if !graph.contains(block) => {
-                    return Err(ServerError::Refused(
-                        ErrorCode::BlockNotFound,
-                        format!("block {block} does not exist"),
-                    ));
+                true if !visibility(identity)
+                    .access(graph, block)
+                    .can_know_exists() =>
+                {
+                    return Err(not_found(block));
                 }
                 true => {}
                 false
@@ -1199,6 +1243,31 @@ impl ServerStore {
         })
         .await
     }
+}
+
+/// Whether a block the caller can view holds `hash`, by a commit or by `HoldObjects`.
+fn readable(
+    graph: &BlockGraph,
+    database: &Connection,
+    identity: Identity,
+    hash: Hash,
+) -> Result<bool, ServerError> {
+    let mut statement = database.prepare_cached(
+        "SELECT block_id FROM commit_objects WHERE organization_id = ?1 AND hash = ?2
+         UNION
+         SELECT block_id FROM block_objects WHERE organization_id = ?1 AND hash = ?2",
+    )?;
+    let rows = statement.query_map(
+        params![identity.organization.to_string(), hash.to_hex()],
+        |row| row.get::<_, String>(0),
+    )?;
+    let seen = visibility(identity);
+    for row in rows {
+        if seen.can_view(graph, parse_uuid(&row?)?) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 pub(crate) fn revoke_or_grant(

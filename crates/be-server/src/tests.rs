@@ -28,6 +28,7 @@ mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_also_refuses_browser_registration_and_login;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
 mod a_connection_hears_only_of_the_blocks_it_listed;
+mod a_connection_keeps_only_so_many_refused_listings;
 mod a_contact_card_the_server_swaps_does_not_open;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
@@ -51,9 +52,11 @@ mod an_agent_stores_against_its_creators_quota;
 mod an_editor_changes_the_prefixes_and_tags_but_no_other_kind;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
 mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
+mod an_invitation_never_takes_the_id_of_a_contact_link;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
+mod another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashes;
 mod another_build_is_greeted_and_turned_away;
 mod block_sizes_add_up_their_subtrees_and_follow_moves;
 mod blocks_publish_and_read_back_through_the_server;
@@ -63,6 +66,7 @@ mod browser_pages_escape_codes_and_keep_available_actions;
 mod closing_a_kind_rotates_it_for_who_read_it_inside;
 mod contacts_are_made_by_a_link_and_finished_by_its_owner;
 mod email_changes_wait_for_verification_and_notify_the_old_address;
+mod every_call_states_who_may_make_it;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
 mod expired_mail_and_browser_sessions_fail_and_mail_issuance_is_bounded;
@@ -295,6 +299,9 @@ struct TestClient {
     directory: Option<PathBuf>,
     peer: Peer,
     heard: Vec<Heard>,
+    listening: bool,
+    /// Every method this client started a call of.
+    started: Arc<std::sync::Mutex<std::collections::BTreeSet<be_wasm_ops::MethodId>>>,
     sessions: std::collections::HashMap<Uuid, client::sessions::Session>,
     notifications: Vec<Notice>,
     token: String,
@@ -325,21 +332,24 @@ impl TestClient {
 
     fn over(socket: Socket) -> Self {
         let (sending, outbound) = tokio::sync::mpsc::unbounded_channel();
+        let started = Arc::new(std::sync::Mutex::new(std::collections::BTreeSet::new()));
+        let starting = Arc::clone(&started);
         let peer = Peer::new(be_wasm_ops::Side::Guest, move |frame| {
+            if let Ok(be_wasm_ops::Frame::Start { method, .. }) =
+                be_wasm_ops::decode_frame(&frame)
+            {
+                starting.lock().unwrap().insert(method);
+            }
             let _ = sending.send(frame);
         });
         let (closing, closed) = oneshot::channel();
         let pump = tokio::spawn(pump(socket, peer.clone(), outbound, closed));
-        let heard = vec![
-            Heard::Changes(client::blocks::changes(&peer)),
-            Heard::Paired(client::account::paired(&peer)),
-            Heard::Contacts(client::contacts::contacts_changed(&peer)),
-            Heard::KeyWork(client::keys::key_work_changed(&peer)),
-        ];
         Self {
             directory: None,
             peer,
-            heard,
+            heard: Vec::new(),
+            listening: false,
+            started,
             sessions: std::collections::HashMap::new(),
             notifications: Vec::new(),
             token: String::new(),
@@ -361,13 +371,33 @@ impl TestClient {
         }
     }
 
-    async fn call<T, E: be_wasm_ops::wire::Decode<Result<T, Error>>>(
+    /// Makes a call; once one signs the connection in, opens the streams every client follows,
+    /// which the server refuses before then.
+    async fn call<T: 'static, E: be_wasm_ops::wire::Decode<Result<T, Error>>>(
         &mut self,
         start: impl FnOnce(&Peer) -> Pending<Result<T, Error>, E>,
     ) -> Result<T, Error> {
         let answered = start(&self.peer).await.expect("the connection stayed open");
+        if let Ok(answer) = &answered
+            && (answer as &dyn std::any::Any).is::<Authenticated>()
+        {
+            self.listen();
+        }
         self.collect();
         answered
+    }
+
+    fn listen(&mut self) {
+        if std::mem::replace(&mut self.listening, true) {
+            return;
+        }
+        let peer = &self.peer;
+        self.heard.extend([
+            Heard::Changes(client::blocks::changes(peer)),
+            Heard::Paired(client::account::paired(peer)),
+            Heard::Contacts(client::contacts::contacts_changed(peer)),
+            Heard::KeyWork(client::keys::key_work_changed(peer)),
+        ]);
     }
 
     async fn round_trip(&mut self) {

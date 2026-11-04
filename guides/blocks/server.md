@@ -83,6 +83,19 @@ has nothing to send).
   (`account.paired`, `contacts.contacts-changed`, `keys.key-work-changed`), and
   a `sessions.session` resource whose `join` stream carries the session's
   changes and relays; dropping it leaves the session.
+- **Who may call what.** Every call states its requirement once, in `rule`
+  (`client.rs`): anyone, signed in, signed in with an organization open, an
+  administrator (of the open organization, or of the one named), or at least
+  some access to the blocks it names (a session's calls: to its block). The
+  dispatcher (`Client::admit`) applies it before the handler runs, which then
+  checks only what a rule cannot say, under the graph lock. Only `ping` and the
+  sign-in calls (`begin-browser-login`, `finish-browser-login`,
+  `authenticate`, `create-local-profile`) need no sign-in, and every stream
+  needs it, so a client opens its streams once signed in.
+  `every_call_states_who_may_make_it` makes every call of `be3:server`
+  (`embed::METHODS`) and fails until a new one is made there too. A block the
+  caller may not know exists is refused as `BlockNotFound`, like one that does
+  not exist; `PermissionDenied` means it may know it exists.
 - **The server's side** is a `be_wasm_ops::net::Peer` (`Side::Host`,
   `client.rs`). It answers calls in arrival order, except a call that waits
   (`finish-browser-login`), which a task answers and hands back to the loop
@@ -146,7 +159,16 @@ has nothing to send).
 - **Objects** are served only to a member who can view a block that holds them
   (by a commit, `commit_objects`, or by `HoldObjects`); anything else reads as
   missing. A merge commit holds its extra parents' objects, so a stash that was
-  never a head stays readable.
+  never a head stays readable. Each upload is recorded per organization and
+  account (`object_uploads`: size and first upload time), and a block may hold
+  or publish an object only if its caller uploaded it there or may already read
+  it (`holdable` in `blocks.rs`); `MissingObjects` answers by the same rule, so
+  knowing a hash neither reads it nor tells whether someone else stored it.
+- **Watches and live sessions** are keyed by organization and block
+  (`watch::Place`): a block id is the client's choice, so another organization
+  can hold a block with the same one. Watching or joining needs `View`, and
+  taking a session's lease needs `Edit` (a viewer's claim is refused, and the
+  replica host ignores the refusal).
 
 ### Organizations and access
 
@@ -168,7 +190,10 @@ their access from their parent: guides/settings.md, "Access".
 
 - A block someone can view that references another gives them `KnowExists` on
   it, one level only: they learn its id, content type and access
-  (`BlockSummary::no_access`) and are served none of its keys or objects.
+  (`BlockSummary::no_access`) and are served none of its keys or objects, and
+  may not watch it or join its session. Anyone can give themselves
+  `KnowExists` on any id by listing it in their own block's references, so it
+  never grants more than that summary.
   A viewable block whose parent is not viewable is an entry point (Shared with
   me).
 - Moving (`SetParent`) needs `Edit` on the block and the new parent, and
@@ -198,7 +223,9 @@ member's access allows or a `BlockRemoved`, when a listing matches the block
 now or the connection heard of it before (so a block moving out of a listed
 folder is still announced, then forgotten). The blocks a change starts or stops
 referencing are announced with it. `unlist` drops a listing; a refused listing
-stays until then, so a block read before it is made is announced once it is.
+stays until then, so a block read before it is made is announced once it is,
+but a connection keeps at most `REFUSED_LISTINGS` of them (`watch.rs`) and
+drops any refused past that at once.
 
 Every `BlockSummary` and `BlockRemoved` carries a `revision`
 (`ServerStore::with_graph`). Replies and announcements can arrive out of order

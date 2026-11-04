@@ -16,6 +16,19 @@ use tokio::sync::{
 use crate::Identity;
 use uuid::Uuid;
 
+/// A block in the organization that holds it. Watches and live sessions are keyed by both: block
+/// ids are chosen by clients, so another organization can hold a block with the same id, and the
+/// two must never hear of each other.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Place {
+    pub organization: Uuid,
+    pub block: Uuid,
+}
+
+/// Listings a connection keeps after they were refused, so a block read before it is made is
+/// announced once it is. Past this many, a refused listing is dropped at once.
+pub const REFUSED_LISTINGS: usize = 256;
+
 #[derive(Clone, Debug)]
 pub enum Push {
     BlockChanged(BlockSummary),
@@ -24,22 +37,22 @@ pub enum Push {
         revision: u64,
     },
     HeadChanged {
-        block: Uuid,
+        block: Place,
         head: CommitId,
         author: Uuid,
     },
     BlockDeleted {
-        block: Uuid,
+        block: Place,
     },
     Unwatched {
-        block: Uuid,
+        block: Place,
     },
     SessionChanged {
-        block: Uuid,
+        block: Place,
         state: SessionState,
     },
     Relayed {
-        block: Uuid,
+        block: Place,
         from: ClientId,
         payload: Vec<u8>,
     },
@@ -56,8 +69,8 @@ struct Joined {
     by_organization: HashMap<Uuid, HashSet<u64>>,
     by_member: HashMap<(Uuid, Uuid), HashSet<u64>>,
     administrators: HashMap<Uuid, HashSet<u64>>,
-    watchers: HashMap<Uuid, HashSet<u64>>,
-    watching: HashMap<u64, HashSet<Uuid>>,
+    watchers: HashMap<Place, HashSet<u64>>,
+    watching: HashMap<u64, HashSet<Place>>,
     interests: HashMap<u64, Interest>,
 }
 
@@ -84,6 +97,7 @@ impl Facts {
 #[derive(Default)]
 struct Interest {
     listings: HashSet<Listing>,
+    refused: HashSet<Listing>,
     known: HashMap<Uuid, Facts>,
 }
 
@@ -170,13 +184,13 @@ impl WatchHub {
         client
     }
 
-    pub async fn watch(&self, block: Uuid, client: u64) {
+    pub async fn watch(&self, block: Place, client: u64) {
         let mut joined = self.joined.lock().await;
         joined.watchers.entry(block).or_default().insert(client);
         joined.watching.entry(client).or_default().insert(block);
     }
 
-    pub async fn unwatch(&self, block: Uuid, client: u64) {
+    pub async fn unwatch(&self, block: Place, client: u64) {
         let mut joined = self.joined.lock().await;
         unindex(&mut joined.watchers, block, client);
         if let Some(blocks) = joined.watching.get_mut(&client) {
@@ -187,15 +201,36 @@ impl WatchHub {
         }
     }
 
-    pub async fn list(&self, client: u64, listing: Listing) {
+    /// Registers a listing before it is read, so nothing changed during the read is missed;
+    /// answers whether the connection did not already hold it.
+    pub async fn list(&self, client: u64, listing: Listing) -> bool {
         let mut joined = self.joined.lock().await;
         let interest = joined.interests.entry(client).or_default();
-        interest.listings.insert(listing);
+        interest.listings.insert(listing)
+    }
+
+    /// A listing the store refused. One the connection held before stays as it was; a new one is
+    /// kept, and counted, up to `REFUSED_LISTINGS`.
+    pub async fn refused(&self, client: u64, listing: Listing, new: bool) {
+        let mut joined = self.joined.lock().await;
+        let interest = joined.interests.entry(client).or_default();
+        if !new {
+            return;
+        }
+        match interest.refused.len() < REFUSED_LISTINGS {
+            true => {
+                interest.refused.insert(listing);
+            }
+            false => {
+                interest.listings.remove(&listing);
+            }
+        }
     }
 
     pub async fn listed(&self, client: u64, listing: Listing, blocks: &[BlockSummary]) {
         let mut joined = self.joined.lock().await;
         let interest = joined.interests.entry(client).or_default();
+        interest.refused.remove(&listing);
         for summary in blocks {
             interest.told(summary.id, Facts::of(summary, listing == Listing::Shared));
         }
@@ -207,6 +242,7 @@ impl WatchHub {
             return;
         };
         interest.listings.remove(&listing);
+        interest.refused.remove(&listing);
         let known = std::mem::take(&mut interest.known);
         interest.known = known
             .into_iter()
@@ -435,7 +471,7 @@ impl WatchHub {
         }
     }
 
-    pub async fn broadcast(&self, block: Uuid, from: u64, message: Push) {
+    pub async fn broadcast(&self, block: Place, from: u64, message: Push) {
         let targets: Vec<u64> = self
             .joined
             .lock()

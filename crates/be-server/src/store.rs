@@ -354,6 +354,17 @@ impl ServerStore {
         }
         let email = normalize_email(email)?;
         let database = self.database.lock().await;
+        let linked: bool = database.query_row(
+            "SELECT EXISTS(SELECT 1 FROM contact_links WHERE id = ?1)",
+            [invitation.to_string()],
+            |row| row.get(0),
+        )?;
+        if linked {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "an invitation needs an id of its own".into(),
+            ));
+        }
         database.execute(
             "DELETE FROM invitations WHERE organization_id = ?1 AND email = ?2",
             params![organization.to_string(), email],
@@ -450,8 +461,8 @@ impl ServerStore {
             [invitation.to_string()],
             |row| row.get(0),
         )?;
-        transaction.execute(
-            "INSERT OR REPLACE INTO contact_links (id, owner_id, card, code, accepter_id, accepter_card)
+        let linked = transaction.execute(
+            "INSERT OR IGNORE INTO contact_links (id, owner_id, card, code, accepter_id, accepter_card)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 invitation.to_string(),
@@ -462,6 +473,12 @@ impl ServerStore {
                 card
             ],
         )?;
+        if linked == 0 {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "this invitation's id is already another contact link's".into(),
+            ));
+        }
         crate::contacts::befriend(&transaction, found.invited_by, &[], account, &contact)?;
         crate::keys::pin_escrow(&transaction, account, found.organization, &escrow)?;
         transaction.execute(
@@ -871,15 +888,26 @@ impl ServerStore {
         Ok(self.objects.get(hash)?)
     }
 
-    pub fn missing_objects(&self, hashes: &[Hash]) -> Result<Vec<Hash>, ServerError> {
-        let mut missing = Vec::new();
-        for hash in hashes {
-            if !self.objects.has(*hash)? {
-                missing.push(*hash);
-            }
-        }
-        Ok(missing)
-    }
+}
+
+pub(crate) fn uploaded(
+    connection: &Connection,
+    identity: Identity,
+    hash: Hash,
+) -> Result<bool, ServerError> {
+    Ok(connection
+        .prepare_cached(
+            "SELECT EXISTS(SELECT 1 FROM object_uploads
+             WHERE organization_id = ?1 AND account_id = ?2 AND hash = ?3)",
+        )?
+        .query_row(
+            params![
+                identity.organization.to_string(),
+                identity.account.to_string(),
+                hash.to_hex()
+            ],
+            |row| row.get(0),
+        )?)
 }
 
 fn load_object_refs(connection: &Connection) -> Result<ObjectRefs, ServerError> {
