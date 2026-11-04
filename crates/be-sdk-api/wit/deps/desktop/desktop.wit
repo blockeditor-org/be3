@@ -56,9 +56,14 @@ interface windows {
         program-id: string,
         origin: window-origin,
         /// The size the program picked for itself, in points; none until it
-        /// picks one (a placeholder commit, such as Firefox's 1×1 buffer, is
-        /// not a pick). A shell opens a new window at it.
+        /// picks one. A placeholder commit (Firefox's 1×1 buffer) or a size
+        /// under the window's own least size (the 148×200 GTK commits first for
+        /// Firefox) is not a pick. A shell opens a new window at it.
         size: option<vec2>,
+        /// The program asked to be maximized, as Firefox does before its
+        /// first frame. A shell opens such a window filling its area, at
+        /// `size` once restored.
+        maximized: bool,
     }
 
     resource windows-watch {

@@ -13,6 +13,7 @@ pub struct KnownWindow {
     pub modal: bool,
     pub size: Vec2,
     pub min_size: Vec2,
+    pub maximized: bool,
     pub fullscreen: Option<Rect>,
     pub responding: bool,
     pub icon: Option<Picture>,
@@ -36,6 +37,7 @@ impl Default for KnownWindow {
             modal: false,
             size: Vec2::ZERO,
             min_size: Vec2::ZERO,
+            maximized: false,
             fullscreen: None,
             responding: true,
             icon: None,
@@ -58,7 +60,13 @@ impl KnownWindow {
             modal: self.modal,
             program_id: self.program_id.clone(),
             origin: self.origin.clone(),
-            size: (self.size.x >= 1.0 && self.size.y >= 1.0).then_some(self.size),
+            size: (self.size.x >= self.min_size.x.max(1.0)
+                && self.size.y >= self.min_size.y.max(1.0))
+            .then_some(self.size),
+            maximized: self.maximized,
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

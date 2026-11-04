@@ -1201,8 +1201,7 @@ impl State {
 }
 
 /// A side shorter than this, in points, makes a commit a placeholder rather than a size the
-/// program picked: Firefox commits a 1×1 buffer for a server-side-decorated window and waits to be
-/// sized, and before it sets its buffer scale that buffer is 2×2 or 3×3 points on a scaled display.
+/// program picked, such as the 1×1 buffer a client commits to map before it is sized.
 const PLACEHOLDER_SIDE: i32 = 8;
 
 fn picked(size: Size<i32, Logical>) -> bool {

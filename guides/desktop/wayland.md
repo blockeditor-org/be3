@@ -37,12 +37,13 @@ The dock decides sizes; there is no negotiation. Until first placed it is config
 picks its own size: `WindowInfo::size` is the size it last chose itself (a commit not answering a
 size the compositor asked for), which becomes the window child's `intrinsic` and the listing's
 `host-window.size`, so a new window's tab opens at it. A commit with a side under
-`PLACEHOLDER_SIDE` (`state.rs`) is no pick: Firefox commits a 1×1 buffer for server-side-decorated
-windows, 2×2 or 3×3 points on a scaled display, and waits to be sized, so it opens at a default
-size. `WindowInfo` also carries the min and max size (`set_min_size`/`set_max_size`, X11
-`WM_NORMAL_HINTS`). Maximize is not
+`PLACEHOLDER_SIDE` (`state.rs`, a placeholder buffer such as a 1×1) is no pick, and the listing
+drops a size under the window's own min size (`set_min_size`/`set_max_size`, X11
+`WM_NORMAL_HINTS`, both in `WindowInfo`); such a window opens at a default size. Maximize is not
 offered in `wm_capabilities`, since the dock owns the size, but a request is answered with the
-maximized state.
+maximized state and listed (`host-window.maximized`), and a window that asked before it was
+listed opens snapped to fill its area. Firefox does: it asks to be maximized, then commits GTK's
+148×200 default, under its own 500×120 min size, before it is configured.
 
 **Drawing.** `render.rs` draws a window's last buffer top-left at its own size, clipped to the view,
 never stretched, until the client commits the new size

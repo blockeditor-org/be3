@@ -20,6 +20,8 @@ pub struct WindowInfo {
     pub drawn: Vec2,
     pub min_size: Vec2,
     pub max_size: Vec2,
+    /// The program asked to be maximized (xdg `set_maximized`, X11 `_NET_WM_STATE_MAXIMIZED_*`).
+    pub maximized: bool,
     pub fullscreen: Option<Rect>,
     pub responding: bool,
     pub icon: Option<Image>,

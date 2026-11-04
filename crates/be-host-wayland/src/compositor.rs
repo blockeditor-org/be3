@@ -522,6 +522,7 @@ impl Compositor {
                     drawn: state.drawn_size(id),
                     min_size,
                     max_size,
+                    maximized: state.maximized(id),
                     title: state.title(id).unwrap_or_default(),
                     program_id: state.program_id(id).unwrap_or_default(),
                     parent: state.parent(id),

@@ -4,6 +4,7 @@ use be_sdk_beui::beui::dock::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, TabId, use_dock_tab,
 };
 use be_sdk_beui::beui::dock_host::styled::WINDOW_CHROME;
+use be_sdk_beui::beui::dock_host::unstyled::DockSnap;
 use be_sdk_beui::beui::icons::{
     ICON_APP_WINDOW, ICON_EXTERNAL_LINK, ICON_EYE_OFF, ICON_FULLSCREEN, ICON_MONITOR, ICON_X,
 };
@@ -113,6 +114,7 @@ pub(crate) fn listed_windows(entries: &[HostWindow]) -> Vec<HostWindow> {
 /// with fewer steps when the area leaves little room. A new window opens at the size its program
 /// picked (`HostWindow::size`), so the program is never told another size first; a placeholder, a
 /// window filling one, and a window whose program picked no size open at the placeholder's size.
+/// A new window whose program asked to be maximized opens snapped to fill its area.
 /// There is no size negotiation after that: the dock sizes the window and the host fits the
 /// program to it.
 pub(crate) fn cascaded(key: u64, size: Vec2, area: Rect) -> Rect {
@@ -728,9 +730,9 @@ impl Workspace {
         });
     }
 
-    /// The size the program of a new tab's window picked, which its window opens at; none for a
-    /// tab that was restored or already sized, or whose program picked none.
-    pub(crate) fn picked_size(&self, tab: TabId) -> Option<Vec2> {
+    /// The listing of a new tab's window, whose size it opens at; none for a tab that was
+    /// restored or already sized.
+    pub(crate) fn opening_window(&self, tab: TabId) -> Option<HostWindow> {
         if !self.needs_size(tab) || self.is_display(tab) {
             return None;
         }
@@ -739,7 +741,7 @@ impl Workspace {
             windows
                 .iter()
                 .find(|listed| listed.id == window)
-                .and_then(|listed| listed.size)
+                .cloned()
         })
     }
 
@@ -814,12 +816,26 @@ pub fn ProgramWindow(workspace: Workspace, tab: TabId) -> DockNode<TabId> {
     let host = workspace.dock_host();
     let area = untrack(|| host.area()).size();
     let area = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area - reach);
-    let picked = untrack(|| workspace.picked_size(tab));
+    let opening = untrack(|| workspace.opening_window(tab));
+    let picked = opening.as_ref().and_then(|listed| listed.size);
     let rect = cascaded(
         tab.value(),
         picked.unwrap_or(PLACEHOLDER_SIZE) + WINDOW_CHROME,
         area,
     );
+    if opening.is_some_and(|listed| listed.maximized) {
+        let snapped = StoredCell::new(false);
+        create_effect(move || {
+            let placed = workspace.on_dock_host(tab, |host, tab| host.window_rect(tab));
+            if placed.flatten().is_some() && !snapped.replace(true) {
+                untrack(|| {
+                    workspace.on_dock_host(tab, |host, tab| {
+                        host.snap_in_area(tab, DockSnap::Fill);
+                    });
+                });
+            }
+        });
+    }
     if !untrack(|| workspace.is_display(tab)) {
         create_effect(move || untrack(|| workspace.sized(tab)));
     } else if workspace.needs_size(tab) {
