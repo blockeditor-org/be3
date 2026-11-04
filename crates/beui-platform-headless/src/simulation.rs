@@ -5,6 +5,10 @@ use beui_types::PickedFile;
 use beui_types::Vec2;
 use beui_types::{PasteKind, Pasted};
 
+/// The headless platform's window: keeps a clipboard (an image copy pastes back
+/// as `Pasted::Image`), grows to `screen` for fullscreen, and reports its size,
+/// scale and fullscreen through `WindowReports` like a real window. It is the
+/// only window `PlatformServices::resize` works on.
 pub struct Simulation {
     pub window: WindowSize,
     pub screen: Vec2,

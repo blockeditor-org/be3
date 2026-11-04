@@ -9,6 +9,12 @@ use beui_types::{Image, ImageId};
 use crate::{Atlas, Instance, Space, Uniforms, rgba};
 
 #[derive(Clone)]
+/// What every renderer on one device and surface format shares: pipelines,
+/// samplers, the glyph atlases and uploaded images (kept while any renderer drew
+/// them last frame). Give every window or panel on a device a `Renderer` over the
+/// same `Resources`. A full atlas is replaced rather than cleared and a renderer
+/// draws with what it was prepared against, so renderers sharing it may prepare,
+/// render and submit in any order.
 pub struct Resources(pub(crate) Rc<RefCell<Shared>>);
 
 pub(crate) struct Shared {
