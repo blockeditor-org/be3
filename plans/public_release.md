@@ -16,8 +16,8 @@ using it would. Each item says what "done" looks like.
 ## Isolation between accounts
 
 - `MissingObjects` answers for any hash a signed-in account names, so it
-  tells anyone whether the server holds an object. `GetObject` and
-  `PutObjects` already check access (`may_read_object`, `may_store`). Done:
+  tells anyone whether the server holds an object. `GetObject`
+  already checks access (`may_read_object`). Done:
   scoped to the objects the reader may see.
 
 ## Server

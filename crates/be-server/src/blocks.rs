@@ -533,7 +533,12 @@ impl ServerStore {
                 refs.retain(&held);
                 persist_refs(&transaction, &refs, &held)?;
                 graph.add_size(block, grew, true)?;
-                persist_sizes(&transaction, graph, identity.organization, chain(graph, block))?;
+                persist_sizes(
+                    &transaction,
+                    graph,
+                    identity.organization,
+                    chain(graph, block),
+                )?;
             }
             transaction.execute(
                 "UPDATE blocks SET head = ?3, metadata = ?4, version = version + 1
@@ -619,7 +624,12 @@ impl ServerStore {
             refs.retain(&fresh);
             persist_refs(&transaction, &refs, &fresh)?;
             graph.add_size(block, grew, true)?;
-            persist_sizes(&transaction, graph, identity.organization, chain(graph, block))?;
+            persist_sizes(
+                &transaction,
+                graph,
+                identity.organization,
+                chain(graph, block),
+            )?;
             transaction.commit()?;
             Ok(())
         })
@@ -888,16 +898,16 @@ impl ServerStore {
                 freed.extend(gone);
             }
             std::mem::drop(refs);
-            let shrank = self.release_charged(
+            let shrank =
+                self.release_charged(&transaction, graph, identity.organization, block, &released)?;
+            forget_objects(&transaction, &freed)?;
+            graph.add_size(block, shrank, false)?;
+            persist_sizes(
                 &transaction,
                 graph,
                 identity.organization,
-                block,
-                &released,
+                chain(graph, block),
             )?;
-            forget_objects(&transaction, &freed)?;
-            graph.add_size(block, shrank, false)?;
-            persist_sizes(&transaction, graph, identity.organization, chain(graph, block))?;
             transaction.commit()?;
             remove_objects(self.objects(), &freed)?;
             Ok(freed.len())
@@ -1431,7 +1441,9 @@ fn release_held(
 
 /// A block and its ancestors: the blocks whose sizes change with its own.
 fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
-    std::iter::once(block).chain(graph.ancestors(block)).collect()
+    std::iter::once(block)
+        .chain(graph.ancestors(block))
+        .collect()
 }
 
 fn remove_objects(objects: &be_block_store::FileStore, freed: &[Hash]) -> Result<(), ServerError> {

@@ -483,10 +483,7 @@ impl Client {
                 let connection = &self.connection;
                 let usage = async {
                     prelude?;
-                    connection
-                        .store
-                        .storage_usage(connection.identity()?)
-                        .await
+                    connection.store.storage_usage(connection.identity()?).await
                 }
                 .await;
                 self.reply(reply, usage);

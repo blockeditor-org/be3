@@ -28,7 +28,14 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
     longer.extend_from_slice(b"and one more line\n");
     let (second, second_chunks) = author.compose(&longer, 2_000, Some(first));
     let published = client
-        .publish(&author, child, second, second_chunks.clone(), Some(first), 2_000)
+        .publish(
+            &author,
+            child,
+            second,
+            second_chunks.clone(),
+            Some(first),
+            2_000,
+        )
         .await;
     assert!(published.is_ok(), "{published:?}");
 

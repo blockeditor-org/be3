@@ -139,7 +139,9 @@ async fn run() -> Result<(), Box<dyn Error>> {
                 config.auth_origin = Some(origin);
             }
             "--account-quota" => {
-                let quota = arguments.next().ok_or("--account-quota needs a byte count")?;
+                let quota = arguments
+                    .next()
+                    .ok_or("--account-quota needs a byte count")?;
                 config.account_quota = match quota.as_str() {
                     "none" => None,
                     bytes => Some(bytes.parse()?),

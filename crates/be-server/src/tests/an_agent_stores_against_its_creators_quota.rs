@@ -41,7 +41,11 @@ async fn an_agent_stores_against_its_creators_quota() {
         .call(|peer| client::account::storage_usage(peer))
         .await
         .unwrap();
-    assert_eq!(usage.pending, upload.len() as u64, "an agent sees its payer's usage");
+    assert_eq!(
+        usage.pending,
+        upload.len() as u64,
+        "an agent sees its payer's usage"
+    );
 
     harness.stop().await;
 }

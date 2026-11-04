@@ -9,7 +9,7 @@ use std::{
 };
 
 use be_block_graph::{BlockGraph, ObjectRefs};
-use be_block_protocol::{ErrorCode, AccountStorage};
+use be_block_protocol::{AccountStorage, ErrorCode};
 use be_block_store::{Hash, ObjectStore};
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -298,7 +298,8 @@ impl ServerStore {
                 .policies(graph, &transaction, identity.organization)?
                 .quota()
         {
-            let total = organization_bytes(&transaction, identity.organization)? + new_to_organization;
+            let total =
+                organization_bytes(&transaction, identity.organization)? + new_to_organization;
             if total > quota {
                 return Err(over_organization_quota(quota, total));
             }
@@ -423,9 +424,8 @@ pub(crate) fn load_sizes(
     graph: &mut BlockGraph,
     organization: Uuid,
 ) -> Result<(), ServerError> {
-    let mut statement = connection.prepare(
-        "SELECT block_id, size, tree_size FROM block_sizes WHERE organization_id = ?1",
-    )?;
+    let mut statement = connection
+        .prepare("SELECT block_id, size, tree_size FROM block_sizes WHERE organization_id = ?1")?;
     let rows = statement.query_map([organization.to_string()], |row| {
         Ok((
             row.get::<_, String>(0)?,
@@ -483,9 +483,10 @@ fn block_payer(
         .prepare_cached(
             "SELECT payer FROM block_sizes WHERE organization_id = ?1 AND block_id = ?2",
         )?
-        .query_row(params![organization.to_string(), block.to_string()], |row| {
-            row.get(0)
-        })
+        .query_row(
+            params![organization.to_string(), block.to_string()],
+            |row| row.get(0),
+        )
         .optional()?;
     match stored {
         Some(payer) => parse_uuid(&payer),
@@ -569,11 +570,10 @@ fn count_account_object(
 /// A block took an object nothing held: it stops being charged to whoever uploaded it.
 fn stop_pending(connection: &Connection, hash: Hash, bytes: u64) -> Result<(), ServerError> {
     let payers: Vec<String> = {
-        let mut statement = connection
-            .prepare_cached(
-                "SELECT MIN(payer) FROM object_uploads WHERE hash = ?1 AND pending = 1
+        let mut statement = connection.prepare_cached(
+            "SELECT MIN(payer) FROM object_uploads WHERE hash = ?1 AND pending = 1
                  GROUP BY account_id",
-            )?;
+        )?;
         let rows = statement.query_map([hash.to_hex()], |row| row.get(0))?;
         rows.collect::<Result<_, _>>()?
     };
