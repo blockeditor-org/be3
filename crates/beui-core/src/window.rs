@@ -60,6 +60,9 @@ pub enum Resize {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
+/// What the window shows for the program, filled by the `Context` during a frame.
+/// The runner calls `Platform::show_window` only when it differs from the last
+/// one shown, so a new field needs handling in every platform that acts on it.
 pub struct WindowState {
     pub requests: WindowRequests,
     pub cursor_image: Option<beui_types::CursorImage>,

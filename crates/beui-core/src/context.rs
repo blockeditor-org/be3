@@ -1009,6 +1009,8 @@ impl Context {
         self.inner.window.borrow_mut().requests.clipboard_keys = keys;
     }
 
+/// Reads the clipboard's text for the program itself, outside any focus. Answered
+/// at the start of a later frame, `None` without text.
     pub fn read_clipboard(&self, answer: impl FnOnce(Option<String>) + 'static) {
         self.inner
             .clipboard_reads
