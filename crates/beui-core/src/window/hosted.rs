@@ -1,3 +1,8 @@
+//! Top-level windows: one `Document`, one reactive graph and one focus across every
+//! window a program shows. A window is an `OverlayNode` carrying a `WindowSpec`; each
+//! `Layer` names its window, and every window's rectangle starts at the origin, so
+//! damage, scroll copies and hit testing are kept apart per window.
+
 use std::rc::Rc;
 
 use be_lib_stable_hash::{HashMap, HashSet};
@@ -128,6 +133,8 @@ impl Document {
             .map(|(_, node)| *node)
     }
 
+    /// Always `WindowId::MAIN` unless the host opens windows, so on the HTML core and in a
+    /// host that shows windows as overlays everything is in the main window.
     pub fn window_of(&self, node: NodeId) -> WindowId {
         if !self.opens_windows() {
             return WindowId::MAIN;
@@ -153,6 +160,9 @@ impl Document {
         WindowId::MAIN
     }
 
+    /// The hosted window an overlay window is shown inside. Key listeners at
+    /// `KeyAt::Window` and actions belong to this window, so two app views each keep their
+    /// own Escape and shortcuts.
     pub fn host_window_of(&self, window: WindowId) -> WindowId {
         self.windows
             .nodes
@@ -170,6 +180,7 @@ impl Document {
             .collect()
     }
 
+    /// The window keys go to: the focused node's, else the one the host focused last.
     pub fn key_window(&self) -> Option<WindowId> {
         if !self.opens_windows() {
             return None;
@@ -179,6 +190,9 @@ impl Document {
             .or(self.windows.host_focused)
     }
 
+    /// One window's layers, its own at index 0. Hit testing, press claims and forwarding
+    /// use it, so a press in one window never reaches another's nodes at the same
+    /// coordinates.
     pub fn window_layers(&self, window: WindowId) -> Option<Layers> {
         self.layers().of_window(window)
     }
@@ -214,6 +228,10 @@ impl Document {
         self.windows.fitted.get(&window).copied()
     }
 
+    /// Before layout, sizes each window with `WindowSpec::fit`: measures its content (the
+    /// window frame's child, or what `fit_window_to` names) unbounded, and again at the
+    /// widest allowed if that overflows, then takes min(content, max), so the window is
+    /// laid out once at a size whose full-width rows fill the width it took.
     pub(crate) fn refit_windows(&mut self, ctx: &crate::context::Context) {
         let fitting: Vec<(WindowId, NodeOf<OverlayNode>, Vec2)> = self
             .windows
@@ -420,6 +438,13 @@ impl Document {
         }
     }
 
+    /// A host's `Focused { focused: false }` takes the focus from a node in that window and
+    /// remembers it; `true` gives it back if nothing took the focus since. Returns false
+    /// when there was nothing to give back: after `on_report` has heard the report (a dock
+    /// window then hands the keyboard to its shown tab), the caller focuses the window's
+    /// first focusable unless the focus is inside it. Where the platform opens only the
+    /// windows it placed, focusing a window moves the focus into it instead and unfocusing
+    /// leaves it where it is. The main window gets no fallback.
     fn window_focused(&mut self, window: WindowId, focused: bool) -> bool {
         if self.windows.placed.get_untracked() {
             if focused {

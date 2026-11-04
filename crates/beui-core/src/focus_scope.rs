@@ -11,10 +11,15 @@ struct FocusScope {
 }
 
 impl Document {
+    /// For anything other than a layer that takes the focus for a while (be-host's region
+    /// when an app asks for the keyboard): remembers where the focus was, to give it back on
+    /// `pop_focus_scope`. Open layers push and pop their own.
     pub fn push_focus_scope(&mut self, holder: NodeId) {
         self.push_scope(holder, None);
     }
 
+    /// Refocuses what was focused before only if the focus is still inside `holder`, so a
+    /// close that deliberately moved the focus elsewhere keeps it there.
     pub fn pop_focus_scope(&mut self, holder: NodeId) {
         self.pop_scope(holder);
     }

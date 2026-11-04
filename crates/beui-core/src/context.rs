@@ -1135,6 +1135,8 @@ impl Context {
         self.inner.hosts_scrims.set(hosts);
     }
 
+    /// Lets `window`'s escaping overlays out of its rectangle (`beui_types::LayerSpace`).
+    /// In the app protocol this is the view's anchor space.
     pub fn set_layer_space(&self, window: WindowId, space: Option<LayerSpace>) {
         let mut spaces = self.inner.layer_spaces.borrow_mut();
         let held = spaces.get(&window).copied();
@@ -1157,6 +1159,9 @@ impl Context {
         self.inner.layer_spaces.borrow().clone()
     }
 
+    /// Asks an escaped layer to close as a press outside it does, with its nested layers.
+    /// Heard after the frame's input, and not at all if that input already asked the layer
+    /// to close, so a press on a popover's trigger toggles it closed once.
     pub fn dismiss_layer(&self, id: u64) {
         self.inner.layer_dismissals.borrow_mut().push(id);
         self.request_repaint();

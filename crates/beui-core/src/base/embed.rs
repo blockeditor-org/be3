@@ -11,6 +11,10 @@ use beui_types::Direction;
 use beui_types::NodeId;
 use beui_types::{Rect, Vec2};
 
+/// Where an embed was laid out, in window coordinates, and the clip around it. `raster` is
+/// its window's raster over the document's scale (1 unless the host draws the window
+/// finer or coarser), announced again when a `WindowReport::Rastered` changes it, so the
+/// host can draw the embed as sharp as the window.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EmbedPlacement {
     pub rect: Rect,
@@ -80,6 +84,9 @@ impl EmbedState {
     }
 }
 
+/// How an `Embed` hands its placement to whoever draws what it reserves; owned by the scope
+/// that made it. `on_inert` hears when a layer modal to assistive technology covers it, so
+/// a host leaves that app out of its description.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct EmbedSlot(pub Stored<EmbedState>);
 
@@ -119,6 +126,10 @@ impl EmbedSlot {
     }
 }
 
+/// Reserves a rectangle for something outside the document (an editor the host composites
+/// behind the surface) and, unless `punch` is false, cuts it out of the surface so what is
+/// behind shows through. What the host draws there covers the document, overlays aside,
+/// and nodes marked `above_embeds` that paint after it.
 pub struct EmbedNode {
     child: Option<NodeId>,
     punch: bool,

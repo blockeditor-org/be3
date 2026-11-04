@@ -10,6 +10,17 @@ use crate::types::Sides;
 use crate::types::Vec2;
 use beui_macros::component;
 
+/// Sizing, padding, fill and outline on one retained node. A `max` extent caps the room
+/// the frame takes, not its content, like CSS `max-width` on a block; for a box as wide as
+/// its content up to a cap, size a list child `ItemSize::Intrinsic.max(..)` instead.
+///
+/// `translate`, `rotate`, `opacity` and `fade_edges` leave the space the frame takes alone.
+/// `translate` snaps to the pixel grid and paints nothing while off screen. Opacity and
+/// faded edges are one mask over the whole frame, so overlapping shapes inside show
+/// through one another, and they do not fade custom `Drawing`s. Pointer input and
+/// accessibility follow `translate` but see a rotated frame unturned, so `rotate` suits
+/// pictures, not controls. Rotation never swaps width and height: for a quarter turn, turn
+/// a square box.
 #[component]
 pub fn Frame(
     #[prop(default = Extent::INTRINSIC)] width: Prop<Extent>,
