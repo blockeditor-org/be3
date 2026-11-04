@@ -153,14 +153,13 @@ async fn check(snapshot: &Snapshot) {
     let (by_password, owner_token) =
         sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
     let store = be_server::ServerStore::open(&server.directory).unwrap();
-    let kept = snapshot.name >= scene::SESSIONS_KEPT_SINCE;
-    assert_eq!(
+    assert!(
         store.resolve_token(snapshot.owner_token).await.is_ok(),
-        kept
+        "{name}: the owner's session was not kept"
     );
-    assert_eq!(
+    assert!(
         store.resolve_token(snapshot.friend_token).await.is_ok(),
-        kept
+        "{name}: the friend's session was not kept"
     );
     let Ok(be_block_protocol::RecoveryKey { public, .. }) =
         ask(client::keys::get_recovery_key(&by_password)).await
@@ -198,44 +197,42 @@ async fn check(snapshot: &Snapshot) {
     )));
 
     let owner = peer(&server, snapshot.owner_phrase, &owner_token, organization).await;
-    if snapshot.name >= scene::POLICIES_SINCE {
-        assert!(
-            !owner
-                .organization_policies()
-                .await
-                .unwrap()
-                .shares_outside(),
-            "{name}: the organization's policies no longer read"
-        );
-        let offer = owner
-            .offer(id(snapshot.team), be_block_graph::Access::View)
+    assert!(
+        !owner
+            .organization_policies()
             .await
-            .unwrap();
-        let card = contacts::card(
-            owner.account(),
-            owner.keys().identity(),
-            scene::OWNER_NAME,
-            scene::OWNER_EMAIL,
-        );
-        let refused = contacts::make_link(
-            &owner.connection(),
-            owner.keys().identity(),
-            &card,
-            Some(&offer),
-        )
+            .unwrap()
+            .shares_outside(),
+        "{name}: the organization's policies no longer read"
+    );
+    let offer = owner
+        .offer(id(snapshot.team), be_block_graph::Access::View)
         .await
-        .unwrap_err();
-        assert!(
-            matches!(
-                refused,
-                be_block_client::ClientError::Refused(
-                    be_block_protocol::ErrorCode::PolicyRefused,
-                    _
-                )
-            ),
-            "{name}: the server no longer reads the policies shared with it: {refused}"
-        );
-    }
+        .unwrap();
+    let card = contacts::card(
+        owner.account(),
+        owner.keys().identity(),
+        scene::OWNER_NAME,
+        scene::OWNER_EMAIL,
+    );
+    let refused = contacts::make_link(
+        &owner.connection(),
+        owner.keys().identity(),
+        &card,
+        Some(&offer),
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        matches!(
+            refused,
+            be_block_client::ClientError::Refused(
+                be_block_protocol::ErrorCode::PolicyRefused,
+                _
+            )
+        ),
+        "{name}: the server no longer reads the policies shared with it: {refused}"
+    );
     check_storage(snapshot, &server, &store, &owner).await;
     let metadata = |block: &str| {
         let owner = &owner;
@@ -563,8 +560,8 @@ async fn check(snapshot: &Snapshot) {
     server.stop().await;
 }
 
-/// Storage accounting, which the server counts as it goes from 2026_11_04 on and fills in once,
-/// the first time it opens, for snapshots from before.
+/// Storage accounting: block and subtree sizes, usage, the quota policy, an agent's charges, and
+/// invite codes.
 async fn check_storage(
     snapshot: &Snapshot,
     server: &Running,
@@ -610,13 +607,7 @@ async fn check_storage(
         "{name}: the owner is charged less than one of its blocks holds"
     );
 
-    let Some(usage) = snapshot.usage else {
-        assert_eq!(
-            storage.pending, 0,
-            "{name}: an upload from before accounting was charged to the owner"
-        );
-        return;
-    };
+    let usage = &snapshot.usage;
     assert_eq!(
         (storage.held, storage.pending),
         (usage.owner_held, usage.owner_pending),

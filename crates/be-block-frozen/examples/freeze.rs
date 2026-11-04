@@ -922,7 +922,7 @@ fn source(name: &str, written: &Written, backup_key: &BackupKey) -> String {
     let usage = &written.usage;
     let _ = writeln!(
         out,
-        "    usage: Some(&super::Usage {{\n        used_invite: \"{}\",\n        unused_invite: \"{}\",\n        agent_note: \"{}\",\n        owner_held: {},\n        owner_pending: {},\n        my_files_tree_size: {},\n        team_size: {},\n        team_tree_size: {},\n    }}),",
+        "    usage: super::Usage {{\n        used_invite: \"{}\",\n        unused_invite: \"{}\",\n        agent_note: \"{}\",\n        owner_held: {},\n        owner_pending: {},\n        my_files_tree_size: {},\n        team_size: {},\n        team_tree_size: {},\n    }},",
         usage.used_invite,
         usage.unused_invite,
         usage.agent_note,

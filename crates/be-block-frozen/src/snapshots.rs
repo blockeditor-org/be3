@@ -1,10 +1,7 @@
-mod s2026_10_16;
-mod s2026_10_25;
 mod s2026_11_04;
 
 /// What opens one zipped server snapshot: the tokens, recovery phrases, link and invite codes and
-/// keys the `freeze` example printed into `sNAME.rs`. A new snapshot is listed in `SNAPSHOTS`;
-/// the test checks each part of the scene only in the snapshots that hold it.
+/// keys the `freeze` example printed into `sNAME.rs`. A new snapshot is listed in `SNAPSHOTS`.
 pub struct Snapshot {
     pub name: &'static str,
     pub organization: &'static str,
@@ -33,8 +30,7 @@ pub struct Snapshot {
     pub holiday: &'static str,
     pub holiday_note: &'static str,
     pub recipes: &'static str,
-    /// What a snapshot from `scene::USAGE_SINCE` on holds of storage accounting.
-    pub usage: Option<&'static Usage>,
+    pub usage: Usage,
     pub files: &'static [u8],
 }
 
@@ -52,8 +48,4 @@ pub struct Usage {
     pub team_tree_size: u64,
 }
 
-pub const SNAPSHOTS: &[&Snapshot] = &[
-    &s2026_10_16::SNAPSHOT,
-    &s2026_10_25::SNAPSHOT,
-    &s2026_11_04::SNAPSHOT,
-];
+pub const SNAPSHOTS: &[&Snapshot] = &[&s2026_11_04::SNAPSHOT];

@@ -56,8 +56,11 @@ else may still change freely.
   `Workspace`, `Database`, `DatabaseSchema` and `DatabaseView`, and their
   content type ids.
 
-What is read forever starts at the data `crates/be-block-frozen`'s snapshots
-hold, from 2026-10-16 on; data saved before then is not read.
+What is read forever starts at the data `crates/be-block-frozen` holds. Block
+content (block files and the frozen block types) is read from 2026-10-16 on.
+The server's own format (its data directory and backups) was reset on
+2026-11-04, when the one deployed server was wiped, and is frozen again from
+the snapshot taken that day; server data saved before then is not read.
 
 Section 1 of `plans/settings.md` is a one-time break: its changes (metadata
 that points to a block, with `ARTIFACT` now pointing to its source; the access
@@ -109,8 +112,7 @@ data still reads:
   storage (block and subtree sizes, each account's usage, an upload no block holds, the quota
   policy, an agent charged to its creator), invite codes, and restoring the backup. It serves
   with an upload grace longer than any snapshot's age, so a snapshot's pending upload is never
-  collected. Snapshots from before storage accounting are counted by the server's backfill when
-  they open, and the test checks those sizes add up too.
+  collected.
 
 A snapshot, a fixture, a `frozen_*.rs` module and the values in `scene.rs` are what old data
 looks like, so editing or regenerating one stops its test guarding that data. A failure means
