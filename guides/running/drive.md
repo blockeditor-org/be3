@@ -16,7 +16,7 @@ file puts `drive` on `PATH`, pointed at that program. `drive help` lists every c
 
 ## How it fits together
 
-drive is a layer, crates/beui-layer-drive (guides/beui/programs.md, layers), sitting in the
+drive is a layer, crates/beui-layer-drive (guides/beui/programs.md, Layers), sitting in the
 stack every platform's runner carries, so its input lands among the platform's own events and
 everything above it (the document, be-host's app host, the Wayland compositor) runs as it does
 in a window. `Drive`'s doc comment describes the session and its taps. Natively the run
@@ -165,8 +165,8 @@ Work the program cannot see is not waited for:
 - A server push: use `drive wait TEXT` or `drive gone TEXT`, which return once a line contains
   TEXT or none does. `wait TEXT over TARGET` also asks that the node cover a point, for
   something that grows, such as a stroke reaching the pen.
-- A hosted Wayland or X11 program redrawing after input: the tree does not show what it draws,
-  so `drive pause 200` before a `shot`.
+- A hosted Wayland or X11 program redrawing after input (guides/desktop/wayland.md, Frame
+  pacing): the tree does not show what it draws, so `drive pause 200` before a `shot`.
 
 ### The clock
 

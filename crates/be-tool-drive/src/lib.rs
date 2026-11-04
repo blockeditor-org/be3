@@ -227,7 +227,7 @@ fn exec(socket: &Path, arguments: &[String], timeout: Duration) -> Result<(), St
     let environment = environment(socket, timeout)?;
     if environment.is_empty() {
         return Err(
-            "the app hosts no programs; be-host does with --desktop (guides/desktop/linux.md)"
+            "the app hosts no programs; be-host does with --desktop (guides/desktop/wayland.md)"
                 .to_owned(),
         );
     }
