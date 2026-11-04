@@ -30,7 +30,7 @@ fn each_display_shows_its_own_lock_screen_at_its_own_scale() {
             ..HostUi::default()
         });
         view! {
-            <beui::styled::Root title="Block">
+            <beui::styled::Root title="be-host">
                 <Displays view />
             </beui::styled::Root>
         }

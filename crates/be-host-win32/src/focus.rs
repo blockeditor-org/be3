@@ -31,7 +31,7 @@ pub enum FocusError {
     OffScreen,
     ForegroundRefused,
     Returned,
-    OnBlock,
+    OnHost,
     Failed(String),
 }
 
@@ -47,8 +47,8 @@ impl fmt::Display for FocusError {
             Self::ForegroundRefused => {
                 write!(f, "Windows refused to bring the window to the front")
             }
-            Self::Returned => write!(f, "Block came back before the window did"),
-            Self::OnBlock => write!(f, "that part of the display is Block's own window"),
+            Self::Returned => write!(f, "be-host came back before the window did"),
+            Self::OnHost => write!(f, "that part of the display is be-host's own window"),
             Self::Failed(message) => write!(f, "{message}"),
         }
     }
@@ -437,7 +437,7 @@ pub fn display_point(display: &Entry, at: Option<Point>) -> Point {
 
 pub fn display_target(under: Under) -> Result<Option<Handle>, FocusError> {
     match under {
-        Under::Own => Err(FocusError::OnBlock),
+        Under::Own => Err(FocusError::OnHost),
         Under::Window(window) => Ok(Some(window)),
         Under::Nothing => Ok(None),
     }

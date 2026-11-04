@@ -23,7 +23,7 @@ the new build, and pins the uploaded be in scripts/internal/pins.
 The downloads are the app with its apps for Linux, macOS and Windows on
 x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
 release keystore under the id and label --android-id and --android-label give
-(com.be3.block and Block), so it installs beside CI's com.be3.block.ci. They go
+(com.be3.host and be-host), so it installs beside CI's com.be3.host.ci. They go
 to data/BUILD/app/ beside a page linking them, and once the server runs the build,
 web/downloads.html is that unlinked page. It is not
 read back from the mirror, whose CDN may hold the last one until it is purged.
@@ -586,11 +586,11 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
                     <html::Meta charset="utf-8" />
                     <html::Meta name="viewport" content="width=device-width, initial-scale=1" />
                     <html::Meta name="robots" content="noindex, nofollow" />
-                    <html::Title>"Block downloads"</html::Title>
+                    <html::Title>"be-host downloads"</html::Title>
                     <Stylesheet css={DOWNLOAD_PAGE_STYLES.to_string()} />
                 </html::Head>
                 <html::Body>
-                    <html::H1>"Block"</html::H1>
+                    <html::H1>"be-host"</html::H1>
                     <html::P>
                         "Build "
                         <html::Code>{build}</html::Code>
@@ -659,7 +659,7 @@ impl Agents {
 
 fn web_entry_point(build: &str) -> String {
     crate::web_page::page(
-        crate::web_page::Page::Block,
+        crate::web_page::Page::Host,
         Some(format!("/data/{build}/web/")),
     )
 }
@@ -753,7 +753,7 @@ fn read_build(path: &Path) -> Result<String, String> {
     let id = std::fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
     let metadata = be_lib_build_id::Metadata::parse(&id)?;
-    if metadata.program_id != "Block" || metadata.default_server.is_none() {
+    if metadata.program_id != "be-host" || metadata.default_server.is_none() {
         return Err(format!(
             "{} has no deployed program identity or default server; build through ./scripts/deploy",
             path.display()

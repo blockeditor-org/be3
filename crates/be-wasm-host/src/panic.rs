@@ -57,6 +57,6 @@ pub(crate) fn message(error: &wasmtime::Error) -> Option<String> {
         return Some(message.clone());
     }
     let GuestPanic(message) = error.downcast_ref::<GuestPanic>()?;
-    eprintln!("block-wasm-host: an app panicked: {error:?}");
+    eprintln!("be-wasm-host: an app panicked: {error:?}");
     Some(message.clone())
 }

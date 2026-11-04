@@ -1,4 +1,4 @@
-# Block app protocol
+# The app protocol
 
 The host and an app speak the `be3:app` WIT world `editor-app`
 (`wit/`), carried by be-wasm-ops (guides/type_modules.md, "Operations and WIT"); the

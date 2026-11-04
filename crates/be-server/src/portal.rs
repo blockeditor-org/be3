@@ -31,7 +31,7 @@ fn deliver(services: &Services, origin: &str, mail: MailLink) {
     };
     services.mail.send(Email {
         recipient: mail.email,
-        subject: if mail.purpose == "reset" { "Reset your Block password" } else { "Verify your Block email address" }.into(),
+        subject: if mail.purpose == "reset" { "Reset your be3 password" } else { "Verify your be3 email address" }.into(),
         body: format!("Open {origin}/auth/{page}?token={} . If you did not request this, ignore this message.", encode(&mail.token)),
     });
 }
@@ -108,7 +108,7 @@ pub(crate) async fn handle(
                     response.cookie = Some(services.store.browser_session(account).await?);
                     response.location = Some(link("/auth", &saved_code));
                 } else {
-                    if let Some(email) = old_email { services.mail.send(Email { recipient: email, subject: "Your Block email address changed".into(), body: "Your account email address was changed. If this was not you, contact your server operator.".into() }); }
+                    if let Some(email) = old_email { services.mail.send(Email { recipient: email, subject: "Your be3 email address changed".into(), body: "Your account email address was changed. If this was not you, contact your server operator.".into() }); }
                     response.location = Some("/auth/email-updated".into());
                 }
             },

@@ -262,7 +262,7 @@ async fn inhibit(manager: &Proxy<'_>) -> Option<OwnedFd> {
             "Inhibit",
             &(
                 "sleep",
-                "Block",
+                "be-host",
                 "Lock the screen before suspending",
                 "delay",
             ),

@@ -20,8 +20,23 @@ pub struct DefaultServer {
 
 impl Metadata {
     pub fn parse(json: &str) -> Result<Self, String> {
-        let info: Self = serde_json::from_str(json)
+        let mut info: Self = serde_json::from_str(json)
             .map_err(|error| format!("invalid build metadata: {error}"))?;
+        // The bootstrap pinned before it wrote these names still names the
+        // app "Block"; drop this once scripts/internal/pins holds a release
+        // that writes "be-host".
+        match info.program_id.as_str() {
+            "Block" => info.program_id = "be-host".to_owned(),
+            "BlockDev" => info.program_id = "be-host-dev".to_owned(),
+            _ => {}
+        }
+        if let Some(server) = info
+            .default_server
+            .as_mut()
+            .filter(|server| server.name == "Block")
+        {
+            server.name = "be3".to_owned();
+        }
         if info.id.trim().is_empty() || info.id == "unknown" || info.program_id.trim().is_empty() {
             return Err("the build metadata has no build or program identity".to_owned());
         }
@@ -45,7 +60,7 @@ pub fn current() -> Result<&'static str, String> {
 pub fn install(id: &str) {
     let _ = CURRENT.set(Ok(Metadata {
         id: id.to_owned(),
-        program_id: "BlockDev".to_owned(),
+        program_id: "be-host-dev".to_owned(),
         default_server: None,
     }));
 }
