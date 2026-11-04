@@ -913,6 +913,9 @@ impl BufferInterface for Buffer {
         });
     }
 
+    /// Copies the range out of the host's map once. A buffer mapped at creation starts
+    /// zeroed instead, and a range written through `get_mapped_range_mut` goes back to the
+    /// host when dropped.
     fn get_mapped_range(&self, sub_range: Range<wgpu::BufferAddress>) -> DispatchBufferMappedRange {
         let length = sub_range.end.saturating_sub(sub_range.start);
         let fresh = FRESH.with(|fresh| fresh.borrow().contains(&self.0.handle().0));

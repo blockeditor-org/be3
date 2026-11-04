@@ -365,15 +365,32 @@ interface types {
     type host-window-id = u64;
 
     enum child-layer {
+        /// Composited under the placer's surface, with the child's space cut
+        /// out of it, so whatever the placer draws later covers the child.
         below,
+        /// Composited over the placer's pixels, for a translucent child, which
+        /// a hole cannot show correctly. Nothing the placer draws covers it.
         above,
     }
 
     enum child-mode {
+        /// Runs the child but keeps every click for the placer until it is
+        /// promoted to `active`.
         passive,
+        /// The host draws the block's preview rather than running its editor.
+        /// A block previewed in several places is drawn once, at the largest.
         preview,
+        /// Promoted by the user: takes input and the frame, until the host
+        /// takes it back on a click outside or Escape. Promoting during a press
+        /// over the child replays that press in it.
         active,
+        /// Live from placement and never taken back: the whole of what the
+        /// placer shows, such as the slide a presentation edits. Takes the
+        /// frame.
         live,
+        /// Live from placement but never takes the frame and draws no chrome.
+        /// With an intrinsic size it keeps that layout size and is rendered at
+        /// the placed rect's zoom, so it scales with a canvas's camera.
         in-place,
         /// Kept placed but not shown: the child takes no room, the host draws
         /// nothing of it and treats it as not shown (a program window is
