@@ -40,7 +40,7 @@ be_wasm_ops_bindgen::generate!({
     ],
     inline: [
         "artifact-command", "unlink-command",
-        "delete-command", "move-command", "place-command", "adopt-command",
+        "delete-command", "move-command", "reorder-command", "place-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
         "block-child", "creation-child", "artifact-settings-child", "picker-child",

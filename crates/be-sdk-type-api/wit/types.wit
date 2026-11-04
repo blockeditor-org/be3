@@ -119,10 +119,18 @@ interface types {
         new: block-id,
     }
 
+    /// Moves a child among its siblings: after the child `after`, or first
+    /// when it is none.
+    record reorder-child {
+        block: block-id,
+        after: option<block-id>,
+    }
+
     variant child-change {
         add(block-id),
         delete(block-id),
         replace(replace-child),
+        reorder(reorder-child),
     }
 
     record file-change {

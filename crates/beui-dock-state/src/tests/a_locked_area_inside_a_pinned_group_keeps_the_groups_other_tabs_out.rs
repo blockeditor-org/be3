@@ -27,7 +27,10 @@ fn a_locked_area_inside_a_pinned_group_keeps_the_groups_other_tabs_out() {
     let views = leaf_of(&state, 11);
 
     let into_outline = [
-        DockDrop::Pane { leaf: outline },
+        DockDrop::Tab {
+            leaf: outline,
+            index: usize::MAX,
+        },
         DockDrop::Tab {
             leaf: outline,
             index: 0,
@@ -48,7 +51,13 @@ fn a_locked_area_inside_a_pinned_group_keeps_the_groups_other_tabs_out() {
         );
         state.drop_tab(TabId::new(11), target);
     }
-    assert!(!state.admits_leaf(views, DockDrop::Pane { leaf: outline }));
+    assert!(!state.admits_leaf(
+        views,
+        DockDrop::Tab {
+            leaf: outline,
+            index: usize::MAX
+        }
+    ));
     assert_eq!(state.entries(outline), vec![Entry::Tab(TabId::new(10))]);
     assert_eq!(state.tree_leaves(Tree::Group(group)).len(), 2);
     assert!(
@@ -64,10 +73,22 @@ fn a_locked_area_inside_a_pinned_group_keeps_the_groups_other_tabs_out() {
 
     state.set_locked(DockHome::Group(group), false);
     assert!(
-        state.admits(Entry::Tab(TabId::new(11)), DockDrop::Pane { leaf: outline }),
+        state.admits(
+            Entry::Tab(TabId::new(11)),
+            DockDrop::Tab {
+                leaf: outline,
+                index: usize::MAX
+            }
+        ),
         "once their group is unlocked, its tabs may go into the area"
     );
-    state.drop_tab(TabId::new(11), DockDrop::Pane { leaf: outline });
+    state.drop_tab(
+        TabId::new(11),
+        DockDrop::Tab {
+            leaf: outline,
+            index: usize::MAX,
+        },
+    );
     assert_eq!(leaf_of(&state, 11), outline);
     assert!(
         !state.at_home(TabId::new(11)),

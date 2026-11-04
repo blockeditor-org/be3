@@ -29,6 +29,7 @@ pub mod number_input;
 pub mod picture;
 pub mod popover;
 pub mod progress;
+pub mod reorder;
 pub mod root;
 pub mod row;
 pub mod scroll;
@@ -68,14 +69,17 @@ pub use beui_components_unstyled::{
     provide_frame_anchor, use_frame_anchor,
 };
 pub use beui_components_unstyled::{
-    BackSlide, ChoiceOption, Container, DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
-    Edge, Floating, MenuCaption, MenuGrid, MenuItem, MenuNodes, MenuThen, PanZoom, PanZoomHandle,
-    PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, PopoverPlacement, Pressable, Prose,
-    ProseLine, RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors, TextAreaState,
-    TextWidget, TreeItem, container_size, narrower_than,
+    BackSlide, ChoiceOption, Container, DragHandle, DragPoint, DragSource, Draggable, DropHandle,
+    DropTarget, Edge, Floating, MenuCaption, MenuGrid, MenuItem, MenuNodes, MenuThen, PanZoom,
+    PanZoomHandle, PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, PopoverPlacement,
+    Pressable, Prose, ProseLine, RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors,
+    TextAreaState, TextWidget, TreeDragOver, TreeDrop, TreeItem, container_size, narrower_than,
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
+pub use beui_components_unstyled::{
+    Reorder, ReorderGap, ReorderHandle, ReorderItemHandle, ReorderMove,
+};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
     Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, Layer, Layers, ListItem, Modality,
@@ -109,6 +113,7 @@ pub use number_input::{NumberInput, NumberInputTextApi};
 pub use picture::Picture;
 pub use popover::{Popover, popover_surface};
 pub use progress::{INLINE_PROGRESS_WIDTH, Progress};
+pub use reorder::{LIFT_DROP, ReorderItem};
 pub use root::Root;
 pub use row::{RowFace, RowSize, RowTrailing};
 pub use scroll::{Bleed, Scroll};

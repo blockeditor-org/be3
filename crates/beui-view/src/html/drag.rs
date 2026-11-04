@@ -19,4 +19,6 @@ pub(crate) fn space() -> Rc<dyn Space> {
     Rc::new(Measured)
 }
 
-pub(crate) fn drive(_: Rc<dyn Driver>) {}
+pub(crate) fn drive(driver: Rc<dyn Driver>) {
+    beui_core_html::drags::drive(driver);
+}

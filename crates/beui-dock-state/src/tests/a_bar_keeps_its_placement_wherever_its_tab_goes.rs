@@ -52,7 +52,13 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
     );
 
     let right = leaf_of(&state, 3);
-    state.drop_tab(TabId::new(1), DockDrop::Pane { leaf: right });
+    state.drop_tab(
+        TabId::new(1),
+        DockDrop::Tab {
+            leaf: right,
+            index: usize::MAX,
+        },
+    );
     state.reconcile(&declared);
     assert_eq!(
         state.bar_placement(TabId::new(20)),

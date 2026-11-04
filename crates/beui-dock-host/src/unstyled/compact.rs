@@ -288,7 +288,6 @@ fn DockGatheredTab(dock: State, tab: TabId, shown: Memo<Option<TabId>>, vertical
     let face = dock.tab.call(DockTabHandle {
         entry: Entry::Tab(tab),
         leaf,
-        index: position.map_or(0, |found| found.index),
         floating: false,
         pinned: false,
         vertical,

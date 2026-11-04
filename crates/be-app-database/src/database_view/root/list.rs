@@ -3,7 +3,7 @@ use be_sdk_beui::beui::icons::{ICON_CHEVRON_DOWN, ICON_FILE_TEXT, ICON_LINK, ICO
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign, Vec2};
-use be_sdk_beui::narrow_chrome;
+use be_sdk_beui::{SIDE_PANEL_WIDTH, narrow_chrome};
 use be_sdk_database::{ChoiceMark, use_choice_colors};
 use be_sdk_ui_database::cell_text;
 use be_type_database::database::{DatabaseRow, DatabaseValue, short_id};
@@ -46,7 +46,6 @@ pub fn ListView(data: Data) -> NodeId {
     let groups = visible_groups(data);
     let lines = create_memo(move || {
         let toggled = data.toggled.get();
-        let ids = data.row_ids.get();
         groups.with(|groups| {
             let mut lines = Vec::new();
             for group in groups {
@@ -56,12 +55,7 @@ pub fn ListView(data: Data) -> NodeId {
                 if group.closed != toggled.contains(&group.key) {
                     continue;
                 }
-                lines.extend(
-                    group
-                        .rows
-                        .iter()
-                        .filter_map(|index| ids.get(*index).copied().map(Line::Row)),
-                );
+                lines.extend(group.rows.iter().copied().map(Line::Row));
             }
             lines
         })
@@ -74,28 +68,80 @@ pub fn ListView(data: Data) -> NodeId {
             false => "No rows match the search.".to_owned(),
         },
     );
+    let moved = move |moved: ReorderMove<Line, ObjectId>| {
+        let row = Line::Row(moved.payload);
+        let (group, after) = lines.with_untracked(|lines| {
+            let rest: Vec<Line> = lines.iter().copied().filter(|line| *line != row).collect();
+            landing(&rest, moved.after, groups)
+        });
+        data.move_row(moved.payload, group, after);
+    };
+    let name = move |line: Line| match line {
+        Line::Row(row) => row_name(data, row),
+        Line::Header(_) => String::new(),
+    };
+    let preview = move |row: ObjectId| {
+        view! {
+            <Frame
+                width={Size::Custom(SIDE_PANEL_WIDTH)}
+                fill=ColorRole::Control
+                border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+                radius=Radius::Md
+                padding={Padding::symmetric(Space::Md, Space::Sm)}
+            >
+                <Text overflow=Overflow::Ellipsis>{row_name(data, row)}</Text>
+            </Frame>
+        }
+    };
     view! {
         <Frame fill=ColorRole::Background>
             <Container>|viewport: ReadSignal<Vec2>|
-                <Scroll @test_id={"database-view.list"}>
-                    <Frame padding={Padding::ZERO.bottom(Space::Xl3)}>
-                        <List spacing=Space::None>
-                            <Show condition={empty}>
-                                <Frame padding={Padding::symmetric(Space::Xl, Space::Lg)}>
-                                    <Text style=TextStyle::CAPTION>{blank}</Text>
-                                </Frame>
-                            </Show>
-                            <VirtualList keys={lines} item_size=LINE_HEIGHT>|line: ReadSignal<Line>|
-                                <AnyLine
-                                    data={data}
-                                    groups={groups}
-                                    line={line}
-                                    viewport={viewport}
-                                />
-                            </VirtualList>
-                        </List>
-                    </Frame>
-                </Scroll>
+                <Reorder
+                    keys={lines}
+                    payload={Func::new(|line: Line| match line {
+                        Line::Row(row) => Some(row),
+                        Line::Header(_) => None,
+                    })}
+                    disabled={create_memo(move || !data.reorderable.get())}
+                    long_press=true
+                    text={name}
+                    preview={preview}
+                    on_move={moved}
+                >|reorder: ReorderHandle<Line, ObjectId>|
+                    <Scroll @test_id={"database-view.list"}>
+                        <Frame padding={Padding::ZERO.bottom(Space::Xl3)}>
+                            <List spacing=Space::None>
+                                <Show condition={empty}>
+                                    <Frame padding={Padding::symmetric(Space::Xl, Space::Lg)}>
+                                        <Text style=TextStyle::CAPTION>{blank}</Text>
+                                    </Frame>
+                                </Show>
+                                <VirtualList
+                                    keys={reorder.order}
+                                    item_size=LINE_HEIGHT
+                                >|line: ReadSignal<Line>|
+                                    <ReorderItem
+                                        reorder
+                                        item={line}
+                                        radius=Radius::None
+                                        on_click={move || {
+                                            if let Line::Row(row) = line.get_untracked() {
+                                                data.select_row(row);
+                                            }
+                                        }}
+                                    >|_: ReorderItemHandle|
+                                        <AnyLine
+                                            data={data}
+                                            groups={groups}
+                                            line={line}
+                                            viewport={viewport}
+                                        />
+                                    </ReorderItem>
+                                </VirtualList>
+                            </List>
+                        </Frame>
+                    </Scroll>
+                </Reorder>
             </Container>
         </Frame>
     }
@@ -121,6 +167,44 @@ pub fn OpenRow(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
             }</Dynamic>
         </List>
     }
+}
+
+fn landing(
+    rest: &[Line],
+    after: Option<Line>,
+    groups: Memo<Vec<Group>>,
+) -> (GroupKey, Option<ObjectId>) {
+    let first =
+        || groups.with_untracked(|groups| groups.first().map_or(GroupKey::All, |group| group.key));
+    let Some(after) = after else {
+        return (first(), None);
+    };
+    let upto = rest
+        .iter()
+        .position(|line| *line == after)
+        .map_or(0, |at| at + 1);
+    let group = rest[..upto]
+        .iter()
+        .rev()
+        .find_map(|line| match line {
+            Line::Header(key) => Some(*key),
+            Line::Row(_) => None,
+        })
+        .unwrap_or_else(first);
+    let row = match after {
+        Line::Row(row) => Some(row),
+        Line::Header(_) => None,
+    };
+    (group, row)
+}
+
+pub fn row_name(data: Data, row: ObjectId) -> String {
+    let field = data.title_field.get_untracked();
+    let index = data
+        .row_index
+        .with_untracked(|indices| indices.get(&row).copied());
+    data.rows
+        .with_untracked(|rows| row_title(index.and_then(|index| rows.get(index)), field))
 }
 
 pub fn visible_groups(data: Data) -> Memo<Vec<Group>> {
@@ -351,13 +435,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>, viewport: ReadSignal<Vec2>) 
     let narrow = narrow_chrome();
     let wide = create_memo(move || !narrow.get());
     view! {
-        <ListRow
-            @node_ref=&shown
-            selected={selected}
-            @test_id={element_test_id}
-            on_click={pick}
-            on_activate={pick}
-        >
+        <ListRow @node_ref=&shown selected={selected} @test_id={element_test_id} on_activate={pick}>
             <List spacing=Space::None>
                 <Show condition={wide}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

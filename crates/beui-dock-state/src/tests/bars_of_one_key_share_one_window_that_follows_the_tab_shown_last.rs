@@ -69,7 +69,13 @@ fn bars_of_one_key_share_one_window_that_follows_the_tab_shown_last() {
     );
 
     let left = leaf_of(&state, 1);
-    state.drop_tab(TabId::new(3), DockDrop::Pane { leaf: left });
+    state.drop_tab(
+        TabId::new(3),
+        DockDrop::Tab {
+            leaf: left,
+            index: usize::MAX,
+        },
+    );
     state.show(TabId::new(3));
     assert_eq!(
         state.followed_bar(&shared),

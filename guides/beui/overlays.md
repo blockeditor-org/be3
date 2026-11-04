@@ -240,6 +240,14 @@ reveal button and reports `on_reveal` for the caller to expand. The file tree
 and the beui inspector are the full examples (row menus, renaming through
 `editing`, `TreeApi`).
 
+Given `reorder`, rows part to show where a dragged row would land. The tree
+does not carry the drag: whoever follows it (the tree's own `on_drag_move` and
+`on_drop`, or a host's block drag an app only hears as positions) hands each
+window point to `TreeApi::drag_over(Some(point), allow)`, which answers a
+`TreeDrop` (`Into(row)`, or `Among { parent, after }`, the shape of
+be-block-model's `Anchor`) and opens a gap for `Among`; `drag_end(settle)`
+closes it, or keeps it until the keys change. The file tree drags rows this way.
+
 ## Claiming presses
 
 `capture_presses` on `unstyled::Button` wins a press from a pressable surface

@@ -25,6 +25,7 @@ fn zoom_in_is_offered_on_every_row_even_one_with_nothing_inside() {
         add: true,
         delete: true,
         replace: true,
+        reorder: false,
     };
     fixture.test.catalog(Catalog {
         types: vec![

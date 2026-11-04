@@ -1,8 +1,12 @@
+use std::cell::Cell;
+use std::rc::Rc;
 use std::{cmp::Ordering, collections::HashMap};
 
-use be_sdk_beui::be_block::Edit;
-use be_sdk_beui::beui::Key;
-use be_sdk_beui::{BeuiRoot, Creation, EditorHost, be_sdk_ui::BlockLabel};
+use be_sdk_beui::be_block::{Edit, ObjectId};
+use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::Root;
+use be_sdk_beui::beui::{Key, PointerButton, Pos2, Vec2};
+use be_sdk_beui::{BeuiRoot, Creation, EditorHost, OwnedEditor, be_sdk_ui::BlockLabel};
 use be_sdk_database::DatabaseBlockPickRequest;
 use be_sdk_test::BeuiTest;
 use be_type_database::database::{Database, DatabaseColor, DatabaseContent, DatabaseValue};
@@ -12,11 +16,17 @@ use be_type_database::database_schema::{
 use be_type_database::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use uuid::Uuid;
 
+use crate::database_view::groups::GroupKey;
+use crate::database_view::root::data::{Data, ViewData};
+use crate::database_view::root::ui::EditorBody;
 use crate::database_view::root::{DatabaseViewRoot, value_block_filter};
 use crate::database_view::sort::{BlockLabels, compare_database_values};
 
 mod a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking;
 mod a_calendar_lays_rows_out_by_their_date_and_opens_one_clicked;
+mod a_card_carried_into_another_column_lands_where_its_gap_opened;
+mod a_card_carried_over_a_sorted_column_opens_its_gap_where_the_sort_puts_it;
+mod a_card_dragged_down_its_column_parts_the_cards_it_passes;
 mod a_filter_hides_the_rows_it_rejects;
 mod a_list_groups_rows_by_status_and_folds_the_closed_ones;
 mod a_list_shows_each_row_by_its_short_id_and_opens_it_beside_the_list;
@@ -27,13 +37,19 @@ mod a_phone_opens_a_row_below_the_list_and_keeps_it_in_view;
 mod a_prefix_is_listed_in_the_workspaces_prefixes_and_a_shared_one_says_so;
 mod a_relation_cell_shows_the_title_of_the_row_it_links_to;
 mod a_row_scrolled_into_a_reused_line_opens_the_row_it_shows;
+mod a_sorted_kanban_moves_cards_between_columns_but_not_within_one;
+mod a_sorted_view_refuses_manual_ordering;
+mod a_tie_in_a_sorted_column_lands_where_the_list_order_breaks_it;
 mod adding_a_page_links_a_new_text_block_to_the_row;
 mod arrow_keys_walk_the_spreadsheet_and_enter_steps_down;
 mod block_values_sort_by_resolved_label_then_reference;
 mod cards_sit_in_the_kanban_column_their_status_names;
 mod clicking_a_day_in_the_calendar_adds_a_row_on_it;
 mod dragging_a_kanban_card_moves_it_to_the_column_it_lands_in;
+mod dragging_a_list_row_moves_it_within_and_between_groups;
 mod filter_and_display_hangs_from_its_button_and_is_a_sheet_on_a_phone;
+mod moving_a_card_within_and_across_kanban_columns;
+mod moving_a_row_reorders_the_list_view;
 mod new_starts_a_row_and_typing_names_it;
 mod new_type_cells_render_and_a_boolean_cell_toggles;
 mod new_values_sort_by_their_typed_order;
@@ -50,9 +66,28 @@ struct Fixture {
     schema: Uuid,
     database: Uuid,
     fields: Vec<Uuid>,
+    data: Rc<Cell<Option<Data>>>,
 }
 
 impl Fixture {
+    fn data(&self) -> Data {
+        self.data
+            .get()
+            .expect("the fixture was opened with `viewed`")
+    }
+
+    fn row(&self, index: usize) -> ObjectId {
+        self.database().rows.get_index(index).unwrap().id
+    }
+
+    fn card(&self, index: usize) -> String {
+        format!("database-view.card.{}", self.row(index).as_uuid())
+    }
+
+    fn order(&self) -> Vec<ObjectId> {
+        self.database().rows.iter().map(|row| row.id).collect()
+    }
+
     fn run(&mut self) {
         self.harness.run();
     }
@@ -87,9 +122,60 @@ impl Fixture {
     fn edit_view(&mut self, edit: Edit) {
         self.harness.edit::<DatabaseViewContent>(None, &edit);
     }
+
+    fn lift(&mut self, from: Pos2, to: Pos2) {
+        self.harness.down(from, PointerButton::Primary);
+        self.harness.next_frame();
+        self.harness.hover(from + Vec2::new(0.0, 8.0));
+        self.harness.next_frame();
+        self.harness.hover(to);
+    }
+
+    fn put(&mut self, at: Pos2) {
+        self.harness.next_frame();
+        self.harness.up(at, PointerButton::Primary);
+        self.settle();
+    }
+}
+
+struct Board {
+    fixture: Fixture,
+    status: Uuid,
+    done: Uuid,
+}
+
+fn board(cards: &[(&str, bool)]) -> Board {
+    let mut fixture = viewed(&[
+        ("Status", DatabaseFieldType::Enum),
+        ("Name", DatabaseFieldType::String),
+    ]);
+    let (status, name) = (fixture.fields[0], fixture.fields[1]);
+    let todo = fixture.option(status, "To do");
+    let done = fixture.option(status, "Done");
+    for (index, (title, finished)) in cards.iter().enumerate() {
+        let state = if *finished { done } else { todo };
+        fixture.set(index, status, DatabaseValue::Enum(state));
+        fixture.set(index, name, DatabaseValue::String((*title).into()));
+    }
+    fixture.edit_view(DatabaseView::set_group_by(Some(status)));
+    fixture.edit_view(DatabaseView::set_kind(DatabaseViewKind::Kanban));
+    fixture.settle();
+    Board {
+        fixture,
+        status,
+        done,
+    }
 }
 
 fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
+    open(fields, false)
+}
+
+fn viewed(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
+    open(fields, true)
+}
+
+fn open(fields: &[(&str, DatabaseFieldType)], keep_data: bool) -> Fixture {
     let schema = Uuid::from_u128(0xdb_1001);
     let mut schema_content = DatabaseSchemaContent::default();
     let ids: Vec<Uuid> = fields
@@ -102,7 +188,26 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
         .collect();
     let database = Uuid::from_u128(0xdb_1002);
     let view = Uuid::from_u128(0xdb_1003);
-    let mut harness = BeuiTest::editing(view);
+    let host = EditorHost::default();
+    host.set_editable(true);
+    let owner = OwnedEditor::new(host.clone(), view);
+    let data = Rc::new(Cell::new(None::<Data>));
+    let mut harness = match keep_data {
+        false => BeuiTest::new(owner),
+        true => {
+            let editor = *owner;
+            let keep = Rc::clone(&data);
+            BeuiTest::with_view(owner, move || {
+                let data = ViewData::new(editor);
+                keep.set(Some(data));
+                view! {
+                    <Root>
+                        <EditorBody data={data} />
+                    </Root>
+                }
+            })
+        }
+    };
     harness.hold(None, DatabaseViewContent::new(&DatabaseView::of(database)));
     harness.hold(
         Some(database),
@@ -115,6 +220,7 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
         schema,
         database,
         fields: ids,
+        data,
     }
 }
 

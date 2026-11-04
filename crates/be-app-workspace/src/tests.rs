@@ -273,6 +273,7 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
         let from = self.text_rect(words).center();
         self.test.drag(from, to);
         self.settle();
+        self.test.settle();
     }
 
     fn show_history(&mut self) {
@@ -518,6 +519,7 @@ fn catalog() -> be_sdk_beui::Catalog {
                 add: holds,
                 delete: holds,
                 replace: holds,
+                reorder: holds,
             },
             press: be_sdk_api::Press::Open,
             plain_file: false,

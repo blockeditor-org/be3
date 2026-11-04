@@ -154,7 +154,8 @@ in a padded surface `bleed` so a ring at its edge has room. beui-demo's
 this way). It is beui's `testing::Stepped` (guides/beui/core.md, Test and verify changes), running the real `Runner`
 with drive's gestures and a frame clock. `click` and `scroll` reveal their target first and
 then move the pointer out of the window, so a painting shows hover only where the test hovers.
-`settle()` never finishes on a page that animates forever, such as a spinner.
+`settle()` never finishes on a page that animates forever, such as a spinner. `record()` keeps
+the current frame for a recording, as an editor's does.
 
 ### Browser pages
 

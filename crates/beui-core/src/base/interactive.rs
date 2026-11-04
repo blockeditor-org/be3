@@ -45,6 +45,7 @@ pub struct InteractiveNode {
     pub on_middle_click: ClickCallback,
     pub on_press: Callback<PointerPress>,
     pub on_secondary_press: Callback<PointerPress>,
+    pub on_long_press_drag: Callback<PointerPress>,
     pub on_drag: Callback<PointerPress>,
     pub on_pointer: Callback<PointerInput, bool>,
     pub on_wheel: Callback<WheelInput, bool>,
@@ -96,6 +97,7 @@ impl InteractiveNode {
             on_middle_click: ClickCallback::empty(),
             on_press: Callback::empty(),
             on_secondary_press: Callback::empty(),
+            on_long_press_drag: Callback::empty(),
             on_drag: Callback::empty(),
             on_pointer: Callback::empty(),
             on_wheel: Callback::empty(),
@@ -129,6 +131,7 @@ impl InteractiveNode {
     pub fn holds_presses(&self) -> bool {
         self.takes_presses()
             || !self.on_drag.is_empty()
+            || !self.on_long_press_drag.is_empty()
             || !self.on_cancel.is_empty()
             || !self.on_active_change.is_empty()
             || !matches!(self.captures, Area::Nowhere | Area::Whole)
@@ -303,6 +306,7 @@ impl Element for InteractiveNode {
             (self.on_pointed_change.is_empty(), "pointed"),
             (self.on_active_change.is_empty(), "active"),
             (self.on_drag.is_empty(), "drag"),
+            (self.on_long_press_drag.is_empty(), "long press drag"),
             (self.on_pointer.is_empty(), "pointer"),
             (self.on_wheel.is_empty(), "wheel"),
             (self.on_forward.is_empty(), "forward"),

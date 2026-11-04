@@ -112,6 +112,7 @@ pub struct Document {
     modifiers: ::beui_reactive::OwnedSignal<Modifiers>,
     intercepted_keys: ::beui_reactive::OwnedSignal<Vec<KeyChord>>,
     pub(crate) press_claimants: HashSet<NodeId>,
+    raised: HashSet<NodeId>,
     pub(crate) drawing_surfaces: HashSet<NodeId>,
     pub(crate) every_sample_surfaces: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
@@ -356,6 +357,7 @@ impl Document {
             modifiers: ::beui_reactive::OwnedSignal::new(Modifiers::NONE),
             intercepted_keys: ::beui_reactive::OwnedSignal::new(Vec::new()),
             press_claimants: HashSet::default(),
+            raised: HashSet::default(),
             drawing_surfaces: HashSet::default(),
             every_sample_surfaces: HashSet::default(),
             outside_watchers: HashSet::default(),
@@ -1192,6 +1194,7 @@ impl Document {
         self.placed_children.remove(&id);
         self.placed_pass.remove(&id);
         self.press_claimants.remove(&id);
+        self.raised.remove(&id);
         self.drawing_surfaces.remove(&id);
         self.every_sample_surfaces.remove(&id);
         self.outside_watchers.remove(&id);
@@ -2000,6 +2003,23 @@ impl Document {
             .rev()
             .find_map(|state| state.downcast_ref::<T>())
             .unwrap_or_else(|| panic!("component has no {} state", std::any::type_name::<T>()))
+    }
+
+    pub fn set_raised(&mut self, node: NodeId, raised: bool) {
+        let changed = match raised {
+            true => self.raised.insert(node),
+            false => self.raised.remove(&node),
+        };
+        if !changed || !self.arena.contains(node) {
+            return;
+        }
+        if let Some(parent) = self.arena.parent(node) {
+            self.arena.repaint_node(parent);
+        }
+    }
+
+    pub fn is_raised(&self, node: NodeId) -> bool {
+        !self.raised.is_empty() && self.raised.contains(&node)
     }
 
     /// Runs `report` after the layout walk. Reports run together, and whatever they

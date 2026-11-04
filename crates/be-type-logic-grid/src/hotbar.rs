@@ -115,7 +115,7 @@ impl Root for Hotbar {
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         match change {
-            ChildChange::Add(_) => None,
+            ChildChange::Add(_) | ChildChange::Reorder { .. } => None,
             ChildChange::Delete(old) => Some(self.unpin(old)),
             ChildChange::Replace { old, new } => Some(
                 self.pinning(old)

@@ -50,8 +50,9 @@ fn a_tab_hosting_one_bare_pane_stays_locked_in_its_area() {
         state.is_tab_locked(TabId::new(2)),
         "and keeps that tab locked where it was"
     );
-    let files = DockDrop::Pane {
+    let files = DockDrop::Tab {
         leaf: leaf_of(&state, 1),
+        index: usize::MAX,
     };
     assert!(
         !state.admits(Entry::Group(group), files),
