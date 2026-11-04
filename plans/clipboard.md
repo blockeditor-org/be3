@@ -113,9 +113,13 @@ where conventions compete, pick the better one. Never ask with a menu.
 - The text core, canvas and hex view move onto their formats; the canvas
   prefix and the core's cache go.
 
+## Decided
+
+- A whole line (`Lines`) pastes at the start of the cursor's line, above it,
+  and the cursor stays where it was: today's behaviour, kept.
+- The drop action for each source and target is the implementer's to choose,
+  by the rule in Drag and drop.
+
 ## Open
 
-- A whole line pastes above the cursor's line today (VS Code); vim puts it
-  below. Which?
-- The drop action for each source and target, following the conventions.
 - Whether the first text fragment carries rich text's marks.
