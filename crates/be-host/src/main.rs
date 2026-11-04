@@ -14,6 +14,8 @@ mod local_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
 mod members;
+#[cfg(target_os = "linux")]
+mod memory;
 mod root_settings;
 mod shell_route;
 mod surfaces;
@@ -943,6 +945,7 @@ impl HostCore {
         be_host_base::watches::publish::<be_sdk_api::SuperKeptWatch>(&true);
         #[cfg(target_os = "linux")]
         {
+            memory::start();
             self.start_screen_lock();
             if self.notifications.is_none() {
                 self.notifications = Some(notifications::Notifications::start());

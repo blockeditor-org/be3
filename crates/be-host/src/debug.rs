@@ -1,6 +1,8 @@
 mod apps;
 mod client;
 
+pub(crate) use apps::bytes;
+
 use std::{cell::RefCell, collections::HashMap};
 
 use be_sdk_api::HostPanel;
@@ -17,7 +19,13 @@ fn is_shown(panel: HostPanel) -> bool {
 
 pub(crate) fn panel_shown(panel: HostPanel) {
     SHOWN.with(|shown| *shown.borrow_mut().entry(panel).or_default() += 1);
+    watch_memory();
     be_host_base::host::request_repaint();
+}
+
+fn watch_memory() {
+    #[cfg(target_os = "linux")]
+    crate::memory::watch(is_shown(HostPanel::Performance));
 }
 
 pub(crate) fn panel_hidden(panel: HostPanel) {
@@ -30,6 +38,7 @@ pub(crate) fn panel_hidden(panel: HostPanel) {
             }
         }
     });
+    watch_memory();
 }
 
 pub(crate) fn command(command: DebugCommand) {
@@ -46,6 +55,12 @@ pub(crate) fn view() -> DebugView {
     DebugView {
         client: is_shown(HostPanel::BlockStack).then(client::lines),
         performance: is_shown(HostPanel::Performance).then(be_host_base::performance::rows),
+        #[cfg(target_os = "linux")]
+        memory: is_shown(HostPanel::Performance)
+            .then(crate::memory::view)
+            .flatten(),
+        #[cfg(not(target_os = "linux"))]
+        memory: None,
         apps: is_shown(HostPanel::Apps).then(apps::view),
     }
 }

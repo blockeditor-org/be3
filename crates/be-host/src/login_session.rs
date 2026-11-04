@@ -16,7 +16,7 @@ pub(crate) use environment::export as export_environment;
 pub(crate) use install::{apply_elevated as apply_install_changes, install, uninstall};
 use lock::{Authenticate, Lock, Verdict};
 pub(crate) use lock::{LockState, Trigger};
-pub(crate) use log::start_log;
+pub(crate) use log::{start_log, state_directory};
 use logind::Logind;
 pub(crate) use logind::LogindEvent;
 pub(crate) use power::Power;

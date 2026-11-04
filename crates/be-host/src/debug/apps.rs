@@ -258,7 +258,7 @@ fn size(size: Vec2) -> String {
     format!("{:.0}x{:.0}", size.x, size.y)
 }
 
-fn bytes(count: u64) -> String {
+pub(crate) fn bytes(count: u64) -> String {
     const UNITS: [&str; 4] = ["B", "KiB", "MiB", "GiB"];
     let mut amount = count as f64;
     let mut unit = 0;

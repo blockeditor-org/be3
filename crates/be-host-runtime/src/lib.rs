@@ -33,6 +33,10 @@ mod web;
 mod windows;
 mod wire;
 
+/// Each running wasm guest, apps and type modules alike, by the name its thread has (`app ID` for
+/// an app), with the bytes of linear memory it holds.
+#[cfg(not(target_arch = "wasm32"))]
+pub use be_wasm_host::memories as wasm_memories;
 pub use description::describe;
 pub use input::BlockDrag;
 pub use instances::EditorView;
