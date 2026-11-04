@@ -174,7 +174,7 @@ pane named after the app, and calls back `node-action` and `run-action`.
 
 ## Holding the pointer and sound
 
-`unstyled::PointerLock` asks the host (`WindowRequests::pointer_locked`) to
+`unstyled::PointerLock` (guides/beui/components.md) asks the host (`WindowRequests::pointer_locked`) to
 hide and hold the pointer while the editor reads motion (the scene_3d
 editor). The host holds it while any screen asks, so a closed instance cannot
 leave it trapped.

@@ -29,7 +29,7 @@ This guide is the how-to for writing one. The rest is under `guides/apps/`:
 Related: [app_libraries.md](app_libraries.md) (linking and the raw ABI),
 [type_modules.md](type_modules.md) (the module that holds a block type's
 replicas), [adding_a_block.md](adding_a_block.md) (the block type),
-[beui/programs.md](beui/programs.md) (beui inside an app).
+[beui/programs.md](beui/programs.md#beui-in-an-app) (beui inside an app).
 
 ## 1. The block type
 
@@ -146,8 +146,9 @@ block in an in-process type module as the host does. It drives the app with
 the same gestures as beui's `testing::Harness` (click, drag, type_text, key,
 ...), prints the drive steps on failure, and reads back what the app asked of
 the host. Its snapshot is what beui's renderer would hand the GPU, so no
-driver changes it; GPU drawing behind `draw_gpu` is not in it, so a test of a
-GPU-drawn editor asserts on the block and the chrome around it.
+driver changes it; GPU drawing behind `draw_gpu` (guides/beui/components.md,
+Drawing with the gpu) is not in it, so a test of a GPU-drawn editor asserts on
+the block and the chrome around it.
 
 A test only records the children an editor places; how the host runs,
 promotes and hands back children is tested against be-host in
