@@ -14,6 +14,11 @@ async fn password_hashing_refuses_past_its_queue_and_each_addresss_share() {
     assert!(passwords.admit("2001:db8::2").is_err());
     assert_eq!(address_key("2001:db8::2"), address_key("2001:db8::1"));
     assert_eq!(address_key("::ffff:192.0.2.1"), "192.0.2.1");
+    assert_eq!(
+        address_key("2001:db8::1"),
+        "2001:db8:0:0::/64",
+        "account_mail stores this spelling"
+    );
     let mut others = Vec::new();
     for index in 0..PASSWORD_CHECKS_AT_ONCE + PASSWORD_CHECKS_WAITING - mine.len() {
         others.push(

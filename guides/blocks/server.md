@@ -105,7 +105,9 @@ has nothing to send).
     loop, which also closes sessions whose token was revoked.
   - A connection without an account is closed `sign_in_timeout`
     (`ServerConfig`) after its greeting or logout, unless it waits on a browser
-    sign-in, until that expires. Pending browser sign-ins and portal form
+    sign-in, until that expires. Clients connect only to authenticate or to
+    begin a browser sign-in at once (`be_host_stack::link`, `accounts.rs`), so
+    the deadline never closes a connection be-host keeps. Pending browser sign-ins and portal form
     tokens are bounded per address (`PENDING_PER_ADDRESS`,
     `FORMS_PER_ADDRESS`; another lets go of the address's oldest), and one
     call waits on a code at a time.

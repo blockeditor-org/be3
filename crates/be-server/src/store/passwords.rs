@@ -44,20 +44,17 @@ fn busy() -> ServerError {
     )
 }
 
-/// The part of a client's address limits count by: the address itself, or
-/// for IPv6 its /64, which one host or network usually holds whole.
+/// The part of a client's address limits count by ([`crate::address::address_key`]), spelled
+/// as `account_mail.address` stores it: the IPv4 address, or an IPv6 /64 as `a:b:c:d::/64`.
 pub fn address_key(address: &str) -> String {
-    match address.parse::<IpAddr>() {
-        Ok(IpAddr::V6(v6)) => match v6.to_ipv4_mapped() {
-            Some(v4) => v4.to_string(),
-            None => {
-                let segments = v6.segments();
-                format!(
-                    "{:x}:{:x}:{:x}:{:x}::/64",
-                    segments[0], segments[1], segments[2], segments[3]
-                )
-            }
-        },
+    match address.parse::<IpAddr>().map(crate::address::address_key) {
+        Ok(IpAddr::V6(v6)) => {
+            let segments = v6.segments();
+            format!(
+                "{:x}:{:x}:{:x}:{:x}::/64",
+                segments[0], segments[1], segments[2], segments[3]
+            )
+        }
         Ok(IpAddr::V4(v4)) => v4.to_string(),
         Err(_) => address.to_owned(),
     }
