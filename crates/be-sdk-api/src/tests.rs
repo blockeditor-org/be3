@@ -55,6 +55,7 @@ fn anchored_report(screen: ScreenId, placement: AnchoredPlacement) -> FrameRepor
         description: None,
         anchored: Some(placement),
         work_area: None,
+        backdrop: None,
     }
 }
 

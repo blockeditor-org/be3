@@ -19,6 +19,7 @@ fn report(instances: &mut Instances, view: ViewId, content: Option<be_sdk_api::I
         description: None,
         anchored: None,
         work_area: None,
+        backdrop: None,
     }]);
 }
 

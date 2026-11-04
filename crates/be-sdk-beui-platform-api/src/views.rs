@@ -44,6 +44,10 @@ pub struct Report {
     pub claims: Vec<Claim>,
     pub work_area: Option<Rect>,
     pub fitted: Option<Vec2>,
+    /// The view leaves holes that show what is behind it (an editor that took its placer's frame
+    /// shows the placer's world around its content), so the host must not back it with its
+    /// clear color.
+    pub shows_through: bool,
 }
 
 #[derive(Default)]

@@ -154,6 +154,8 @@ pub struct Frame {
     pub asks: Vec<be_sdk_api::WindowRequest>,
     pub anchored: Vec<Anchored>,
     pub fitted: Option<Vec2>,
+    /// The opaque color the view is cleared to; see `FrameReport::backdrop`.
+    pub backdrop: Option<be_sdk_api::accessibility::Color>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

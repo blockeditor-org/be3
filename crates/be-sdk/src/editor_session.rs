@@ -1007,6 +1007,7 @@ impl EditorSession {
                 work_area: frame
                     .work_area
                     .map(|area| be_sdk_api::Insets::between(host, area)),
+                backdrop: frame.backdrop,
             });
         }
         frame

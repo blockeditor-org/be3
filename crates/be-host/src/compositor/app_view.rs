@@ -1076,9 +1076,12 @@ pub(crate) fn AppView(
             <Layers>{panels}{overlaid}</Layers>
         }
     });
+    let backdrop_radius = create_memo(move || corner_radius.map_or(0.0, |radius| radius.get()));
+    let upright = create_memo(move || rotation.get() == 0.0 && opacity.get() >= 1.0);
     let built = view! {
         <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
             <Layers>
+                <Backdrop state radius={backdrop_radius} upright />
                 <ViewChildren state={state} rect={rect} nodes={children} below=true />
                 <Interactive
                     @node_ref={&catcher}
@@ -1123,6 +1126,46 @@ pub(crate) fn AppView(
     };
     on_back(handles_back, back);
     built
+}
+
+/// Fills the view with the color its app clears it to, under its children: space the app leaves
+/// for a child shows that color, never what is behind the view, before the child draws there and
+/// after it goes. A turned or faded view gets none, which would show through it twice.
+#[component]
+fn Backdrop(state: Memo<PlacedView>, radius: Memo<f32>, upright: Memo<bool>) -> NodeId {
+    let backdrop = create_memo(move || {
+        let color = state.with(|view| view.backdrop)?;
+        upright.get().then(|| {
+            state.with(|view| {
+                let shown = view
+                    .rect
+                    .intersect(view.clip)
+                    .translate(-view.rect.min.to_vec2());
+                (shown, color)
+            })
+        })
+    });
+    let rect = create_memo(move || backdrop.get().map_or(Rect::ZERO, |(rect, _)| rect));
+    let fill = create_memo(move || {
+        ColorRole::Custom(beui::color::Color::literal(
+            backdrop
+                .get()
+                .map_or(beui::color::Color32::TRANSPARENT, |(_, color)| color),
+        ))
+    });
+    view! {
+        <Canvas>
+            <CanvasItem
+                x={create_memo(move || rect.get().min.x)}
+                y={create_memo(move || rect.get().min.y)}
+                width={create_memo(move || rect.get().width().max(0.0))}
+                height={create_memo(move || rect.get().height().max(0.0))}
+                pointer=false
+            >
+                <Frame fill={fill} radius={create_memo(move || Radius::Custom(radius.get()))} />
+            </CanvasItem>
+        </Canvas>
+    }
 }
 
 #[component]

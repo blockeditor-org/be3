@@ -2848,6 +2848,9 @@ pub struct PlacedView {
     pub every_sample: bool,
     pub work_area: Option<Rect>,
     pub used: Option<Vec2>,
+    /// The opaque color the app clears the view to, which the host fills the view with under
+    /// its children (`FrameReport::backdrop`).
+    pub backdrop: Option<beui::color::Color32>,
 }
 
 impl PlacedView {
@@ -2880,6 +2883,7 @@ impl PlacedView {
             every_sample: false,
             work_area: None,
             used: None,
+            backdrop: None,
         }
     }
 
@@ -3034,7 +3038,7 @@ fn shown_view(
                         .iter()
                         .map(|scrim| beui::layer::Scrim {
                             rect: scrim.rect.translate(rect.min.to_vec2()),
-                            color: scrim_color(&scrim.color),
+                            color: reported_color(&scrim.color),
                             radius: scrim.radius,
                         })
                         .collect()
@@ -3135,6 +3139,9 @@ fn shown_view(
                 .and_then(|report| report.work_area)
                 .map(|insets| insets.inside(Rect::from_min_size(Pos2::ZERO, rect.size()))),
             used: runtime.instances.view_size(instance, region),
+            backdrop: report
+                .and_then(|report| report.backdrop.as_ref())
+                .map(reported_color),
         }
     }
 }
@@ -3338,7 +3345,7 @@ pub(super) fn with<R>(app_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> Opti
     })
 }
 
-pub(crate) fn scrim_color(color: &be_sdk_api::accessibility::Color) -> beui::color::Color32 {
+pub(crate) fn reported_color(color: &be_sdk_api::accessibility::Color) -> beui::color::Color32 {
     beui::color::Color32::from_rgba_unmultiplied(color.red, color.green, color.blue, color.alpha)
 }
 

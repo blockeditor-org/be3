@@ -575,10 +575,12 @@ impl ModuleRunner {
         let id = region.id();
         let window = self.windows.get(&id).copied();
         let output = self.runner.output();
+        let mut backdrop = None;
         if let Some(output) = window.and_then(|window| output?.window(window)) {
             let surface = surfaces.of(id);
             let by = surface.visible * ratio;
             note(surface, output, by);
+            backdrop = opaque(output.window.appearance.clear_color);
         }
         let held = self.escaped.entry(id).or_default();
         match window {
@@ -591,6 +593,7 @@ impl ModuleRunner {
         }
         let anchored = escaped::report(held, region.view.id, ratio);
         let report = self.views.take_report(id);
+        let backdrop = backdrop.filter(|_| !report.shows_through);
         let to_region = |rect: Rect| rect.scaled(ratio.recip());
         let fitted = report
             .fitted
@@ -629,6 +632,7 @@ impl ModuleRunner {
             description: region.describe.map(|_| self.describe(id, region, ratio)),
             anchored,
             fitted,
+            backdrop,
             ..Frame::default()
         }
     }
@@ -948,3 +952,14 @@ impl Regions for ModuleRunner {
 
 #[cfg(test)]
 mod tests;
+
+/// A view cleared to an opaque color is backed by it on the host (`FrameReport::backdrop`).
+fn opaque(clear: beui_types::Color32) -> Option<be_sdk_api::accessibility::Color> {
+    let [red, green, blue, alpha] = clear.to_array();
+    (alpha == u8::MAX).then_some(be_sdk_api::accessibility::Color {
+        red,
+        green,
+        blue,
+        alpha,
+    })
+}
