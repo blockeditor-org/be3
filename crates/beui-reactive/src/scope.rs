@@ -60,6 +60,8 @@ impl Default for Owner {
     }
 }
 
+/// A target many scopes register with through `on_release`, which allocates nothing per
+/// registration. beui queues a node's removal this way for every node a scope owns.
 pub trait Release {
     fn release(&self, key: u64);
 }
@@ -140,6 +142,16 @@ impl Owner {
     }
 }
 
+/// An owning handle to a scope: dropping it disposes the scope, its children, and the
+/// signals, memos, effects, cleanups and nodes it owns. Disposal is idempotent, and a
+/// child is disposed with its parent even while a handle to it is alive.
+///
+/// - `new` opens a child of the current scope, also disposed with it.
+/// - `detached` opens one under the current scope (it reads its context and pauses with
+///   it) that only this value disposes: keep it in a `store` or a map entry where its
+///   lifetime belongs, as control flow and `KeyedItems` do.
+/// - `root` opens one under no scope, reading no context, for state that belongs to a whole
+///   tree.
 pub struct Scope {
     owner: Rc<Owner>,
     gate: Option<Rc<Gate>>,
@@ -186,10 +198,15 @@ impl Scope {
         }
     }
 
+    /// Lets `pause` hold back the effects under this scope. Call before anything is created
+    /// in it. Memos are not paused, but compute only when read. An effect already woken when
+    /// the scope pauses still runs, so the write that hides a subtree reaches it.
     pub fn pausable(self) -> Self {
         self.gated(false)
     }
 
+    /// A paused scope whose bindings keep running: a `Loading` boundary keeps its hidden
+    /// content in one, so the tree builds while effects wait for the reveal.
     pub fn pausable_effects(self) -> Self {
         self.gated(true)
     }
@@ -220,6 +237,8 @@ impl Scope {
         }
     }
 
+    /// Queues each effect that was woken while paused to run once at the next flush, with the
+    /// values as they are then.
     pub fn resume(&self) {
         let gate = self
             .gate
@@ -242,6 +261,8 @@ impl Scope {
         crate::runtime::wake_if_pending();
     }
 
+    /// Runs `f` in this scope as an entry: when the outermost entry ends, queued effects run.
+    /// Panics if the scope is disposed. A panic in `f` flushes nothing while unwinding.
     pub fn run<T>(&self, f: impl FnOnce() -> T) -> T {
         assert!(!self.is_disposed(), "reactive scope was disposed");
         let _context = Context::enter(no_computation(), Rc::downgrade(&self.owner));
@@ -260,11 +281,16 @@ impl Scope {
         ScopeContext(Rc::downgrade(&self.owner))
     }
 
+    /// Runs now the queued effects owned by this scope and those under it, leaving every other
+    /// effect queued. A node building its own subtree during layout relies on this.
     pub fn flush_owned(&self) {
         flush_within(&self.owner);
     }
 }
 
+/// Makes a detached scope current until dropped, so a test or constructor can create
+/// signals with no scope around it. `into_scope` stops it being current and hands back the
+/// `Scope` to keep. Not an entry: dropping it flushes nothing.
 pub struct RootScope {
     _context: Context,
     _scope: Scope,
@@ -292,6 +318,8 @@ impl Default for RootScope {
     }
 }
 
+/// A weak handle to a scope, owning nothing: entering it again later, or opening a child
+/// under it (`child`, `None` once it is gone), keeps what was provided above it reachable.
 #[derive(Clone)]
 pub struct ScopeContext(Weak<Owner>);
 
@@ -319,6 +347,8 @@ impl ScopeContext {
     }
 }
 
+/// Runs `f` in a new child that lives exactly as long as the current scope. Every
+/// `#[component]` runs in one. Panics with no current scope, since nothing would dispose it.
 pub fn child_scope<T>(f: impl FnOnce() -> T) -> (T, ScopeContext) {
     let parent = current_owner();
     let owner = open_owner(Some(parent.clone()));
@@ -332,6 +362,9 @@ pub fn current_scope() -> Option<ScopeContext> {
     context.is_alive().then_some(context)
 }
 
+/// Inside a computation the current scope is its execution scope, thrown away on every
+/// rerun; this is the scope that created the computation instead (or the current scope
+/// when none is running), for state that must survive reruns.
 pub fn owner_scope() -> Option<ScopeContext> {
     RUNTIME.with(|runtime| {
         let observer = runtime.observer.borrow().upgrade();
@@ -361,6 +394,9 @@ impl Drop for Scope {
     }
 }
 
+/// Runs `cleanup` when the current scope is disposed, or before the computation that
+/// registered it reruns. Cleanups run in reverse order, untracked; all run even if one
+/// panics, and the first panic propagates unless already unwinding.
 pub fn on_cleanup(cleanup: impl FnOnce() + 'static) {
     current_owner().add(Cleanup::Run(Box::new(cleanup)));
 }
@@ -369,6 +405,9 @@ pub fn on_release(target: Rc<dyn Release>, key: u64) {
     current_owner().add(Cleanup::Release(target, key));
 }
 
+/// Stores `value` on the current scope, keyed by its type, so use a wrapper type per
+/// concern. `view!` builds a tag's children before its body runs, so a provider takes the
+/// subtree it covers as a render prop and calls it after providing.
 pub fn provide_context<T: 'static>(value: T) {
     current_owner()
         .contexts
@@ -376,6 +415,9 @@ pub fn provide_context<T: 'static>(value: T) {
         .insert(TypeId::of::<T>(), Rc::new(value));
 }
 
+/// The nearest value provided on this scope or its owners. A computation's execution scope
+/// is parented to the scope that created it, so effects that build later see the same
+/// values.
 pub fn use_context<T: Clone + 'static>() -> Option<T> {
     let mut owner = RUNTIME.with(|runtime| {
         runtime

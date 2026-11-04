@@ -7,6 +7,9 @@ use crate::{
     use_context,
 };
 
+/// Why a `Ready` value is not there yet. Data that may not have arrived is a `Ready<T>`, so
+/// a memo derives from it with `?` and no `Option` or `loaded` flag sits beside it
+/// (decisions/loading_state_is_ready_and_waits_at_a_boundary.md).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Pending {
     Loading,
@@ -24,6 +27,9 @@ struct Waits {
     revealed: Cell<bool>,
 }
 
+/// What a `Loading` component provides: it collects the waits registered under it and
+/// reveals its content once none is pending, after which nothing registers with it again.
+/// An inner boundary keeps its content's waits from the outer one.
 #[derive(Clone, Copy)]
 pub struct Boundary {
     changed: Signal<u64>,
@@ -118,6 +124,9 @@ fn settle(states: impl Iterator<Item = Ready<()>>) -> Ready<()> {
     settled
 }
 
+/// Makes the nearest boundary wait while `probe` is pending. The wait lasts as long as the
+/// current scope, so a source a binding caches across reruns is made in a scope kept with
+/// it, not in the binding's own, which the next run drops.
 pub fn wait_for(probe: impl Fn() -> Ready<()> + 'static) {
     if let Some(boundary) = Boundary::current() {
         boundary.add_scoped(Rc::new(probe));
@@ -133,6 +142,8 @@ pub fn wait_while<A: ?Sized + 'static>(alive: Weak<A>, probe: impl Fn() -> Ready
     }
 }
 
+/// The last `T` the source was (`T::default()` before the first), waiting on the nearest
+/// boundary until it arrives. A `Memo<Ready<T>>` handed to a `Prop<T>` is held this way.
 pub fn hold<T, S>(source: S) -> Memo<T>
 where
     T: Clone + PartialEq + Default + 'static,
