@@ -190,3 +190,6 @@ pub struct Files {
 impl ClipFormat for Files {
     const FORMAT: &'static str = formats::FILES;
 }
+
+#[cfg(test)]
+mod tests;
