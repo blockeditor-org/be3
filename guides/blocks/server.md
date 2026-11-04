@@ -159,7 +159,8 @@ with no bytes moving either way, so a large post on a slow link goes through.
   it: its value on opening, then again whenever the payer's `account_usage` row
   changes (`ServerStore::usage_changes`, a broadcast of payers each connection
   following its own filters; one that falls `USAGE_CHANGES_QUEUED` behind reads
-  again). The first time a server opens data
+  again). It needs an organization open, and a connection keeps one: opening
+  another ends the first. The first time a server opens data
   kept before these tables, `usage::backfill` fills them once
   (`server_backfills`), and counts objects on disk that nothing holds as
   uploads by nobody.

@@ -30,6 +30,17 @@ async fn a_publish_pushes_the_new_storage_usage_to_its_payer() {
         }
     }
 
+    let mut again = client::account::storage_changed(&client.peer);
+    assert_eq!(
+        again.recv().await.map(|usage| usage.held),
+        Some(held),
+        "a second stream opens with the usage too"
+    );
+    assert!(
+        usage.recv().await.is_none(),
+        "a connection keeps one storage stream: opening another ends the first"
+    );
+
     let mut stranger = harness.client().await;
     let mut refused = client::account::storage_changed(&stranger.peer);
     assert!(
@@ -37,5 +48,14 @@ async fn a_publish_pushes_the_new_storage_usage_to_its_payer() {
         "a connection that has not signed in is refused"
     );
     stranger.round_trip().await;
+
+    let mut unopened = harness.client().await;
+    unopened.register("unopened@example.com").await;
+    let mut refused = client::account::storage_changed(&unopened.peer);
+    assert!(
+        refused.recv().await.is_none(),
+        "an account with no organization open is refused, not left waiting"
+    );
+    unopened.round_trip().await;
     harness.stop().await;
 }
