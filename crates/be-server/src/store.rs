@@ -268,7 +268,10 @@ impl ServerStore {
         address: &str,
     ) -> Result<(Profile, String), ServerError> {
         let email = normalize_email(email)?;
-        if let Some(wait) = self.passwords.locked_out(&email, address, Instant::now()) {
+        if let Some(wait) = self
+            .passwords
+            .locked_out(&email, address, false, Instant::now())
+        {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidCredentials,
                 format!(
@@ -301,7 +304,7 @@ impl ServerStore {
                 "no account matches those credentials".into(),
             ));
         };
-        self.passwords.succeeded(&email, address);
+        self.passwords.succeeded(&email, address, Instant::now());
         let account = parse_uuid(&id)?;
         self.with_database(move |_, database| {
             let transaction = database.unchecked_transaction()?;
