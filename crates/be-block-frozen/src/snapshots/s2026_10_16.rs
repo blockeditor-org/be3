@@ -28,5 +28,6 @@ pub const SNAPSHOT: Snapshot = Snapshot {
     holiday: "c5b909e5-c063-4f89-b14d-f5c7ae4349b1",
     holiday_note: "01a14473-801a-7262-a99c-83954dd1673d",
     recipes: "01a14473-8023-75a0-a00c-d6025a968c98",
+    usage: None,
     files: include_bytes!("2026_10_16.zip"),
 };

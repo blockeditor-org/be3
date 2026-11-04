@@ -42,6 +42,19 @@ struct Written {
     link_code: InviteCode,
     invite_code: InviteCode,
     blocks: Vec<(&'static str, Uuid)>,
+    usage: Usage,
+}
+
+/// What the server counted of the scene's storage, and the invite codes, as `snapshots::Usage`.
+struct Usage {
+    used_invite: String,
+    unused_invite: String,
+    agent_note: Uuid,
+    owner_held: u64,
+    owner_pending: u64,
+    my_files_tree_size: u64,
+    team_size: u64,
+    team_tree_size: u64,
 }
 
 fn main() -> Result<(), String> {
@@ -266,6 +279,9 @@ async fn set_policies(owner: &Peer<MemoryStore>) -> Result<(), String> {
     let mut policies = OrganizationPoliciesContent::default();
     policies.apply(&OrganizationPolicies::set_outside_sharing(Some(
         Allowance::Blocked,
+    )));
+    policies.apply(&OrganizationPolicies::set_storage_quota(Some(
+        scene::STORAGE_QUOTA,
     )));
     owner
         .save(block, &policies, None)
@@ -595,6 +611,19 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         .share(team, agent.account, Access::Edit, &agent_public)
         .await
         .map_err(text)?;
+    let agent_peer = Peer::connect(
+        PeerConfig::new(
+            &socket,
+            agent_phrase.secret(),
+            Credentials::Token(agent_token.clone()),
+        )
+        .organization(Some(organization)),
+        MemoryStore::new(),
+    )
+    .await
+    .map_err(text)?;
+    let agent_note = text_block(&agent_peer, team, scene::AGENT_NOTE).await?;
+    drop(agent_peer);
 
     owner
         .set_role(editor.account(), OrganizationRole::Editor)
@@ -731,6 +760,48 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     ))
     .await?;
 
+    ask(client::objects::put_objects(
+        &owner.connection(),
+        vec![scene::PENDING_UPLOAD.to_vec()],
+    ))
+    .await?;
+    let (used_invite, _) =
+        be_server::store::invite_codes::create(data, Some(1), None).map_err(text)?;
+    let (unused_invite, _) =
+        be_server::store::invite_codes::create(data, Some(1), None).map_err(text)?;
+    let store = be_server::ServerStore::open(data).map_err(text)?;
+    let link = store
+        .registration_link(
+            scene::REGISTERED_EMAIL,
+            scene::REGISTERED_NAME,
+            scene::REGISTERED_PASSWORD,
+            &used_invite,
+            "",
+            "127.0.0.1",
+        )
+        .await
+        .map_err(text)?;
+    store
+        .confirm_mail(&link.token, None, "127.0.0.1")
+        .await
+        .map_err(text)?;
+    let storage = ask(client::account::storage_usage(&owner.connection())).await?;
+    let size = |block: Uuid| {
+        let owner = &owner;
+        async move { owner.summary(block).await.map_err(text) }
+    };
+    let team_summary = size(team).await?;
+    let usage = Usage {
+        used_invite,
+        unused_invite,
+        agent_note,
+        owner_held: storage.held,
+        owner_pending: storage.pending,
+        my_files_tree_size: size(my_files).await?.tree_size,
+        team_size: team_summary.size,
+        team_tree_size: team_summary.tree_size,
+    };
+
     Ok(Written {
         organization,
         personal,
@@ -759,6 +830,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
             ("holiday_note", holiday_note),
             ("recipes", recipes),
         ],
+        usage,
     })
 }
 
@@ -847,6 +919,19 @@ fn source(name: &str, written: &Written, backup_key: &BackupKey) -> String {
     for (label, block) in &written.blocks {
         field(label, block);
     }
+    let usage = &written.usage;
+    let _ = writeln!(
+        out,
+        "    usage: Some(&super::Usage {{\n        used_invite: \"{}\",\n        unused_invite: \"{}\",\n        agent_note: \"{}\",\n        owner_held: {},\n        owner_pending: {},\n        my_files_tree_size: {},\n        team_size: {},\n        team_tree_size: {},\n    }}),",
+        usage.used_invite,
+        usage.unused_invite,
+        usage.agent_note,
+        usage.owner_held,
+        usage.owner_pending,
+        usage.my_files_tree_size,
+        usage.team_size,
+        usage.team_tree_size,
+    );
     let _ = writeln!(out, "    files: include_bytes!(\"{name}.zip\"),\n}};");
     out
 }

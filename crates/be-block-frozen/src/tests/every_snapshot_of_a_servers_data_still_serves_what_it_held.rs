@@ -236,6 +236,7 @@ async fn check(snapshot: &Snapshot) {
             "{name}: the server no longer reads the policies shared with it: {refused}"
         );
     }
+    check_storage(snapshot, &server, &store, &owner).await;
     let metadata = |block: &str| {
         let owner = &owner;
         let block = id(block);
@@ -560,6 +561,148 @@ async fn check(snapshot: &Snapshot) {
     assert_eq!(text(&owner, snapshot.plan).await, scene::PLAN[1]);
     drop(owner);
     server.stop().await;
+}
+
+/// Storage accounting, which the server counts as it goes from 2026_11_04 on and fills in once,
+/// the first time it opens, for snapshots from before.
+async fn check_storage(
+    snapshot: &Snapshot,
+    server: &Running,
+    store: &be_server::ServerStore,
+    owner: &Peer<MemoryStore>,
+) {
+    let name = snapshot.name;
+    let summary = |block: &str| {
+        let block = id(block);
+        async move { owner.summary(block).await.unwrap() }
+    };
+    let (my_files, notes, shopping, program, archive, long) = (
+        summary(snapshot.my_files).await,
+        summary(snapshot.notes).await,
+        summary(snapshot.shopping).await,
+        summary(snapshot.program).await,
+        summary(snapshot.archive).await,
+        summary(snapshot.long).await,
+    );
+    for leaf in [&shopping, &program, &long] {
+        assert!(leaf.size > 0, "{name}: a block's objects were not counted");
+        assert_eq!(
+            leaf.tree_size, leaf.size,
+            "{name}: a leaf's tree is more than itself"
+        );
+    }
+    assert_eq!(archive.tree_size, archive.size + long.tree_size, "{name}");
+    assert_eq!(
+        notes.tree_size,
+        notes.size + shopping.tree_size + program.tree_size + archive.tree_size,
+        "{name}: a folder's tree is not itself and its children's"
+    );
+    assert_eq!(
+        my_files.tree_size,
+        my_files.size + notes.tree_size,
+        "{name}"
+    );
+    let storage = ask(client::account::storage_usage(&owner.connection()))
+        .await
+        .unwrap();
+    assert!(
+        storage.held >= long.size,
+        "{name}: the owner is charged less than one of its blocks holds"
+    );
+
+    let Some(usage) = snapshot.usage else {
+        assert_eq!(
+            storage.pending, 0,
+            "{name}: an upload from before accounting was charged to the owner"
+        );
+        return;
+    };
+    assert_eq!(
+        (storage.held, storage.pending),
+        (usage.owner_held, usage.owner_pending),
+        "{name}: the owner's usage changed"
+    );
+    assert!(
+        usage.owner_pending >= scene::PENDING_UPLOAD.len() as u64,
+        "{name}: the upload no block holds no longer counts"
+    );
+    assert_eq!(my_files.tree_size, usage.my_files_tree_size, "{name}");
+    let team = summary(snapshot.team).await;
+    assert_eq!(
+        (team.size, team.tree_size),
+        (usage.team_size, usage.team_tree_size),
+        "{name}: the team's sizes changed"
+    );
+    assert_eq!(text(owner, usage.agent_note).await, scene::AGENT_NOTE);
+    assert_eq!(
+        owner.organization_policies().await.unwrap().quota(),
+        Some(scene::STORAGE_QUOTA),
+        "{name}: the storage quota no longer reads in bytes"
+    );
+    let agent = Connection::connect(&socket(server), &be_block_client::Clock::real())
+        .await
+        .unwrap();
+    ask(client::account::authenticate(
+        &agent,
+        Some(snapshot.agent_token.to_owned()),
+    ))
+    .await
+    .unwrap();
+    ask(client::organizations::open_organization(
+        &agent,
+        id(snapshot.organization),
+    ))
+    .await
+    .unwrap();
+    let charged = ask(client::account::storage_usage(&agent)).await.unwrap();
+    assert_eq!(
+        (charged.held, charged.pending),
+        (storage.held, storage.pending),
+        "{name}: the agent is no longer charged to the account that created it"
+    );
+
+    let register = |email: &'static str, invite: &'static str| async move {
+        store
+            .registration_link(
+                email,
+                email,
+                scene::REGISTERED_PASSWORD,
+                invite,
+                "",
+                "192.0.2.7",
+            )
+            .await
+    };
+    assert!(
+        register("again@example.com", usage.used_invite)
+            .await
+            .is_err(),
+        "{name}: a used-up invite code registered another account"
+    );
+    let link = register("unused@example.com", usage.unused_invite)
+        .await
+        .unwrap_or_else(|error| panic!("{name}: the unused invite code was refused: {error}"));
+    store
+        .confirm_mail(&link.token, None, "192.0.2.7")
+        .await
+        .unwrap();
+    assert!(
+        register("third@example.com", usage.unused_invite)
+            .await
+            .is_err(),
+        "{name}: an invite code registered more accounts than it allows"
+    );
+    assert!(
+        store
+            .login_browser(
+                scene::REGISTERED_EMAIL,
+                scene::REGISTERED_PASSWORD,
+                "192.0.2.7"
+            )
+            .await
+            .is_ok(),
+        "{name}: the account the used code made no longer signs in"
+    );
 }
 
 async fn run(tracker: &Tracker<be_block_store::FileStore>, arguments: &[&str]) -> String {
