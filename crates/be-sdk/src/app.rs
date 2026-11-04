@@ -144,6 +144,10 @@ pub struct Frame {
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
     pub floating_painted: Vec<Rect>,
+    /// The parts of `floating` that are marks over the view's own children rather than
+    /// overlays, and of `floating_painted`, `marks_painted` (`frame-report.marks`).
+    pub marks: Vec<Rect>,
+    pub marks_painted: Vec<Rect>,
     pub scrims: Vec<be_sdk_api::Scrim>,
     pub drawing: Vec<Rect>,
     pub claims: Vec<Claim>,

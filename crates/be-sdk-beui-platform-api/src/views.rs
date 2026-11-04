@@ -39,6 +39,8 @@ pub struct Report {
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
     pub floating_painted: Vec<Rect>,
+    pub marks: Vec<Rect>,
+    pub marks_painted: Vec<Rect>,
     pub scrims: Vec<beui::layer::Scrim>,
     pub drawing: Vec<Rect>,
     pub claims: Vec<Claim>,

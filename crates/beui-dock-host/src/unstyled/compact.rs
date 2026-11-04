@@ -266,6 +266,7 @@ fn DockGathered(dock: State, tree: Tree, vertical: bool, folded: bool) -> NodeId
         sidebar_width: create_memo(move || narrow),
         sidebar_splitter: None,
         bar: Some(bar),
+        bar_shown: create_memo(|| true),
         leaf: None,
         body,
     };

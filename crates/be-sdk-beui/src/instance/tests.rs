@@ -165,6 +165,7 @@ fn hosted_tabs(tabs: &[u64], visible: &[u64], focused: Option<u64>) -> be_sdk_ap
             area: None,
             empty: None,
             bare: false,
+            hide_empty_bar: false,
         }),
     }];
     items.extend(tabs.iter().map(|tab| DockItem {

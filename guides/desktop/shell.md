@@ -105,7 +105,9 @@ the grip stays put), revealing the focused chip. An empty row shows "No windows"
 ## Window keys
 
 The window manager is beui-dock-host's (guides/beui/docking.md, the dock's window actions), acting on
-program and block windows alike as floating dock windows. Each dock of the desktop sits in its own
+program and block windows alike as floating dock windows. Under them, display 0's dock is one
+`desktop` pane (`hide_empty_bar`, so empty it draws nothing): a tab dropped in its middle fills it
+and one dropped at an edge splits it, tiling the desktop beneath the windows. Each dock of the desktop sits in its own
 `DockHost`; `DeskWindows` passes every display, and its work area, to `DockHostLayout::set_areas`.
 `root/window_keys.rs` binds the dock's `window_actions` at `KeyAt::Window`, capturing, so they work
 over programs; they are disabled while `ScreenLockedWatch` is set. workspace-ui binds none.

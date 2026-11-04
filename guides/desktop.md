@@ -151,6 +151,9 @@ side along their bottom edges. `DisplaysWatch` gives each `HostDisplay` its `rec
   whole display; a window on no display (unplugged) moves to the nearest.
 - A window is drawn on the display holding most of it, at that display's raster scale; while it is
   moved, on every display it overlaps.
+- The shell's view draws its surface, every child it places (the tabs docked in its own dock)
+  and its marks over them (`frame-report.marks`: a splitter's line and reach) under the
+  windows, and only its overlays (menus, scrims) above them, for drawing and input (`AppView`).
 - A raised dock bar (`bar_level` `Raised`) is a floating layer above windows; a bar popped into its
   own window opens at `WindowLevel::Above`. A fullscreen window drops bars to `Normal`.
 - The pointer crosses display windows with a press held (beui's cross-window rules) and between the

@@ -862,13 +862,32 @@ impl Document {
     }
 
     /// Only what the window's overlays paint (their content, and a scrim that dims unless
-    /// the host draws scrims), plus nodes marked `AboveEmbeds::Paints`. `overlay_rects` is
+    /// the host draws scrims), plus nodes marked `Paints` or `Raised`. `overlay_rects` is
     /// where they take input. Escaped layers are in neither.
     pub fn overlay_painted_rects(&self, window: WindowId) -> Vec<Rect> {
         self.window_overlays(window)
             .iter()
             .flat_map(|(_, layer)| self.layer_paints(layer))
             .chain(self.above_embeds_in(window, true).map(|(_, rect)| rect))
+            .collect()
+    }
+
+    /// The nodes marked `above_embeds` among `overlay_rects`: marks over the window's own
+    /// embeds (a dock splitter), not overlays, so a host keeps what it draws above the
+    /// window's content (other windows) above them.
+    pub fn mark_rects(&self, window: WindowId) -> Vec<Rect> {
+        self.marks_in(window, false)
+    }
+
+    /// The marks among `overlay_painted_rects` (`AboveEmbeds::Paints`).
+    pub fn mark_painted_rects(&self, window: WindowId) -> Vec<Rect> {
+        self.marks_in(window, true)
+    }
+
+    fn marks_in(&self, window: WindowId, painted: bool) -> Vec<Rect> {
+        self.above_embeds_in(window, painted)
+            .filter(|(node, _)| self.above_embeds.get(node) != Some(&AboveEmbeds::Raised))
+            .map(|(_, rect)| rect)
             .collect()
     }
 
@@ -887,7 +906,7 @@ impl Document {
         let mut found: Vec<(Vec<usize>, NodeId, Rect)> = self
             .above_embeds
             .iter()
-            .filter(move |(_, above)| !painted || **above == AboveEmbeds::Paints)
+            .filter(move |(_, above)| !painted || **above != AboveEmbeds::Reaches)
             .filter(|(node, _)| self.arena.contains(**node))
             .filter(move |(node, _)| self.window_of(**node) == window)
             .filter_map(|(node, _)| Some((*node, self.node_rect(*node)?)))

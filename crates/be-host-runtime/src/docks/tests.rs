@@ -25,6 +25,7 @@ fn pane(depth: u32, key: &str) -> DockItem {
             area: None,
             empty: None,
             bare: false,
+            hide_empty_bar: false,
         }),
     }
 }

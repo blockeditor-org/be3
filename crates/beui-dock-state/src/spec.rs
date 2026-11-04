@@ -74,6 +74,8 @@ pub struct DockSpecPane {
     pub keep: bool,
     pub area: Option<String>,
     pub bare: bool,
+    /// Draws no bar (no grip, no menu) while the pane holds no tab, so only its `empty` view shows.
+    pub hide_empty_bar: bool,
 }
 
 impl DockSpecPane {
@@ -479,6 +481,7 @@ impl DockState {
         leaf.keep = pane.keep;
         leaf.area = pane.locked().then(|| pane.key.clone());
         leaf.bare = pane.bare;
+        leaf.hide_empty_bar = pane.hide_empty_bar;
         leaf
     }
 
@@ -609,12 +612,14 @@ impl DockState {
             };
             let keep = site.pane.keep;
             let bare = site.pane.bare;
+            let hide_empty_bar = site.pane.hide_empty_bar;
             if let Some(held) = self.leaf_mut(leaf) {
                 if held.keep && !keep && held.entries.is_empty() {
                     loosened.push(leaf);
                 }
                 held.keep = keep;
                 held.bare = bare;
+                held.hide_empty_bar = hide_empty_bar;
             }
         }
         self.prune_loose(loosened);

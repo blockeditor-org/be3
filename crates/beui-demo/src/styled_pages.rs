@@ -4621,13 +4621,21 @@ pub(crate) fn WindowManagerPage() -> NodeId {
                          window: close it, hide it, snap it to half of its area, fill its area, \
                          move it to the other area keeping its place, or switch to the next \
                          window of its group (the two notes). Show desktop hides every window and \
-                         brings them back. A shell binds its own keys to the same actions."
+                         brings them back. A tab dropped in the middle of the desk fills it beneath the \
+                         windows, and one dropped at its edge splits it; emptied, the desk shows no \
+                         bar. A shell binds its own keys to the same actions."
                     </Text>
                 </List>
             </Frame>
             <DockHost @sizing=ItemSize::Percent(100.0) layout=host>
                 <Docking layout>
-                    <DockPane id="desk" bare=true></DockPane>
+                    <DockPane
+                        id="desk"
+                        hide_empty_bar=true
+                        empty={move || view! {
+                            <Frame @test_id="wm.desk" />
+                        }}
+                    ></DockPane>
                     <ForEach keys={open}>|id: u64| {
                         let (_, title, group, at) = DESK_WINDOWS[id as usize - 1];
                         view! {
