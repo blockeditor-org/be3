@@ -11,6 +11,10 @@ pub struct Benchmark {
     pub about: &'static str,
 }
 
+/// Every benchmark the suite runs. Adding one is an entry here and its program in the suite's
+/// `programs` (crates/be-tool-bench/BUCK); the program reports through `be_tool_bench::time`,
+/// `count` and `record`, which append to the file `BENCH_METRICS` names and do nothing without
+/// it, so each benchmark also runs alone with `./scripts/buck run -m release`.
 pub const BENCHMARKS: &[Benchmark] = &[
     Benchmark {
         name: "app-canvas-and-text",
