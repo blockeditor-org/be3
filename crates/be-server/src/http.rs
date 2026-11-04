@@ -532,9 +532,7 @@ async fn answer(
     if client.connection.header_token != crate::bearer(authorization) {
         return Ok(Answer::refused(401, "account authorization changed", false));
     }
-    if let Some(token) = &client.connection.token
-        && services.store.resolve_token(token).await.is_err()
-    {
+    if client.connection.signed_in().await.is_err() {
         if let Some(client) = held.client.take() {
             client.close().await;
         }

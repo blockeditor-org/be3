@@ -450,6 +450,11 @@ pub(crate) fn pin_escrow(
     if sealed.is_empty() {
         return Ok(());
     }
+    crate::limits::at_most(
+        "a pinned escrow",
+        sealed.len(),
+        crate::limits::MAX_SEALED_BYTES,
+    )?;
     connection.execute(
         "INSERT OR REPLACE INTO pinned_escrows (account_id, organization_id, sealed)
          VALUES (?1, ?2, ?3)",
@@ -980,6 +985,22 @@ impl ServerStore {
                 return Err(ServerError::Refused(
                     ErrorCode::PermissionDenied,
                     "only an administrator of a company organization makes its escrow key".into(),
+                ));
+            }
+            crate::limits::at_most(
+                "an escrow signature",
+                escrow.signature.len(),
+                crate::limits::MAX_SEALED_BYTES,
+            )?;
+            let made: i64 = database
+                .prepare_cached(
+                    "SELECT COUNT(*) FROM keys WHERE organization_id = ?1 AND block_id = ?1 AND kind = 'escrow'",
+                )?
+                .query_row([organization.to_string()], |row| row.get(0))?;
+            if made >= crate::limits::MAX_ESCROWS_PER_ORGANIZATION {
+                return Err(crate::limits::too_many(
+                    "escrow keys one organization makes",
+                    crate::limits::MAX_ESCROWS_PER_ORGANIZATION,
                 ));
             }
             let next = current_escrow(database, organization)?.map_or(1, |previous| previous.epoch + 1);

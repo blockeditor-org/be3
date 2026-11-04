@@ -90,6 +90,25 @@ pub(crate) fn befriend(
     other_sealed: &[u8],
 ) -> Result<(), ServerError> {
     for (account, contact, sealed) in [(owner, other, owner_sealed), (other, owner, other_sealed)] {
+        crate::limits::at_most(
+            "a contact card",
+            sealed.len(),
+            crate::limits::MAX_SEALED_BYTES,
+        )?;
+        let (known, count): (bool, i64) = connection
+            .prepare_cached(
+                "SELECT EXISTS(SELECT 1 FROM contacts WHERE account_id = ?1 AND contact_id = ?2),
+                        (SELECT COUNT(*) FROM contacts WHERE account_id = ?1)",
+            )?
+            .query_row(params![account.to_string(), contact.to_string()], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })?;
+        if !known && count >= crate::limits::MAX_CONTACTS_PER_ACCOUNT {
+            return Err(crate::limits::too_many(
+                "contacts one account has",
+                crate::limits::MAX_CONTACTS_PER_ACCOUNT,
+            ));
+        }
         connection.execute(
             "INSERT INTO contacts (account_id, contact_id, sealed) VALUES (?1, ?2, ?3)
              ON CONFLICT (account_id, contact_id)
@@ -298,6 +317,19 @@ impl ServerStore {
         code: Vec<u8>,
         grant: Option<PendingGrant>,
     ) -> Result<(), ServerError> {
+        crate::limits::at_most(
+            "a contact card",
+            card.len(),
+            crate::limits::MAX_SEALED_BYTES,
+        )?;
+        crate::limits::at_most("a link code", code.len(), crate::limits::MAX_SEALED_BYTES)?;
+        if let Some(grant) = &grant {
+            crate::limits::at_most(
+                "a pending grant",
+                grant.sealed.len(),
+                crate::limits::MAX_SEALED_BYTES,
+            )?;
+        }
         if let Some(grant) = &grant {
             let role = self.membership(owner, grant.organization).await?;
             let identity = Identity {
@@ -346,6 +378,15 @@ impl ServerStore {
             None => Default::default(),
         };
         let database = self.database().lock().await;
+        let open: i64 = database
+            .prepare_cached("SELECT COUNT(*) FROM contact_links WHERE owner_id = ?1")?
+            .query_row([owner.to_string()], |row| row.get(0))?;
+        if open >= crate::limits::MAX_CONTACT_LINKS_PER_ACCOUNT {
+            return Err(crate::limits::too_many(
+                "contact links one account has open",
+                crate::limits::MAX_CONTACT_LINKS_PER_ACCOUNT,
+            ));
+        }
         let inserted = database.execute(
             "INSERT OR IGNORE INTO contact_links
                 (id, owner_id, card, code, grant_organization, grant_block, grant_access,
@@ -400,6 +441,13 @@ impl ServerStore {
         contact: Vec<u8>,
         key: Vec<u8>,
     ) -> Result<Accepted, ServerError> {
+        for (what, bytes) in [
+            ("a contact card", &card),
+            ("a sealed contact", &contact),
+            ("a granted key", &key),
+        ] {
+            crate::limits::at_most(what, bytes.len(), crate::limits::MAX_SEALED_BYTES)?;
+        }
         let found = self.contact_link(caller, link).await?;
         let owner = found.owner;
         let Some(grant) = found.grant else {
@@ -512,6 +560,11 @@ impl ServerStore {
         contact: Uuid,
         sealed: Vec<u8>,
     ) -> Result<(), ServerError> {
+        crate::limits::at_most(
+            "a contact card",
+            sealed.len(),
+            crate::limits::MAX_SEALED_BYTES,
+        )?;
         let database = self.database().lock().await;
         let updated = database.execute(
             "UPDATE contacts SET sealed = ?3 WHERE account_id = ?1 AND contact_id = ?2",

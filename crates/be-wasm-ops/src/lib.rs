@@ -699,6 +699,14 @@ impl<K> Outlets<K> {
         self.outlets.insert(producer.op, outlet);
     }
 
+    pub fn len(&self) -> usize {
+        self.outlets.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.outlets.is_empty()
+    }
+
     pub fn routes(&self) -> impl Iterator<Item = (OpId, &K)> {
         self.outlets.iter().map(|(op, outlet)| (*op, &outlet.route))
     }

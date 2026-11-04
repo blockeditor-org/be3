@@ -56,6 +56,7 @@ pub struct ServerStore {
     objects: FileStore,
     graphs: Mutex<HashMap<Uuid, BlockGraph>>,
     revision: std::sync::atomic::AtomicU64,
+    graph_loads: std::sync::atomic::AtomicU64,
     object_refs: std::sync::Mutex<ObjectRefs>,
     pub(crate) passwords: passwords::Passwords,
     server: crate::organization::ServerKey,
@@ -94,6 +95,7 @@ impl ServerStore {
             objects,
             graphs: Mutex::new(HashMap::new()),
             revision: std::sync::atomic::AtomicU64::new(0),
+            graph_loads: std::sync::atomic::AtomicU64::new(0),
             object_refs: std::sync::Mutex::new(object_refs),
             passwords: passwords::Passwords::default(),
             server,
@@ -107,13 +109,7 @@ impl ServerStore {
         &self,
         display_name: &str,
     ) -> Result<(Profile, String), ServerError> {
-        let display_name = display_name.trim();
-        if display_name.is_empty() {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                "a display name is required".into(),
-            ));
-        }
+        let display_name = crate::limits::name("a display name", display_name)?;
         let account = Uuid::new_v4();
         let database = self.database.lock().await;
         let transaction = database.unchecked_transaction()?;
@@ -149,13 +145,7 @@ impl ServerStore {
         password: &str,
     ) -> Result<(Profile, String), ServerError> {
         let email = normalize_email(email)?;
-        let display_name = display_name.trim().to_owned();
-        if display_name.is_empty() {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                "a display name is required".into(),
-            ));
-        }
+        let display_name = crate::limits::name("a display name", display_name)?.to_owned();
         if password.len() < 8 {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
@@ -360,6 +350,13 @@ impl ServerStore {
             ));
         }
         let email = normalize_email(email)?;
+        for (what, bytes) in [
+            ("an invitation", &sealed),
+            ("an invitation code", &code),
+            ("an invitation's escrow", &escrow),
+        ] {
+            crate::limits::at_most(what, bytes.len(), crate::limits::MAX_SEALED_BYTES)?;
+        }
         let database = self.database.lock().await;
         let linked: bool = database.query_row(
             "SELECT EXISTS(SELECT 1 FROM contact_links WHERE id = ?1)",
@@ -370,6 +367,17 @@ impl ServerStore {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
                 "an invitation needs an id of its own".into(),
+            ));
+        }
+        let outstanding: i64 = database
+            .prepare_cached(
+                "SELECT COUNT(*) FROM invitations WHERE organization_id = ?1 AND email != ?2",
+            )?
+            .query_row(params![organization.to_string(), email], |row| row.get(0))?;
+        if outstanding >= crate::limits::MAX_INVITATIONS_PER_ORGANIZATION {
+            return Err(crate::limits::too_many(
+                "invitations an organization has outstanding",
+                crate::limits::MAX_INVITATIONS_PER_ORGANIZATION,
             ));
         }
         database.execute(
@@ -460,6 +468,9 @@ impl ServerStore {
         contact: Vec<u8>,
         escrow: Vec<u8>,
     ) -> Result<Uuid, ServerError> {
+        for (what, bytes) in [("a contact card", &card), ("a sealed contact", &contact)] {
+            crate::limits::at_most(what, bytes.len(), crate::limits::MAX_SEALED_BYTES)?;
+        }
         let found = self.invitation(account, invitation).await?;
         let database = self.database.lock().await;
         let transaction = database.unchecked_transaction()?;
@@ -549,15 +560,18 @@ impl ServerStore {
         account: Uuid,
         name: &str,
     ) -> Result<Organization, ServerError> {
-        let name = name.trim().to_owned();
-        if name.is_empty() {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                "an organization name is required".into(),
-            ));
-        }
+        let name = crate::limits::name("an organization name", name)?.to_owned();
         let id = Uuid::new_v4();
         let database = self.database.lock().await;
+        let created: i64 = database
+            .prepare_cached("SELECT COUNT(*) FROM organizations WHERE owner_id = ?1")?
+            .query_row([account.to_string()], |row| row.get(0))?;
+        if created >= crate::limits::MAX_ORGANIZATIONS_PER_ACCOUNT {
+            return Err(crate::limits::too_many(
+                "organizations one account creates",
+                crate::limits::MAX_ORGANIZATIONS_PER_ACCOUNT,
+            ));
+        }
         database.execute(
             "INSERT INTO organizations (id, name, owner_id) VALUES (?1, ?2, ?3)",
             params![id.to_string(), name, account.to_string()],
@@ -600,13 +614,17 @@ impl ServerStore {
         escrow: Vec<u8>,
     ) -> Result<(Agent, String), ServerError> {
         self.membership(caller, organization).await?;
-        let name = name.trim().to_owned();
-        if name.is_empty() {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                "an agent needs a name".into(),
-            ));
-        }
+        let name = crate::limits::name("an agent's name", name)?.to_owned();
+        crate::limits::at_most(
+            "a contact card",
+            contact.len(),
+            crate::limits::MAX_SEALED_BYTES,
+        )?;
+        crate::limits::at_most(
+            "a pinned escrow",
+            escrow.len(),
+            crate::limits::MAX_SEALED_BYTES,
+        )?;
         let account = Uuid::new_v4();
         let email = format!("agent-{}@agents.invalid", account.simple());
         let database = self.database.lock().await;
@@ -706,7 +724,7 @@ impl ServerStore {
         agent: Uuid,
     ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
         self.membership(caller, organization).await?;
-        self.with_graph(organization, move |graph, database| {
+        let removed = self.with_graph(organization, move |graph, database| {
             let is_agent = database
                 .query_row(
                     "SELECT 1 FROM agents WHERE account_id = ?1 AND organization_id = ?2 AND created_by = ?3",
@@ -733,7 +751,9 @@ impl ServerStore {
             transaction.commit()?;
             Ok(revoked)
         })
-        .await
+        .await;
+        self.sessions_changed();
+        removed
     }
 
     pub async fn list_members(
@@ -891,9 +911,44 @@ impl ServerStore {
         Ok(())
     }
 
-    pub fn get_object(&self, hash: Hash) -> Result<Option<Vec<u8>>, ServerError> {
-        Ok(self.objects.get(hash)?)
+    pub async fn get_object(&self, hash: Hash) -> Result<Option<Vec<u8>>, ServerError> {
+        let store = self.objects.clone();
+        blocking(move || Ok(store.get(hash)?)).await
     }
+
+    /// Reads objects in order until the next would take more than `room` bytes, skipping any
+    /// that are missing.
+    pub async fn get_objects(
+        &self,
+        hashes: Vec<Hash>,
+        mut room: usize,
+    ) -> Result<Vec<Vec<u8>>, ServerError> {
+        let store = self.objects.clone();
+        blocking(move || {
+            let mut objects = Vec::new();
+            for hash in hashes {
+                let Some(bytes) = store.get(hash)? else {
+                    continue;
+                };
+                if bytes.len() > room {
+                    break;
+                }
+                room -= bytes.len();
+                objects.push(bytes);
+            }
+            Ok(objects)
+        })
+        .await
+    }
+}
+
+/// Runs file work on tokio's blocking pool.
+pub(crate) async fn blocking<R: Send + 'static>(
+    work: impl FnOnce() -> Result<R, ServerError> + Send + 'static,
+) -> Result<R, ServerError> {
+    tokio::task::spawn_blocking(work)
+        .await
+        .map_err(|error| ServerError::Io(std::io::Error::other(error)))?
 }
 
 pub(crate) fn uploaded(
@@ -1114,18 +1169,38 @@ impl ServerStore {
         let mut graphs = self.graphs.lock().await;
         let graph = match graphs.entry(organization) {
             Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(load_graph(&database, organization)?),
+            Entry::Vacant(entry) => {
+                self.graph_loads
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                entry.insert(load_graph(&database, organization)?)
+            }
         };
         let revision = self
             .revision
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             + 1;
         graph.advance_to(revision);
+        let changes = (graph.changes(), total_changes(&database)?);
         let outcome = action(graph, &database);
-        if outcome.is_err() {
+        // A refusal that changed nothing leaves the cache as it was, so a stream of refused
+        // calls costs no reloads; anything else may have left the graph and the database apart.
+        let kept = match &outcome {
+            Ok(_) => true,
+            Err(ServerError::Refused(..)) => {
+                changes == (graph.changes(), total_changes(&database)?)
+            }
+            Err(_) => false,
+        };
+        if !kept {
             graphs.remove(&organization);
         }
         outcome
+    }
+
+    /// How many times an organization's graph was loaded from the database.
+    #[cfg(test)]
+    pub(crate) fn graph_loads(&self) -> u64 {
+        self.graph_loads.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     pub(crate) fn object_refs(&self) -> std::sync::MutexGuard<'_, ObjectRefs> {
@@ -1302,6 +1377,13 @@ pub(crate) fn is_member_of(
     organization: Uuid,
 ) -> Result<bool, ServerError> {
     is_member(connection, account, organization)
+}
+
+/// Rows any statement on `connection` changed, counting those a rollback undid.
+fn total_changes(connection: &Connection) -> Result<i64, ServerError> {
+    Ok(connection
+        .prepare_cached("SELECT total_changes()")?
+        .query_row([], |row| row.get(0))?)
 }
 
 pub(crate) fn load_graph(

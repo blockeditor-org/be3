@@ -17,7 +17,11 @@ use uuid::Uuid;
 
 use crate::{
     CONTENTS_BYTES, Identity, PublishOutcome, ServerConfig, ServerError, ServerStore, Services,
-    SessionRegistry, WatchHub, browser_auth, contacts, store,
+    SessionRegistry, WatchHub, browser_auth, contacts,
+    limits::{
+        MAX_PAIRING_BYTES, MAX_RELAY_BYTES, MAX_SESSIONS_PER_CONNECTION, MAX_STREAMS_PER_CONNECTION,
+    },
+    store,
     watch::{Place, Push},
 };
 
@@ -224,9 +228,27 @@ impl Streams {
             .map_err(|_| ServerError::Socket("the client is not reading what it is sent".into()))
     }
 
-    fn open(&mut self, stream: be_wasm_ops::Producer<impl Sized>, route: Route) {
-        self.outlets
-            .insert(stream, route, Backlog::Queue(STREAM_BUFFER));
+    fn open(
+        &mut self,
+        connection: &mut be_wasm_ops::Connection,
+        stream: be_wasm_ops::Producer<impl Sized>,
+        route: Route,
+    ) {
+        self.open_with(connection, stream, route, Backlog::Queue(STREAM_BUFFER));
+    }
+
+    /// Opens a stream, or refuses it once the connection has `MAX_STREAMS_PER_CONNECTION`.
+    fn open_with(
+        &mut self,
+        connection: &mut be_wasm_ops::Connection,
+        stream: be_wasm_ops::Producer<impl Sized>,
+        route: Route,
+        backlog: Backlog,
+    ) {
+        match self.outlets.len() < MAX_STREAMS_PER_CONNECTION {
+            true => self.outlets.insert(stream, route, backlog),
+            false => stream.fail(connection, OpError::Denied),
+        }
     }
 
     fn events(&self, session: OpId) -> Option<(OpId, Place)> {
@@ -251,6 +273,8 @@ pub(crate) struct Connection {
     pub(crate) client: u64,
     pub(crate) account: Option<Uuid>,
     pub(crate) token: Option<String>,
+    /// The `ServerStore::session_changes` version `token` last resolved at.
+    checked: Option<u64>,
     pub(crate) header_token: Option<String>,
     pub(crate) identity: Option<Identity>,
     pub(crate) config: ServerConfig,
@@ -292,6 +316,7 @@ impl Client {
                 client,
                 account: None,
                 token: None,
+                checked: None,
                 header_token: None,
                 identity: None,
                 config: services.config.clone(),
@@ -495,7 +520,10 @@ impl Client {
                 } => {
                     streams.send(
                         &mut lock,
-                        SessionEvent::Relayed { from, payload },
+                        SessionEvent::Relayed {
+                            from,
+                            payload: payload.to_vec(),
+                        },
                         sessions(block),
                     )?;
                 }
@@ -566,9 +594,7 @@ impl Client {
 
     async fn prelude(&mut self) -> Result<(), ServerError> {
         let connection = &mut self.connection;
-        if let Some(token) = &connection.token {
-            connection.store.resolve_token(token).await?;
-        }
+        connection.signed_in().await?;
         if connection.identity.is_some() {
             connection.identity = connection.hub.identity(connection.client).await;
         }
@@ -782,6 +808,7 @@ impl Client {
                 let paired = async {
                     prelude?;
                     let account = connection.account()?;
+                    crate::limits::at_most("a pairing message", payload.len(), MAX_PAIRING_BYTES)?;
                     let message = Push::Paired(PairingMessage {
                         from: connection.client,
                         payload,
@@ -805,7 +832,8 @@ impl Client {
                 if prelude.is_err() {
                     return stream.fail(&mut self.peer.lock(), OpError::Denied);
                 }
-                self.streams.open(stream, Route::Paired);
+                self.streams
+                    .open(&mut self.peer.lock(), stream, Route::Paired);
             }
             Call::StorageChanged { stream } => {
                 let connection = &self.connection;
@@ -1235,9 +1263,12 @@ impl Client {
                 if prelude.is_err() {
                     return stream.fail(&mut self.peer.lock(), OpError::Denied);
                 }
-                self.streams
-                    .outlets
-                    .insert(stream, Route::Contacts, Backlog::Latest);
+                self.streams.open_with(
+                    &mut self.peer.lock(),
+                    stream,
+                    Route::Contacts,
+                    Backlog::Latest,
+                );
             }
         }
     }
@@ -1250,7 +1281,7 @@ impl Client {
                 let stored = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    connection.store.put_objects(identity, &objects).await
+                    connection.store.put_objects(identity, objects).await
                 }
                 .await;
                 self.reply(reply, stored);
@@ -1260,7 +1291,7 @@ impl Client {
                     prelude?;
                     let identity = connection.identity()?;
                     match connection.store.may_read_object(identity, hash).await? {
-                        true => connection.store.get_object(hash),
+                        true => connection.store.get_object(hash).await,
                         false => Ok(None),
                     }
                 }
@@ -1375,7 +1406,7 @@ impl Client {
                 let published = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    connection.store.put_objects(identity, &objects).await?;
+                    connection.store.put_objects(identity, objects).await?;
                     let outcome = connection
                         .store
                         .publish(
@@ -1441,18 +1472,7 @@ impl Client {
                         .store
                         .read_contents(connection.identity()?, blocks, held)
                         .await?;
-                    let mut objects = Vec::new();
-                    let mut room = CONTENTS_BYTES;
-                    for hash in hashes {
-                        let Some(bytes) = connection.store.get_object(hash)? else {
-                            continue;
-                        };
-                        if bytes.len() > room {
-                            break;
-                        }
-                        room -= bytes.len();
-                        objects.push(bytes);
-                    }
+                    let objects = connection.store.get_objects(hashes, CONTENTS_BYTES).await?;
                     Ok(Contents { blocks, objects })
                 }
                 .await;
@@ -1511,7 +1531,8 @@ impl Client {
                 if prelude.is_err() {
                     return stream.fail(&mut self.peer.lock(), OpError::Denied);
                 }
-                self.streams.open(stream, Route::Changes);
+                self.streams
+                    .open(&mut self.peer.lock(), stream, Route::Changes);
             }
             Call::ListHistory { reply, block } => {
                 let listed = async {
@@ -1628,8 +1649,12 @@ impl Client {
                     organization: identity.organization,
                     block,
                 };
+                if self.streams.outlets.len() >= MAX_STREAMS_PER_CONNECTION {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
                 connection.hub.watch(place, connection.client).await;
-                self.streams.open(stream, Route::Watch(place));
+                self.streams
+                    .open(&mut self.peer.lock(), stream, Route::Watch(place));
             }
         }
     }
@@ -1639,6 +1664,12 @@ impl Client {
         match call {
             Call::SessionNew { resource, block } => {
                 if prelude.is_err() {
+                    return self
+                        .peer
+                        .lock()
+                        .complete(resource.op(), be_wasm_ops::Outcome::Err(OpError::Denied));
+                }
+                if self.streams.sessions.len() >= MAX_SESSIONS_PER_CONNECTION {
                     return self
                         .peer
                         .lock()
@@ -1680,6 +1711,7 @@ impl Client {
                     |(_, place)| *place,
                 );
                 streams.open(
+                    &mut lock,
                     stream,
                     Route::Events {
                         session,
@@ -1768,10 +1800,11 @@ impl Client {
                     if !participants.contains(&connection.client) {
                         return Err(not_joined());
                     }
+                    crate::limits::at_most("a relayed message", payload.len(), MAX_RELAY_BYTES)?;
                     let message = Push::Relayed {
                         block,
                         from: connection.client,
-                        payload,
+                        payload: payload.into(),
                     };
                     match to {
                         Some(target) if participants.contains(&target) => {
@@ -1889,9 +1922,12 @@ impl Client {
                 if prelude.is_err() {
                     return stream.fail(&mut self.peer.lock(), OpError::Denied);
                 }
-                self.streams
-                    .outlets
-                    .insert(stream, Route::KeyWork, Backlog::Latest);
+                self.streams.open_with(
+                    &mut self.peer.lock(),
+                    stream,
+                    Route::KeyWork,
+                    Backlog::Latest,
+                );
             }
             Call::Rotate { reply, roots, keys } => {
                 let rotated = async {
@@ -1956,6 +1992,7 @@ impl Connection {
         self.hub.join_account(self.client, profile.account).await;
         self.account = Some(profile.account);
         self.token = Some(token.clone());
+        self.checked = None;
         Authenticated {
             account: profile.account,
             email: profile.email,
@@ -1983,6 +2020,21 @@ impl Connection {
             pinned,
             server: self.store.server_account(),
         })
+    }
+
+    /// Fails once the connection's token no longer signs it in. It resolves the token again
+    /// only after a session changed (`ServerStore::sessions_changed`), not on every call.
+    pub(crate) async fn signed_in(&mut self) -> Result<(), ServerError> {
+        let Some(token) = &self.token else {
+            return Ok(());
+        };
+        let version = *self.store.session_changes.borrow();
+        if self.checked == Some(version) {
+            return Ok(());
+        }
+        self.store.resolve_token(token).await?;
+        self.checked = Some(version);
+        Ok(())
     }
 
     fn identity(&self) -> Result<Identity, ServerError> {
@@ -2112,7 +2164,7 @@ impl Connection {
 
     async fn list(&self, listing: Listing) -> Result<Vec<BlockSummary>, ServerError> {
         let identity = self.identity()?;
-        let new = self.hub.list(self.client, listing).await;
+        let new = self.hub.list(self.client, listing).await?;
         let blocks = async {
             Ok::<_, ServerError>(match listing {
                 Listing::Shared => self.store.list_shared(identity).await?,

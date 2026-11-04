@@ -215,8 +215,14 @@ blocks by the accounts that authored or were granted them; `inherited` walks
 up from one block (every edit and view check), `visible` walks down from an
 account's entry points, and `audience` names who may know a block. A move or
 grant changes what is below only for accounts in its audience before or after,
-so nothing walks the subtree. The graph is cached per organization and dropped
-on any error, so it reloads rather than drifts.
+so nothing walks the subtree. The graph is cached per organization
+(`ServerStore::with_graph`) and dropped when an action fails in a way that may
+have left it apart from the database: any error but a refusal, and a refusal
+after the graph (`BlockGraph::changes`) or the database (`total_changes()`)
+changed. A refused call therefore costs no reload. A member's `Deleted` listing
+and `CollectDetached` walk what the member can see (`Visibility::candidates`),
+not the organization, since the personal organization holds every account's
+blocks.
 
 ### Announcements and listings
 
@@ -238,6 +244,30 @@ Every `BlockSummary` and `BlockRemoved` carries a `revision`
 (`ServerStore::with_graph`). Replies and announcements can arrive out of order
 (a reply overtakes announcements queued before it), and the revision is how a
 client puts them back in order.
+
+### Limits
+
+`limits.rs` names what one account or connection may make the server keep:
+blocks authored per organization (counted in the graph, `BlockGraph::authored`),
+organizations created, open contact links, contacts, invitations outstanding and
+escrow keys per organization (refused as `OverQuota`); and per connection,
+sessions, listings and streams. Names, metadata (held in the graph and sent in
+every summary), sealed blobs, pairing messages and relayed session messages
+have byte limits (refused as `InvalidRequest`). A relay is shared by every
+participant's queue (`Push::Relayed` holds an `Arc`).
+
+The session registry (`sessions.rs`) indexes leases by client, so leaving them
+all on a disconnect costs what that client joined, and remembers an empty
+session for its `clean_at` for a day and at most `MAX_EMPTY_SESSIONS`; a peer
+taking over a forgotten one merges rather than fast-forwards.
+
+Uploads are written and synced, and objects read, on tokio's blocking pool,
+outside the database lock (`ServerStore::put_objects` after it reserves the
+quota, `get_object`, `get_objects`). The database work itself still runs on
+the connection's task under the lock. A connection
+resolves its token again only after `ServerStore::sessions_changed`, not on
+every call and push (`Connection::signed_in`), so every path that deletes or
+changes an app session calls it.
 
 ### Accounts
 

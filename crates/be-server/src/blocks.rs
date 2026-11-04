@@ -14,6 +14,7 @@ use uuid::Uuid;
 use crate::{
     ServerError,
     keys::{forget_block_keys, store_keys},
+    limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_METADATA_BYTES},
     store::{
         Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid,
         usage::{forget_objects, persist_sizes},
@@ -67,6 +68,24 @@ impl Visibility {
 
     pub(crate) fn administrator(&self) -> bool {
         self.administrator
+    }
+
+    /// The blocks a member who administers nothing may know of, and perhaps some more: what lies
+    /// below the member's own entry points and in the organization's settings. A member's call
+    /// walks these rather than the whole organization, as the personal one holds every
+    /// account's blocks. `None` for an administrator, who may know of everything.
+    fn candidates(&self, graph: &BlockGraph) -> Option<BTreeSet<Uuid>> {
+        if self.administrator {
+            return None;
+        }
+        let mut blocks: BTreeSet<Uuid> = self
+            .visible
+            .get_or_init(|| graph.visible(self.account))
+            .keys()
+            .copied()
+            .collect();
+        blocks.extend(graph.subtree(crate::organization::settings_of(self.organization)));
+        Some(blocks)
     }
 
     fn access(&self, graph: &BlockGraph, block: Uuid) -> Access {
@@ -212,7 +231,14 @@ impl ServerStore {
         keys: KeySet,
     ) -> Result<BlockSummary, ServerError> {
         let references = distinct(references);
+        crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         self.with_graph(identity.organization, move |graph, database| {
+            if graph.authored(identity.account) >= MAX_BLOCKS_PER_ACCOUNT {
+                return Err(crate::limits::too_many(
+                    "blocks one account makes in an organization",
+                    MAX_BLOCKS_PER_ACCOUNT,
+                ));
+            }
             if let BlockParent::Block(target) = parent {
                 require_parent_of(graph, &visibility(identity), content_type, target)?;
             }
@@ -275,6 +301,7 @@ impl ServerStore {
         references: Vec<Uuid>,
     ) -> Result<(BlockSummary, Vec<Uuid>), ServerError> {
         let references = distinct(references);
+        crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             if let Some(head) = graph.head(block) {
@@ -472,6 +499,7 @@ impl ServerStore {
         references: Vec<Uuid>,
         metadata: Vec<u8>,
     ) -> Result<PublishOutcome, ServerError> {
+        crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         let mut held = vec![commit.hash()];
         held.extend(chunks.iter().copied());
         self.with_graph(identity.organization, move |graph, database| {
@@ -807,8 +835,14 @@ impl ServerStore {
     pub async fn list_deleted(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
         self.with_graph(identity.organization, move |graph, _| {
             let seen = visibility(identity);
-            Ok(graph
-                .deleted_roots()
+            let deleted = match seen.candidates(graph) {
+                None => graph.deleted_roots(),
+                Some(blocks) => blocks
+                    .into_iter()
+                    .filter(|block| graph.contains(*block) && !graph.holds(*block))
+                    .collect(),
+            };
+            Ok(deleted
                 .into_iter()
                 .filter_map(|block| summary_with(graph, &seen, block))
                 .filter(|block| block.access.can_know_exists())
@@ -984,7 +1018,14 @@ impl ServerStore {
                 .history_kept_for();
             let since = be_block_commit::now_milliseconds() - kept_for;
             let mut detached = Vec::new();
-            for block in graph.detached() {
+            let candidates = match seen.candidates(graph) {
+                None => graph.detached(),
+                Some(blocks) => blocks
+                    .into_iter()
+                    .filter(|block| graph.contains(*block) && !graph.is_live(*block))
+                    .collect(),
+            };
+            for block in candidates {
                 if !seen.inherited(graph, block).can_edit() {
                     continue;
                 }

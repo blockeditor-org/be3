@@ -196,12 +196,9 @@ impl ServerStore {
     pub async fn put_objects(
         &self,
         identity: Identity,
-        objects: &[impl AsRef<[u8]>],
+        objects: Vec<Vec<u8>>,
     ) -> Result<Vec<Hash>, ServerError> {
-        if objects
-            .iter()
-            .any(|bytes| bytes.as_ref().len() > MAX_OBJECT_BYTES)
-        {
+        if objects.iter().any(|bytes| bytes.len() > MAX_OBJECT_BYTES) {
             return Err(ServerError::Refused(
                 ErrorCode::ObjectTooLarge,
                 format!("an object may not exceed {MAX_OBJECT_BYTES} bytes"),
@@ -209,7 +206,7 @@ impl ServerStore {
         }
         let sized: Vec<(Hash, u64)> = objects
             .iter()
-            .map(|bytes| (Hash::of(bytes.as_ref()), bytes.as_ref().len() as u64))
+            .map(|bytes| (Hash::of(bytes), bytes.len() as u64))
             .collect();
         if !sized.is_empty() {
             let sized = sized.clone();
@@ -218,12 +215,18 @@ impl ServerStore {
             })
             .await?;
         }
-        let hashes = objects
-            .iter()
-            .map(|bytes| self.objects().put(bytes.as_ref()))
-            .collect::<Result<Vec<Hash>, _>>()?;
-        self.objects().sync()?;
-        Ok(hashes)
+        // Writing and syncing 8 MiB objects would stall the runtime's threads, so the files
+        // are written on the blocking pool, after the quota is reserved and outside the lock.
+        let store = self.objects().clone();
+        crate::store::blocking(move || {
+            let hashes = objects
+                .iter()
+                .map(|bytes| store.put(bytes))
+                .collect::<Result<Vec<Hash>, _>>()?;
+            store.sync()?;
+            Ok(hashes)
+        })
+        .await
     }
 
     fn reserve_uploads(

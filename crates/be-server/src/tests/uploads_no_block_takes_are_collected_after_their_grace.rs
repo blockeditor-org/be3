@@ -16,7 +16,7 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
     };
     let kept = b"an upload still within its grace".to_vec();
     let hashes = lasting
-        .put_objects(identity, std::slice::from_ref(&kept))
+        .put_objects(identity, vec![kept.clone()])
         .await
         .unwrap();
     assert_eq!(lasting.collect_uploads().await.unwrap(), 0);
@@ -25,7 +25,7 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
         kept.len() as u64,
         "an upload no block holds is charged to its uploader"
     );
-    assert!(lasting.get_object(hashes[0]).unwrap().is_some());
+    assert!(lasting.get_object(hashes[0]).await.unwrap().is_some());
     drop(lasting);
 
     let impatient = ServerStore::open_with(
@@ -41,7 +41,7 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
         1,
         "an upload past its grace is deleted"
     );
-    assert!(impatient.get_object(hashes[0]).unwrap().is_none());
+    assert!(impatient.get_object(hashes[0]).await.unwrap().is_none());
     assert_eq!(impatient.storage_usage(identity).await.unwrap().pending, 0);
 
     drop(impatient);

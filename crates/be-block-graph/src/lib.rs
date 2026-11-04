@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, hash_map::Entry},
     error::Error,
     fmt,
 };
@@ -134,7 +134,9 @@ pub struct BlockGraph {
     settings: HashMap<Uuid, BTreeSet<Uuid>>,
     entries: HashMap<Uuid, BTreeSet<Uuid>>,
     loose: BTreeSet<Uuid>,
+    authored: HashMap<Uuid, usize>,
     revision: u64,
+    changes: u64,
 }
 
 impl BlockNode {
@@ -246,6 +248,17 @@ impl BlockGraph {
         self.revision = self.revision.max(revision);
     }
 
+    /// Counts the calls that may have changed the graph (everything taking `&mut self` but
+    /// `advance_to`), so a caller can tell whether a failed action left it as it was.
+    pub const fn changes(&self) -> u64 {
+        self.changes
+    }
+
+    /// The blocks `account` authored, kept as a count so a limit on it costs nothing.
+    pub fn authored(&self, account: Uuid) -> usize {
+        self.authored.get(&account).copied().unwrap_or(0)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.blocks.is_empty()
     }
@@ -263,6 +276,7 @@ impl BlockGraph {
     }
 
     pub fn insert(&mut self, id: Uuid, node: BlockNode) -> Result<(), GraphError> {
+        self.changes += 1;
         if self.blocks.contains_key(&id) {
             return Err(GraphError::AlreadyExists(id));
         }
@@ -280,6 +294,7 @@ impl BlockGraph {
             self.settings.entry(owner).or_default().insert(id);
         }
         self.entries.entry(node.author).or_default().insert(id);
+        *self.authored.entry(node.author).or_default() += 1;
         for account in node.grants.keys() {
             self.entries.entry(*account).or_default().insert(id);
         }
@@ -353,6 +368,7 @@ impl BlockGraph {
     }
 
     pub fn set_parent(&mut self, id: Uuid, parent: BlockParent) -> Result<(), GraphError> {
+        self.changes += 1;
         if !self.blocks.contains_key(&id) {
             return Err(GraphError::NotFound(id));
         }
@@ -497,9 +513,16 @@ impl BlockGraph {
     }
 
     pub fn remove(&mut self, id: Uuid) -> Option<BlockNode> {
+        self.changes += 1;
         let tree = self.blocks.get(&id)?.tree_size;
         self.add_to_ancestors(id, tree, false);
         let node = self.blocks.remove(&id)?;
+        if let Entry::Occupied(mut count) = self.authored.entry(node.author) {
+            *count.get_mut() -= 1;
+            if *count.get() == 0 {
+                count.remove();
+            }
+        }
         for reference in &node.references {
             if let Some(backrefs) = self.backrefs.get_mut(reference) {
                 backrefs.remove(&id);
@@ -1011,6 +1034,7 @@ impl BlockGraph {
     }
 
     fn node_mut(&mut self, id: Uuid) -> Result<&mut BlockNode, GraphError> {
+        self.changes += 1;
         self.blocks.get_mut(&id).ok_or(GraphError::NotFound(id))
     }
 }

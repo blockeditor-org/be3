@@ -38,6 +38,7 @@ pub mod blocks;
 pub mod contacts;
 mod http;
 pub mod keys;
+pub mod limits;
 mod organization;
 pub mod schema;
 pub mod sessions;
@@ -682,15 +683,13 @@ where
                         }
                     }
                     _ = session_changes.changed() => {
-                        if let Some(token) = &client.connection.token
-                            && services.store.resolve_token(token).await.is_err() {
+                        if client.connection.signed_in().await.is_err() {
                             let _ = outgoing.send(Message::Close(None));
                             return Ok(());
                         }
                     }
                     push = client.pushes.recv() => {
-                        if let Some(token) = &client.connection.token
-                            && services.store.resolve_token(token).await.is_err() {
+                        if client.connection.signed_in().await.is_err() {
                             let _ = outgoing.send(Message::Close(None));
                             return Ok(());
                         }
