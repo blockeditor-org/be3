@@ -11,7 +11,7 @@ in `crates/be-sdk-api/PROTOCOL.md`.
   asks for and every window an instance opens a surface of its own, and owns
   the wgpu device. Its state (content, graph, editor, artifact and creation
   state) is plain values with change callbacks
-  (guides/the_new_block_stack.md, State and change callbacks), so any UI
+  (guides/blocks/apps.md, State and change callbacks), so any UI
   framework can adapt it.
 - `crates/be-sdk-beui`: what every beui editor goes through. `BeuiApp<A>`
   implements be-sdk's `Instance` for a `BeuiRoot`, turns the callbacks into
@@ -57,7 +57,8 @@ core reports only when they change.
 ## beui's side
 
 `AppRuntime::launch` starts beui's runner for the module's one beui `App` and
-registers a `Driver` over it as the module's handler, then returns; the host's
+registers a `Driver` over it as the module's handler (guides/blocks/apps.md,
+The region driver), then returns; the host's
 calls drive frames. The framework runs one beui `Context` and one `Document`
 for the whole module, opens a beui `Window` per view at the view's size (so
 it lays out at that size in the frame that shows it), and builds

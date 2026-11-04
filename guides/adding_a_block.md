@@ -5,7 +5,7 @@ A block's type is its content type, and an app brings it: the content is a
 undo and address its own parts and is built into the app's type module
 (guides/type_modules.md); the app's manifest declares it. Its UI is the app's
 editor (guides/adding_an_app.md). How documents, edits, merging and undo work
-underneath is in guides/the_new_block_stack.md (Adding a content type).
+underneath is in guides/blocks/content_types.md.
 `crates/be-type-checklist` is the example to copy.
 
 ## 1. Make the types crate
@@ -165,7 +165,7 @@ constructors and constants go on the kind (`PdfFile::from_file`), since a
 types crate cannot add methods to be-block's `Blob<K>`. Bump
 `BlobKind::SCHEMA` when the header changes so an old one would be misread;
 that offers blocks saved before the change for reset
-(guides/the_new_block_stack.md, Blocks saved by another build).
+(guides/blocks/host.md, Blocks saved by another build).
 
 ## 8. Declare it in the manifest
 

@@ -130,7 +130,7 @@ An editor instance reaches the content of its blocks through `blocks`'
 `replica` resources: frames the host relays unread, in order and
 back-pressured both ways (a stream window to the editor, a window of unanswered
 `send`s from it), between the instance and the block's replica
-(guides/the_new_block_stack.md, "Content on the app protocol").
+(guides/blocks/apps.md, "Content on the app protocol").
 
 An app may edit several block types, and every opening of an
 instance names the block type whose editor it is for, which is how the app
