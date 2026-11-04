@@ -69,8 +69,9 @@ interface account {
     storage-usage: async func() -> result<account-storage, error>;
 
     /// The signed-in account's storage usage: its value as the stream opens,
-    /// then each new value as the bytes it pays for change. Ends at once,
-    /// denied, before sign-in.
+    /// then each new value as the bytes it pays for change. A connection has
+    /// one: opening another ends the first. Ends at once, denied, before an
+    /// organization is open.
     storage-changed: func() -> stream<account-storage>;
 
     /// Sends a pairing message to one of the account's other connections, or

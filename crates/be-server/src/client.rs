@@ -69,11 +69,12 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             | account::Call::FinishBrowserLogin { .. }
             | account::Call::CreateLocalProfile { .. }
             | account::Call::Authenticate { .. } => Rule::Anyone,
-            account::Call::StorageUsage { .. } => Rule::Organization,
+            account::Call::StorageUsage { .. } | account::Call::StorageChanged { .. } => {
+                Rule::Organization
+            }
             account::Call::Logout { .. }
             | account::Call::Pair { .. }
-            | account::Call::Paired { .. }
-            | account::Call::StorageChanged { .. } => Rule::SignedIn,
+            | account::Call::Paired { .. } => Rule::SignedIn,
         },
         Call::Organizations(call) => match call {
             organizations::Call::Invite { organization, .. } => {
@@ -844,9 +845,25 @@ impl Client {
                 .await;
                 match payer {
                     Ok(payer) => {
-                        self.streams
-                            .outlets
-                            .insert(stream, Route::Storage, Backlog::Latest);
+                        {
+                            let mut lock = self.peer.lock();
+                            let earlier: Vec<OpId> = self
+                                .streams
+                                .outlets
+                                .routes()
+                                .filter(|(_, route)| **route == Route::Storage)
+                                .map(|(op, _)| op)
+                                .collect();
+                            for op in earlier {
+                                self.streams.outlets.end(&mut lock, op, None);
+                            }
+                            self.streams.open_with(
+                                &mut lock,
+                                stream,
+                                Route::Storage,
+                                Backlog::Latest,
+                            );
+                        }
                         self.storage = None;
                         self.follow_storage(payer);
                         self.send_storage().await;
