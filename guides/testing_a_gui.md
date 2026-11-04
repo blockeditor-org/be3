@@ -147,7 +147,7 @@ in a padded surface `bleed` so a ring at its edge has room. beui-demo's
 ### Documents that are not editors
 
 `be_sdk_test::DocumentTest` paints any beui document (crates/beui-demo paints every demo page
-this way). It is beui's `testing::Stepped` (guides/beui/core.md), running the real `Runner`
+this way). It is beui's `testing::Stepped` (guides/beui/core.md, Test and verify changes), running the real `Runner`
 with drive's gestures and a frame clock. `click` and `scroll` reveal their target first and
 then move the pointer out of the window, so a painting shows hover only where the test hovers.
 `settle()` never finishes on a page that animates forever, such as a spinner.
