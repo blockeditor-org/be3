@@ -125,7 +125,9 @@ has nothing to send).
     `FORMS_PER_ADDRESS`; another lets go of the address's oldest), and one
     call waits on a code at a time.
   - Request bodies grow only as their bytes arrive and stall out after
-    `BODY_READ_TIMEOUT`.
+    `BODY_READ_TIMEOUT`. A websocket is idle only after `IDLE_TIMEOUT` with no
+    bytes read at all (`next_heard`), so a large message on a slow link is
+    not cut off however long it takes.
 
   An address is a client's `Services::client_address`: its peer, or the
   `X-Forwarded-For` hop nearest it when the peer is in `trusted_proxies`
