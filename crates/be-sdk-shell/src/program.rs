@@ -737,12 +737,8 @@ impl Workspace {
             return None;
         }
         let window = self.program_window(tab)?;
-        self.windows.with(|windows| {
-            windows
-                .iter()
-                .find(|listed| listed.id == window)
-                .cloned()
-        })
+        self.windows
+            .with(|windows| windows.iter().find(|listed| listed.id == window).cloned())
     }
 
     pub(crate) fn needs_size(&self, tab: TabId) -> bool {
