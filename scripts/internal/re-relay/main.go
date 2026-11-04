@@ -13,6 +13,9 @@
 //
 // ensure returns once a relay of that version is listening, starting one in
 // the background if there is none, and replacing one of another version.
+//
+// GET /__be3-re-relay/calls lists the calls in flight and what each waits on,
+// then every goroutine's stack (guides/build_server.md).
 package main
 
 import (
@@ -25,10 +28,15 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"os/exec"
+	"runtime/pprof"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -121,6 +129,8 @@ func ensure(listen, upstream, version, logPath string, connections int) {
 func serve(listen, upstream, version string, connections int) {
 	transport := &http.Transport{
 		Proxy:               http.ProxyFromEnvironment,
+		DialContext:         (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		TLSHandshakeTimeout: 30 * time.Second,
 		ForceAttemptHTTP2:   true,
 		MaxConnsPerHost:     connections,
 		MaxIdleConns:        connections,
@@ -147,9 +157,15 @@ func serve(listen, upstream, version string, connections int) {
 			os.Exit(0)
 		}()
 	})
+	mux.HandleFunc("GET "+controlPath+"/calls", func(w http.ResponseWriter, r *http.Request) {
+		describeCalls(w)
+		fmt.Fprintln(w)
+		pprof.Lookup("goroutine").WriteTo(w, 2)
+	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		relay(transport, upstream, w, r)
 	})
+	go reportStalls()
 
 	server.Protocols = new(http.Protocols)
 	server.Protocols.SetHTTP1(true)
@@ -193,13 +209,15 @@ var resumable = map[string]bool{
 }
 
 func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r *http.Request) {
+	c := begin(r.URL.Path)
+	defer c.end()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		grpcError(w, 14, "re-relay: reading the request: "+err.Error())
 		return
 	}
 
-	resp, failure := call(transport, upstream, r, body)
+	resp, failure := call(c, transport, upstream, r, body)
 	if failure != "" {
 		grpcError(w, 14, "re-relay: "+failure)
 		return
@@ -216,12 +234,15 @@ func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r 
 	flusher := w.(http.Flusher)
 	answer := bufio.NewReaderSize(resp.Body, 64*1024)
 	for resumed := 0; ; {
+		c.set(phaseUpstream)
 		message, readErr := readMessage(answer)
 		if message != nil {
+			c.set(phaseBuck2)
 			if _, err := w.Write(message); err != nil {
 				return
 			}
 			flusher.Flush()
+			c.sent(len(message))
 		}
 		if readErr == io.EOF {
 			break
@@ -237,7 +258,7 @@ func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r 
 		fmt.Fprintf(os.Stderr, "re-relay: %s %s broke off (%v), making it again (%d of %d)\n",
 			time.Now().Format(time.RFC3339), r.URL.Path, readErr, resumed, resumes)
 		resp.Body.Close()
-		resp, failure = call(transport, upstream, r, body)
+		resp, failure = call(c, transport, upstream, r, body)
 		if failure != "" {
 			resp = &http.Response{Body: http.NoBody}
 			trailerError(w, "re-relay: "+failure)
@@ -261,9 +282,9 @@ func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r 
 }
 
 // A call made until it answers with gRPC, or why it never did.
-func call(transport *http.Transport, upstream string, r *http.Request, body []byte) (*http.Response, string) {
+func call(c *inFlight, transport *http.Transport, upstream string, r *http.Request, body []byte) (*http.Response, string) {
 	for attempt := 1; ; attempt++ {
-		resp, failure := roundTrip(transport, upstream, r, body)
+		resp, failure := roundTrip(c, transport, upstream, r, body)
 		if failure == "" {
 			return resp, ""
 		}
@@ -304,8 +325,10 @@ func trailerError(w http.ResponseWriter, message string) {
 }
 
 // One attempt at a call: the response when it is gRPC's, or why it is not.
-func roundTrip(transport *http.Transport, upstream string, r *http.Request, body []byte) (*http.Response, string) {
-	out, err := http.NewRequestWithContext(r.Context(), r.Method, "https://"+upstream+r.URL.RequestURI(), bytes.NewReader(body))
+func roundTrip(c *inFlight, transport *http.Transport, upstream string, r *http.Request, body []byte) (*http.Response, string) {
+	c.set(phaseConnection)
+	trace := &httptrace.ClientTrace{GotConn: func(httptrace.GotConnInfo) { c.set(phaseUpstream) }}
+	out, err := http.NewRequestWithContext(httptrace.WithClientTrace(r.Context(), trace), r.Method, "https://"+upstream+r.URL.RequestURI(), bytes.NewReader(body))
 	if err != nil {
 		return nil, err.Error()
 	}
@@ -340,4 +363,119 @@ func grpcError(w http.ResponseWriter, code int, message string) {
 	w.Header().Set("Grpc-Status", strconv.Itoa(code))
 	w.Header().Set("Grpc-Message", message)
 	w.WriteHeader(http.StatusOK)
+}
+
+// What a call in flight waits on. A build that stops with calls waiting on
+// buck2 is buck2 no longer reading its answers; one with calls waiting on the
+// upstream is the proxy or the build server; and calls waiting for a
+// connection are queued behind -connections others.
+const (
+	phaseConnection int32 = iota
+	phaseUpstream
+	phaseBuck2
+)
+
+var phaseNames = [...]string{
+	phaseConnection: "waiting for a connection to the upstream",
+	phaseUpstream:   "waiting on the upstream",
+	phaseBuck2:      "waiting on buck2 to read",
+}
+
+type inFlight struct {
+	path    string
+	started time.Time
+	phase   atomic.Int32
+	since   atomic.Int64 // when it last moved, in Unix nanoseconds
+	bytes   atomic.Int64 // passed on to buck2
+}
+
+var calls sync.Map // *inFlight -> struct{}
+
+func begin(path string) *inFlight {
+	c := &inFlight{path: path, started: time.Now()}
+	c.since.Store(c.started.UnixNano())
+	calls.Store(c, struct{}{})
+	return c
+}
+
+func (c *inFlight) end() { calls.Delete(c) }
+
+func (c *inFlight) set(phase int32) {
+	if c.phase.Swap(phase) != phase {
+		c.since.Store(time.Now().UnixNano())
+	}
+}
+
+func (c *inFlight) sent(n int) {
+	c.bytes.Add(int64(n))
+	c.since.Store(time.Now().UnixNano())
+}
+
+func (c *inFlight) idle(now time.Time) time.Duration {
+	return now.Sub(time.Unix(0, c.since.Load()))
+}
+
+// An Execute waits on the upstream for as long as its action runs, so that
+// wait alone is not a stall.
+func (c *inFlight) stalled(now time.Time) bool {
+	if c.idle(now) < stallAfter {
+		return false
+	}
+	return c.phase.Load() != phaseUpstream || !resumable[c.path]
+}
+
+const stallAfter = time.Minute
+
+func snapshot() []*inFlight {
+	var all []*inFlight
+	calls.Range(func(key, _ any) bool {
+		all = append(all, key.(*inFlight))
+		return true
+	})
+	slices.SortFunc(all, func(a, b *inFlight) int { return a.started.Compare(b.started) })
+	return all
+}
+
+// Every 30 seconds while any call has not moved for a minute, one line in the
+// log says how many wait on what, so the log of a stopped build says which
+// side stopped.
+func reportStalls() {
+	for range time.Tick(30 * time.Second) {
+		now := time.Now()
+		all := snapshot()
+		var count [len(phaseNames)]int
+		var oldest [len(phaseNames)]time.Duration
+		stalled := 0
+		for _, c := range all {
+			if !c.stalled(now) {
+				continue
+			}
+			stalled++
+			phase := c.phase.Load()
+			count[phase]++
+			oldest[phase] = max(oldest[phase], c.idle(now))
+		}
+		if stalled == 0 {
+			continue
+		}
+		var parts []string
+		for phase, n := range count {
+			if n > 0 {
+				parts = append(parts, fmt.Sprintf("%d %s (longest %s)", n, phaseNames[phase], oldest[phase].Round(time.Second)))
+			}
+		}
+		fmt.Fprintf(os.Stderr, "re-relay: %s %d of %d calls have not moved for %s: %s\n",
+			now.Format(time.RFC3339), stalled, len(all), stallAfter, strings.Join(parts, ", "))
+	}
+}
+
+func describeCalls(w io.Writer) {
+	now := time.Now()
+	all := snapshot()
+	fmt.Fprintf(w, "%d calls in flight\n", len(all))
+	for _, c := range all {
+		fmt.Fprintf(w, "%8s old, %8s %s, %d bytes passed on, %s\n",
+			now.Sub(c.started).Round(time.Second), c.idle(now).Round(time.Second),
+			phaseNames[c.phase.Load()], c.bytes.Load(), c.path)
+	}
 }
