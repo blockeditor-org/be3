@@ -4,11 +4,7 @@ use super::*;
 fn a_turned_screen_captures_its_picture_upright_without_the_pointer() {
     let (device, queue) = vulkan_device();
     let gpu = Gpu::new(device, queue, FORMAT);
-    let arrow = gpu.rgba(
-        crate::arrow::WIDTH,
-        crate::arrow::HEIGHT,
-        &crate::arrow::pixels(),
-    );
+    let pointer = gpu.rgba(4, 12, &[255; 4 * 12 * 4]);
     let context = beui_host::native::context();
     let mut screen = Screen::new(&gpu, (WIDTH, HEIGHT), Rotation::Clockwise90);
     screen.rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(24.0, 32.0));
@@ -33,8 +29,8 @@ fn a_turned_screen_captures_its_picture_upright_without_the_pointer() {
         clear: Color32::BLACK,
         pointer: pos2(12.0, 20.0),
         sprite: Pointer::Sprite {
-            sprite: &arrow,
-            size: vec2(crate::arrow::WIDTH as f32, crate::arrow::HEIGHT as f32),
+            sprite: &pointer,
+            size: vec2(4.0, 12.0),
             hotspot: Vec2::ZERO,
         },
     };

@@ -102,6 +102,7 @@ impl Gpu {
         }
     }
 
+    #[cfg(test)]
     pub fn rgba(&self, width: u32, height: u32, pixels: &[u8]) -> Sprite {
         let size = wgpu::Extent3d {
             width,

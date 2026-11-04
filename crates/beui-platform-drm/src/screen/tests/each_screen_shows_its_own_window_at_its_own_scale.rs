@@ -20,11 +20,14 @@ fn filled(size: Vec2, color: Color32) -> beui::native::WindowOutput {
 fn each_screen_shows_its_own_window_at_its_own_scale() {
     let (device, queue) = vulkan_device();
     let gpu = Gpu::new(device.clone(), queue.clone(), FORMAT);
-    let arrow = gpu.rgba(
-        crate::arrow::WIDTH,
-        crate::arrow::HEIGHT,
-        &crate::arrow::pixels(),
-    );
+    // White but for a clear first column, so the pointer starts a point past where it is.
+    let pixels: Vec<u8> = (0..4 * 12)
+        .flat_map(|at| match at % 4 {
+            0 => [0; 4],
+            _ => [255; 4],
+        })
+        .collect();
+    let pointer = gpu.rgba(4, 12, &pixels);
     let mut left = Screen::new(&gpu, (WIDTH, HEIGHT), Rotation::Normal);
     left.rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 24.0));
     let mut right = Screen::new(&gpu, (WIDTH, HEIGHT), Rotation::Normal);
@@ -41,8 +44,8 @@ fn each_screen_shows_its_own_window_at_its_own_scale() {
         clear: Color32::BLACK,
         pointer: pos2(42.0, 1.0),
         sprite: Pointer::Sprite {
-            sprite: &arrow,
-            size: vec2(crate::arrow::WIDTH as f32, crate::arrow::HEIGHT as f32),
+            sprite: &pointer,
+            size: vec2(4.0, 12.0),
             hotspot: Vec2::ZERO,
         },
     };
