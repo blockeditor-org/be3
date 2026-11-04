@@ -16,7 +16,7 @@ fn a_nested_docks_tab_leaves_its_group_only_once_unlocked_and_keeps_its_panel() 
 
     let from = harness.center(dock_tab(harness.document(), nested.node, "Inner 10"));
     harness.drag(from, into_side);
-    harness.frame(Vec::new());
+    harness.frames_to_settle();
     let state = nested.outer.state().get_untracked();
     assert!(
         state.group_tabs(group).contains(&tab),
@@ -30,8 +30,18 @@ fn a_nested_docks_tab_leaves_its_group_only_once_unlocked_and_keeps_its_panel() 
         "Locked",
     );
     let from = harness.center(dock_tab(harness.document(), nested.node, "Inner 10"));
-    harness.drag(from, into_side);
+    harness.down(from, PointerButton::Primary);
+    for step in 1..=8 {
+        harness.hover(from + (into_side - from) * (step as f32 / 8.0));
+    }
     harness.frame(Vec::new());
+    assert!(
+        harness.document().find_test_id("dock.drop").is_some()
+            && harness.document().find_test_id("dock.drop.label").is_none(),
+        "over a pane holding one tab the tab would only join it, so nothing is named"
+    );
+    harness.up(into_side, PointerButton::Primary);
+    harness.frames_to_settle();
     let state = nested.outer.state().get_untracked();
     assert_eq!(
         state.find(tab).map(|position| position.leaf),

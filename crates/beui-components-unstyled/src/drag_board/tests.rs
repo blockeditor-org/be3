@@ -81,7 +81,7 @@ impl Fixture {
             fixture: self,
             name,
             node: self.node(rect, order),
-            takes: Rc::new(|_| true),
+            takes: Rc::new(|_| Take::Drop),
             hides_preview: false,
             holds: false,
         }
@@ -130,7 +130,7 @@ struct TargetBuilder<'a> {
     fixture: &'a Fixture,
     name: &'static str,
     node: NodeRef,
-    takes: Rc<dyn Fn(DragPoint) -> bool>,
+    takes: Rc<dyn Fn(DragPoint) -> Take>,
     hides_preview: bool,
     holds: bool,
 }
@@ -138,7 +138,14 @@ struct TargetBuilder<'a> {
 impl TargetBuilder<'_> {
     fn declines(self) -> Self {
         Self {
-            takes: Rc::new(|_| false),
+            takes: Rc::new(|_| Take::Pass),
+            ..self
+        }
+    }
+
+    fn refuses(self) -> Self {
+        Self {
+            takes: Rc::new(|_| Take::Refuse),
             ..self
         }
     }
@@ -203,6 +210,7 @@ fn rect(x: f32, y: f32, width: f32, height: f32) -> Rect {
 mod a_carried_item_drops_on_the_topmost_target_under_the_pointer;
 mod a_release_over_no_target_cancels_the_drag;
 mod a_target_that_declines_the_drop_lets_the_one_beneath_take_it;
+mod a_target_that_refuses_the_drop_hears_the_item_over_it_and_sends_it_home;
 mod edge_scrolling_runs_the_topmost_scroller_whose_band_holds_the_pointer;
 mod escape_cancels_a_drag_over_a_target_without_dropping_it;
 mod every_target_hears_the_drag_end_before_the_drop;

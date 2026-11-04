@@ -24,7 +24,6 @@ use beui_components_unstyled::ChoiceKind;
 use beui_components_unstyled::ChoiceOption;
 use beui_components_unstyled::ChoiceOptionHandle;
 use beui_components_unstyled::DragHandle;
-use beui_components_unstyled::DragPoint;
 use beui_components_unstyled::Draggable;
 use beui_components_unstyled::DropHandle;
 use beui_components_unstyled::DropTarget;
@@ -34,6 +33,7 @@ use beui_components_unstyled::context_menu::ContextMenu;
 use beui_components_unstyled::menu::{MenuItem, MenuNodes};
 use beui_components_unstyled::menu_popup::MenuStyle;
 use beui_components_unstyled::rubber_band::{Band, WINDOW_SPRING};
+use beui_components_unstyled::{DragPoint, Take};
 use beui_components_unstyled::{
     Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove,
 };
@@ -1185,11 +1185,18 @@ impl State {
         }
     }
 
-    fn takes(&self, point: DragPoint) -> bool {
-        self.drag.get_untracked().is_none_or(|drag| {
-            matches!(drag.dragged, DockDragged::Bar(_))
-                || self.admitted(point, drag.dragged).is_some()
-        })
+    fn takes(&self, point: DragPoint) -> Take {
+        let Some(drag) = self.drag.get_untracked() else {
+            return Take::Drop;
+        };
+        if let DockDragged::Bar(_) = drag.dragged {
+            return Take::Drop;
+        }
+        match self.admitted(point, drag.dragged) {
+            Some(_) => Take::Drop,
+            None if self.resolve(point).is_some() => Take::Refuse,
+            None => Take::Pass,
+        }
     }
 
     fn drop_at(&self, dragged: DockDragged, point: DragPoint) {
@@ -2988,7 +2995,10 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
             direction
             payload={Func::new(|entry: Entry| Some(DockDragged::Entry(entry)))}
             accepts={move |dragged: DockDragged| dock.bar_admits(leaf, dragged)}
-            takes={|point: DragPoint| !point.modifiers.alt}
+            takes={|point: DragPoint| match point.modifiers.alt {
+                true => Take::Pass,
+                false => Take::Drop,
+            }}
             text={move |entry: Entry| dock.entry_title(entry)}
             on_move={move |moved: ReorderMove<Entry, DockDragged>| dock.move_into_bar(leaf, moved)}
             on_drag_change={move |entry: Option<Entry>| match entry {

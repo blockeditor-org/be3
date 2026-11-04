@@ -164,17 +164,19 @@ them (`unstyled/modifier_drag.rs`; the desktop sets Super).
 
 ## Dragging, groups and locks
 
-Dropping a tab on a tab bar inserts it, on a pane's middle joins it, on an edge splits it, on
-another tab groups the two; Alt while dropping floats it. Dragging a pane's grip carries the pane.
+Dropping a tab on a tab bar inserts it where the bar parts for it (each bar is a `Reorder`), on a
+pane's middle groups it with the tab the pane shows (`DockDrop::Group`; the highlight names that tab
+unless tidying would only fold it into the pane), on an edge splits it; Alt while dropping floats it. Dragging a pane's grip carries the pane.
 A group is a tab holding a dock tree of its own (`Entry::Group`); the tree tidies itself after every
 change (a one-tab group becomes the tab). A pinned group is never tidied away and admits only its
 own tabs.
 
 A `locked` pane makes an area, and every tab declared in it lives there (`DockState::home`). While
 locked, a tab at home moves and splits freely inside the area but cannot leave or float; tabs from
-elsewhere are kept out. Locks belong to places, not tabs. Any drop the state refuses
-(`DockState::admits`, `admits_leaf`) shows no marker and does nothing, so check `admits` first when
-a drop test does nothing.
+elsewhere are kept out. Locks belong to places, not tabs. Over a drop the state refuses
+(`DockState::admits`, `admits_leaf`) the dock shows the refused marker (`dock.refused`) instead of a
+drop marker, and refuses the drop on the board (`Take::Refuse`), so a release there does nothing and
+the tab glides back to its bar; check `admits` first when a drop test does nothing.
 
 ## Nested docks and the host seam
 

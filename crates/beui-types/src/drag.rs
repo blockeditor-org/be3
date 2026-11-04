@@ -70,15 +70,26 @@ pub type Over = std::rc::Rc<dyn Fn(Option<(&dyn std::any::Any, DragPoint)>)>;
 pub type Pending = std::rc::Rc<dyn Fn(DragPoint)>;
 pub type Outside = std::rc::Rc<dyn Fn(DragPoint)>;
 
+/// What a target does with a carried item at a point.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Take {
+    /// It is the target there and takes the drop.
+    Drop,
+    /// It is the target there, so it hears the item over it and can show it is refused, but a
+    /// release ends the drag as nothing taking it: the source hears `cancelled`.
+    Refuse,
+    /// It lets the point through to the target beneath, as if it were not there.
+    Pass,
+}
+
 /// A place a carried item may be dropped. `accepts` says which payloads it takes at all,
-/// `takes` whether it takes one at a point (declining lets the target beneath take it),
-/// and `holds` names the payloads it keeps wherever the pointer is when no other target
+/// `takes` what it does with one at a point (`Take`), and `holds` names the payloads it keeps wherever the pointer is when no other target
 /// accepts them. `hides_preview` asks the source to show the item in place, not floating.
 pub struct Target {
     pub id: u64,
     pub node: crate::node::NodeRef,
     pub accepts: Accepts,
-    pub takes: std::rc::Rc<dyn Fn(DragPoint) -> bool>,
+    pub takes: std::rc::Rc<dyn Fn(DragPoint) -> Take>,
     pub carrying: std::rc::Rc<dyn Fn(bool)>,
     pub over: Over,
     pub dropped: Dropped,

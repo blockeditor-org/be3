@@ -4,7 +4,7 @@ use crate::document::Document;
 use crate::node::{Element, NodeOf, Placed, Rects};
 use crate::painter::Painter;
 use beui_tree::callback::Callback;
-use beui_types::{NodeId, Pos2, Rect, Vec2};
+use beui_types::{Direction, NodeId, Pos2, Rect, Vec2};
 
 pub use beui_types::layout::{GLIDE_SPRING, GlideHold, GlideMotion};
 
@@ -76,6 +76,18 @@ impl Element for GlideNode {
     fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
         self.child
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
+    }
+
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        Some(self.child.map_or(0.0, |child| {
+            crate::layout::least_length(doc, painter, child, direction, cross)
+        }))
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {

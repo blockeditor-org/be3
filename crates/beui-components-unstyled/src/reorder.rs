@@ -6,7 +6,7 @@ use crate::drag_board::{Board, drag_board};
 use accesskit::{Live, Node, Role};
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
-use beui_view::drag::{DragPoint, DragSource, Pending};
+use beui_view::drag::{DragPoint, DragSource, Pending, Take};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
@@ -901,7 +901,7 @@ pub fn Reorder<K, P>(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     payload: Func<K, Option<P>>,
     #[prop(default = None)] accepts: Option<Func<P, bool>>,
-    #[prop(default = None)] takes: Option<Func<DragPoint, bool>>,
+    #[prop(default = None)] takes: Option<Func<DragPoint, Take>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] fixed: Prop<bool>,
     #[prop(default = None)] slot: Option<Func<P, Option<usize>>>,
@@ -1035,7 +1035,8 @@ where
                     && state.accepts.is_some_and(|accepts| accepts.call(payload)))
         })
     });
-    let taking = Func::new(move |point: DragPoint| takes.is_none_or(|takes| takes.call(point)));
+    let taking =
+        Func::new(move |point: DragPoint| takes.map_or(Take::Drop, |takes| takes.call(point)));
     let home =
         move || lifted.with_untracked(|lifted| lifted.as_ref().is_some_and(|lifted| lifted.home));
     let hides = create_memo(move || {

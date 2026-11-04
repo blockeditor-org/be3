@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use be_lib_stable_hash::HashMap;
 use beui_view::drag::{
-    DragPoint, DragSource, Driver, EdgeScroller, Order, Over, Pending, Space, Target,
+    DragPoint, DragSource, Driver, EdgeScroller, Order, Over, Pending, Space, Take, Target,
 };
 use beui_view::reactive::{NodeId, tree_local};
 use beui_view::types::{Rect, WindowId};
@@ -23,13 +23,20 @@ pub fn drag_board() -> Rc<Board> {
 struct Carried {
     source: DragSource,
     over: Option<u64>,
+    refused: bool,
     last: Option<DragPoint>,
     floating: Option<bool>,
 }
 
 type Scrolling = (u64, f32, Rc<dyn Fn(Option<f32>)>);
 
-type Under = (u64, (Rect, f32), Over, bool);
+struct Under {
+    id: u64,
+    rect: (Rect, f32),
+    over: Over,
+    hides: bool,
+    take: Take,
+}
 
 pub struct Board {
     space: Rc<dyn Space>,
@@ -143,6 +150,7 @@ impl Board {
         *self.carried.borrow_mut() = Some(Carried {
             source,
             over: None,
+            refused: false,
             last: None,
             floating: None,
         });
@@ -287,13 +295,12 @@ impl Board {
     fn under(&self, point: DragPoint) -> Option<Under> {
         let carried = self.carried.borrow();
         let payload = carried.as_ref()?.source.payload.as_ref();
-        let under = |target: &Target, rect| {
-            (
-                target.id,
-                rect,
-                Rc::clone(&target.over),
-                (target.hides_preview)(),
-            )
+        let under = |target: &Target, rect, take| Under {
+            id: target.id,
+            rect,
+            over: Rc::clone(&target.over),
+            hides: (target.hides_preview)(),
+            take,
         };
         let targets = self.targets.borrow();
         let found = targets
@@ -306,18 +313,21 @@ impl Board {
                     .is_some_and(|visible| visible.contains_half_open(point.pos))
             })
             .filter_map(|(node, target)| Some((node, self.rect_of(target)?, target)))
-            .filter(|(_, rect, target)| {
-                (target.accepts)(payload) && (target.takes)(point.within(*rect))
+            .filter(|(.., target)| (target.accepts)(payload))
+            .filter_map(|(node, rect, target)| {
+                let take = (target.takes)(point.within(rect));
+                (take != Take::Pass).then_some((node, rect, target, take))
             })
             .max_by_key(|(node, ..)| self.painted(*node))
-            .map(|(_, rect, target)| under(target, rect));
+            .map(|(_, rect, target, take)| under(target, rect, take));
         if found.is_some() {
             return found;
         }
         let holder = holder(&targets, payload)?;
         let target = targets.iter().find(|target| target.id == holder)?;
         let rect = self.rect_of(target)?;
-        (target.takes)(point.within(rect)).then(|| under(target, rect))
+        let take = (target.takes)(point.within(rect));
+        (take != Take::Pass).then(|| under(target, rect, take))
     }
 
     fn over(&self, id: u64) -> Option<Over> {
@@ -342,26 +352,32 @@ impl Board {
         }
         let point = self.stamp(point);
         let under = self.under(point);
-        let id = under.as_ref().map(|(id, ..)| *id);
-        let previous = self
-            .carried
-            .borrow_mut()
-            .as_mut()
-            .and_then(|carried| std::mem::replace(&mut carried.over, id));
+        let id = under.as_ref().map(|under| under.id);
+        let refused = under
+            .as_ref()
+            .is_some_and(|under| under.take == Take::Refuse);
+        let previous = self.carried.borrow_mut().as_mut().and_then(|carried| {
+            carried.refused = refused;
+            std::mem::replace(&mut carried.over, id)
+        });
         if previous.is_some()
             && previous != id
             && let Some(left) = previous.and_then(|id| self.over(id))
         {
             left(None);
         }
-        self.float(!under.as_ref().is_some_and(|(.., hides)| *hides));
+        self.float(
+            !under
+                .as_ref()
+                .is_some_and(|under| under.hides && under.take == Take::Drop),
+        );
         let payload = self
             .carried
             .borrow()
             .as_ref()
             .map(|carried| Rc::clone(&carried.source.payload));
-        if let (Some((_, rect, entered, _)), Some(payload)) = (under, payload) {
-            entered(Some((payload.as_ref(), point.within(rect))));
+        if let (Some(under), Some(payload)) = (under, payload) {
+            (under.over)(Some((payload.as_ref(), point.within(under.rect))));
         }
     }
 
@@ -396,7 +412,7 @@ impl Board {
             .collect::<Vec<_>>();
         let mut drop = None;
         for (id, carrying, over, dropped) in targets {
-            if carried.over == Some(id) {
+            if carried.over == Some(id) && !carried.refused {
                 drop = Some((dropped, self.placed(id)));
             }
             over(None);
