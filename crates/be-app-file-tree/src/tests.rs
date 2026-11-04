@@ -297,12 +297,7 @@ fn across(row: be_sdk_beui::beui::Rect, fraction: f32) -> Pos2 {
     Pos2::new(row.center().x, row.top() + row.height() * fraction)
 }
 
-fn named_block(
-    id: u128,
-    block_type: Uuid,
-    parent: Uuid,
-    name: &str,
-) -> be_sdk_beui::BlockInfo {
+fn named_block(id: u128, block_type: Uuid, parent: Uuid, name: &str) -> be_sdk_beui::BlockInfo {
     let mut block = be_sdk_beui::BlockInfo::new(
         Uuid::from_u128(id),
         block_type,

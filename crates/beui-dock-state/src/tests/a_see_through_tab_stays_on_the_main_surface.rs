@@ -24,7 +24,13 @@ fn a_see_through_tab_stays_on_the_main_surface() {
     assert!(!state.shows_see_through(tools));
     assert!(!state.admits(Entry::Tab(TabId::new(1)), window));
     assert!(!state.admits_leaf(program, window));
-    assert!(state.admits(Entry::Tab(TabId::new(1)), DockDrop::Tab { leaf: tools, index: usize::MAX }));
+    assert!(state.admits(
+        Entry::Tab(TabId::new(1)),
+        DockDrop::Tab {
+            leaf: tools,
+            index: usize::MAX
+        }
+    ));
     state.drop_tab(TabId::new(1), window);
     assert!(
         state.windows().is_empty(),
@@ -45,7 +51,13 @@ fn a_see_through_tab_stays_on_the_main_surface() {
         "nor dropped into a window another tab floated into"
     );
 
-    state.drop_tab(TabId::new(2), DockDrop::Tab { leaf: program, index: usize::MAX });
+    state.drop_tab(
+        TabId::new(2),
+        DockDrop::Tab {
+            leaf: program,
+            index: usize::MAX,
+        },
+    );
     assert!(
         !state.shows_see_through(program),
         "a pane shows through only while it shows the see-through tab"

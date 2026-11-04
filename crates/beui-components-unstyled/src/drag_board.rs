@@ -85,7 +85,10 @@ impl Board {
     }
 
     fn painted(&self, node: NodeId) -> Option<Vec<usize>> {
-        self.orders.borrow().get(&node).map(|(order, _)| order.clone())
+        self.orders
+            .borrow()
+            .get(&node)
+            .map(|(order, _)| order.clone())
     }
 
     fn rect_of(&self, target: &Target) -> Option<(Rect, f32)> {

@@ -1,11 +1,19 @@
+use std::cell::OnceCell;
+use std::rc::Rc;
+
 use super::*;
-use crate::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
+use crate::unstyled::{
+    Board, DragHandle, DragPoint, Draggable, DropHandle, DropTarget, drag_board,
+};
 
 #[test]
 fn a_drop_target_hears_the_size_of_the_item_dragged_over_it() {
     let _root = crate::reactive::RootScope::new();
     let heard = create_signal(None::<Rect>);
+    let board = Rc::new(OnceCell::<Rc<Board>>::new());
+    let kept = Rc::clone(&board);
     let (document, [source, target]) = toolbar_of(move || {
+        kept.get_or_init(drag_board);
         [
             view! {
                 <Draggable
@@ -47,7 +55,10 @@ fn a_drop_target_hears_the_size_of_the_item_dragged_over_it() {
         "the target hears the carried item's rect, relative to where it was grabbed"
     );
     assert_eq!(
-        harness.document().drag_board().item(),
+        board
+            .get()
+            .expect("the board was made with the view")
+            .item(),
         heard.get_untracked(),
         "and the board answers the same"
     );

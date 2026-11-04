@@ -10,31 +10,33 @@ fn a_virtual_list_reorders_its_rows_by_key() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <ListItem grow=1.0><Offset>
-                    <Reorder
-                        keys={keys}
-                        payload={Func::new(|key: u32| Some(key))}
-                        preview={|_: u32| view! {
-                            <Frame height=REORDER_ROW />
-                        }}
-                        on_move={move |moved: ReorderMove<u32, u32>| keys.update(|keys| {
-                            keys.retain(|key| *key != moved.payload);
-                            keys.insert(moved.index, moved.payload);
-                        })}
-                    >|reorder: ReorderHandle<u32, u32>|
-                        <VirtualList
-                            keys={reorder.order}
-                            item_size=REORDER_ROW
-                        >|key: ReadSignal<u32>|
-                            <ReorderItem reorder item={key}>|_: ReorderItemHandle|
-                                <Frame
-                                    @test_id={format!("row.{}", key.get_untracked())}
-                                    height=REORDER_ROW
-                                />
-                            </ReorderItem>
-                        </VirtualList>
-                    </Reorder>
-                </Offset></ListItem>
+                <ListItem grow=1.0>
+                    <Offset>
+                        <Reorder
+                            keys={keys}
+                            payload={Func::new(|key: u32| Some(key))}
+                            preview={|_: u32| view! {
+                                <Frame height=REORDER_ROW />
+                            }}
+                            on_move={move |moved: ReorderMove<u32, u32>| keys.update(|keys| {
+                                keys.retain(|key| *key != moved.payload);
+                                keys.insert(moved.index, moved.payload);
+                            })}
+                        >|reorder: ReorderHandle<u32, u32>|
+                            <VirtualList
+                                keys={reorder.order}
+                                item_size=REORDER_ROW
+                            >|key: ReadSignal<u32>|
+                                <ReorderItem reorder item={key}>|_: ReorderItemHandle|
+                                    <Frame
+                                        @test_id={format!("row.{}", key.get_untracked())}
+                                        height=REORDER_ROW
+                                    />
+                                </ReorderItem>
+                            </VirtualList>
+                        </Reorder>
+                    </Offset>
+                </ListItem>
             </List>
         }
     });

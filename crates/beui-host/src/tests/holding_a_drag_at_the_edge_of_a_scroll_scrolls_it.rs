@@ -21,11 +21,13 @@ fn holding_a_drag_at_the_edge_of_a_scroll_scrolls_it() {
                 >|_: DragHandle|
                     <Frame width=40.0 height=40.0 />
                 </Draggable>
-                <ListItem grow=1.0><Scroll @node_ref=&scroll>
-                    <ForEach keys={indices(100)}>|index: usize|
-                        <LabelledButton label={format!("Row {index}")} />
-                    </ForEach>
-                </Scroll></ListItem>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <ForEach keys={indices(100)}>|index: usize|
+                            <LabelledButton label={format!("Row {index}")} />
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

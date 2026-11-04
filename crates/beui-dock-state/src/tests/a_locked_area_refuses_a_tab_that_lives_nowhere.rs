@@ -14,7 +14,13 @@ fn a_locked_area_refuses_a_tab_that_lives_nowhere() {
     let pages = leaf_of(&state, 10);
     assert_eq!(state.home(TabId::new(10)), None);
 
-    assert!(!state.admits(Entry::Tab(TabId::new(10)), DockDrop::Tab { leaf: catalog, index: usize::MAX }));
+    assert!(!state.admits(
+        Entry::Tab(TabId::new(10)),
+        DockDrop::Tab {
+            leaf: catalog,
+            index: usize::MAX
+        }
+    ));
     assert!(!state.admits(
         Entry::Tab(TabId::new(10)),
         DockDrop::Split {
@@ -22,7 +28,13 @@ fn a_locked_area_refuses_a_tab_that_lives_nowhere() {
             side: Side::Below,
         }
     ));
-    assert!(!state.admits_leaf(pages, DockDrop::Tab { leaf: catalog, index: usize::MAX }));
+    assert!(!state.admits_leaf(
+        pages,
+        DockDrop::Tab {
+            leaf: catalog,
+            index: usize::MAX
+        }
+    ));
 
     let place = DockHome::Area("catalog".to_owned());
     state.set_locked(place.clone(), false);
@@ -41,7 +53,13 @@ fn a_locked_area_refuses_a_tab_that_lives_nowhere() {
         "a pane split off an area holding none of its tabs is not part of it"
     );
 
-    state.drop_tab(TabId::new(11), DockDrop::Tab { leaf: catalog, index: usize::MAX });
+    state.drop_tab(
+        TabId::new(11),
+        DockDrop::Tab {
+            leaf: catalog,
+            index: usize::MAX,
+        },
+    );
     assert_eq!(
         leaf_of(&state, 11),
         catalog,
@@ -58,5 +76,11 @@ fn a_locked_area_refuses_a_tab_that_lives_nowhere() {
         ),
         "a tab already inside may move about in it"
     );
-    assert!(!state.admits(Entry::Tab(TabId::new(10)), DockDrop::Tab { leaf: catalog, index: usize::MAX }));
+    assert!(!state.admits(
+        Entry::Tab(TabId::new(10)),
+        DockDrop::Tab {
+            leaf: catalog,
+            index: usize::MAX
+        }
+    ));
 }

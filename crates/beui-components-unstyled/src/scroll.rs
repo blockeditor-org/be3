@@ -9,9 +9,10 @@ use beui_macros::{component, view};
 use super::fling::Fling;
 use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
 use super::watched::Watched;
+use crate::drag_board::drag_board;
 use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
 use beui_view::components::overlay::Overlay;
-use beui_view::drag::{EdgeScroller, drag_board};
+use beui_view::drag::EdgeScroller;
 use beui_view::escape::beui_html::{
     Event as HtmlEvent, Node as HtmlNode, attr, elements as html, on,
 };

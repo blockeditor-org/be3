@@ -1258,7 +1258,11 @@ impl State {
         self.judged(point, dragged).0
     }
 
-    fn judged(&self, point: DragPoint, dragged: DockDragged) -> (Option<Aim>, Option<(LeafId, Rect)>) {
+    fn judged(
+        &self,
+        point: DragPoint,
+        dragged: DockDragged,
+    ) -> (Option<Aim>, Option<(LeafId, Rect)>) {
         let Some(aim) = self.resolve(point) else {
             return (None, None);
         };

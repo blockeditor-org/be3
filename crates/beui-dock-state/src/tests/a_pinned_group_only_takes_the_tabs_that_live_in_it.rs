@@ -29,7 +29,13 @@ fn a_pinned_group_only_takes_the_tabs_that_live_in_it() {
         "a tab from outside is refused"
     );
     state.set_locked(DockHome::Group(group), false);
-    state.drop_tab(TabId::new(1), DockDrop::Tab { leaf: inner, index: usize::MAX });
+    state.drop_tab(
+        TabId::new(1),
+        DockDrop::Tab {
+            leaf: inner,
+            index: usize::MAX,
+        },
+    );
     assert_eq!(
         state.group_tabs(group),
         vec![TabId::new(10)],

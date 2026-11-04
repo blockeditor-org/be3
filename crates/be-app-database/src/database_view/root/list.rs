@@ -435,12 +435,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>, viewport: ReadSignal<Vec2>) 
     let narrow = narrow_chrome();
     let wide = create_memo(move || !narrow.get());
     view! {
-        <ListRow
-            @node_ref=&shown
-            selected={selected}
-            @test_id={element_test_id}
-            on_activate={pick}
-        >
+        <ListRow @node_ref=&shown selected={selected} @test_id={element_test_id} on_activate={pick}>
             <List spacing=Space::None>
                 <Show condition={wide}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

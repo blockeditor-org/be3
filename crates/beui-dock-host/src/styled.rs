@@ -11,8 +11,8 @@ use crate::unstyled as dock;
 pub use crate::unstyled::{DockApi, DockArea, DockHostLayout, DockSnap, DockWindowActions};
 use crate::unstyled::{
     DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
-    DockDragged, DockGripHandle, DockHighlightHandle, DockPreviewHandle, DockSplitterHandle, DockStackHandle,
-    DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
+    DockDragged, DockGripHandle, DockHighlightHandle, DockPreviewHandle, DockSplitterHandle,
+    DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
 };
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};

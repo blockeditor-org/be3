@@ -11,7 +11,13 @@ fn a_tab_of_an_unlocked_area_goes_anywhere_and_locks_again_once_home() {
     state.set_locked(place.clone(), false);
     assert!(!state.is_tab_locked(TabId::new(1)));
     assert!(
-        state.admits(Entry::Tab(TabId::new(1)), DockDrop::Tab { leaf: editors, index: usize::MAX }),
+        state.admits(
+            Entry::Tab(TabId::new(1)),
+            DockDrop::Tab {
+                leaf: editors,
+                index: usize::MAX
+            }
+        ),
         "a tab of an unlocked area may join a locked area that is not its home"
     );
     state.drop_tab(

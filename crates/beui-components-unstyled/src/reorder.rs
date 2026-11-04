@@ -2,10 +2,11 @@ use std::cell::{Cell, RefCell};
 use std::hash::Hash;
 use std::rc::Rc;
 
+use crate::drag_board::{Board, drag_board};
 use accesskit::{Live, Node, Role};
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
-use beui_view::drag::{Board, DragPoint, DragSource, Pending, drag_board};
+use beui_view::drag::{DragPoint, DragSource, Pending};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
@@ -88,7 +89,7 @@ struct State<K: 'static, P: 'static> {
     pressed: RefCell<Option<Press<K>>>,
     arrival: RefCell<Option<Arrival<K>>>,
     glides: RefCell<Vec<(K, NodeId, NodeId)>>,
-    board: Board,
+    board: Rc<Board>,
     gone: Cell<bool>,
     returning: Cell<bool>,
     settling: Cell<bool>,

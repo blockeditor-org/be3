@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use be_lib_stable_hash::HashMap;
 
 use super::*;
 use beui_view::reactive::{NodeRef, Scope};
@@ -55,7 +55,11 @@ impl Fixture {
     fn sync(&self) {
         let flat = Rc::clone(&self.flat);
         self.board.note_order(&move |node| {
-            let order = flat.rects.borrow().get(&node).map_or(0, |(_, order)| *order);
+            let order = flat
+                .rects
+                .borrow()
+                .get(&node)
+                .map_or(0, |(_, order)| *order);
             (vec![order], WindowId::MAIN)
         });
     }

@@ -1970,8 +1970,7 @@ impl DockState {
     /// Whether a drop is allowed under the locks and pinned groups. A refused drop shows no marker and
     /// does nothing, so a drag test that changes nothing has usually been refused here.
     pub fn admits(&self, entry: Entry, target: DockDrop) -> bool {
-        if let DockDrop::Tab { leaf, .. } | DockDrop::Group { leaf, .. } =
-            target
+        if let DockDrop::Tab { leaf, .. } | DockDrop::Group { leaf, .. } = target
             && self.is_bare(leaf)
         {
             return false;

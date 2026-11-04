@@ -1053,7 +1053,8 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
                 && let Some(drags) = doc.drags.clone()
             {
                 let modifiers = frame.ctx.input(|input| input.modifiers);
-                let point = beui_types::drag::DragPoint::at(pos, modifiers).in_window(session.window);
+                let point =
+                    beui_types::drag::DragPoint::at(pos, modifiers).in_window(session.window);
                 drags.track(point, &|node| drag_order(doc, node));
             }
             if !cancelled {
