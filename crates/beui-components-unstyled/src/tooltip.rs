@@ -17,6 +17,9 @@ pub struct TooltipHandle {
     pub shown: ReadSignal<bool>,
 }
 
+/// Shows `label` after the pointer rests on the child. The bubble is an inert
+/// overlay, so the child keeps answering the pointer and Escape, and the dwell is
+/// a timer started on hover, so an unhovered tooltip costs no frames.
 #[component]
 pub fn Tooltip(
     label: Prop<String>,

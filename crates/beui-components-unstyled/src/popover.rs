@@ -34,6 +34,13 @@ struct State {
     trigger: NodeRef,
 }
 
+/// A trigger and an anchored panel, built the first time it opens, that traps Tab
+/// and returns focus to the trigger on close.
+///
+/// Its layer passes input through (`LayerPolicy::Pass`): a press outside asks it
+/// to close and then lands on what was pressed, except a press on its own trigger,
+/// which is left to the trigger so a second click closes rather than reopens it.
+/// Content takes focus by binding `focused` to the handle's `shown`.
 #[component]
 pub fn Popover(
     #[prop(default = ComponentRef::new())] api: ComponentRef<PopoverApi>,

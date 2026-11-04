@@ -1098,6 +1098,13 @@ impl Motion {
     }
 }
 
+/// A panel rising from the bottom of a narrow screen. It scrolls its content
+/// itself: a vertical `Scroll` inside it would measure nothing tall.
+///
+/// A swipe raises it to its top stop before scrolling the content and lowers it
+/// once the content is back at its start. A sheet opening just after another
+/// closed in the same document starts at the other's height (`Slide::Morphing`),
+/// so the two read as one sheet changing content.
 #[component]
 pub fn Sheet(
     extent: Prop<f32>,

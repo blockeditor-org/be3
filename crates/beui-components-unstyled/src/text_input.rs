@@ -56,6 +56,9 @@ pub struct TextInputStyle {
     pub menu: Option<MenuStyle>,
 }
 
+/// The kind of a single-line field: the `<input type>` on the HTML core.
+/// Natively only `Password` changes anything (it masks). A new kind of field is a
+/// variant here rather than a component of its own.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum InputKind {
     #[default]
@@ -93,6 +96,13 @@ struct Input {
     browser: bool,
 }
 
+/// A single-line field (or, with `multiline`, a text area) bound to `value`.
+///
+/// On the HTML core, when not `multiline`, without `prose` and without
+/// `select_on_focus`, it is a real `<input>` through the platform escape, so the
+/// browser gives it IME, autofill and password managers; `name` and
+/// `autocomplete` only matter there. Otherwise it is a `TextArea` in single-line
+/// mode on both cores, so a fix to text editing lands in both.
 #[component]
 pub fn TextInput(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TextInputApi>,
