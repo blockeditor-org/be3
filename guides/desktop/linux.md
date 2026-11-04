@@ -38,12 +38,12 @@ The parts:
   (`desktop.rs` window placement, `editors.rs` window children, `intercept.rs` global keys);
   `src/login_session/` is install, logind, power, sleep and the lock;
   `src/display/` the displays.
-- `crates/beui-platform-drm`: the DRM/KMS and libinput platform (guides/beui/programs.md).
+- `crates/beui-platform-drm`: the DRM/KMS and libinput platform (guides/beui/platforms.md).
 
 ## Displays
 
-In a login session `beui-platform-drm` shows one window per display (guides/beui/programs.md,
-displays under beui-platform-drm), which be-host opens from the platform's `Displays` handle (`display/linux.rs`
+In a login session `beui-platform-drm` shows one window per display (guides/beui/platforms.md,
+Displays under beui-platform-drm), which be-host opens from the platform's `Displays` handle (`display/linux.rs`
 offers them to `display/shown.rs`; `ui::Displays` opens a window per display). The first display's
 window holds the host's whole UI (`ui::Root`); every display's window holds its own lock screen and
 display-settings prompt (`DisplayChrome`). Test ids repeat across display windows, so drive them

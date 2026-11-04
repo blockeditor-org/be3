@@ -106,7 +106,7 @@ over a window it takes nothing (`occluders`), and a press stays with the window 
 Buttons beyond beui's five are `PointerButton::Other` with their evdev code
 (`drive down TARGET button:0x115`).
 
-- **Pen** (`tablet.rs`; beui's `Event::Pen` and `Input::Touchpad` are in guides/beui/core.md): a `zwp_tablet_tool_v2` of one tablet made on first use, with pressure and
+- **Pen** (`tablet.rs`; beui's `Event::Pen` and `Input::Touchpad` are in guides/beui/platforms.md, Input): a `zwp_tablet_tool_v2` of one tablet made on first use, with pressure and
   tilt. A client that never asked for a tablet seat gets the pen as its pointer.
 - **Touch** (`touch.rs`): each finger goes to the surface it went down on, as `wl_touch`; a client
   with no `wl_touch` gets its first finger as the pointer. The seat offers touch only while a
