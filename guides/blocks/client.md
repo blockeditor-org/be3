@@ -15,6 +15,11 @@ take `&connection`. Below it, `transport/` has a `Writer`, a `Reader` and a
 posts (`transport/native/http.rs`), and both go through `HTTPS_PROXY`;
 `be_block_client::authorize` adds a `Be3-Gateway-Authorization` header for an
 origin (native only: a browser cannot add one to a websocket).
+`be_block_client::call_once` makes one call that needs no sign-in as a one-shot
+post (`post_once`: natively the HTTP transport, on the web a `fetch` with
+credentials), which is how a browser sign-in is begun and polled; every
+connection's first call is `authenticate` (guides/blocks/server.md, "Signing
+in").
 
 It opens connection-wide streams on the first `subscribe()` and per-block ones
 as `watch` and `join_session` are called, and pumps every stream into one

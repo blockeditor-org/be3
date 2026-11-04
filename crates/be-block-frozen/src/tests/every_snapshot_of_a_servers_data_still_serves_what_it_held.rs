@@ -56,13 +56,12 @@ fn form_value(value: &str) -> String {
     value.bytes().map(|byte| format!("%{byte:02X}")).collect()
 }
 async fn sign_in(server: &Running, email: &str, password: &str) -> (Arc<Connection>, String) {
-    let connection = Connection::connect(&socket(server), &be_block_client::Clock::real())
+    let be_block_protocol::BrowserLogin { code, secret, .. } =
+        be_block_client::call_once(&server.url, |peer| {
+            client::account::begin_browser_login(peer)
+        })
         .await
-        .unwrap();
-    let be_block_protocol::BrowserLogin { code, secret } =
-        ask(client::account::begin_browser_login(&connection))
-            .await
-            .expect("browser sign-in starts");
+        .expect("browser sign-in starts");
     let page = portal_http(server, "GET", "/auth/login", "", "").await;
     let signed_in = portal_http(
         server,
@@ -95,13 +94,22 @@ async fn sign_in(server: &Running, email: &str, password: &str) -> (Arc<Connecti
     )
     .await;
     assert!(approved.starts_with("HTTP/1.1 303"), "{approved}");
-    let Ok(be_block_protocol::Authenticated { token, .. }) = ask(
-        client::account::finish_browser_login(&connection, code, secret),
-    )
+    let Ok(be_block_protocol::BrowserLoginState::Approved(be_block_protocol::Authenticated {
+        token,
+        ..
+    })) = be_block_client::call_once(&server.url, |peer| {
+        client::account::poll_browser_login(peer, code, secret)
+    })
     .await
     else {
         panic!("{email}'s password no longer signs in")
     };
+    let connection = Connection::connect(&socket(server), &be_block_client::Clock::real())
+        .await
+        .unwrap();
+    ask(client::account::authenticate(&connection, Some(token.clone())))
+        .await
+        .expect("the token signs in");
     (connection, token)
 }
 

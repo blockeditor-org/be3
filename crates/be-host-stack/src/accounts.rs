@@ -95,51 +95,86 @@ pub async fn create_local_profile(
     Ok(session)
 }
 
+/// How often a browser sign-in is polled while nobody asks to check now. A poll at once is
+/// `browser_login`'s `check_now`; neither polls sooner than the server's interval.
+pub const LOGIN_POLL_EVERY: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Signs in through the browser: begins a sign-in with a one-shot call, tells `notify` its code
+/// and link, and polls it until the person approves or denies it there, or it expires. Polls
+/// come every `LOGIN_POLL_EVERY`, and as soon as the server allows after each `check_now`; a
+/// poll the server finds too soon slows them down (RFC 8628). Once approved, the account's
+/// connection is opened with the token.
 pub async fn browser_login(
     server_url: String,
     auth_url: String,
     notify: impl FnOnce(BrowserLogin),
+    mut check_now: tokio::sync::mpsc::UnboundedReceiver<()>,
     cancelled: futures_util::future::BoxFuture<'static, ()>,
 ) -> Result<Session, String> {
+    use be_block_protocol::BrowserLoginState;
+    use std::time::Duration;
     let login = async {
-        let mut connection = crate::link::connect(&server_url)
+        let begun = be_block_client::call_once(&server_url, |peer| {
+            client::account::begin_browser_login(peer)
+        })
             .await
             .map_err(|error| error.to_string())?;
-        let be_block_protocol::BrowserLogin { code, secret } =
-            ask(client::account::begin_browser_login(&connection))
-                .await
-                .map_err(|error| error.to_string())?;
         notify(BrowserLogin {
-            code: code.clone(),
-            url: format!("{auth_url}?code={code}"),
+            code: begun.code.clone(),
+            url: format!("{auth_url}?code={}", begun.code),
         });
+        let clock = be_block_client::Clock::real();
+        let mut interval = Duration::from_secs(u64::from(begun.interval.max(1)));
+        let mut polled = clock.now();
+        let mut checking = false;
+        let mut listening = true;
         loop {
-            match ask(client::account::finish_browser_login(
-                &connection,
-                code.clone(),
-                secret.clone(),
-            ))
-            .await
-            {
-                Ok(response) => {
-                    let session = session_of(response);
-                    crate::link::adopt(&server_url, &session.token, session.account, connection)
+            let at = match checking {
+                true => polled + interval,
+                false => polled + LOGIN_POLL_EVERY.max(interval),
+            };
+            if listening {
+                let waited =
+                    futures_util::future::select(clock.sleep_until(at), Box::pin(check_now.recv()))
                         .await;
+                if let futures_util::future::Either::Right((asked, _)) = waited {
+                    // Asked to check now, or nobody can ask any more: wait for the poll this
+                    // allows, or the next on the schedule.
+                    checking |= asked.is_some();
+                    listening = asked.is_some();
+                    continue;
+                }
+            } else {
+                clock.sleep_until(at).await;
+            }
+            checking = false;
+            polled = clock.now();
+            let (code, secret) = (begun.code.clone(), begun.secret.clone());
+            let answer = be_block_client::call_once(&server_url, move |peer| {
+                client::account::poll_browser_login(peer, code, secret)
+            })
+            .await;
+            match answer {
+                Ok(BrowserLoginState::Pending) => {}
+                Ok(BrowserLoginState::Approved(authenticated)) => {
+                    let session = session_of(authenticated);
+                    crate::link::signed_in(&server_url, &session.token, &clock)
+                        .await
+                        .map_err(|error| error.to_string())?;
                     return Ok(session);
+                }
+                Ok(BrowserLoginState::Denied) => {
+                    return Err("Sign-in was denied in the browser.".into());
+                }
+                Ok(BrowserLoginState::Expired) => {
+                    return Err("This sign-in expired. Start it again.".into());
+                }
+                Err(ClientError::Refused(ErrorCode::SlowDown, _)) => {
+                    interval += Duration::from_secs(5);
                 }
                 Err(error) if error.is_unreachable() => {}
                 Err(error) => return Err(error.to_string()),
             }
-            connection = loop {
-                be_block_client::Clock::real()
-                    .sleep(std::time::Duration::from_secs(2))
-                    .await;
-                match crate::link::connect(&server_url).await {
-                    Ok(connection) => break connection,
-                    Err(error) if error.is_unreachable() => {}
-                    Err(error) => return Err(error.to_string()),
-                }
-            };
         }
     };
     match futures_util::future::select(Box::pin(login), cancelled).await {

@@ -12,6 +12,7 @@ use tokio::{
 };
 
 use super::{Frame, TUNNEL_WAIT, proxied_tls, proxy_for, tunnel};
+use crate::transport::{framed, frames};
 
 const SESSION_HEADER: &str = "be3-session";
 /// Set on an answer when the server has more to send, or frames still to carry out; the client
@@ -169,6 +170,20 @@ pub(super) async fn connect(
         }
     });
     Ok((posts, frames))
+}
+
+/// Posts `body` to `url` once, on a connection of its own, and answers the frames of the answer.
+pub(crate) async fn post_once(url: &str, body: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+    let mut client = Client {
+        target: Target::parse(url)?,
+        authorization: crate::authorization(url),
+        stream: None,
+        session: None,
+        moved: Moved::new(),
+    };
+    let moved = client.moved.clone();
+    let (frames, _) = while_moving(client.post(body), &moved).await?;
+    Ok(frames)
 }
 
 struct Target {
@@ -460,30 +475,6 @@ async fn dechunk(stream: &mut Box<dyn Io>, mut pending: Vec<u8>) -> Result<Vec<u
         body.extend_from_slice(&pending[line_end + 2..line_end + 2 + size]);
         pending.drain(..line_end + 2 + size + 2);
     }
-}
-
-fn framed(frame: &[u8]) -> Vec<u8> {
-    let mut body = Vec::with_capacity(frame.len() + 4);
-    body.extend_from_slice(&(frame.len() as u32).to_be_bytes());
-    body.extend_from_slice(frame);
-    body
-}
-
-fn frames(body: &[u8]) -> Result<Vec<Vec<u8>>, String> {
-    let mut frames = Vec::new();
-    let mut rest = body;
-    while !rest.is_empty() {
-        if rest.len() < 4 {
-            return Err("the server's answer ends partway through a frame".to_owned());
-        }
-        let size = u32::from_be_bytes([rest[0], rest[1], rest[2], rest[3]]) as usize;
-        let frame = rest
-            .get(4..4 + size)
-            .ok_or_else(|| "the server's answer ends partway through a frame".to_owned())?;
-        frames.push(frame.to_vec());
-        rest = &rest[4 + size..];
-    }
-    Ok(frames)
 }
 
 #[cfg(test)]

@@ -90,17 +90,29 @@ with no bytes moving either way, so a large post on a slow link goes through.
   some access to the blocks it names (a session's calls: to its block). The
   dispatcher (`Client::admit`) applies it before the handler runs, which then
   checks only what a rule cannot say, under the graph lock. Only `ping` and the
-  sign-in calls (`begin-browser-login`, `finish-browser-login`,
+  sign-in calls (`begin-browser-login`, `poll-browser-login`,
   `authenticate`, `create-local-profile`) need no sign-in, and every stream
   needs it, so a client opens its streams once signed in.
+- **Signing in.** A connection's first call (after a ping) must sign it in:
+  `authenticate`, or `create-local-profile` where local profiles are on
+  (`client::signs_in`); any other closes it, as does none within
+  `sign_in_timeout` (`ServerConfig`, `HANDSHAKE_TIMEOUT` by default), and so
+  does `logout` (`Connection::closing`). Signing in through the browser
+  follows RFC 8628's device flow over one-shot calls (`http::one_shot`):
+  `POST .../call` carries a greeting and one frame, `begin-browser-login`,
+  `poll-browser-login` or (local only) `create-local-profile`, and is answered
+  and closed with no session, so nothing is held while a person approves it.
+  `begin-browser-login` answers a code, a secret, the poll interval and the
+  lifetime; a poll sooner than the interval fails `SlowDown` and grows it by
+  `SLOW_DOWN`; an approval hands its token out to one poll. One-shot calls are
+  limited per address (`MAX_CALLS_PER_ADDRESS` each `CALLS_WINDOW`).
   `every_call_states_who_may_make_it` makes every call of `be3:server`
   (`embed::METHODS`) and fails until a new one is made there too. A block the
   caller may not know exists is refused as `BlockNotFound`, like one that does
   not exist; `PermissionDenied` means it may know it exists.
 - **The server's side** is a `be_wasm_ops::net::Peer` (`Side::Host`,
-  `client.rs`). It answers calls in arrival order, except a call that waits
-  (`finish-browser-login`), which a task answers and hands back to the loop
-  (`Late`). `WatchHub` sends each connection `Push`es, written to its open
+  `client.rs`). It answers calls in arrival order; work a task finishes later
+  (the storage stream's) comes back to the loop as a `Late`. `WatchHub` sends each connection `Push`es, written to its open
   streams (one `be_wasm_ops::Outlets` keyed by `Route`). Slow consumers are
   slowed or disconnected: `STREAM_BUFFER`, `OUTBOUND_FRAMES`. A ping is
   answered by the socket's reader task (`serve_socket`) ahead of queued calls,
@@ -128,18 +140,10 @@ with no bytes moving either way, so a large post on a slow link goes through.
     have the rest of the room and a new client still gets in to sign in. A
     connection carrying HTTP posts counts as not signed in until a post is for
     a signed-in session.
-  - A connection without an account is closed `sign_in_timeout`
-    (`ServerConfig`) after its greeting or logout, unless a browser sign-in it
-    began or waits on is still pending and its own (`browser_auth::SigningIn`),
-    and at most `browser_auth::LIFETIME` after it lost its account. Clients
-    connect only to authenticate or to begin a browser sign-in at once
-    (`be_host_stack::link`, `accounts.rs`), so the deadline never closes a
-    connection be-host keeps. Pending browser sign-ins and portal form tokens
-    are kept in a `browser_auth::Bounded` table, indexed by age and by
-    address: one address holds `PENDING_PER_ADDRESS` or `FORMS_PER_ADDRESS`,
-    the server `LIMIT`, and another lets go of the oldest instead of being
-    refused. A connection holds one pending sign-in at a time, and one call
-    waits on a code at a time.
+  - Pending browser sign-ins and portal form tokens are kept in a
+    `browser_auth::Bounded` table, indexed by age and by address: one address
+    holds `PENDING_PER_ADDRESS` or `FORMS_PER_ADDRESS`, the server `LIMIT`,
+    and another lets go of the oldest instead of being refused.
   - Request bodies grow only as their bytes arrive and stall out after
     `BODY_READ_TIMEOUT`. A websocket is idle only after `IDLE_TIMEOUT` with no
     bytes read at all (`next_heard`), so a large message on a slow link is
@@ -304,9 +308,9 @@ changes an app session calls it.
 ### Accounts
 
 Remote accounts register and sign in through the `/auth` portal, which
-verifies the email before creating the account; the protocol has browser
-sign-in handoff (`finish-browser-login`, called again after a reconnect),
-token `Authenticate`, header authentication and `Logout`. Registering needs an
+verifies the email before creating the account; the protocol has the browser
+sign-in's one-shot `begin-browser-login` and `poll-browser-login` ("Signing
+in" above), token `Authenticate`, header authentication and `Logout`. Registering needs an
 invite code the operator made (`store/invite_codes.rs`), checked with every
 other cheap check before the password is hashed and spent when the verified
 account is made. Password hashing and checks (`store/passwords.rs`) run off the

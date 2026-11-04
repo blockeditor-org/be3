@@ -662,6 +662,7 @@ struct PendingAccountRequest {
     _answers: host::Mailbox,
     browser: Option<accounts::BrowserLogin>,
     _cancel: tokio::sync::oneshot::Sender<()>,
+    check_now: tokio::sync::mpsc::UnboundedSender<()>,
     server: ServerLocation,
     url: String,
     authorization: Option<String>,
@@ -1264,6 +1265,7 @@ impl HostCore {
             .unwrap_or_else(|| format!("{}/auth", accounts::link_base(&url)));
         let (answers, post) = desk().mailbox(HostCore::account_answered);
         let (cancel, cancelled) = tokio::sync::oneshot::channel();
+        let (check_now, checks) = tokio::sync::mpsc::unbounded_channel();
         platform::spawn_request(async move {
             let notify = post.clone();
             let result = if !remote {
@@ -1275,6 +1277,7 @@ impl HostCore {
                     requested,
                     auth_url,
                     move |browser| notify.send(accounts::LoginEvent::Browser(browser)),
+                    checks,
                     Box::pin(async {
                         let _ = cancelled.await;
                     }),
@@ -1288,6 +1291,7 @@ impl HostCore {
             _answers: answers,
             browser: None,
             _cancel: cancel,
+            check_now,
             server,
             url,
             authorization,
@@ -3094,6 +3098,11 @@ impl HostCore {
                     .and_then(|pending| pending.browser.as_ref())
                 {
                     self.account_error = platform::open_browser(&browser.url).err();
+                }
+            }
+            UiCommand::CheckLoginNow => {
+                if let Some(pending) = &self.pending_account_request {
+                    let _ = pending.check_now.send(());
                 }
             }
             UiCommand::RetryAccount => {

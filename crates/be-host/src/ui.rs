@@ -354,6 +354,8 @@ pub(crate) enum UiCommand {
     OpenAddAccount,
     SubmitAccount(AccountForm),
     OpenLoginBrowser,
+    /// Polls the browser sign-in as soon as the server allows, rather than at its next turn.
+    CheckLoginNow,
     RetryAccount,
     CloseAddAccount,
     ReloadOrganizations,

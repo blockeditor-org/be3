@@ -18,14 +18,16 @@ it: be-host never sends them and backups never delete objects.
 ## Routes, the proxy and the gateway
 
 The server speaks WebSockets at `/api/be` and the same protocol over HTTP posts at
-`/api/be/http`, for clients behind proxies that refuse WebSockets. Caddy supplies TLS at
+`/api/be/http`, for clients behind proxies that refuse WebSockets; signing in through the
+browser is one-shot posts to `/api/be/call`. Caddy supplies TLS at
 `api.be3.pfg.pw`, routes the API, `/auth` and `/auth/*` to the server and `/build/*` to the build
 helper (guides/build_server.md). be-host's web build is served by Bunny at `be3.pfg.pw`.
 
 be-server takes a client's address from `X-Forwarded-For` only when the connection comes from a
 trusted proxy: loopback, where Caddy runs, or an address named with `--trusted-proxy`. Anyone
 else's header is ignored, so the server can also face the internet directly. Limits per address
-(connections, HTTP sessions, pending sign-ins; guides/blocks/server.md, "Limits") count by that
+(connections, HTTP sessions, one-shot calls, pending sign-ins; guides/blocks/server.md,
+"Limits") count by that
 address, so a proxy elsewhere must be named or every client counts as the proxy.
 
 The gateway accepts `Be3-Gateway-Authorization` from native clients and, from browsers (whose
@@ -62,12 +64,15 @@ through the portal with the code, then restart it without `--allow-registration`
 `--auth-origin https://api.be3.pfg.pw`, the exact origin used for Origin checks, Secure cookies
 and email links; request headers can't override it.
 
-Adding a device: be-host starts a ten-minute authorization request and shows `/auth?code=...`;
-the user signs in and explicitly approves the code (verifying email alone approves nothing).
-be-host holds a private secret apart from the shown code and waits on one
-`finish-browser-login` call on the connection that began it, reconnecting only if that drops;
-only that secret redeems the approval, once. The portal authenticates the account; unlocking
-encryption and pairing stay in be-host.
+Adding a device: be-host begins a ten-minute authorization request with a one-shot post to
+`/api/be/call` and shows `/auth?code=...`; the user signs in and explicitly approves the code
+(verifying email alone approves nothing). be-host holds a private secret apart from the shown
+code and polls with it, one short post at a time (every ten seconds, or as soon as the server
+allows when the user presses Check now), holding no connection meanwhile; only that secret
+redeems the approval, once, and be-host then connects its websocket with the token. The web
+build's posts are `fetch`es with credentials and no content type, so they carry the gateway
+cookie and need no preflight. The portal authenticates the account; unlocking encryption and
+pairing stay in be-host.
 
 Each account may store 10 GiB by default, counting every version its blocks keep and uploads
 no block has taken yet; `--account-quota BYTES` changes it and `--account-quota none` lifts it.
