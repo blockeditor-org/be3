@@ -71,6 +71,10 @@ impl<S: ObjectStore> Tracker<S> {
         Ok(found)
     }
 
+    /// Reads the registry of each top-level workspace and the open registry
+    /// above each block shared with this account, keeping databases it can
+    /// view that still lie inside the registry's workspace. There is no wider
+    /// search: a prefix no registry lists doesn't resolve.
     pub async fn databases_with(&self, prefix: &str) -> Result<Vec<Uuid>, String> {
         let mut databases = Vec::new();
         for kind in self.registries().await? {

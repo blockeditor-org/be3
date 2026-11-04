@@ -15,12 +15,19 @@ pub use access::Access;
 
 pub const SETTINGS_TYPE: Uuid = Uuid::from_u128(0x7365_7474_696e_6773_2d62_6c6f_636b_3032);
 
+/// A pseudo-account. View granted to it on a settings kind makes the kind
+/// readable by anyone who views any block inside its owner
+/// (`BlockGraph::views_inside`). Only kinds of a block's settings take it, and
+/// only View.
 pub const ANYONE_INSIDE: Uuid = Uuid::from_u128(0x616e_796f_6e65_2d69_6e73_6964_652d_3031);
 
 pub const PREFIXES_TYPE: Uuid = Uuid::from_u128(0x7072_6566_6978_6573_2d6b_696e_642d_3031);
 
 pub const TAGS_TYPE: Uuid = Uuid::from_u128(0x7461_6773_2d6b_696e_642d_6265_3364_3031);
 
+/// Kinds held directly by their owner block (under their own metadata key, not
+/// in its `Settings` block) and capped at the owner's access, so anyone who
+/// edits the block edits its prefixes and tags.
 pub const EDIT_KINDS: [Uuid; 2] = [PREFIXES_TYPE, TAGS_TYPE];
 
 #[derive(
@@ -167,6 +174,12 @@ pub fn created_access(
     )
 }
 
+/// A block's access: the highest of its own grant and its parent's, so a lower
+/// grant never takes access away; authors get Manage. A `Settings` block under
+/// a block is capped by its parent (Manage only if the parent has it, else at
+/// most View), an edit kind at its parent's access or View, whichever is
+/// higher, and anything below either
+/// has exactly its parent's access, whatever its own grants say.
 fn level_below(
     node: &BlockNode,
     account: Uuid,
