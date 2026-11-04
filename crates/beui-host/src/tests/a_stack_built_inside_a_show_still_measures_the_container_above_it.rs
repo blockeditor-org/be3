@@ -1,0 +1,52 @@
+use super::*;
+use crate::primitives::Frame;
+use crate::primitives::List;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
+use crate::unstyled::Button;
+use crate::unstyled::Container;
+
+const BREAKPOINT: f32 = 500.0;
+const ITEM_HEIGHT: f32 = 20.0;
+
+#[test]
+fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
+    let _root = crate::reactive::RootScope::new();
+    let (toggle, left, right) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
+    let document = build_node(move || {
+        let visible = create_signal(false);
+        view! {
+            <Container>|_|
+                <List spacing=0.0>
+                    <Button @node_ref=&toggle on_click={move || visible.set(true)}>
+                        <Text>"toggle"</Text>
+                    </Button>
+                    <Show condition={visible}>
+                        <Stack spacing=Space::None breakpoint=BREAKPOINT>
+                            <ListItem grow=0.5>
+                                <Frame @node_ref=&left height=ITEM_HEIGHT>
+                                    <Frame />
+                                </Frame>
+                            </ListItem>
+                            <ListItem grow=0.5>
+                                <Frame @node_ref=&right height=ITEM_HEIGHT>
+                                    <Frame />
+                                </Frame>
+                            </ListItem>
+                        </Stack>
+                    </Show>
+                </List>
+            </Container>
+        }
+    });
+
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    harness.click(harness.center(toggle.get()));
+    harness.frame(Vec::new());
+
+    let (left, right) = (left.get(), right.get());
+    assert_eq!(harness.rect(left).width(), VIEWPORT.x);
+    assert_eq!(harness.rect(right).top(), harness.rect(left).bottom());
+}

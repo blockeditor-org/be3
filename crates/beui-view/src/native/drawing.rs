@@ -6,8 +6,8 @@ use crate::reactive::Prop;
 use crate::reactive::create_effect;
 use beui_core::current::with_document;
 use beui_core::document::Document;
-use beui_core::geometry::Vec2;
-use beui_core::node::NodeId;
+use beui_types::NodeId;
+use beui_types::Vec2;
 
 pub(crate) fn drawing(draw: Prop<Draw>, size: Prop<Option<Vec2>>) -> NodeId {
     let drawing = with_document(Document::create_drawing);

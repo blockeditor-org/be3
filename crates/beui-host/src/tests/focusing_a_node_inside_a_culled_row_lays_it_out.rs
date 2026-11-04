@@ -1,0 +1,55 @@
+use super::*;
+use crate::primitives::*;
+use crate::reactive::*;
+
+const ROWS: usize = 300;
+const ROW_HEIGHT: f32 = 30.0;
+const FOCUSED: usize = 250;
+
+#[test]
+fn focusing_a_node_inside_a_culled_row_lays_it_out() {
+    let _root = crate::reactive::RootScope::new();
+    let rows: Vec<NodeRef> = (0..ROWS).map(|_| NodeRef::new()).collect();
+    let document = build_node({
+        let rows = rows.clone();
+        move || {
+            view! {
+                <List spacing=0.0>
+                    <ListItem grow=1.0>
+                        <Offset>
+                            <List spacing=0.0>
+                                <ForEach keys={indices(ROWS)}>|index: usize| {
+                                    let row = rows[index];
+                                    view! {
+                                        <Frame @node_ref=&row>
+                                            <Frame width=200.0 height=ROW_HEIGHT>
+                                                <LabelledButton label={format!("Row {index}")} />
+                                            </Frame>
+                                        </Frame>
+                                    }
+                                }</ForEach>
+                            </List>
+                        </Offset>
+                    </ListItem>
+                </List>
+            }
+        }
+    });
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    let row = rows[FOCUSED].get();
+    assert!(harness.document().is_culled(row));
+
+    let button = harness.document().focusables_within(row)[0];
+    harness.document_mut().focus_focusable(button);
+    harness.frame(Vec::new());
+
+    assert!(
+        !harness.document().is_culled(row),
+        "the row holding the focus is laid out again"
+    );
+    assert!(
+        text_within(harness.document(), row, &format!("Row {FOCUSED}")).is_some(),
+        "what the focus moved onto is laid out"
+    );
+}

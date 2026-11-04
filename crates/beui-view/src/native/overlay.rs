@@ -8,21 +8,21 @@ use crate::reactive::Scope;
 use crate::reactive::Set;
 use crate::reactive::create_binding;
 use crate::reactive::create_effect;
-use crate::reactive::create_memo;
 use crate::reactive::owner_scope;
 use crate::reactive::provide_context;
 use crate::reactive::store;
 use crate::reactive::untrack;
-use beui_core::base::overlay::OverlayAnchor;
-use beui_core::base::overlay::Placement;
-use beui_core::base::overlay::WindowSpec;
-use beui_core::color::Color;
+use crate::types::Rect;
 use beui_core::current::with_document;
-use beui_core::layer::Dismiss;
-use beui_core::layer::LayerLevel;
-use beui_core::layer::LayerPolicy;
-use beui_core::node::NodeId;
-use beui_core::window::WindowId;
+use beui_types::Color;
+use beui_types::Dismiss;
+use beui_types::LayerLevel;
+use beui_types::LayerPolicy;
+use beui_types::NodeId;
+use beui_types::OverlayAnchor;
+use beui_types::Placement;
+use beui_types::WindowId;
+use beui_types::WindowSpec;
 use std::cell::RefCell;
 
 struct Mounted {
@@ -33,7 +33,9 @@ struct Mounted {
 pub(crate) fn overlay(
     anchor: Prop<OverlayAnchor>,
     placement: Prop<Placement>,
+    bounds: Prop<Option<Rect>>,
     scrim: Prop<Color>,
+    scrim_radius: Prop<f32>,
     policy: Prop<LayerPolicy>,
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,
@@ -42,21 +44,32 @@ pub(crate) fn overlay(
     pointer: Option<NodeRef>,
     beak: Prop<f32>,
     window: Prop<Option<WindowSpec>>,
-    open: Prop<bool>,
     keep_alive: bool,
+    dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
+    presence: OverlayPresence,
     content: RenderFn<()>,
 ) -> NodeId {
     let overlay = with_document(|document| {
         let overlay = document.create_overlay(anchor.get_untracked(), Placement::BelowStart);
         document.set_overlay_trigger(overlay, trigger);
         document.set_overlay_pointer(overlay, pointer);
-        document.set_overlay_on_dismiss(overlay, on_dismiss);
         overlay
+    });
+    create_binding(move || {
+        let on_dismiss = match dismissable.get() {
+            true => on_dismiss,
+            false => Callback::empty(),
+        };
+        with_document(|document| document.set_overlay_on_dismiss(overlay, on_dismiss))
     });
     create_binding(move || {
         let anchor = anchor.get();
         with_document(|document| document.set_overlay_anchor(overlay, anchor))
+    });
+    create_binding(move || {
+        let bounds = bounds.get();
+        with_document(|document| document.set_overlay_bounds(overlay, bounds))
     });
     create_binding(move || {
         let beak = beak.get();
@@ -65,6 +78,10 @@ pub(crate) fn overlay(
     create_binding(move || {
         let window = window.get();
         with_document(|document| document.set_overlay_window(overlay, window))
+    });
+    create_binding(move || {
+        let radius = scrim_radius.get();
+        with_document(|document| document.set_overlay_scrim_radius(overlay, radius))
     });
     create_binding(move || {
         let shown_in = shown_in.get();
@@ -81,13 +98,7 @@ pub(crate) fn overlay(
             document.set_overlay_level(overlay, level);
         })
     });
-    let presence = OverlayPresence::new(create_memo(move || open.get()));
-    let shown = create_memo(move || {
-        presence.open().get()
-            || presence
-                .lingering()
-                .with(|lingering| lingering.iter().any(Get::get))
-    });
+    let shown = presence.shown();
     let owner = owner_scope().expect("an overlay is built inside a scope");
     let mounted = store(RefCell::new(None::<Mounted>));
     create_effect(move || {
@@ -110,6 +121,7 @@ pub(crate) fn overlay(
                         });
                         let built = scope.context().run(|| {
                             provide_context(presence);
+                            provide_context(presence.modality());
                             content.call(())
                         });
                         *held = Some(Mounted {

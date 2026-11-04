@@ -3,7 +3,7 @@ use std::ops::Range;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant};
 
-use text_editor_core::{
+use beui_text_editor_core::{
     Change, ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, FormatOp, Formats,
     Mark, MarkId, Marks, Pos, Position, RichOp, Seed, SeqOp, Sequence, Splice, TextChange,
     TextIndentation, TextLanguage, TextRun, anchor_in, anchor_index_in, changed,

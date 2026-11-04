@@ -1,6 +1,0 @@
-load("@root//buck/wasm:defs.bzl", "editor")
-
-editor(
-    module = "counter",
-    types = "//crates/editors/counter/types:module",
-)

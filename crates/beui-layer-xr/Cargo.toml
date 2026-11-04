@@ -7,8 +7,11 @@ license.workspace = true
 [dependencies]
 beui-layer-space = { path = "../beui-layer-space" }
 beui-core = { path = "../beui-core" }
+beui-types = { path = "../beui-types" }
+beui-runner = { path = "../beui-runner" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 glam = "0.30"
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 wgpu = { version = "29", default-features = false }
 
 [target.'cfg(any(windows, target_os = "linux"))'.dependencies]

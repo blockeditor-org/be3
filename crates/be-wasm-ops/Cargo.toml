@@ -1,0 +1,18 @@
+[package]
+name = "be-wasm-ops"
+description = "Typed, cancellable operations between a host and a guest, over frames"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+futures-core = "0.3"
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+
+[dev-dependencies]
+be-wasm-ops-bindgen = { path = "../be-wasm-ops-bindgen" }
+
+[lints]
+workspace = true

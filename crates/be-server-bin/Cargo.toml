@@ -1,0 +1,18 @@
+[package]
+name = "be-server-bin"
+description = "be-server's executable: the server with its account portal rendered on beui's HTML core"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-server-portal = { path = "../be-server-portal" }
+be-server = { path = "../be-server" }
+be-server-portal-ui = { path = "../be-server-portal-ui" }
+be-lib-build-id = { path = "../be-lib-build-id" }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[lints]
+workspace = true

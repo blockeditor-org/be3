@@ -1,27 +1,32 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, VecDeque};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use beui_core::app::FrameTimes;
-use beui_core::app::accessibility_dump::{ACTIONS, AccessibilityDump, Line, Rendered};
-use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
-use beui_core::context::{ActionGroup, Context, FrameOutput, WindowOutput};
-use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
-use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest};
-use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use beui_core::input::Keyboard;
-use beui_core::input::{BackEdge, DroppedFile, FileDrag, Input, Key, PointerButton, TouchPhase};
-use beui_core::renderer::Capture;
-use beui_core::runner::{
-    Above, Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown, Units,
-};
-use beui_core::window::{Resize, WindowId, WindowSize, WindowState};
+use beui_core::clipboard::PasteAnswer;
+use beui_core::context::{Context, FrameOutput, WindowOutput};
+use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
+use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
+use beui_core::program::FrameTimes;
+use beui_core::program::accessibility_dump::{ACTIONS, AccessibilityDump, Line, Rendered};
+use beui_core::window::{Resize, WindowSize, WindowState};
+use beui_runner::renderer::Capture;
+use beui_runner::{Above, Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown, Units};
+use beui_types::ActionGroup;
+use beui_types::FileSave;
+use beui_types::Keyboard;
+use beui_types::PickedFile;
+use beui_types::WindowId;
+use beui_types::drive;
+use beui_types::{DroppedFile, FileDrag};
+use beui_types::{Input, PointerButton};
+use beui_types::{PasteKind, Pasted};
+use beui_types::{Pos2, Rect, Vec2, pos2};
 
 use crate::gestures::{Frames, Gestures};
-use crate::target::{coordinates, describe, locate, node, point, scaled};
+use crate::target::{coordinates, hidden, locate, node, place, point, scaled, shown_part};
 use crate::{Inbox, Reply, Request, changes};
 
 const CHANGES: usize = 60;
@@ -30,41 +35,46 @@ const CLIPBOARD_WAIT: Duration = Duration::from_secs(5);
 
 pub const USAGE: &str = "Session:
   settle                    wait until nothing is left to draw
-  pause MILLISECONDS        let that much time pass, by the app's clock
-  clock stop / clock run    stop the app's clock, so time passes only with pause, frame by frame
-  hurry off / hurry on      stop or start the app's shortcuts for a driven run, such as saving at once,
+  pause MILLISECONDS        let that much time pass, by the program's clock
+  clock stop / clock run    stop the program's clock, so time passes only with pause, frame by frame
+  hurry off / hurry on      stop or start the program's shortcuts for a driven run, such as saving at once,
                             so it waits as it does for a person
   frames                    how many frames ran since the last frames, and the longest one's wall time:
-                            the window's, and those the app ran elsewhere, such as a plugin's
-  close                     ask the window to close, as its close button does; an app that stays
+                            the window's, and those the program ran elsewhere, such as an app's
+  close                     ask the window to close, as its close button does; a program that stays
                             open, to ask about unsaved changes, answers with what changed
   help                      this
-Reading the app:
+Reading the program:
   tree                      the accessibility tree, one node per line
   ids                       every test id on screen, with where it is
   find TARGET               where TARGET is
+  reveal TARGET             scroll TARGET into view when a scroll cuts or hides it, as input does, and say
+                            where it shows, ending in revealed when it scrolled
+  shown TARGET              where the part of TARGET that shows is, without scrolling
   comps [--internals]       component tree, optionally including component internals
   hit TARGET                what a press at TARGET would reach: the Interactives along its path,
                             the components that made them and what each handles
   actions [all]             the actions the command palette would list (all: every one)
-  act ID [PANE]             run the action ID as the command palette would, in PANE's plugin when given
+  act ID [PANE]             run the action ID as the command palette would, in PANE's app when given
   a11y TARGET               the node a screen reader would act on, and the actions it offers
   a11y TARGET ACTION [VALUE]   do what a screen reader does: click, focus, increment, set VALUE, ...
   wait TEXT|#TEST_ID [over X,Y]   wait until a line of the tree contains TEXT, or the test id is on
                             screen, with its node over the point X,Y if given
   gone TEXT|#TEST_ID [over X,Y]   wait until it is not
-  env                       NAME=VALUE lines a program needs to show its windows inside the app,
-                            such as WAYLAND_DISPLAY; empty when the app hosts no programs
-  windows                   the app's windows, each one's number and size
-  paint [TARGET] [in WINDOW]   what a window of the app paints (the main one unless WINDOW names
-                            another), plugins included, as a paint snapshot, of TARGET only when given;
+  env                       NAME=VALUE lines a program needs to show its windows inside the program,
+                            such as WAYLAND_DISPLAY; empty when the program hosts no programs
+  windows                   the program's windows, each one's number and size
+  paint FILE.paint|FILE.png [TARGET] [in WINDOW]   what a window of the program paints (the main
+                            one unless WINDOW names another), apps included, of TARGET only when
+                            given, as a paint snapshot, or drawn into a PNG with what an app draws
+                            itself left as placeholders;
                             in platform, what reaches the platform instead, below the layers that
-                            compose the app's windows, such as space's 3D scene
-  overflows                 what the app shows out of bounds, plugins included, one per line:
+                            compose the program's windows, such as space's 3D scene
+  overflows                 what the program shows out of bounds, apps included, one per line:
                             cut off where nothing scrolls to it, drawn outside its own box, or
                             with its outline cut while its box shows
 The platform's side:
-  shot [TARGET]             a screenshot of what the platform shows, of TARGET only when given
+  shot FILE.png [TARGET]    a screenshot of what the platform shows, of TARGET only when given
   resize WIDTHxHEIGHT[@SCALE]   resize the headless window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen headless window fills
   focus / blur              the window gains or loses focus; blur cancels the pointers and lets go of held keys
@@ -78,11 +88,11 @@ The platform's side:
   xr HAND pose X Y Z [YAW PITCH]   a controller, as a layer that shows windows in 3D (space) reads
                             it: HAND (left or right) at X, Y, Z metres, its laser turned YAW
                             degrees left and PITCH up from straight ahead (-Z)
-  xr HAND point TARGET      aim HAND's laser, from where the hand is, at TARGET in the app's tree
+  xr HAND point TARGET      aim HAND's laser, from where the hand is, at TARGET in the program's tree
   xr HAND trigger VALUE / xr HAND squeeze VALUE   pull the trigger or the grip, from 0 to 1
   xr HAND click TARGET      point at TARGET, then pull and let go of the trigger
   xr HAND lost              the controller is no longer tracked
-Input (it reaches the app, unless --into=LAYER before the command sends it into LAYER from below,
+Input (it reaches the program, unless --into=LAYER before the command sends it into LAYER from below,
 where the platform's input would come from; state is what that place sees). Any of these may end
 with in WINDOW, a number `windows` lists: its targets are then found among that window's nodes and
 its input goes to that window, in its points:
@@ -123,9 +133,9 @@ its input goes to that window, in its points:
   ime compose TEXT / ime commit [TEXT] / ime cancel   an input method's composition
 A TARGET is #TEST_ID, #TEST_ID+X,Y (that far from its top left corner), X,Y or X,Y,WIDTH,HEIGHT
 in the tree's pixels, or text found in one line of the tree. Below another layer (--into, or a
-shot under one), a named target is found in the app and carried down to where it shows there,
+shot under one), a named target is found in the program and carried down to where it shows there,
 while X,Y and X,Y,WIDTH,HEIGHT are that place's own pixels, such as the platform window's.
-Every command that gives input waits for the app to settle and answers with what changed in the tree,
+Every command that gives input waits for the program to settle and answers with what changed in the tree,
 at most 60 lines of it; before the command, --changes=N|all changes that (--changes=0 answers with
 nothing, without comparing the trees), and --no-settle answers after the frame that took the input
 instead of waiting.";
@@ -145,8 +155,8 @@ enum Kind {
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
         "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" => Kind::Session,
-        "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait"
-        | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
+        "tree" | "ids" | "find" | "reveal" | "shown" | "comps" | "hit" | "actions" | "act"
+        | "a11y" | "wait" | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
         | "grab" | "drop" | "ungrab" | "xr" => Kind::Platform,
         "state" | "click" | "move" | "down" | "up" | "drag" | "wheel" | "scroll" | "zoom"
@@ -156,6 +166,20 @@ fn kind(command: &str) -> Option<Kind> {
     })
 }
 
+/// The drive layer: a [`Layer`] in the stack every platform's runner carries, so its input
+/// lands among the platform's own events and everything above it runs as it does in a window.
+///
+/// [`Drive::taps`] makes one tap under each layer `under` names, all sharing one [`Session`].
+/// The session takes each command in the lowest tap's `input`, starts it in the `input` of the
+/// tap it goes to (`--into=LAYER`), steps its clock in the lowest tap's `now`, and answers from
+/// the lowest tap's hooks. A tap under a layer carries a named target down through the layers
+/// above it (`Above::from_program`) and sends physical pixels, as a platform does. The lowest
+/// tap also stands in for the file and save dialogs and reaches the clipboard and resizing
+/// through the services below it.
+///
+/// The accessibility tree is kept as in a window but written out as text only when a command
+/// reads it, and then only the nodes that changed or moved are described again
+/// (`AccessibilityDump`), so a driven frame costs what it costs in a window.
 pub struct Drive {
     session: Rc<RefCell<Session>>,
     tap: usize,
@@ -191,7 +215,7 @@ impl Layer for Drive {
         self.context = Some(context.clone());
     }
 
-    fn setup(&mut self, setup: &beui_core::app::Setup) {
+    fn setup(&mut self, setup: &beui_core::program::Setup) {
         self.session.borrow().inbox.set_waker(setup.waker.clone());
     }
 
@@ -212,6 +236,7 @@ impl Layer for Drive {
             }
             session.start_pending(self.tap, &view, frame);
         }
+        context.want_overflows(session.reading_overflows(self.tap));
         session.push_steps(self.tap, incoming);
     }
 
@@ -274,7 +299,7 @@ struct View<'a> {
     pixels_per_point: f32,
     now: Instant,
     platform: Vec2,
-    app: Vec2,
+    program: Vec2,
     fullscreen: bool,
 }
 
@@ -287,7 +312,7 @@ impl<'a> View<'a> {
             pixels_per_point,
             now: frame.context.now(),
             platform,
-            app: frame
+            program: frame
                 .context
                 .window_size(WindowId::MAIN)
                 .unwrap_or(platform),
@@ -300,11 +325,38 @@ impl<'a> View<'a> {
     }
 }
 
-#[derive(Clone, Copy)]
 struct Settled {
-    busy: bool,
-    again: bool,
+    busy: Vec<String>,
     drawing: bool,
+}
+
+fn frame_busy(run: &Frame, clock_stopped: bool) -> Vec<String> {
+    let mut reasons = Vec::new();
+    if run.deferred {
+        reasons.push("input or events wait to be handled".to_owned());
+    }
+    if !clock_stopped && (run.repaint || run.repaint_after.is_zero()) {
+        reasons.push(
+            match run.animating {
+                true => "an animation runs",
+                false => "a frame asks for another",
+            }
+            .to_owned(),
+        );
+    }
+    reasons
+}
+
+fn frame_held(run: &Frame, clock_stopped: bool) -> Option<String> {
+    (clock_stopped && (run.repaint || run.repaint_after.is_zero())).then(|| {
+        format!(
+            "{} waits for the stopped clock: `pause` lets time pass",
+            match run.animating {
+                true => "an animation",
+                false => "a frame",
+            }
+        )
+    })
 }
 
 enum Phase {
@@ -359,6 +411,10 @@ enum Phase {
         pasted: std::sync::mpsc::Receiver<Pasted>,
         until: Instant,
     },
+    Revealing {
+        revealed: Vec<accesskit::NodeId>,
+        before: Rc<Rendered>,
+    },
 }
 
 struct Active {
@@ -367,6 +423,7 @@ struct Active {
     tap: usize,
     immediate: bool,
     changes: Option<usize>,
+    skipped: usize,
 }
 
 struct Pending {
@@ -375,6 +432,8 @@ struct Pending {
     immediate: bool,
     changes: Option<usize>,
     skipped: usize,
+    revealed: Vec<accesskit::NodeId>,
+    before: Option<Rc<Rendered>>,
 }
 
 enum Started {
@@ -382,6 +441,13 @@ enum Started {
     Phase(Phase),
 }
 
+/// One drive session, shared by every tap of a stack.
+///
+/// While the clock is stopped (`clock stop`), a frame drive asks for (a `pause`, a gesture's
+/// steps, waiting input) runs at once instead of at the next 60 Hz tick, as does a frame the
+/// program asks for while a command waits on it and the program says it is busy; any other
+/// frame the program asks for on its own is still paced, so a program that animates forever
+/// does not spin.
 struct Session {
     inbox: Inbox,
     taps: Vec<Option<String>>,
@@ -399,7 +465,7 @@ struct Session {
     frames: FrameTimes,
     other_frames: BTreeMap<String, FrameTimes>,
     shown: Vec<Option<WindowOutput>>,
-    windows: Vec<(WindowId, Rc<std::collections::HashSet<accesskit::NodeId>>)>,
+    windows: Vec<(WindowId, Rc<be_lib_stable_hash::HashSet<accesskit::NodeId>>)>,
 }
 
 impl Session {
@@ -439,7 +505,7 @@ impl Session {
                 "{command} goes to the platform, below every layer; it takes no --into"
             )),
             (Kind::Reading, Some(_)) => {
-                Err(format!("{command} reads the app itself; it takes no --into"))
+                Err(format!("{command} reads the program itself; it takes no --into"))
             }
             (Kind::Input, Some(into)) => self
                 .taps
@@ -449,7 +515,7 @@ impl Session {
                     let names: Vec<&str> = self.taps.iter().flatten().map(String::as_str).collect();
                     match names.is_empty() {
                         true => format!(
-                            "--into={into} names no layer: no other layer is stacked, so input goes straight to the app"
+                            "--into={into} names no layer: no other layer is stacked, so input goes straight to the program"
                         ),
                         false => format!(
                             "--into takes a layer with a drive tap under it ({}), not {into}",
@@ -546,6 +612,8 @@ impl Session {
                         immediate,
                         changes,
                         skipped,
+                        revealed: Vec::new(),
+                        before: None,
                     });
                     self.start_pending(0, view, frame);
                 }
@@ -559,15 +627,26 @@ impl Session {
             return;
         };
         let words = &pending.request.words[pending.skipped..];
-        match self.start(tap, words, view, frame) {
+        match self.start(tap, words, &pending.revealed, view, frame) {
             Ok(Started::Done(reply)) => (pending.request.reply)(reply),
-            Ok(Started::Phase(phase)) => {
+            Ok(Started::Phase(mut phase)) => {
+                match (&mut phase, pending.before) {
+                    (Phase::Revealing { revealed, before }, earlier) => {
+                        revealed.extend(pending.revealed);
+                        if let Some(earlier) = earlier {
+                            *before = earlier;
+                        }
+                    }
+                    (Phase::Input { before, .. }, Some(earlier)) => *before = earlier,
+                    _ => {}
+                }
                 self.active = Some(Active {
                     request: pending.request,
                     phase,
                     tap,
                     immediate: pending.immediate,
                     changes: pending.changes,
+                    skipped: pending.skipped,
                 });
             }
             Err(error) => (pending.request.reply)(Reply::Error(error)),
@@ -579,7 +658,7 @@ impl Session {
             && !*asked
         {
             *asked = true;
-            frame.app.request_painting();
+            frame.program.request_painting();
         }
     }
 
@@ -626,7 +705,7 @@ impl Session {
     fn wants_frame(&self, now: Instant) -> Option<Duration> {
         let stopped = self.clock_stopped;
         let Some(active) = &self.active else {
-            return self.inbox.waiting().then_some(Duration::ZERO);
+            return (self.pending.is_some() || self.inbox.waiting()).then_some(Duration::ZERO);
         };
         match &active.phase {
             Phase::Input { steps, .. } if !steps.is_empty() => Some(Duration::ZERO),
@@ -658,22 +737,26 @@ impl Session {
                 .collect(),
             false => Vec::new(),
         };
-        for (name, times) in frame.app.other_frames() {
+        for (name, times) in frame.program.other_frames() {
             self.other_frames.entry(name).or_default().merge(times);
         }
+        let mut busy = frame_busy(run, self.clock_stopped);
+        busy.extend(frame.program.busy());
+        self.inbox
+            .note_busy(&busy, frame_held(run, self.clock_stopped));
+        let owed = !busy.is_empty();
         let settled = Settled {
-            busy: frame.app.busy(),
-            drawing: frame.app.drawing(),
-            again: match self.clock_stopped {
-                true => run.deferred,
-                false => run.again(),
-            },
+            busy,
+            drawing: frame.program.drawing(),
         };
         self.settle(view, settled, output, &frame.above);
-        if let Some(after) = self.wants_frame(view.now) {
+        run.unpaced |= self.clock_stopped && owed && self.active.is_some();
+        let wanted = self.wants_frame(view.now);
+        if let Some(after) = wanted {
             run.repaint |= after.is_zero();
             run.repaint_after = run.repaint_after.min(after);
         }
+        run.unpaced |= self.clock_stopped && (run.deferred || wanted == Some(Duration::ZERO));
         if let Some(window) = self.wants_painting() {
             let shown = match window {
                 PLATFORM => self.shown[0].as_ref(),
@@ -688,7 +771,7 @@ impl Session {
                     beui_core::painting::Punches::Erase,
                 ),
                 None => Err(format!(
-                    "the app has no window {window}; `windows` lists them"
+                    "the program has no window {window}; `windows` lists them"
                 )),
             };
             self.painted(painting);
@@ -708,7 +791,30 @@ impl Session {
         output: &FrameOutput,
         above: &Above<'_>,
     ) {
-        let quiet = !settled.again && !settled.busy;
+        let quiet = settled.busy.is_empty();
+        if quiet
+            && let Some(Active {
+                request,
+                phase: Phase::Revealing { revealed, before },
+                tap,
+                immediate,
+                changes,
+                skipped,
+            }) = self
+                .active
+                .take_if(|active| matches!(active.phase, Phase::Revealing { .. }))
+        {
+            self.pending = Some(Pending {
+                request,
+                tap,
+                immediate,
+                changes,
+                skipped,
+                revealed,
+                before: Some(before),
+            });
+            return;
+        }
         let Some(active) = &mut self.active else {
             return;
         };
@@ -742,7 +848,7 @@ impl Session {
                 if *ready && let Some(target) = target {
                     let placed = match *window {
                         PLATFORM => shown_at(target, self.taps[0].as_deref(), view, above),
-                        _ => locate(target, view.rendered().lines()),
+                        _ => shown_part(target, view.rendered().lines()),
                     };
                     match placed {
                         Ok(rect) => *crop = Some(in_points(rect, view.pixels_per_point)),
@@ -841,7 +947,9 @@ impl Session {
                     text,
                     present,
                     over,
-                } if shown(view, text, *over) == *present => Some(Reply::Text(String::new())),
+                } if drive::waited(view.rendered().lines(), text, *over).is_some() == *present => {
+                    Some(Reply::Text(String::new()))
+                }
                 Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
                 Phase::Components => output
                     .comps
@@ -934,6 +1042,20 @@ impl Session {
         )
     }
 
+    fn reading_overflows(&self, tap: usize) -> bool {
+        matches!(
+            self.active,
+            Some(Active {
+                phase: Phase::Painting {
+                    overflows: true,
+                    ..
+                },
+                tap: reading,
+                ..
+            }) if reading == tap
+        )
+    }
+
     fn overflowed(&mut self, found: Vec<String>) {
         if self.wants_overflows() {
             self.finish(Reply::Text(
@@ -971,7 +1093,7 @@ impl Session {
         let reply = match capture {
             Some(capture) => cropped(capture, *crop),
             None => Reply::Error(
-                "this renderer cannot take screenshots; run the app headless with the wgpu renderer, or use paint".to_owned(),
+                "this renderer cannot take screenshots; run the program headless with the wgpu renderer, or use paint".to_owned(),
             ),
         };
         self.finish(reply);
@@ -987,13 +1109,87 @@ impl Session {
         &mut self,
         tap: usize,
         words: &[String],
+        revealed: &[accesskit::NodeId],
         view: &View<'_>,
         frame: &mut LayerFrame<'_>,
     ) -> Result<Started, String> {
         let (command, arguments) = words.split_first().ok_or_else(|| USAGE.to_owned())?;
-        match kind(command) {
-            Some(Kind::Session) => self.session(command, arguments, view, frame),
-            _ => self.command(tap, command, arguments, view, frame),
+        let reveal = Cell::new(None);
+        let started = match drive::parse(command, arguments) {
+            Some(parsed) => self.shared(parsed?, view, frame, revealed, &reveal),
+            None if kind(command) == Some(Kind::Session) => {
+                return self.session(command, arguments, view, frame);
+            }
+            None => self.command(tap, command, arguments, view, frame, revealed, &reveal),
+        };
+        let Some(id) = reveal.get() else {
+            return started;
+        };
+        frame
+            .context
+            .accessibility_action(accesskit::ActionRequest {
+                action: accesskit::Action::ScrollIntoView,
+                target_tree: accesskit::TreeId::ROOT,
+                target_node: id,
+                data: None,
+            });
+        Ok(Started::Phase(Phase::Revealing {
+            revealed: vec![id],
+            before: view.rendered(),
+        }))
+    }
+
+    fn shared(
+        &mut self,
+        command: drive::Command,
+        view: &View<'_>,
+        frame: &mut LayerFrame<'_>,
+        revealed: &[accesskit::NodeId],
+        reveal: &Cell<Option<accesskit::NodeId>>,
+    ) -> Result<Started, String> {
+        let rendered = view.rendered();
+        let lines = rendered.lines();
+        let text = |text: String| Ok(Started::Done(Reply::Text(text)));
+        let shown = |target: &str| {
+            let scrolled = if revealed.is_empty() { "" } else { " revealed" };
+            text(format!("{}{scrolled}\n", place(shown_part(target, lines)?)))
+        };
+        match command {
+            drive::Command::Help => text(format!("{USAGE}\n")),
+            drive::Command::Settle => Ok(Started::Phase(Phase::Settling { before: None })),
+            drive::Command::Clock(running) => {
+                match running {
+                    true => frame.context.run_clock(),
+                    false => frame.context.stop_clock(),
+                }
+                self.clock_stopped = !running;
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
+            drive::Command::Pause(by) => Ok(Started::Phase(Phase::Pausing {
+                until: view.now + by,
+            })),
+            drive::Command::Tree => text(rendered.text().to_owned()),
+            drive::Command::Ids => text(drive::ids(lines)),
+            drive::Command::Find(target) => text(format!("{}\n", place(locate(&target, lines)?))),
+            drive::Command::Reveal(target) => match hidden(&target, lines) {
+                Some(id) if !revealed.contains(&id) => {
+                    reveal.set(Some(id));
+                    Err(format!("{target} is revealed first"))
+                }
+                _ => shown(&target),
+            },
+            drive::Command::Shown(target) => shown(&target),
+            drive::Command::Wait {
+                text,
+                over,
+                present,
+            } => Ok(Started::Phase(Phase::Waiting {
+                text,
+                present,
+                over: over
+                    .map(|at| locate(&at, lines).map(|rect| rect.center()))
+                    .transpose()?,
+            })),
         }
     }
 
@@ -1011,10 +1207,8 @@ impl Session {
                 .ok_or_else(|| format!("{command} needs more arguments\n{USAGE}"))
         };
         match command {
-            "help" => Ok(Started::Done(Reply::Text(format!("{USAGE}\n")))),
             "frames" => Ok(Started::Done(Reply::Text(self.take_frames()))),
-            "settle" => Ok(Started::Phase(Phase::Settling { before: None })),
-            "close" => match frame.app.close_requested() {
+            "close" => match frame.program.close_requested() {
                 true => {
                     frame.close();
                     Ok(Started::Done(Reply::Text(
@@ -1025,15 +1219,6 @@ impl Session {
                     before: Some(view.rendered()),
                 })),
             },
-            "clock" => {
-                match argument(0)? {
-                    "stop" => frame.context.stop_clock(),
-                    "run" => frame.context.run_clock(),
-                    other => return Err(format!("clock takes stop or run, not {other}")),
-                }
-                self.clock_stopped = argument(0)? == "stop";
-                Ok(Started::Phase(Phase::Settling { before: None }))
-            }
             "hurry" => {
                 self.unhurried = match argument(0)? {
                     "on" => false,
@@ -1042,14 +1227,6 @@ impl Session {
                 };
                 frame.context.set_hurried(!self.unhurried);
                 Ok(Started::Phase(Phase::Settling { before: None }))
-            }
-            "pause" => {
-                let milliseconds: u64 = argument(0)?
-                    .parse()
-                    .map_err(|_| "pause takes milliseconds".to_owned())?;
-                Ok(Started::Phase(Phase::Pausing {
-                    until: view.now + Duration::from_millis(milliseconds),
-                }))
             }
             other => Err(format!("unknown command {other}\n{USAGE}")),
         }
@@ -1062,6 +1239,8 @@ impl Session {
         arguments: &[String],
         view: &View<'_>,
         frame: &mut LayerFrame<'_>,
+        revealed: &[accesskit::NodeId],
+        reveal: &Cell<Option<accesskit::NodeId>>,
     ) -> Result<Started, String> {
         let gesture = tap;
         let under = self.taps[tap].clone();
@@ -1100,20 +1279,30 @@ impl Session {
         let scale = view.pixels_per_point;
         let above = &frame.above;
         let entered = std::cell::Cell::new(None);
+        let reveal_first = |target: &str, lines: &[Rc<Line>]| -> Result<(), String> {
+            match hidden(target, lines) {
+                Some(id) if !revealed.contains(&id) => {
+                    reveal.set(Some(id));
+                    Err(format!("{target} is revealed first"))
+                }
+                _ => Ok(()),
+            }
+        };
         let at = |target: &str| -> Result<Pos2, String> {
+            reveal_first(target, lines)?;
             let Some(under) = &under else {
                 return point(target, lines, scale);
             };
             if let Some(rect) = coordinates(target) {
                 if shown_in.is_some() {
                     return Err(format!(
-                        "in WINDOW finds named targets in that window of the app; under {under}, X,Y is in the pixels where the input enters"
+                        "in WINDOW finds named targets in that window of the program; under {under}, X,Y is in the pixels where the input enters"
                     ));
                 }
                 return Ok(Pos2::new(rect.center().x / scale, rect.center().y / scale));
             }
             let (window, at) = above
-                .from_app(
+                .from_program(
                     shown_in.unwrap_or(WindowId::MAIN),
                     point(target, lines, scale)?,
                 )
@@ -1128,7 +1317,7 @@ impl Session {
                 }
             }
         };
-        let app_point = |target: &str| point(target, lines, scale);
+        let program_point = |target: &str| point(target, lines, scale);
         let entering = |steps: Vec<Vec<Incoming>>| -> VecDeque<Vec<Incoming>> {
             let window = match under {
                 Some(_) => entered.get(),
@@ -1168,32 +1357,12 @@ impl Session {
             }))
         };
         let input = |frames: Frames| incoming(points(frames));
+        if let Some(frames) =
+            crate::plan::plan(&mut self.gestures[gesture], command, arguments, scale, &at)?
+        {
+            return input(frames);
+        }
         match command.as_str() {
-            "tree" => Ok(Started::Done(Reply::Text(
-                view.rendered().text().to_owned(),
-            ))),
-            "ids" => {
-                let rendered = view.rendered();
-                let mut ids: Vec<(&str, &Line)> = rendered
-                    .lines()
-                    .iter()
-                    .flat_map(|line| line.test_ids.iter().map(move |id| (id.as_str(), &**line)))
-                    .collect();
-                ids.sort_by(|a, b| a.0.cmp(b.0));
-                let text = ids
-                    .into_iter()
-                    .map(|(id, line)| {
-                        let place = line.bounds.map(describe).unwrap_or_default();
-                        let hidden = if line.visible { "" } else { " offscreen" };
-                        format!("#{id} {place}{hidden}\n")
-                    })
-                    .collect();
-                Ok(Started::Done(Reply::Text(text)))
-            }
-            "find" => {
-                let rect = locate(argument(0)?, rendered.lines())?;
-                Ok(Started::Done(Reply::Text(format!("{}\n", describe(rect)))))
-            }
             "comps" => {
                 if arguments.len() > 1 || arguments.first().is_some_and(|arg| arg != "--internals")
                 {
@@ -1203,13 +1372,13 @@ impl Session {
                 Ok(Started::Phase(Phase::Components))
             }
             "hit" => {
-                frame.context.request_hit(app_point(argument(0)?)?);
+                frame.context.request_hit(program_point(argument(0)?)?);
                 Ok(Started::Phase(Phase::Hitting))
             }
             "state" => Ok(Started::Done(Reply::Text(self.state(tap, view)))),
             "env" => Ok(Started::Done(Reply::Text(
                 frame
-                    .app
+                    .program
                     .environment()
                     .into_iter()
                     .map(|(name, value)| format!("{name}={value}\n"))
@@ -1230,230 +1399,7 @@ impl Session {
                     before: view.rendered(),
                 }))
             }
-            "click" => {
-                let at = at(argument(0)?)?;
-                let (button, count) = match arguments.get(1).map(String::as_str) {
-                    None => (PointerButton::Primary, 1),
-                    Some("right") => (PointerButton::Secondary, 1),
-                    Some("middle") => (PointerButton::Middle, 1),
-                    Some("double") => (PointerButton::Primary, 2),
-                    Some(other) => {
-                        return Err(format!("click takes right, middle or double, not {other}"));
-                    }
-                };
-                input(self.gestures[gesture].click(at, button, count))
-            }
-            "move" => input(self.gestures[gesture].hover(at(argument(0)?)?)),
-            "down" | "up" => {
-                let pressed = command == "down";
-                let (target, button) = match (arguments.first(), arguments.get(1)) {
-                    (Some(first), _) if button_named(first).is_some() => {
-                        (None, button_named(first))
-                    }
-                    (target, button) => (target, button.and_then(|name| button_named(name))),
-                };
-                let button = button.unwrap_or(PointerButton::Primary);
-                let target = target.map(|target| at(target)).transpose()?;
-                match (pressed, target) {
-                    (true, Some(at)) => input(self.gestures[gesture].down(at, button)),
-                    (true, None) => Err("down needs a TARGET".to_owned()),
-                    (false, at) => input(self.gestures[gesture].up(at, button)),
-                }
-            }
-            "drag" => {
-                let from = at(argument(0)?)?;
-                let to = at(argument(1)?)?;
-                let (mut steps, mut button) = (2, PointerButton::Primary);
-                for extra in arguments.iter().skip(2) {
-                    match (button_named(extra), extra.parse::<usize>()) {
-                        (Some(named), _) => button = named,
-                        (None, Ok(count)) => steps = count,
-                        (None, Err(_)) => {
-                            return Err(format!(
-                                "drag takes a number of steps and a button, not {extra}"
-                            ));
-                        }
-                    }
-                }
-                input(self.gestures[gesture].drag(from, to, steps, button))
-            }
-            "wheel" => {
-                let at = at(argument(0)?)?;
-                let ticks = |index: usize| -> Result<i32, String> {
-                    arguments.get(index).map_or(Ok(0), |ticks| {
-                        ticks
-                            .parse()
-                            .map_err(|_| format!("{ticks} is not a number of ticks"))
-                    })
-                };
-                input(self.gestures[gesture].wheel(at, ticks(1)?, ticks(2)?))
-            }
-            "zoom" => {
-                let at = at(argument(0)?)?;
-                input(self.gestures[gesture].zoom(at, factor(argument(1)?)?))
-            }
-            "pinch" => {
-                let center = at(argument(0)?)?;
-                input(self.gestures[gesture].pinch(center, factor(argument(1)?)?))
-            }
-            "scroll" => {
-                let at = at(argument(0)?)?;
-                let number = |index: usize| -> Result<f32, String> {
-                    match arguments.get(index) {
-                        None => Ok(0.0),
-                        Some(text) => text
-                            .parse::<f32>()
-                            .map(|value| value / view.pixels_per_point)
-                            .map_err(|_| format!("{text} is not a number")),
-                    }
-                };
-                input(self.gestures[gesture].scroll(at, vec2(number(2)?, number(1)?)))
-            }
-            "leave" => input(self.gestures[gesture].leave()),
-            "motion" => {
-                let pixels = |index: usize| -> Result<f32, String> {
-                    let text = argument(index)?;
-                    text.parse::<f32>()
-                        .map(|value| value / view.pixels_per_point)
-                        .map_err(|_| format!("{text} is not a number of pixels"))
-                };
-                input(self.gestures[gesture].motion(vec2(pixels(0)?, pixels(1)?)))
-            }
-            "tap" => {
-                let at = at(argument(0)?)?;
-                input(self.gestures[gesture].tap(at, finger(arguments.get(1))?))
-            }
-            "swipe" => {
-                let from = at(argument(0)?)?;
-                let to = at(argument(1)?)?;
-                input(self.gestures[gesture].swipe(from, to, finger(arguments.get(2))?))
-            }
-            "pen" => {
-                let pressure = |index: usize| {
-                    arguments
-                        .get(index)
-                        .map(|text| {
-                            text.parse::<f32>()
-                                .ok()
-                                .filter(|pressure| (0.0..=1.0).contains(pressure))
-                                .ok_or_else(|| format!("{text} is not a pressure from 0 to 1"))
-                        })
-                        .transpose()
-                };
-                let count = |index: usize, default: usize, what: &str| match arguments.get(index) {
-                    Some(text) => text
-                        .parse::<usize>()
-                        .ok()
-                        .filter(|count| *count > 0)
-                        .ok_or_else(|| format!("{text} is not a number of {what} above 0")),
-                    None => Ok(default),
-                };
-                let frames = match argument(0)? {
-                    "move" => self.gestures[gesture].pen_move(
-                        at(argument(1)?)?,
-                        pressure(2)?,
-                        count(3, 1, "steps")?,
-                        count(4, 1, "samples a frame")?,
-                    ),
-                    "down" => self.gestures[gesture].pen_down(at(argument(1)?)?, pressure(2)?)?,
-                    "up" => {
-                        let to = arguments.get(1).map(|target| at(target)).transpose()?;
-                        self.gestures[gesture].pen_up(to)?
-                    }
-                    "draw" => {
-                        let from = at(argument(1)?)?;
-                        let to = at(argument(2)?)?;
-                        let steps = count(3, 8, "steps")?;
-                        let per_frame = count(4, 1, "samples a frame")?;
-                        self.gestures[gesture].pen_draw(from, to, steps, per_frame)?
-                    }
-                    "leave" => self.gestures[gesture].pen_leave()?,
-                    other => {
-                        return Err(format!(
-                            "pen takes move, down, up, draw or leave, not {other}"
-                        ));
-                    }
-                };
-                input(frames)
-            }
-            "touch" => {
-                let phase = match argument(0)? {
-                    "down" => TouchPhase::Start,
-                    "move" => TouchPhase::Move,
-                    "up" => TouchPhase::End,
-                    "cancel" => TouchPhase::Cancel,
-                    other => {
-                        return Err(format!("touch takes down, move, up or cancel, not {other}"));
-                    }
-                };
-                let fingers = arguments[1..]
-                    .iter()
-                    .map(|spec| {
-                        let (finger, target) = finger_target(spec);
-                        Ok((finger, target.map(&at).transpose()?))
-                    })
-                    .collect::<Result<Vec<_>, String>>()?;
-                input(self.gestures[gesture].touch(phase, &fingers)?)
-            }
-            "back" => {
-                let frames = match arguments.first().map(String::as_str) {
-                    None => self.gestures[gesture].back(),
-                    Some("left") => self.gestures[gesture].back_from(BackEdge::Left)?,
-                    Some("right") => self.gestures[gesture].back_from(BackEdge::Right)?,
-                    Some("commit") => self.gestures[gesture].back_end(true)?,
-                    Some("cancel") => self.gestures[gesture].back_end(false)?,
-                    Some(progress) => {
-                        let progress: f32 = progress
-                            .parse()
-                            .ok()
-                            .filter(|progress: &f32| (0.0..=1.0).contains(progress))
-                            .ok_or(
-                                "back takes left, right, a progress from 0 to 1, commit or cancel",
-                            )?;
-                        self.gestures[gesture].back_to(progress)
-                    }
-                };
-                input(frames)
-            }
-            "type" => input(self.gestures[gesture].type_text(&arguments.join(" "))),
-            "key" => {
-                if arguments.is_empty() {
-                    return Err(format!("key needs a chord, such as ctrl+z\n{USAGE}"));
-                }
-                input(self.gestures[gesture].chords(arguments)?)
-            }
-            "keydown" | "keyup" => {
-                let pressed = command == "keydown";
-                if arguments.is_empty() {
-                    return Err(format!("{command} needs a KEY"));
-                }
-                let mut events = Vec::new();
-                for name in arguments {
-                    let key = Key::from_name(name)
-                        .ok_or_else(|| format!("{name:?} is not a key beui knows"))?;
-                    events.extend(
-                        self.gestures[gesture]
-                            .key(key, pressed)?
-                            .into_iter()
-                            .flatten(),
-                    );
-                }
-                input(vec![events])
-            }
-            "ime" => {
-                let frames = match argument(0)? {
-                    "compose" => self.gestures[gesture].compose(arguments[1..].join(" ")),
-                    "commit" => self.gestures[gesture]
-                        .commit((arguments.len() > 1).then(|| arguments[1..].join(" "))),
-                    "cancel" => self.gestures[gesture].cancel_composing(),
-                    other => {
-                        return Err(format!("ime takes compose, commit or cancel, not {other}"));
-                    }
-                };
-                input(frames)
-            }
-            "focus" | "blur" => input(self.gestures[gesture].focus(command == "focus")),
-            "xr" => incoming(controller(arguments, app_point)?),
+            "xr" => incoming(controller(arguments, program_point)?),
             "resize" => {
                 let resize = match argument(0)? {
                     "screen" => Resize::Screen(
@@ -1645,24 +1591,13 @@ impl Session {
                     });
                 input(vec![Vec::new()])
             }
-            "wait" | "gone" => {
-                let (text, over) = match arguments {
-                    [text @ .., over, at] if !text.is_empty() && over == "over" => {
-                        let at = locate(at, rendered.lines())?;
-                        (text, Some(at.center()))
-                    }
-                    text => (text, None),
-                };
-                Ok(Started::Phase(Phase::Waiting {
-                    text: text.join(" "),
-                    present: command == "wait",
-                    over,
-                }))
-            }
             "shot" => {
                 let target = arguments.first().cloned();
                 let crop = match &target {
-                    Some(target) => Some(shown_at(target, under.as_deref(), view, above)?),
+                    Some(target) => {
+                        reveal_first(target, rendered.lines())?;
+                        Some(shown_at(target, under.as_deref(), view, above)?)
+                    }
                     None => None,
                 };
                 Ok(Started::Phase(Phase::Capturing {
@@ -1689,11 +1624,19 @@ impl Session {
                 let target = match target {
                     [] => None,
                     [target] => Some(target.clone()),
-                    _ => return Err("usage: paint [TARGET] [in WINDOW|platform]".to_owned()),
+                    _ => {
+                        return Err(
+                            "usage: paint FILE.paint|FILE.png [TARGET] [in WINDOW|platform]"
+                                .to_owned(),
+                        );
+                    }
                 };
+                if let Some(target) = &target {
+                    reveal_first(target, rendered.lines())?;
+                }
                 let crop = match (&target, window) {
                     (Some(target), window) if window != PLATFORM => Some(in_points(
-                        locate(target, rendered.lines())?,
+                        shown_part(target, rendered.lines())?,
                         view.pixels_per_point,
                     )),
                     _ => None,
@@ -1725,7 +1668,7 @@ impl Session {
         let fallback = WindowState::default();
         let (window, size) = match &self.shown[tap] {
             Some(shown) => (&shown.window, shown.size),
-            None => (&fallback, view.app),
+            None => (&fallback, view.program),
         };
         let size = match screen {
             true => view.platform,
@@ -1741,7 +1684,17 @@ impl Session {
             yes(view.fullscreen),
             yes(self.focused),
         ));
-        text.push_str(&format!("cursor {:?}\n", window.requests.cursor));
+        match &window.cursor_image {
+            Some(image) => text.push_str(&format!(
+                "cursor image {}x{}, hotspot {},{} (else {:?})\n",
+                image.size.x,
+                image.size.y,
+                image.hotspot.x,
+                image.hotspot.y,
+                window.requests.cursor
+            )),
+            None => text.push_str(&format!("cursor {:?}\n", window.requests.cursor)),
+        }
         let held: Vec<String> = gestures
             .buttons
             .iter()
@@ -1792,8 +1745,8 @@ impl Session {
         match (&gestures.composing, window.requests.ime.as_ref()) {
             (Some(composing), _) => text.push_str(&format!("composing {composing:?}\n")),
             (None, Some(area)) => text.push_str(&format!(
-                "the app asks for an input method, its caret {}, {}\n",
-                describe(scaled(area.cursor, scale)),
+                "the program asks for an input method, its caret {}, {}\n",
+                place(scaled(area.cursor, scale)),
                 match area.keyboard {
                     Keyboard::Shown { asks } => format!("its keyboard shown (ask {asks})"),
                     Keyboard::Held => "its keyboard held back".to_owned(),
@@ -1808,8 +1761,15 @@ impl Session {
         if self.clock_stopped {
             text.push_str("clock stopped: time passes only with pause\n");
         }
+        match self.inbox.busy().as_slice() {
+            [] => text.push_str("settled\n"),
+            busy => text.push_str(&format!("busy: {}\n", busy.join("; "))),
+        }
+        if let Some(held) = self.inbox.held() {
+            text.push_str(&format!("{held}\n"));
+        }
         if self.unhurried {
-            text.push_str("hurry off: the app waits as it does for a person\n");
+            text.push_str("hurry off: the program waits as it does for a person\n");
         }
         if let Some(progress) = gestures.back {
             text.push_str(&format!("back gesture at {progress}\n"));
@@ -1839,24 +1799,6 @@ impl Session {
             ));
         }
         text
-    }
-}
-
-fn button_named(name: &str) -> Option<PointerButton> {
-    match name {
-        "left" => Some(PointerButton::Primary),
-        "right" => Some(PointerButton::Secondary),
-        "middle" => Some(PointerButton::Middle),
-        "back" => Some(PointerButton::Back),
-        "forward" => Some(PointerButton::Forward),
-        _ => {
-            let code = name.strip_prefix("button:")?;
-            let code = match code.strip_prefix("0x") {
-                Some(hex) => u16::from_str_radix(hex, 16).ok()?,
-                None => code.parse().ok()?,
-            };
-            Some(PointerButton::Other(code))
-        }
     }
 }
 
@@ -1910,44 +1852,11 @@ fn capped(changes: String, limit: Option<usize>) -> String {
     text
 }
 
-fn factor(text: &str) -> Result<f32, String> {
-    text.parse::<f32>()
-        .ok()
-        .filter(|factor| *factor > 0.0)
-        .ok_or_else(|| format!("{text} is not a factor above 0"))
-}
-
-fn finger_target(spec: &str) -> (u64, Option<&str>) {
-    if let Some((finger, target)) = spec.split_once('=')
-        && let Ok(finger) = finger.parse()
-    {
-        return (finger, Some(target));
-    }
-    match spec.parse() {
-        Ok(finger) => (finger, None),
-        Err(_) => (0, Some(spec)),
-    }
-}
-
-fn shown(view: &View<'_>, text: &str, over: Option<Pos2>) -> bool {
-    let matches = |line: &Line| match text.strip_prefix('#') {
-        Some(id) => line.test_ids.iter().any(|named| named == id),
-        None => line.text.contains(text),
-    };
-    let reaches = |line: &Line| {
-        over.is_none_or(|over| line.bounds.is_some_and(|bounds| bounds.contains(over)))
-    };
-    view.rendered()
-        .lines()
-        .iter()
-        .any(|line| matches(line) && reaches(line))
-}
-
 fn controller(
     arguments: &[String],
     at: impl Fn(&str) -> Result<Pos2, String>,
 ) -> Result<Vec<Vec<Incoming>>, String> {
-    use beui_core::runner::{Controller, Hand, HandPose};
+    use beui_runner::{Controller, Hand, HandPose};
     let usage = "xr takes HAND pose X Y Z [YAW PITCH], HAND point TARGET, HAND trigger VALUE, \
                  HAND squeeze VALUE, HAND click TARGET or HAND lost, where HAND is left or right";
     let word = |index: usize| arguments.get(index).map(String::as_str).ok_or(usage);
@@ -2022,14 +1931,6 @@ fn controller(
         }
         "lost" => once(Controller::Lost { hand }),
         _ => return Err(usage.to_owned()),
-    })
-}
-
-fn finger(argument: Option<&String>) -> Result<u64, String> {
-    argument.map_or(Ok(0), |finger| {
-        finger
-            .parse()
-            .map_err(|_| format!("{finger} is not a finger number"))
     })
 }
 
@@ -2122,12 +2023,12 @@ fn shown_at(
     above: &Above<'_>,
 ) -> Result<Rect, String> {
     let Some(under) = under else {
-        return locate(target, view.rendered().lines());
+        return shown_part(target, view.rendered().lines());
     };
     if let Some(rect) = coordinates(target) {
         return Ok(rect);
     }
-    let rect = locate(target, view.rendered().lines())?;
+    let rect = shown_part(target, view.rendered().lines())?;
     let scale = view.pixels_per_point;
     let corners = [
         rect.min,
@@ -2138,7 +2039,7 @@ fn shown_at(
     let mut shown: Option<Rect> = None;
     for corner in corners {
         let (_, at) = above
-            .from_app(WindowId::MAIN, pos2(corner.x / scale, corner.y / scale))
+            .from_program(WindowId::MAIN, pos2(corner.x / scale, corner.y / scale))
             .ok_or_else(|| format!("{target} does not show under {under}"))?;
         let at = pos2(at.x * scale, at.y * scale);
         shown = Some(match shown {

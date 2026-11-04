@@ -33,7 +33,7 @@ fn a_miss_while_a_button_is_held_leaves_the_window_and_keeps_the_drag() {
         ),
     ] = released.as_slice()
     else {
-        panic!("the release still reaches the app, not {released:?}");
+        panic!("the release still reaches the program, not {released:?}");
     };
     assert_eq!(*to, window);
     assert!(

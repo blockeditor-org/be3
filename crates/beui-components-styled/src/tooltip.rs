@@ -8,7 +8,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TOOLTIP_DELAY, TooltipHandle};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{Direction, ItemSize};
+use beui_view::types::Direction;
 use std::time::Duration;
 
 const PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs);
@@ -42,16 +42,17 @@ fn TooltipBubble(handle: TooltipHandle) -> NodeId {
     view! {
         <Frame padding={Padding::vertical(GAP)}>
             <List direction=Direction::Horizontal spacing=Space::None>
-                <Frame
-                    @sizing={ItemSize::Intrinsic.max(MAX_WIDTH)}
-                    @test_id={"tooltip"}
-                    fill=ColorRole::SurfaceRaised
-                    border={Border::DEFAULT}
-                    radius=Radius::Md
-                    padding=PADDING
-                >
-                    <Text style=TextStyle::CAPTION color=TextColor::Default>{label}</Text>
-                </Frame>
+                <ListItem max=MAX_WIDTH>
+                    <Frame
+                        @test_id={"tooltip"}
+                        fill=ColorRole::Surface
+                        border={Border::DEFAULT}
+                        radius=Radius::Md
+                        padding=PADDING
+                    >
+                        <Text style=TextStyle::CAPTION color=TextColor::Default>{label}</Text>
+                    </Frame>
+                </ListItem>
             </List>
         </Frame>
     }

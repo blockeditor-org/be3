@@ -1,0 +1,13 @@
+[package]
+name = "be-sdk-window-stack"
+description = "The desktop's window manager, without signals: windows over displays, stacked, moved and resized by gestures and the app's window requests"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-sdk-api = { path = "../be-sdk-api" }
+be-lib-geometry = { path = "../be-lib-geometry" }
+
+[lints]
+workspace = true

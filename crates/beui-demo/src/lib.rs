@@ -5,22 +5,25 @@ use beui::Align;
 use beui::KeyAt;
 use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
-use beui::dock::styled::Docking;
-use beui::dock::unstyled::{
-    DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs,
-    DockDocuments, DockOpened, DockPane, DockSlot, DockSplit, DockTab, DockTabControl,
-    DockingLayout, TabId, dock_menu, use_dock_tab,
+use beui::dock::Docking;
+use beui::dock::styled::{DockBarGrip, DockBarSurface};
+use beui::dock::{
+    DockAlign, DockBar, DockBarPlacement, DockDialog, DockDocument, DockDocumentBody,
+    DockDocumentTabs, DockDocuments, DockEdge, DockOpened, DockPane, DockSlot, DockSplit, DockTab,
+    DockTabControl, DockWindow, DockingLayout, SplitSize, TabId, dock_menu, use_dock_tab,
 };
+use beui::dock_host::styled::{DockArea, DockHost, DockHostLayout};
 use beui::icons::Glyph;
 use beui::icons::{
-    ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG, ICON_CALENDAR_DAYS,
-    ICON_CIRCLE_DOT, ICON_CLIPBOARD, ICON_CODE, ICON_COLUMNS_3, ICON_CONTRAST, ICON_COPY,
-    ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS, ICON_LAYOUT_DASHBOARD,
-    ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_LOG_IN,
-    ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_MOVE_VERTICAL, ICON_NETWORK,
-    ICON_PALETTE, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_SHARE_2,
-    ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
-    ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE,
+    ICON_APP_WINDOW, ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG,
+    ICON_CALENDAR_DAYS, ICON_CIRCLE_DOT, ICON_CLIPBOARD, ICON_CODE, ICON_COLUMNS_3, ICON_CONTRAST,
+    ICON_COPY, ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS,
+    ICON_LAYOUT_DASHBOARD, ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST,
+    ICON_LOCK, ICON_LOG_IN, ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK,
+    ICON_MOVE_VERTICAL, ICON_NETWORK, ICON_PALETTE, ICON_PANEL_BOTTOM, ICON_PANELS_TOP_LEFT, ICON_PEN_TOOL,
+    ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_ROTATE_CCW, ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL,
+    ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR, ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT,
+    ICON_TRASH, ICON_TYPE,
 };
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
@@ -30,23 +33,23 @@ use beui::unstyled::{
     SyntaxColors, narrower_than,
 };
 use beui::{
-    Color32, Direction, FontId, Image, ImageFit, ItemSize, Key, Modifiers, NodeId, PreferenceLayer,
+    Color32, Direction, FontId, Image, ImageFit, Key, Modifiers, NodeId, PreferenceLayer,
     PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
+use beui_text_editor_core::{
+    EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
+};
 use collaboration::CollaborationPage;
 use rich_text::RichTextPage;
 use sample::{Sample, ScrollPage};
 use std::rc::Rc;
 use std::sync::Arc;
-use styled_pages::{AttachedCard, AttachedDialog};
+use styled_pages::AttachedDialog;
 use styled_pages::{
-    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
-    LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage, ReorderingPage, RowsPage,
-    TextPage, ThemesPage, TreePage,
-};
-use text_editor_core::{
-    EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
+    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockBarsPage, DockingPage, EditorPage,
+    InputsPage, LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage,
+    ReorderingPage, RowsPage, TextPage, ThemesPage, TreePage, WindowManagerPage,
 };
 use unstyled_pages::{
     DraggingPage, PopupsPage, PressingPage, ScrollingPage, SelectingPage, ValuesPage,
@@ -63,7 +66,6 @@ const CATALOG: TabId = TabId::new(1);
 const DIALOG_TABS: u64 = 1 << 40;
 const DIALOG_SIZE: beui::Vec2 = beui::Vec2::new(460.0, 120.0);
 const NESTED_DIALOG_INSET: beui::Vec2 = beui::Vec2::new(56.0, 16.0);
-const CARD_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
 const PAGE_SHARE: f32 = 0.76;
 const SHELL_PADDING: Space = Space::Md;
 const TOOLBAR_SPACING: Space = Space::Md;
@@ -80,6 +82,9 @@ const STAND_IN: Color32 = Color32::from_rgb(255, 105, 180);
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Page {
     Docking,
+    NestedDocks,
+    DockBars,
+    WindowManager,
     Text,
     Buttons,
     Inputs,
@@ -112,8 +117,11 @@ enum Page {
     Paths,
 }
 
-const STYLED_PAGES: [Page; 18] = [
+const STYLED_PAGES: [Page; 21] = [
     Page::Docking,
+    Page::NestedDocks,
+    Page::DockBars,
+    Page::WindowManager,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
@@ -152,8 +160,11 @@ const BASE_PAGES: [Page; 7] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 31] = [
+const PAGES: [Page; 34] = [
     Page::Docking,
+    Page::NestedDocks,
+    Page::DockBars,
+    Page::WindowManager,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
@@ -190,6 +201,9 @@ impl Page {
     fn title(self) -> &'static str {
         match self {
             Page::Docking => "Docking",
+            Page::NestedDocks => "Nested docks",
+            Page::DockBars => "Dock bars",
+            Page::WindowManager => "Window manager",
             Page::Text => "Text",
             Page::Buttons => "Buttons",
             Page::Inputs => "Inputs",
@@ -226,6 +240,9 @@ impl Page {
     fn icon(self) -> Glyph {
         match self {
             Page::Docking => ICON_LAYOUT_PANEL_LEFT,
+            Page::NestedDocks => ICON_PANELS_TOP_LEFT,
+            Page::DockBars => ICON_PANEL_BOTTOM,
+            Page::WindowManager => ICON_APP_WINDOW,
             Page::Text => ICON_TYPE,
             Page::Buttons => ICON_MOUSE_POINTER_CLICK,
             Page::Inputs => ICON_TOGGLE_RIGHT,
@@ -262,6 +279,9 @@ impl Page {
     fn summary(self) -> &'static str {
         match self {
             Page::Docking => "Tabs, splits, windows and groups",
+            Page::NestedDocks => "A dock in a tab joins the dock around it",
+            Page::DockBars => "A tool bar on any edge of its pane, or in a window",
+            Page::WindowManager => "Floating windows hidden, snapped and moved between displays",
             Page::Text => "Text styles, sizes, colour roles, icons in text, links",
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
@@ -299,11 +319,7 @@ impl Page {
 #[derive(Clone, Copy)]
 struct Today(Date);
 
-const WINDOW_BACKGROUNDS: [ColorRole; 3] = [
-    ColorRole::Background,
-    ColorRole::Surface,
-    ColorRole::SurfaceRaised,
-];
+const WINDOW_BACKGROUNDS: [ColorRole; 2] = [ColorRole::Background, ColorRole::Surface];
 
 #[derive(Clone, Copy)]
 struct DemoWindow {
@@ -369,7 +385,9 @@ fn LoneRoot(today: Date, page: Page) -> Root {
 #[component]
 fn LonePage(page: Page) -> NodeId {
     view! {
-        <PageView page />
+        <DockHost>
+            <PageView page />
+        </DockHost>
     }
 }
 
@@ -383,40 +401,18 @@ struct DemoDialog {
     id: TabId,
     parent: TabId,
     modal: bool,
-    card: bool,
-    anchor: Option<[u32; 4]>,
     depth: u8,
 }
 
 impl DemoDialog {
     fn size(self) -> beui::Vec2 {
-        match self.card {
-            true => CARD_SIZE,
-            false => DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth),
-        }
-    }
-
-    fn anchor(self) -> Option<Rect> {
-        self.anchor.map(|[left, top, right, bottom]| {
-            Rect::from_min_max(
-                beui::pos2(f32::from_bits(left), f32::from_bits(top)),
-                beui::pos2(f32::from_bits(right), f32::from_bits(bottom)),
-            )
-        })
-    }
-
-    fn presentation(self) -> DockDialogPresentation {
-        match self.card {
-            true => DockDialogPresentation::Card,
-            false => DockDialogPresentation::Window,
-        }
+        DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth)
     }
 
     fn title(self) -> &'static str {
-        match (self.card, self.modal) {
-            (true, _) => "Card",
-            (false, true) => "Modal dialog",
-            (false, false) => "Dialog",
+        match self.modal {
+            true => "Modal dialog",
+            false => "Dialog",
         }
     }
 }
@@ -437,16 +433,6 @@ impl DemoDialogs {
     }
 
     fn open(&self, parent: TabId, modal: bool) {
-        self.add(parent, modal, false, None);
-    }
-
-    fn open_card(&self, parent: TabId, anchor: Option<Rect>) {
-        self.add(parent, true, true, anchor);
-    }
-
-    fn add(&self, parent: TabId, modal: bool, card: bool, anchor: Option<Rect>) {
-        let anchor =
-            anchor.map(|rect| [rect.min.x, rect.min.y, rect.max.x, rect.max.y].map(f32::to_bits));
         let id = TabId::new(self.next.with(|next| next.replace(next.get() + 1)));
         self.open.update(|open| {
             let depth = open
@@ -457,8 +443,6 @@ impl DemoDialogs {
                 id,
                 parent,
                 modal,
-                card,
-                anchor,
                 depth,
             });
         });
@@ -493,6 +477,7 @@ impl DemoDialogs {
 #[derive(Clone, Copy)]
 struct Pages {
     layout: DockingLayout<TabId>,
+    host: DockHostLayout,
     documents: DockDocuments<TabId, Page, Page>,
     dialogs: DemoDialogs,
 }
@@ -513,6 +498,7 @@ impl Pages {
         documents.open(Page::Docking, true);
         let pages = Self {
             layout,
+            host: DockHostLayout::new(),
             documents,
             dialogs,
         };
@@ -552,7 +538,7 @@ impl Pages {
 }
 
 #[sample]
-fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
+fn switch_tabs_with_alt_q(layout: DockHostLayout) {
     let modifiers = held_modifiers();
     let next = Chord::key(Key::Q).alt();
     for (id, label, backwards, chord) in [
@@ -597,7 +583,8 @@ fn DemoShell() -> NodeId {
     let pages = Pages::new(dialogs);
     let active = create_selector(move || pages.active());
     let layout = pages.layout;
-    switch_tabs_with_alt_q(layout);
+    let host = pages.host;
+    switch_tabs_with_alt_q(host);
     let drag_modifier = create_signal(None);
     provide_context(DragModifier {
         held: drag_modifier,
@@ -610,70 +597,59 @@ fn DemoShell() -> NodeId {
                 <DemoToolbar pages />
             </Frame>
             <Separator />
-            <Docking @sizing=ItemSize::Percent(100.0) layout drag_modifier>
-                <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
-                    <DockPane id="catalog" locked=true>
-                        <DockTab id=CATALOG title="Components" icon=ICON_BLOCKS>
-                            <CatalogPanel pages active={active} />
-                        </DockTab>
-                    </DockPane>
-                    <DockPane
-                        id="pages"
-                        empty={move || view! {
-                            <EmptyPanel />
-                        }}
-                    >
-                        <DockDocumentTabs
-                            documents={pages.documents}
-                        >|document: DockDocument<TabId, Page, Page>| {
-                            let page = document.content();
-                            view! {
-                                <DockTab
-                                    id={document.key()}
-                                    title={create_memo(move || page.get().title().to_owned())}
-                                    icon={create_memo(move || page.get().icon().to_owned())}
-                                    on_close={move || pages.close(document)}
-                                >
-                                    <DockDocumentBody document>|page: ReadSignal<Page>|
-                                        <Container>|_|
-                                            <PageView page={page.get_untracked()} />
-                                        </Container>
-                                    </DockDocumentBody>
+            <ListItem grow=1.0>
+                <DockHost layout=host drag_modifier>
+                    <Docking layout>
+                        <DockSplit id="shell" size={SplitSize::Fraction(1.0 - PAGE_SHARE)}>
+                            <DockPane id="catalog" locked=true>
+                                <DockTab id=CATALOG title="Components" icon=ICON_BLOCKS>
+                                    <CatalogPanel pages active={active} />
                                 </DockTab>
-                            }
-                        }</DockDocumentTabs>
-                    </DockPane>
-                </DockSplit>
-                <ForEach keys={attached}>|dialog: DemoDialog|
-                    <DockDialog
-                        id={dialog.id}
-                        parent={dialog.parent}
-                        modal={dialog.modal}
-                        presentation={dialog.presentation()}
-                        anchor={dialog.anchor()}
-                        dismiss_on_outside_press={dialog.card}
-                        title={dialog.title()}
-                        icon=ICON_EXTERNAL_LINK
-                        size={dialog.size()}
-                        on_close={move || dialogs.close(dialog.id)}
-                    >
-                        <DemoDialogBody dialog />
-                    </DockDialog>
-                </ForEach>
-            </Docking>
+                            </DockPane>
+                            <DockPane
+                                id="pages"
+                                empty={move || view! {
+                                    <EmptyPanel />
+                                }}
+                            >
+                                <DockDocumentTabs
+                                    documents={pages.documents}
+                                >|document: DockDocument<TabId, Page, Page>| {
+                                    let page = document.content();
+                                    view! {
+                                        <DockTab
+                                            id={document.key()}
+                                            title={create_memo(move || page.get().title().to_owned())}
+                                            icon={create_memo(move || page.get().icon().to_owned())}
+                                            on_close={move || pages.close(document)}
+                                        >
+                                            <DockDocumentBody document>|page: ReadSignal<Page>|
+                                                <Container>|_|
+                                                    <PageView page={page.get_untracked()} />
+                                                </Container>
+                                            </DockDocumentBody>
+                                        </DockTab>
+                                    }
+                                }</DockDocumentTabs>
+                            </DockPane>
+                        </DockSplit>
+                        <ForEach keys={attached}>|dialog: DemoDialog|
+                            <DockDialog
+                                id={dialog.id}
+                                parent={dialog.parent}
+                                modal={dialog.modal}
+                                title={dialog.title()}
+                                icon=ICON_EXTERNAL_LINK
+                                size={dialog.size()}
+                                on_close={move || dialogs.close(dialog.id)}
+                            >
+                                <AttachedDialog modal={dialog.modal} />
+                            </DockDialog>
+                        </ForEach>
+                    </Docking>
+                </DockHost>
+            </ListItem>
         </List>
-    }
-}
-
-#[component]
-fn DemoDialogBody(dialog: DemoDialog) -> NodeId {
-    match dialog.card {
-        true => view! {
-            <AttachedCard />
-        },
-        false => view! {
-            <AttachedDialog modal={dialog.modal} />
-        },
     }
 }
 
@@ -682,6 +658,15 @@ fn PageView(page: Page) -> NodeId {
     match page {
         Page::Docking => view! {
             <DockingPage />
+        },
+        Page::NestedDocks => view! {
+            <NestedDocksPage />
+        },
+        Page::DockBars => view! {
+            <DockBarsPage />
+        },
+        Page::WindowManager => view! {
+            <WindowManagerPage />
         },
         Page::Text => view! {
             <TextPage />
@@ -778,9 +763,9 @@ fn PageView(page: Page) -> NodeId {
 
 #[component]
 fn DemoToolbar(pages: Pages) -> NodeId {
-    let app_layer = use_preference_layer(PreferenceSource::App);
+    let program_layer = use_preference_layer(PreferenceSource::Program);
     let selected_theme = create_memo(move || {
-        let theme = app_layer.get().theme;
+        let theme = program_layer.get().theme;
         Some(
             theme
                 .and_then(|theme| ThemeKind::ALL.iter().position(|kind| *kind == theme))
@@ -796,7 +781,7 @@ fn DemoToolbar(pages: Pages) -> NodeId {
             <Show condition={wide}>
                 <Text style=TextStyle::CAPTION>"retained mode ui"</Text>
             </Show>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Spacer />
             <Select
                 label="Theme"
                 options={view! {
@@ -809,7 +794,7 @@ fn DemoToolbar(pages: Pages) -> NodeId {
                     let theme = index
                         .and_then(|index| index.checked_sub(1))
                         .and_then(|index| ThemeKind::ALL.get(index).copied());
-                    app_layer.set(PreferenceLayer { theme, ..app_layer.get_untracked() });
+                    program_layer.set(PreferenceLayer { theme, ..program_layer.get_untracked() });
                 })}
             />
             <Button
@@ -826,6 +811,8 @@ fn DemoToolbar(pages: Pages) -> NodeId {
             />
             <Button
                 label="Reset layout"
+                glyph=ICON_ROTATE_CCW
+                icon_only={narrow}
                 variant=ButtonVariant::Secondary
                 on_click={move || pages.reset()}
             />
@@ -931,12 +918,14 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
                 <Text align=TextAlign::Center>
                     <Icon glyph={page.icon()} />
                 </Text>
-                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                    <Text>{page.title()}</Text>
-                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
-                        {page.summary()}
-                    </Text>
-                </List>
+                <ListItem grow=1.0>
+                    <List spacing=Space::None>
+                        <Text>{page.title()}</Text>
+                        <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                            {page.summary()}
+                        </Text>
+                    </List>
+                </ListItem>
             </List>
         </ListRow>
     }

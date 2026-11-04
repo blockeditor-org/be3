@@ -23,9 +23,10 @@ pub mod reactive {
         component, current_component, try_current_component,
     };
     pub use crate::control::{Dynamic, ForEach, Keyed, Loading, Show, ShowKeepAlive};
+    pub use crate::into_prop_via;
     pub use crate::prop::{Func, Getter, IntoFunc, IntoProp, Prop};
     pub use beui_macros::{component, view};
-    pub use reactive::{
+    pub use beui_reactive::{
         Boundary, Effect, Get, KeyedItems, KeyedStore, Memo, OwnedKeyedStore, OwnedSignal,
         OwnedStored, Pending, ReadSignal, Ready, RootScope, Scope, ScopeContext, Selector, Set,
         Signal, Store, Stored, StoredCell, child_scope, create_binding, create_effect, create_memo,

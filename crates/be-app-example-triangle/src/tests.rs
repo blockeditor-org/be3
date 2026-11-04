@@ -1,0 +1,34 @@
+use be_sdk::be_block::BlockContent;
+use be_sdk::{
+    EditorHost, EditorInstanceId, FrameSpec, GraphCommand, Instance, Module, Rect, ShownView, View,
+    pos2, vec2,
+};
+use be_type_example_triangle::TriangleContent;
+
+use crate::root::Triangle;
+
+mod a_triangle_asks_to_be_painted_until_it_has_been;
+mod creating_a_triangle_makes_a_block_with_no_state;
+
+fn region() -> ShownView {
+    ShownView {
+        instance: EditorInstanceId(1),
+        view: View::MAIN,
+        block: None,
+        rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0)),
+        visible: vec2(0.0, 0.0),
+        scale_factor: 1.0,
+        raster: 1.0,
+        pixels: [400, 300],
+        age: 0,
+        spec: FrameSpec::default(),
+        describe: None,
+        seen: true,
+        windows: false,
+        fit: false,
+        docked: false,
+        host_place: None,
+        origin: None,
+        anchor_space: None,
+    }
+}

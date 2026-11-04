@@ -1,5 +1,5 @@
-use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
-use beui_core::window::{WindowEdge, WindowId};
+use beui_types::{Pos2, Vec2, pos2, vec2};
+use beui_types::{WindowEdge, WindowId};
 
 use crate::panel::{Panel, Pose};
 

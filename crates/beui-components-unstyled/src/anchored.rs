@@ -5,6 +5,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Placement;
+use beui_view::types::Rect;
 use beui_view::types::{Dismiss, LayerPolicy};
 
 pub struct AnchoredSheetHandle {
@@ -45,11 +46,17 @@ pub enum SheetWhen {
     Never,
 }
 
+/// The surface every anchored popup sits on: a dropdown under `anchor` when a
+/// mouse or pen opened it, the same content in a sheet when a finger did
+/// (`touched_by_finger`), unless `sheet` says otherwise. Content is built once per
+/// look the first time that look opens; bind focus to the handle's `shown`, not to
+/// `open`.
 #[component]
 pub fn Anchored(
     style: AnchoredStyle,
     anchor: Prop<OverlayAnchor>,
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     open: Prop<bool>,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,
     #[prop(default = true)] traps_focus: Prop<bool>,
@@ -87,6 +94,7 @@ pub fn Anchored(
                 @node_ref=&overlay
                 anchor
                 placement
+                bounds
                 policy
                 traps_focus
                 trigger={trigger}

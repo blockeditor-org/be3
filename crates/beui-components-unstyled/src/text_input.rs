@@ -4,10 +4,9 @@ use std::sync::Arc;
 
 use accesskit::{Node, Role};
 
-use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
+use beui_text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 use beui_view::types::Color;
-use beui_view::types::ItemSize;
 use beui_view::types::{CursorIcon, FontId, Pos2, Rect};
 
 use crate::ContextMenuApi;
@@ -56,6 +55,9 @@ pub struct TextInputStyle {
     pub menu: Option<MenuStyle>,
 }
 
+/// The kind of a single-line field: the `<input type>` on the HTML core.
+/// Natively only `Password` changes anything (it masks). A new kind of field is a
+/// variant here rather than a component of its own.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum InputKind {
     #[default]
@@ -93,6 +95,13 @@ struct Input {
     browser: bool,
 }
 
+/// A single-line field (or, with `multiline`, a text area) bound to `value`.
+///
+/// On the HTML core, when not `multiline`, without `prose` and without
+/// `select_on_focus`, it is a real `<input>` through the platform escape, so the
+/// browser gives it IME, autofill and password managers; `name` and
+/// `autocomplete` only matter there. Otherwise it is a `TextArea` in single-line
+/// mode on both cores, so a fix to text editing lands in both.
 #[component]
 pub fn TextInput(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TextInputApi>,
@@ -147,7 +156,11 @@ pub fn TextInput(
     create_effect(move || {
         let value = value.get();
         if text_of(state) != value {
+            let whole = untrack(|| select_on_focus.get() && is_focused.get()) && selects_all(state);
             state.execute(EditorCommand::ReplaceWholeFile(value.as_bytes()));
+            if whole {
+                state.execute(EditorCommand::SelectAll);
+            }
         }
     });
     let edited = state.content();
@@ -260,9 +273,9 @@ pub fn TextInput(
                 menu
                 masked={masked}
                 disabled={disabled}
-                child_size={match padded {
-                    true => ItemSize::Intrinsic,
-                    false => ItemSize::Percent(100.0),
+                child_grow={match padded {
+                    true => 0.0,
+                    false => 1.0,
                 }}
             >|open: Callback<Option<Rect>>| {
                 opener.with(|opener| opener.set(Some(open)));
@@ -357,6 +370,8 @@ fn BrowserField(
         ..
     } = style;
     let shown = placeholder.clone();
+    let named = accessibility.clone();
+    let label = Prop::dynamic(move || named.get().label().map(str::to_owned));
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
         let text = value.get();
@@ -422,6 +437,7 @@ fn BrowserField(
                 placeholder={Prop::dynamic(move || present(placeholder.get()))}
                 disabled={disabled}
                 @attr={("spellcheck", "false".to_owned())}
+                @attr={("aria-label", label)}
                 on_input={move |event: Event| take(&event)}
                 on_change={move |event: Event| take(&event)}
                 on_keydown={move |event: Event| {
@@ -475,7 +491,7 @@ fn edits(key: &str, command: bool) -> bool {
 
 fn plain_text(value: &str) -> TextAreaState {
     let buffer = Arc::new(TextBuffer::new(value.as_bytes()));
-    let state = TextAreaState::new(buffer as Arc<dyn text_editor_core::Document>);
+    let state = TextAreaState::new(buffer as Arc<dyn beui_text_editor_core::Document>);
     state.execute(EditorCommand::SetLanguage(TextLanguage::PlainText));
     let end = state.with_core(|core| core.position(value.len()));
     state.execute(EditorCommand::SetSelection {
@@ -483,6 +499,11 @@ fn plain_text(value: &str) -> TextAreaState {
         focus: end,
     });
     state
+}
+
+fn selects_all(state: TextAreaState) -> bool {
+    let length = text_of(state).len();
+    length == 0 || state.selection_ranges() == [0..length]
 }
 
 fn text_of(state: TextAreaState) -> String {

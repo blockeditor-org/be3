@@ -1,13 +1,14 @@
 use std::time::{Duration, Instant};
 
-use geometry::{Pos2, Vec2};
+use be_lib_geometry::{Pos2, Vec2};
 
 use crate::layout::Direction;
 use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal, Signal};
 
-pub use ui_types::input::{
+pub use be_lib_ui_types::input::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
-    Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
+    Keystroke, Modifiers, Pen, PenPhase, PointerButton, Queued, ScrollDelta, TouchId, TouchPhase,
+    TouchpadGesture, enqueue,
 };
 
 pub mod typing;
@@ -171,7 +172,7 @@ pub enum WheelInput {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerPress {
-    pub window: ui_types::window::WindowId,
+    pub window: be_lib_ui_types::window::WindowId,
     pub pos: Pos2,
     pub local: Pos2,
     pub size: Vec2,
@@ -187,6 +188,7 @@ pub struct PointerPress {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerSample {
     pub pos: Pos2,
+    pub window: be_lib_ui_types::window::WindowId,
     pub touch: bool,
 }
 
@@ -290,10 +292,16 @@ pub enum Event {
     PointerUnlocked,
     PointerMoved(Pos2),
     ScrollStarted,
-    Scroll(Vec2),
+    /// `delta` is in points. `notches` is set when a mouse wheel turned, and
+    /// counts its notches (each scrolls `SCROLL_LINE` points), with the sign of
+    /// `delta`.
+    Scroll {
+        delta: Vec2,
+        notches: Option<Vec2>,
+    },
     ScrollEnded,
     Text(String),
-    Paste(ui_types::clipboard::Pasted),
+    Paste(be_lib_ui_types::clipboard::Pasted),
     Touch {
         id: TouchId,
         phase: TouchPhase,
@@ -308,6 +316,7 @@ pub enum Event {
     Predicted(Pos2),
     Time(Instant),
     Zoom(f32),
+    Touchpad(TouchpadGesture),
     Ime(ImeEvent),
     FileHovered,
     FileHoverCancelled,
@@ -344,13 +353,14 @@ impl Event {
                 | Self::PointerMotion(_)
                 | Self::PointerMoved(_)
                 | Self::ScrollStarted
-                | Self::Scroll(_)
+                | Self::Scroll { .. }
                 | Self::ScrollEnded
                 | Self::Touch { .. }
                 | Self::Pen { .. }
                 | Self::Predicted(_)
                 | Self::Time(_)
                 | Self::Zoom(_)
+                | Self::Touchpad(_)
                 | Self::PointerWindow(_)
                 | Self::PointerOutside
         )
@@ -385,9 +395,16 @@ pub enum PointerPhase {
     Cancel,
     Gone,
     ScrollStarted,
-    Scroll(Vec2),
-    ScrollEnded { fling: Vec2 },
+    /// As `Event::Scroll`.
+    Scroll {
+        delta: Vec2,
+        notches: Option<Vec2>,
+    },
+    ScrollEnded {
+        fling: Vec2,
+    },
     Zoom(f32),
+    Touchpad(TouchpadGesture),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

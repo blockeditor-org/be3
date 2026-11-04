@@ -2,8 +2,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::{HostPlacement, Pos2, Rect, Vec2, WindowPlacement};
+use beui_types::Image;
 
 #[derive(Clone, Debug, PartialEq)]
+/// A display on the desktop. `id` is stable while the monitor stays plugged in;
+/// `position` and `size` are in the desktop's points, `size` being the physical
+/// mode over `scale`.
 pub struct Display {
     pub id: String,
     pub name: String,
@@ -22,9 +26,14 @@ impl Display {
 struct Shared {
     displays: RefCell<Vec<Display>>,
     watchers: RefCell<Vec<Rc<dyn Fn()>>>,
+    screenshot: RefCell<Option<Rc<dyn Fn() -> Option<Image>>>>,
 }
 
 #[derive(Clone, Default)]
+/// The displays on the desktop, handed to the program through `Setup`. The
+/// platform opens no main window: the program opens one `Window` per display at
+/// `placement(id)` and the display's size, and any other `Window` is an overlay
+/// in the window it was opened in. Mirrors and displays turned off are not listed.
 pub struct Displays(Rc<Shared>);
 
 impl Displays {
@@ -47,8 +56,22 @@ impl Displays {
             .cloned()
     }
 
+    /// Hears every change (plugged, unplugged, a new mode, rotation or scale) before
+    /// the frame it reaches lays out.
     pub fn watch(&self, watcher: impl Fn() + 'static) {
         self.0.watchers.borrow_mut().push(Rc::new(watcher));
+    }
+
+    /// The whole desktop as its displays last showed it, without the pointer, at the
+    /// largest display scale, with transparency where no display reaches; `None`
+    /// when no display has drawn or the GPU could not read one back.
+    pub fn screenshot(&self) -> Option<Image> {
+        let take = self.0.screenshot.borrow().clone()?;
+        take()
+    }
+
+    pub(crate) fn take_screenshots_with(&self, take: impl Fn() -> Option<Image> + 'static) {
+        *self.0.screenshot.borrow_mut() = Some(Rc::new(take));
     }
 
     pub fn placement(&self, id: &str) -> WindowPlacement {

@@ -1,5 +1,6 @@
 use super::*;
-use beui_core::font::{FontId, Fonts, TextLayout};
+use beui_core::font::Fonts;
+use beui_types::{FontId, TextLayout};
 
 #[test]
 fn layered_colour_glyphs_are_drawn_in_their_palette_colours() {

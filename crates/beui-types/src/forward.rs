@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use geometry::{Pos2, Rect};
+use be_lib_geometry::{Pos2, Rect};
 
 use crate::input::{
     Event, Input, KeyPress, Keystroke, Modifiers, PenPhase, PointerEvent, PointerId, PointerPhase,
@@ -224,13 +224,20 @@ impl Replay {
                         pressed,
                     }));
                 }
-                PointerPhase::Scroll(delta) => {
+                PointerPhase::Scroll { delta, notches } => {
                     self.modifiers(event.modifiers, out);
-                    out.push(Input::Scroll(ScrollDelta::Pixels(delta / zoom)).into());
+                    let scroll = match notches {
+                        Some(notches) => ScrollDelta::Lines(notches),
+                        None => ScrollDelta::Pixels(delta / zoom),
+                    };
+                    out.push(Input::Scroll(scroll).into());
                 }
                 PointerPhase::ScrollStarted => out.push(Input::ScrollStarted.into()),
                 PointerPhase::ScrollEnded { .. } => out.push(Input::ScrollEnded.into()),
                 PointerPhase::Zoom(factor) => out.push(Input::Zoom(factor).into()),
+                PointerPhase::Touchpad(gesture) => {
+                    out.push(Input::Touchpad(gesture.scaled(1.0 / zoom)).into())
+                }
                 PointerPhase::Cancel | PointerPhase::Gone => {
                     if std::mem::take(&mut self.pressed) > 0 {
                         out.push(timed(Input::PointersCancelled));

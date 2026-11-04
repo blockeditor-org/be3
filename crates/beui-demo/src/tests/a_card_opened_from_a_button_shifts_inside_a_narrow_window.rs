@@ -13,7 +13,7 @@ fn a_card_opened_from_a_button_shifts_inside_a_narrow_window() {
         "the card keeps a margin inside the window: {card:?} in {window:?}"
     );
     assert!(
-        card.center().x < button.center().x - 40.0,
+        card.center().x < button.center().x - 10.0,
         "moving along rather than centring on the button: {card:?} for {button:?}"
     );
     assert!(

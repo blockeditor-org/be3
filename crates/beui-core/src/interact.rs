@@ -3,28 +3,30 @@ pub mod grab;
 pub mod hit;
 pub mod pointer;
 
-use foldhash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::rc::Rc;
 
 use crate::base::overlay::OverlayNode;
 use crate::context::Context;
-use crate::geometry::Vec2;
-use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers};
-use crate::keys::{AtNode, KeyEvent, KeyHandler, KeyInput, KeyPhase, KeyTarget, Placed, Stop};
-use crate::layer::Dismiss;
+use crate::keys::{AtNode, Handler, Placed, Stop};
+use beui_types::Dismiss;
+use beui_types::Event;
+use beui_types::Vec2;
+use beui_types::{BackGesture, ImeEvent, Key, KeyPress, Modifiers};
+use beui_types::{KeyEvent, KeyInput, KeyPhase, KeyTarget};
 
 use crate::current::{run_in, with_document};
 use crate::document::{Acted, Document};
-use crate::node::{NodeId, Rects};
+use crate::node::Rects;
+use beui_types::NodeId;
 
-pub use crate::input::WHEEL_LATCH_TIMEOUT;
 const WHEEL_LATCH_SLOP: f32 = 2.0;
 pub const TOUCH_REACH: f32 = 12.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Fate {
     Taken,
-    App,
+    Program,
     Handled { reveal: bool },
     Unheard,
 }
@@ -94,7 +96,7 @@ fn pointer_step(
     document: &mut Document,
     frame: &pointer::Frame,
     index: usize,
-    event: crate::input::PointerEvent,
+    event: beui_types::PointerEvent,
 ) {
     if let Some(down) = run_in(document, |doc| pointer::event(doc, frame, index, event)) {
         run_in(document, |doc| {
@@ -124,11 +126,11 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
         Event::PointerUnlocked if ctx.pointer_locked() => doc.update_focus(None),
         Event::Back(gesture) => doc.back(*gesture),
         Event::InterceptedKey(press) => {
-            from_app(doc, KeyInput::Press(*press));
+            from_program(doc, KeyInput::Press(*press));
             return Ok(false);
         }
         Event::InterceptedTap(key) => {
-            from_app(doc, KeyInput::Tap(*key));
+            from_program(doc, KeyInput::Tap(*key));
             return Ok(false);
         }
         Event::Key { press, .. } => {
@@ -144,7 +146,8 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
             }
             let asked = doc.paste_requested();
             let fate = key_press(doc, *press);
-            let asks = matches!(fate, Fate::App | Fate::Unheard) || doc.paste_requested() && !asked;
+            let asks =
+                matches!(fate, Fate::Program | Fate::Unheard) || doc.paste_requested() && !asked;
             if asks && pastes(*press) {
                 ctx.paste_shortcut();
             }
@@ -193,7 +196,7 @@ fn key_pressed(doc: &mut Document, event: &Event, fate: Fate, tap: bool) -> bool
             let _ = answer(outer(doc, &route, KeyPhase::Capture), event);
         }
     }
-    fate == Fate::App
+    fate == Fate::Program
 }
 
 impl Fate {
@@ -212,9 +215,9 @@ struct Route {
 fn route(doc: &Document, key: Key) -> Route {
     let layers = doc.layers();
     let focused = doc.focused.filter(|focused| doc.contains(*focused));
-    let app = forward::takes_keys(doc);
-    let inhibited = app && forward::shortcuts_inhibited(doc);
-    let typing = app || doc.focus_types();
+    let program = forward::takes_keys(doc);
+    let inhibited = program && forward::shortcuts_inhibited(doc);
+    let typing = program || doc.focus_types();
     let start = focused.or_else(|| layers[layers.keyboard()].content);
     let mut nodes = Vec::new();
     let mut current = start;
@@ -236,7 +239,7 @@ fn route(doc: &Document, key: Key) -> Route {
         target: KeyTarget {
             node: focused,
             typing,
-            app,
+            program,
         },
         nodes,
         window: !layers.locked() || key.is_media(),
@@ -253,12 +256,20 @@ fn event_for(input: KeyInput, route: &Route) -> KeyEvent {
 }
 
 fn answer(placed: Vec<Placed>, event: KeyEvent) -> Option<Placed> {
-    placed.into_iter().find(|placed| (placed.handler)(event))
+    placed.into_iter().find(|placed| placed.handler.call(event))
 }
 
+/// The listeners around the focus path, in a fixed order. Capture: `builtin::grab` (any
+/// key ends a pointer grab such as an autoscroll, and Escape is spent doing it), then
+/// `KeyAt::Host` and `KeyAt::Window` listeners, then `builtin::cycle` (F6 cycles focus
+/// between regions). Bubble: `builtin::dismiss` (Escape closes the top layer), the
+/// `Window` then `Host` listeners, then `builtin::defaults` (Tab and Shift+Tab, Escape
+/// cancelling focus activation, the browser's Back key). So a component's own listener
+/// always gets Escape and Tab before the document's defaults, and an open layer's Escape
+/// before any window listener.
 fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
     let own = |handler: fn(KeyEvent) -> bool| Placed {
-        handler: Rc::new(handler),
+        handler: Handler::Own(Rc::new(handler)),
         reveal: true,
     };
     let listening = |stop: Stop| match route.window && !(stop == Stop::Window && route.inhibited) {
@@ -311,7 +322,7 @@ mod builtin {
             && event.press().is_some_and(|press| {
                 press.pressed
                     && press.key == Key::Escape
-                    && with_document(|doc| doc.drag_board()).cancel()
+                    && with_document(|doc| doc.drags.clone()).is_some_and(|drags| drags.cancel())
             })
     }
 
@@ -365,18 +376,18 @@ mod builtin {
     }
 }
 
-fn hold(doc: &mut Document, press: KeyPress, handler: Rc<KeyHandler>, repeats: bool) {
+fn hold(doc: &mut Document, press: KeyPress, handler: Handler, repeats: bool) {
     if press.pressed && !press.repeat {
         doc.keys.held.push((press.key, handler, repeats));
     }
 }
 
-fn target_holder(node: NodeId) -> Rc<KeyHandler> {
-    Rc::new(move |event: KeyEvent| {
+fn target_holder(node: NodeId) -> Handler {
+    Handler::Own(Rc::new(move |event: KeyEvent| {
         event
             .press()
             .is_some_and(|press| with_document(|doc| doc.target_key(node, press)))
-    })
+    }))
 }
 
 fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
@@ -389,8 +400,8 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
         hold(doc, press, placed.handler, true);
         return Fate::Taken;
     }
-    if route.target.app {
-        return Fate::App;
+    if route.target.program {
+        return Fate::Program;
     }
     if press.key.is_modifier() || press.key == Key::Unidentified {
         return Fate::Unheard;
@@ -441,10 +452,10 @@ fn held_key(doc: &mut Document, press: KeyPress) -> Option<Fate> {
     }
     let route = route(doc, press.key);
     let handler = match press.pressed {
-        true => Rc::clone(&doc.keys.held[at].1),
+        true => doc.keys.held[at].1.clone(),
         false => doc.keys.held.remove(at).1,
     };
-    handler(KeyEvent {
+    handler.call(KeyEvent {
         input: KeyInput::Press(press),
         phase: KeyPhase::Held,
         target: route.target,
@@ -467,17 +478,25 @@ impl Tree {
             .is_some_and(|node| route.nodes.first() == Some(&node));
         if !focused {
             let within = scattered(doc, route);
-            capture.retain(|placed| within(placed.node));
-            bubble.retain(|placed| within(placed.node));
+            capture.retain(|placed| !placed.control && within(placed.node));
+            bubble.retain(|placed| !placed.control && within(placed.node));
             return Self {
                 capture: capture.into_iter().map(|placed| placed.placed).collect(),
                 bubble: bubble.into_iter().map(|placed| placed.placed).collect(),
             };
         }
+        let target = route.nodes.first().copied();
         let along = |placed: Vec<AtNode>| {
             let mut at: HashMap<NodeId, Vec<Placed>> = HashMap::default();
             for placed in placed {
-                at.entry(placed.node).or_default().push(placed.placed);
+                let node = match placed.control && !route.nodes.contains(&placed.node) {
+                    true => match control_above(doc, placed.node) {
+                        Some(control) if Some(control) == target => control,
+                        _ => continue,
+                    },
+                    false => placed.node,
+                };
+                at.entry(node).or_default().push(placed.placed);
             }
             move |node: &NodeId| at.remove(node).unwrap_or_default()
         };
@@ -488,6 +507,17 @@ impl Tree {
             bubble: route.nodes.iter().flat_map(&mut bubble_at).collect(),
         }
     }
+}
+
+fn control_above(doc: &Document, node: NodeId) -> Option<NodeId> {
+    let mut next = doc.arena.parent(node);
+    while let Some(id) = next {
+        if crate::focus::focus_of(doc.arena.get(id)).is_some() {
+            return Some(id);
+        }
+        next = doc.arena.parent(id);
+    }
+    None
 }
 
 fn scattered(doc: &Document, route: &Route) -> impl Fn(NodeId) -> bool {
@@ -506,13 +536,13 @@ fn scattered(doc: &Document, route: &Route) -> impl Fn(NodeId) -> bool {
     }
 }
 
-fn from_app(doc: &mut Document, input: KeyInput) {
+fn from_program(doc: &mut Document, input: KeyInput) {
     let media = matches!(input, KeyInput::Press(press) if press.key.is_media());
     let route = Route {
         target: KeyTarget {
             node: None,
             typing: true,
-            app: true,
+            program: true,
         },
         nodes: Vec::new(),
         window: !doc.layers().locked() || media,
@@ -529,12 +559,13 @@ fn is_activity(event: &Event) -> bool {
             | Event::PointerButton { .. }
             | Event::PointerMotion(_)
             | Event::PointerMoved(_)
-            | Event::Scroll(_)
+            | Event::Scroll { .. }
             | Event::Text(_)
             | Event::Paste(_)
             | Event::Touch { .. }
             | Event::Pen { .. }
             | Event::Zoom(_)
+            | Event::Touchpad(_)
     )
 }
 
@@ -557,16 +588,18 @@ fn taps(doc: &mut Document, events: &[Event]) -> Vec<usize> {
                 doc.tapping = None;
                 taps.push(index);
             }
-            Event::Key { press, .. } if press.pressed => doc.tapping = None,
+            Event::Key { press, .. } | Event::InterceptedKey(press) if press.pressed => {
+                doc.tapping = None;
+            }
             Event::PointerButton { pressed: true, .. }
-            | Event::Scroll(_)
+            | Event::Scroll { .. }
             | Event::Focus(false)
             | Event::Touch {
-                phase: crate::input::TouchPhase::Start,
+                phase: beui_types::TouchPhase::Start,
                 ..
             }
             | Event::Pen {
-                phase: crate::input::PenPhase::Down(_),
+                phase: beui_types::PenPhase::Down(_),
                 ..
             } => doc.tapping = None,
             _ => {}

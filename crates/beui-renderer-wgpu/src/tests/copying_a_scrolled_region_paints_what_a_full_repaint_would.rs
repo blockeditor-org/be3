@@ -13,7 +13,7 @@ const SHADES: [Color32; 3] = [
 fn scrolling() -> Document {
     build(|| {
         view! {
-            <Root clear_color={beui_core::color::Color32::BLACK}>
+            <Root clear_color={beui_types::color::Color32::BLACK}>
                 <Frame fill={Color32::from_rgb(20, 20, 20)} radius=0.0>
                     <List spacing=0.0>
                         <Frame height=12.0 fill=Color32::WHITE radius=0.0 />

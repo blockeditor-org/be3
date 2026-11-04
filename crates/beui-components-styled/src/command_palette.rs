@@ -16,7 +16,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::ICON_SEARCH;
-use beui_view::types::{Align, Direction, Extent, ItemSize};
+use beui_view::types::{Align, Direction, Extent};
 
 const WIDTH: f32 = 560.0;
 const LIST_HEIGHT: f32 = 360.0;
@@ -36,6 +36,7 @@ pub fn CommandPalette(
     #[prop(default = "Run a command".to_owned())] placeholder: Prop<String>,
     #[prop(default = "Command palette".to_owned())] label: Prop<String>,
     #[prop(default = "command-palette".to_owned())] id: String,
+    #[prop(default = None)] shown_in: Prop<Option<beui_view::types::WindowId>>,
     on_choose: Callback<String>,
 ) -> NodeId {
     let theme = use_theme();
@@ -50,6 +51,7 @@ pub fn CommandPalette(
             score
             query
             label
+            shown_in
             on_choose={move |key: String| on_choose.call(key)}
             list_height=LIST_HEIGHT
             spacing={use_space(PADDING).get_untracked()}
@@ -78,7 +80,7 @@ fn PalettePanel(children: Child) -> NodeId {
         <Frame padding=MARGIN>
             <Frame
                 width={Extent::at_most(WIDTH)}
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Surface
                 border={Border::DEFAULT}
                 radius=Radius::Lg
                 padding=PADDING
@@ -90,7 +92,7 @@ fn PalettePanel(children: Child) -> NodeId {
 }
 
 #[component]
-fn PaletteSearch(handle: TextInputHandle) -> NodeId {
+pub(crate) fn PaletteSearch(handle: TextInputHandle) -> NodeId {
     let TextInputHandle { field, .. } = handle;
     view! {
         <Frame
@@ -104,14 +106,16 @@ fn PaletteSearch(handle: TextInputHandle) -> NodeId {
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_SEARCH />
                 </Text>
-                <Frame @sizing=ItemSize::Percent(100.0)>{field}</Frame>
+                <ListItem grow=1.0>
+                    <Frame>{field}</Frame>
+                </ListItem>
             </List>
         </Frame>
     }
 }
 
 #[component]
-fn PaletteRow(handle: CommandRowHandle) -> NodeId {
+pub(crate) fn PaletteRow(handle: CommandRowHandle) -> NodeId {
     let CommandRowHandle {
         label,
         detail,

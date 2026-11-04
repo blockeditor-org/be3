@@ -2,6 +2,7 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use super::modal::{Modal, ModalHandle};
+use beui_view::components::overlay::{Modality, Overlay, use_modal};
 use beui_view::components::portal::Portal;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
@@ -10,17 +11,23 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::Key;
 use beui_view::types::KeyPhase;
-use beui_view::window::use_window;
+use beui_view::types::{Dismiss, OverlayAnchor, Placement, Pos2, Rect};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DialogKind {
+    /// A decision: its actions are its only way out, and focus starts on the
+    /// primary action, or on Cancel when that action is destructive.
     Alert,
+    /// Content: a title row with a close button, and a footer only when it has
+    /// actions.
     Dialog,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ActionRole {
+    /// Runs on an Enter nothing in the dialog takes, unless disabled or busy.
     Primary,
+    /// Never runs on Enter.
     Destructive,
     Secondary,
     Cancel,
@@ -134,6 +141,9 @@ fn main_action(shown: &[(usize, ActionRole)]) -> Option<usize> {
     of(ActionRole::Primary).or_else(|| of(ActionRole::Destructive))
 }
 
+/// Wide: secondary actions start the footer, then Cancel, then the main one at
+/// the end (the macOS and GNOME order). Narrow: one full-width column, main
+/// first.
 pub fn footer_order(actions: &[DialogAction], narrow: bool) -> FooterOrder {
     let shown = shown(actions);
     let main = main_action(&shown);
@@ -177,6 +187,9 @@ impl DialogBodyHandle {
     }
 }
 
+/// Enter (without modifiers) that the focused control leaves unused runs the
+/// primary action, unless it is disabled or the main action is destructive; a
+/// focused button still answers Enter itself.
 #[component]
 pub fn DialogBody(
     kind: DialogKind,
@@ -217,6 +230,7 @@ pub fn DialogBody(
             _ => action.on_click.call(),
         }
     });
+    let modal = use_modal();
     component_accessibility(create_memo(move || {
         let mut node = Node::new(match kind {
             DialogKind::Alert => Role::AlertDialog,
@@ -225,6 +239,9 @@ pub fn DialogBody(
         let title = title.get();
         if !title.is_empty() {
             node.set_label(title);
+        }
+        if modal.get() {
+            node.set_modal();
         }
         node
     }));
@@ -275,6 +292,9 @@ pub struct DialogLayout {
     pub bottom_inset: Memo<f32>,
 }
 
+/// Lets an outer part in another document (an app dialog's host) dismiss the
+/// [`DialogBody`] inside, which claims it while it lives, so a form with
+/// unsaved changes can ask before closing.
 #[derive(Clone, Copy)]
 pub struct DialogDismissal {
     claimed: Signal<Option<u64>>,
@@ -331,8 +351,96 @@ impl Default for DialogDismissal {
 pub struct DialogSheetHandle {
     pub open: Memo<bool>,
     pub close: ClickCallback,
+    pub tall: bool,
     pub body: Child,
 }
+
+pub struct DialogCardHandle {
+    pub pointer: NodeRef,
+    pub body: Child,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum DialogSize {
+    #[default]
+    Small,
+    Large,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum DialogAnchor {
+    #[default]
+    None,
+    Control(NodeRef),
+    Rect(Option<Rect>),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DialogTarget {
+    Node(NodeId),
+    Rect(Rect),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DialogPresentation {
+    Centred,
+    Anchored(Option<DialogTarget>),
+    OverFrame,
+    Sheet { tall: bool },
+}
+
+#[derive(Clone, Copy)]
+pub struct FrameAnchor(pub Memo<Option<Rect>>);
+
+pub fn provide_frame_anchor(rect: Memo<Option<Rect>>) {
+    provide_context(FrameAnchor(rect));
+}
+
+/// Where this window's frame shows to the user, in the window's points: in an
+/// app, the editor's tab (or where its parent placed it), and `None` when none
+/// of it is visible. A dialog run from an action anchors to it to point at its
+/// tab.
+pub fn use_frame_anchor() -> Memo<Option<Rect>> {
+    match use_context::<FrameAnchor>() {
+        Some(FrameAnchor(rect)) => rect,
+        None => create_memo(|| None),
+    }
+}
+
+/// The one rule for how a dialog shows. A narrow `Dialog` (or one a finger
+/// opened, which the caller folds into `narrow`) is a sheet. An anchored one
+/// with a lost control falls back to `frame`, and with nothing visible to
+/// point at opens at the top centre with no beak.
+pub fn dialog_presentation(
+    kind: DialogKind,
+    size: DialogSize,
+    anchor: DialogAnchor,
+    opener: Option<NodeId>,
+    frame: Option<Rect>,
+    narrow: bool,
+) -> DialogPresentation {
+    match (kind, narrow, anchor, size) {
+        (DialogKind::Alert, _, _, _) => DialogPresentation::Centred,
+        (DialogKind::Dialog, true, _, size) => DialogPresentation::Sheet {
+            tall: size == DialogSize::Large,
+        },
+        (DialogKind::Dialog, false, DialogAnchor::None, _) => DialogPresentation::Centred,
+        (DialogKind::Dialog, false, _, DialogSize::Large) => DialogPresentation::OverFrame,
+        (DialogKind::Dialog, false, DialogAnchor::Control(_), DialogSize::Small) => {
+            DialogPresentation::Anchored(
+                opener
+                    .map(DialogTarget::Node)
+                    .or(frame.map(DialogTarget::Rect)),
+            )
+        }
+        (DialogKind::Dialog, false, DialogAnchor::Rect(rect), DialogSize::Small) => {
+            DialogPresentation::Anchored(rect.map(DialogTarget::Rect))
+        }
+    }
+}
+
+const DIALOG_GAP: u16 = 4;
+const DIALOG_MARGIN: u16 = 8;
 
 #[component]
 pub fn Dialog(
@@ -341,73 +449,169 @@ pub fn Dialog(
     scrim: Prop<Color>,
     sheet_below: f32,
     #[prop(default = false)] narrow: Prop<bool>,
+    #[prop(default = DialogSize::Small)] size: DialogSize,
+    #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
+    #[prop(default = 0.0)] beak: f32,
     on_dismiss: ClickCallback,
-    card: Render<Child>,
+    card: Render<DialogCardHandle>,
     sheet: Render<DialogSheetHandle>,
     body: Render<DialogLayout>,
 ) -> NodeId {
     let open = create_memo(move || open.get());
-    let window = use_window();
     let viewport = use_viewport_size();
     let narrow_screen = create_memo(move || {
-        let width = match window.filter(|window| window.is_window()) {
-            Some(window) => window.size.get().x,
-            None => viewport.get().x,
-        };
+        let width = viewport.get().x;
         width > 0.0 && width < sheet_below
     });
     let touched = create_signal(false);
+    let opener = create_signal(None::<NodeId>);
+    let asked = anchor.clone();
     create_effect(move || {
         if open.get() {
             let touched_now = untrack(touched_by_finger);
-            untrack(|| touched.set(touched_now));
+            let found = untrack(|| match asked.get() {
+                DialogAnchor::Control(control) => control.try_get().map(opener_of),
+                DialogAnchor::None | DialogAnchor::Rect(_) => None,
+            });
+            untrack(|| {
+                touched.set(touched_now);
+                opener.set(found);
+            });
         }
     });
     let narrow = create_memo(move || narrow.get() || narrow_screen.get() || touched.get());
-    let sheeted = create_memo(move || kind == DialogKind::Dialog && narrow.get());
+    let frame_anchor = use_frame_anchor();
+    let presentation = create_memo(move || {
+        dialog_presentation(
+            kind,
+            size,
+            anchor.get(),
+            opener.get(),
+            frame_anchor.get(),
+            narrow.get(),
+        )
+    });
+    let sheeted =
+        create_memo(move || matches!(presentation.get(), DialogPresentation::Sheet { .. }));
+    let centred = create_memo(move || presentation.get() == DialogPresentation::Centred);
     let layout = DialogLayout {
         narrow,
         sheet: sheeted,
         bottom_inset: create_memo(|| 0.0),
     };
     provide_context(layout);
+    provide_context(Modality(create_memo(|| true)));
     let mut ever = false;
     let opened = create_memo(move || {
         ever |= open.get();
         ever
     });
     let built = create_signal(None::<NodeId>);
-    let pending = std::cell::Cell::new(Some(body));
+    let card_built = create_signal(None::<NodeId>);
+    let in_sheet = create_memo(move || sheeted.get().then(|| built.get()).flatten());
+    let in_card = create_memo(move || (!sheeted.get()).then(|| built.get()).flatten());
+    let pointer = NodeRef::new();
+    let pending = std::cell::Cell::new(Some((body, card)));
     let scope = owner_scope().expect("a dialog is built inside a scope");
     create_binding(move || {
         if opened.get()
-            && let Some(body) = pending.take()
+            && let Some((body, card)) = pending.take()
         {
-            let node = untrack(|| scope.run(|| body.call(layout)));
+            let (node, card) = untrack(|| {
+                scope.run(|| {
+                    let node = body.call(layout);
+                    let card = card.call(DialogCardHandle {
+                        pointer,
+                        body: view! {
+                            <Portal node={in_card} />
+                        },
+                    });
+                    (node, card)
+                })
+            });
             built.set(Some(node));
+            card_built.set(Some(card));
         }
     });
-    let in_card = create_memo(move || (!sheeted.get()).then(|| built.get()).flatten());
-    let in_sheet = create_memo(move || sheeted.get().then(|| built.get()).flatten());
+    let centred_card = create_memo(move || centred.get().then(|| card_built.get()).flatten());
+    let layer_card = create_memo(move || {
+        (!centred.get() && !sheeted.get())
+            .then(|| card_built.get())
+            .flatten()
+    });
     let ready = create_memo(move || open.get() && built.with(Option::is_some));
-    let as_card = create_memo(move || ready.get() && !sheeted.get());
+    let as_card = create_memo(move || ready.get() && centred.get());
     let as_sheet = create_memo(move || ready.get() && sheeted.get());
+    let as_layer = create_memo(move || ready.get() && !centred.get() && !sheeted.get());
     let sheet_body = view! {
         <Portal node={in_sheet} />
     };
     let sheet = sheet.call(DialogSheetHandle {
         open: as_sheet,
         close: on_dismiss,
+        tall: size == DialogSize::Large,
         body: sheet_body,
+    });
+    let held = NodeRef::new();
+    let frame = create_memo(move || Rect::from_min_size(Pos2::ZERO, viewport.get()));
+    let top = create_memo(move || {
+        let width = viewport.get().x;
+        Rect::from_min_max(Pos2::ZERO, Pos2::new(width, 0.0))
+    });
+    let popover = Placement::Popover {
+        gap: DIALOG_GAP,
+        margin: DIALOG_MARGIN,
+    };
+    let placed = create_memo(move || match presentation.get() {
+        DialogPresentation::Anchored(Some(DialogTarget::Node(node))) => {
+            if held.try_get() != Some(node) {
+                held.fill(node);
+            }
+            (OverlayAnchor::Node(held), popover, false, true)
+        }
+        DialogPresentation::Anchored(Some(DialogTarget::Rect(rect))) => {
+            (OverlayAnchor::Rect(rect), popover, false, true)
+        }
+        DialogPresentation::Anchored(None) => {
+            (OverlayAnchor::Rect(top.get()), popover, false, false)
+        }
+        DialogPresentation::Centred
+        | DialogPresentation::OverFrame
+        | DialogPresentation::Sheet { .. } => (
+            OverlayAnchor::Rect(frame.get()),
+            Placement::CenterOn,
+            true,
+            false,
+        ),
+    });
+    let at = create_memo(move || placed.get().0);
+    let placement = create_memo(move || placed.get().1);
+    let dims = scrim.clone();
+    let layer_scrim = create_memo(move || match placed.get().2 {
+        true => dims.get(),
+        false => Color::TRANSPARENT,
+    });
+    let reach = create_memo(move || match placed.get().3 {
+        true => beak,
+        false => 0.0,
     });
     view! {
         <List spacing=0.0>
-            <Modal open={as_card} scrim on_dismiss={on_dismiss}>|_: ModalHandle| {
-                let portal = view! {
-                    <Portal node={in_card} />
-                };
-                card.call(portal)
-            }</Modal>
+            <Modal open={as_card} scrim on_dismiss={on_dismiss}>|_: ModalHandle|
+                <Portal node={centred_card} />
+            </Modal>
+            <Overlay
+                anchor={at}
+                placement={placement}
+                scrim={layer_scrim}
+                pointer={pointer}
+                beak={reach}
+                open={as_layer}
+                keep_alive=true
+                on_dismiss={move |_: Dismiss| on_dismiss.call()}
+            >
+                <Portal node={layer_card} />
+            </Overlay>
             {sheet}
         </List>
     }

@@ -1,6 +1,7 @@
 use wasm_bindgen::JsCast;
 
-use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest, SavedFile};
+use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
+use beui_types::{FileSave, SavedFile};
 
 pub(crate) fn open(request: FileSaveRequest, answer: FileSaveAnswer) {
     answer.send(match download(&request.file) {

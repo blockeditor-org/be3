@@ -1,7 +1,8 @@
-use crate::callback::{Callback, NodeRef};
 use crate::document::Document;
-use crate::input::BackGesture;
-use crate::node::NodeId;
+use beui_tree::callback::Callback;
+use beui_types::BackGesture;
+use beui_types::NodeId;
+use beui_types::NodeRef;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct BackHandlerId(u64);

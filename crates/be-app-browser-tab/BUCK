@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "app")
+
+app(
+    module = "browser_tab",
+    types = "//crates/be-type-browser-tab:module",
+)

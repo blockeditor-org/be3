@@ -1,5 +1,5 @@
-# What a wasm build is for. block-app's web bundle and a plugin are both
-# wasm32-wasip1-threads, but the app links a real wgpu backend and a plugin only
+# What a wasm build is for. be-host's web bundle and an app are both
+# wasm32-wasip1-threads, but the app links a real wgpu backend and an app only
 # the custom one, whose handles are neither Send nor Sync. cargo plans the two
 # as separate builds, and a `guest` constraint makes wasi_guest a platform of
 # its own for the rules made from those plans to select by.
@@ -31,7 +31,7 @@ constraint_value(
     visibility = ["PUBLIC"],
 )
 
-# Which core beui's view layer builds on (plans/html_core.md): the native one,
+# Which core beui's view layer builds on (guides/beui.md, Two cores): the native one,
 # which lays out and paints itself, without this value, and the HTML one, which
 # hands both to the browser, with it. A constraint rather than a cargo feature,
 # since the wasi plan merges features across apps: wasi_html and

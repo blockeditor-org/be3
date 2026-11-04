@@ -1,15 +1,16 @@
 use crate::back::BackHandlerId;
 use crate::base::overlay::OverlayNode;
-use crate::callback::Callback;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect};
-use crate::input::BackGesture;
-use crate::node::{NodeId, NodeOf};
-use crate::window::WindowId;
+use crate::node::NodeOf;
+use beui_tree::callback::Callback;
+use beui_types::BackGesture;
+use beui_types::NodeId;
+use beui_types::WindowId;
+use beui_types::{Pos2, Rect};
 
 use crate::node::ANCESTOR_LIMIT;
 
-pub use beui_types::layer::{Dismiss, LayerLevel, LayerPolicy};
+use beui_types::{AboveEmbeds, Dismiss, LayerLevel, LayerPolicy, layer::Scrim};
 
 #[derive(Default)]
 pub struct OpenLayers {
@@ -43,7 +44,9 @@ pub struct Layer {
     pub traps: bool,
     pub dismissable: bool,
     pub locks: bool,
+    pub modal: bool,
     pub window: WindowId,
+    pub escapes: bool,
 }
 
 impl Layer {
@@ -97,7 +100,15 @@ impl Layers {
     }
 
     pub fn reachable(&self, index: usize) -> bool {
-        let blocking = self.blocking();
+        self.reachable_past(index, self.blocking())
+    }
+
+    pub fn exposed(&self, index: usize) -> bool {
+        let modal = self.0.iter().rposition(|layer| layer.modal).unwrap_or(0);
+        self.reachable_past(index, modal)
+    }
+
+    fn reachable_past(&self, index: usize, blocking: usize) -> bool {
         if index >= blocking {
             return true;
         }
@@ -213,6 +224,13 @@ impl Document {
         None
     }
 
+    /// Every open layer as a tree flattened bottom to top, the document root first. A
+    /// layer's parent holds the node it hangs from. Among siblings, those that block
+    /// everything sit above those that don't, then by when opened or raised
+    /// (`raise_overlay`), so raising a window never lifts it over a dialog; a higher
+    /// `LayerLevel::stacked` lifts a layer and everything above it. Paint, hit testing,
+    /// focus, Escape, back and key dispatch all walk it. Cached until the tree or the layers
+    /// change.
     pub fn layers(&self) -> Layers {
         let key = (self.arena.revision, self.layer_state.generation, self.root);
         if let Some((cached, layers)) = &*self.layer_state.cache.borrow()
@@ -268,7 +286,10 @@ impl Document {
             chain.reverse();
             let level = chain
                 .iter()
-                .map(|overlay| self.arena.get_as::<OverlayNode>(*overlay).level)
+                .map(|overlay| {
+                    let node = self.arena.get_as::<OverlayNode>(*overlay);
+                    node.level.stacked(node.policy)
+                })
                 .max()
                 .unwrap_or_default();
             let seqs = chain
@@ -293,7 +314,9 @@ impl Document {
             traps: false,
             dismissable: false,
             locks: false,
+            modal: false,
             window: WindowId::MAIN,
+            escapes: false,
         });
         for ((level, _), index) in &keyed {
             let (overlay, _, hangs_from) = entries[*index];
@@ -309,10 +332,12 @@ impl Document {
                 traps: node.traps_focus && node.policy != LayerPolicy::Inert,
                 dismissable: !node.on_dismiss.is_empty() && !locks,
                 locks,
+                modal: node.policy == LayerPolicy::BlocksAll && (node.dims() || locks),
                 window: self
                     .real_window(overlay)
                     .or_else(|| self.shown_in(overlay))
                     .unwrap_or(WindowId::MAIN),
+                escapes: false,
             });
         }
         for at in 1..layers.len() {
@@ -334,6 +359,11 @@ impl Document {
             {
                 layers[at].window = layers[parent].window;
             }
+            let node = self.arena.get_as::<OverlayNode>(overlay);
+            layers[at].escapes = self.real_window(overlay).is_none()
+                && self
+                    .escape_space(node.placement(), layers[at].window)
+                    .is_some();
         }
         Layers(layers.into())
     }
@@ -374,11 +404,17 @@ impl Document {
         self.redirect_blocked_focus();
     }
 
+    /// Raises the layer and every layer it hangs in (an inert layer rises alone, so a
+    /// tooltip leaves a covered window where it was), and asks the host to `Raise` a hosted
+    /// window, so the host stacks windows as the document does.
     pub fn raise_overlay(&mut self, overlay: NodeId) {
         if let Some(overlay) = self.arena.kind_of::<OverlayNode>(overlay)
             && self.is_overlay_open(overlay.id())
         {
             self.raise_layer(overlay);
+            if let Some(window) = self.real_window(overlay) {
+                self.request_window(beui_types::WindowRequest::Raise(window));
+            }
         }
     }
 
@@ -597,6 +633,7 @@ impl Document {
     }
 
     pub fn request_dismiss(&mut self, overlay: NodeOf<OverlayNode>, reason: Dismiss) {
+        self.escapes.asked(overlay);
         let layers = self.layers();
         let Some(index) = layers.index_of(overlay) else {
             return;
@@ -686,6 +723,16 @@ impl Document {
         })
     }
 
+    pub fn inert(&self, node: NodeId) -> bool {
+        let reachable = self
+            .window_layers(self.window_of(node))
+            .is_some_and(|layers| {
+                self.layer_of(&layers, node)
+                    .is_some_and(|layer| layers.exposed(layer))
+            });
+        !reachable || self.focus_blocked(&self.layers(), node)
+    }
+
     pub(crate) fn focus_blocked(&self, layers: &Layers, node: NodeId) -> bool {
         self.focus_blocker(layers, node).is_some()
     }
@@ -755,13 +802,52 @@ impl Document {
         covers.into_iter().filter(Rect::is_positive).collect()
     }
 
+    pub(crate) fn layer_paints(&self, layer: &Layer) -> Vec<Rect> {
+        let Some(content) = layer.content.and_then(|content| self.node_rect(content)) else {
+            return Vec::new();
+        };
+        let scrim = layer
+            .overlay
+            .filter(|_| !self.hosts_scrims())
+            .filter(|overlay| self.arena.get_as::<OverlayNode>(*overlay).dims())
+            .and_then(|overlay| self.node_rect(self.overlay_scrim(overlay)));
+        scrim
+            .into_iter()
+            .chain([content])
+            .filter(Rect::is_positive)
+            .collect()
+    }
+
+    pub(crate) fn hosts_scrims(&self) -> bool {
+        self.context().is_some_and(|ctx| ctx.hosts_scrims())
+    }
+
+    pub fn overlay_scrims(&self, window: WindowId) -> Vec<Scrim> {
+        self.window_overlays(window)
+            .iter()
+            .filter_map(|(_, layer)| self.layer_scrim(layer))
+            .collect()
+    }
+
+    pub(crate) fn layer_scrim(&self, layer: &Layer) -> Option<Scrim> {
+        layer.content?;
+        let overlay = layer.overlay?;
+        let node = self.arena.get_as::<OverlayNode>(overlay);
+        let rect = self.node_rect(self.overlay_scrim(overlay))?;
+        (node.dims() && rect.is_positive()).then(|| Scrim {
+            rect,
+            color: self.resolve_color(node.scrim_color()),
+            radius: node.scrim_radius(),
+        })
+    }
+
     fn window_overlays(&self, window: WindowId) -> Vec<(usize, Layer)> {
         let own = self.window_node(window);
         self.layers()
             .iter()
             .enumerate()
             .skip(1)
-            .filter(|(_, layer)| layer.window == window)
+            .filter(|(_, layer)| layer.window == window && !layer.escapes)
             .filter(|(_, layer)| own.is_none() || layer.overlay != own)
             .map(|(index, layer)| (index, layer.clone()))
             .collect()
@@ -771,6 +857,91 @@ impl Document {
         self.window_overlays(window)
             .iter()
             .flat_map(|(_, layer)| self.layer_covers(layer))
+            .chain(self.above_embeds_in(window, false).map(|(_, rect)| rect))
+            .collect()
+    }
+
+    /// Only what the window's overlays paint (their content, and a scrim that dims unless
+    /// the host draws scrims), plus nodes marked `Paints` or `Raised`. `overlay_rects` is
+    /// where they take input. Escaped layers are in neither.
+    pub fn overlay_painted_rects(&self, window: WindowId) -> Vec<Rect> {
+        self.window_overlays(window)
+            .iter()
+            .flat_map(|(_, layer)| self.layer_paints(layer))
+            .chain(self.above_embeds_in(window, true).map(|(_, rect)| rect))
+            .collect()
+    }
+
+    /// The nodes marked `above_embeds` among `overlay_rects`: marks over the window's own
+    /// embeds (a dock splitter), not overlays, so a host keeps what it draws above the
+    /// window's content (other windows) above them.
+    pub fn mark_rects(&self, window: WindowId) -> Vec<Rect> {
+        self.marks_in(window, false)
+    }
+
+    /// The marks among `overlay_painted_rects` (`AboveEmbeds::Paints`).
+    pub fn mark_painted_rects(&self, window: WindowId) -> Vec<Rect> {
+        self.marks_in(window, true)
+    }
+
+    fn marks_in(&self, window: WindowId, painted: bool) -> Vec<Rect> {
+        self.above_embeds_in(window, painted)
+            .filter(|(node, _)| self.above_embeds.get(node) != Some(&AboveEmbeds::Raised))
+            .map(|(_, rect)| rect)
+            .collect()
+    }
+
+    pub fn set_above_embeds(&mut self, node: NodeId, above: Option<AboveEmbeds>) {
+        match above {
+            Some(above) => self.above_embeds.insert(node, above),
+            None => self.above_embeds.remove(&node),
+        };
+    }
+
+    fn above_embeds_in(
+        &self,
+        window: WindowId,
+        painted: bool,
+    ) -> impl Iterator<Item = (NodeId, Rect)> + '_ {
+        let mut found: Vec<(Vec<usize>, NodeId, Rect)> = self
+            .above_embeds
+            .iter()
+            .filter(move |(_, above)| !painted || **above != AboveEmbeds::Reaches)
+            .filter(|(node, _)| self.arena.contains(**node))
+            .filter(move |(node, _)| self.window_of(**node) == window)
+            .filter_map(|(node, _)| Some((*node, self.node_rect(*node)?)))
+            .filter(|(_, rect)| rect.is_positive())
+            .map(|(node, rect)| (self.paint_order(node), node, rect))
+            .collect();
+        found.sort_by(|(left, ..), (right, ..)| left.cmp(right));
+        found.into_iter().map(|(_, node, rect)| (node, rect))
+    }
+
+    pub fn set_kept_clear(&mut self, node: NodeId, rects: Option<Vec<Rect>>) {
+        match rects {
+            Some(rects) => self.clear_of.insert(node, rects),
+            None => self.clear_of.remove(&node),
+        };
+    }
+
+    pub fn kept_clear(&self, window: WindowId) -> Vec<Rect> {
+        let mut nodes: Vec<(Vec<usize>, &NodeId, &Vec<Rect>)> = self
+            .clear_of
+            .iter()
+            .filter(|(node, _)| self.arena.contains(**node) && self.window_of(**node) == window)
+            .map(|(node, rects)| (self.paint_order(*node), node, rects))
+            .collect();
+        nodes.sort_by(|(left, ..), (right, ..)| left.cmp(right));
+        nodes
+            .into_iter()
+            .map(|(_, node, rects)| (node, rects))
+            .filter_map(|(node, rects)| Some((self.node_rect(*node)?, rects)))
+            .flat_map(|(at, rects)| {
+                rects
+                    .iter()
+                    .map(move |rect| rect.translate(at.min.to_vec2()))
+            })
+            .filter(|rect| rect.is_positive())
             .collect()
     }
 
@@ -782,15 +953,24 @@ impl Document {
             .collect()
     }
 
+    /// What covers embeds in `window`, by paint order: the overlays, and nodes marked
+    /// `above_embeds`, so a mark covers only embeds painted before it.
     pub fn overlay_layers(&self, window: WindowId) -> Vec<(Vec<usize>, Rect)> {
-        self.window_overlays(window)
+        let mut layers: Vec<(Vec<usize>, Rect)> = self
+            .window_overlays(window)
             .iter()
             .flat_map(|(index, layer)| {
                 self.layer_covers(layer)
                     .into_iter()
                     .map(move |cover| (vec![*index], cover))
             })
-            .collect()
+            .chain(
+                self.above_embeds_in(window, false)
+                    .map(|(node, rect)| (self.paint_order(node), rect)),
+            )
+            .collect();
+        layers.sort_by(|(left, _), (right, _)| left.cmp(right));
+        layers
     }
 
     pub fn paint_order(&self, node: NodeId) -> Vec<usize> {

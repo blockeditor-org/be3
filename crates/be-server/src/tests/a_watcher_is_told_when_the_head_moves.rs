@@ -7,10 +7,7 @@ async fn a_watcher_is_told_when_the_head_moves() {
     let account = watcher.register("author@example.com").await;
     let organization = watcher.organization("notes").await;
     let block = watcher.create_block(BlockParent::Root).await;
-    let response = watcher
-        .send(|request| ClientMessage::Watch { request, block })
-        .await;
-    assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+    watcher.watch(block).await;
 
     let mut publisher = harness
         .second_connection(&watcher.token.clone(), organization)
@@ -20,19 +17,21 @@ async fn a_watcher_is_told_when_the_head_moves() {
     publisher
         .upload(&author.store, &author.objects_of(head, &chunks))
         .await;
-    publisher
-        .send(|request| ClientMessage::Publish {
-            request,
-            block,
-            commit: head,
-            expected: None,
-            parents: Vec::new(),
-            chunks,
-            time: 1_000,
-            pinned: false,
-            references: Vec::new(),
-            metadata: Vec::new(),
-            objects: Vec::new(),
+    let _ = publisher
+        .call(|peer| {
+            client::blocks::publish(
+                peer,
+                block,
+                head,
+                None,
+                Vec::new(),
+                chunks,
+                1_000,
+                false,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
 
@@ -40,7 +39,7 @@ async fn a_watcher_is_told_when_the_head_moves() {
     assert!(
         matches!(
             notification,
-            ServerMessage::HeadChanged { block: changed, head: moved, author: by }
+            Notice::HeadChanged { block: changed, head: moved, author: by }
                 if changed == block && moved == head && by == account
         ),
         "{notification:?}"

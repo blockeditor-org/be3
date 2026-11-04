@@ -45,6 +45,10 @@ pub(crate) fn use_fullscreen() -> ReadSignal<bool> {
     create_signal(false).read_only()
 }
 
+pub(crate) fn opener_of(node: NodeId) -> NodeId {
+    node
+}
+
 pub(crate) fn window_of(_node: NodeId) -> crate::types::WindowId {
     crate::types::WindowId::MAIN
 }
@@ -62,6 +66,10 @@ pub(crate) fn stacked_at(
 
 pub(crate) fn focus_ring(focused: Prop<bool>) -> Memo<bool> {
     beui_core_html::focus::focus_ring(create_memo(move || focused.get()))
+}
+
+pub(crate) fn focus_visible() -> bool {
+    beui_core_html::focus::focus_visible()
 }
 
 pub(crate) fn holds_focus(node: NodeRef) -> Memo<bool> {
@@ -127,18 +135,26 @@ pub(crate) fn use_keyboard() -> ReadSignal<bool> {
 
 pub(crate) fn request_paste() {}
 
-pub(crate) fn arrow_focus(row: NodeRef, direction: crate::types::Direction) {
-    let (back, forth) = match direction {
-        crate::types::Direction::Horizontal => {
-            (crate::types::Key::ArrowLeft, crate::types::Key::ArrowRight)
-        }
-        crate::types::Direction::Vertical => {
-            (crate::types::Key::ArrowUp, crate::types::Key::ArrowDown)
-        }
-    };
+pub(crate) fn keep_clear(_node: NodeId, _rects: Prop<Vec<crate::types::Rect>>) {}
+
+pub(crate) fn above_embeds(_node: NodeId, _above: Prop<Option<crate::types::AboveEmbeds>>) {}
+
+pub(crate) fn to_host(_window: crate::types::WindowId) -> Option<crate::types::HostTransform> {
+    None
+}
+
+pub(crate) fn arrow_focus(row: NodeRef, direction: Prop<crate::types::Direction>) {
     on_key(KeyAt::Node(row), KeyPhase::Bubble, move |event| {
         let Some(press) = event.press() else {
             return false;
+        };
+        let (back, forth) = match direction.get_untracked() {
+            crate::types::Direction::Horizontal => {
+                (crate::types::Key::ArrowLeft, crate::types::Key::ArrowRight)
+            }
+            crate::types::Direction::Vertical => {
+                (crate::types::Key::ArrowUp, crate::types::Key::ArrowDown)
+            }
         };
         if press.modifiers.ctrl || press.modifiers.alt || press.modifiers.shift {
             return false;

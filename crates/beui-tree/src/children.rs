@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use reactive::{
+use beui_reactive::{
     Get, ReadSignal, Scope, ScopeContext, Set, Signal, Stored, create_binding, create_signal, store,
 };
 
@@ -169,6 +169,10 @@ impl<S> RunState<S> {
     }
 }
 
+/// The children of a slot: those written now and those a `Show`, `Dynamic` or `ForEach`
+/// inside it builds later. `items` subscribes; `build` turns them into children of the
+/// component's own and keeps the two in step. Cheap to clone, and fills a `Children<C>`
+/// slot again, so one run of options reaches two controls (`styled::Tabs`).
 pub struct Run<C: SlotChild> {
     state: Rc<RunState<C::Stored>>,
 }
@@ -611,6 +615,7 @@ impl<T: SlotChild> Children<T> {
         }
     }
 
+    /// How a component reads a slot of value children (`MenuItem`s, say).
     pub fn into_run(self) -> Run<T> {
         let run = Run::default();
         for segment in self.0 {

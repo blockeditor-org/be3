@@ -1,7 +1,10 @@
-use reactive::{
+use beui_reactive::{
     Get, Memo, ReadSignal, Ready, Signal, Stored, check_tracked_read, hold, store, untrack,
 };
 
+/// A value or a getter of one. Reads through `Get` like a signal, so a component reading
+/// its own prop does it inside a memo or effect, not in its body. Pass a memo as it is
+/// rather than `move || memo.get()`, which boxes a closure and wakes on every read.
 pub enum Prop<T> {
     Static(T),
     Dynamic(Getter<T>),
@@ -68,6 +71,14 @@ impl<T: 'static> Getter<T> {
             Source::Memo(memo, read) => read(memo),
         }
     }
+
+    pub fn is_alive(&self) -> bool {
+        match &self.0 {
+            Source::Function(read) => read.try_with(|_| ()).is_some(),
+            Source::Signal(signal, _) => signal.is_alive(),
+            Source::Memo(memo, _) => memo.is_alive(),
+        }
+    }
 }
 
 impl<T: 'static> Prop<T> {
@@ -79,6 +90,13 @@ impl<T: 'static> Prop<T> {
         match self {
             Prop::Static(value) => Prop::Static(f(value)),
             Prop::Dynamic(read) => Prop::dynamic(move || f(read.get())),
+        }
+    }
+
+    pub fn is_alive(&self) -> bool {
+        match self {
+            Prop::Static(_) => true,
+            Prop::Dynamic(read) => read.is_alive(),
         }
     }
 }
@@ -227,4 +245,39 @@ impl<V, R> IntoFunc<V, R> for Func<V, R> {
     fn into_func(self) -> Func<V, R> {
         self
     }
+}
+
+#[macro_export]
+macro_rules! into_prop_via {
+    ($target:ty, $value:ty, $convert:expr) => {
+        impl $crate::reactive::IntoProp<$target> for $value {
+            fn into_prop(self) -> $crate::reactive::Prop<$target> {
+                $crate::reactive::Prop::Static(self).map($convert)
+            }
+        }
+
+        impl $crate::reactive::IntoProp<$target> for $crate::reactive::Prop<$value> {
+            fn into_prop(self) -> $crate::reactive::Prop<$target> {
+                self.map($convert)
+            }
+        }
+
+        impl $crate::reactive::IntoProp<$target> for $crate::reactive::Memo<$value> {
+            fn into_prop(self) -> $crate::reactive::Prop<$target> {
+                $crate::reactive::IntoProp::<$value>::into_prop(self).map($convert)
+            }
+        }
+
+        impl $crate::reactive::IntoProp<$target> for $crate::reactive::ReadSignal<$value> {
+            fn into_prop(self) -> $crate::reactive::Prop<$target> {
+                $crate::reactive::IntoProp::<$value>::into_prop(self).map($convert)
+            }
+        }
+
+        impl $crate::reactive::IntoProp<$target> for $crate::reactive::Signal<$value> {
+            fn into_prop(self) -> $crate::reactive::Prop<$target> {
+                $crate::reactive::IntoProp::<$value>::into_prop(self).map($convert)
+            }
+        }
+    };
 }

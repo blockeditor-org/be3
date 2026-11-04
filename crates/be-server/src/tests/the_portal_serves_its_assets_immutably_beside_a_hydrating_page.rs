@@ -1,6 +1,6 @@
 use super::*;
 
-const ASSETS: &[be_portal::Asset] = &[be_portal::Asset {
+const ASSETS: &[be_server_portal::Asset] = &[be_server_portal::Asset {
     name: "start.js",
     content_type: "text/javascript",
     bytes: b"export {};\n",
@@ -9,9 +9,15 @@ const ASSETS: &[be_portal::Asset] = &[be_portal::Asset {
 #[tokio::test]
 async fn the_portal_serves_its_assets_immutably_beside_a_hydrating_page() {
     let harness = Harness::configured(ServerConfig {
-        portal: Some(be_portal::Portal {
+        portal: Some(be_server_portal::Portal {
+            render: |page| {
+                format!(
+                    "<!doctype html><script type=\"module\" src=\"{}start.js\"></script>",
+                    page.assets
+                )
+            },
+            import_map: |base| format!("{{ \"imports\": {{ \"wasi\": \"{base}threads.js\" }} }}"),
             assets: ASSETS,
-            ..be_portal_ui::PORTAL
         }),
         ..ServerConfig::OPEN
     })

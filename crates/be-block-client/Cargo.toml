@@ -1,0 +1,62 @@
+[package]
+name = "be-block-client"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-wasm-threads = { path = "../be-wasm-threads" }
+be-block = { path = "../be-block" }
+be-block-commit = { path = "../be-block-commit" }
+be-block-graph = { path = "../be-block-graph" }
+be-block-keys = { path = "../be-block-keys" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-block-protocol = { path = "../be-block-protocol" }
+be-block-store = { path = "../be-block-store" }
+be-lib-build-id = { path = "../be-lib-build-id" }
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+# Only the synchronisation primitives are shared with the browser build: they
+# carry no runtime of their own, and the socket and the executor come from
+# transport/ instead.
+tokio = { version = "1", features = ["sync"] }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
+# The refs database, on every platform: the web build's file is in the
+# browser's origin private file system.
+rusqlite = { version = "0.32", features = ["bundled"] }
+be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+httparse = "1"
+rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "rt-multi-thread", "sync", "time"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+tokio-tungstenite = { version = "0.23", features = ["rustls-tls-webpki-roots"] }
+webpki-roots = "0.26"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+futures-channel = "0.3"
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "BinaryType",
+    "CloseEvent",
+    "Event",
+    "MessageEvent",
+    "WebSocket",
+] }
+
+[dev-dependencies]
+be-server = { path = "../be-server" }
+be-type-example-counter = { path = "../be-type-example-counter" }
+be-block-fault-relay = { path = "../be-block-fault-relay" }
+be-type-image = { path = "../be-type-image" }
+rusqlite = { version = "0.32", features = ["bundled"] }
+be-type-text = { path = "../be-type-text" }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "time"] }
+be-type-workspace = { path = "../be-type-workspace" }
+
+[lints]
+workspace = true

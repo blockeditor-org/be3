@@ -1,4 +1,4 @@
-use beui_core::input::{Input, PointerButton};
+use beui_types::{Input, PointerButton};
 
 #[derive(Default)]
 pub(crate) struct Lock {

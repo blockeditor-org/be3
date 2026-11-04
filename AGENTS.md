@@ -6,47 +6,75 @@ Guides:
 - VISION.md: what the project is for, why it has the parts it has, and where each editor is headed
 - guides/adding_a_block.md
 - guides/adding_a_game.md
-- guides/adding_a_plugin_editor.md
-- guides/bootstrap.md: crates/bootstrap, the prebuilt tool every script runs, and how CI publishes and pins it
-- guides/beui.md
-- guides/beui_keyboard.md
+- guides/adding_an_app.md: writing an app (an editor): the package, the editor component, content and gestures, testing, the manifest, what an app may depend on, building
+- guides/apps/editor.md: inside an editor's frame: the frame menu, chrome and side panels, phones, pan and zoom, making blocks and artifacts, presence, accessibility
+- guides/apps/host_services.md: what an editor asks of the host: EditorHost calls and their answers, the graph, picking and renaming blocks, watches and host calls, extending the app protocol
+- guides/apps/children.md: placing children: Subregion and ChildBlock, modes, a child that takes the frame, focus, docks that join across apps, program windows
+- guides/apps/framework.md: be-sdk and be-sdk-beui: views, beui's app platform, windows, anchored views, input, fonts, where the pixels live
+- guides/apps/runtime.md: how the host runs apps: staging, backends, frames and pacing, layout and present commits, when an app stops
+- guides/bootstrap.md: crates/be-tool-bootstrap, the prebuilt tool every script runs, and how CI publishes and pins it
+- guides/beui.md: what beui is, the essentials of writing components, the crate map and the two cores, and which guides/beui/ file covers what
+- guides/beui/core.md: writing views, the frame, layout and measurement, coordinates, developing a base component, the HTML core and beui-html (strings, live DOM, hydration), testing beui
+- guides/beui/components.md: the unstyled and styled component layers, tokens and theme colours, controls and anchored popups, scrolling and long lists, inputs and forms, drag and drop, touch, timers and animation, preferences, drawing with the gpu, writing unstyled and styled components
+- guides/beui/text.md: the base and styled Text, layout scale and raster, fonts and Lucide icons, the text area editor, its looks and rich text, selecting text
+- guides/beui/overlays.md: overlays and layers: the layer tree and stacking, anchors and placement, policies, dismissing and back, focus and layers, the lock screen, modals and dialogs, toasts, trees, claiming presses, layers that escape their window
+- guides/beui/docking.md: the dock (beui-dock, beui-dock-host, beui-dock-state): declaring and reconciling, saving, panels and focus, modes, the window manager, nested docks, dialogs, tool bars, fullscreen; and windows and window hosts
+- guides/beui/programs.md: a standalone beui program (Program, Root, features, RunOptions), the layer stack, drivers, the inspector and its simulation tools, and beui inside an app
+- guides/beui/platforms.md: what runs under a beui program: the runner, window state and reports, unseen windows, input normalization, clipboard and paste, renderers, winit, the web, Android, headless, and displays under beui-platform-drm
+- guides/beui/space.md: the Space VR simulator layer and OpenXR headsets (beui-layer-space, beui-layer-xr), controller lasers, and beui's on-screen keyboard
+- guides/beui_keyboard.md: focus and input in beui: the keyboard conventions controls follow, how a key travels, actions and the command palette, forwarding to embedded editors and Wayland programs, the input method, touch
 - guides/buck2.md
+- guides/canvas.md: the infinite canvas app and its block type: the model and raster layers, profiles, line binding, hand-drawn and freehand drawing, gestures, device input, export, and its tests and bench
+- guides/common_commands.md: for people too: running things as a person (a window, the VR simulator and an XR headset, the displays and the login session, an Android device) and as an agent (headless `:dev`, `drive`), and every buck2 target
 - guides/build_server.md
 - guides/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
 - guides/hosting.md
-- guides/desktop.md: block-app as a desktop, what every host shares: the desktop shell, the `be3:desktop` package and its watches, shown and hidden entries and the picker, displays as one space, a shell that stops
-- guides/desktop/linux.md: the Linux host: be-wayland, `--session` on the displays under DRM, installing the session, notifications, the tray, media keys, Wi-Fi, input remaps, the lock screen, Wayland and X11 programs
-- guides/desktop/windows.md: the Windows host, its crates (be-win32, be-win32-capture, be-win32-input) and its design
-- guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
-- guides/parallel_agents.md: coordinating subagents in worktrees on one cloud VM: landing, memory and disk limits, build server outages
+- guides/desktop.md: be-host as a desktop, what every host shares: the `be3:desktop` package, DesktopHost and the mailbox, program windows as tabs, displays as one space, a shell that stops
+- guides/desktop/shell.md: the desktop app: its bars per display, the Status bar and Quick settings, the Apps panel, window chips, window keys
+- guides/desktop/linux.md: the Linux host: running it windowed or as a login session (`BEUI_PLATFORM=drm`), where the code is, displays and outputs, files opened in programs
+- guides/desktop/wayland.md: be-host-wayland, the compositor: program windows, input, keyboard layouts and the on-screen keyboard, cursors, frame pacing, X11 programs, clipboard
+- guides/desktop/login_session.md: the Linux login session: installing it, the log, panics, screens turning off, switching terminals, power and logging out, the lock screen, rotation and pointing devices, input remaps
+- guides/desktop/linux_services.md: the D-Bus services in be-host-services: notifications, the tray, media and hardware keys, Wi-Fi
+- guides/desktop/windows.md: the Windows host, its crates (be-host-win32, be-host-win32-capture, be-host-win32-input) and focus mode
+- guides/pan_and_zoom.md: the camera an editor is handed by its host: fitting, gestures, who owns the camera, drawing and scaled items on a Canvas
+- guides/parallel_agents.md: coordinating subagents, each in its own cloud session: starting them, landing their branches, verify and build server outages
 - guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
-- guides/plugin_sdk.md: the shared module every plugin is linked against, and how hosts link them
-- guides/pinenote.md: block-app's session on the PineNote: e-paper, a display device that cannot draw, building for it
+- guides/app_libraries.md: the libraries apps are linked against, how they are linked and loaded, and the raw app interface
+- guides/pinenote.md: be-host's session on the PineNote: e-paper, a display device that cannot draw, building for it
 - guides/pinenote_ebc.md: hrdl's `rockchip_ebc` e-paper driver: where its sources are, its hints and waveforms, its ioctl header
-- guides/reactive.md: the reactive graph under beui
+- guides/reactive.md: the reactive graph under beui: handles and scopes, when effects run, zones, pausing, loading, block projections, and how beui binds it to nodes
 - guides/repository.md: which crates are the product, tooling, examples, separate projects or unrelated
-- guides/running/drive.md: how to run and test any app; read this first
+- guides/running/drive.md: how to run and test any program; read this first
 - guides/running/native.md
 - guides/running/web.md
 - guides/running/android.md
+- guides/settings.md: user, block and organization settings: where they live, how they resolve, who may change and read them
 - guides/sync.md: `be sync`, which keeps a folder or workspace and a directory on disk in step both ways
 - guides/terminal.md: the terminal block, whose shell runs on a machine `be TARGET terminal-host` signs in from
-- guides/testing_a_gui.md
-- guides/the_new_block_stack.md: the `be-*` crates every block lives in
-- guides/tracker.md: the issue tracker in block-app, and `be`, the command line tool agents use to read and change it
-- guides/type_modules.md: block types as plugin wasm modules: the host-to-type protocol (`block-type-api`) and the replica library types link (`block-type-guest`)
+- guides/testing_a_gui.md: editor tests (BeuiTest), paintings and accepting them, host tests, tests on both beui cores
+- guides/the_new_block_stack.md: the `be-*` crates every block lives in: goals, layers, and an index of guides/blocks/
+- guides/blocks/server.md: the storage crates, be-server (protocol, publishing, organizations, access, announcements, accounts), running a server, test harnesses and the fault relay
+- guides/blocks/client.md: `Peer` and `Connection`, live sessions and ownership, the refs database, saving and the outbox
+- guides/blocks/content_types.md: content traits, `be_block_model` documents, sequences, the stored form and how it changes, blobs, testing a type
+- guides/blocks/host.md: how the host holds content: type registry, stale blocks, worker and replicas, offline and stopping, the graph mirror, metadata, create/import/export, undo
+- guides/blocks/apps.md: blocks on the app protocol: content frames, state and change callbacks, the region driver, graph queries and commands, presence, peer messages, LiveText
+- guides/blocks/version_control.md: repositories, checkouts, snapshots, conflicts as data, local ids
+- guides/blocks/keys.md: keys, scopes, rotation, escrow, identity and pairing, contacts, what the server can and cannot do
+- guides/blocks/workspaces.md: organizations, workspaces and the files pane, device profiles and host-applied settings, sessions and view state
+- guides/tracker.md: the issue tracker in be-host, and `be`, the command line tool agents use to read and change it
+- guides/type_modules.md: block types as app wasm modules: the host-to-type protocol (`be-sdk-type-api`) and the replica library types link (`be-sdk-type-guest`)
+- decisions/: one file per decision: what was decided, why, and what was rejected. Check it before re-proposing something it records as rejected.
 
 Commands (builds run on the build server; see guides/buck2.md and guides/build_server.md):
-- `./scripts/buck run //:check`: fast compile check of every first-party target, native and wasm. Use this instead of cargo, which no longer builds the workspace.
-- `./scripts/verify`: the full check. It applies autofixes, accepts new and changed snapshots, and runs every lint and test. Use a 10-minute timeout. CI runs the same thing on pull requests and pushes what it changes.
-  - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), deletes comments and doc comments, splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
+- `./scripts/verify`: the check, and the compile check: always run it before you finish. It compiles every first-party target on Linux and the apps' wasm, applies autofixes, accepts new and changed snapshots, and runs every lint and test. Use it instead of cargo, which no longer builds the workspace. Use a 10-minute timeout. CI runs the same thing on pull requests and pushes what it changes.
+  - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
 - `./scripts/test NAME`: runs the tests whose full names (module path and function, such as `media::tests::plays::plays`) contain NAME, so NAME may also be a module path like `media::tests`, and prints all their output, passing or failing. It finds their crates and runs each on the build server, natively or as wasm, and downloads only their output. `--update` accepts the paintings they make.
-- `./scripts/buck run //crates/local-tools:bin -- rasterize CRATE_DIR/snapshots/NAME.paint OUT.png [FRAME|all]`: turns a painting, or frames of a recording, into a PNG to look at.
-- `./scripts/buck run //crates/block-app:dev`: run the app headless, signed in with a workspace open, then `source ~/.cache/be3/dev/env` and drive it with `drive` (guides/running/drive.md). `-c be3.plugins=checklist,file-tree` before the target stages only those editors and the workspace, which downloads and builds less. beui-demo and be-launcher have a `:dev` too.
-- `./scripts/buck run //crates/block-app:native`: build and run the native app in a window.
-- `./scripts/test //crates/app-tests:test`: the app tests, which `./scripts/verify` runs too. Each starts the native app headless with every plugin and the dev workspace open, drives it as `drive` does, compares what the whole window paints, and fails unless the app exits cleanly (guides/testing_a_gui.md, 6).
-- `./scripts/buck build //crates/block-app:web`: for web-specific changes; `./scripts/buck run //crates/block-app:web` serves it on http://127.0.0.1:8080 (guides/running/web.md).
-- `./scripts/buck run //crates/block-app:android`: for Android-specific changes; builds the APK (guides/running/android.md).
+- `./scripts/buck run //crates/be-tool-local:bin -- rasterize CRATE_DIR/snapshots/NAME.paint OUT.png [FRAME|all]`: turns a painting, or frames of a recording, into a PNG to look at.
+- `./scripts/buck run //crates/be-host:dev`: run be-host headless, signed in with a workspace open, then `source ~/.cache/be3/dev/env` and drive it with `drive` (guides/running/drive.md). `-c be3.apps=checklist,text` before the target stages only those apps, the workspace and its files pane, which downloads and builds less. beui-demo and be-launcher have a `:dev` too.
+- `./scripts/buck run //crates/be-host:native`: build and run be-host natively in a window.
+- `./scripts/test //crates/be-host-tests:test`: the host tests, which `./scripts/verify` runs too. Each starts be-host natively and headless with the apps it names in crates/be-host-tests/BUCK and the dev workspace open, drives it as `drive` does, compares what the whole window paints, and fails unless be-host exits cleanly (guides/testing_a_gui.md, 6).
+- `./scripts/buck build //crates/be-host:web`: for web-specific changes; `./scripts/buck run //crates/be-host:web` serves it on http://127.0.0.1:8080 (guides/running/web.md).
+- `./scripts/buck run //crates/be-host:android`: for Android-specific changes; builds the APK (guides/running/android.md).
 - `./scripts/be Issues row BE-7K3Q2M`: read or change a tracker row (guides/tracker.md); needs `external/.tracker-credentials`, which `./scripts/be` fetches on first use.
 
 Do:
@@ -77,9 +105,9 @@ Design principles:
   - Derive damage from the retained tree by identity, never by comparing paint output.
   - Add new beui components to beui-demo too.
   - Give styled components design tokens (a text size, a weight, a color role), never raw pixels or colors. Base components take concrete values and know nothing about the theme.
-- Plugins:
-  - Keep the plugin protocol independent of any GUI framework: no beui-specific types or ideas in it. Any framework that can render offscreen and run in wasm (egui, for example) should be able to use it unchanged.
-  - Pass textures through the plugin protocol without them leaving the GPU.
+- Apps:
+  - Keep the app protocol independent of any GUI framework: no beui-specific types or ideas in it. Any framework that can render offscreen and run in wasm (egui, for example) should be able to use it unchanged.
+  - Pass textures through the app protocol without them leaving the GPU.
 - GUI:
   - Use icons from the icon library in `beui_core::icons`. Where no icon fits or the library isn't usable, use no icon. Never use emoji or other Unicode symbols as icons. If the user gives you a Unicode icon, that is for illustration, don't use it directly. This rule only applies within the repository, so it doesn't apply to a claude artifact for example.
   - Make a scroll view fill its area edge to edge, and put padding inside it, around the content: `scroll(padding(content))`, not `padding(scroll(content))`.

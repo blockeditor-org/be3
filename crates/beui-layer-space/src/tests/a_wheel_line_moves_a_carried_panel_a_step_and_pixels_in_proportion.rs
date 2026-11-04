@@ -1,6 +1,6 @@
 use super::*;
 use crate::carry::STEP_PER_LINE;
-use beui_core::runner::SCROLL_LINE;
+use beui_runner::SCROLL_LINE;
 
 #[test]
 fn a_wheel_line_moves_a_carried_panel_a_step_and_pixels_in_proportion() {

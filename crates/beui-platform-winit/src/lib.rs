@@ -7,6 +7,7 @@ mod file_saver;
 mod preferences;
 #[cfg(test)]
 mod tests;
+mod touchpad;
 mod wheel;
 
 pub use winit;
@@ -40,20 +41,23 @@ use winit::window::{
 
 use accessibility::{Accessibility, Request};
 use accesskit::TreeUpdate;
-use beui_core::app::{Lifecycle, NativeWindow, SafeArea, Setup, Waker};
-use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
+use beui_core::clipboard::PasteAnswer;
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
-use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
-use beui_core::input::{
-    CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen,
-    PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
-};
-use beui_core::renderer::{Loaded, WindowHandle};
-use beui_core::runner::{Incoming, Launch, Platform, PlatformServices, Running};
+use beui_core::program::{Lifecycle, NativeWindow, SafeArea, Setup, Waker};
 use beui_core::window::WindowState;
+use beui_runner::renderer::{Loaded, WindowHandle};
+use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
+use beui_types::{
+    CursorIcon, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen, PenPhase, PointerButton,
+    ScrollDelta, TouchId, TouchPhase,
+};
+use beui_types::{DroppedFile, FileDrag};
+use beui_types::{PasteKind, Pasted};
+use beui_types::{Pos2, Vec2, pos2, vec2};
 use clipboard::Clipboard;
 use preferences::SystemPreferences;
+use touchpad::{Gesture, Touchpad};
 use wheel::{Wheel, Wheeled};
 
 const BUTTON_EVDEV_FIRST: u16 = 0x110;
@@ -92,13 +96,13 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     event_loop.set_control_flow(ControlFlow::Wait);
     let size = launch.options.size;
     #[cfg(all(unix, not(target_os = "macos")))]
-    let app_id = launch.options.app_id.clone();
+    let program_id = launch.options.program_id.clone();
     let outcome = Outcome::default();
     let runner = Runner {
-        runner: beui_core::runner::Runner::new(launch),
+        runner: beui_runner::Runner::new(launch),
         size,
         #[cfg(all(unix, not(target_os = "macos")))]
-        app_id,
+        program_id,
         load: Some(load),
         surface: None,
         pointer: Pos2::ZERO,
@@ -106,6 +110,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         wayland: false,
         fingers: Vec::new(),
         wheel: Wheel::new(cfg!(target_os = "macos")),
+        touchpad: Touchpad::default(),
         dropping: None,
         error: None,
         next_update: None,
@@ -123,16 +128,17 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
 struct Surface {
     window: Arc<dyn Window>,
     touch_cursor: Option<CustomCursor>,
+    image_cursor: Option<(beui_types::CursorImage, CustomCursor)>,
     fullscreen: bool,
     focused: bool,
     accessibility: Accessibility,
 }
 
 struct Runner {
-    runner: beui_core::runner::Runner,
+    runner: beui_runner::Runner,
     size: Vec2,
     #[cfg(all(unix, not(target_os = "macos")))]
-    app_id: Option<String>,
+    program_id: Option<String>,
     load: Option<Load>,
     surface: Option<Surface>,
     pointer: Pos2,
@@ -140,6 +146,7 @@ struct Runner {
     wayland: bool,
     fingers: Vec<TouchId>,
     wheel: Wheel,
+    touchpad: Touchpad,
     dropping: Option<AsyncRequestSerial>,
     error: Option<String>,
     next_update: Option<Instant>,
@@ -163,6 +170,7 @@ impl Drop for Runner {
 struct WinitPlatform<'a> {
     surface: &'a mut Surface,
     clipboard: &'a mut Clipboard,
+    event_loop: &'a dyn ActiveEventLoop,
 }
 
 impl PlatformServices for WinitPlatform<'_> {
@@ -196,6 +204,21 @@ impl PlatformServices for WinitPlatform<'_> {
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
+        if window.cursor_image != shown.cursor_image {
+            self.surface.image_cursor = window.cursor_image.as_ref().and_then(|image| {
+                let (x, y) = image.hotspot_pixels();
+                let source = CustomCursorSource::from_rgba(
+                    image.image.pixels().to_vec(),
+                    image.image.width() as u16,
+                    image.image.height() as u16,
+                    x as u16,
+                    y as u16,
+                )
+                .ok()?;
+                let cursor = self.event_loop.create_custom_cursor(source).ok()?;
+                Some((image.clone(), cursor))
+            });
+        }
         let surface = &*self.surface;
         if window.requests.pointer_locked != shown.requests.pointer_locked {
             lock_pointer(
@@ -205,6 +228,7 @@ impl PlatformServices for WinitPlatform<'_> {
         }
         if (window.requests.cursor, window.requests.pointer_locked)
             != (shown.requests.cursor, shown.requests.pointer_locked)
+            || window.cursor_image != shown.cursor_image
         {
             show_cursor(surface, window);
         }
@@ -222,6 +246,11 @@ impl PlatformServices for WinitPlatform<'_> {
         self.surface
             .window
             .set_fullscreen(fullscreen.then_some(Fullscreen::Borderless(None)));
+    }
+
+    fn raise_window(&mut self) {
+        self.surface.window.set_minimized(false);
+        self.surface.window.focus_window();
     }
 
     fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
@@ -270,6 +299,12 @@ impl Runner {
         self.runner.push(input);
     }
 
+    fn gesture(&mut self, gesture: Gesture, phase: winit::event::TouchPhase) {
+        if let Some(gesture) = self.touchpad.event(gesture, phase) {
+            self.push(Input::Touchpad(gesture));
+        }
+    }
+
     fn locked(&self) -> bool {
         self.runner.window().requests.pointer_locked
             && self.surface.as_ref().is_some_and(|surface| surface.focused)
@@ -288,6 +323,7 @@ impl Runner {
         let mut platform = WinitPlatform {
             surface,
             clipboard: &mut self.clipboard,
+            event_loop,
         };
         let Some(frame) = self.runner.frame(&mut platform, SafeArea::default()) else {
             self.next_update = None;
@@ -543,10 +579,10 @@ impl ApplicationHandler for Runner {
             .with_visible(false)
             .with_surface_size(LogicalSize::new(self.size.x, self.size.y));
         #[cfg(all(unix, not(target_os = "macos")))]
-        let attributes = match &self.app_id {
-            Some(app_id) => attributes.with_platform_attributes(Box::new(
+        let attributes = match &self.program_id {
+            Some(program_id) => attributes.with_platform_attributes(Box::new(
                 winit::platform::wayland::WindowAttributesWayland::default()
-                    .with_name(app_id, app_id),
+                    .with_name(program_id, program_id),
             )),
             None => attributes,
         };
@@ -574,6 +610,7 @@ impl ApplicationHandler for Runner {
             Err(error) => return self.fail(event_loop, error),
         };
         self.runner.reports().scaled(window.scale_factor() as f32);
+        report_refresh(self.runner.reports(), &*window);
         self.preferences.window_theme(window.theme());
         let proxy = self.proxy.clone();
         self.preferences.watch_desktop(move || proxy.wake_up());
@@ -589,6 +626,7 @@ impl ApplicationHandler for Runner {
         self.surface = Some(Surface {
             window,
             touch_cursor,
+            image_cursor: None,
             fullscreen: false,
             focused: true,
             accessibility,
@@ -660,7 +698,15 @@ impl ApplicationHandler for Runner {
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.runner.reports().scaled(scale_factor as f32);
+                if let Some(surface) = &self.surface {
+                    report_refresh(self.runner.reports(), &*surface.window);
+                }
                 self.request_redraw();
+            }
+            WindowEvent::Moved(_) => {
+                if let Some(surface) = &self.surface {
+                    report_refresh(self.runner.reports(), &*surface.window);
+                }
             }
             WindowEvent::Focused(focused) => {
                 if !focused {
@@ -729,9 +775,24 @@ impl ApplicationHandler for Runner {
                     self.push(Input::ScrollEnded);
                 }
             }
-            WindowEvent::PinchGesture { delta, .. } => {
-                self.push(Input::Zoom(1.0 + delta as f32));
+            WindowEvent::PinchGesture { delta, phase, .. } => {
+                self.gesture(Gesture::Pinch(delta), phase);
+                if delta.is_finite() {
+                    self.push(Input::Zoom(1.0 + delta as f32));
+                }
             }
+            WindowEvent::PanGesture { delta, phase, .. } => {
+                self.gesture(Gesture::Pan(vec2(delta.x, delta.y)), phase);
+            }
+            WindowEvent::RotationGesture { delta, phase, .. } => {
+                self.gesture(Gesture::Rotation(delta), phase);
+            }
+            WindowEvent::HoldGesture { phase, .. } => self.gesture(Gesture::Hold, phase),
+            WindowEvent::KeyboardInput {
+                is_synthetic: true,
+                event,
+                ..
+            } if event.state == ElementState::Pressed => {}
             WindowEvent::KeyboardInput { event, .. } => {
                 let evdev = evdev(event.physical_key);
                 let key = logical_key(
@@ -924,6 +985,15 @@ fn show_cursor(surface: &Surface, state: &WindowState) {
         window.set_cursor_visible(!locked);
         return;
     }
+    if let Some((_, image)) = surface
+        .image_cursor
+        .as_ref()
+        .filter(|(image, _)| state.cursor_image.as_ref() == Some(image))
+    {
+        window.set_cursor(image.clone().into());
+        window.set_cursor_visible(!locked);
+        return;
+    }
     match cursor(state.requests.cursor) {
         Some(icon) => {
             window.set_cursor(icon.into());
@@ -942,4 +1012,16 @@ fn lock_pointer(window: &dyn Window, locked: bool) {
         let _ = window.set_cursor_grab(CursorGrabMode::Confined);
     }
     window.set_cursor_visible(!locked);
+}
+
+fn report_refresh(reports: &beui_core::window::WindowReports, window: &dyn winit::window::Window) {
+    let refresh = window
+        .current_monitor()
+        .and_then(|monitor| monitor.current_video_mode())
+        .and_then(|mode| mode.refresh_rate_millihertz());
+    if let Some(millihertz) = refresh {
+        reports.refreshes_every(std::time::Duration::from_secs_f64(
+            1000.0 / f64::from(millihertz.get()),
+        ));
+    }
 }

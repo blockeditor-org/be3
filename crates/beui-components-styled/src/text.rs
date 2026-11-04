@@ -189,13 +189,14 @@ pub struct TextStyle {
     pub family: Option<Family>,
     pub italic: Option<bool>,
     pub color: Option<TextColor>,
+    pub heading: Option<u8>,
 }
 
 impl TextStyle {
     pub const BODY: TextStyle = TextStyle::new();
     pub const CAPTION: TextStyle = TextStyle::new().size(TextSize::Sm).color(TextColor::Muted);
-    pub const HEADING: TextStyle = TextStyle::new().size(TextSize::Lg);
-    pub const TITLE: TextStyle = TextStyle::new().size(TextSize::Xl);
+    pub const HEADING: TextStyle = TextStyle::new().size(TextSize::Lg).heading(2);
+    pub const TITLE: TextStyle = TextStyle::new().size(TextSize::Xl).heading(1);
     pub const DISPLAY: TextStyle = TextStyle::new().size(TextSize::Xl5);
     pub const CODE: TextStyle = TextStyle::new().size(TextSize::Sm).family(Family::Mono);
     pub const PARAGRAPH: TextStyle = TextStyle::new().color(TextColor::Muted);
@@ -207,6 +208,7 @@ impl TextStyle {
             family: None,
             italic: None,
             color: None,
+            heading: None,
         }
     }
 
@@ -249,6 +251,13 @@ impl TextStyle {
         }
     }
 
+    pub const fn heading(self, level: u8) -> Self {
+        Self {
+            heading: Some(level),
+            ..self
+        }
+    }
+
     pub fn over(self, base: TextStyle) -> TextStyle {
         TextStyle {
             size: self.size.or(base.size),
@@ -256,6 +265,7 @@ impl TextStyle {
             family: self.family.or(base.family),
             italic: self.italic.or(base.italic),
             color: self.color.or(base.color),
+            heading: self.heading.or(base.heading),
         }
     }
 
@@ -276,6 +286,10 @@ fn inherited() -> Option<Memo<TextStyle>> {
     use_context::<Inherited>().map(|inherited| inherited.0)
 }
 
+/// Gives styled text created within it a style its own props override. It is
+/// context, so it reaches what is created inside it, not what is laid out there:
+/// text a render callback builds for an overlay takes the provider around where
+/// the callback was written. A heading level is not inherited from it.
 #[component]
 pub fn TextStyleProvider(style: Prop<TextStyle>, #[prop(children)] content: Render) -> NodeId {
     let outer = inherited();
@@ -305,9 +319,13 @@ fn resolved(
             family: family.as_ref().map(Prop::get),
             italic: italic.as_ref().map(Prop::get),
             color: color.as_ref().map(Prop::get),
+            heading: None,
         }
         .over(own)
-        .over(base)
+        .over(TextStyle {
+            heading: None,
+            ..base
+        })
     })
 }
 
@@ -325,10 +343,21 @@ pub fn Text(
     #[prop(default = Overflow::default())] overflow: Prop<Overflow>,
     #[prop(default = Vec::new())] marks: Prop<Vec<TextMark>>,
     #[prop(default = Vec::new())] carets: Prop<Vec<TextCaret>>,
+    on_truncated: Callback<bool>,
     children: Children<TextChild>,
 ) -> NodeId {
     let theme = use_theme();
     let style = resolved(style, size, weight, family, italic, color);
+    if style.get_untracked().heading.is_some() {
+        component_accessibility(create_memo(move || match style.get().heading {
+            Some(level) => {
+                let mut node = accesskit::Node::new(accesskit::Role::Heading);
+                node.set_level(usize::from(level));
+                node
+            }
+            None => accesskit::Node::new(accesskit::Role::Label),
+        }));
+    }
     let font = create_memo(move || style.get().font());
     let color = create_memo(move || {
         style
@@ -338,7 +367,17 @@ pub fn Text(
             .resolve(&theme)
     });
     view! {
-        <primitives::Text font color underline align vertical_align overflow marks carets>
+        <primitives::Text
+            font
+            color
+            underline
+            align
+            vertical_align
+            overflow
+            marks
+            carets
+            on_truncated
+        >
             {children}
         </primitives::Text>
     }

@@ -21,7 +21,7 @@ fn RetainedPair(
 
 #[test]
 fn show_keep_alive_retains_multiple_children_and_pauses_nested_updates() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let shown = create_signal(false);

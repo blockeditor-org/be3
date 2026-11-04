@@ -44,7 +44,7 @@ mod web {
                 _ => {}
             }
         }
-        reactive::flush();
+        beui_reactive::flush();
     }
 
     fn value(key: Key, text: Option<&str>) -> Option<String> {

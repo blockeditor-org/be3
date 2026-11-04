@@ -36,7 +36,7 @@ impl Drop for ActiveDocumentGuard {
 }
 
 pub enum DocumentGuard<'a> {
-    Installed(&'a mut Document, Option<::reactive::ZoneGuard>),
+    Installed(&'a mut Document, Option<::beui_reactive::ZoneGuard>),
     Reentrant,
 }
 
@@ -68,21 +68,29 @@ pub fn install(document: &mut Document) -> DocumentGuard<'_> {
     });
     let mut guard = DocumentGuard::Installed(document, None);
     if let DocumentGuard::Installed(_, slot) = &mut guard {
-        *slot = Some(::reactive::enter_zone(zone));
+        *slot = Some(::beui_reactive::enter_zone(zone));
     }
     guard
 }
 
 pub fn enter<R>(document: &mut Document, f: impl FnOnce() -> R) -> R {
+    let (result, installed) = enter_holding_removals(document, f);
+    if installed {
+        document.drain_removals();
+    }
+    result
+}
+
+pub(crate) fn enter_holding_removals<R>(
+    document: &mut Document,
+    f: impl FnOnce() -> R,
+) -> (R, bool) {
     let context = document.reactive_scope().context();
     let guard = install(document);
     let result = context.run(f);
     let installed = matches!(guard, DocumentGuard::Installed(..));
     drop(guard);
-    if installed {
-        document.drain_removals();
-    }
-    result
+    (result, installed)
 }
 
 pub(crate) fn run_in<R>(document: &mut Document, f: impl FnOnce(&mut Document) -> R) -> R {
@@ -130,13 +138,13 @@ pub fn try_with_document<R>(f: impl FnOnce(&mut Document) -> R) -> Option<R> {
 
 pub fn layout_text(
     text: &str,
-    font: crate::font::FontId,
-    layout: crate::font::TextLayout,
+    font: beui_types::FontId,
+    layout: beui_types::TextLayout,
 ) -> Option<crate::font::Galley> {
     try_with_document(|document| document.layout_text(text, font, layout)).flatten()
 }
 
-pub fn type_events(events: Vec<crate::input::Input>) {
+pub fn type_events(events: Vec<beui_types::Input>) {
     with_document(|document| {
         if let Some(context) = document.context() {
             context.type_events(events);
@@ -168,6 +176,6 @@ pub fn close_keyboard() {
     });
 }
 
-pub fn last_pointer() -> Option<crate::input::PointerSample> {
+pub fn last_pointer() -> Option<beui_types::PointerSample> {
     try_with_document(|document| document.last_pointer).flatten()
 }

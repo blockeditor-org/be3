@@ -1,11 +1,14 @@
 use std::fmt;
 
 use crate::base::canvas::CanvasNode;
-use crate::base::list::Direction;
+use crate::base::frame::FrameNode;
 use crate::base::offset::OffsetNode;
+use crate::base::overlay::OverlayNode;
 use crate::document::Document;
-use crate::geometry::Rect;
-use crate::node::{NodeId, Rects, SpaceId};
+use crate::node::{Rects, SpaceId};
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::Rect;
 
 const TOLERANCE: f32 = 1.0;
 const EXACT: f32 = 0.01;
@@ -58,15 +61,16 @@ impl Document {
         let Some(root) = self.root() else {
             return found;
         };
-        let mut pending = vec![(root, false)];
-        while let Some((id, parent_cut)) = pending.pop() {
+        let viewport = self.viewport.as_ref().map(|(_, rect, _)| *rect);
+        let mut pending = vec![(root, false, viewport)];
+        while let Some((id, parent_cut, viewport)) = pending.pop() {
             if !self.arena.contains(id) {
                 continue;
             }
             let Some(rect) = self.rects.get(&id) else {
                 continue;
             };
-            let bounds = self.reachable(id);
+            let bounds = self.reachable(id, viewport);
             let cut = rect.is_positive() && !within(rect, bounds);
             if cut && !parent_cut {
                 found.push(self.overflow(id, OverflowKind::CutOff, rect, bounds));
@@ -88,8 +92,9 @@ impl Document {
                     found.push(self.overflow(id, OverflowKind::Spills, ink, rect));
                 }
             }
+            let viewport = self.viewport_inside(id, viewport);
             for child in self.arena.get(id).live_children() {
-                pending.push((child, cut));
+                pending.push((child, cut, viewport));
             }
         }
         found
@@ -124,10 +129,28 @@ impl Document {
         Some(extent)
     }
 
-    fn reachable(&self, id: NodeId) -> Rect {
+    fn viewport_inside(&self, id: NodeId, viewport: Option<Rect>) -> Option<Rect> {
+        if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id) {
+            return self.arena.get_as::<OverlayNode>(overlay).placed_in;
+        }
+        match self.arena.kind_of::<FrameNode>(id) {
+            Some(frame) => {
+                let moved = self
+                    .arena
+                    .get_as::<FrameNode>(frame)
+                    .moved(self.pixel_grid());
+                viewport.map(|viewport| viewport.translate(moved))
+            }
+            None => viewport,
+        }
+    }
+
+    fn reachable(&self, id: NodeId, viewport: Option<Rect>) -> Rect {
         let mut bounds = Rect::EVERYTHING;
         let (mut free_x, mut free_y) = (false, false);
-        for (space, clip) in self.rects.clips_above(&id) {
+        let clips = self.rects.clips_above(&id).into_iter();
+        let viewport = viewport.map(|rect| (SpaceId::of(id), rect));
+        for (space, clip) in clips.chain(viewport) {
             let (x, y) = self.scrolls(space);
             free_x |= x;
             free_y |= y;

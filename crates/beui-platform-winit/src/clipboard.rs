@@ -1,4 +1,4 @@
-use beui_core::file_picker::PickedFile;
+use beui_types::PickedFile;
 #[cfg(not(target_os = "ios"))]
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 

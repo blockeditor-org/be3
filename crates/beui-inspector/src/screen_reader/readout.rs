@@ -1,8 +1,8 @@
 use beui_components_styled::Theme;
-use beui_core::color::Color32;
-use beui_core::font::FontId;
-use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::painter::Painter;
+use beui_types::Color32;
+use beui_types::FontId;
+use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
 
 pub const HEIGHT: f32 = 52.0;
 

@@ -1,14 +1,16 @@
 use std::rc::Rc;
 
-use beui_core::color::Color32;
 use beui_core::context::{Context, WindowOutput};
-use beui_core::damage::Region;
 use beui_core::display::Layer;
-use beui_core::font::{FontId, TextLayout};
-use beui_core::geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 use beui_core::icons::{ICON_MOVE, ICON_ROTATE_3D, ICON_ROTATE_CW_SQUARE, ICON_SPLINE};
-use beui_core::painter::{Corners, Shape};
-use beui_core::window::{WindowEdge, WindowId, WindowState};
+use beui_core::painter::Shape;
+use beui_core::window::WindowState;
+use beui_types::Color32;
+use beui_types::Corners;
+use beui_types::geometry::Region;
+use beui_types::{FontId, TextLayout};
+use beui_types::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
+use beui_types::{WindowEdge, WindowId};
 use std::f32::consts::{PI, TAU};
 
 use glam::{Quat, Vec3};
@@ -136,6 +138,9 @@ impl Default for Fit {
     }
 }
 
+/// Chrome keeps one size to the eye, as the cursor does: its lengths are metres
+/// at `REFERENCE` distance times this. `Space` changes a panel's fit only once it
+/// is off by more than `KEPT`, so small head moves do not repaint the chrome.
 pub fn fitted(panel: &Panel, eye: Vec3) -> f32 {
     let held = panel.chrome.scale;
     let wanted = (panel
@@ -161,6 +166,10 @@ pub enum Part {
     Slider,
 }
 
+/// A drag on chrome. Scale, roll and slider drags map the ray onto the panel as
+/// it was when they began. Scale changes `metres_per_point`, so the window keeps
+/// its points and aspect and gets no `Resized`. A later carry turns the panel back
+/// to face the viewer, overriding turn and roll.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Gesture {
     Scale {
@@ -479,6 +488,10 @@ pub fn pixels_per_point(panel: &Panel, window: f32) -> f32 {
     (window / (panel.metres_per_point * POINTS_PER_METRE)).min(largest)
 }
 
+/// Hit areas leave no gap next to the window: brackets and sides take the band
+/// from the window's edge out to them (and `SLOP` beyond), and the buttons, slider
+/// and title take everything between them and the edge, so a ray between a window
+/// and its chrome never falls through to a window behind.
 pub fn part_at(panel: &Panel, pos: Pos2, slider: bool) -> Option<Part> {
     if panel.contains(pos) {
         return None;
@@ -494,9 +507,12 @@ pub fn part_at(panel: &Panel, pos: Pos2, slider: bool) -> Option<Part> {
         .map(|(part, _)| part)
 }
 
+/// By depth alone, focused or not, so a popped-out window's chrome takes the click
+/// over content behind it.
 pub fn pick(panels: &[Panel], ray: Ray, slider: Option<WindowId>) -> Option<(Part, Hit)> {
     panels
         .iter()
+        .filter(|panel| panel.framed())
         .filter_map(|panel| {
             let hit = panel.intersect(ray)?;
             let part = part_at(panel, hit.pos, slider == Some(panel.window))?;
@@ -522,6 +538,11 @@ pub fn scaled(original: &Panel, anchor: Pos2, grab: Pos2, pos: Pos2) -> Panel {
     panel
 }
 
+/// A trackball about the panel's centre as seen from the eye. The aim's change on
+/// the screen times `TURN_GAIN` turns the panel about the sight's up (the head's
+/// up made perpendicular to the line to the centre) and tilts it about its right,
+/// tilt first, so the nearer edge follows the drag, a level edge stays level, and
+/// the panel never rolls however the cursor circles.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Sight {
     pub view: Quat,

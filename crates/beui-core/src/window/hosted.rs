@@ -1,27 +1,36 @@
+//! Top-level windows: one `Document`, one reactive graph and one focus across every
+//! window a program shows. A window is an `OverlayNode` carrying a `WindowSpec`; each
+//! `Layer` names its window, and every window's rectangle starts at the origin, so
+//! damage, scroll copies and hit testing are kept apart per window.
+
 use std::rc::Rc;
 
-use foldhash::{HashMap, HashSet};
-use reactive::{Get, Set};
+use be_lib_stable_hash::{HashMap, HashSet};
+use beui_reactive::{Get, Set};
 
 use crate::base::overlay::OverlayNode;
 use crate::context::{Context, Moved};
-use crate::damage::{Region, Taken};
+use crate::damage::Taken;
 use crate::display::Display;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, Vec2};
 use crate::layer::Layers;
-use crate::node::{ANCESTOR_LIMIT, NodeId, NodeOf};
+use crate::node::{ANCESTOR_LIMIT, NodeOf};
+use beui_types::NodeId;
+use beui_types::geometry::Region;
+use beui_types::{Pos2, Rect, Vec2};
 
-use super::{WindowId, WindowReport, WindowRequest};
+use beui_types::{WindowId, WindowReport, WindowRequest};
 
 pub(crate) type Painting = Vec<(Rc<Display>, Vec2)>;
 
 pub(crate) struct Windows {
     nodes: Vec<(WindowId, NodeOf<OverlayNode>)>,
-    opens: ::reactive::OwnedSignal<bool>,
-    placed: ::reactive::OwnedSignal<bool>,
+    opens: ::beui_reactive::OwnedSignal<bool>,
+    placed: ::beui_reactive::OwnedSignal<bool>,
     asked: Vec<WindowId>,
     wanted: HashMap<WindowId, Vec2>,
+    hung: HashMap<WindowId, beui_types::WindowPlacement>,
+    casts: HashMap<WindowId, (beui_types::WindowRole, beui_types::WindowLevel)>,
     closed_by_host: HashSet<WindowId>,
     requests: Vec<WindowRequest>,
     shown: HashMap<WindowId, Vec2>,
@@ -31,16 +40,20 @@ pub(crate) struct Windows {
     host_focused: Option<WindowId>,
     pub(crate) focus_resized: bool,
     pub(crate) appearances: HashMap<WindowId, crate::window::Appearance>,
+    fit_nodes: HashMap<WindowId, crate::window::WindowFit>,
+    fitted: HashMap<WindowId, Vec2>,
 }
 
 impl Default for Windows {
     fn default() -> Self {
         Self {
             nodes: Vec::new(),
-            opens: ::reactive::OwnedSignal::new(false),
-            placed: ::reactive::OwnedSignal::new(false),
+            opens: ::beui_reactive::OwnedSignal::new(false),
+            placed: ::beui_reactive::OwnedSignal::new(false),
             asked: Vec::new(),
             wanted: HashMap::default(),
+            hung: HashMap::default(),
+            casts: HashMap::default(),
             closed_by_host: HashSet::default(),
             requests: Vec::new(),
             shown: HashMap::default(),
@@ -50,6 +63,8 @@ impl Default for Windows {
             host_focused: None,
             focus_resized: false,
             appearances: HashMap::default(),
+            fit_nodes: HashMap::default(),
+            fitted: HashMap::default(),
         }
     }
 }
@@ -67,18 +82,18 @@ impl Document {
         self.windows.opens.get_untracked() || self.windows.placed.get_untracked()
     }
 
-    pub fn watch_opens_windows(&self) -> ::reactive::ReadSignal<bool> {
+    pub fn watch_opens_windows(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.windows.opens.read_only()
     }
 
-    pub fn watch_placed_windows(&self) -> ::reactive::ReadSignal<bool> {
+    pub fn watch_placed_windows(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.windows.placed.read_only()
     }
 
-    pub(crate) fn hosts_window(&self, spec: &crate::base::overlay::WindowSpec) -> bool {
+    pub(crate) fn hosts_window(&self, spec: &beui_types::WindowSpec) -> bool {
         self.windows.opens.get_untracked()
             || (self.windows.placed.get_untracked()
-                && matches!(spec.placement, super::WindowPlacement::Host(_)))
+                && matches!(spec.placement, beui_types::WindowPlacement::Host(_)))
     }
 
     pub(crate) fn shows_in(&self, window: WindowId) -> bool {
@@ -118,6 +133,8 @@ impl Document {
             .map(|(_, node)| *node)
     }
 
+    /// Always `WindowId::MAIN` unless the host opens windows, so on the HTML core and in a
+    /// host that shows windows as overlays everything is in the main window.
     pub fn window_of(&self, node: NodeId) -> WindowId {
         if !self.opens_windows() {
             return WindowId::MAIN;
@@ -143,6 +160,9 @@ impl Document {
         WindowId::MAIN
     }
 
+    /// The hosted window an overlay window is shown inside. Key listeners at
+    /// `KeyAt::Window` and actions belong to this window, so two app views each keep their
+    /// own Escape and shortcuts.
     pub fn host_window_of(&self, window: WindowId) -> WindowId {
         self.windows
             .nodes
@@ -160,6 +180,7 @@ impl Document {
             .collect()
     }
 
+    /// The window keys go to: the focused node's, else the one the host focused last.
     pub fn key_window(&self) -> Option<WindowId> {
         if !self.opens_windows() {
             return None;
@@ -169,6 +190,9 @@ impl Document {
             .or(self.windows.host_focused)
     }
 
+    /// One window's layers, its own at index 0. Hit testing, press claims and forwarding
+    /// use it, so a press in one window never reaches another's nodes at the same
+    /// coordinates.
     pub fn window_layers(&self, window: WindowId) -> Option<Layers> {
         self.layers().of_window(window)
     }
@@ -176,8 +200,96 @@ impl Document {
     pub fn window_size(&self, window: WindowId) -> Option<Vec2> {
         let node = self.window_node(window)?;
         let spec = self.arena.get_as::<OverlayNode>(node).window.as_ref()?;
+        if let Some(max) = spec.fit {
+            return Some(self.windows.fitted.get(&window).copied().unwrap_or(max));
+        }
         let reported = self.context().and_then(|ctx| ctx.window_size(window));
         Some(reported.unwrap_or(spec.size))
+    }
+
+    pub fn fit_window_to(&mut self, window: WindowId, fit: crate::window::WindowFit) {
+        let changed = self.windows.fit_nodes.insert(window, fit) != Some(fit);
+        if changed && let Some(overlay) = self.window_node(window) {
+            self.arena.invalidate_node(overlay);
+        }
+    }
+
+    pub fn fitted_window_size(&self, window: WindowId) -> Option<Vec2> {
+        let node = self.window_node(window)?;
+        self.arena
+            .get_as::<OverlayNode>(node)
+            .window
+            .as_ref()?
+            .fit?;
+        self.windows.fitted.get(&window).copied()
+    }
+
+    pub(crate) fn fitted_size_of(&self, window: WindowId) -> Option<Vec2> {
+        self.windows.fitted.get(&window).copied()
+    }
+
+    /// Before layout, sizes each window with `WindowSpec::fit`: measures its content (the
+    /// window frame's child, or what `fit_window_to` names) unbounded, and again at the
+    /// widest allowed if that overflows, then takes min(content, max), so the window is
+    /// laid out once at a size whose full-width rows fill the width it took.
+    pub(crate) fn refit_windows(&mut self, ctx: &crate::context::Context) {
+        let fitting: Vec<(WindowId, NodeOf<OverlayNode>, Vec2)> = self
+            .windows
+            .nodes
+            .iter()
+            .filter(|(_, node)| self.contains(*node))
+            .filter_map(|(id, node)| {
+                let spec = self.arena.get_as::<OverlayNode>(*node).window.as_ref()?;
+                Some((*id, *node, spec.fit?))
+            })
+            .collect();
+        self.windows
+            .fitted
+            .retain(|window, _| fitting.iter().any(|(id, _, _)| id == window));
+        for (window, overlay, max) in fitting {
+            let fit = self
+                .windows
+                .fit_nodes
+                .get(&window)
+                .copied()
+                .unwrap_or(crate::window::WindowFit::Content);
+            let measured = match fit {
+                crate::window::WindowFit::Size(size) => {
+                    let size = size.min(max).max(Vec2::splat(1.0));
+                    if self.windows.fitted.insert(window, size) != Some(size) {
+                        self.arena.invalidate_node(overlay);
+                    }
+                    continue;
+                }
+                crate::window::WindowFit::Node(node) if self.arena.contains(node) => {
+                    Some(self.content_of_overlay(node).unwrap_or(node))
+                }
+                crate::window::WindowFit::Node(_) | crate::window::WindowFit::Content => self
+                    .overlay_content(overlay)
+                    .and_then(|frame| self.children(frame).first().copied()),
+            };
+            let Some(measured) = measured else {
+                continue;
+            };
+            let painter = ctx.window_painter(window);
+            let natural =
+                crate::layout::measure(self, &painter, measured, Vec2::splat(f32::INFINITY));
+            let natural = match natural.x.is_finite() && natural.x <= max.x {
+                true => natural,
+                false => crate::layout::measure(
+                    self,
+                    &painter,
+                    measured,
+                    Vec2::new(max.x, f32::INFINITY),
+                ),
+            };
+            let size = Vec2::new(finite_or(natural.x, max.x), finite_or(natural.y, max.y))
+                .min(max)
+                .max(Vec2::splat(1.0));
+            if self.windows.fitted.insert(window, size) != Some(size) {
+                self.arena.invalidate_node(overlay);
+            }
+        }
     }
 
     pub fn window_rect(&self, window: WindowId) -> Option<Rect> {
@@ -211,6 +323,11 @@ impl Document {
     pub(crate) fn relayout_window(&mut self, window: WindowId) {
         if let Some(node) = self.window_node(window) {
             self.arena.invalidate_node(node);
+        }
+        for overlay in self.open_overlays() {
+            if self.window_of(overlay.id()) == window {
+                self.arena.invalidate_node(overlay);
+            }
         }
     }
 
@@ -273,9 +390,7 @@ impl Document {
                     self.windows.focus_resized |= self
                         .focused
                         .is_some_and(|focused| self.window_of(focused) == *window);
-                    if let Some(node) = node {
-                        self.arena.invalidate_node(node);
-                    }
+                    self.relayout_window(*window);
                 }
                 WindowReport::Rastered { .. } => {
                     rastered = true;
@@ -323,6 +438,13 @@ impl Document {
         }
     }
 
+    /// A host's `Focused { focused: false }` takes the focus from a node in that window and
+    /// remembers it; `true` gives it back if nothing took the focus since. Returns false
+    /// when there was nothing to give back: after `on_report` has heard the report (a dock
+    /// window then hands the keyboard to its shown tab), the caller focuses the window's
+    /// first focusable unless the focus is inside it. Where the platform opens only the
+    /// windows it placed, focusing a window moves the focus into it instead and unfocusing
+    /// leaves it where it is. The main window gets no fallback.
     fn window_focused(&mut self, window: WindowId, focused: bool) -> bool {
         if self.windows.placed.get_untracked() {
             if focused {
@@ -396,26 +518,67 @@ impl Document {
             }
         }
         let asked = self.windows.asked.clone();
+        let (earlier, later): (Vec<WindowRequest>, Vec<WindowRequest>) =
+            std::mem::take(&mut self.windows.requests)
+                .into_iter()
+                .partition(|request| asked.contains(&request.window()));
+        for request in earlier {
+            ctx.request_window(request);
+        }
+        self.windows.requests = later;
         self.windows
             .wanted
             .retain(|window, _| asked.contains(window));
+        self.windows.hung.retain(|window, _| asked.contains(window));
+        self.windows
+            .casts
+            .retain(|window, _| asked.contains(window));
         for window in &open {
-            let Some(spec) = self
+            let Some((size, placement, role, level)) = self
                 .window_node(*window)
                 .and_then(|node| self.overlay_window(node))
+                .map(|spec| (spec.size, spec.placement.clone(), spec.role, spec.level))
             else {
                 continue;
             };
-            let size = spec.size;
             if !self.windows.asked.contains(window) {
                 ctx.request_window(WindowRequest::Open {
                     window: *window,
-                    placement: spec.placement.clone(),
+                    placement: placement.clone(),
                     size,
-                    role: spec.role,
+                    role,
+                    level,
                 });
                 self.windows.asked.push(*window);
                 self.windows.wanted.insert(*window, size);
+                self.windows.casts.insert(*window, (role, level));
+                if role == beui_types::WindowRole::Popup {
+                    self.windows.hung.insert(*window, placement);
+                }
+                continue;
+            }
+            let recast = self.windows.casts.get(window) != Some(&(role, level));
+            if recast
+                || (role == beui_types::WindowRole::Popup
+                    && self.windows.hung.get(window) != Some(&placement))
+            {
+                self.windows.casts.insert(*window, (role, level));
+                match role {
+                    beui_types::WindowRole::Popup => {
+                        self.windows.hung.insert(*window, placement.clone());
+                    }
+                    _ => {
+                        self.windows.hung.remove(window);
+                    }
+                }
+                self.windows.wanted.insert(*window, size);
+                ctx.request_window(WindowRequest::Open {
+                    window: *window,
+                    placement,
+                    size,
+                    role,
+                    level,
+                });
                 continue;
             }
             let wanted = self.windows.wanted.insert(*window, size);
@@ -481,5 +644,12 @@ impl Document {
                 appearance,
             );
         }
+    }
+}
+
+fn finite_or(length: f32, otherwise: f32) -> f32 {
+    match length.is_finite() {
+        true => length,
+        false => otherwise,
     }
 }

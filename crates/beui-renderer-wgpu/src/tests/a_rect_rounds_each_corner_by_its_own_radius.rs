@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::painter::Corners;
+use beui_types::Corners;
 
 #[test]
 fn a_rect_rounds_each_corner_by_its_own_radius() {

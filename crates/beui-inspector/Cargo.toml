@@ -9,10 +9,13 @@ accesskit = "0.24.1"
 beui-components-styled = { path = "../beui-components-styled" }
 beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-core = { path = "../beui-core" }
+beui-types = { path = "../beui-types" }
 beui-dock = { path = "../beui-dock" }
+beui-dock-host = { path = "../beui-dock-host" }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui-macros" }
-reactive = { path = "../reactive" }
+beui-macros = { path = "../beui-macros" }
+beui-reactive = { path = "../beui-reactive" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 
 [lints]
 workspace = true

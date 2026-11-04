@@ -1,0 +1,26 @@
+[package]
+name = "be-host-services"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+async-executor = "1"
+async-io = "2"
+async-lock = "3"
+be-host-wayland = { path = "../be-host-wayland" }
+beui-types = { path = "../beui-types" }
+be-host-base = { path = "../be-host-base" }
+be-sdk-api = { path = "../be-sdk-api" }
+futures-util = { version = "0.3", features = ["io"] }
+image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
+pulseaudio = "0.3"
+roxmltree = "0.21"
+rustix = { version = "1", features = ["fs"] }
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["sync"] }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
+zbus = { version = "5", default-features = false, features = ["async-io"] }
+
+[lints]
+workspace = true

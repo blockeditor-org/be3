@@ -1,0 +1,34 @@
+{
+  "id": "be3.browser-tab",
+  "name": "Web Browser Tab",
+  "version": "0.1.0",
+  "editors": {
+    "browser": {
+      "id": "eef89e00-e9df-4abd-8619-96bdc7cdee41",
+      "edits": "7765622d-6272-6f77-7365-722d74616201",
+      "display_name": "Web Browser Tab",
+      "icon": "\ue0e8",
+      "templates": {
+        "main": {}
+      },
+      "capabilities": {
+        "rotation": false,
+        "preserve_aspect_ratio": true,
+        "pan_and_zoom": false
+      },
+      "views": [
+        "Main"
+      ]
+    }
+  },
+  "block_types": {
+    "browser_tab": {
+      "id": "7765622d-6272-6f77-7365-722d74616201",
+      "display_name": "Web Browser Tab",
+      "icon": "\ue0e8",
+      "color": [155, 112, 211],
+      "module": "browser_tab_types.wasm"
+    }
+  },
+  "entry_point": "browser_tab.wasm"
+}

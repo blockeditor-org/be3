@@ -1,0 +1,23 @@
+[package]
+name = "be-tool-drive"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "be-drive"
+path = "src/main.rs"
+
+[dependencies]
+be-host-archive = { path = "../be-host-archive" }
+beui-runner = { path = "../beui-runner" }
+beui-layer-drive = { path = "../beui-layer-drive" }
+image = { version = "0.25", default-features = false, features = ["png"] }
+libc = "0.2"
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
+
+[lints]
+workspace = true

@@ -1,0 +1,37 @@
+use super::*;
+use crate::reactive::*;
+
+const GIVEN_WIDTH: f32 = 80.0;
+const CHILD_WIDTH: f32 = 20.0;
+const CHILD_HEIGHT: f32 = 10.0;
+
+#[test]
+fn a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears() {
+    let _root = crate::reactive::RootScope::new();
+    let outer = NodeRef::new();
+    let width = create_signal(Some(GIVEN_WIDTH));
+    let document = build_node(move || {
+        view! {
+            <List direction=Direction::Horizontal spacing=0.0>
+                <Frame @node_ref=&outer width=width>
+                    <Frame width=CHILD_WIDTH height=CHILD_HEIGHT />
+                </Frame>
+                <Spacer />
+            </List>
+        }
+    });
+    let outer = outer.get();
+    let mut harness = Harness::sized(document, VIEWPORT);
+    harness.frame(Vec::new());
+
+    assert_eq!(harness.rect(outer).width(), GIVEN_WIDTH);
+
+    width.set(None);
+    harness.frame(Vec::new());
+
+    assert_eq!(
+        harness.rect(outer).width(),
+        CHILD_WIDTH,
+        "clearing the width signal must hand the frame back to its intrinsic measurement"
+    );
+}

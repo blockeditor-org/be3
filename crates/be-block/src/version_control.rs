@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use be_commit::CommitId;
-use be_model::{Document, List, Map, Model, ObjectId};
+use be_block_commit::CommitId;
+use be_block_model::{Document, List, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -128,13 +128,6 @@ impl Repository {
             Some(head) => branches.insert(name.to_owned(), head),
             None => branches.remove(name),
         };
-        Self {
-            branches: branches.into_iter().collect(),
-            ..self.clone()
-        }
-    }
-
-    pub fn with_branches(&self, branches: BTreeMap<String, CommitId>) -> Self {
         Self {
             branches: branches.into_iter().collect(),
             ..self.clone()

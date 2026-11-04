@@ -25,7 +25,7 @@ use beui_view::types::TextAlign;
 use beui_view::types::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, ICON_ELLIPSIS,
 };
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 
 const INDENT: Space = Space::Lg;
 const CHEVRON_RADIUS: Radius = Radius::Sm;
@@ -67,6 +67,12 @@ pub struct TreeRowFace<K> {
     pub hovered: ReadSignal<bool>,
 }
 
+/// The tree face program code uses. Everything left of a row's highlight
+/// (indent and chevron) is one button, so a finger there expands the row
+/// without opening it. It owns its `Scroll` (`padding` goes inside) and follows
+/// `selected`; given `ancestors`, it marks the chevron above a hidden
+/// selection and floats a button that reports `on_reveal`, then scrolls the
+/// row into view once the caller has expanded its ancestors.
 #[component]
 pub fn Tree<K>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<unstyled::TreeApi<K>>,
@@ -94,6 +100,7 @@ pub fn Tree<K>(
     on_edit: Callback<K>,
     on_rename: Callback<(K, String)>,
     on_cancel_edit: Callback<K>,
+    #[prop(default = None)] leading: Option<RenderFn<TreeRowFace<K>, Children<ListItem>>>,
     #[prop(children)] content: Option<RenderFn<TreeRowFace<K>>>,
 ) -> NodeId
 where
@@ -107,36 +114,44 @@ where
     let spacing = use_space(spacing).get_untracked();
     view! {
         <List spacing=Space::None>
-            <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport} bleed>
-                <Frame padding=padding>
-                    <unstyled::Tree
-                        api
-                        keys
-                        item
-                        selected
-                        ancestors
-                        spacing
-                        editing
-                        reorder
-                        menu={menu.map(|menu| unstyled::TreeMenus::new(menu_style(), menu))}
-                        on_select={on_select}
-                        on_open={on_open}
-                        on_expand={on_expand}
-                        on_hover_change={on_hover_change}
-                        on_drag_start={on_drag_start}
-                        on_drag_move={on_drag_move}
-                        on_drop={on_drop}
-                        on_edit={on_edit}
-                        on_rename={on_rename}
-                        on_cancel_edit={on_cancel_edit}
-                    >|handle: TreeRowHandle<K>| {
-                        let named = row_test_id.call(handle.key.clone());
-                        view! {
-                            <TreeRowChrome handle named outline={outline} content={content} />
-                        }
-                    }</unstyled::Tree>
-                </Frame>
-            </Scroll>
+            <ListItem grow=1.0>
+                <Scroll @node_ref={&viewport} bleed>
+                    <Frame padding=padding>
+                        <unstyled::Tree
+                            api
+                            keys
+                            item
+                            selected
+                            ancestors
+                            spacing
+                            editing
+                            reorder
+                            menu={menu.map(|menu| unstyled::TreeMenus::new(menu_style(), menu))}
+                            on_select={on_select}
+                            on_open={on_open}
+                            on_expand={on_expand}
+                            on_hover_change={on_hover_change}
+                            on_drag_start={on_drag_start}
+                            on_drag_move={on_drag_move}
+                            on_drop={on_drop}
+                            on_edit={on_edit}
+                            on_rename={on_rename}
+                            on_cancel_edit={on_cancel_edit}
+                        >|handle: TreeRowHandle<K>| {
+                            let named = row_test_id.call(handle.key.clone());
+                            view! {
+                                <TreeRowChrome
+                                    handle
+                                    named
+                                    outline={outline}
+                                    leading={RowLeading(leading.clone())}
+                                    content={content}
+                                />
+                            }
+                        }</unstyled::Tree>
+                    </Frame>
+                </Scroll>
+            </ListItem>
             <unstyled::TreeReveal
                 tree={api}
                 viewport={viewport}
@@ -160,8 +175,8 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
         reveal,
     } = handle;
     let glyph = create_memo(move || match edge.get() {
-        Edge::Top | Edge::TopEnd => ICON_ARROW_UP,
-        Edge::Bottom | Edge::BottomEnd => ICON_ARROW_DOWN,
+        Edge::Top | Edge::TopStart | Edge::TopEnd => ICON_ARROW_UP,
+        Edge::Bottom | Edge::BottomStart | Edge::BottomEnd => ICON_ARROW_DOWN,
     });
     view! {
         <Frame padding=REVEAL_PADDING>
@@ -176,11 +191,14 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
     }
 }
 
+struct RowLeading<K: 'static>(Option<RenderFn<TreeRowFace<K>, Children<ListItem>>>);
+
 #[component]
 fn TreeRowChrome<K>(
     handle: TreeRowHandle<K>,
     named: String,
     outline: Func<K, Option<ColorRole>>,
+    leading: RowLeading<K>,
     content: RenderFn<TreeRowFace<K>>,
 ) -> NodeId
 where
@@ -214,8 +232,8 @@ where
         let color = highlight.get().unwrap_or(ColorRole::Accent);
         (highlight.get().is_some() || ring.get()).then(|| Border::new(color).width(OUTLINE_WIDTH))
     });
-    let face = TreeRowFace {
-        key,
+    let face = move || TreeRowFace {
+        key: key.clone(),
         item,
         selected,
         focused,
@@ -223,41 +241,57 @@ where
     };
     let shown = create_memo(move || !editing.get());
     let renaming = edit_id(&named);
+    let RowLeading(leading) = leading;
+    let area = match leading {
+        None => content.call(face()),
+        Some(leading) => {
+            let (glyph, named_content) = (leading.call(face()), content.call(face()));
+            view! {
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    {glyph}
+                    <ListItem grow=1.0>{named_content}</ListItem>
+                </List>
+            }
+        }
+    };
+    let field = move || {
+        let field = view! {
+            <RowEditField @test_id={renaming.clone()} edit sized={sized} />
+        };
+        match leading {
+            None => view! {
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <ListItem grow=1.0>{field}</ListItem>
+                </List>
+            },
+            Some(leading) => {
+                let glyph = leading.call(face());
+                view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        {glyph}
+                        <ListItem grow=1.0>{field}</ListItem>
+                    </List>
+                }
+            }
+        }
+    };
+    let named_field = view! {
+        <List align=Align::Stretch spacing=Space::None>
+            <ShowKeepAlive condition={shown}>
+                <ListItem grow=1.0>
+                    <unstyled::TreeRowArea target>{area}</unstyled::TreeRowArea>
+                </ListItem>
+            </ShowKeepAlive>
+            <Show condition={editing}>{field()}</Show>
+        </List>
+    };
     let body = match menu {
-        None => view! {
-            <List align=Align::Stretch spacing=Space::None>
-                <ShowKeepAlive condition={shown}>
-                    <unstyled::TreeRowArea @sizing=ItemSize::Percent(100.0) target>
-                        {content.call(face)}
-                    </unstyled::TreeRowArea>
-                </ShowKeepAlive>
-                <Show condition={editing}>
-                    <RowEditField
-                        @sizing=ItemSize::Percent(100.0)
-                        @test_id={renaming.clone()}
-                        edit
-                        sized={sized}
-                    />
-                </Show>
-            </List>
-        },
+        None => named_field,
         Some(menu) => {
             let more = more_id(&named);
             view! {
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <ShowKeepAlive condition={shown}>
-                        <unstyled::TreeRowArea @sizing=ItemSize::Percent(100.0) target>
-                            {content.call(face)}
-                        </unstyled::TreeRowArea>
-                    </ShowKeepAlive>
-                    <Show condition={editing}>
-                        <RowEditField
-                            @sizing=ItemSize::Percent(100.0)
-                            @test_id={renaming.clone()}
-                            edit
-                            sized={sized}
-                        />
-                    </Show>
+                    <ListItem grow=1.0>{named_field}</ListItem>
                     <unstyled::TreeRowMenuButton @test_id={more} menu>|handle: PopupTriggerHandle|
                         <RowMenuFace handle sized={sized} />
                     </unstyled::TreeRowMenuButton>
@@ -275,17 +309,18 @@ where
                     sized={sized}
                     named={chevron_id(&named)}
                 />
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    @test_id={row_id(&named)}
-                    height={height}
-                    fill={fill}
-                    border={border}
-                    radius=Radius::Md
-                    padding={Padding::horizontal(PADDING_HORIZONTAL)}
-                >
-                    {body}
-                </Frame>
+                <ListItem grow=1.0>
+                    <Frame
+                        @test_id={row_id(&named)}
+                        height={height}
+                        fill={fill}
+                        border={border}
+                        radius=Radius::Md
+                        padding={Padding::horizontal(PADDING_HORIZONTAL)}
+                    >
+                        {body}
+                    </Frame>
+                </ListItem>
             </List>
         </Frame>
     }
@@ -305,12 +340,12 @@ fn RowEditField(edit: TreeRowEdit, sized: Memo<Metrics>) -> NodeId {
             content={move |handle: TextInputHandle| view! {
                 <Frame
                     height={height}
-                    fill=ColorRole::SurfaceRaised
+                    fill=ColorRole::Control
                     border={Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)}
                     radius=Radius::Sm
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-                        {handle.field} @sizing=ItemSize::Percent(100.0)
+                        <ListItem grow=1.0>{handle.field}</ListItem>
                     </List>
                 </Frame>
             }}

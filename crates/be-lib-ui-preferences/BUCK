@@ -1,0 +1,11 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+cargo_library(resources = glob(["wit/*.wit"]))
+
+cargo_test(resources = glob(["wit/*.wit"]))
+
+filegroup(
+    name = "wit",
+    srcs = glob(["wit/*.wit"]),
+    visibility = ["PUBLIC"],
+)

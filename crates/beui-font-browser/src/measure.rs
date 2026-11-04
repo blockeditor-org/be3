@@ -1,13 +1,14 @@
+use be_lib_stable_hash::HashMap;
 use std::cell::Cell;
-use std::collections::HashMap;
 use std::error::Error;
 use std::rc::Rc;
 
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
-use beui_core::font::{FontBackend, FontFamily, FontId, Galley, GalleyLine, Shaping};
-use beui_core::geometry::vec2;
+use beui_core::font::{FontBackend, Galley, GalleyLine, Shaping};
+use beui_types::vec2;
+use beui_types::{FontFamily, FontId};
 
 use crate::{ICONS, css_font};
 
@@ -88,8 +89,8 @@ impl Default for BrowserFonts {
             context,
             font: String::new(),
             generation: GENERATION.with(Cell::get),
-            segments: HashMap::new(),
-            metrics: HashMap::new(),
+            segments: HashMap::default(),
+            metrics: HashMap::default(),
         }
     }
 }

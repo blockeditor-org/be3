@@ -1,0 +1,196 @@
+use std::time::{Duration, Instant};
+
+use be_sdk_beui::beui::icons::Glyph;
+use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::beui::unstyled::{Progress as BareProgress, ProgressHandle};
+use be_sdk_beui::beui::{
+    LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Rect, TextAlign, vec2,
+};
+use beui::{Align, Direction};
+
+pub(crate) const OSD_DURATION: Duration = Duration::from_millis(1500);
+
+const FADE: Duration = Duration::from_millis(250);
+const SCREEN_HEIGHT_FRACTION: f32 = 0.85;
+const MARGIN: f32 = 48.0;
+const PADDING_HORIZONTAL: Space = Space::Xl2;
+const PADDING_VERTICAL: Space = Space::Xl;
+const SPACING: Space = Space::Xl;
+const BAR_WIDTH: Size = Size::Menu;
+const BAR_HEIGHT: Size = Size::Track;
+const SLIVER: f32 = 0.00001;
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct OsdLevel {
+    pub glyph: Glyph,
+    pub label: String,
+    pub level: Option<f32>,
+    pub muted: bool,
+}
+
+pub(crate) fn spans(level: f32) -> (f32, f32, f32) {
+    let level = level.max(0.0);
+    let scale = match level > 1.0 {
+        true => level.max(be_sdk_beui::MediaLevel::LOUDEST),
+        false => 1.0,
+    };
+    let full = level.min(1.0) / scale;
+    let louder = (level - 1.0).max(0.0) / scale;
+    (full, louder, (1.0 - full - louder).max(0.0))
+}
+
+#[component]
+pub(crate) fn LevelOsd(
+    level: Memo<Option<OsdLevel>>,
+    shown: ReadSignal<u64>,
+    area: Memo<Rect>,
+    id: String,
+) -> NodeId {
+    let since = StoredCell::new(None::<Instant>);
+    let opacity = create_signal(0.0_f32);
+    let step = move |at: Instant| {
+        let Some(started) = since.get() else {
+            return false;
+        };
+        let progress = tween(
+            at.saturating_duration_since(started)
+                .saturating_sub(OSD_DURATION)
+                .as_secs_f32(),
+            FADE.as_secs_f32(),
+            Easing::Linear,
+        );
+        opacity.set(1.0 - progress);
+        progress < 1.0
+    };
+    let fade = create_animation(
+        move |frame| step(frame.now),
+        move || {
+            since.set(None);
+            opacity.set(0.0);
+        },
+    );
+    let ticking = create_timer(move || {
+        fade.start();
+        if fade.running() && !step(now()) {
+            fade.finish();
+        }
+        None
+    });
+    create_effect(move || {
+        let shown = shown.get();
+        untrack(|| {
+            if shown == 0 {
+                return;
+            }
+            fade.stop();
+            since.set(Some(now()));
+            opacity.set(1.0);
+            ticking.restart(OSD_DURATION);
+        });
+    });
+    let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
+    // The margin goes on the anchor, not around the card: an overlay's whole content
+    // rect covers the program windows under it, so transparent padding would hide them.
+    let anchor = create_memo(move || {
+        let area = area.get();
+        let below = area.height() * (1.0 - SCREEN_HEIGHT_FRACTION);
+        OverlayAnchor::Rect(Rect::from_min_max(
+            area.min + vec2(MARGIN, MARGIN),
+            area.max - vec2(MARGIN, below),
+        ))
+    });
+    view! {
+        <Overlay
+            anchor={anchor}
+            placement=Placement::InsideBottom
+            policy=LayerPolicy::Inert
+            level=LayerLevel::Top
+            traps_focus=false
+            open={open}
+            content={move || { let id = id.clone(); view! {
+                <OsdCard level opacity={opacity.read_only()} id />
+            } }}
+        />
+    }
+}
+
+#[component]
+fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) -> NodeId {
+    let muted =
+        create_memo(move || level.with(|level| level.as_ref().is_some_and(|level| level.muted)));
+    let glyph_ink = create_memo(move || match muted.get() {
+        true => TextColor::Muted,
+        false => TextColor::Default,
+    });
+    let fill = create_memo(move || match muted.get() {
+        true => ColorRole::TextMuted,
+        false => ColorRole::Accent,
+    });
+    let glyph = create_memo(move || level.with(|level| level.as_ref().map(|level| level.glyph)));
+    let value =
+        create_memo(move || level.with(|level| level.as_ref().and_then(|level| level.level)));
+    let present = create_memo(move || value.get().is_some());
+    let absent = create_memo(move || !present.get());
+    let label = create_memo(move || {
+        level.with(|level| {
+            level
+                .as_ref()
+                .map(|level| level.label.clone())
+                .unwrap_or_default()
+        })
+    });
+    view! {
+        <Frame
+            opacity={opacity}
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+            padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+            @test_id={id}
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                <Text size=TextSize::Xl color={glyph_ink} align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
+                <Show condition={present}>
+                    <LevelBar value label fill />
+                </Show>
+                <Show condition={absent}>
+                    <Frame width=BAR_WIDTH>
+                        <Text color=TextColor::Muted>{label}</Text>
+                    </Frame>
+                </Show>
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn LevelBar(value: Memo<Option<f32>>, label: Memo<String>, fill: Memo<ColorRole>) -> NodeId {
+    let spans = create_memo(move || spans(value.get().unwrap_or_default()));
+    let share =
+        move |span: fn((f32, f32, f32)) -> f32| create_memo(move || span(spans.get()) + SLIVER);
+    let said = create_memo(move || {
+        let label = label.get();
+        match value.get() {
+            Some(level) if level > 1.0 => format!("{label} {}%", (level * 100.0).round()),
+            _ => label,
+        }
+    });
+    view! {
+        <BareProgress value={value} label={said}>|_handle: ProgressHandle|
+            <Frame width=BAR_WIDTH height=BAR_HEIGHT fill=ColorRole::Track radius=Radius::Full>
+                <List direction=Direction::Horizontal spacing=Space::None>
+                    <ListItem grow={share(|spans| spans.0)}>
+                        <Frame fill radius=Radius::Full />
+                    </ListItem>
+                    <ListItem grow={share(|spans| spans.1)}>
+                        <Frame fill=ColorRole::Warning radius=Radius::Full />
+                    </ListItem>
+                    <Spacer grow={share(|spans| spans.2)} />
+                </List>
+            </Frame>
+        </BareProgress>
+    }
+}

@@ -1,6 +1,6 @@
-use foldhash::{HashMap, HashSet};
-use reactive::Get;
-use reactive::Set;
+use be_lib_stable_hash::{HashMap, HashSet};
+use beui_reactive::Get;
+use beui_reactive::Set;
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
@@ -9,30 +9,36 @@ use std::time::Instant;
 use accesskit::Node;
 
 use crate::accessibility::{self, AccessibilityTree};
-use crate::child_list::{ChildHost, NodeChildren, SlotId};
+use crate::child_list::{ChildHost, NodeChildren};
 use crate::context::{Context, Moved};
-use crate::damage::{Damage, Region};
-use crate::file_picker::{FileFilter, FilePick, FilePickId};
-use crate::file_saver::{FileSave, FileSaveId, SavedFile};
+use crate::damage::Damage;
+use crate::file_picker::FilePickId;
+use crate::file_saver::FileSaveId;
 use crate::flash::FlashLog;
-use crate::font::{FontId, Galley, TextLayout};
-use crate::geometry::{Pos2, Rect, Vec2, pos2};
-use crate::input::{Key, KeyChord, Modifiers};
+use crate::font::Galley;
+use crate::window::Appearance;
 use crate::window::hosted::Painting;
-use crate::window::{Appearance, WindowId};
+use beui_tree::child_list::SlotId;
+use beui_types::WindowId;
+use beui_types::geometry::Region;
+use beui_types::{FileFilter, FilePick};
+use beui_types::{FileSave, SavedFile};
+use beui_types::{FontId, TextLayout};
+use beui_types::{Key, KeyChord, Modifiers};
+use beui_types::{Pos2, Rect, Vec2, pos2};
 
 use crate::display::Display;
 use crate::interact;
 use crate::layout;
-use crate::node::{
-    ANCESTOR_LIMIT, Arena, Element, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId,
-};
+use crate::node::{ANCESTOR_LIMIT, Arena, Element, NodeMap, NodeOf, Placed, Rects, SpaceId};
 use crate::paint::{self, PaintCache, verify};
 use crate::painter::{Painter, PainterState, Zoom};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
-use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
 use crate::sight::Sight;
+use beui_types::NodeId;
+use beui_types::PixelGrid;
+use beui_types::layout::Direction;
 
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
 type SavedCallback = Box<dyn FnOnce(FileSave)>;
@@ -64,7 +70,7 @@ pub struct Document {
     pub(crate) focus_before: Option<NodeId>,
     pub composed: String,
     pub(crate) keyboard_held: bool,
-    touched: ::reactive::OwnedSignal<bool>,
+    touched: ::beui_reactive::OwnedSignal<bool>,
     pub(crate) finger_pressed: bool,
     pub(crate) keyboard_asks: u32,
     pub activated: Option<NodeId>,
@@ -74,10 +80,12 @@ pub struct Document {
     keyboard_host: Option<Box<dyn crate::software_keyboard::KeyboardHost>>,
     inspector_requested: bool,
     screen_pointer: Option<Pos2>,
-    pub last_pointer: Option<crate::input::PointerSample>,
+    pub last_pointer: Option<beui_types::PointerSample>,
+    work_areas: HashMap<WindowId, Rect>,
     pub acted: Acted,
     placement: Option<(Rect, Option<Placement>)>,
-    pub portal_holders: foldhash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
+    pub portal_holders:
+        be_lib_stable_hash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub(crate) layer_state: crate::layer::OpenLayers,
     pub(crate) focus_scopes: crate::focus_scope::FocusScopes,
     pub(crate) focus_dirty: bool,
@@ -86,12 +94,12 @@ pub struct Document {
     pub(crate) back_handlers: crate::back::BackHandlers,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
     timers: Rc<RefCell<crate::timer::Timers>>,
-    scale: ::reactive::OwnedSignal<f32>,
-    attached: ::reactive::OwnedSignal<u64>,
-    focus_visible: ::reactive::OwnedSignal<bool>,
-    focus_watched: ::reactive::OwnedSignal<Option<NodeId>>,
-    fullscreen: ::reactive::OwnedSignal<bool>,
-    viewport_size: ::reactive::OwnedSignal<Vec2>,
+    scale: ::beui_reactive::OwnedSignal<f32>,
+    attached: ::beui_reactive::OwnedSignal<u64>,
+    focus_visible: ::beui_reactive::OwnedSignal<bool>,
+    focus_watched: ::beui_reactive::OwnedSignal<Option<NodeId>>,
+    fullscreen: ::beui_reactive::OwnedSignal<bool>,
+    viewport_size: ::beui_reactive::OwnedSignal<Vec2>,
     reattached: Cell<bool>,
     pub(crate) pointer_lockers: RefCell<Vec<NodeOf<crate::base::interactive::InteractiveNode>>>,
     pub(crate) pointer_locked: Cell<bool>,
@@ -99,18 +107,20 @@ pub struct Document {
     pub keys: crate::keys::KeyListeners,
     actions_hooks: RefCell<Vec<Weak<ActionsHook>>>,
     pub(crate) tapping: Option<Key>,
-    keyboard: ::reactive::OwnedSignal<bool>,
+    keyboard: ::beui_reactive::OwnedSignal<bool>,
     input_frames: u64,
-    modifiers: ::reactive::OwnedSignal<Modifiers>,
-    intercepted_keys: ::reactive::OwnedSignal<Vec<KeyChord>>,
+    modifiers: ::beui_reactive::OwnedSignal<Modifiers>,
+    intercepted_keys: ::beui_reactive::OwnedSignal<Vec<KeyChord>>,
     pub(crate) press_claimants: HashSet<NodeId>,
     raised: HashSet<NodeId>,
     pub(crate) drawing_surfaces: HashSet<NodeId>,
     pub(crate) every_sample_surfaces: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
+    pub(crate) clear_of: HashMap<NodeId, Vec<Rect>>,
+    pub(crate) above_embeds: HashMap<NodeId, beui_types::AboveEmbeds>,
     pub forward: crate::interact::forward::Routing,
     pub pointers: crate::interact::pointer::Pointers,
-    pub drags: Rc<crate::drag_board::Board>,
+    pub drags: Option<Rc<dyn beui_types::drag::Driver>>,
     paste_requested: bool,
     unsent_file_picks: Vec<(FileFilter, PickedCallback)>,
     waiting_file_picks: Vec<(FilePickId, PickedCallback)>,
@@ -120,14 +130,17 @@ pub struct Document {
     node_test_ids: HashMap<NodeId, Vec<String>>,
     layout_revision: u64,
     paint_revision: u64,
+    painted_scrims: Option<bool>,
     reports: Vec<Box<dyn FnOnce()>>,
     invalidated: Vec<NodeId>,
     interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
+    laid_out_again: bool,
     measurements: NodeMap<Vec<Measurement>>,
     offer_dependent: bool,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
     min_widths: NodeMap<f32>,
+    least_lengths: NodeMap<Vec<(Direction, f32, f32)>>,
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
     placing: Vec<NodeId>,
@@ -139,9 +152,9 @@ pub struct Document {
     layout_frame: u64,
     focus_line: FocusLine,
     anchor_shift: f32,
-    pinned_to_end: Option<crate::base::list::Direction>,
+    pinned_to_end: Option<beui_types::Direction>,
     pub(crate) reveals: NodeMap<NodeId>,
-    viewport: Option<(Context, Rect, f32)>,
+    pub(crate) viewport: Option<(Context, Rect, f32)>,
     pub(crate) hidden: bool,
     pub(crate) embeds: Vec<std::rc::Weak<crate::base::embed::EmbedState>>,
     fonts_generation: u64,
@@ -153,17 +166,18 @@ pub struct Document {
     pub copied_image: Option<Vec<u8>>,
     next_paint: Option<Instant>,
     now: Instant,
-    reactive_scope: ::reactive::Scope,
+    reactive_scope: ::beui_reactive::Scope,
     zone: u64,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
-    measured: NodeMap<::reactive::OwnedSignal<Option<beui_types::Measured>>>,
-    measured_text: NodeMap<::reactive::OwnedSignal<Option<crate::base::text::TextGeometry>>>,
+    measured: NodeMap<::beui_reactive::OwnedSignal<Option<beui_types::Measured>>>,
+    measured_text: NodeMap<::beui_reactive::OwnedSignal<Option<crate::base::text::TextGeometry>>>,
     measure_pending: bool,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     component_names: HashMap<NodeId, ComponentNames>,
     pub accessibility_id: u32,
     pub accessibility: NodeMap<Node>,
+    accessibility_ranks: NodeMap<u64>,
     pub accessibility_tree: RefCell<AccessibilityTree>,
     performance: PerformanceTracker,
     pub work: WorkCounters,
@@ -171,14 +185,15 @@ pub struct Document {
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
     painters: NodeMap<Placing>,
-    motion: ::reactive::OwnedSignal<crate::animation::Motion>,
-    theme: ::reactive::OwnedSignal<crate::preferences::ThemeKind>,
-    colors: std::rc::Rc<crate::color::ColorDefinitions>,
-    canvas_touch: ::reactive::OwnedSignal<crate::preferences::CanvasTouch>,
-    preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
+    motion: ::beui_reactive::OwnedSignal<beui_types::Motion>,
+    theme: ::beui_reactive::OwnedSignal<beui_types::ThemeKind>,
+    colors: std::rc::Rc<beui_types::ColorDefinitions>,
+    canvas_touch: ::beui_reactive::OwnedSignal<beui_types::CanvasTouch>,
+    preference_layers: ::beui_reactive::OwnedSignal<beui_types::PreferenceLayers>,
     out_of_bounds: Option<Vec<(WindowId, String)>>,
     animations: Rc<Cell<usize>>,
     pub(crate) windows: crate::window::hosted::Windows,
+    pub(crate) escapes: crate::escape::Escapes,
 }
 
 #[derive(Clone, Copy)]
@@ -229,6 +244,8 @@ fn axis_still_fits(offered: f32, size: f32, available: f32) -> bool {
 pub struct WorkCounters {
     measured: Cell<usize>,
     reused_measurements: Cell<usize>,
+    least_lengths: Cell<usize>,
+    reused_least_lengths: Cell<usize>,
     placed: Cell<usize>,
     reused_placements: Cell<usize>,
     painted_nodes: Cell<usize>,
@@ -241,6 +258,8 @@ impl WorkCounters {
     fn reset(&self) {
         self.measured.set(0);
         self.reused_measurements.set(0);
+        self.least_lengths.set(0);
+        self.reused_least_lengths.set(0);
         self.placed.set(0);
         self.reused_placements.set(0);
         self.painted_nodes.set(0);
@@ -258,6 +277,8 @@ impl WorkCounters {
         FrameWork {
             measured: self.measured.get(),
             reused_measurements: self.reused_measurements.get(),
+            least_lengths: self.least_lengths.get(),
+            reused_least_lengths: self.reused_least_lengths.get(),
             placed: self.placed.get(),
             reused_placements: self.reused_placements.get(),
             painted_nodes: self.painted_nodes.get(),
@@ -294,23 +315,22 @@ impl Document {
             focus_before: None,
             composed: String::new(),
             keyboard_held: false,
-            touched: ::reactive::OwnedSignal::new(false),
+            touched: ::beui_reactive::OwnedSignal::new(false),
             finger_pressed: false,
             keyboard_asks: 0,
             activated: None,
             activation_key: None,
-            drags: Rc::new(crate::drag_board::Board::new(
-                crate::drag_board::Painted::new(Rc::clone(&rects)),
-            )),
+            drags: None,
             rects,
             tools: None,
             keyboard_host: None,
             inspector_requested: false,
             screen_pointer: None,
             last_pointer: None,
+            work_areas: HashMap::default(),
             acted: Acted::Nothing,
             placement: None,
-            portal_holders: foldhash::HashMap::default(),
+            portal_holders: be_lib_stable_hash::HashMap::default(),
             layer_state: Default::default(),
             focus_scopes: Default::default(),
             focus_dirty: false,
@@ -319,12 +339,12 @@ impl Document {
             back_handlers: crate::back::BackHandlers::default(),
             back_gesture: None,
             timers: Rc::default(),
-            scale: ::reactive::OwnedSignal::new(1.0),
-            attached: ::reactive::OwnedSignal::new(0),
-            focus_visible: ::reactive::OwnedSignal::new(false),
-            focus_watched: ::reactive::OwnedSignal::new(None),
-            fullscreen: ::reactive::OwnedSignal::new(false),
-            viewport_size: ::reactive::OwnedSignal::new(Vec2::ZERO),
+            scale: ::beui_reactive::OwnedSignal::new(1.0),
+            attached: ::beui_reactive::OwnedSignal::new(0),
+            focus_visible: ::beui_reactive::OwnedSignal::new(false),
+            focus_watched: ::beui_reactive::OwnedSignal::new(None),
+            fullscreen: ::beui_reactive::OwnedSignal::new(false),
+            viewport_size: ::beui_reactive::OwnedSignal::new(Vec2::ZERO),
             reattached: Cell::new(false),
             pointer_lockers: RefCell::default(),
             pointer_locked: Cell::new(false),
@@ -332,15 +352,17 @@ impl Document {
             keys: Default::default(),
             actions_hooks: RefCell::new(Vec::new()),
             tapping: None,
-            keyboard: ::reactive::OwnedSignal::new(true),
+            keyboard: ::beui_reactive::OwnedSignal::new(true),
             input_frames: 0,
-            modifiers: ::reactive::OwnedSignal::new(Modifiers::NONE),
-            intercepted_keys: ::reactive::OwnedSignal::new(Vec::new()),
+            modifiers: ::beui_reactive::OwnedSignal::new(Modifiers::NONE),
+            intercepted_keys: ::beui_reactive::OwnedSignal::new(Vec::new()),
             press_claimants: HashSet::default(),
             raised: HashSet::default(),
             drawing_surfaces: HashSet::default(),
             every_sample_surfaces: HashSet::default(),
             outside_watchers: HashSet::default(),
+            clear_of: HashMap::default(),
+            above_embeds: HashMap::default(),
             forward: Default::default(),
             pointers: Default::default(),
             paste_requested: false,
@@ -352,14 +374,17 @@ impl Document {
             node_test_ids: HashMap::default(),
             layout_revision: 0,
             paint_revision: 0,
+            painted_scrims: None,
             reports: Vec::new(),
             invalidated: Vec::new(),
             interaction_done: None,
             laid_out: None,
+            laid_out_again: false,
             measurements: NodeMap::default(),
             offer_dependent: false,
             baselines: NodeMap::default(),
             min_widths: NodeMap::default(),
+            least_lengths: NodeMap::default(),
             layout_parent: None,
             placed_children: NodeMap::default(),
             placing: Vec::new(),
@@ -384,8 +409,8 @@ impl Document {
             copied_text: None,
             copied_image: None,
             next_paint: None,
-            now: Instant::now(),
-            reactive_scope: ::reactive::Scope::new(),
+            now: crate::timer::frame_clock(),
+            reactive_scope: ::beui_reactive::Scope::new(),
             zone,
             extensions: HashMap::default(),
             node_refs: HashMap::default(),
@@ -396,6 +421,7 @@ impl Document {
             component_names: HashMap::default(),
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
+            accessibility_ranks: NodeMap::default(),
             accessibility_tree: RefCell::default(),
             performance: PerformanceTracker::default(),
             work: WorkCounters::default(),
@@ -403,14 +429,15 @@ impl Document {
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
             painters: NodeMap::default(),
-            motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
-            theme: ::reactive::OwnedSignal::new(crate::preferences::ThemeKind::default()),
+            motion: ::beui_reactive::OwnedSignal::new(beui_types::Motion::default()),
+            theme: ::beui_reactive::OwnedSignal::new(beui_types::ThemeKind::default()),
             colors: std::rc::Rc::default(),
-            canvas_touch: ::reactive::OwnedSignal::new(Default::default()),
-            preference_layers: ::reactive::OwnedSignal::new(Default::default()),
+            canvas_touch: ::beui_reactive::OwnedSignal::new(Default::default()),
+            preference_layers: ::beui_reactive::OwnedSignal::new(Default::default()),
             out_of_bounds: None,
             animations: Rc::default(),
             windows: Default::default(),
+            escapes: Default::default(),
         }
     }
 
@@ -456,7 +483,7 @@ impl Document {
         }
     }
 
-    pub fn reactive_scope(&self) -> &::reactive::Scope {
+    pub fn reactive_scope(&self) -> &::beui_reactive::Scope {
         &self.reactive_scope
     }
 
@@ -465,9 +492,13 @@ impl Document {
     }
 
     pub fn dispose(&mut self) {
-        let scope = std::mem::replace(&mut self.reactive_scope, ::reactive::Scope::detached());
+        let scope = std::mem::replace(&mut self.reactive_scope, ::beui_reactive::Scope::detached());
         crate::current::with_reactive_scope(self, || scope.dispose());
-        ::reactive::forget_zone(self.zone);
+        ::beui_reactive::forget_zone(self.zone);
+    }
+
+    pub fn dragging(&self) -> bool {
+        self.drags.as_ref().is_some_and(|drags| drags.carrying())
     }
 
     pub fn extension<T: Clone + 'static>(&self) -> Option<T> {
@@ -504,23 +535,23 @@ impl Document {
         Rc::clone(&self.timers)
     }
 
-    pub fn watch_context(&self) -> ::reactive::ReadSignal<u64> {
+    pub fn watch_context(&self) -> ::beui_reactive::ReadSignal<u64> {
         self.attached.read_only()
     }
 
-    pub fn watch_pixels_per_point(&self) -> ::reactive::ReadSignal<f32> {
+    pub fn watch_pixels_per_point(&self) -> ::beui_reactive::ReadSignal<f32> {
         self.scale.read_only()
     }
 
-    pub fn watch_viewport_size(&self) -> ::reactive::ReadSignal<Vec2> {
+    pub fn watch_viewport_size(&self) -> ::beui_reactive::ReadSignal<Vec2> {
         self.viewport_size.read_only()
     }
 
-    pub fn watch_fullscreen(&self) -> ::reactive::ReadSignal<bool> {
+    pub fn watch_fullscreen(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.fullscreen.read_only()
     }
 
-    pub fn watch_focused(&self) -> ::reactive::ReadSignal<Option<NodeId>> {
+    pub fn watch_focused(&self) -> ::beui_reactive::ReadSignal<Option<NodeId>> {
         self.focus_watched.read_only()
     }
 
@@ -535,7 +566,7 @@ impl Document {
         }
     }
 
-    pub fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {
+    pub fn watch_focus_visible(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.focus_visible.read_only()
     }
 
@@ -547,7 +578,7 @@ impl Document {
         self.keyboard.get_untracked()
     }
 
-    pub fn watch_keyboard(&self) -> ::reactive::ReadSignal<bool> {
+    pub fn watch_keyboard(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.keyboard.read_only()
     }
 
@@ -612,10 +643,10 @@ impl Document {
 
     pub fn listen_keys(
         &self,
-        at: crate::keys::KeyAt,
-        phase: crate::keys::KeyPhase,
+        at: beui_types::KeyAt,
+        phase: beui_types::KeyPhase,
         reveal: bool,
-        handler: Weak<crate::keys::KeyHandler>,
+        handler: Weak<beui_types::keys::KeyHandler>,
         window: Option<WindowId>,
     ) {
         self.keys.listen(at, phase, reveal, handler, window);
@@ -629,11 +660,11 @@ impl Document {
         self.input_frames += 1;
     }
 
-    pub fn watch_modifiers(&self) -> ::reactive::ReadSignal<Modifiers> {
+    pub fn watch_modifiers(&self) -> ::beui_reactive::ReadSignal<Modifiers> {
         self.modifiers.read_only()
     }
 
-    pub fn intercepted_keys_writer(&self) -> ::reactive::Signal<Vec<KeyChord>> {
+    pub fn intercepted_keys_writer(&self) -> ::beui_reactive::Signal<Vec<KeyChord>> {
         self.intercepted_keys.handle()
     }
 
@@ -849,7 +880,7 @@ impl Document {
         self.changes.set_enabled(enabled);
     }
 
-    pub fn motion(&self) -> crate::animation::Motion {
+    pub fn motion(&self) -> beui_types::Motion {
         self.motion.get_untracked()
     }
 
@@ -857,35 +888,35 @@ impl Document {
         Rc::clone(&self.animations)
     }
 
-    pub fn watch_motion(&self) -> ::reactive::ReadSignal<crate::animation::Motion> {
+    pub fn watch_motion(&self) -> ::beui_reactive::ReadSignal<beui_types::Motion> {
         self.motion.read_only()
     }
 
-    pub fn preferences(&self) -> crate::preferences::Preferences {
-        crate::preferences::Preferences {
+    pub fn preferences(&self) -> beui_types::Preferences {
+        beui_types::Preferences {
             theme: self.theme.get_untracked(),
             motion: self.motion.get_untracked(),
             canvas_touch: self.canvas_touch.get_untracked(),
         }
     }
 
-    pub fn watch_canvas_touch(&self) -> ::reactive::ReadSignal<crate::preferences::CanvasTouch> {
+    pub fn watch_canvas_touch(&self) -> ::beui_reactive::ReadSignal<beui_types::CanvasTouch> {
         self.canvas_touch.read_only()
     }
 
-    pub fn color_scheme(&self) -> crate::color::ColorScheme {
+    pub fn color_scheme(&self) -> beui_types::ColorScheme {
         self.theme.get_untracked().into()
     }
 
-    pub fn resolve_color(&self, color: crate::color::Color) -> crate::color::Color32 {
+    pub fn resolve_color(&self, color: beui_types::Color) -> beui_types::Color32 {
         color.resolve_in(&self.colors, self.color_scheme())
     }
 
-    pub fn color_definitions(&self) -> std::rc::Rc<crate::color::ColorDefinitions> {
+    pub fn color_definitions(&self) -> std::rc::Rc<beui_types::ColorDefinitions> {
         self.colors.clone()
     }
 
-    pub fn set_color_definitions(&mut self, colors: crate::color::ColorDefinitions) {
+    pub fn set_color_definitions(&mut self, colors: beui_types::ColorDefinitions) {
         if *self.colors == colors {
             return;
         }
@@ -899,17 +930,17 @@ impl Document {
         }
     }
 
-    pub fn watch_theme(&self) -> ::reactive::ReadSignal<crate::preferences::ThemeKind> {
+    pub fn watch_theme(&self) -> ::beui_reactive::ReadSignal<beui_types::ThemeKind> {
         self.theme.read_only()
     }
 
     pub fn watch_preference_layers(
         &self,
-    ) -> ::reactive::ReadSignal<crate::preferences::PreferenceLayers> {
+    ) -> ::beui_reactive::ReadSignal<beui_types::PreferenceLayers> {
         self.preference_layers.read_only()
     }
 
-    fn follow_preferences(&mut self, layers: crate::preferences::PreferenceLayers) {
+    fn follow_preferences(&mut self, layers: beui_types::PreferenceLayers) {
         if self.preference_layers.get_untracked() == layers {
             return;
         }
@@ -921,8 +952,8 @@ impl Document {
                 document.motion.set(preferences.motion);
             }
             if document.theme.get_untracked() != preferences.theme {
-                if crate::color::ColorScheme::from(document.theme.get_untracked())
-                    != crate::color::ColorScheme::from(preferences.theme)
+                if beui_types::color::ColorScheme::from(document.theme.get_untracked())
+                    != beui_types::color::ColorScheme::from(preferences.theme)
                 {
                     document.arena.invalidate();
                 }
@@ -950,7 +981,15 @@ impl Document {
         !self.changes.is_empty() || !self.damage_flashes.is_empty()
     }
 
-    pub fn set_accessibility(&mut self, id: NodeId, node: Node) {
+    pub fn set_accessibility(&mut self, id: NodeId, node: Node, rank: u64) {
+        if self
+            .accessibility_ranks
+            .get(&id)
+            .is_some_and(|held| *held > rank)
+        {
+            return;
+        }
+        self.accessibility_ranks.insert(id, rank);
         if self.accessibility.get(&id) != Some(&node) {
             self.accessibility.insert(id, node);
             self.arena.touch(id);
@@ -1096,16 +1135,17 @@ impl Document {
         let rects = Rc::clone(&self.rects);
         self.drop_placement(id, &rects, &mut dropped);
         let returning = self.returns_on_removal(id);
-        if self
-            .focused
-            .is_some_and(|focused| self.is_within(focused, id))
-        {
+        let unfocused = self.focused.filter(|focused| self.is_within(*focused, id));
+        if unfocused.is_some() {
             self.set_focused(None);
         }
         let mut removed = Vec::new();
         self.detach_subtree(id, &mut removed);
         for node in dropped {
             self.release_placement(node);
+        }
+        if let Some(survivor) = unfocused.filter(|node| self.arena.contains(*node)) {
+            self.set_focusable_focused(survivor, false);
         }
         if let Some(returning) = returning {
             self.return_removed_focus(returning);
@@ -1148,6 +1188,7 @@ impl Document {
         self.measurements.remove(&id);
         self.baselines.remove(&id);
         self.min_widths.remove(&id);
+        self.least_lengths.remove(&id);
         self.component_states.remove(&id);
         self.component_names.remove(&id);
         self.placed_children.remove(&id);
@@ -1160,6 +1201,7 @@ impl Document {
         self.reached_pass.remove(&id);
         self.reveals.remove(&id);
         self.accessibility.remove(&id);
+        self.accessibility_ranks.remove(&id);
         self.accessibility_tree.get_mut().forget(id, &self.arena);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             self.drop_test_id(id, &test_id);
@@ -1212,12 +1254,18 @@ impl Document {
         ctx.show_mouse_simulation(rect);
     }
 
+    /// Runs once the frame's input has been dispatched and before anything is laid
+    /// out, to start work that input caused while the document lays out.
     pub fn on_interacted(&mut self, interacted: impl Fn() + 'static) {
         self.interaction_done = Some(Rc::new(interacted));
     }
 
     pub fn on_laid_out(&mut self, laid_out: impl Fn() + 'static) {
         self.laid_out = Some(Rc::new(laid_out));
+    }
+
+    pub fn run_laid_out_again(&mut self) {
+        self.laid_out_again = true;
     }
 
     pub fn set_keyboard_host(&mut self, host: Box<dyn crate::software_keyboard::KeyboardHost>) {
@@ -1356,11 +1404,13 @@ impl Document {
                 .as_ref()
                 .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx))
             {
-                ::reactive::wake_zone_with(self.zone, ctx.zone_waker(self.zone));
+                ::beui_reactive::wake_zone_with(self.zone, ctx.zone_waker(self.zone));
             }
             self.viewport = Some((ctx.clone(), rect, scale));
         }
         self.follow_windows(ctx);
+        self.follow_layer_spaces(ctx);
+        self.begin_escapes();
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             let actions = ctx.take_accessibility_actions(self.accessibility_id);
             if !actions.is_empty() {
@@ -1389,6 +1439,7 @@ impl Document {
         if let Some(interacted) = self.interaction_done.clone() {
             crate::current::enter(self, || interacted());
         }
+        self.dismiss_layers(ctx);
         if self.handles_back() {
             ctx.handle_back();
         }
@@ -1397,7 +1448,7 @@ impl Document {
             .focused
             .and_then(|focused| self.layer_of(&layers, focused))
             .is_some_and(|layer| {
-                layer > 0 && layers[layer].policy != crate::layer::LayerPolicy::Pass
+                layer > 0 && layers[layer].policy != beui_types::layer::LayerPolicy::Pass
             });
         if layers.takes_keyboard() || focused_modal {
             ctx.want_keyboard();
@@ -1425,15 +1476,23 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
                 self.update_layout(ctx, rect)
             });
+        self.sync_escapes();
+        crate::current::run_in(self, Document::refresh_inert_embeds);
         self.ask_for_windows(ctx);
-        ctx.set_keyboard_window(
-            self.focused
-                .map_or(WindowId::MAIN, |focused| self.window_of(focused)),
-        );
+        let layers = self.layers();
+        let keyboard_window = match self.focused {
+            Some(focused) => self.window_of(focused),
+            None if layers.takes_keyboard() => layers[layers.keyboard()].window,
+            None => WindowId::MAIN,
+        };
+        ctx.set_keyboard_window(keyboard_window);
         if self.has_keyboard()
             && let Some(area) = self.focused_ime_area()
         {
             ctx.set_ime_area(Some(area));
+        }
+        for window in self.every_sample_windows() {
+            ctx.want_every_sample(window);
         }
         let now = self.now;
         self.changes.prune(now);
@@ -1454,11 +1513,18 @@ impl Document {
         self.arena.recycle(released);
         let mut window_damage = None;
         let mut window_moves = Vec::new();
-        if !repaints.is_empty() || self.paint_revision != self.arena.revision {
+        let scrims = !ctx.hosts_scrims();
+        let rescrimmed = self.painted_scrims.replace(scrims) != Some(scrims);
+        if !repaints.is_empty() || self.paint_revision != self.arena.revision || rescrimmed {
             measurement.painted = true;
             let verifying = verifying_paint();
-            let previous =
-                verifying.then(|| (self.painting.clone(), self.windows.paintings.clone()));
+            let previous = verifying.then(|| {
+                (
+                    self.painting.clone(),
+                    self.windows.paintings.clone(),
+                    self.escapes.paintings.clone(),
+                )
+            });
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
             let cache = self.paint_cache.get_mut();
@@ -1472,6 +1538,14 @@ impl Document {
                 false => self.settle_moves(WindowId::MAIN, &moves, &stale, region, rect),
             };
             if !everything {
+                let escaped = stale
+                    .iter()
+                    .map(|stale| (stale.window, stale.rect))
+                    .chain(moves.iter().map(|moved| (moved.window, moved.viewport)))
+                    .filter(|(window, _)| self.escapes.paints_into(*window));
+                for (window, rect) in escaped {
+                    taken.add(window, rect);
+                }
                 for window in self.open_windows() {
                     let Some(viewport) = self.window_rect(window) else {
                         continue;
@@ -1485,7 +1559,7 @@ impl Document {
                     }
                 }
             }
-            if let Some((painting, windows)) = previous {
+            if let Some((painting, windows, escaped)) = previous {
                 let mut checks = vec![verify::Check {
                     window: WindowId::MAIN,
                     viewport: rect,
@@ -1493,7 +1567,11 @@ impl Document {
                     region,
                     moved,
                 }];
+                let open = self.open_windows();
                 for (window, painting) in windows {
+                    if !open.contains(&window) {
+                        continue;
+                    }
                     let Some(viewport) = self.window_rect(window) else {
                         continue;
                     };
@@ -1507,6 +1585,17 @@ impl Document {
                             .find(|(held, _)| *held == window)
                             .map(|(_, moved)| *moved),
                     });
+                }
+                for (window, painting) in escaped {
+                    if self.escapes.paints_into(window) {
+                        checks.push(verify::Check {
+                            window,
+                            viewport: Rect::EVERYTHING,
+                            previous: painting,
+                            region: taken.of(window, Rect::EVERYTHING),
+                            moved: None,
+                        });
+                    }
                 }
                 self.verify_paint(ctx, &checks, everything);
             }
@@ -1532,7 +1621,14 @@ impl Document {
         }
         ctx.show_painting(&self.painting, rect);
         self.show_windows(ctx, window_damage.as_ref(), &window_moves);
-        if ctx.automated() {
+        self.publish_escapes(ctx, &|paint| {
+            window_damage.as_ref().is_some_and(|taken| {
+                taken.is_everything() || !taken.of(paint, Rect::EVERYTHING).is_empty()
+            })
+        });
+        if !ctx.wants_overflows() {
+            self.out_of_bounds = None;
+        } else {
             if measurement.painted || measurement.layout_passes > 0 || self.out_of_bounds.is_none()
             {
                 let found = self
@@ -1545,6 +1641,7 @@ impl Document {
             ctx.report_overflows(self.out_of_bounds.as_deref().unwrap_or_default());
         }
         self.send_file_dialogs(ctx);
+        let regrouped = self.escapes.take_regrouped();
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {
                 let mut tree = self.accessibility_tree.borrow_mut();
@@ -1554,7 +1651,7 @@ impl Document {
                 }
                 return;
             }
-            let full = !ctx.accessibility_known(self.accessibility_id);
+            let full = !ctx.accessibility_known(self.accessibility_id) || regrouped;
             if let Some(fragment) = self.accessibility_update(full) {
                 ctx.publish_accessibility(self.accessibility_id, fragment);
             }
@@ -1590,15 +1687,39 @@ impl Document {
             if !shown {
                 continue;
             }
-            let scrim = self.overlay_scrim(overlay);
+            let scrim = (!ctx.hosts_scrims()).then(|| self.overlay_scrim(overlay));
             let content = self.overlay_content(overlay);
             let beak = self.overlay_beak(overlay);
             let painter = ctx.window_painter(layer.window);
-            self.paint_cache.get_mut().paint_into(layer.window);
-            for root in [Some(scrim), content, beak].into_iter().flatten() {
+            let into = match layer.escapes {
+                true => self.escapes.paint_window(overlay).unwrap_or(layer.window),
+                false => layer.window,
+            };
+            self.paint_cache.get_mut().paint_into(into);
+            let zoomed = layer
+                .escapes
+                .then(|| {
+                    self.arena
+                        .get_as::<crate::base::overlay::OverlayNode>(overlay)
+                        .escape_zoom()
+                })
+                .flatten()
+                .map(|(by, zoom)| {
+                    painter.zoomed(
+                        crate::node::SpaceId::inside(overlay.id(), 1),
+                        by,
+                        zoom,
+                        Rect::EVERYTHING,
+                    )
+                });
+            for root in [scrim, content, beak].into_iter().flatten() {
                 if self.rects.contains_key(&root) {
-                    paint::paint(self, &painter, &self.rects, root);
-                    roots.push((layer.window, root));
+                    let painter = match (&zoomed, Some(root) == scrim) {
+                        (Some(zoomed), false) => zoomed,
+                        _ => &painter,
+                    };
+                    paint::paint(self, painter, &self.rects, root);
+                    roots.push((into, root));
                 }
             }
         }
@@ -1607,20 +1728,26 @@ impl Document {
         if cache.take_recorded() {
             let mut main = Vec::new();
             let mut windows: Vec<(WindowId, Painting)> = Vec::new();
+            let mut escaped: Vec<(WindowId, Painting)> = Vec::new();
             for (window, root) in &roots {
                 let Some(painted) = cache.painting_of(*root) else {
                     continue;
                 };
+                let into = match self.escapes.paints_into(*window) {
+                    true => &mut escaped,
+                    false => &mut windows,
+                };
                 match window.is_main() {
                     true => main.push(painted),
-                    false => match windows.iter_mut().find(|(id, _)| id == window) {
+                    false => match into.iter_mut().find(|(id, _)| id == window) {
                         Some((_, painting)) => painting.push(painted),
-                        None => windows.push((*window, vec![painted])),
+                        None => into.push((*window, vec![painted])),
                     },
                 }
             }
             self.painting = main;
             self.windows.paintings = windows;
+            self.escapes.paintings = escaped;
         }
         self.damage.add_regions(cache.take_damage());
     }
@@ -1721,10 +1848,12 @@ impl Document {
         let retained = self.paint_cache.replace(PaintCache::default());
         let painting = std::mem::take(&mut self.painting);
         let windows = std::mem::take(&mut self.windows.paintings);
+        let escaped = std::mem::take(&mut self.escapes.paintings);
         let damage = std::mem::take(&mut self.damage);
         ctx.verifying_paint(true);
         self.paint(ctx);
         ctx.verifying_paint(false);
+        let fresh_escaped = std::mem::replace(&mut self.escapes.paintings, escaped);
         let fresh_main = std::mem::replace(&mut self.painting, painting);
         let fresh_windows = std::mem::replace(&mut self.windows.paintings, windows);
         self.paint_cache.replace(retained);
@@ -1741,6 +1870,10 @@ impl Document {
         for check in checks {
             let (fresh, retained) = match check.window.is_main() {
                 true => (fresh_main.clone(), self.painting.clone()),
+                false if self.escapes.paints_into(check.window) => (
+                    of(&fresh_escaped, check.window),
+                    of(&self.escapes.paintings, check.window),
+                ),
                 false => (
                     of(&fresh_windows, check.window),
                     of(&self.windows.paintings, check.window),
@@ -1785,6 +1918,14 @@ impl Document {
         let old = verify::Seen::of(previous, moved.map(|moved| moved.from));
         let new = verify::Seen::of(retained, moved.map(|moved| moved.to()));
         let changes = verify::changes(&old, &new, moved);
+        if self.escapes.paints_into(window) {
+            assert!(
+                everything || changes.needed.is_empty() || !region.is_empty(),
+                "the painting of the escaped layer {window:?} changed with nothing damaged, so its host keeps showing the old one: {:?}",
+                changes.needed,
+            );
+            return;
+        }
         if !everything && moved.is_none() && detecting_over_repaint() {
             let area = |region: &Region| {
                 region
@@ -1881,10 +2022,19 @@ impl Document {
         !self.raised.is_empty() && self.raised.contains(&node)
     }
 
+    /// Runs `report` after the layout walk. Reports run together, and whatever they
+    /// change is laid out again (only the changed nodes and their ancestors) until
+    /// nothing changes, at most eight layouts a frame. Prefer reporting what drives
+    /// paint rather than layout: each extra layout costs the frame.
     pub fn report_after_layout(&mut self, report: impl FnOnce() + 'static) {
         self.reports.push(Box::new(report));
     }
 
+    /// Builds `node`'s own subtree while it is being laid out: lends this
+    /// `&mut Document` to `with_document` calls inside `build`, and keeps what the
+    /// build invalidates from marking `node` or its ancestors, which are mid-layout.
+    /// Flush the build with `ScopeContext::flush_owned`; writes to signals outside the
+    /// subtree wake their effects once the walk ends.
     pub fn build_within<R>(&mut self, node: NodeId, build: impl FnOnce() -> R) -> R {
         let outer = self.arena.fence(Some(node));
         let built = crate::current::lend(self, build);
@@ -1892,6 +2042,9 @@ impl Document {
         built
     }
 
+    /// For a node whose own size changed while it was laid out (a `VirtualList` whose
+    /// rows measured differently): it is measured again in the next layout of this
+    /// frame.
     pub fn invalidate_after_layout(&mut self, id: NodeId) {
         self.invalidated.push(id);
     }
@@ -1905,6 +2058,7 @@ impl Document {
             self.measurements.remove(&id);
             self.baselines.remove(&id);
             self.min_widths.remove(&id);
+            self.least_lengths.remove(&id);
             return None;
         }
         let held = self.measurements.get(&id)?;
@@ -2000,6 +2154,51 @@ impl Document {
             return;
         }
         self.min_widths.insert(id, width);
+    }
+
+    pub fn measured_least_length(
+        &self,
+        id: NodeId,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        if self.arena.stale(id) {
+            return None;
+        }
+        self.least_lengths
+            .get(&id)?
+            .iter()
+            .find(|(held, offered, _)| *held == direction && offered.to_bits() == cross.to_bits())
+            .map(|(_, _, least)| *least)
+    }
+
+    pub fn remember_least_length(
+        &mut self,
+        id: NodeId,
+        direction: Direction,
+        cross: f32,
+        least: f32,
+        watermark: u64,
+    ) {
+        if self.arena.layout_revision != watermark || self.arena.stale(id) {
+            return;
+        }
+        let held = self.least_lengths.get_or_default(id);
+        held.retain(|(held, offered, _)| {
+            *held != direction || offered.to_bits() != cross.to_bits()
+        });
+        if held.len() >= REMEMBERED_MEASUREMENTS {
+            held.remove(0);
+        }
+        held.push((direction, cross, least));
+    }
+
+    pub fn note_least_length(&self, reused: bool) {
+        let counter = match reused {
+            true => &self.work.reused_least_lengths,
+            false => &self.work.least_lengths,
+        };
+        counter.set(counter.get() + 1);
     }
 
     pub fn note_measured(&self, reused: bool) {
@@ -2118,18 +2317,22 @@ impl Document {
         self.layout_parent
     }
 
+    /// Called during layout by content that moved what lies above the scroll's anchor
+    /// (a `VirtualList` whose rows above the view measured other than their estimate).
+    /// The nearest enclosing `Offset` adds it to the anchor's drift and any reveal,
+    /// and moves by the sum in the frame's next layout.
     pub fn report_anchor_shift(&mut self, shift: f32) {
         self.anchor_shift += shift;
     }
 
     pub(crate) fn replace_pinned_to_end(
         &mut self,
-        pinned: Option<crate::base::list::Direction>,
-    ) -> Option<crate::base::list::Direction> {
+        pinned: Option<beui_types::Direction>,
+    ) -> Option<beui_types::Direction> {
         std::mem::replace(&mut self.pinned_to_end, pinned)
     }
 
-    pub fn pinned_to_end(&self) -> Option<crate::base::list::Direction> {
+    pub fn pinned_to_end(&self) -> Option<beui_types::Direction> {
         self.pinned_to_end
     }
 
@@ -2149,7 +2352,7 @@ impl Document {
     pub fn watch_measure(
         &mut self,
         id: NodeId,
-    ) -> ::reactive::ReadSignal<Option<beui_types::Measured>> {
+    ) -> ::beui_reactive::ReadSignal<Option<beui_types::Measured>> {
         if let Some(watched) = self.measured.get(&id) {
             return watched.read_only();
         }
@@ -2160,7 +2363,7 @@ impl Document {
             }
             false => self.measure_now(id),
         };
-        let watched = ::reactive::OwnedSignal::new(initial);
+        let watched = ::beui_reactive::OwnedSignal::new(initial);
         let read = watched.read_only();
         self.measured.insert(id, watched);
         read
@@ -2169,7 +2372,7 @@ impl Document {
     pub fn watch_measure_text(
         &mut self,
         id: NodeId,
-    ) -> ::reactive::ReadSignal<Option<crate::base::text::TextGeometry>> {
+    ) -> ::beui_reactive::ReadSignal<Option<crate::base::text::TextGeometry>> {
         if let Some(watched) = self.measured_text.get(&id) {
             return watched.read_only();
         }
@@ -2180,7 +2383,7 @@ impl Document {
             }
             false => self.measure_text_now(id),
         };
-        let watched = ::reactive::OwnedSignal::new(initial);
+        let watched = ::beui_reactive::OwnedSignal::new(initial);
         let read = watched.read_only();
         self.measured_text.insert(id, watched);
         read
@@ -2201,7 +2404,7 @@ impl Document {
 
     fn publish_measurements(&mut self) -> bool {
         type Boxes = Vec<(
-            ::reactive::Signal<Option<beui_types::Measured>>,
+            ::beui_reactive::Signal<Option<beui_types::Measured>>,
             Option<beui_types::Measured>,
         )>;
         let moved: Boxes = self
@@ -2212,7 +2415,7 @@ impl Document {
             .map(|(rect, watched)| (watched.handle(), rect))
             .collect();
         type Texts = Vec<(
-            ::reactive::Signal<Option<crate::base::text::TextGeometry>>,
+            ::beui_reactive::Signal<Option<crate::base::text::TextGeometry>>,
             Option<crate::base::text::TextGeometry>,
         )>;
         let texts: Texts = self
@@ -2515,9 +2718,7 @@ impl Document {
 
     fn run_laid_out(&mut self) {
         if let Some(laid_out) = self.laid_out.clone() {
-            let context = self.reactive_scope().context();
-            let _guard = crate::current::install(self);
-            context.run(|| laid_out());
+            crate::current::enter(self, || laid_out());
         }
     }
 
@@ -2543,8 +2744,8 @@ impl Document {
 
     pub fn rich_layout(
         &self,
-        pieces: &[crate::rich::Piece],
-        options: crate::rich::RichOptions,
+        pieces: &[beui_types::Piece],
+        options: beui_types::RichOptions,
     ) -> Option<crate::rich::RichLayout> {
         let (ctx, _, _) = self.viewport.as_ref()?;
         Some(ctx.painter().rich_layout(pieces, options))
@@ -2573,7 +2774,7 @@ impl Document {
         measured
     }
 
-    fn needs_layout(&self) -> bool {
+    pub fn needs_layout(&self) -> bool {
         self.layout_revision != self.arena.layout_revision
             || self.root.is_some_and(|root| self.arena.unplaced(root))
     }
@@ -2598,12 +2799,24 @@ impl Document {
         let mut passes = 0;
         if self.needs_layout() {
             self.lay_out_tree(ctx, rect);
+            self.point_again(ctx);
             passes += 1;
         }
         let mut watermark = self.arena.relaid_len();
         self.report_laid_out();
         self.run_laid_out();
-        while self.needs_layout() {
+        let mut reruns = 0;
+        loop {
+            if !self.needs_layout() {
+                if !std::mem::take(&mut self.laid_out_again) || reruns >= HOOK_RUNS_PER_FRAME {
+                    self.laid_out_again = false;
+                    return passes;
+                }
+                reruns += 1;
+                self.run_laid_out();
+                continue;
+            }
+            self.laid_out_again = false;
             if passes + 1 >= LAYOUTS_PER_FRAME {
                 self.log_unsettled(watermark);
                 self.lay_out_tree(ctx, rect);
@@ -2611,25 +2824,38 @@ impl Document {
                 return passes + 1;
             }
             self.lay_out_tree(ctx, rect);
+            self.point_again(ctx);
             passes += 1;
             watermark = self.arena.relaid_len();
             self.report_laid_out();
+            self.run_laid_out();
         }
-        passes
+    }
+
+    fn point_again(&mut self, ctx: &Context) {
+        let rects = Rc::clone(&self.rects);
+        crate::current::run_in(self, |document| {
+            crate::interact::pointer::rehover(document, ctx, &rects);
+            crate::interact::forward::reforward(document, ctx, &rects);
+        });
     }
 
     fn lay_out_tree(&mut self, ctx: &Context, rect: Rect) {
         self.layout_pass = self.layout_pass.wrapping_add(1);
         let rects = Rc::clone(&self.rects);
         self.placing.clear();
+        let mut removing = false;
         if let Some(root) = self.root {
             let painter = ctx.window_painter(ctx.drawing_window());
             let placed = &*rects;
             self.layout_parent = None;
-            crate::current::run_in(self, |document| {
-                layout::layout(document, &painter, root, rect, placed);
-                document.lay_out_boundaries(ctx, placed);
-                document.place_moved_overlays(ctx, placed);
+            ((), removing) = crate::current::enter_holding_removals(self, || {
+                crate::current::with_document(|document| {
+                    document.refit_windows(ctx);
+                    layout::layout(document, &painter, root, rect, placed);
+                    document.lay_out_boundaries(ctx, placed);
+                    document.place_moved_overlays(ctx, placed);
+                })
             });
         }
         self.placing.clear();
@@ -2637,6 +2863,9 @@ impl Document {
         self.canvas_moves.clear();
         self.anchor_shift = 0.0;
         self.layout_revision = self.arena.layout_revision;
+        if removing {
+            self.drain_removals();
+        }
         self.layout_pass = self.layout_pass.wrapping_add(1);
     }
 }
@@ -2656,6 +2885,9 @@ thread_local! {
         Cell::new(std::env::var_os("BEUI_OVER_REPAINT").is_some());
 }
 
+/// On the painting thread (or `BEUI_OVER_REPAINT=1`): reports every frame whose
+/// damage is over four times the area of the shapes that changed, to stderr and
+/// `take_over_repaints`.
 pub fn detect_over_repaint(enabled: bool) {
     DETECT_OVER_REPAINT.set(enabled);
 }
@@ -2670,6 +2902,11 @@ pub fn take_over_repaints() -> Vec<OverRepaint> {
 
 static VERIFY_PAINT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// Paints every frame again from scratch and panics when the retained painting
+/// differs, or changed outside the damage (`paint/verify.rs`, matched node by node,
+/// whole pixels). Only windows still open are checked. Paints made while
+/// `Context::is_verifying_paint` is set are this check's; a test counting paints
+/// skips them. Always on in beui-core's tests; be-sdk-test turns it on.
 pub fn verify_paint(enabled: bool) {
     VERIFY_PAINT.store(enabled, std::sync::atomic::Ordering::Relaxed);
 }
@@ -2681,6 +2918,9 @@ fn verifying_paint() -> bool {
 static FAIL_UNSETTLED_LAYOUT: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
+/// Panics when a frame's layout has not settled after eight layouts, instead of
+/// painting the last one and asking for another frame (debug builds log what kept
+/// changing). Always on in beui-core's tests; be-sdk-test turns it on.
 pub fn fail_unsettled_layout(enabled: bool) {
     FAIL_UNSETTLED_LAYOUT.store(enabled, std::sync::atomic::Ordering::Relaxed);
 }
@@ -2690,6 +2930,9 @@ thread_local! {
         Cell::new(std::env::var_os("BEUI_DELAY_MEASUREMENT").is_some_and(|value| value == "1"));
 }
 
+/// Publishes `measure` and `measure_text` at the start of the next frame, as the
+/// HTML core does, instead of after each layout of this one (also
+/// `BEUI_DELAY_MEASUREMENT=1`), so native tests take the late path.
 pub fn delay_measurement(enabled: bool) {
     DELAY_MEASUREMENT.set(enabled);
 }
@@ -2703,8 +2946,23 @@ fn failing_unsettled_layout() -> bool {
 }
 
 const LAYOUTS_PER_FRAME: usize = 8;
+const HOOK_RUNS_PER_FRAME: usize = 64;
 
 impl Document {
+    /// The part of `window` its windows should stay in. A root `Docking` whose windows the
+    /// host opens sets it to its area inside its dock-level bands; the app platform reports
+    /// it to the host as the view's `work-area`.
+    pub fn set_work_area(&mut self, window: WindowId, area: Option<Rect>) {
+        match area {
+            Some(area) => self.work_areas.insert(window, area),
+            None => self.work_areas.remove(&window),
+        };
+    }
+
+    pub fn work_area(&self, window: WindowId) -> Option<Rect> {
+        self.work_areas.get(&window).copied()
+    }
+
     fn lay_out_boundaries(&mut self, ctx: &Context, rects: &Rects) {
         for boundary in self.arena.take_boundaries() {
             if !self.arena.contains(boundary)
@@ -2752,7 +3010,7 @@ impl Default for Document {
     }
 }
 
-impl crate::app::App for Document {
+impl crate::program::Program for Document {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.show(context, rect);
     }

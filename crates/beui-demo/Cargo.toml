@@ -9,21 +9,24 @@ name = "demo"
 path = "src/main.rs"
 
 [dependencies]
-beui = { path = "../beui", default-features = false }
-beui_macros = { path = "../beui-macros" }
-text-editor-core = { path = "../text-editor-core" }
+beui = { path = "../beui" }
+beui-macros = { path = "../beui-macros" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+beui-text-editor-core = { path = "../beui-text-editor-core" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-beui = { path = "../beui" }
+beui-host = { path = "../beui-host" }
 
 [dev-dependencies]
-bench = { path = "../bench" }
+be-tool-bench = { path = "../be-tool-bench" }
+beui-host = { path = "../beui-host", default-features = false }
 beui-inspector = { path = "../beui-inspector" }
-block-ui-test = { path = "../block-ui-test" }
+be-sdk-test = { path = "../be-sdk-test" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 beui-layer-space = { path = "../beui-layer-space" }
 beui-core = { path = "../beui-core" }
+beui-runner = { path = "../beui-runner" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 pollster = "0.4"
 
@@ -34,7 +37,4 @@ workspace = true
 name = "open-bench"
 
 [[example]]
-name = "space-resize-bench"
-
-[[example]]
-name = "space-cursor-bench"
+name = "space-bench"

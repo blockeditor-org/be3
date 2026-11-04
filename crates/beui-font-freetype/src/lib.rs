@@ -7,16 +7,17 @@ use std::cell::{Cell, RefCell};
 use std::ptr;
 use std::rc::Rc;
 
-use foldhash::HashMap;
+use be_lib_stable_hash::HashMap;
 use freetype::freetype as ft;
 use harfbuzz_rs::{Blob, Face as HbFace, Font as HbFont, Owned, Tag, UnicodeBuffer, shape};
 use unicode_script::{Script, UnicodeScript};
 
 use beui_core::font::{
-    FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, GlyphRaster,
-    GlyphRasterizer, Shaping,
+    FontBackend, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, GlyphRaster, GlyphRasterizer,
+    Shaping,
 };
-use beui_core::geometry::vec2;
+use beui_types::vec2;
+use beui_types::{FontFamily, FontId};
 
 pub use library::{FontBytes, FontData, FontLibrary, FontSources, ICONS_FONT};
 

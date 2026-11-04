@@ -1,0 +1,510 @@
+mod files;
+mod installed;
+#[cfg(target_os = "linux")]
+mod watch;
+
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
+use be_host_base::host::{Desk, Mailbox, Post};
+use be_sdk_api::{EditorDescriptor, Edits, HostWindowId, ProgramAction};
+use uuid::Uuid;
+
+use crate::desktop_host::{DesktopHost, Host};
+
+use files::OnDisk;
+use installed::WAITING_ICON_SIZE;
+pub use installed::{Opener, ProgramSource};
+
+type Installed = installed::Programs<<Host as DesktopHost>::Source>;
+
+const PROGRAM_EDITORS: u64 = u64::from_be_bytes(*b"program\0");
+
+pub fn editor_id(program: &str) -> Uuid {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in program.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    Uuid::from_u64_pair(PROGRAM_EDITORS, hash)
+}
+
+pub fn is_program(editor: Uuid) -> bool {
+    editor.as_u64_pair().0 == PROGRAM_EDITORS
+}
+
+fn descriptors(openers: &[Opener]) -> Vec<EditorDescriptor> {
+    openers
+        .iter()
+        .map(|opener| EditorDescriptor {
+            editor: editor_id(&opener.id).into_bytes(),
+            edits: Edits::Any,
+            name: opener.name.clone(),
+            icon_codepoint: beui::icons::ICON_APP_WINDOW.as_str().to_owned(),
+            extensions: opener.extensions.clone(),
+        })
+        .collect()
+}
+
+fn name_editors(openers: &[Opener]) {
+    with(|sessions| {
+        sessions.names = openers
+            .iter()
+            .map(|opener| {
+                (
+                    editor_id(&opener.id),
+                    (opener.id.clone(), opener.name.clone()),
+                )
+            })
+            .collect();
+    });
+    be_host_base::program_editors::set(descriptors(openers));
+    be_host_base::host::changed();
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Shown {
+    Opening(String),
+    Window(HostWindowId),
+    Closed(String),
+    Failed(String),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum Stage {
+    Wanted,
+    Reading,
+    Placed,
+    Launching,
+    Running(HostWindowId),
+    Closed,
+    Failed(String),
+}
+
+struct Session {
+    parent: Uuid,
+    block_type: Uuid,
+    editor: Uuid,
+    stage: Stage,
+    disk: Option<OnDisk>,
+    closing: bool,
+}
+
+#[derive(Default)]
+struct Sessions {
+    open: HashMap<Uuid, Session>,
+    names: HashMap<Uuid, (String, String)>,
+}
+
+thread_local! {
+    static SESSIONS: RefCell<Sessions> = RefCell::new(Sessions::default());
+}
+
+fn with<R>(act: impl FnOnce(&mut Sessions) -> R) -> R {
+    SESSIONS.with(|sessions| act(&mut sessions.borrow_mut()))
+}
+
+pub fn opens(editor: Uuid) -> bool {
+    is_program(editor) && with(|sessions| sessions.names.contains_key(&editor))
+}
+
+pub fn show(block: Uuid, block_type: Uuid, editor: Uuid, parent: Uuid) {
+    let replaced = with(|sessions| {
+        if let Some(session) = sessions.open.get_mut(&block)
+            && session.editor == editor
+        {
+            session.closing = false;
+            return None;
+        }
+        let old = sessions.open.insert(
+            block,
+            Session {
+                parent,
+                block_type,
+                editor,
+                stage: Stage::Wanted,
+                disk: None,
+                closing: false,
+            },
+        );
+        Some(old.and_then(|old| window_of(&old.stage)))
+    });
+    if let Some(window) = replaced.flatten() {
+        Host::close(window);
+    }
+    if replaced.is_some() {
+        be_host_base::host::changed();
+    }
+}
+
+pub fn shown(block: Uuid) -> Option<Shown> {
+    with(|sessions| {
+        let session = sessions.open.get(&block)?;
+        let name = sessions
+            .names
+            .get(&session.editor)
+            .map_or_else(|| "its program".to_owned(), |(_, name)| name.clone());
+        Some(match &session.stage {
+            Stage::Running(window) => Shown::Window(*window),
+            Stage::Closed => Shown::Closed(name),
+            Stage::Failed(problem) => Shown::Failed(problem.clone()),
+            Stage::Wanted | Stage::Reading | Stage::Placed | Stage::Launching => {
+                Shown::Opening(name)
+            }
+        })
+    })
+}
+
+pub fn reopen(block: Uuid) {
+    with(|sessions| {
+        if let Some(session) = sessions.open.get_mut(&block)
+            && matches!(session.stage, Stage::Closed | Stage::Failed(_))
+        {
+            session.stage = Stage::Wanted;
+        }
+    });
+    be_host_base::host::changed();
+}
+
+pub fn close(closed: Uuid) {
+    let windows = with(|sessions| {
+        let inside: Vec<Uuid> = sessions
+            .open
+            .iter()
+            .filter(|(block, session)| **block == closed || session.parent == closed)
+            .map(|(block, _)| *block)
+            .collect();
+        let mut windows = Vec::new();
+        for block in inside {
+            let Some(session) = sessions.open.get_mut(&block) else {
+                continue;
+            };
+            match session.stage {
+                Stage::Running(window) => {
+                    session.closing = true;
+                    windows.push(window);
+                }
+                Stage::Launching => session.closing = true,
+                _ => {
+                    sessions.open.remove(&block);
+                }
+            }
+        }
+        windows
+    });
+    for window in windows {
+        Host::close(window);
+    }
+}
+
+pub fn bound_windows() -> Vec<HostWindowId> {
+    with(|sessions| {
+        let mut bound: Vec<HostWindowId> = sessions
+            .open
+            .values()
+            .filter_map(|session| window_of(&session.stage))
+            .collect();
+        bound.sort();
+        bound
+    })
+}
+
+fn window_of(stage: &Stage) -> Option<HostWindowId> {
+    match stage {
+        Stage::Running(window) => Some(*window),
+        _ => None,
+    }
+}
+
+type Read = (Uuid, Result<be_block_type_host::PlainFile, String>);
+
+pub struct Programs {
+    programs: Installed,
+    offered: bool,
+    files: Option<PathBuf>,
+    desk: Desk<Programs>,
+    read: (Mailbox, Post<Read>),
+    #[cfg(target_os = "linux")]
+    touched: (Mailbox, Post<PathBuf>),
+    #[cfg(target_os = "linux")]
+    watch: Option<watch::Watch>,
+}
+
+impl Default for Programs {
+    fn default() -> Self {
+        let desk = Desk::default();
+        Self {
+            programs: Installed::default(),
+            offered: false,
+            files: None,
+            desk,
+            read: desk.mailbox(|programs: &mut Programs, (block, read)| {
+                if let Some(files) = programs.files.clone() {
+                    programs.placed(&files, block, read);
+                    be_host_base::host::changed();
+                }
+            }),
+            #[cfg(target_os = "linux")]
+            touched: desk.mailbox(Programs::write_back_touched),
+            #[cfg(target_os = "linux")]
+            watch: None,
+        }
+    }
+}
+
+impl Programs {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn keep_files_in(&mut self, files: PathBuf) {
+        self.files = Some(files);
+    }
+
+    pub fn frame(&mut self) {
+        let running = Host::running();
+        for action in be_host_base::watches::take_calls(be_sdk_api::requested::program) {
+            match action {
+                ProgramAction::List { icon_size } if running => {
+                    self.programs
+                        .scan(icon_size.clamp(1, ProgramAction::MAX_ICON_SIZE));
+                }
+                ProgramAction::Launch { program, launch } if running => {
+                    self.programs.launch(&program, launch);
+                }
+                ProgramAction::Run(line) => {
+                    Host::launch(line);
+                }
+                ProgramAction::Exec { command, launch } => {
+                    Host::exec(command, launch);
+                }
+                ProgramAction::List { .. } | ProgramAction::Launch { .. } => {}
+            }
+        }
+        if running && !self.offered {
+            self.offered = true;
+            self.programs.announce();
+            if self.files.is_some() {
+                self.programs.scan(WAITING_ICON_SIZE);
+            }
+        }
+        self.step_sessions();
+    }
+
+    fn step_sessions(&mut self) {
+        if self.files.is_none() {
+            return;
+        }
+        let mut changed = false;
+        let wanted: Vec<Uuid> = with(|sessions| {
+            sessions
+                .open
+                .iter_mut()
+                .filter(|(_, session)| session.stage == Stage::Wanted)
+                .map(|(block, session)| {
+                    session.stage = Stage::Reading;
+                    *block
+                })
+                .collect()
+        });
+        for block in wanted {
+            let post = self.read.1.clone();
+            be_host_stack::plain_file(block, move |read| post.send((block, read)));
+            changed = true;
+        }
+        let desk = self.desk;
+        desk.deliver(self);
+        if self.programs.scanned() {
+            changed |= self.launch_placed();
+        }
+        changed |= self.bind_windows();
+        if changed {
+            be_host_base::host::changed();
+        }
+    }
+
+    fn placed(
+        &mut self,
+        files: &Path,
+        block: Uuid,
+        read: Result<be_block_type_host::PlainFile, String>,
+    ) {
+        let block_type = with(|sessions| {
+            sessions
+                .open
+                .get(&block)
+                .filter(|session| session.stage == Stage::Reading)
+                .map(|session| session.block_type)
+        });
+        let Some(block_type) = block_type else {
+            return;
+        };
+        let stage = match read.and_then(|file| files::place(files, block, &file)) {
+            Ok(placed) => {
+                if let Some((name, bytes)) = placed.taken_back {
+                    be_host_stack::from_file(block, block_type, name, bytes);
+                }
+                #[cfg(target_os = "linux")]
+                {
+                    let touched = &self.touched.1;
+                    self.watch
+                        .get_or_insert_with(|| watch::Watch::new(touched.clone()))
+                        .add(&placed.disk.path);
+                }
+                with(|sessions| {
+                    if let Some(session) = sessions.open.get_mut(&block) {
+                        session.disk = Some(placed.disk);
+                    }
+                });
+                Stage::Placed
+            }
+            Err(problem) => {
+                eprintln!("be-host: block {block} was not written out for its program: {problem}");
+                Stage::Failed(problem)
+            }
+        };
+        with(|sessions| {
+            if let Some(session) = sessions.open.get_mut(&block) {
+                session.stage = stage;
+            }
+        });
+    }
+
+    fn launch_placed(&mut self) -> bool {
+        let ready: Vec<(Uuid, Option<String>, PathBuf)> = with(|sessions| {
+            sessions
+                .open
+                .iter()
+                .filter(|(_, session)| session.stage == Stage::Placed)
+                .filter_map(|(block, session)| {
+                    let key = sessions
+                        .names
+                        .get(&session.editor)
+                        .map(|(id, _)| id.clone());
+                    Some((*block, key, session.disk.as_ref()?.path.clone()))
+                })
+                .collect()
+        });
+        let launched = !ready.is_empty();
+        for (block, key, path) in ready {
+            let stage = match key {
+                Some(key) => match self.programs.open_file(&key, &path, block) {
+                    Ok(()) => Stage::Launching,
+                    Err(problem) => Stage::Failed(problem),
+                },
+                None => Stage::Failed("The program this opens in is not installed.".to_owned()),
+            };
+            with(|sessions| {
+                if let Some(session) = sessions.open.get_mut(&block) {
+                    session.stage = stage;
+                }
+            });
+        }
+        launched
+    }
+
+    fn bind_windows(&mut self) -> bool {
+        let opening = Host::opening_windows();
+        let mut gone = Vec::new();
+        let mut unwanted = Vec::new();
+        let changed = with(|sessions| {
+            let mut changed = false;
+            for (block, session) in &mut sessions.open {
+                let window = opening
+                    .iter()
+                    .find(|(opened, _)| opened == block)
+                    .map(|(_, window)| *window);
+                match (&session.stage, window) {
+                    (Stage::Launching, Some(window)) => {
+                        session.stage = Stage::Running(window);
+                        if session.closing {
+                            unwanted.push(window);
+                        }
+                        changed = true;
+                    }
+                    (Stage::Running(held), Some(window)) if *held != window => {
+                        session.stage = Stage::Running(window);
+                        changed = true;
+                    }
+                    (Stage::Running(_), None) => {
+                        session.stage = Stage::Closed;
+                        gone.push(*block);
+                        changed = true;
+                    }
+                    _ => {}
+                }
+            }
+            changed
+        });
+        for window in unwanted {
+            Host::close(window);
+        }
+        for block in gone {
+            self.write_back(block);
+            let closing = with(|sessions| {
+                let closing = sessions
+                    .open
+                    .get(&block)
+                    .is_some_and(|session| session.closing);
+                if closing {
+                    sessions.open.remove(&block);
+                }
+                closing
+            });
+            if closing {
+                #[cfg(target_os = "linux")]
+                if let Some(watch) = &mut self.watch {
+                    watch.forget(block);
+                }
+            }
+        }
+        changed
+    }
+
+    #[cfg(target_os = "linux")]
+    fn write_back_touched(&mut self, touched: PathBuf) {
+        let blocks: Vec<Uuid> = with(|sessions| {
+            sessions
+                .open
+                .iter()
+                .filter(|(_, session)| {
+                    session
+                        .disk
+                        .as_ref()
+                        .is_some_and(|disk| disk.path == touched)
+                })
+                .map(|(block, _)| *block)
+                .collect()
+        });
+        for block in blocks {
+            self.write_back(block);
+        }
+    }
+
+    fn write_back(&mut self, block: Uuid) {
+        let held = with(|sessions| {
+            let session = sessions.open.get(&block)?;
+            Some((session.block_type, session.disk.clone()?))
+        });
+        let Some((block_type, disk)) = held else {
+            return;
+        };
+        let Some((name, bytes, stamp)) = files::changed(&disk) else {
+            return;
+        };
+        be_host_stack::from_file(block, block_type, name, bytes);
+        if let Err(error) = files::record(&disk.path, stamp) {
+            eprintln!(
+                "be-host: what was taken back from {} was not recorded: {error}",
+                disk.path.display()
+            );
+        }
+        with(|sessions| {
+            if let Some(disk) = sessions
+                .open
+                .get_mut(&block)
+                .and_then(|session| session.disk.as_mut())
+            {
+                disk.stamp = stamp;
+            }
+        });
+    }
+}

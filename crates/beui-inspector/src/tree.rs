@@ -3,7 +3,7 @@ use accesskit::{Node as AccessNode, NodeId as AccessNodeId};
 use beui_core::accessibility::AccessibilityView;
 use beui_core::component_tree::ComponentTreeKey;
 use beui_core::document::Document;
-use beui_core::node::NodeId;
+use beui_types::NodeId;
 
 use super::State;
 

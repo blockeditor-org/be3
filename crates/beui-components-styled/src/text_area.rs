@@ -24,7 +24,7 @@ use beui_view::reactive::NodeId;
 use beui_view::types::Color;
 use beui_view::types::PickedFile;
 use beui_view::types::icons::ICON_COPY;
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 use beui_view::types::{Rect, Vec2};
 
 use crate::list::List;
@@ -40,7 +40,7 @@ pub fn text_area_colors(theme: &ThemeTokens) -> TextAreaColors {
         gutter_border: theme.border,
         gutter_text: theme.text_muted,
         gutter_arrow: theme.text_muted,
-        code_background: theme.surface_raised,
+        code_background: theme.shade,
         widget: theme.pressed,
         broken_widget: theme.danger_soft,
         selection: theme.accent_soft,
@@ -171,51 +171,52 @@ pub fn TextArea(
             <Show condition={find}>||
                 <FindBar state={state} read_only />
             </Show>
-            <unstyled::TextContextMenu
-                @sizing=ItemSize::Percent(100.0)
-                state={state}
-                menu={Some(menu_style())}
-                masked={password}
-                disabled
-                read_only
-                child_size=ItemSize::Percent(100.0)
-            >|open_menu: Callback<Option<Rect>>|
-                <unstyled::TextArea
-                    @node_ref=&surface
+            <ListItem grow=1.0>
+                <unstyled::TextContextMenu
                     state={state}
-                    widgets
-                    colors
-                    font_size
-                    padding
-                    prose
+                    menu={Some(menu_style())}
+                    masked={password}
                     disabled
                     read_only
-                    focused
-                    line_numbers
-                    find
-                    on_content_size
-                    remote_cursors
-                    drop_caret
-                    placeholder
-                    password
-                    show_runs
-                    client_colors
-                    scrollbar={scrollbar_style()}
-                    on_widget_press={on_widget_press}
-                    on_focus_change={on_focus_change}
-                    pastes_images
-                    on_image_paste={on_image_paste}
-                    on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
-                    block={block}
-                    selected_widget={selected_widget}
-                    look
-                    completer={match emoji {
-                        true => unstyled::emoji_completer(),
-                        false => Completer::none(),
-                    }}
-                    completion_menu={emoji_menu()}
-                />
-            </unstyled::TextContextMenu>
+                    child_grow=1.0
+                >|open_menu: Callback<Option<Rect>>|
+                    <unstyled::TextArea
+                        @node_ref=&surface
+                        state={state}
+                        widgets
+                        colors
+                        font_size
+                        padding
+                        prose
+                        disabled
+                        read_only
+                        focused
+                        line_numbers
+                        find
+                        on_content_size
+                        remote_cursors
+                        drop_caret
+                        placeholder
+                        password
+                        show_runs
+                        client_colors
+                        scrollbar={scrollbar_style()}
+                        on_widget_press={on_widget_press}
+                        on_focus_change={on_focus_change}
+                        pastes_images
+                        on_image_paste={on_image_paste}
+                        on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
+                        block={block}
+                        selected_widget={selected_widget}
+                        look
+                        completer={match emoji {
+                            true => unstyled::emoji_completer(),
+                            false => Completer::none(),
+                        }}
+                        completion_menu={emoji_menu()}
+                    />
+                </unstyled::TextContextMenu>
+            </ListItem>
         </List>
     }
 }
@@ -257,7 +258,7 @@ pub fn DocumentLeaf(leaf: TextLeaf) -> Span {
     let background = match leaf.syntax.code {
         true => Prop::dynamic(move || {
             Some(SpanBackground {
-                color: ColorRole::SurfaceRaised.resolve(&theme),
+                color: ColorRole::Shade.resolve(&theme),
                 radius: CODE_RADIUS.px(),
                 outset: Vec2::new(CODE_INSET, -1.0),
             })
@@ -363,7 +364,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
         Padding::custom(Sides::new(side, above, side, below))
     });
     let code = create_memo(move || match look.get().code_block {
-        true => ColorRole::SurfaceRaised,
+        true => ColorRole::Shade,
         false => ColorRole::None,
     });
     let corners = create_memo(move || {

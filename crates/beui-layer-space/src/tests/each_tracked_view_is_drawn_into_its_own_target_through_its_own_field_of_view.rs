@@ -9,12 +9,12 @@ fn each_tracked_view_is_drawn_into_its_own_target_through_its_own_field_of_view(
         Default::default(),
     ))
     .expect("no graphics adapter is available");
-    let mut setup = beui_core::app::Setup::new(beui_core::app::Waker::new(|| {}));
+    let mut setup = beui_core::program::Setup::new(beui_core::program::Waker::new(|| {}));
     setup.provide(gpu.setup());
     let (mut space, now) = space();
     space.setup(&setup);
-    let background = beui_core::color::Color32::from_rgb(200, 60, 40);
-    let mut output = app_frame(CursorIcon::Default);
+    let background = beui_types::color::Color32::from_rgb(200, 60, 40);
+    let mut output = program_frame(CursorIcon::Default);
     for window in &mut output.windows {
         window.size = PLATFORM;
         window.changed = true;
@@ -79,7 +79,7 @@ fn each_tracked_view_is_drawn_into_its_own_target_through_its_own_field_of_view(
             capture.rgba[at + 3],
         ]
     };
-    let near = |a: [u8; 4], b: beui_core::color::Color32| {
+    let near = |a: [u8; 4], b: beui_types::Color32| {
         a.iter().zip(b.to_array()).all(|(a, b)| a.abs_diff(b) <= 2)
     };
     let (looking, beside) = (middle(&eyes[0]), middle(&eyes[1]));

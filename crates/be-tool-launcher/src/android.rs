@@ -1,0 +1,191 @@
+use std::path::Path;
+use std::sync::OnceLock;
+use std::time::Duration;
+
+use beui_host::native::AndroidApp;
+use jni::errors::Error as JniError;
+use jni::objects::{JClass, JObject, JString, JValue};
+use jni::refs::Reference;
+use jni::vm::JavaVM;
+use jni::{Env, EnvUnowned, jni_sig, jni_str};
+
+use crate::LauncherProgram;
+use crate::runs;
+use crate::tasks::{Event, Tasks};
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+const READ_TIMEOUT: Duration = Duration::from_secs(60);
+
+static TASKS: OnceLock<Tasks> = OnceLock::new();
+
+// unsafe(ffi)
+#[unsafe(no_mangle)]
+fn android_main(app: AndroidApp) {
+    let files = app.internal_data_path().unwrap_or_default();
+    let options = beui_host::native::RunOptions::default();
+    let launcher = match LauncherProgram::new(files) {
+        Ok(launcher) => launcher,
+        Err(error) => {
+            eprintln!("The launcher did not start: {error}");
+            std::process::exit(1);
+        }
+    };
+    let code = match beui_host::native::run_with(options, launcher) {
+        Ok(()) => 0,
+        Err(error) => {
+            eprintln!("The launcher stopped: {error}");
+            1
+        }
+    };
+    std::process::exit(code);
+}
+
+pub(crate) fn remember(tasks: Tasks) {
+    let _ = TASKS.set(tasks);
+}
+
+pub(crate) fn agent() -> ureq::Agent {
+    ureq::AgentBuilder::new()
+        .timeout_connect(CONNECT_TIMEOUT)
+        .timeout_read(READ_TIMEOUT)
+        .build()
+}
+
+pub(crate) fn open() -> Result<(), String> {
+    optional_error(with_launcher(|env, class| {
+        let error = env
+            .call_static_method(
+                class,
+                jni_str!("open"),
+                jni_sig!("()Ljava/lang/String;"),
+                &[],
+            )?
+            .l()?;
+        string(env, error)
+    })?)
+}
+
+pub(crate) fn installed() -> bool {
+    with_launcher(|env, class| {
+        env.call_static_method(class, jni_str!("installed"), jni_sig!("()Z"), &[])?
+            .z()
+    })
+    .unwrap_or(false)
+}
+
+pub(crate) fn uninstall() -> Result<(), String> {
+    optional_error(with_launcher(|env, class| {
+        let error = env
+            .call_static_method(
+                class,
+                jni_str!("uninstall"),
+                jni_sig!("()Ljava/lang/String;"),
+                &[],
+            )?
+            .l()?;
+        string(env, error)
+    })?)
+}
+
+pub(crate) fn open_url(url: &str) {
+    let _ = with_launcher(|env, class| {
+        let url = env.new_string(url)?;
+        env.call_static_method(
+            class,
+            jni_str!("openUrl"),
+            jni_sig!("(Ljava/lang/String;)Z"),
+            &[JValue::Object(&url)],
+        )?
+        .z()
+    });
+}
+
+pub(crate) fn install(apk: &Path) -> Result<(), String> {
+    let apk = apk.to_string_lossy().into_owned();
+    optional_error(with_launcher(|env, class| {
+        let apk = env.new_string(&apk)?;
+        let error = env
+            .call_static_method(
+                class,
+                jni_str!("install"),
+                jni_sig!("(Ljava/lang/String;)Ljava/lang/String;"),
+                &[JValue::Object(&apk)],
+            )?
+            .l()?;
+        string(env, error)
+    })?)
+}
+
+fn string<'local>(
+    env: &mut Env<'local>,
+    value: JObject<'local>,
+) -> Result<Option<String>, JniError> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    let value = env.cast_local::<JString<'_>>(value)?;
+    Ok(Some(value.to_string()))
+}
+
+fn optional_error(error: Option<String>) -> Result<(), String> {
+    match error {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
+fn with_launcher<T>(
+    call: impl for<'local> FnOnce(&mut Env<'local>, &JClass<'local>) -> Result<T, JniError>,
+) -> Result<T, String> {
+    let context = ndk_context::android_context();
+    // unsafe(ffi)
+    let vm = unsafe { JavaVM::from_raw(context.vm().cast()) };
+    vm.attach_current_thread_for_scope(|env| {
+        // unsafe(ffi)
+        let activity = unsafe { JObject::from_raw(env, context.context().cast()) };
+        let class = launcher_activity(env, &activity)?;
+        call(env, &class)
+    })
+    .map_err(|error: JniError| error.to_string())
+}
+
+fn launcher_activity<'local>(
+    env: &mut Env<'local>,
+    activity: &JObject<'local>,
+) -> Result<JClass<'local>, JniError> {
+    let class_loader = env
+        .call_method(
+            activity,
+            jni_str!("getClassLoader"),
+            jni_sig!("()Ljava/lang/ClassLoader;"),
+            &[],
+        )?
+        .l()?;
+    let class_name = env.new_string("com.be3.launcher.LauncherActivity")?;
+    let class = env
+        .call_method(
+            &class_loader,
+            jni_str!("loadClass"),
+            jni_sig!("(Ljava/lang/String;)Ljava/lang/Class;"),
+            &[JValue::Object(&class_name)],
+        )?
+        .l()?;
+    env.cast_local::<JClass<'local>>(class)
+}
+
+// unsafe(ffi)
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_be3_launcher_LauncherActivity_nativeInstallFinished(
+    _env: EnvUnowned<'_>,
+    _: JClass<'_>,
+    error: JString<'_>,
+) {
+    let result = if error.is_null() {
+        Ok(())
+    } else {
+        Err(error.to_string())
+    };
+    if let Some(tasks) = TASKS.get() {
+        tasks.send(Event::Run(runs::Event::Finished(result)));
+    }
+}

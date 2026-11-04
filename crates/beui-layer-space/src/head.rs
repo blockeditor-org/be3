@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use beui_core::geometry::Vec2;
+use beui_types::Vec2;
 use glam::{EulerRot, Mat4, Quat, Vec3, Vec4};
 
 pub const EYE_HEIGHT: f32 = 1.6;
@@ -44,6 +44,9 @@ impl Default for Head {
     }
 }
 
+/// An off-axis field of view by its edges' tangents (from OpenXR's angles with
+/// `from_angles`). `projection` is right-handed with depth 0 to 1 between `NEAR`
+/// and `FAR`.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Fov {
     left: f32,
@@ -123,6 +126,10 @@ impl View {
     }
 }
 
+/// Places a headset's tracking space in the world. While views are tracked,
+/// Ctrl+Shift steering moves the body instead of the head: motion across turns it
+/// about the eyes, W, A, S and D walk it the way the head faces, and pitch and
+/// roll do nothing. It stays put while the headset is away.
 #[derive(Clone, Copy, Default, PartialEq, Debug)]
 pub struct Body {
     pub position: Vec3,
@@ -176,6 +183,8 @@ impl Views {
 }
 
 impl Head {
+    /// The head at the centre of tracked views (mean position, averaged rotation), so
+    /// cursor rays, carry, chrome and the mirror window work off the centre eye.
     pub fn posed(position: Vec3, rotation: Quat) -> Self {
         let (yaw, pitch, roll) = rotation.to_euler(EulerRot::YXZ);
         Self {
@@ -195,6 +204,8 @@ impl Head {
         }
     }
 
+    /// Yaw, then pitch, then roll about the view direction. The view, cursor rays and
+    /// `scale` go through it; the cursor's swing does not (see `swing`).
     pub fn rotation(&self) -> Quat {
         Quat::from_rotation_y(-self.yaw)
             * Quat::from_rotation_x(self.pitch)
@@ -209,6 +220,9 @@ impl Head {
         Quat::from_rotation_y(-self.yaw)
     }
 
+    /// Turns the head by steering motion. With the head rolled, the motion is first
+    /// turned by the roll into the level frame, so the view turns along the screen
+    /// while yaw stays vertical and the roll stays put.
     pub fn look(&mut self, motion: Vec2) {
         let motion = glam::Vec2::from_angle(-self.roll).rotate(glam::Vec2::new(motion.x, motion.y));
         self.yaw += motion.x * TURN_PER_PIXEL;
@@ -259,14 +273,19 @@ impl Head {
         screen.y.max(1.0) / 2.0 / (FOV_Y / 2.0).tan()
     }
 
-    pub fn swing(&self, direction: Vec3, angles: glam::Vec2) -> Vec3 {
-        let from = direction.y.clamp(-1.0, 1.0).asin();
+    /// Swings the cursor's ray about `up` (from `tuning::Up`): motion across turns it
+    /// about `up` keeping its height, motion up raises it toward `up`, short of
+    /// `MOST_ELEVATION`, at a fixed angle per pixel (`pixels_per_radian`).
+    pub fn swing(&self, direction: Vec3, angles: glam::Vec2, up: Vec3) -> Vec3 {
+        let from = direction.dot(up).clamp(-1.0, 1.0).asin();
         let to = (from + angles.y).clamp(-MOST_ELEVATION, MOST_ELEVATION);
-        let level =
-            Vec3::new(direction.x, 0.0, direction.z).normalize_or(self.facing() * Vec3::NEG_Z);
+        let fallback = (self.rotation() * Vec3::NEG_Z)
+            .reject_from_normalized(up)
+            .normalize_or(up.any_orthonormal_vector());
+        let level = direction.reject_from_normalized(up).normalize_or(fallback);
         let across = angles.x / ((from + to) / 2.0).cos().max(MOST_ELEVATION.cos());
-        let level = Quat::from_rotation_y(-across) * level;
-        level * to.cos() + Vec3::Y * to.sin()
+        let level = Quat::from_axis_angle(up, -across) * level;
+        level * to.cos() + up * to.sin()
     }
 
     pub fn ray(&self, screen: Vec2, at: Vec2) -> Ray {

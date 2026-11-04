@@ -1,0 +1,23 @@
+[package]
+name = "be-app-settings"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-host-remap = { path = "../be-host-remap", features = ["text"] }
+beui = { path = "../beui" }
+be-sdk-beui = { path = "../be-sdk-beui" }
+be-sdk-database = { path = "../be-sdk-database" }
+be-type-settings = { path = "../be-type-settings" }
+beui-text-editor-core = { path = "../beui-text-editor-core" }
+uuid = "1"
+
+[dev-dependencies]
+be-sdk-test = { path = "../be-sdk-test" }
+
+[lints]
+workspace = true

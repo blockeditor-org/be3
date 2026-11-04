@@ -1,9 +1,0 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library")
-load("@root//buck/wasm:defs.bzl", "plugin_tests")
-
-cargo_library()
-
-# The guest half of the plugin framework, which is behind cfg(target_arch =
-# "wasm32"), so its tests only exist compiled to wasm and run the way a
-# plugin's are.
-plugin_tests()

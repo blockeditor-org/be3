@@ -12,7 +12,7 @@ pub fn serve(path: &Path, inbox: Inbox) -> io::Result<()> {
     if UnixStream::connect(path).is_ok() {
         return Err(io::Error::new(
             io::ErrorKind::AddrInUse,
-            "another app already answers there",
+            "another program already answers there",
         ));
     }
     let _ = std::fs::remove_file(path);
@@ -71,10 +71,10 @@ fn converse(stream: UnixStream, inbox: &Inbox) -> io::Result<()> {
             Ok(reply) => reply,
             Err(RecvTimeoutError::Timeout) => {
                 cancelled.store(true, Ordering::SeqCst);
-                Reply::Error(format!("timed out after {} seconds", timeout.as_secs_f32()))
+                Reply::Error(crate::timed_out(timeout, inbox))
             }
             Err(RecvTimeoutError::Disconnected) => {
-                Reply::Error("the app stopped before it answered".to_owned())
+                Reply::Error("the program stopped before it answered".to_owned())
             }
         };
         write_reply(&mut writer, &reply)?;

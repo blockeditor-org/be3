@@ -1,0 +1,11 @@
+# A right click on the note of the Selecting page opens its text menu, as it
+# does natively: the text area under the pointer takes the secondary press
+# without keeping it from the context menu around it.
+clock stop
+wheel '#demo.catalog.Docking' 30
+click '#demo.catalog.Selecting'
+wheel '#dock.tab.2+0,300' 20
+click '"Right-click for Copy and Paste, or type :tada"' right
+wait 'MenuItem "Paste"'
+key Escape
+gone 'MenuItem "Paste"'

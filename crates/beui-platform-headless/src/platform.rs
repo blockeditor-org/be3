@@ -2,13 +2,13 @@ use std::error::Error;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
-use beui_core::app::{SafeArea, Setup, Waker};
-use beui_core::geometry::Vec2;
-use beui_core::renderer::{Loaded, NoRenderer, Renderer};
-use beui_core::runner::{Launch, Platform, Runner, Running};
+use beui_core::program::{SafeArea, Setup, Waker};
 use beui_core::window::WindowSize;
 use beui_renderer_wgpu::offscreen::OffscreenSurface;
 use beui_renderer_wgpu::present::OpenDevice;
+use beui_runner::renderer::{Loaded, NoRenderer, Renderer};
+use beui_runner::{Launch, Platform, Runner, Running};
+use beui_types::Vec2;
 
 use crate::Simulation;
 
@@ -19,6 +19,7 @@ pub struct Headless {
     pub screen: Option<Vec2>,
     pub open_device: OpenDevice,
     pub render: bool,
+    pub pinned_clock: bool,
 }
 
 impl Platform for Headless {
@@ -32,9 +33,13 @@ impl Platform for Headless {
 }
 
 fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
+    if headless.pinned_clock {
+        beui_core::timer::pin_wall_clock(Some((Instant::now(), beui_core::timer::TEST_WALL_CLOCK)));
+    }
     let mut runner = Runner::new(launch);
     runner.set_occluded(true);
     let mut window = Simulation::new(headless.window, headless.screen, runner.reports().clone());
+    runner.reports().refreshes_every(FRAME_INTERVAL);
     let (width, height) = window.physical();
     let renderer: Box<dyn Renderer> = match headless.render {
         true => Box::new(pollster::block_on(OffscreenSurface::new(
@@ -61,6 +66,7 @@ fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
             Some(frame) => {
                 let presenting = runner.present();
                 match frame.next(presenting) {
+                    Some(Duration::ZERO) if frame.unpaced => Some(started),
                     Some(Duration::ZERO) => Some(started + FRAME_INTERVAL),
                     Some(wait) => started.checked_add(wait),
                     None => None,

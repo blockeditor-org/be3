@@ -1,5 +1,5 @@
-use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::painter::PainterState;
+use beui_types::{Pos2, Rect, Vec2, pos2};
 
 pub const CULLING_MARGIN: f32 = 256.0;
 const BINDING: f32 = 0.01;

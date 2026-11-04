@@ -24,6 +24,9 @@ pub struct Mounted {
     _scope: Scope,
 }
 
+/// Builds browser nodes for the view inside `container`, owning all its children.
+/// Keep the `Mounted` for as long as the page is live; after that, changes patch
+/// nodes in place and nothing is rebuilt.
 pub fn mount<C: IntoSegment<Node>>(
     container: &web_sys::Node,
     build: impl FnOnce() -> C,
@@ -37,6 +40,11 @@ pub fn mount<C: IntoSegment<Node>>(
     }
 }
 
+/// Claims the nodes a server rendered from the same view, walking tree and page in
+/// serialization order: elements by tag, text by content, and the `<!--[-->` /
+/// `<!--]-->` markers around each control-flow run. Trusts the server's
+/// attributes. A mismatch warns in debug builds, builds that node fresh and drops
+/// the unclaimed server nodes in that element or run; it never panics.
 pub fn hydrate<C: IntoSegment<Node>>(
     container: &web_sys::Node,
     build: impl FnOnce() -> C,

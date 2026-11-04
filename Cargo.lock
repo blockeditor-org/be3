@@ -267,32 +267,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
-name = "app-bench"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-client",
- "be-drive",
- "be-server",
- "bench",
- "beui-layer-drive",
- "build-id",
- "infinite-canvas-types",
- "libc",
- "paint-snapshot",
- "tokio",
-]
-
-[[package]]
-name = "app-tests"
-version = "0.1.0"
-dependencies = [
- "be-drive",
- "beui-layer-drive",
- "paint-snapshot",
-]
-
-[[package]]
 name = "appendlist"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -683,27 +657,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "audio-block-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "block-type-guest",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "audio_block"
-version = "0.1.0"
-dependencies = [
- "audio-block-types",
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "uuid",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -716,166 +669,456 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "base64"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
+
+[[package]]
 name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
+name = "be-app-audio"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-audio",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-browser-tab"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-browser-tab",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-checklist"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-checklist",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-database"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-database",
+ "be-sdk-test",
+ "be-sdk-ui-database",
+ "be-type-database",
+ "be-type-text",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-desktop"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-api",
+ "be-sdk-beui",
+ "be-sdk-shell",
+ "be-sdk-test",
+ "be-type-database",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-deterministic-game"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-deterministic-game",
+ "beui",
+ "tabletop-api",
+ "tabletop-host",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-example-beui-gallery"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-example-beui-gallery",
+ "beui",
+ "beui-demo",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-example-block-debug"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-example-counter",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-example-counter"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-example-counter",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-example-pan-zoom"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-example-pan-zoom",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-example-triangle"
+version = "0.1.0"
+dependencies = [
+ "be-sdk",
+ "be-type-example-triangle",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-file-tree"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-database",
+ "be-sdk-test",
+ "be-type-workspace",
+ "beui",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-image"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-image",
+ "beui",
+ "image",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-infinite-canvas"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "be-sdk-beui",
+ "be-sdk-database",
+ "be-sdk-test",
+ "be-sdk-text",
+ "be-sdk-ui-database",
+ "be-tool-bench",
+ "be-type-database",
+ "be-type-example-counter",
+ "be-type-image",
+ "be-type-infinite-canvas",
+ "beui",
+ "beui-text-editor-core",
+ "image",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-logic-grid"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-logic-grid",
+ "beui",
+ "bytemuck",
+ "logicgame",
+ "serde",
+ "serde_json",
+ "uuid",
+ "wgpu",
+]
+
+[[package]]
+name = "be-app-map"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-image",
+ "be-type-map",
+ "beui",
+ "flate2",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-pdf"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-pdf",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-presentation"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-infinite-canvas",
+ "be-type-presentation",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-scene-3d"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-scene-3d",
+ "beui",
+ "bytemuck",
+ "uuid",
+ "wgpu",
+]
+
+[[package]]
+name = "be-app-settings"
+version = "0.1.0"
+dependencies = [
+ "be-host-remap",
+ "be-sdk-beui",
+ "be-sdk-database",
+ "be-sdk-test",
+ "be-type-settings",
+ "beui",
+ "beui-text-editor-core",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-terminal"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-terminal",
+ "beui",
+ "beui-terminal-view",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-text"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-sdk-text",
+ "be-type-image",
+ "be-type-text",
+ "beui",
+ "beui-text-editor-core",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-version-control"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-video"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-example-counter",
+ "be-type-video",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-workspace"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-api",
+ "be-sdk-beui",
+ "be-sdk-shell",
+ "be-sdk-test",
+ "be-type-workspace",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-workspace-index"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-example-counter",
+ "be-type-workspace",
+ "beui",
+ "uuid",
+]
+
+[[package]]
 name = "be-block"
 version = "0.1.0"
 dependencies = [
- "be-commit",
- "be-graph",
- "be-model",
- "be-store",
+ "be-block-commit",
+ "be-block-graph",
+ "be-block-model",
+ "be-block-store",
+ "be-lib-ui-preferences",
  "memchr",
  "postcard",
  "serde",
- "ui-types",
  "uuid",
 ]
 
 [[package]]
-name = "be-cli"
+name = "be-block-client"
 version = "0.1.0"
 dependencies = [
  "be-block",
- "be-client",
- "be-commit",
- "be-graph",
- "be-keys",
- "be-protocol",
+ "be-block-commit",
+ "be-block-fault-relay",
+ "be-block-graph",
+ "be-block-keys",
+ "be-block-protocol",
+ "be-block-sqlite-schema",
+ "be-block-store",
+ "be-lib-build-id",
  "be-server",
- "be-store",
- "be-sync",
- "be-types-host",
- "block-plugin-api",
- "block-type-api",
- "block-type-guest",
- "block-ui",
- "build-id",
- "database-types",
- "first-party-types",
- "futures-util",
- "portable-pty",
- "serde_json",
- "terminal-emulator",
- "terminal-types",
- "text-block-types",
- "tokio",
- "uuid",
- "wasi-threads",
- "workspace-ui-types",
-]
-
-[[package]]
-name = "be-client"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-graph",
- "be-keys",
- "be-protocol",
- "be-server",
- "be-store",
- "build-id",
- "counter-types",
- "fault-relay",
+ "be-type-example-counter",
+ "be-type-image",
+ "be-type-text",
+ "be-type-workspace",
+ "be-wasm-ops",
+ "be-wasm-threads",
  "futures-channel",
  "futures-util",
  "httparse",
- "image-block-types",
  "js-sys",
  "rusqlite",
  "rustls",
  "serde",
  "serde_bytes",
- "sqlite-schema",
- "text-block-types",
  "tokio",
  "tokio-rustls",
  "tokio-tungstenite",
  "uuid",
- "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
  "webpki-roots 0.26.11",
- "workspace-ui-types",
 ]
 
 [[package]]
-name = "be-commit"
+name = "be-block-commit"
 version = "0.1.0"
 dependencies = [
- "be-store",
+ "be-block-store",
  "serde",
  "similar",
  "uuid",
 ]
 
 [[package]]
-name = "be-dmabuf"
+name = "be-block-fault-relay"
 version = "0.1.0"
 dependencies = [
- "ash",
- "beui-renderer-wgpu",
- "pollster",
- "rustix 1.1.4",
- "smithay",
- "wgpu",
+ "be-wasm-ops",
+ "tokio",
 ]
 
 [[package]]
-name = "be-drive"
-version = "0.1.0"
-dependencies = [
- "beui-core",
- "beui-layer-drive",
- "image",
- "libc",
- "paint-snapshot",
-]
-
-[[package]]
-name = "be-frozen"
+name = "be-block-frozen"
 version = "0.1.0"
 dependencies = [
  "be-block",
- "be-cli",
- "be-client",
- "be-graph",
- "be-keys",
- "be-protocol",
+ "be-block-client",
+ "be-block-graph",
+ "be-block-keys",
+ "be-block-protocol",
+ "be-block-store",
+ "be-block-type-host",
+ "be-lib-build-id",
  "be-server",
- "be-store",
- "be-types-host",
- "build-id",
- "database-types",
- "first-party-types",
+ "be-tool-cli",
+ "be-type-bundle",
+ "be-type-database",
+ "be-type-text",
+ "be-type-workspace",
+ "be-wasm-ops",
  "rusqlite",
- "text-block-types",
  "tokio",
  "uuid",
- "workspace-ui-types",
  "zip",
 ]
 
 [[package]]
-name = "be-graph"
+name = "be-block-graph"
 version = "0.1.0"
 dependencies = [
- "be-commit",
- "be-store",
- "bench",
+ "be-block-commit",
+ "be-block-store",
+ "be-tool-bench",
  "serde",
  "uuid",
 ]
 
 [[package]]
-name = "be-keys"
+name = "be-block-keys"
 version = "0.1.0"
 dependencies = [
  "bip39",
@@ -892,41 +1135,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-launcher"
+name = "be-block-model"
 version = "0.1.0"
 dependencies = [
- "be-block",
- "beui",
- "block-ui-test",
- "comrak",
- "image",
- "jni 0.22.4",
- "ndk-context",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "terminal-emulator",
- "terminal-types",
- "terminal-view",
- "ureq",
-]
-
-[[package]]
-name = "be-model"
-version = "0.1.0"
-dependencies = [
- "be-commit",
- "be-model-derive",
- "be-store",
+ "be-block-commit",
+ "be-block-model-derive",
+ "be-block-store",
+ "be-lib-sequence",
  "ciborium",
  "postcard",
- "sequence",
  "serde",
  "uuid",
 ]
 
 [[package]]
-name = "be-model-derive"
+name = "be-block-model-derive"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
@@ -935,52 +1158,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-ops"
+name = "be-block-protocol"
 version = "0.1.0"
 dependencies = [
- "block-guest-abi",
- "postcard",
- "serde",
- "serde_bytes",
-]
-
-[[package]]
-name = "be-ops-bindgen"
-version = "0.1.0"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
- "wit-parser 0.254.0",
-]
-
-[[package]]
-name = "be-portal"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "be-portal-ui"
-version = "0.1.0"
-dependencies = [
- "be-portal",
- "beui",
- "paint-snapshot",
- "wasi-threads",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "be-protocol"
-version = "0.1.0"
-dependencies = [
- "be-commit",
- "be-graph",
- "be-store",
+ "be-block-commit",
+ "be-block-graph",
+ "be-block-store",
+ "be-wasm-ops",
+ "be-wasm-ops-bindgen",
  "postcard",
  "serde",
  "serde_bytes",
@@ -988,75 +1173,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-remap"
+name = "be-block-session"
 version = "0.1.0"
 dependencies = [
- "bincode",
+ "be-block-commit",
+ "be-block-protocol",
+ "be-block-store",
  "serde",
- "toml",
- "toml_edit",
+ "serde_bytes",
+ "uuid",
 ]
 
 [[package]]
-name = "be-remap-host"
+name = "be-block-sqlite-schema"
 version = "0.1.0"
 dependencies = [
- "be-remap",
- "wasmi",
-]
-
-[[package]]
-name = "be-remap-module"
-version = "0.1.0"
-dependencies = [
- "be-remap",
-]
-
-[[package]]
-name = "be-server"
-version = "0.1.0"
-dependencies = [
- "argon2",
- "base64",
- "be-block",
- "be-commit",
- "be-graph",
- "be-keys",
- "be-portal",
- "be-portal-ui",
- "be-protocol",
- "be-session",
- "be-store",
- "build-id",
- "chacha20poly1305",
- "futures-util",
- "httparse",
- "rand 0.9.4",
  "rusqlite",
- "serde",
- "sha2 0.10.9",
- "sqlite-schema",
- "tokio",
- "tokio-tungstenite",
- "tracing",
- "tracing-subscriber",
- "ureq",
- "uuid",
 ]
 
 [[package]]
-name = "be-session"
-version = "0.1.0"
-dependencies = [
- "be-commit",
- "be-protocol",
- "be-store",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "be-store"
+name = "be-block-store"
 version = "0.1.0"
 dependencies = [
  "chacha20poly1305",
@@ -1069,83 +1205,375 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-sync"
+name = "be-block-sync"
 version = "0.1.0"
 dependencies = [
  "be-block",
- "be-client",
- "be-commit",
- "be-graph",
- "be-keys",
- "be-protocol",
+ "be-block-client",
+ "be-block-commit",
+ "be-block-graph",
+ "be-block-keys",
+ "be-block-protocol",
+ "be-block-store",
+ "be-block-type-host",
+ "be-block-vcs",
+ "be-lib-build-id",
+ "be-sdk-type-api",
  "be-server",
- "be-store",
- "be-types-host",
- "be-vcs",
- "block-type-api",
- "build-id",
- "first-party-types",
+ "be-type-bundle",
+ "be-type-image",
+ "be-type-infinite-canvas",
+ "be-type-text",
+ "be-type-workspace",
  "futures-util",
  "ignore",
- "image-block-types",
- "infinite-canvas-types",
  "notify",
  "serde",
  "serde_json",
- "text-block-types",
  "tokio",
  "uuid",
- "workspace-ui-types",
 ]
 
 [[package]]
-name = "be-types-host"
+name = "be-block-type-host"
 version = "0.1.0"
 dependencies = [
  "be-block",
- "be-client",
- "be-commit",
- "be-graph",
- "be-protocol",
- "be-session",
- "be-store",
- "block-guest-abi",
- "block-guest-host",
- "block-type-api",
- "block-type-guest",
- "block-wasm-host",
- "build-id",
- "checklist-types",
- "counter-types",
+ "be-block-client",
+ "be-block-commit",
+ "be-block-graph",
+ "be-block-protocol",
+ "be-block-session",
+ "be-block-store",
+ "be-lib-build-id",
+ "be-sdk-type-api",
+ "be-sdk-type-guest",
+ "be-type-checklist",
+ "be-type-example-counter",
+ "be-wasm-guest-abi",
+ "be-wasm-guest-host",
+ "be-wasm-host",
+ "be-wasm-threads",
  "futures-util",
  "pollster",
  "tokio",
  "uuid",
- "wasi-threads",
 ]
 
 [[package]]
-name = "be-vcs"
+name = "be-block-vcs"
 version = "0.1.0"
 dependencies = [
  "be-block",
- "be-commit",
- "be-store",
+ "be-block-commit",
+ "be-block-store",
  "serde",
  "uuid",
 ]
 
 [[package]]
-name = "be-wayland"
+name = "be-host"
 version = "0.1.0"
 dependencies = [
- "be-dmabuf",
+ "be-block",
+ "be-block-client",
+ "be-block-graph",
+ "be-block-keys",
+ "be-block-protocol",
+ "be-block-session",
+ "be-block-type-host",
+ "be-host-accounts-ui",
+ "be-host-base",
+ "be-host-desktop",
+ "be-host-dmabuf",
+ "be-host-runtime",
+ "be-host-services",
+ "be-host-stack",
+ "be-host-testing",
+ "be-host-wayland",
+ "be-host-win32-capture",
+ "be-lib-build-id",
+ "be-sdk-api",
+ "be-sdk-manifest",
+ "be-sdk-test",
+ "be-sdk-window-stack",
+ "be-wasm-threads",
  "beui",
+ "beui-host",
+ "beui-platform-drm",
+ "beui-reactive",
+ "directories-next",
+ "futures-util",
+ "libc",
+ "serde_json",
+ "tokio",
+ "uuid",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "zbus",
+ "zip",
+]
+
+[[package]]
+name = "be-host-accounts-ui"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui-host",
+]
+
+[[package]]
+name = "be-host-archive"
+version = "0.1.0"
+dependencies = [
+ "sha2 0.10.9",
+ "zstd",
+]
+
+[[package]]
+name = "be-host-base"
+version = "0.1.0"
+dependencies = [
+ "be-block-protocol",
+ "be-block-sqlite-schema",
+ "be-lib-build-id",
+ "be-lib-ui-types",
+ "be-sdk-api",
+ "be-wasm-threads",
+ "jni 0.22.4",
+ "js-sys",
+ "libc",
+ "ndk-context",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tokio",
+ "ureq",
+ "uuid",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "be-host-bench"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-client",
+ "be-lib-build-id",
+ "be-server",
+ "be-tool-bench",
+ "be-tool-drive",
+ "be-type-infinite-canvas",
+ "beui-layer-drive",
+ "beui-paint-snapshot",
+ "libc",
+ "tokio",
+]
+
+[[package]]
+name = "be-host-desktop"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-type-host",
+ "be-host-base",
+ "be-host-remap-host",
+ "be-host-stack",
+ "be-host-wayland",
+ "be-host-win32",
+ "be-host-win32-capture",
+ "be-host-win32-input",
+ "be-sdk-api",
+ "beui",
+ "beui-host",
+ "beui-platform-drm",
+ "image",
+ "notify",
+ "pollster",
+ "uuid",
+ "wgpu",
+]
+
+[[package]]
+name = "be-host-dmabuf"
+version = "0.1.0"
+dependencies = [
+ "ash",
+ "beui-renderer-wgpu",
+ "pollster",
+ "rustix 1.1.4",
+ "smithay",
+ "wgpu",
+]
+
+[[package]]
+name = "be-host-remap"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+ "toml",
+ "toml_edit",
+]
+
+[[package]]
+name = "be-host-remap-host"
+version = "0.1.0"
+dependencies = [
+ "be-host-remap",
+ "wasmi",
+]
+
+[[package]]
+name = "be-host-remap-module"
+version = "0.1.0"
+dependencies = [
+ "be-host-remap",
+]
+
+[[package]]
+name = "be-host-runtime"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-client",
+ "be-block-commit",
+ "be-block-graph",
+ "be-host-base",
+ "be-host-stack",
+ "be-host-testing",
+ "be-lib-stable-hash",
+ "be-sdk-api",
+ "be-sdk-manifest",
+ "be-sdk-type-api",
+ "be-sdk-type-guest",
+ "be-type-browser-tab",
+ "be-type-checklist",
+ "be-type-database",
+ "be-type-example-counter",
+ "be-type-text",
+ "be-wasm-guest-host",
+ "be-wasm-host",
+ "beui",
+ "beui-host",
+ "image",
+ "js-sys",
+ "pollster",
+ "rodio",
+ "serde",
+ "serde_json",
+ "uuid",
+ "wasm-bindgen",
+ "web-sys",
+ "wgpu",
+]
+
+[[package]]
+name = "be-host-services"
+version = "0.1.0"
+dependencies = [
+ "async-executor",
+ "async-io",
+ "async-lock",
+ "be-host-base",
+ "be-host-wayland",
+ "be-sdk-api",
+ "beui-types",
+ "futures-util",
+ "image",
+ "pulseaudio",
+ "roxmltree 0.21.1",
+ "rustix 1.1.4",
+ "serde",
+ "tokio",
+ "uuid",
+ "zbus",
+]
+
+[[package]]
+name = "be-host-stack"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-client",
+ "be-block-commit",
+ "be-block-fault-relay",
+ "be-block-graph",
+ "be-block-keys",
+ "be-block-protocol",
+ "be-block-store",
+ "be-block-type-host",
+ "be-block-vcs",
+ "be-host-base",
+ "be-lib-build-id",
+ "be-lib-stable-hash",
+ "be-sdk",
+ "be-sdk-api",
+ "be-sdk-manifest",
+ "be-sdk-type-api",
+ "be-sdk-type-guest",
+ "be-sdk-type-host",
+ "be-server",
+ "be-tool-cli",
+ "be-type-bundle",
+ "be-type-checklist",
+ "be-type-example-counter",
+ "be-type-image",
+ "be-type-presentation",
+ "be-type-terminal",
+ "be-type-text",
+ "be-type-workspace",
+ "be-wasm-guest-abi",
+ "be-wasm-host",
+ "be-wasm-threads",
+ "futures-util",
+ "js-sys",
+ "serde_json",
+ "tokio",
+ "ureq",
+ "uuid",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "be-host-testing"
+version = "0.1.0"
+dependencies = [
+ "be-block-client",
+ "be-block-keys",
+ "be-host-stack",
+ "be-lib-build-id",
+ "be-server",
+ "be-type-bundle",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "be-host-tests"
+version = "0.1.0"
+dependencies = [
+ "be-tool-drive",
+ "beui-layer-drive",
+ "beui-paint-snapshot",
+]
+
+[[package]]
+name = "be-host-wayland"
+version = "0.1.0"
+dependencies = [
+ "be-host-dmabuf",
+ "beui",
+ "beui-fonts",
+ "beui-host",
  "beui-layer-space",
- "bytemuck",
+ "beui-paint-snapshot",
  "gvdb",
  "image",
- "paint-snapshot",
  "resvg",
  "rustix 1.1.4",
  "smithay",
@@ -1156,14 +1584,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-win32"
+name = "be-host-win32"
 version = "0.1.0"
 dependencies = [
  "windows 0.62.2",
 ]
 
 [[package]]
-name = "be-win32-capture"
+name = "be-host-win32-capture"
 version = "0.1.0"
 dependencies = [
  "ash",
@@ -1172,16 +1600,1034 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-win32-input"
+name = "be-host-win32-input"
 version = "0.1.0"
 dependencies = [
- "be-win32",
+ "be-host-win32",
  "beui-types",
  "windows 0.62.2",
 ]
 
 [[package]]
-name = "bench"
+name = "be-lib-build-id"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "be-lib-geometry"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "be-lib-ghostty-vt"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "be-lib-graphemes"
+version = "0.1.0"
+dependencies = [
+ "icu_properties",
+]
+
+[[package]]
+name = "be-lib-prompt"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "be-lib-sequence"
+version = "0.1.0"
+dependencies = [
+ "memchr",
+ "postcard",
+ "serde",
+]
+
+[[package]]
+name = "be-lib-stable-hash"
+version = "0.1.0"
+dependencies = [
+ "foldhash 0.2.0",
+]
+
+[[package]]
+name = "be-lib-terminal-emulator"
+version = "0.1.0"
+dependencies = [
+ "be-lib-ghostty-vt",
+ "be-type-terminal",
+]
+
+[[package]]
+name = "be-lib-ui-keys"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-ops-bindgen",
+ "serde",
+]
+
+[[package]]
+name = "be-lib-ui-preferences"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-ops-bindgen",
+ "serde",
+]
+
+[[package]]
+name = "be-lib-ui-types"
+version = "0.1.0"
+dependencies = [
+ "be-lib-geometry",
+ "be-lib-ui-keys",
+ "be-lib-ui-preferences",
+ "be-wasm-ops",
+ "be-wasm-ops-bindgen",
+ "serde",
+]
+
+[[package]]
+name = "be-sdk"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-lib-geometry",
+ "be-lib-stable-hash",
+ "be-sdk-api",
+ "be-sdk-manifest",
+ "be-sdk-type-guest",
+ "be-sdk-ui",
+ "be-type-checklist",
+ "be-wasm-gpu-guest",
+ "be-wasm-guest-abi",
+ "beui-lucide",
+ "beui-paint-format",
+ "serde_bytes",
+ "serde_json",
+ "uuid",
+ "wgpu",
+]
+
+[[package]]
+name = "be-sdk-api"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "be-lib-stable-hash",
+ "be-lib-ui-keys",
+ "be-lib-ui-preferences",
+ "be-lib-ui-types",
+ "be-sdk-manifest",
+ "be-wasm-gpu-abi",
+ "be-wasm-ops",
+ "be-wasm-ops-bindgen",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-beui"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-lib-stable-hash",
+ "be-sdk",
+ "be-sdk-api",
+ "be-sdk-beui-platform",
+ "be-sdk-beui-platform-api",
+ "be-sdk-ui",
+ "be-type-presentation",
+ "beui",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-beui-platform"
+version = "0.1.0"
+dependencies = [
+ "be-lib-stable-hash",
+ "be-sdk",
+ "be-sdk-api",
+ "be-sdk-beui-platform-api",
+ "beui",
+ "beui-core",
+ "beui-font-freetype",
+ "beui-host",
+ "beui-renderer-wgpu",
+ "beui-runner",
+ "beui-types",
+ "wgpu",
+]
+
+[[package]]
+name = "be-sdk-beui-platform-api"
+version = "0.1.0"
+dependencies = [
+ "be-lib-stable-hash",
+ "be-sdk",
+ "beui",
+ "beui-core",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-database"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-ui-database",
+ "be-type-database",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-library-base"
+version = "0.1.0"
+dependencies = [
+ "be-lib-geometry",
+ "be-sdk",
+ "be-sdk-api",
+ "be-wasm-gpu-guest",
+ "be-wasm-ops",
+ "postcard",
+ "serde",
+ "serde_json",
+ "uuid",
+ "wgpu",
+]
+
+[[package]]
+name = "be-sdk-library-beui"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-beui-platform",
+ "beui",
+]
+
+[[package]]
+name = "be-sdk-manifest"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-ops-bindgen",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-shell"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-type-settings",
+ "beui",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-test"
+version = "0.1.0"
+dependencies = [
+ "be-block-session",
+ "be-block-store",
+ "be-sdk-api",
+ "be-sdk-beui",
+ "be-sdk-beui-platform",
+ "be-sdk-beui-platform-api",
+ "be-sdk-type-guest",
+ "be-sdk-type-host",
+ "be-sdk-window-stack",
+ "be-type-text",
+ "beui",
+ "beui-core",
+ "beui-host",
+ "beui-paint-snapshot",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-test-runner"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-host",
+ "pollster",
+ "wgpu",
+]
+
+[[package]]
+name = "be-sdk-text"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-model",
+ "be-sdk",
+ "beui",
+ "beui-text-editor-core",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-type-api"
+version = "0.1.0"
+dependencies = [
+ "be-block-commit",
+ "be-block-protocol",
+ "be-block-session",
+ "be-wasm-ops",
+ "be-wasm-ops-bindgen",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-type-guest"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-block-protocol",
+ "be-block-session",
+ "be-block-store",
+ "be-sdk-type-api",
+ "be-wasm-guest-abi",
+ "be-wasm-ops",
+ "getrandom 0.4.2",
+ "pollster",
+ "postcard",
+ "rand_chacha 0.9.0",
+ "serde",
+ "serde_bytes",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-type-host"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-sdk-type-guest",
+]
+
+[[package]]
+name = "be-sdk-ui"
+version = "0.1.0"
+dependencies = [
+ "be-lib-stable-hash",
+ "be-sdk-manifest",
+ "beui-lucide",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-ui-database"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-ui",
+ "be-type-database",
+ "beui-components-unstyled",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-window-stack"
+version = "0.1.0"
+dependencies = [
+ "be-lib-geometry",
+ "be-sdk-api",
+]
+
+[[package]]
+name = "be-server"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "base64 0.22.1",
+ "be-block",
+ "be-block-commit",
+ "be-block-graph",
+ "be-block-keys",
+ "be-block-protocol",
+ "be-block-session",
+ "be-block-sqlite-schema",
+ "be-block-store",
+ "be-lib-build-id",
+ "be-server-portal",
+ "be-wasm-ops",
+ "chacha20poly1305",
+ "futures-util",
+ "httparse",
+ "rand 0.9.4",
+ "rusqlite",
+ "serde",
+ "sha2 0.10.9",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "ureq",
+ "uuid",
+]
+
+[[package]]
+name = "be-server-bin"
+version = "0.1.0"
+dependencies = [
+ "be-lib-build-id",
+ "be-server",
+ "be-server-portal",
+ "be-server-portal-ui",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "be-server-portal"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "be-server-portal-ui"
+version = "0.1.0"
+dependencies = [
+ "be-server-portal",
+ "be-wasm-threads",
+ "beui",
+ "beui-paint-snapshot",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "be-tool-bench"
+version = "0.1.0"
+
+[[package]]
+name = "be-tool-bootstrap"
+version = "0.1.0"
+dependencies = [
+ "be-lib-prompt",
+ "sha2 0.10.9",
+ "zstd",
+]
+
+[[package]]
+name = "be-tool-browser-rasterizer"
+version = "0.1.0"
+dependencies = [
+ "beui-fonts",
+ "beui-paint-snapshot",
+ "serde_json",
+]
+
+[[package]]
+name = "be-tool-buck"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "serde_json",
+ "toml",
+ "zip",
+]
+
+[[package]]
+name = "be-tool-build-helper"
+version = "0.1.0"
+dependencies = [
+ "httparse",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "be-tool-cli"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-client",
+ "be-block-commit",
+ "be-block-graph",
+ "be-block-keys",
+ "be-block-protocol",
+ "be-block-store",
+ "be-block-sync",
+ "be-block-type-host",
+ "be-lib-build-id",
+ "be-lib-terminal-emulator",
+ "be-sdk-manifest",
+ "be-sdk-type-api",
+ "be-sdk-type-guest",
+ "be-sdk-ui-database",
+ "be-server",
+ "be-type-bundle",
+ "be-type-database",
+ "be-type-terminal",
+ "be-type-text",
+ "be-type-workspace",
+ "be-wasm-threads",
+ "beui-components-unstyled",
+ "futures-util",
+ "portable-pty",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "be-tool-drive"
+version = "0.1.0"
+dependencies = [
+ "be-host-archive",
+ "beui-layer-drive",
+ "beui-paint-snapshot",
+ "beui-runner",
+ "image",
+ "libc",
+]
+
+[[package]]
+name = "be-tool-fix-rust-source"
+version = "0.1.0"
+dependencies = [
+ "ra_ap_syntax",
+]
+
+[[package]]
+name = "be-tool-launcher"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-lib-terminal-emulator",
+ "be-sdk-test",
+ "be-type-terminal",
+ "beui",
+ "beui-host",
+ "beui-terminal-view",
+ "comrak",
+ "image",
+ "jni 0.22.4",
+ "ndk-context",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "ureq",
+]
+
+[[package]]
+name = "be-tool-local"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "be-lib-build-id",
+ "be-lib-prompt",
+ "be-tool-fix-rust-source",
+ "be-tool-paint-review-manifest",
+ "beui-html",
+ "beui-paint-snapshot",
+ "image",
+ "jks",
+ "libc",
+ "p12-keystore",
+ "rsa",
+ "serde_json",
+ "sha2 0.10.9",
+ "ureq",
+ "x509-cert 0.2.5",
+ "zip",
+]
+
+[[package]]
+name = "be-tool-paint-review"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-test",
+ "be-tool-paint-review-manifest",
+ "beui",
+ "beui-host",
+]
+
+[[package]]
+name = "be-tool-paint-review-manifest"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "be-tool-paint-review-web"
+version = "0.1.0"
+dependencies = [
+ "be-tool-paint-review",
+ "be-tool-paint-review-manifest",
+ "be-wasm-threads",
+ "beui",
+ "beui-host",
+ "image",
+ "js-sys",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "be-tool-tls-diamond-app"
+version = "0.1.0"
+dependencies = [
+ "be-tool-tls-diamond-base",
+ "be-tool-tls-diamond-left",
+ "be-tool-tls-diamond-right",
+]
+
+[[package]]
+name = "be-tool-tls-diamond-base"
+version = "0.1.0"
+
+[[package]]
+name = "be-tool-tls-diamond-left"
+version = "0.1.0"
+dependencies = [
+ "be-tool-tls-diamond-base",
+]
+
+[[package]]
+name = "be-tool-tls-diamond-right"
+version = "0.1.0"
+dependencies = [
+ "be-tool-tls-diamond-base",
+]
+
+[[package]]
+name = "be-tool-verify"
+version = "0.1.0"
+dependencies = [
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "be-type-audio"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-sdk-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-browser-tab"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-bundle"
+version = "0.1.0"
+dependencies = [
+ "be-block-type-host",
+ "be-sdk-type-guest",
+ "be-type-audio",
+ "be-type-browser-tab",
+ "be-type-checklist",
+ "be-type-database",
+ "be-type-deterministic-game",
+ "be-type-example-beui-gallery",
+ "be-type-example-counter",
+ "be-type-example-pan-zoom",
+ "be-type-example-triangle",
+ "be-type-image",
+ "be-type-infinite-canvas",
+ "be-type-logic-grid",
+ "be-type-map",
+ "be-type-pdf",
+ "be-type-presentation",
+ "be-type-scene-3d",
+ "be-type-settings",
+ "be-type-terminal",
+ "be-type-text",
+ "be-type-video",
+ "be-type-workspace",
+ "be-wasm-guest-abi",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-checklist"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-database"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-deterministic-game"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-example-beui-gallery"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-example-counter"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-example-pan-zoom"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-example-triangle"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-image"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-sdk-type-guest",
+ "pollster",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-infinite-canvas"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "be-type-database",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-logic-grid"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "logicgame",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-map"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-pdf"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-sdk-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-presentation"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-scene-3d"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-settings"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-terminal"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-lib-ui-keys",
+ "be-sdk-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-text"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "pollster",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-video"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-workspace"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-wasm-dylink"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "be-wasm-gpu-abi"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-ops",
+ "be-wasm-ops-bindgen",
+ "serde",
+ "wgpu",
+]
+
+[[package]]
+name = "be-wasm-gpu-guest"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-gpu-abi",
+ "wgpu",
+]
+
+[[package]]
+name = "be-wasm-gpu-host"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-gpu-abi",
+ "be-wasm-guest-abi",
+ "be-wasm-ops",
+ "wgpu",
+]
+
+[[package]]
+name = "be-wasm-gpu-shim"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-dylink",
+ "be-wasm-gpu-host",
+ "js-sys",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu",
+]
+
+[[package]]
+name = "be-wasm-guest-abi"
+version = "0.1.0"
+
+[[package]]
+name = "be-wasm-guest-echo"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-guest-abi",
+]
+
+[[package]]
+name = "be-wasm-guest-host"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-guest-abi",
+ "be-wasm-guest-echo",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "be-wasm-host"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-api",
+ "be-sdk-type-api",
+ "be-wasm-dylink",
+ "be-wasm-gpu-abi",
+ "be-wasm-gpu-host",
+ "be-wasm-guest-abi",
+ "be-wasm-guest-echo",
+ "be-wasm-guest-host",
+ "be-wasm-ops",
+ "bytes",
+ "rustc-demangle",
+ "tokio",
+ "uuid",
+ "wasmtime",
+ "wasmtime-wasi",
+ "wgpu",
+]
+
+[[package]]
+name = "be-wasm-link"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-dylink",
+]
+
+[[package]]
+name = "be-wasm-ops"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-ops-bindgen",
+ "futures-core",
+ "postcard",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "be-wasm-ops-bindgen"
+version = "0.1.0"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+ "wit-parser 0.254.0",
+]
+
+[[package]]
+name = "be-wasm-threads"
 version = "0.1.0"
 
 [[package]]
@@ -1189,33 +2635,17 @@ name = "beui"
 version = "0.1.0"
 dependencies = [
  "accesskit",
- "bench",
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
  "beui-dock",
- "beui-font-freetype",
- "beui-inspector",
+ "beui-dock-host",
+ "beui-draw",
  "beui-keyboard",
- "beui-layer-drive",
- "beui-layer-space",
- "beui-layer-xr",
- "beui-platform-android",
- "beui-platform-headless",
- "beui-platform-web",
- "beui-platform-winit",
- "beui-renderer-wgpu",
+ "beui-macros",
+ "beui-paint-snapshot",
+ "beui-reactive",
  "beui-view",
- "beui_macros",
- "paint-snapshot",
- "pollster",
- "raw-window-handle",
- "reactive",
- "serde_json",
- "text-editor-core",
- "wasm-bindgen",
- "web-sys",
- "wgpu",
 ]
 
 [[package]]
@@ -1223,13 +2653,15 @@ name = "beui-components-styled"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "be-lib-stable-hash",
  "beui-components-unstyled",
- "beui-renderer-wgpu",
+ "beui-core",
+ "beui-draw",
+ "beui-macros",
+ "beui-reactive",
+ "beui-text-editor-core",
  "beui-view",
- "beui_macros",
  "bytemuck",
- "reactive",
- "text-editor-core",
  "wgpu",
 ]
 
@@ -1238,13 +2670,14 @@ name = "beui-components-unstyled"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "be-lib-stable-hash",
+ "beui-macros",
+ "beui-reactive",
+ "beui-text-editor-core",
  "beui-view",
- "beui_macros",
  "emojis",
  "foldhash 0.2.0",
  "memchr",
- "reactive",
- "text-editor-core",
 ]
 
 [[package]]
@@ -1252,20 +2685,20 @@ name = "beui-core"
 version = "0.1.0"
 dependencies = [
  "accesskit",
- "beui-drag",
+ "be-lib-geometry",
+ "be-lib-graphemes",
+ "be-lib-stable-hash",
+ "be-lib-ui-types",
+ "beui-lucide",
+ "beui-paint-format",
+ "beui-reactive",
  "beui-tree",
  "beui-types",
  "foldhash 0.2.0",
- "geometry",
- "grapheme-segmentation",
  "kurbo",
- "lucide",
  "lyon_tessellation",
- "paint-format",
  "raw-window-handle",
- "reactive",
  "thumbhash",
- "ui-types",
 ]
 
 [[package]]
@@ -1273,16 +2706,16 @@ name = "beui-core-html"
 version = "0.1.0"
 dependencies = [
  "accesskit",
- "base64",
- "beui-drag",
+ "base64 0.22.1",
+ "be-lib-stable-hash",
  "beui-fonts",
  "beui-html",
+ "beui-reactive",
  "beui-tree",
  "beui-types",
  "beui-web-input",
  "js-sys",
  "png",
- "reactive",
  "ttf-parser",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1293,25 +2726,28 @@ dependencies = [
 name = "beui-demo"
 version = "0.1.0"
 dependencies = [
- "bench",
+ "be-lib-stable-hash",
+ "be-sdk-test",
+ "be-tool-bench",
  "beui",
  "beui-core",
+ "beui-host",
  "beui-inspector",
  "beui-layer-space",
+ "beui-macros",
  "beui-renderer-wgpu",
- "beui_macros",
- "block-ui-test",
+ "beui-runner",
+ "beui-text-editor-core",
  "pollster",
- "text-editor-core",
 ]
 
 [[package]]
 name = "beui-demo-html"
 version = "0.1.0"
 dependencies = [
+ "be-wasm-threads",
  "beui",
  "beui-demo",
- "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -1320,28 +2756,55 @@ dependencies = [
 name = "beui-dock"
 version = "0.1.0"
 dependencies = [
- "accesskit",
+ "be-lib-stable-hash",
  "beui-components-styled",
  "beui-components-unstyled",
+ "beui-dock-state",
+ "beui-macros",
+ "beui-reactive",
  "beui-view",
- "beui_macros",
- "reactive",
- "serde",
 ]
 
 [[package]]
-name = "beui-drag"
+name = "beui-dock-host"
 version = "0.1.0"
 dependencies = [
- "beui-tree",
+ "accesskit",
+ "be-lib-stable-hash",
+ "beui-components-styled",
+ "beui-components-unstyled",
+ "beui-core",
+ "beui-dock",
+ "beui-dock-state",
+ "beui-macros",
+ "beui-reactive",
+ "beui-view",
+]
+
+[[package]]
+name = "beui-dock-state"
+version = "0.1.0"
+dependencies = [
+ "be-lib-stable-hash",
  "beui-types",
+]
+
+[[package]]
+name = "beui-draw"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "beui-types",
+ "wgpu",
 ]
 
 [[package]]
 name = "beui-font-browser"
 version = "0.1.0"
 dependencies = [
+ "be-lib-stable-hash",
  "beui-core",
+ "beui-types",
  "js-sys",
  "wasm-bindgen",
  "web-sys",
@@ -1351,9 +2814,10 @@ dependencies = [
 name = "beui-font-freetype"
 version = "0.1.0"
 dependencies = [
+ "be-lib-stable-hash",
  "beui-core",
  "beui-fonts",
- "foldhash 0.2.0",
+ "beui-types",
  "freetype",
  "harfbuzz_rs",
  "libloading 0.8.9",
@@ -1365,14 +2829,36 @@ name = "beui-fonts"
 version = "0.1.0"
 
 [[package]]
-name = "beui-gallery-types"
+name = "beui-host"
 version = "0.1.0"
 dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "uuid",
+ "accesskit",
+ "be-lib-stable-hash",
+ "be-tool-bench",
+ "beui",
+ "beui-core",
+ "beui-font-freetype",
+ "beui-inspector",
+ "beui-keyboard",
+ "beui-layer-drive",
+ "beui-layer-space",
+ "beui-layer-xr",
+ "beui-macros",
+ "beui-platform-android",
+ "beui-platform-headless",
+ "beui-platform-web",
+ "beui-platform-winit",
+ "beui-reactive",
+ "beui-renderer-wgpu",
+ "beui-runner",
+ "beui-text-editor-core",
+ "beui-view",
+ "pollster",
+ "raw-window-handle",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
+ "wgpu",
 ]
 
 [[package]]
@@ -1389,10 +2875,10 @@ dependencies = [
 name = "beui-html-spike"
 version = "0.1.0"
 dependencies = [
+ "be-host-accounts-ui",
+ "be-wasm-threads",
  "beui",
- "block-accounts-ui",
- "paint-snapshot",
- "wasi-threads",
+ "beui-paint-snapshot",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -1402,13 +2888,16 @@ name = "beui-inspector"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "be-lib-stable-hash",
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
  "beui-dock",
+ "beui-dock-host",
+ "beui-macros",
+ "beui-reactive",
+ "beui-types",
  "beui-view",
- "beui_macros",
- "reactive",
 ]
 
 [[package]]
@@ -1418,10 +2907,10 @@ dependencies = [
  "accesskit",
  "beui-components-styled",
  "beui-components-unstyled",
+ "beui-macros",
+ "beui-reactive",
  "beui-view",
- "beui_macros",
  "emojis",
- "reactive",
 ]
 
 [[package]]
@@ -1429,24 +2918,30 @@ name = "beui-layer-drive"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "be-lib-stable-hash",
  "beui-core",
+ "beui-runner",
+ "beui-types",
 ]
 
 [[package]]
 name = "beui-layer-space"
 version = "0.1.0"
 dependencies = [
+ "be-lib-stable-hash",
  "beui-components-styled",
  "beui-core",
+ "beui-draw",
  "beui-font-freetype",
  "beui-keyboard",
+ "beui-macros",
+ "beui-paint-snapshot",
  "beui-renderer-wgpu",
+ "beui-runner",
  "beui-types",
  "beui-view",
- "beui_macros",
  "bytemuck",
  "glam",
- "paint-snapshot",
  "pollster",
  "wgpu",
 ]
@@ -1456,10 +2951,13 @@ name = "beui-layer-xr"
 version = "0.1.0"
 dependencies = [
  "ash",
+ "be-lib-stable-hash",
  "beui-core",
  "beui-font-freetype",
  "beui-layer-space",
  "beui-renderer-wgpu",
+ "beui-runner",
+ "beui-types",
  "glam",
  "libloading 0.9.0",
  "openxr",
@@ -1469,12 +2967,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-lucide"
+version = "0.1.0"
+
+[[package]]
+name = "beui-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "beui-paint-format"
+version = "0.1.0"
+dependencies = [
+ "ciborium",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "beui-paint-snapshot"
+version = "0.1.0"
+dependencies = [
+ "beui-paint-format",
+ "flate2",
+ "image",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "beui-platform-android"
 version = "0.1.0"
 dependencies = [
  "accesskit",
  "accesskit_android",
  "beui-core",
+ "beui-runner",
+ "beui-types",
  "jni 0.22.4",
  "libc",
  "ndk 0.9.0",
@@ -1487,15 +3023,18 @@ dependencies = [
 name = "beui-platform-drm"
 version = "0.1.0"
 dependencies = [
- "be-dmabuf",
+ "be-host-dmabuf",
+ "be-lib-stable-hash",
+ "be-lib-ui-types",
  "beui",
  "beui-core",
- "bytemuck",
+ "beui-host",
+ "beui-paint-snapshot",
+ "beui-runner",
+ "beui-types",
  "rustix 1.1.4",
  "smithay",
- "ui-types",
  "wgpu",
- "xcursor",
 ]
 
 [[package]]
@@ -1504,21 +3043,11 @@ version = "0.1.0"
 dependencies = [
  "beui-core",
  "beui-layer-drive",
+ "beui-paint-snapshot",
  "beui-renderer-wgpu",
+ "beui-runner",
+ "beui-types",
  "pollster",
-]
-
-[[package]]
-name = "beui-platform-plugin"
-version = "0.1.0"
-dependencies = [
- "beui",
- "beui-core",
- "beui-renderer-wgpu",
- "block-editor-plugin",
- "block-plugin-api",
- "uuid",
- "wgpu",
 ]
 
 [[package]]
@@ -1526,6 +3055,8 @@ name = "beui-platform-web"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-runner",
+ "beui-types",
  "beui-web-input",
  "futures-util",
  "js-sys",
@@ -1545,6 +3076,8 @@ dependencies = [
  "arboard",
  "ashpd",
  "beui-core",
+ "beui-runner",
+ "beui-types",
  "futures-util",
  "image",
  "pollster",
@@ -1553,14 +3086,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-reactive"
+version = "0.1.0"
+dependencies = [
+ "be-lib-stable-hash",
+ "beui-reactive-macros",
+]
+
+[[package]]
+name = "beui-reactive-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "beui-renderer-wgpu"
 version = "0.1.0"
 dependencies = [
+ "be-lib-stable-hash",
  "beui-components-unstyled",
  "beui-core",
+ "beui-draw",
  "beui-font-freetype",
+ "beui-macros",
+ "beui-runner",
+ "beui-types",
  "beui-view",
- "beui_macros",
  "bytemuck",
  "pollster",
  "web-sys",
@@ -1568,36 +3122,73 @@ dependencies = [
 ]
 
 [[package]]
-name = "beui-shared-tests"
+name = "beui-runner"
 version = "0.1.0"
 dependencies = [
- "be-drive",
+ "accesskit",
+ "beui-core",
+ "beui-types",
+ "raw-window-handle",
+]
+
+[[package]]
+name = "beui-terminal-view"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-type-terminal",
  "beui",
+]
+
+[[package]]
+name = "beui-tests"
+version = "0.1.0"
+dependencies = [
+ "be-tool-drive",
+ "be-wasm-threads",
+ "beui",
+ "beui-host",
  "beui-html",
  "beui-layer-drive",
- "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
 ]
 
 [[package]]
+name = "beui-text-editor-core"
+version = "0.1.0"
+dependencies = [
+ "be-lib-graphemes",
+ "be-lib-sequence",
+ "memchr",
+ "serde",
+ "similar",
+ "tree-sitter",
+ "tree-sitter-md",
+ "tree-sitter-rust",
+ "tree-sitter-zig",
+]
+
+[[package]]
 name = "beui-tree"
 version = "0.1.0"
 dependencies = [
- "beui_macros",
- "reactive",
+ "be-lib-stable-hash",
+ "beui-macros",
+ "beui-reactive",
 ]
 
 [[package]]
 name = "beui-types"
 version = "0.1.0"
 dependencies = [
+ "be-lib-geometry",
+ "be-lib-stable-hash",
+ "be-lib-ui-types",
+ "beui-lucide",
  "beui-tree",
- "geometry",
- "lucide",
  "thumbhash",
- "ui-types",
 ]
 
 [[package]]
@@ -1605,24 +3196,26 @@ name = "beui-view"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "be-lib-graphemes",
+ "be-lib-stable-hash",
  "beui-core",
  "beui-core-html",
- "beui-drag",
  "beui-html",
+ "beui-macros",
+ "beui-paint-snapshot",
+ "beui-reactive",
  "beui-tree",
  "beui-types",
- "beui_macros",
- "paint-snapshot",
- "reactive",
 ]
 
 [[package]]
 name = "beui-web-demo"
 version = "0.1.0"
 dependencies = [
+ "be-wasm-threads",
  "beui",
  "beui-demo",
- "wasi-threads",
+ "beui-host",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -1634,28 +3227,6 @@ dependencies = [
  "beui-types",
  "wasm-bindgen",
  "web-sys",
-]
-
-[[package]]
-name = "beui_gallery"
-version = "0.1.0"
-dependencies = [
- "beui",
- "beui-demo",
- "beui-gallery-types",
- "block-editor-beui",
- "block-ui-test",
- "uuid",
-]
-
-[[package]]
-name = "beui_macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
 ]
 
 [[package]]
@@ -1742,94 +3313,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "block-accounts-ui"
-version = "0.1.0"
-dependencies = [
- "beui",
- "paint-snapshot",
-]
-
-[[package]]
-name = "block-app"
-version = "0.1.0"
-dependencies = [
- "async-executor",
- "async-io",
- "async-lock",
- "be-block",
- "be-cli",
- "be-client",
- "be-commit",
- "be-dmabuf",
- "be-graph",
- "be-keys",
- "be-protocol",
- "be-remap-host",
- "be-server",
- "be-session",
- "be-store",
- "be-types-host",
- "be-vcs",
- "be-wayland",
- "be-win32",
- "be-win32-capture",
- "be-win32-input",
- "beui",
- "beui-platform-drm",
- "block-accounts-ui",
- "block-editor-plugin",
- "block-guest-abi",
- "block-guest-host",
- "block-plugin-api",
- "block-type-api",
- "block-type-guest",
- "block-ui-test",
- "block-wasm-host",
- "browser-tab-types",
- "build-id",
- "bytemuck",
- "calendar-types",
- "checklist-types",
- "counter-types",
- "database-types",
- "directories-next",
- "fault-relay",
- "first-party-types",
- "futures-util",
- "host-types",
- "image",
- "image-block-types",
- "jni 0.22.4",
- "js-sys",
- "libc",
- "ndk-context",
- "notify",
- "paint-snapshot",
- "pollster",
- "presentation-types",
- "pulseaudio",
- "reactive",
- "rodio",
- "rusqlite",
- "serde",
- "serde_json",
- "sqlite-schema",
- "terminal-types",
- "text-block-types",
- "tokio",
- "ureq",
- "uuid",
- "wasi-threads",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "wgpu",
- "workspace-ui-types",
- "zbus",
- "zip",
-]
-
-[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1848,243 +3331,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "block-editor-beui"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-model",
- "beui",
- "beui-platform-plugin",
- "beui-renderer-wgpu",
- "block-editor-plugin",
- "block-plugin-api",
- "block-ui",
- "database-types",
- "presentation-types",
- "serde",
- "serde_json",
- "text-editor-core",
- "uuid",
- "workspace-ui-types",
-]
-
-[[package]]
-name = "block-editor-plugin"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "block-gpu-guest",
- "block-guest-abi",
- "block-plugin-api",
- "block-type-guest",
- "block-ui",
- "checklist-types",
- "geometry",
- "lucide",
- "paint-format",
- "reactive",
- "serde_bytes",
- "serde_json",
- "uuid",
- "wasi-threads",
- "wgpu",
-]
-
-[[package]]
-name = "block-gpu-abi"
-version = "0.1.0"
-dependencies = [
- "be-ops",
- "be-ops-bindgen",
- "serde",
-]
-
-[[package]]
-name = "block-gpu-guest"
-version = "0.1.0"
-dependencies = [
- "block-gpu-abi",
- "wgpu",
-]
-
-[[package]]
-name = "block-gpu-host"
-version = "0.1.0"
-dependencies = [
- "be-ops",
- "block-gpu-abi",
- "block-guest-abi",
- "wgpu",
-]
-
-[[package]]
-name = "block-gpu-shim"
-version = "0.1.0"
-dependencies = [
- "block-gpu-host",
- "js-sys",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-dylink",
- "web-sys",
- "wgpu",
-]
-
-[[package]]
-name = "block-guest-abi"
-version = "0.1.0"
-
-[[package]]
-name = "block-guest-echo"
-version = "0.1.0"
-dependencies = [
- "block-guest-abi",
-]
-
-[[package]]
-name = "block-guest-host"
-version = "0.1.0"
-dependencies = [
- "block-guest-abi",
- "block-guest-echo",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "block-padding"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "710f1dd022ef4e93f8a438b4ba958de7f64308434fa6a87104481645cc30068b"
 dependencies = [
  "hybrid-array",
-]
-
-[[package]]
-name = "block-plugin-api"
-version = "0.1.0"
-dependencies = [
- "accesskit",
- "be-ops",
- "be-ops-bindgen",
- "block-gpu-abi",
- "serde",
- "serde_bytes",
- "serde_json",
- "ui-types",
- "uuid",
-]
-
-[[package]]
-name = "block-plugin-sdk"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-editor-plugin",
- "serde",
- "serde_json",
- "uuid",
-]
-
-[[package]]
-name = "block-shell"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "serde",
- "serde_json",
- "settings-types",
- "uuid",
- "workspace-ui-types",
-]
-
-[[package]]
-name = "block-type-api"
-version = "0.1.0"
-dependencies = [
- "be-commit",
- "be-ops",
- "be-ops-bindgen",
- "be-protocol",
- "be-session",
- "serde",
- "serde_bytes",
- "uuid",
-]
-
-[[package]]
-name = "block-type-guest"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "be-protocol",
- "be-session",
- "be-store",
- "block-guest-abi",
- "block-type-api",
- "getrandom 0.4.2",
- "postcard",
- "rand_chacha 0.9.0",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "block-ui"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "database-types",
- "lucide",
- "uuid",
-]
-
-[[package]]
-name = "block-ui-test"
-version = "0.1.0"
-dependencies = [
- "be-session",
- "be-store",
- "beui",
- "beui-core",
- "block-editor-beui",
- "block-plugin-api",
- "block-type-guest",
- "host-types",
- "paint-snapshot",
- "serde",
- "text-block-types",
- "uuid",
- "workspace-ui-types",
-]
-
-[[package]]
-name = "block-wasm-host"
-version = "0.1.0"
-dependencies = [
- "be-ops",
- "block-gpu-abi",
- "block-gpu-host",
- "block-guest-abi",
- "block-guest-echo",
- "block-guest-host",
- "block-plugin-api",
- "block-type-api",
- "bytes",
- "rustc-demangle",
- "sha2 0.10.9",
- "tokio",
- "uuid",
- "wasm-dylink",
- "wasmtime",
- "wasmtime-wasi",
- "wgpu",
 ]
 
 [[package]]
@@ -2106,17 +3358,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "block_debug"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "counter-types",
- "uuid",
-]
-
-[[package]]
 name = "blocking"
 version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2130,15 +3371,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bootstrap"
-version = "0.1.0"
-dependencies = [
- "prompt",
- "sha2 0.10.9",
- "zstd",
-]
-
-[[package]]
 name = "borsh"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2149,37 +3381,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "browser-rasterizer"
-version = "0.1.0"
-dependencies = [
- "beui-fonts",
- "paint-snapshot",
- "serde_json",
-]
-
-[[package]]
-name = "browser-tab-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "uuid",
-]
-
-[[package]]
-name = "browser_tab"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "browser-tab-types",
- "uuid",
-]
-
-[[package]]
 name = "bstr"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2187,37 +3388,6 @@ checksum = "1f7dc094d718f2e1c1559ad110e27eeaae14a5465d3d56dd6dbd793079fbd530"
 dependencies = [
  "memchr",
  "serde_core",
-]
-
-[[package]]
-name = "buck-tools"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "serde_json",
- "toml",
- "zip",
-]
-
-[[package]]
-name = "build-helper"
-version = "0.1.0"
-dependencies = [
- "httparse",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "build-id"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -2266,29 +3436,6 @@ name = "bytes"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
-
-[[package]]
-name = "calendar"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui",
- "block-ui-test",
- "calendar-types",
- "uuid",
-]
-
-[[package]]
-name = "calendar-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "uuid",
-]
 
 [[package]]
 name = "calloop"
@@ -2466,59 +3613,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "checkers"
-version = "0.1.0"
-dependencies = [
- "game-api",
- "game-host",
- "game-pieces",
- "uuid",
-]
-
-[[package]]
-name = "checklist"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "checklist-types",
- "uuid",
-]
-
-[[package]]
-name = "checklist-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "uuid",
-]
-
-[[package]]
-name = "chess"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "game-api",
- "game-host",
- "game-pieces",
- "uuid",
-]
-
-[[package]]
-name = "chess_vs_checkers"
-version = "0.1.0"
-dependencies = [
- "game-api",
- "game-host",
- "game-pieces",
- "uuid",
-]
-
-[[package]]
 name = "ciborium"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2674,16 +3768,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "connect_four"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "game-api",
- "game-host",
- "uuid",
-]
-
-[[package]]
 name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2765,28 +3849,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9b4739a805a62757a83e5654fa3faabec0442666b263bb2287d5a8185bfd953"
 dependencies = [
  "bindgen",
-]
-
-[[package]]
-name = "counter"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "counter-types",
- "uuid",
-]
-
-[[package]]
-name = "counter-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "uuid",
 ]
 
 [[package]]
@@ -2998,15 +4060,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7431dd8c9def94aca43b27915dee0d42103d9b13922cfb044febcd975547d68"
 
 [[package]]
-name = "crazy_8s"
-version = "0.1.0"
-dependencies = [
- "game-api",
- "game-host",
- "uuid",
-]
-
-[[package]]
 name = "crc32fast"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3156,30 +4209,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
-name = "database"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "database-types",
- "text-block-types",
- "uuid",
-]
-
-[[package]]
-name = "database-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "serde",
- "uuid",
-]
-
-[[package]]
 name = "der"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3254,45 +4283,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "916a94e407b54f9034d71dd748234cd1e516ced6284009906ae246f177eafe5a"
 dependencies = [
  "cipher 0.5.2",
-]
-
-[[package]]
-name = "desktop"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-plugin-api",
- "block-shell",
- "block-ui-test",
- "calendar-types",
- "uuid",
- "workspace-ui-types",
-]
-
-[[package]]
-name = "deterministic-game-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "deterministic_game"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "deterministic-game-types",
- "game-api",
- "game-host",
- "uuid",
 ]
 
 [[package]]
@@ -3624,14 +4614,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
-name = "fault-relay"
-version = "0.1.0"
-dependencies = [
- "be-protocol",
- "tokio",
-]
-
-[[package]]
 name = "fax"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3651,18 +4633,6 @@ name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
-
-[[package]]
-name = "file_tree"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "serde",
- "uuid",
- "workspace-ui-types",
-]
 
 [[package]]
 name = "filedescriptor"
@@ -3686,47 +4656,6 @@ name = "finl_unicode"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80bb028c8b4148c9ee0cca68fcd9add6044e81d3619f48577ddf13a263d047a2"
-
-[[package]]
-name = "first-party-types"
-version = "0.1.0"
-dependencies = [
- "audio-block-types",
- "be-types-host",
- "beui-gallery-types",
- "block-guest-abi",
- "block-type-guest",
- "browser-tab-types",
- "calendar-types",
- "checklist-types",
- "counter-types",
- "database-types",
- "deterministic-game-types",
- "image-block-types",
- "infinite-canvas-types",
- "logic-grid-types",
- "map-types",
- "pan-zoom-types",
- "pdf-types",
- "pixel-art-types",
- "pixel-ray-tracer-types",
- "presentation-types",
- "scene-3d-types",
- "settings-types",
- "terminal-types",
- "text-block-types",
- "triangle-types",
- "uuid",
- "video-block-types",
- "workspace-ui-types",
-]
-
-[[package]]
-name = "fix-rust-source"
-version = "0.1.0"
-dependencies = [
- "ra_ap_syntax",
-]
 
 [[package]]
 name = "flagset"
@@ -3774,6 +4703,36 @@ name = "foldhash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
+name = "font-types"
+version = "0.12.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "835ae9d781464a79026cde387f9cbc650c9a4909d7cf7e658b127e3c35d2f35d"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
+name = "fontconfig-parser"
+version = "0.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbc773e24e02d4ddd8395fd30dc147524273a83e54e0f312d986ea30de5f5646"
+dependencies = [
+ "roxmltree 0.20.0",
+]
+
+[[package]]
+name = "fontdb"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2660c5e9157bf76d2db1294e4a9feba604ef610819a3b591088d0d8392a3290f"
+dependencies = [
+ "fontconfig-parser",
+ "log",
+ "slotmap",
+ "tinyvec",
+]
 
 [[package]]
 name = "foreign-types"
@@ -3942,35 +4901,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "game-api"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "rand 0.9.4",
- "rand_chacha 0.9.0",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "game-host"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "game-api",
- "uuid",
- "wasmi",
-]
-
-[[package]]
-name = "game-pieces"
-version = "0.1.0"
-dependencies = [
- "game-api",
- "uuid",
-]
-
-[[package]]
 name = "gbm"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4000,13 +4930,6 @@ checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
 dependencies = [
  "typenum",
  "version_check",
-]
-
-[[package]]
-name = "geometry"
-version = "0.1.0"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -4063,13 +4986,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2eecf2d5dc9b66b732b97707a0210906b1d30523eb773193ab777c0c84b3e8d5"
 dependencies = [
  "polyval",
-]
-
-[[package]]
-name = "ghostty-vt"
-version = "0.1.0"
-dependencies = [
- "serde_json",
 ]
 
 [[package]]
@@ -4186,13 +5102,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "grapheme-segmentation"
-version = "0.1.0"
-dependencies = [
- "icu_properties",
-]
-
-[[package]]
 name = "gvdb"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4237,6 +5146,18 @@ checksum = "58c18cfc23920d010f7637b86240a5f8892dfdbcb4f0e60828f8a9dc6ff5521d"
 dependencies = [
  "bitflags 1.3.2",
  "harfbuzz-sys",
+]
+
+[[package]]
+name = "harfrust"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c03d949a14aa089bbb282f7dd76a498a7f684428e4257202efc119ec010376f9"
+dependencies = [
+ "bitflags 2.12.1",
+ "bytemuck",
+ "read-fonts",
+ "smallvec",
 ]
 
 [[package]]
@@ -4375,14 +5296,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f"
 dependencies = [
  "digest 0.11.3",
-]
-
-[[package]]
-name = "host-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "block-type-guest",
 ]
 
 [[package]]
@@ -4562,17 +5475,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "image-block-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "block-type-guest",
- "serde",
- "uuid",
-]
-
-[[package]]
 name = "image-webp"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4580,18 +5482,6 @@ checksum = "525e9ff3e1a4be2fbea1fdf0e98686a6d98b4d8f937e1bf7402245af1909e8c3"
 dependencies = [
  "byteorder-lite",
  "quick-error",
-]
-
-[[package]]
-name = "image_block"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "image",
- "image-block-types",
- "uuid",
 ]
 
 [[package]]
@@ -4610,38 +5500,6 @@ dependencies = [
  "hashbrown 0.17.1",
  "serde",
  "serde_core",
-]
-
-[[package]]
-name = "infinite-canvas-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "database-types",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "infinite_canvas"
-version = "0.1.0"
-dependencies = [
- "bench",
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "counter-types",
- "database-types",
- "image",
- "image-block-types",
- "infinite-canvas-types",
- "serde",
- "serde_json",
- "text-editor-core",
- "uuid",
 ]
 
 [[package]]
@@ -5099,29 +5957,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
-name = "local-tools"
-version = "0.1.0"
-dependencies = [
- "base64",
- "beui-html",
- "build-id",
- "fix-rust-source",
- "image",
- "jks",
- "libc",
- "p12-keystore",
- "paint-review-manifest",
- "paint-snapshot",
- "prompt",
- "rsa",
- "serde_json",
- "sha2 0.10.9",
- "ureq",
- "x509-cert 0.2.5",
- "zip",
-]
-
-[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5137,35 +5972,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f"
 
 [[package]]
-name = "logic-grid-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "logicgame",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "logic_grid"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "bytemuck",
- "logic-grid-types",
- "logicgame",
- "serde",
- "serde_json",
- "uuid",
- "wgpu",
-]
-
-[[package]]
 name = "logicgame"
 version = "0.1.0"
 dependencies = [
@@ -5175,10 +5981,6 @@ dependencies = [
  "serde_json",
  "uuid",
 ]
-
-[[package]]
-name = "lucide"
-version = "0.1.0"
 
 [[package]]
 name = "lyon_geom"
@@ -5226,31 +6028,6 @@ name = "mach2"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dae608c151f68243f2b000364e1f7b186d9c29845f7d2d85bd31b9ad77ad552b"
-
-[[package]]
-name = "map"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "flate2",
- "image-block-types",
- "map-types",
- "uuid",
-]
-
-[[package]]
-name = "map-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "serde",
- "uuid",
-]
 
 [[package]]
 name = "matchers"
@@ -5943,82 +6720,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "paint-format"
-version = "0.1.0"
-dependencies = [
- "ciborium",
- "serde",
- "serde_bytes",
-]
-
-[[package]]
-name = "paint-review"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-ui-test",
- "paint-review-manifest",
-]
-
-[[package]]
-name = "paint-review-manifest"
-version = "0.1.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "paint-review-web"
-version = "0.1.0"
-dependencies = [
- "beui",
- "image",
- "js-sys",
- "paint-review",
- "paint-review-manifest",
- "serde_json",
- "wasi-threads",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "paint-snapshot"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "image",
- "paint-format",
- "serde",
- "serde_bytes",
- "serde_json",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "pan-zoom-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "uuid",
-]
-
-[[package]]
-name = "pan_zoom"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "pan-zoom-types",
- "uuid",
-]
-
-[[package]]
 name = "parking"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6066,27 +6767,6 @@ checksum = "112d82ceb8c5bf524d9af484d4e4970c9fd5a0cc15ba14ad93dccd28873b0629"
 dependencies = [
  "digest 0.11.3",
  "hmac 0.13.0",
-]
-
-[[package]]
-name = "pdf"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "pdf-types",
- "uuid",
-]
-
-[[package]]
-name = "pdf-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "block-type-guest",
- "serde",
- "uuid",
 ]
 
 [[package]]
@@ -6210,56 +6890,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pixel-art-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "pixel-ray-tracer-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "pixel_art"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "image",
- "image-block-types",
- "pixel-art-types",
- "serde",
- "serde_json",
- "uuid",
-]
-
-[[package]]
-name = "pixel_ray_tracer"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "pixel-ray-tracer-types",
- "uuid",
-]
-
-[[package]]
 name = "pkcs1"
 version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6332,15 +6962,6 @@ name = "plain"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
-
-[[package]]
-name = "plugin-test-runner"
-version = "0.1.0"
-dependencies = [
- "block-wasm-host",
- "pollster",
- "wgpu",
-]
 
 [[package]]
 name = "png"
@@ -6480,29 +7101,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "presentation"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "infinite-canvas-types",
- "presentation-types",
- "uuid",
-]
-
-[[package]]
-name = "presentation-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "uuid",
-]
-
-[[package]]
 name = "presser"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6553,14 +7151,6 @@ checksum = "4488a4a36b9a4ba6b9334a32a39971f77c1436ec82c38707bce707699cc3bbcb"
 dependencies = [
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "prompt"
-version = "0.1.0"
-dependencies = [
- "libc",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6841,20 +7431,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "reactive"
-version = "0.1.0"
+name = "read-fonts"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "046a7d674daf459825b32f5062056d6882db0d2f5a479fbd76ccfc870ac18709"
 dependencies = [
- "foldhash 0.2.0",
- "reactive_macros",
-]
-
-[[package]]
-name = "reactive_macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
+ "bytemuck",
+ "font-types",
+ "once_cell",
 ]
 
 [[package]]
@@ -7033,6 +7617,12 @@ dependencies = [
  "rustc-hash 1.1.0",
  "text-size",
 ]
+
+[[package]]
+name = "roxmltree"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 
 [[package]]
 name = "roxmltree"
@@ -7217,30 +7807,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "scene-3d-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "uuid",
-]
-
-[[package]]
-name = "scene_3d"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "bytemuck",
- "scene-3d-types",
- "uuid",
- "wgpu",
-]
-
-[[package]]
 name = "scoped-tls"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7285,15 +7851,6 @@ checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
 dependencies = [
  "serde",
  "serde_core",
-]
-
-[[package]]
-name = "sequence"
-version = "0.1.0"
-dependencies = [
- "memchr",
- "postcard",
- "serde",
 ]
 
 [[package]]
@@ -7379,29 +7936,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "settings"
-version = "0.1.0"
-dependencies = [
- "be-remap",
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "settings-types",
- "text-editor-core",
- "uuid",
-]
-
-[[package]]
-name = "settings-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-model",
- "block-type-guest",
- "uuid",
 ]
 
 [[package]]
@@ -7550,6 +8084,16 @@ name = "siphasher"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
+
+[[package]]
+name = "skrifa"
+version = "0.44.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "819ab7d62b1d3e72d9d9dea5650bac30424f9111364bb94928dbf5ecad1baa68"
+dependencies = [
+ "bytemuck",
+ "read-fonts",
+]
 
 [[package]]
 name = "slab"
@@ -7711,13 +8255,6 @@ checksum = "7ef958a98b9d5da290cfc78946e9f3e61e1e62a18db0d92cac0b83cc161491a9"
 dependencies = [
  "base64ct",
  "der 0.8.2",
-]
-
-[[package]]
-name = "sqlite-schema"
-version = "0.1.0"
-dependencies = [
- "rusqlite",
 ]
 
 [[package]]
@@ -7890,6 +8427,95 @@ dependencies = [
 ]
 
 [[package]]
+name = "tabletop-api"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "rand 0.9.4",
+ "rand_chacha 0.9.0",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "tabletop-host"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "tabletop-api",
+ "uuid",
+ "wasmi",
+]
+
+[[package]]
+name = "tabletop-pieces"
+version = "0.1.0"
+dependencies = [
+ "tabletop-api",
+ "uuid",
+]
+
+[[package]]
+name = "tabletop-rules-checkers"
+version = "0.1.0"
+dependencies = [
+ "tabletop-api",
+ "tabletop-host",
+ "tabletop-pieces",
+ "uuid",
+]
+
+[[package]]
+name = "tabletop-rules-chess"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "tabletop-api",
+ "tabletop-host",
+ "tabletop-pieces",
+ "uuid",
+]
+
+[[package]]
+name = "tabletop-rules-chess-vs-checkers"
+version = "0.1.0"
+dependencies = [
+ "tabletop-api",
+ "tabletop-host",
+ "tabletop-pieces",
+ "uuid",
+]
+
+[[package]]
+name = "tabletop-rules-connect-four"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "tabletop-api",
+ "tabletop-host",
+ "uuid",
+]
+
+[[package]]
+name = "tabletop-rules-crazy-8s"
+version = "0.1.0"
+dependencies = [
+ "tabletop-api",
+ "tabletop-host",
+ "uuid",
+]
+
+[[package]]
+name = "tabletop-rules-tic-tac-toe"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "tabletop-api",
+ "tabletop-host",
+ "uuid",
+]
+
+[[package]]
 name = "target-lexicon"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7918,95 +8544,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "terminal"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "serde_json",
- "terminal-types",
- "terminal-view",
- "uuid",
-]
-
-[[package]]
-name = "terminal-emulator"
-version = "0.1.0"
-dependencies = [
- "ghostty-vt",
- "terminal-types",
-]
-
-[[package]]
-name = "terminal-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "serde",
- "ui-types",
- "uuid",
-]
-
-[[package]]
-name = "terminal-view"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "beui",
- "terminal-types",
-]
-
-[[package]]
-name = "text-block-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "text-editor-core"
-version = "0.1.0"
-dependencies = [
- "grapheme-segmentation",
- "memchr",
- "sequence",
- "serde",
- "similar",
- "tree-sitter",
- "tree-sitter-md",
- "tree-sitter-rust",
- "tree-sitter-zig",
-]
-
-[[package]]
 name = "text-size"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f18aa187839b2bdb1ad2fa35ead8c4c2976b64e4363c386d45ac0f7ee85c9233"
-
-[[package]]
-name = "text_block"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "image-block-types",
- "serde",
- "serde_json",
- "text-block-types",
- "text-editor-core",
- "uuid",
-]
 
 [[package]]
 name = "thiserror"
@@ -8062,16 +8603,6 @@ name = "thumbhash"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b7726e0245a7331bd0c9a1fb4fd99fd695bcd478ca569f0eda2ff2cb14e7a00"
-
-[[package]]
-name = "tic_tac_toe"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "game-api",
- "game-host",
- "uuid",
-]
 
 [[package]]
 name = "tiff"
@@ -8417,26 +8948,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "triangle"
-version = "0.1.0"
-dependencies = [
- "block-editor-plugin",
- "triangle-types",
- "uuid",
-]
-
-[[package]]
-name = "triangle-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "uuid",
-]
-
-[[package]]
 name = "triomphe"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8510,14 +9021,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "ui-types"
-version = "0.1.0"
-dependencies = [
- "be-ops-bindgen",
- "geometry",
- "serde",
- "serde_bytes",
-]
+name = "unicode-bidi"
+version = "0.3.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
 
 [[package]]
 name = "unicode-ident"
@@ -8551,6 +9058,12 @@ name = "unicode-segmentation"
 version = "1.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8"
+
+[[package]]
+name = "unicode-vo"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1d386ff53b415b7fe27b50bb44679e2cc4660272694b7b6f3326d8480823a94"
 
 [[package]]
 name = "unicode-width"
@@ -8596,7 +9109,7 @@ version = "2.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "flate2",
  "log",
  "once_cell",
@@ -8633,17 +9146,25 @@ version = "0.48.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91"
 dependencies = [
+ "base64 0.23.1",
  "data-url",
+ "fontdb",
+ "harfrust",
  "imagesize",
  "kurbo",
  "log",
  "pico-args",
- "roxmltree",
+ "roxmltree 0.21.1",
  "simplecss",
  "siphasher",
+ "skrifa",
  "strict-num",
  "svgtypes",
  "tiny-skia-path",
+ "unicode-bidi",
+ "unicode-script",
+ "unicode-vo",
+ "xmlwriter",
 ]
 
 [[package]]
@@ -8693,51 +9214,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
-name = "verify"
-version = "0.1.0"
-dependencies = [
- "sha2 0.10.9",
-]
-
-[[package]]
 name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "version_control"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "uuid",
-]
-
-[[package]]
-name = "video-block-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "video_block"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "counter-types",
- "uuid",
- "video-block-types",
-]
 
 [[package]]
 name = "walkdir"
@@ -8754,10 +9234,6 @@ name = "wasi"
 version = "0.11.1+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
-
-[[package]]
-name = "wasi-threads"
-version = "0.1.0"
 
 [[package]]
 name = "wasip2"
@@ -8833,14 +9309,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-dylink"
-version = "0.1.0"
-dependencies = [
- "serde",
- "sha2 0.10.9",
-]
-
-[[package]]
 name = "wasm-encoder"
 version = "0.244.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8868,14 +9336,6 @@ checksum = "7d8ad9f0a39050867bda22e6486c316e2e52d20a42154d5bc433934bf738d085"
 dependencies = [
  "leb128fmt",
  "wasmparser 0.257.1",
-]
-
-[[package]]
-name = "wasm-link"
-version = "0.1.0"
-dependencies = [
- "sha2 0.10.9",
- "wasm-dylink",
 ]
 
 [[package]]
@@ -9082,7 +9542,7 @@ version = "48.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d447fd40f3e149cda8c0cd808660a1d1de438f3ff28627abb9bcda90dfb4895"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "directories-next",
  "log",
  "postcard",
@@ -10622,44 +11082,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "workspace-ui-types"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-commit",
- "be-model",
- "block-type-guest",
- "postcard",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "workspace_index"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "counter-types",
- "uuid",
- "workspace-ui-types",
-]
-
-[[package]]
-name = "workspace_ui"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-plugin-api",
- "block-shell",
- "block-ui-test",
- "uuid",
- "workspace-ui-types",
-]
-
-[[package]]
 name = "writeable"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10793,6 +11215,12 @@ name = "xml-rs"
 version = "0.8.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
+
+[[package]]
+name = "xmlwriter"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "yoke"

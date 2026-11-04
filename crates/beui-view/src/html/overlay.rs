@@ -11,7 +11,6 @@ use crate::reactive::RenderFn;
 use crate::reactive::Scope;
 use crate::reactive::Set;
 use crate::reactive::create_effect;
-use crate::reactive::create_memo;
 use crate::reactive::owner_scope;
 use crate::reactive::provide_context;
 use crate::reactive::store;
@@ -21,6 +20,7 @@ use crate::types::Dismiss;
 use crate::types::LayerLevel;
 use crate::types::LayerPolicy;
 use crate::types::Placement;
+use crate::types::Rect;
 use crate::types::WindowId;
 use crate::types::WindowSpec;
 use beui_core_html::document::create;
@@ -35,7 +35,9 @@ struct Mounted {
 pub(crate) fn overlay(
     anchor: Prop<OverlayAnchor>,
     placement: Prop<Placement>,
+    bounds: Prop<Option<Rect>>,
     scrim: Prop<Color>,
+    scrim_radius: Prop<f32>,
     policy: Prop<LayerPolicy>,
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,
@@ -44,12 +46,13 @@ pub(crate) fn overlay(
     pointer: Option<NodeRef>,
     beak: Prop<f32>,
     window: Prop<Option<WindowSpec>>,
-    open: Prop<bool>,
     keep_alive: bool,
+    dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
+    presence: OverlayPresence,
     content: RenderFn<()>,
 ) -> NodeId {
-    let _ = (shown_in, window);
+    let _ = (shown_in, window, scrim_radius, bounds);
     let host = create("Overlay", "div");
     let dialog = create("OverlayLayer", "dialog");
     let proxy = create("OverlayAnchor", "div");
@@ -84,14 +87,12 @@ pub(crate) fn overlay(
     let held = layer.clone();
     bind(traps_focus, move |traps| held.set_traps_focus(traps));
     let held = layer.clone();
-    bind(beak, move |reach| held.set_beak(reach));
-    let presence = OverlayPresence::new(create_memo(move || open.get()));
-    let shown = create_memo(move || {
-        presence.open().get()
-            || presence
-                .lingering()
-                .with(|lingering| lingering.iter().any(Get::get))
+    bind(dismissable, move |dismissable| {
+        held.set_dismissable(dismissable)
     });
+    let held = layer.clone();
+    bind(beak, move |reach| held.set_beak(reach));
+    let shown = presence.shown();
     let owner = owner_scope().expect("an overlay is built inside a scope");
     let mounted = store(RefCell::new(None::<Mounted>));
     create_effect(move || {
@@ -113,6 +114,7 @@ pub(crate) fn overlay(
                         });
                         let built = scope.context().run(|| {
                             provide_context(presence);
+                            provide_context(presence.modality());
                             content.call(())
                         });
                         layered.fill(slot, vec![built]);

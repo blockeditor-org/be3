@@ -7,15 +7,14 @@ use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::scroll::{Bleed, Scroll};
 use crate::sheet::ModalSheet;
 use crate::text::{Text, TextStyle};
-use crate::theme::use_theme;
+use crate::theme::{POINTER_REACH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    ActionRole, DialogAction, DialogBodyHandle, DialogKind, DialogLayout, DialogSheetHandle,
-    ModalHandle, ModalMotion, ModalPlacement,
+    ActionRole, DialogAction, DialogAnchor, DialogBodyHandle, DialogCardHandle, DialogKind,
+    DialogLayout, DialogSheetHandle, DialogSize, ModalHandle, ModalMotion, ModalPlacement,
 };
 use beui_view::primitives::Spacer;
 use beui_view::reactive::NodeId;
-use beui_view::types::ItemSize;
 
 use crate::list::List;
 use crate::theme::Density;
@@ -75,14 +74,16 @@ pub fn Dialog(
     #[prop(default = DialogKind::Dialog)] kind: DialogKind,
     #[prop(default = String::new())] title: Prop<String>,
     #[prop(default = DIALOG_WIDTH)] width: Prop<Size>,
+    #[prop(default = DialogSize::Small)] size: DialogSize,
+    #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     #[prop(default = String::new())] id: Prop<String>,
     #[prop(default = Vec::new())] actions: Vec<DialogAction>,
     #[prop(default = true)] scrolls: bool,
     on_dismiss: ClickCallback,
-    #[prop(children)] content: Render<(), Children<ListChild>>,
+    #[prop(children)] content: Render<(), Children<ListItem>>,
 ) -> NodeId {
     view! {
-        <DialogFrame open kind width on_dismiss={on_dismiss}>
+        <DialogFrame open kind width size anchor on_dismiss={on_dismiss}>
             <DialogBody kind title id actions scrolls on_dismiss={on_dismiss}>
                 {content.call(())}
             </DialogBody>
@@ -90,12 +91,18 @@ pub fn Dialog(
     }
 }
 
+/// A dialog's outer part. It builds its content once, on first open, and moves
+/// it between card and sheet with a `Portal` if the presentation changes while
+/// open. Anchored presentations escape a window that has a layer space;
+/// centred ones stay in it.
 #[component]
 pub fn DialogFrame(
     open: Prop<bool>,
     #[prop(default = DialogKind::Dialog)] kind: DialogKind,
     #[prop(default = DIALOG_WIDTH)] width: Prop<Size>,
     #[prop(default = false)] narrow: Prop<bool>,
+    #[prop(default = DialogSize::Small)] size: DialogSize,
+    #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     on_dismiss: ClickCallback,
     #[prop(children)] content: Render,
 ) -> NodeId {
@@ -108,14 +115,24 @@ pub fn DialogFrame(
             scrim={scrim}
             sheet_below=SHEET_BELOW
             narrow
+            size
+            anchor
+            beak=POINTER_REACH
             on_dismiss={on_dismiss}
-            card={move |body: Child| view! {
-                <DialogCard width>{body}</DialogCard>
+            card={move |handle: DialogCardHandle| view! {
+                <DialogCard width pointer={handle.pointer}>{handle.body}</DialogCard>
             }}
             sheet={|handle: DialogSheetHandle| {
-                let DialogSheetHandle { open, close, body } = handle;
-                view! {
-                    <ModalSheet open fit=true on_close={close}>{body}</ModalSheet>
+                let DialogSheetHandle { open, close, tall, body } = handle;
+                match tall {
+                    true => view! {
+                        <ModalSheet open rest=1.0 stops={vec![1.0]} on_close={close}>
+                            {body}
+                        </ModalSheet>
+                    },
+                    false => view! {
+                        <ModalSheet open fit=true on_close={close}>{body}</ModalSheet>
+                    },
                 }
             }}
             body={move |_: DialogLayout| content.call(())}
@@ -124,12 +141,17 @@ pub fn DialogFrame(
 }
 
 #[component]
-pub fn DialogCard(#[prop(default = DIALOG_WIDTH)] width: Prop<Size>, children: Child) -> NodeId {
+pub fn DialogCard(
+    #[prop(default = DIALOG_WIDTH)] width: Prop<Size>,
+    #[prop(default = NodeRef::new())] pointer: NodeRef,
+    children: Child,
+) -> NodeId {
     view! {
         <Frame padding=MARGIN>
             <Frame
+                @node_ref=&pointer
                 width={width.map(at_most)}
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Surface
                 border={Border::DEFAULT}
                 radius=Radius::Lg
             >
@@ -148,7 +170,7 @@ pub fn DialogBody(
     #[prop(default = true)] focuses: Prop<bool>,
     #[prop(default = true)] scrolls: bool,
     on_dismiss: ClickCallback,
-    #[prop(children)] content: Render<(), Children<ListChild>>,
+    #[prop(children)] content: Render<(), Children<ListItem>>,
 ) -> NodeId {
     let id = create_memo(move || id.get());
     let layout = use_context::<DialogLayout>();
@@ -182,7 +204,7 @@ fn DialogBodyFace(
     id: Memo<String>,
     scrolls: bool,
     inset: Memo<f32>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let title = handle.title;
     let closable = handle.kind == DialogKind::Dialog;
@@ -193,31 +215,35 @@ fn DialogBodyFace(
     let dismiss = handle.dismiss;
     let content = match scrolls {
         true => view! {
-            <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} fit=true bleed={bleed}>
-                <List spacing=SPACING>{children}</List>
-            </Scroll>
+            <ListItem shrink=1.0>
+                <Scroll fit=true bleed={bleed}>
+                    <List spacing=SPACING>{children}</List>
+                </Scroll>
+            </ListItem>
         },
         false => view! {
-            <List @sizing=ItemSize::Percent(100.0) spacing=SPACING>{children}</List>
+            <ListItem grow=1.0>
+                <List spacing=SPACING>{children}</List>
+            </ListItem>
         },
     };
     let below = create_memo(move || Padding::ZERO.bottom(Space::Custom(inset.get())));
     view! {
-        <Frame padding={below}>
+        <Frame padding={below} @test_id={id}>
             <Frame padding=PADDING>
                 <List spacing=SPACING>
                     <Show condition={titled}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE>
-                                {title}
-                            </Text>
+                            <ListItem grow=1.0>
+                                <Text style=TextStyle::TITLE>{title}</Text>
+                            </ListItem>
                             <Show condition={create_memo(move || closable)}>
                                 <Button
                                     icon_only=true
                                     glyph=ICON_X
                                     label="Close"
                                     variant=ButtonVariant::Ghost
-                                    size=ButtonSize::Small
+                                    size=ButtonSize::Inline
                                     @test_id={named(id, "close")}
                                     on_click={dismiss}
                                 />
@@ -256,7 +282,7 @@ fn DialogFooter(handle: DialogBodyHandle, id: Memo<String>) -> NodeId {
                         <ActionButton handle index id />
                     </ForEach>
                     <Show condition={leading}>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Spacer />
                     </Show>
                     <ForEach keys={end}>|index: usize|
                         <ActionButton handle index id />

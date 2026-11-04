@@ -1,0 +1,205 @@
+use be_type_workspace::{FileContent, FolderContent, WorkspaceContent};
+use std::path::{Path, PathBuf};
+
+use be_block::{BlockContent, BlockMetadata, EXECUTABLE, LiveEdit};
+use be_block_client::{Credentials, Peer, PeerConfig};
+use be_block_graph::BlockParent;
+use be_block_store::MemoryStore;
+use be_server::Running;
+use tokio::sync::oneshot;
+use uuid::Uuid;
+
+use crate::{Report, Target};
+use be_type_infinite_canvas::CanvasContent;
+use be_type_text::{TextBlock, TextContent};
+
+mod a_file_name_must_work_on_every_system;
+mod a_folder_is_written_as_files_and_directories;
+mod a_rename_on_disk_moves_the_same_block;
+mod a_skipped_block_is_never_deleted_or_replaced;
+mod deletions_reach_the_other_side;
+mod edits_on_both_sides_merge_and_clashes_keep_both;
+mod files_made_on_disk_become_blocks;
+mod ignored_files_stay_off_the_server;
+mod the_watcher_syncs_both_ways;
+
+struct Harness(Running);
+
+impl Harness {
+    async fn start() -> Self {
+        be_lib_build_id::install("test");
+        Self(Running::start(be_server::ServerConfig::OPEN).await)
+    }
+
+    async fn peer(&self) -> Peer<MemoryStore> {
+        let email = format!("{}@example.com", Uuid::new_v4().simple());
+        Peer::connect(
+            PeerConfig::new(
+                be_block_client::socket_url(&self.0.url),
+                be_block_keys::RecoveryPhrase::generate().secret(),
+                Credentials::Token(self.0.register(&email, "Owner").await),
+            ),
+            MemoryStore::new(),
+        )
+        .await
+        .unwrap()
+    }
+
+    fn checkout(&self, name: &str) -> PathBuf {
+        let path = self.0.directory.join(name);
+        std::fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    async fn stop(self) {
+        self.0.stop().await;
+    }
+}
+
+async fn workspace(peer: &Peer<MemoryStore>) -> Uuid {
+    let id = Uuid::now_v7();
+    peer.create_block(
+        id,
+        WorkspaceContent::CONTENT_TYPE,
+        BlockParent::Root,
+        &BlockMetadata::named("Code"),
+    )
+    .await
+    .unwrap();
+    id
+}
+
+async fn folder(peer: &Peer<MemoryStore>, parent: Uuid, name: &str) -> Uuid {
+    let id = Uuid::now_v7();
+    peer.create_block(
+        id,
+        FolderContent::CONTENT_TYPE,
+        BlockParent::Block(parent),
+        &BlockMetadata::named(name),
+    )
+    .await
+    .unwrap();
+    list_in(peer, parent, id).await;
+    id
+}
+
+async fn list_in(peer: &Peer<MemoryStore>, parent: Uuid, child: Uuid) {
+    relist(peer, parent, be_block::ChildChange::Add(child)).await;
+}
+
+async fn relist(peer: &Peer<MemoryStore>, parent: Uuid, change: be_block::ChildChange) {
+    let summary = peer.summary(parent).await.unwrap();
+    match summary.content_type == WorkspaceContent::CONTENT_TYPE {
+        true => relist_in::<WorkspaceContent>(peer, parent, change).await,
+        false => relist_in::<FolderContent>(peer, parent, change).await,
+    }
+}
+
+async fn relist_in<C: BlockContent + LiveEdit + Default>(
+    peer: &Peer<MemoryStore>,
+    parent: Uuid,
+    change: be_block::ChildChange,
+) {
+    let mut content = peer.open::<C>(parent).await.unwrap().unwrap_or_default();
+    let head = peer.local_head(parent);
+    for operation in content.child_operations(change).unwrap() {
+        content.apply(&operation);
+    }
+    peer.save(parent, &content, head).await.unwrap();
+}
+
+async fn block<C: BlockContent>(
+    peer: &Peer<MemoryStore>,
+    parent: Uuid,
+    name: &str,
+    content: &C,
+) -> Uuid {
+    let id = Uuid::now_v7();
+    peer.create_block(
+        id,
+        C::CONTENT_TYPE,
+        BlockParent::Block(parent),
+        &BlockMetadata::named(name),
+    )
+    .await
+    .unwrap();
+    peer.save(id, content, None).await.unwrap();
+    list_in(peer, parent, id).await;
+    id
+}
+
+async fn text_block(peer: &Peer<MemoryStore>, parent: Uuid, name: &str, text: &str) -> Uuid {
+    block(peer, parent, name, &TextBlock::of(text)).await
+}
+
+async fn types() -> be_block_type_host::Modules {
+    be_block_type_host::started(be_type_bundle::sources(), be_block_client::Clock::real()).await
+}
+
+async fn sync(peer: &Peer<MemoryStore>, directory: &Path, root: Uuid) -> Report {
+    crate::sync(
+        peer,
+        &mut types().await,
+        directory,
+        &Target { root: Some(root) },
+    )
+    .await
+    .unwrap()
+}
+
+#[derive(Debug)]
+struct Listed {
+    id: Uuid,
+    name: String,
+    block_type: Uuid,
+    executable: bool,
+}
+
+async fn children(peer: &Peer<MemoryStore>, parent: Uuid) -> Vec<Listed> {
+    let summaries = peer.children(BlockParent::Block(parent)).await.unwrap();
+    peer.learn(&summaries).await.unwrap();
+    let mut listed: Vec<Listed> = summaries
+        .iter()
+        .map(|summary| {
+            let metadata = peer.metadata(summary).unwrap();
+            Listed {
+                id: summary.id,
+                name: metadata.name().unwrap_or_default(),
+                block_type: summary.content_type,
+                executable: metadata.get(&EXECUTABLE).unwrap_or(false),
+            }
+        })
+        .collect();
+    listed.sort_by(|a, b| a.name.cmp(&b.name));
+    listed
+}
+
+async fn child(peer: &Peer<MemoryStore>, parent: Uuid, name: &str) -> Listed {
+    children(peer, parent)
+        .await
+        .into_iter()
+        .find(|listed| listed.name == name)
+        .unwrap_or_else(|| panic!("no block called {name}"))
+}
+
+async fn text_of(peer: &Peer<MemoryStore>, id: Uuid) -> String {
+    TextBlock::text(&peer.open::<TextContent>(id).await.unwrap().unwrap())
+}
+
+async fn rewrite(peer: &Peer<MemoryStore>, id: Uuid, text: &str) {
+    let mut content = peer.open::<TextContent>(id).await.unwrap().unwrap();
+    let head = peer.local_head(id);
+    let edit = TextBlock::rewrite(&content, 7, text.as_bytes()).unwrap();
+    content.apply(&edit);
+    peer.save(id, &content, head).await.unwrap();
+}
+
+fn read(directory: &Path, path: &str) -> String {
+    std::fs::read_to_string(directory.join(path)).unwrap()
+}
+
+fn write(directory: &Path, path: &str, text: &str) {
+    let path = directory.join(path);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, text).unwrap();
+}

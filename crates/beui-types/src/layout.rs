@@ -1,5 +1,6 @@
+use be_lib_geometry::{Rect, Vec2, vec2};
+use beui_tree::reactive::into_prop_via;
 use beui_tree::reactive::{Get, IntoProp, Memo, Prop, ReadSignal, Signal};
-use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 
 use crate::color::Color;
 
@@ -54,7 +55,11 @@ pub enum ItemSize {
     #[default]
     Intrinsic,
     Fixed(f32),
-    Percent(f32),
+    /// A weight in the bounded space left over, shared with the siblings that grow. A list
+    /// measured intrinsically has none to share, so its growing children fall back to their
+    /// intrinsic length there, like CSS `height: 50%` in an auto-height parent; a growing
+    /// scroll, which measures as nothing, collapses there, so give it a fixed length.
+    Grow(f32),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -121,7 +126,7 @@ impl Sizing {
     }
 
     pub fn yields(self) -> bool {
-        matches!(self.size, ItemSize::Percent(_)) || self.shrink > 0.0
+        matches!(self.size, ItemSize::Grow(_)) || self.shrink > 0.0
     }
 }
 
@@ -510,40 +515,6 @@ impl From<f32> for Corners {
     }
 }
 
-macro_rules! into_prop_via {
-    ($target:ty, $value:ty, $convert:expr) => {
-        impl IntoProp<$target> for $value {
-            fn into_prop(self) -> Prop<$target> {
-                Prop::Static(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Prop<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                self.map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Memo<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for ReadSignal<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Signal<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-    };
-}
-
 into_prop_via!(Extent, f32, Extent::px);
 into_prop_via!(Extent, Option<f32>, |exact| Extent {
     exact,
@@ -553,40 +524,40 @@ into_prop_via!(Sides, f32, Sides::all);
 into_prop_via!(Corners, f32, Corners::all);
 into_prop_via!(Align2, Align, Align2::all);
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct CanvasView {
-    pub origin: Pos2,
-    pub scale: f32,
-}
+/// Places every `CanvasItem arranged=KEY` at the rect returned for KEY (empty if
+/// none), called during the canvas's own layout with its laid-out size, so the
+/// items do not lag a layout behind as children placed from `measure` would.
+/// Compared by identity: hand a new one (from a memo) when what it places changes.
+#[derive(Clone)]
+pub struct CanvasArrangement(std::rc::Rc<dyn Fn(Vec2) -> Vec<(u64, Rect)>>);
 
-impl CanvasView {
-    pub fn new(origin: Pos2, scale: f32) -> Self {
-        Self { origin, scale }
+impl CanvasArrangement {
+    pub fn new(arrange: impl Fn(Vec2) -> Vec<(u64, Rect)> + 'static) -> Self {
+        Self(std::rc::Rc::new(arrange))
     }
 
-    pub fn to_screen(self, point: Pos2) -> Pos2 {
-        pos2(
-            self.origin.x + point.x * self.scale,
-            self.origin.y + point.y * self.scale,
-        )
-    }
-
-    pub fn to_canvas(self, point: Pos2) -> Pos2 {
-        pos2(
-            (point.x - self.origin.x) / self.scale,
-            (point.y - self.origin.y) / self.scale,
-        )
-    }
-
-    pub fn rect_to_screen(self, rect: Rect) -> Rect {
-        Rect::from_min_max(self.to_screen(rect.min), self.to_screen(rect.max))
-    }
-
-    pub fn rect_to_canvas(self, rect: Rect) -> Rect {
-        Rect::from_min_max(self.to_canvas(rect.min), self.to_canvas(rect.max))
+    pub fn arrange(&self, size: Vec2) -> Vec<(u64, Rect)> {
+        (self.0)(size)
     }
 }
 
+impl PartialEq for CanvasArrangement {
+    fn eq(&self, other: &Self) -> bool {
+        std::rc::Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl std::fmt::Debug for CanvasArrangement {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("CanvasArrangement")
+    }
+}
+
+pub use be_lib_geometry::CanvasView;
+
+/// `rect` is in window coordinates (the space of `PointerPress::pos`), through
+/// every space's scale; `size` is the node's size in its own units before any
+/// zoom, so content built from it answers the same at every zoom.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Measured {
     pub rect: Rect,

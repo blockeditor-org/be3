@@ -1,5 +1,5 @@
 use super::*;
-use beui_core::runner::Layer;
+use beui_runner::Layer;
 
 #[test]
 fn a_window_point_maps_to_the_screen_and_back_through_its_panel() {

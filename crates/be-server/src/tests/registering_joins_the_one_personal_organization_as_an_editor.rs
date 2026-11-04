@@ -1,4 +1,4 @@
-use be_protocol::{OrganizationKind, OrganizationRole};
+use be_block_protocol::{OrganizationKind, OrganizationRole};
 
 use super::*;
 

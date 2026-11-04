@@ -1,5 +1,5 @@
 use crate::document::Document;
-use crate::node::NodeId;
+use beui_types::NodeId;
 
 #[derive(Default)]
 pub struct FocusScopes(Vec<FocusScope>);
@@ -11,10 +11,15 @@ struct FocusScope {
 }
 
 impl Document {
+    /// For anything other than a layer that takes the focus for a while (be-host's region
+    /// when an app asks for the keyboard): remembers where the focus was, to give it back on
+    /// `pop_focus_scope`. Open layers push and pop their own.
     pub fn push_focus_scope(&mut self, holder: NodeId) {
         self.push_scope(holder, None);
     }
 
+    /// Refocuses what was focused before only if the focus is still inside `holder`, so a
+    /// close that deliberately moved the focus elsewhere keeps it there.
     pub fn pop_focus_scope(&mut self, holder: NodeId) {
         self.pop_scope(holder);
     }
@@ -103,6 +108,23 @@ impl Document {
                     .returns_to
                     .filter(|target| !self.is_within(*target, removed))
             })
+            .or_else(|| self.returns_from_passing_layer(removed))
+    }
+
+    fn returns_from_passing_layer(&self, removed: NodeId) -> Option<NodeId> {
+        let focused = self.focused?;
+        if !self.is_within(focused, removed) {
+            return None;
+        }
+        self.focus_scopes
+            .0
+            .iter()
+            .rev()
+            .filter(|scope| scope.holder != removed && self.is_within(removed, scope.holder))
+            .find(|scope| scope.layer.is_some())
+            .filter(|scope| scope.layer == Some(false))
+            .and_then(|scope| scope.returns_to)
+            .filter(|target| !self.is_within(*target, removed))
     }
 
     pub(crate) fn return_removed_focus(&mut self, target: NodeId) {

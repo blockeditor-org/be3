@@ -1,3 +1,0 @@
-load("@root//buck/wasm:defs.bzl", "plugin_sdk")
-
-plugin_sdk()

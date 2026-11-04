@@ -1,6 +1,0 @@
-load("@root//buck/wasm:defs.bzl", "editor")
-
-editor(
-    module = "audio_block",
-    types = "//crates/editors/audio-block/types:module",
-)

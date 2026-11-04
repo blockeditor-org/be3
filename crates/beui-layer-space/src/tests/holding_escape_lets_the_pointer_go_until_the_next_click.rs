@@ -23,7 +23,7 @@ fn holding_escape_lets_the_pointer_go_until_the_next_click() {
     assert_eq!(
         delivered(&pressed),
         [(WindowId::MAIN, key(Key::Escape, ESCAPE, true))],
-        "the app sees the press at once"
+        "the program sees the press at once"
     );
 
     let before = now + LET_GO_AFTER / 2;
@@ -31,7 +31,7 @@ fn holding_escape_lets_the_pointer_go_until_the_next_click() {
     assert_eq!(
         delivered(&repeated).len(),
         1,
-        "repeats before the hold triggers still reach the app"
+        "repeats before the hold triggers still reach the program"
     );
     assert!(space.grabbed(), "a short hold keeps the grab");
 
@@ -41,7 +41,7 @@ fn holding_escape_lets_the_pointer_go_until_the_next_click() {
     assert_eq!(
         delivered(&send(&mut space, later(held, 0.1), [repeat()])),
         [],
-        "repeats after the hold triggers do not reach the app"
+        "repeats after the hold triggers do not reach the program"
     );
     assert_eq!(
         delivered(&send(
@@ -50,12 +50,12 @@ fn holding_escape_lets_the_pointer_go_until_the_next_click() {
             [key(Key::Escape, ESCAPE, false)]
         )),
         [(WindowId::MAIN, key(Key::Escape, ESCAPE, false))],
-        "the release reaches the app so its key state stays right"
+        "the release reaches the program so its key state stays right"
     );
 
     let at = centre() + vec2(40.0, 0.0);
     let moved = delivered(&send(&mut space, held, [Input::PointerMoved(at)]));
-    assert_eq!(moved.len(), 1, "a free pointer still hovers the app");
+    assert_eq!(moved.len(), 1, "a free pointer still hovers the program");
     let clicked = send(&mut space, held, [button(at, true), button(at, false)]);
     assert_eq!(
         delivered(&clicked),
@@ -69,8 +69,8 @@ fn holding_escape_lets_the_pointer_go_until_the_next_click() {
         held,
         [button(at, true), button(at, false)],
     ));
-    assert_eq!(got.len(), 2, "the next click reaches the app: {got:?}");
-    let output = app_frame(CursorIcon::Default);
+    assert_eq!(got.len(), 2, "the next click reaches the program: {got:?}");
+    let output = program_frame(CursorIcon::Default);
     assert!(
         space
             .frame(&output, &view(held))

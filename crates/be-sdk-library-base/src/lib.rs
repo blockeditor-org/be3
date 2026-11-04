@@ -1,0 +1,10 @@
+extern crate be_lib_geometry as _;
+extern crate be_sdk as _;
+extern crate be_sdk_api as _;
+extern crate be_wasm_gpu_guest as _;
+extern crate be_wasm_ops as _;
+extern crate postcard as _;
+extern crate serde as _;
+extern crate serde_json as _;
+extern crate uuid as _;
+extern crate wgpu as _;

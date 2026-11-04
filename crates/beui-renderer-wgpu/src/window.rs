@@ -1,11 +1,11 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use beui_core::app::Setup;
-use beui_core::color::Color32;
 use beui_core::context::{RendererInfo, WindowOutput};
-use beui_core::geometry::Vec2;
-use beui_core::renderer::{Renderer, WindowHandle};
+use beui_core::program::Setup;
+use beui_runner::renderer::{Renderer, WindowHandle};
+use beui_types::Color32;
+use beui_types::Vec2;
 
 use crate::present::{Gpu, OpenDevice, Presented, Target, create_gpu};
 
@@ -103,7 +103,7 @@ impl Renderer for WindowSurface {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn capture(&mut self) -> Option<beui_core::renderer::Capture> {
+    fn capture(&mut self) -> Option<beui_runner::renderer::Capture> {
         self.target.capture(&self.gpu)
     }
 }

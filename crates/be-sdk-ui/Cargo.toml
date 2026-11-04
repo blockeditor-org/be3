@@ -1,0 +1,14 @@
+[package]
+name = "be-sdk-ui"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-sdk-manifest = { path = "../be-sdk-manifest" }
+beui-lucide = { path = "../beui-lucide" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+uuid = "1"
+
+[lints]
+workspace = true

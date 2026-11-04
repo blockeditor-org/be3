@@ -14,7 +14,7 @@ fn Pair(label: Prop<String>, tail: Prop<bool>, disposed: Rc<Cell<usize>>) -> Chi
 
 #[test]
 fn show_can_wrap_a_component_returning_multiple_children() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let shown = create_signal(false);

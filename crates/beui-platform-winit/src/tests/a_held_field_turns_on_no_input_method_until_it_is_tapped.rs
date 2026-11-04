@@ -1,7 +1,7 @@
 use super::*;
-use beui_core::geometry::Rect;
-use beui_core::input::Keyboard;
-use beui_core::window::WindowRequests;
+use beui_types::Keyboard;
+use beui_types::Rect;
+use beui_types::window::WindowRequests;
 
 #[test]
 fn a_held_field_turns_on_no_input_method_until_it_is_tapped() {

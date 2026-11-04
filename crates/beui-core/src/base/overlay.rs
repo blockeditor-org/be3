@@ -1,18 +1,24 @@
 use std::any::Any;
 use std::rc::Rc;
 
-use crate::color::Color;
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::painter::{Corners, Painter};
+use crate::painter::{Painter, Zoom};
+use beui_types::Color;
+use beui_types::Corners;
+use beui_types::layer::LayerSpace;
+use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
+
+const ESCAPED: u8 = 1;
 
 use crate::base::frame::{FrameNode, FrameStyle};
-use crate::callback::{Callback, NodeRef};
 use crate::document::Document;
-use crate::layer::{Dismiss, LayerLevel, LayerPolicy};
-use crate::node::{Element, NodeId, NodeOf, Rects};
-use crate::window::WindowId;
+use crate::node::{Element, NodeOf, Rects};
+use beui_tree::callback::Callback;
+use beui_types::NodeId;
+use beui_types::NodeRef;
+use beui_types::WindowId;
+use beui_types::{Dismiss, LayerLevel, LayerPolicy};
 
-pub use beui_types::layer::OverlayAnchor;
+use beui_types::OverlayAnchor;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Pin {
@@ -63,9 +69,9 @@ impl Pin {
     }
 }
 
-pub use beui_types::layer::Placement;
+use beui_types::Placement;
 
-pub use beui_types::window::WindowSpec;
+use beui_types::WindowSpec;
 
 const TIP_RADIUS: f32 = 2.0;
 
@@ -164,12 +170,18 @@ pub struct OverlayNode {
     pub(crate) shown_in: Option<WindowId>,
     scrim: NodeOf<FrameNode>,
     dims: bool,
+    scrim_color: Color,
+    scrim_radius: f32,
     pub(crate) open: bool,
     pub(crate) anchor: OverlayAnchor,
+    bounds: Option<Rect>,
     anchored: Option<Rect>,
+    pub(crate) anchor_rect: Option<Rect>,
+    pub(crate) placed_in: Option<Rect>,
+    escaped: Option<(LayerSpace, Vec2, Zoom)>,
     pinned: Option<Pin>,
     pointer: Option<NodeRef>,
-    beak: Option<NodeOf<BeakNode>>,
+    beak: NodeOf<BeakNode>,
     placement: Placement,
     pub(crate) policy: LayerPolicy,
     pub(crate) level: LayerLevel,
@@ -179,19 +191,30 @@ pub struct OverlayNode {
 }
 
 impl OverlayNode {
-    fn new(scrim: NodeOf<FrameNode>, anchor: OverlayAnchor, placement: Placement) -> Self {
+    fn new(
+        scrim: NodeOf<FrameNode>,
+        beak: NodeOf<BeakNode>,
+        anchor: OverlayAnchor,
+        placement: Placement,
+    ) -> Self {
         Self {
             content: None,
             window: None,
             shown_in: None,
             scrim,
             dims: false,
+            scrim_color: Color::TRANSPARENT,
+            scrim_radius: 0.0,
             open: false,
             anchor,
+            bounds: None,
             anchored: None,
+            anchor_rect: None,
+            placed_in: None,
+            escaped: None,
             pinned: None,
             pointer: None,
-            beak: None,
+            beak,
             placement,
             policy: LayerPolicy::BlocksAll,
             level: LayerLevel::Normal,
@@ -209,11 +232,21 @@ impl OverlayNode {
         self.policy
     }
 
+    pub fn placement(&self) -> Placement {
+        self.placement
+    }
+
+    pub(crate) fn escape_zoom(&self) -> Option<(Vec2, Zoom)> {
+        self.escaped.map(|(_, by, zoom)| (by, zoom))
+    }
+
+    fn inner(&self, rect: Rect) -> Rect {
+        self.escaped
+            .map_or(rect, |(space, _, _)| space.to_host.rect(rect))
+    }
+
     pub(crate) fn anchor_node(&self) -> Option<NodeId> {
-        match &self.anchor {
-            OverlayAnchor::Node(node) | OverlayAnchor::Pinned { node, .. } => node.try_get(),
-            OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => None,
-        }
+        self.anchor.node().and_then(|node| node.try_get())
     }
 
     fn pinned_rect(&mut self, rect: Rect, within: Option<Rect>) -> Rect {
@@ -233,34 +266,72 @@ impl OverlayNode {
         content: NodeId,
         out: &Rects,
     ) {
+        let outer_painter = painter;
         let viewport = doc.viewport_rect();
         let anchored = self.anchor_node().and_then(|id| out.get(&id));
         self.anchored = anchored;
         let target = match self.anchor.clone() {
             OverlayAnchor::Pinned { rect, .. } => Some(self.pinned_rect(rect, anchored)),
+            OverlayAnchor::Band { band, .. } => anchored.map(|node| {
+                band.try_get()
+                    .and_then(|band| out.get(&band))
+                    .map_or(node, |band| {
+                        beui_types::layer::banded(node, band, self.placement)
+                    })
+            }),
             OverlayAnchor::Node(_) | OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => anchored,
         };
-        let area = viewport;
-        let anchor_rect = match &self.anchor {
-            OverlayAnchor::Node(_) => anchored.unwrap_or(area),
-            OverlayAnchor::Pinned { .. } => target.unwrap_or(area),
+        let space = doc.escape_space(self.placement, doc.viewport_window());
+        let outer = space.map_or(viewport, |space| space.area());
+        self.placed_in = self.window.is_none().then_some(outer);
+        let centred = space.is_some() && self.placement == Placement::Center;
+        let window_anchor = match &self.anchor {
+            _ if centred => viewport,
+            OverlayAnchor::Node(_) => anchored.unwrap_or(outer),
+            OverlayAnchor::Pinned { .. } | OverlayAnchor::Band { .. } => target.unwrap_or(outer),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
             OverlayAnchor::Rect(rect) => *rect,
         };
+        self.anchor_rect = Some(window_anchor);
+        let zoomed;
+        let (painter, area) = match space {
+            Some(space) => {
+                let scale = match space.to_host.scale.x {
+                    scale if scale.is_finite() && scale > 0.0 => scale,
+                    _ => 1.0,
+                };
+                let by = -space.to_host.origin.to_vec2() / scale;
+                let zoom = Zoom {
+                    scale: scale.recip(),
+                    raster: scale.recip(),
+                };
+                let host = doc.laying_out().expect("an overlay is laid out as itself");
+                zoomed =
+                    doc.enter_zoomed_space(host, ESCAPED, painter, by, zoom, Rect::EVERYTHING, out);
+                self.escaped = Some((space, by, zoom));
+                (&zoomed, space.bounds)
+            }
+            None => {
+                self.escaped = None;
+                (painter, viewport)
+            }
+        };
+        let area = match self.bounds.map(|bounds| area.intersect(self.inner(bounds))) {
+            Some(bounded) if bounded.is_positive() => bounded,
+            _ => area,
+        };
+        let anchor_rect = self.inner(window_anchor);
         let inside = matches!(
             self.placement,
             Placement::InsideTop
+                | Placement::InsideTopStart
                 | Placement::InsideTopEnd
                 | Placement::InsideBottom
+                | Placement::InsideBottomStart
                 | Placement::InsideBottomEnd
         );
         let available = match (inside, self.placement) {
             (true, _) => anchor_rect.intersect(area).size().max(Vec2::ZERO),
-            (false, Placement::HangFrom(gap)) => {
-                let room = area.shrink(f32::from(gap));
-                let top = (anchor_rect.top() + f32::from(gap)).clamp(room.top(), room.bottom());
-                Vec2::new(room.width(), room.bottom() - top).max(Vec2::ZERO)
-            }
             (false, Placement::Popover { margin, .. }) => {
                 area.shrink(f32::from(margin)).size().max(Vec2::ZERO)
             }
@@ -271,10 +342,15 @@ impl OverlayNode {
             true => measured.min(available),
             false => measured,
         };
-        let rect = beui_types::layer::resolve_rect(area, anchor_rect, self.placement, content_size);
+        let placement = match centred {
+            true => Placement::CenterOn,
+            false => self.placement,
+        };
+        let rect = beui_types::layer::resolve_rect(area, anchor_rect, placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
-        self.stand_off(doc, painter, content, rect, anchor_rect, out);
+        self.stand_off(doc, painter, content, rect, anchor_rect, area, out);
         self.point_at(doc, painter, anchor_rect, out);
+        let painter = outer_painter;
         if self.policy == LayerPolicy::BlocksParent
             && self.dims
             && let Some(blocked) = anchored
@@ -297,6 +373,7 @@ impl OverlayNode {
         content: NodeId,
         rect: Rect,
         anchor: Rect,
+        area: Rect,
         out: &Rects,
     ) {
         if !matches!(self.placement, Placement::Popover { .. }) {
@@ -305,6 +382,7 @@ impl OverlayNode {
         let Some(frame) = self
             .pointer_frame(doc)
             .and_then(|frame| out.get(&frame.id()))
+            .map(|frame| self.inner(frame))
         else {
             return;
         };
@@ -313,17 +391,21 @@ impl OverlayNode {
             (false, true) => rect.bottom() - frame.bottom(),
             (false, false) => 0.0,
         };
+        let shift = match rect.height() <= area.height() {
+            true => shift.clamp(area.top() - rect.top(), area.bottom() - rect.bottom()),
+            false => 0.0,
+        };
         if shift != 0.0 {
             crate::layout::layout(doc, painter, content, rect.translate(vec2(0.0, shift)), out);
         }
     }
 
     fn point_at(&self, doc: &mut Document, painter: &Painter, anchor: Rect, out: &Rects) {
-        let Some(beak) = self.beak else {
-            return;
-        };
+        let beak = self.beak;
         let frame = self.pointer_frame(doc);
-        let placed = frame.and_then(|frame| out.get(&frame.id()));
+        let placed = frame
+            .and_then(|frame| out.get(&frame.id()))
+            .map(|frame| self.inner(frame));
         let style = frame.map_or_else(FrameStyle::default, |frame| {
             doc.arena.get_as::<FrameNode>(frame).style
         });
@@ -356,6 +438,18 @@ impl OverlayNode {
         if let Some(rect) = placed {
             crate::layout::layout(doc, painter, beak.id(), rect, out);
         }
+    }
+
+    pub(crate) fn dims(&self) -> bool {
+        self.dims
+    }
+
+    pub(crate) fn scrim_color(&self) -> Color {
+        self.scrim_color
+    }
+
+    pub(crate) fn scrim_radius(&self) -> f32 {
+        self.scrim_radius
     }
 
     pub(crate) fn scrim_covers(&self) -> bool {
@@ -400,10 +494,14 @@ impl Element for OverlayNode {
             (None, None) => doc.viewport_window(),
         });
         if let Some(window) = real {
-            let size = painter.ctx().window_size(window.id).unwrap_or(window.size);
+            let size = match window.fit {
+                Some(max) => doc.fitted_size_of(window.id).unwrap_or(max),
+                None => painter.ctx().window_size(window.id).unwrap_or(window.size),
+            };
             let rect = painter
                 .ctx()
                 .keyboard_trimmed(window.id, Rect::from_min_size(Pos2::ZERO, size));
+            self.placed_in = None;
             let outer = doc.swap_window_viewport(Some((window.id, rect)));
             crate::layout::layout(doc, painter, content, rect, out);
             doc.swap_window_viewport(outer);
@@ -432,7 +530,7 @@ impl Element for OverlayNode {
     fn children(&self) -> Vec<NodeId> {
         let mut children = vec![self.scrim.id()];
         children.extend(self.content);
-        children.extend(self.beak.map(NodeOf::id));
+        children.push(self.beak.id());
         children
     }
 
@@ -471,6 +569,7 @@ impl Element for OverlayNode {
                 "anchor",
                 match &self.anchor {
                     OverlayAnchor::Node(_) => "node".to_owned(),
+                    OverlayAnchor::Band { .. } => "node, past its band".to_owned(),
                     OverlayAnchor::Pinned { rect, .. } => format!(
                         "pinned to a node from {}, {} to {}, {}",
                         rect.min.x, rect.min.y, rect.max.x, rect.max.y
@@ -552,8 +651,13 @@ impl Document {
         placement: Placement,
     ) -> NodeOf<OverlayNode> {
         let scrim = self.create_frame();
+        let beak = self.arena.insert(BeakNode {
+            reach: 0.0,
+            style: FrameStyle::default(),
+            pointing: None,
+        });
         self.arena
-            .insert(OverlayNode::new(scrim, anchor, placement))
+            .insert(OverlayNode::new(scrim, beak, anchor, placement))
     }
 
     pub fn set_overlay_content(&mut self, overlay: NodeOf<OverlayNode>, content: Option<NodeId>) {
@@ -583,6 +687,23 @@ impl Document {
         }
     }
 
+    pub fn content_of_overlay(&self, node: NodeId) -> Option<NodeId> {
+        let overlay = self.overlay_of(node)?;
+        self.overlay_content(overlay)
+    }
+
+    pub fn overlay_of(&self, node: NodeId) -> Option<NodeOf<OverlayNode>> {
+        let node = match self.arena.kind_of::<crate::base::portal::PortalNode>(node) {
+            Some(portal) => {
+                self.arena
+                    .get_as::<crate::base::portal::PortalNode>(portal)
+                    .child?
+            }
+            None => node,
+        };
+        self.arena.kind_of::<OverlayNode>(node)
+    }
+
     pub fn overlay_window(&self, overlay: NodeOf<OverlayNode>) -> Option<&WindowSpec> {
         self.arena.get_as::<OverlayNode>(overlay).window.as_ref()
     }
@@ -595,6 +716,12 @@ impl Document {
         }
     }
 
+    pub fn set_overlay_bounds(&mut self, overlay: NodeOf<OverlayNode>, bounds: Option<Rect>) {
+        if self.arena.get_as::<OverlayNode>(overlay).bounds != bounds {
+            self.arena.get_mut_as::<OverlayNode>(overlay).bounds = bounds;
+        }
+    }
+
     pub fn set_overlay_pointer(&mut self, overlay: NodeOf<OverlayNode>, pointer: Option<NodeRef>) {
         if self.arena.get_as::<OverlayNode>(overlay).pointer != pointer {
             self.arena.get_mut_as::<OverlayNode>(overlay).pointer = pointer;
@@ -602,45 +729,54 @@ impl Document {
     }
 
     pub fn set_overlay_beak(&mut self, overlay: NodeOf<OverlayNode>, reach: f32) {
-        match self.arena.get_as::<OverlayNode>(overlay).beak {
-            Some(beak) => {
-                if self.arena.get_as::<BeakNode>(beak).reach != reach {
-                    self.arena.paint_mut_as::<BeakNode>(beak).reach = reach;
-                }
-            }
-            None if reach > 0.0 => {
-                let beak = self.arena.insert(BeakNode {
-                    reach,
-                    style: FrameStyle::default(),
-                    pointing: None,
-                });
-                self.arena.get_mut_as::<OverlayNode>(overlay).beak = Some(beak);
-            }
-            None => {}
+        let beak = self.arena.get_as::<OverlayNode>(overlay).beak;
+        if self.arena.get_as::<BeakNode>(beak).reach != reach {
+            self.arena.paint_mut_as::<BeakNode>(beak).reach = reach;
         }
     }
 
     pub fn overlay_beak(&self, overlay: NodeOf<OverlayNode>) -> Option<NodeId> {
-        self.arena
-            .get_as::<OverlayNode>(overlay)
-            .beak
-            .map(NodeOf::id)
+        Some(self.arena.get_as::<OverlayNode>(overlay).beak.id())
     }
 
     pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: impl Into<Color>) {
         let color = color.into();
         let node = self.arena.get_as::<OverlayNode>(overlay);
         let (scrim, dims) = (node.scrim, !color.is_clear());
-        if node.dims != dims {
+        let (held, dimmed) = (node.scrim_color, node.dims);
+        if held != color {
+            self.arena.get_mut_as::<OverlayNode>(overlay).scrim_color = color;
+        }
+        if dimmed != dims {
             self.arena.get_mut_as::<OverlayNode>(overlay).dims = dims;
             self.layers_changed();
         }
         self.set_frame_color(scrim, color);
     }
 
+    pub fn set_overlay_scrim_radius(&mut self, overlay: NodeOf<OverlayNode>, radius: f32) {
+        let node = self.arena.get_as::<OverlayNode>(overlay);
+        let scrim = node.scrim;
+        if node.scrim_radius != radius {
+            self.arena.get_mut_as::<OverlayNode>(overlay).scrim_radius = radius;
+        }
+        let style = self.arena.get_as::<FrameNode>(scrim).style;
+        self.set_frame_style(
+            scrim,
+            FrameStyle {
+                radius: Corners::all(radius),
+                ..style
+            },
+        );
+    }
+
     pub fn set_overlay_placement(&mut self, overlay: NodeOf<OverlayNode>, placement: Placement) {
-        if self.arena.get_as::<OverlayNode>(overlay).placement != placement {
+        let held = self.arena.get_as::<OverlayNode>(overlay).placement;
+        if held != placement {
             self.arena.get_mut_as::<OverlayNode>(overlay).placement = placement;
+            if held.escapes() != placement.escapes() {
+                self.layers_changed();
+            }
         }
     }
 
@@ -685,13 +821,8 @@ impl Document {
         self.layer_state.changed();
     }
 
-    pub fn is_overlay(&self, node: NodeId) -> bool {
-        self.arena.kind_of::<OverlayNode>(node).is_some()
-    }
-
     pub fn is_overlay_open(&self, overlay: NodeId) -> bool {
-        self.arena
-            .kind_of::<OverlayNode>(overlay)
+        self.overlay_of(overlay)
             .is_some_and(|overlay| self.arena.get_as(overlay).open)
     }
 
@@ -704,12 +835,16 @@ impl Document {
     }
 
     pub(crate) fn on_overlay_trigger(&self, overlay: NodeOf<OverlayNode>, pos: Pos2) -> bool {
+        self.overlay_trigger_rect(overlay)
+            .is_some_and(|rect| rect.contains_half_open(pos))
+    }
+
+    pub(crate) fn overlay_trigger_rect(&self, overlay: NodeOf<OverlayNode>) -> Option<Rect> {
         self.arena
             .get_as::<OverlayNode>(overlay)
             .trigger
             .as_ref()
             .and_then(NodeRef::try_get)
             .and_then(|trigger| self.node_rect(trigger))
-            .is_some_and(|rect| rect.contains_half_open(pos))
     }
 }

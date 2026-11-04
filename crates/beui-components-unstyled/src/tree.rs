@@ -1,5 +1,5 @@
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -158,6 +158,23 @@ impl<K> Copy for State<K> {}
 
 type Nodes<K> = Stored<RefCell<HashMap<K, NodeRef>>>;
 
+/// Gives each row the tree's keyboard and `TreeItem` accessibility, and
+/// nothing more: where a pointer must land to select is the face's choice,
+/// through the handle's `select`, `toggle` and `hover`.
+///
+/// The arrow keys, Home, End and typing move between rows without selecting;
+/// Enter or Space selects. Given `on_open`, Enter and a second click also
+/// report it. A press that travels a few pixels reports `on_drag_start` and
+/// drops its click, so a row can be dragged out without being selected.
+/// Choosing a row never expands, collapses or scrolls anything.
+///
+/// One Tab stop, at the focused row (the selected one, else the first).
+/// Up/Down move a visible row and Home/End to the first and last, stopping at
+/// the ends. Right expands a collapsed row, then moves into its first child;
+/// Left collapses an expanded row, else moves to its parent. Only Left, Right
+/// and the toggle expand or collapse. Typing jumps to the next visible row whose
+/// label starts with what was typed in the last second, ignoring case; repeating
+/// one letter cycles through its matches. Given `on_edit`, F2 reports it.
 #[component]
 pub fn Tree<K>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TreeApi<K>>,
@@ -473,7 +490,7 @@ pub fn TreeToggle(
     toggle: ClickCallback,
     #[prop(default = String::new())] button_test_id: String,
     #[prop(children)] content: RenderFn<TreeToggleHandle>,
-) -> DynamicSegment<ListChild> {
+) -> DynamicSegment<ListItem> {
     let expandable = create_memo(move || item.get().expandable);
     let expanded = create_memo(move || item.get().expanded);
     view! {
@@ -585,6 +602,12 @@ struct Gesture {
     started: bool,
 }
 
+/// The rename field a face places for a row whose handle reads `editing`.
+///
+/// It opens focused with everything selected. Enter or losing focus reports
+/// `on_rename` with the trimmed name; Escape, or an empty or unchanged name,
+/// reports `on_cancel_edit`. Either way the caller clears `editing`, and the
+/// keyboard returns to the row. Keys typed here don't reach the tree.
 #[component]
 pub fn TreeRowEditor(
     edit: TreeRowEdit,

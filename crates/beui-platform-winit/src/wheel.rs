@@ -23,6 +23,9 @@ enum State {
     Coasting,
 }
 
+/// Maps `MouseWheel` phases to `Input::ScrollStarted`/`ScrollEnded`. With
+/// `system_momentum` (macOS) it drops the momentum events that follow a lift,
+/// since beui flings itself (decisions/beui_winit_drops_macos_scroll_momentum.md).
 pub(crate) struct Wheel {
     system_momentum: bool,
     state: State,

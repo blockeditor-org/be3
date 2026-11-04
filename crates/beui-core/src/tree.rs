@@ -1,6 +1,6 @@
+use be_lib_stable_hash::HashMap;
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use std::rc::Weak;
@@ -11,38 +11,38 @@ use beui_tree::reactive::{
 };
 use beui_types::node::{CoreHooks, NodeCell, install_core_hooks};
 
-use crate::base::Sizing;
 use crate::base::canvas::CanvasNode;
 use crate::base::grid::{GridItem, GridNode};
 use crate::base::layers::LayersNode;
-use crate::base::list::{ListItem, ListNode};
+use crate::base::list::{ListEntry, ListNode};
 use crate::base::text::{TextNode, TextPart};
 use crate::child_list::ChildHost;
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{NodeId, NodeOf};
-
-pub use beui_types::node::BuildsNode;
+use crate::node::NodeOf;
+use beui_types::NodeId;
+use beui_types::Sizing;
 
 #[derive(Default)]
 struct NodeBindings {
     target: Cell<Option<NodeId>>,
     states: RefCell<Vec<Box<dyn Any>>>,
     accessibility: RefCell<Option<accesskit::Node>>,
+    rank: Cell<u64>,
     placed: RefCell<Option<Signal<bool>>>,
-    node: RefCell<Option<crate::callback::NodeRef>>,
+    node: RefCell<Option<beui_types::NodeRef>>,
 }
 
 fn bindings() -> Rc<NodeBindings> {
     current_component().extension::<NodeBindings>()
 }
 
-pub fn component_node() -> crate::callback::NodeRef {
+pub fn component_node() -> beui_types::NodeRef {
     let bindings = bindings();
     if let Some(node) = bindings.node.borrow().as_ref() {
         return *node;
     }
-    let node = crate::callback::NodeRef::new();
+    let node = beui_types::node::NodeRef::new();
     if let Some(target) = bindings.target.get() {
         node.fill(target);
     }
@@ -76,13 +76,20 @@ pub fn set_component_state<T: 'static>(state: T) {
     }
 }
 
+pub fn accessibility_reference(node: NodeId) -> accesskit::NodeId {
+    crate::accessibility::reference(node)
+}
+
 pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
     let bindings = bindings();
     let node = node.into_prop();
     create_effect(move || {
         let node = node.get();
+        let rank = bindings.rank.get();
         match bindings.target.get() {
-            Some(target) => with_document(|document| document.set_accessibility(target, node)),
+            Some(target) => with_document(|document| {
+                document.set_accessibility(target, node, rank);
+            }),
             None => {
                 bindings.accessibility.replace(Some(node));
             }
@@ -96,9 +103,11 @@ fn finish_component(root: NodeId, component: &ComponentContext, scope: &ScopeCon
         return;
     };
     bindings.target.set(Some(root));
+    bindings.rank.set(component.finish_order());
     let states = bindings.states.take();
     let accessibility = bindings.accessibility.take();
     let placed = bindings.placed.take();
+    let rank = bindings.rank.get();
     if let Some(node) = bindings.node.borrow().as_ref() {
         node.fill(root);
     }
@@ -112,7 +121,7 @@ fn finish_component(root: NodeId, component: &ComponentContext, scope: &ScopeCon
             document.set_component_state_dyn(root, state);
         }
         if let Some(node) = accessibility {
-            document.set_accessibility(root, node);
+            document.set_accessibility(root, node, rank);
         }
     });
 }
@@ -142,7 +151,7 @@ pub trait ParentKind: ChildHost<Stored: Clone + 'static> + Sized {
 
 pub type Data<P> = <<P as ParentKind>::Kind as beui_types::tree::ParentKind>::Data;
 
-pub type ListChild = Placed<ListKind>;
+pub type ListItem = Placed<ListKind>;
 
 fn store_in<P: ParentKind>(
     child: Placed<P::Kind>,
@@ -225,8 +234,8 @@ impl<P: ParentKind> IntoSlotHost<Placed<P::Kind>> for NodeOf<P> {
 impl ParentKind for ListNode {
     type Kind = ListKind;
 
-    fn item(node: NodeId, size: Sizing) -> ListItem {
-        ListItem { child: node, size }
+    fn item(node: NodeId, size: Sizing) -> ListEntry {
+        ListEntry { child: node, size }
     }
 
     fn update(document: &mut Document, list: NodeOf<Self>, node: NodeId, size: Sizing) {
@@ -279,7 +288,4 @@ impl beui_types::tree::ParentKind for TextKind {
     type Data = bool;
 }
 
-pub use beui_types::tree::{
-    BareChild, CanvasKind, FromPlaced, GridKind, LayersKind, ListKind, Placed, PlacedItem,
-    WithSizing, with_sizing,
-};
+use beui_types::tree::{CanvasKind, GridKind, LayersKind, ListKind, Placed, PlacedItem};

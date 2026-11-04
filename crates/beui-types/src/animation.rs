@@ -1,6 +1,8 @@
 mod fling;
+mod velocity;
 
 pub use fling::Fling;
+pub use velocity::Velocity;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Easing {

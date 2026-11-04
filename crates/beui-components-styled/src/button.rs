@@ -14,13 +14,15 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Align2;
 use beui_view::types::Image;
+use beui_view::types::TextAlign;
 use beui_view::types::{Align, Direction, Justify};
-use beui_view::types::{ItemSize, TextAlign};
 
 const GLYPH_SPACING: Space = Space::Sm;
+const MIN_HIT: Size = Size::Md;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum ButtonSize {
+    Inline,
     Small,
     Compact,
     #[default]
@@ -31,8 +33,8 @@ pub enum ButtonSize {
 impl ButtonSize {
     fn padding(self, icon_only: bool) -> Padding {
         let (horizontal, vertical) = match (self, icon_only) {
-            (ButtonSize::Small, true) => (Space::Xs2, Space::Xs2),
-            (ButtonSize::Small, false) => (Space::Sm, Space::Xs2),
+            (ButtonSize::Inline | ButtonSize::Small, true) => (Space::Xs2, Space::Xs2),
+            (ButtonSize::Inline | ButtonSize::Small, false) => (Space::Sm, Space::Xs2),
             (ButtonSize::Compact, true) => (Space::Sm, Space::Sm),
             (ButtonSize::Compact, false) => (Space::Lg, Space::Sm),
             (ButtonSize::Regular, true) => (Space::Md, Space::Md),
@@ -46,14 +48,18 @@ impl ButtonSize {
     fn width(self, icon_only: bool) -> Length {
         match (self, icon_only) {
             (ButtonSize::Toolbar, true) => Length::Size(Size::Toolbar),
-            _ => Length::INTRINSIC,
+            (ButtonSize::Inline, _) => Length::INTRINSIC,
+            (_, true) => Length::AtLeast(MIN_HIT),
+            (_, false) => Length::INTRINSIC,
         }
     }
 
-    fn height(self) -> Length {
-        match self {
-            ButtonSize::Toolbar => Length::Size(Size::Toolbar),
-            _ => Length::INTRINSIC,
+    fn height(self, icon_only: bool) -> Length {
+        match (self, icon_only) {
+            (ButtonSize::Toolbar, _) => Length::Size(Size::Toolbar),
+            (ButtonSize::Inline, _) => Length::INTRINSIC,
+            (_, true) => Length::AtLeast(MIN_HIT),
+            (_, false) => Length::INTRINSIC,
         }
     }
 
@@ -66,21 +72,21 @@ impl ButtonSize {
 
     fn radius(self) -> Radius {
         match self {
-            ButtonSize::Small | ButtonSize::Regular => Radius::Md,
+            ButtonSize::Inline | ButtonSize::Small | ButtonSize::Regular => Radius::Md,
             ButtonSize::Compact | ButtonSize::Toolbar => Radius::Tab,
         }
     }
 
     fn text(self) -> TextSize {
         match self {
-            ButtonSize::Small => TextSize::Xs,
+            ButtonSize::Inline | ButtonSize::Small => TextSize::Xs,
             _ => TextSize::Base,
         }
     }
 
     fn focus_ring_offset(self) -> Stroke {
         match self {
-            ButtonSize::Small => Stroke::Hairline,
+            ButtonSize::Inline | ButtonSize::Small => Stroke::Hairline,
             _ => Stroke::Focus,
         }
     }
@@ -100,8 +106,7 @@ impl ButtonVariant {
             return match self {
                 ButtonVariant::Primary => ColorRole::AccentSoft,
                 ButtonVariant::Danger => ColorRole::DangerSoft,
-                ButtonVariant::Secondary => ColorRole::Surface,
-                ButtonVariant::Ghost => ColorRole::None,
+                ButtonVariant::Secondary | ButtonVariant::Ghost => ColorRole::None,
             };
         }
         match (self, hovered, active) {
@@ -135,6 +140,7 @@ impl ButtonVariant {
 #[component]
 pub fn Button(
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] description: Prop<String>,
     #[prop(default = ButtonVariant::Secondary)] variant: Prop<ButtonVariant>,
     #[prop(default = ButtonSize::Regular)] size: ButtonSize,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
@@ -158,6 +164,7 @@ pub fn Button(
     view! {
         <unstyled::Button
             label
+            description
             glyph
             icon_only
             action
@@ -199,6 +206,7 @@ pub fn ButtonFace(
         glyph,
         icon_only,
         tooltip,
+        ..
     } = handle;
     let revealed = create_memo(move || revealed.get());
     let fill_color = create_memo(move || {
@@ -229,12 +237,13 @@ pub fn ButtonFace(
     let has_trailing = create_memo(move || trailing.get().is_some());
     let labelled = create_memo(move || !icon_only.get());
     let busy = create_memo(move || busy.get());
-    let justify = create_memo(move || match wide.get() {
+    let justify = create_memo(move || match wide.get() || icon_only.get() {
         true => Justify::Center,
         false => Justify::Start,
     });
     let padding = create_memo(move || size.padding(icon_only.get()));
     let width = create_memo(move || size.width(icon_only.get()));
+    let height = create_memo(move || size.height(icon_only.get()));
     let text = size.text();
     let picture = Size::Custom(text.icon_px());
     view! {
@@ -245,7 +254,7 @@ pub fn ButtonFace(
                     border={border}
                     radius={size.radius()}
                     width={width}
-                    height={size.height()}
+                    height={height}
                     align={size.align()}
                     padding={padding}
                 >
@@ -270,15 +279,16 @@ pub fn ButtonFace(
                             </Text>
                         </Show>
                         <Show condition={labelled}>
-                            <Text
-                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                size=text
-                                color={label_color}
-                                align=TextAlign::Center
-                                overflow=Overflow::Ellipsis
-                            >
-                                {label}
-                            </Text>
+                            <ListItem shrink=1.0>
+                                <Text
+                                    size=text
+                                    color={label_color}
+                                    align=TextAlign::Center
+                                    overflow=Overflow::Ellipsis
+                                >
+                                    {label}
+                                </Text>
+                            </ListItem>
                         </Show>
                         <Show condition={has_trailing}>
                             <Text size=text color={label_color} align=TextAlign::Center>

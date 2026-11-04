@@ -1,0 +1,647 @@
+use std::{
+    borrow::Cow,
+    ops::Range,
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
+
+pub use be_lib_sequence::marks::{anchor_in, anchor_index_in, place_in};
+use be_lib_sequence::{Pos, SeqOp, Sequence, Splice};
+
+use crate::rich::{Change, FormatOp, Formats, MarkId, Marks, RichOp, Seed};
+use crate::{ChangeLog, CursorPosition, TextChange};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextLanguage {
+    #[default]
+    Markdown,
+    PlainText,
+    Rust,
+    Toml,
+    Zig,
+    RichText,
+}
+
+impl TextLanguage {
+    pub const ALL: [Self; 5] = [
+        Self::Markdown,
+        Self::PlainText,
+        Self::Rust,
+        Self::Toml,
+        Self::Zig,
+    ];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Markdown => "Markdown",
+            Self::PlainText => "Plain text",
+            Self::Rust => "Rust",
+            Self::Toml => "TOML",
+            Self::Zig => "Zig",
+            Self::RichText => "Rich text",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextIndentation {
+    Tabs,
+    Spaces { width: u8 },
+}
+
+impl Default for TextIndentation {
+    fn default() -> Self {
+        Self::Spaces { width: 2 }
+    }
+}
+
+impl TextIndentation {
+    pub const fn byte(self) -> u8 {
+        match self {
+            Self::Tabs => b'\t',
+            Self::Spaces { .. } => b' ',
+        }
+    }
+
+    pub const fn width(self) -> u8 {
+        match self {
+            Self::Tabs => 1,
+            Self::Spaces { width: 0 } => 1,
+            Self::Spaces { width } => width,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextRun {
+    pub at: usize,
+    pub pos: Pos,
+    pub len: usize,
+    pub visible: bool,
+    pub deleted: Vec<u8>,
+}
+
+pub trait DocumentRead {
+    fn len(&self) -> usize;
+
+    fn chunk(&self, index: usize) -> &[u8];
+
+    fn anchor(&self, index: usize) -> Option<Pos>;
+
+    fn anchor_index(&self, anchor: Pos) -> Option<usize>;
+
+    fn deleted_anchor_index(&self, _anchor: Pos) -> Option<usize> {
+        None
+    }
+
+    fn runs(&self) -> Vec<TextRun> {
+        Vec::new()
+    }
+
+    fn formats(&self) -> Option<Arc<Formats>> {
+        None
+    }
+
+    fn language(&self) -> TextLanguage;
+
+    fn indentation(&self) -> TextIndentation;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    fn slice(&self, range: Range<usize>) -> Cow<'_, [u8]> {
+        let end = range.end.min(self.len());
+        let start = range.start.min(end);
+        let chunk = self.chunk(start);
+        if chunk.len() >= end - start {
+            return Cow::Borrowed(&chunk[..end - start]);
+        }
+        let mut bytes = chunk.to_vec();
+        let mut index = start + chunk.len();
+        while index < end {
+            let chunk = self.chunk(index);
+            if chunk.is_empty() {
+                break;
+            }
+            let taken = chunk.len().min(end - index);
+            bytes.extend_from_slice(&chunk[..taken]);
+            index += taken;
+        }
+        Cow::Owned(bytes)
+    }
+
+    fn slice_from_anchor(&self, anchor: Pos, len: usize) -> Cow<'_, [u8]> {
+        match self.anchor_index(anchor) {
+            Some(index) => self.slice(index..index.saturating_add(len)),
+            None => Cow::Borrowed(&[]),
+        }
+    }
+}
+
+pub trait DocumentEdit {
+    fn document(&self) -> &dyn DocumentRead;
+
+    fn replace(&mut self, index: usize, delete: usize, insert: &[u8]);
+
+    fn replace_atomically(&mut self, index: usize, delete: usize, insert: &[u8]);
+
+    fn format(&mut self, _range: Range<usize>, _change: &Change) {}
+}
+
+pub trait Document {
+    fn read(&self) -> Option<Box<dyn DocumentRead + '_>>;
+
+    fn revision(&self) -> u64;
+
+    fn changes_since(&self, revision: u64) -> Option<TextChange>;
+
+    fn set_language(&self, language: TextLanguage);
+
+    fn set_indentation(&self, indentation: TextIndentation);
+
+    fn edit(&self, cursors: Vec<CursorPosition>, edit: &mut dyn FnMut(&mut dyn DocumentEdit));
+
+    fn finish_history_group(&self);
+
+    fn undo(&self) -> Option<Vec<CursorPosition>>;
+
+    fn redo(&self) -> Option<Vec<CursorPosition>>;
+}
+
+pub struct DocumentView<'a> {
+    read: &'a dyn DocumentRead,
+    bytes: Cow<'a, [u8]>,
+}
+
+impl<'a> DocumentView<'a> {
+    pub fn new(read: &'a dyn DocumentRead) -> Self {
+        let bytes = read.slice(0..read.len());
+        Self { read, bytes }
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+impl DocumentRead for DocumentView<'_> {
+    fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    fn chunk(&self, index: usize) -> &[u8] {
+        self.bytes.get(index..).unwrap_or_default()
+    }
+
+    fn anchor(&self, index: usize) -> Option<Pos> {
+        self.read.anchor(index)
+    }
+
+    fn anchor_index(&self, anchor: Pos) -> Option<usize> {
+        self.read.anchor_index(anchor)
+    }
+
+    fn deleted_anchor_index(&self, anchor: Pos) -> Option<usize> {
+        self.read.deleted_anchor_index(anchor)
+    }
+
+    fn runs(&self) -> Vec<TextRun> {
+        self.read.runs()
+    }
+
+    fn formats(&self) -> Option<Arc<Formats>> {
+        self.read.formats()
+    }
+
+    fn language(&self) -> TextLanguage {
+        self.read.language()
+    }
+
+    fn indentation(&self) -> TextIndentation {
+        self.read.indentation()
+    }
+}
+
+pub fn formats_in(
+    sequence: &Sequence<u8>,
+    marks: &Marks,
+    language: TextLanguage,
+) -> Option<Arc<Formats>> {
+    (language == TextLanguage::RichText).then(|| marks.formats(sequence))
+}
+
+pub fn deleted_anchor_index_in(sequence: &Sequence<u8>, anchor: Pos) -> Option<usize> {
+    match sequence.place_of(anchor)? {
+        (index, false) => Some(index),
+        (_, true) => None,
+    }
+}
+
+pub fn runs_in(sequence: &Sequence<u8>) -> Vec<TextRun> {
+    let mut at = 0;
+    sequence
+        .runs()
+        .map(|run| {
+            let len = run.len as usize;
+            let text_run = TextRun {
+                at,
+                pos: run.first,
+                len,
+                visible: run.visible,
+                deleted: match run.visible {
+                    true => Vec::new(),
+                    false => run.items.to_vec(),
+                },
+            };
+            if run.visible {
+                at += len;
+            }
+            text_run
+        })
+        .collect()
+}
+
+pub fn changed(change: TextChange, splices: &[Splice]) -> TextChange {
+    splices.iter().fold(change, |change, splice| {
+        change.then(TextChange::replace(
+            splice.at,
+            splice.removed,
+            splice.inserted,
+        ))
+    })
+}
+
+const LOCAL: u64 = 1;
+
+pub struct TextBuffer {
+    state: RwLock<BufferState>,
+}
+
+struct BufferState {
+    text: Sequence<u8>,
+    marks: Marks,
+    language: TextLanguage,
+    indentation: TextIndentation,
+    revision: u64,
+    changes: ChangeLog,
+    pending: TextChange,
+    undo: Vec<BufferHistoryEntry>,
+    redo: Vec<BufferHistoryEntry>,
+    group_open: bool,
+}
+
+#[derive(Default)]
+struct BufferHistoryEntry {
+    undo: Vec<RichOp>,
+    redo: Vec<RichOp>,
+    cursors: Vec<CursorPosition>,
+}
+
+impl TextBuffer {
+    pub fn new(bytes: impl AsRef<[u8]>) -> Self {
+        let mut text = Sequence::from_items(bytes.as_ref().to_vec());
+        text.mirror();
+        Self {
+            state: RwLock::new(BufferState {
+                text,
+                marks: Marks::default(),
+                language: TextLanguage::default(),
+                indentation: TextIndentation::default(),
+                revision: 0,
+                changes: ChangeLog::default(),
+                pending: TextChange::NONE,
+                undo: Vec::new(),
+                redo: Vec::new(),
+                group_open: false,
+            }),
+        }
+    }
+
+    pub fn rich(bytes: impl AsRef<[u8]>, seeds: &[Seed]) -> Self {
+        let buffer = Self::new(bytes);
+        {
+            let mut state = buffer.write_state();
+            state.marks = Marks::loaded(&state.text, seeds);
+            state.language = TextLanguage::RichText;
+        }
+        buffer
+    }
+
+    fn read_state(&self) -> RwLockReadGuard<'_, BufferState> {
+        self.state
+            .read()
+            .expect("the text buffer lock was poisoned")
+    }
+
+    fn write_state(&self) -> RwLockWriteGuard<'_, BufferState> {
+        self.state
+            .write()
+            .expect("the text buffer lock was poisoned")
+    }
+}
+
+impl BufferState {
+    fn bump(&mut self, change: Option<TextChange>) {
+        self.revision += 1;
+        self.changes.record(self.revision, change);
+    }
+
+    fn replay(&mut self, operations: &[RichOp]) -> Vec<MarkId> {
+        let mut change = TextChange::NONE;
+        let mut minted = Vec::new();
+        for operation in operations {
+            match operation {
+                RichOp::Text(operation) => {
+                    if let Some(splices) = self.text.apply(operation) {
+                        self.marks.splice(&self.text, &splices);
+                        change = changed(change, &splices);
+                    }
+                }
+                RichOp::Format(operation) => {
+                    minted.push(self.marks.mint(&self.text, LOCAL, operation.clone()).id);
+                    change = change.then(format_change(&self.text, operation));
+                }
+                RichOp::Unformat(id) => {
+                    if let Some(operation) = self.marks.remove(*id) {
+                        change = change.then(format_change(&self.text, &operation));
+                    }
+                }
+            }
+        }
+        self.bump(Some(change));
+        minted
+    }
+}
+
+impl Document for TextBuffer {
+    fn read(&self) -> Option<Box<dyn DocumentRead + '_>> {
+        Some(Box::new(BufferRead {
+            state: self.read_state(),
+        }))
+    }
+
+    fn revision(&self) -> u64 {
+        self.read_state().revision
+    }
+
+    fn changes_since(&self, revision: u64) -> Option<TextChange> {
+        let state = self.read_state();
+        state.changes.since(revision, state.revision)
+    }
+
+    fn set_language(&self, language: TextLanguage) {
+        let mut state = self.write_state();
+        state.language = language;
+        state.bump(None);
+    }
+
+    fn set_indentation(&self, indentation: TextIndentation) {
+        let mut state = self.write_state();
+        state.indentation = indentation;
+        state.bump(None);
+    }
+
+    fn edit(&self, cursors: Vec<CursorPosition>, edit: &mut dyn FnMut(&mut dyn DocumentEdit)) {
+        let mut state = self.write_state();
+        let mut transaction = BufferEdit {
+            state: &mut state,
+            done: BufferHistoryEntry {
+                cursors,
+                ..BufferHistoryEntry::default()
+            },
+        };
+        edit(&mut transaction);
+        let done = transaction.done;
+        if done.redo.is_empty() {
+            return;
+        }
+        let change = std::mem::replace(&mut state.pending, TextChange::NONE);
+        state.bump(Some(change));
+        state.redo.clear();
+        let grouping = state.group_open;
+        match state.undo.last_mut() {
+            Some(open) if grouping => {
+                open.undo.extend(done.undo);
+                open.redo.extend(done.redo);
+            }
+            _ => state.undo.push(done),
+        }
+        state.group_open = true;
+    }
+
+    fn finish_history_group(&self) {
+        self.write_state().group_open = false;
+    }
+
+    fn undo(&self) -> Option<Vec<CursorPosition>> {
+        let mut state = self.write_state();
+        state.group_open = false;
+        let entry = state.undo.pop()?;
+        let undo: Vec<RichOp> = entry.undo.iter().rev().cloned().collect();
+        state.replay(&undo);
+        let cursors = entry.cursors.clone();
+        state.redo.push(entry);
+        Some(cursors)
+    }
+
+    fn redo(&self) -> Option<Vec<CursorPosition>> {
+        let mut state = self.write_state();
+        state.group_open = false;
+        let mut entry = state.redo.pop()?;
+        let minted = state.replay(&entry.redo);
+        remint(&mut entry.undo, minted);
+        let cursors = entry.cursors.clone();
+        state.undo.push(entry);
+        Some(cursors)
+    }
+}
+
+struct BufferRead<'a> {
+    state: RwLockReadGuard<'a, BufferState>,
+}
+
+impl DocumentRead for BufferRead<'_> {
+    fn len(&self) -> usize {
+        self.state.text.len()
+    }
+
+    fn chunk(&self, index: usize) -> &[u8] {
+        self.state.text.chunk(index)
+    }
+
+    fn anchor(&self, index: usize) -> Option<Pos> {
+        anchor_in(&self.state.text, index)
+    }
+
+    fn anchor_index(&self, anchor: Pos) -> Option<usize> {
+        anchor_index_in(&self.state.text, anchor)
+    }
+
+    fn deleted_anchor_index(&self, anchor: Pos) -> Option<usize> {
+        deleted_anchor_index_in(&self.state.text, anchor)
+    }
+
+    fn runs(&self) -> Vec<TextRun> {
+        runs_in(&self.state.text)
+    }
+
+    fn formats(&self) -> Option<Arc<Formats>> {
+        formats_in(&self.state.text, &self.state.marks, self.state.language)
+    }
+
+    fn language(&self) -> TextLanguage {
+        self.state.language
+    }
+
+    fn indentation(&self) -> TextIndentation {
+        self.state.indentation
+    }
+}
+
+struct BufferEdit<'a> {
+    state: &'a mut BufferState,
+    done: BufferHistoryEntry,
+}
+
+impl BufferEdit<'_> {
+    fn run(&mut self, operation: Option<SeqOp<u8>>) {
+        let Some(operation) = operation else {
+            return;
+        };
+        let Some((undo, redo)) = self.state.text.inverse(&operation) else {
+            return;
+        };
+        let Some(splices) = self.state.text.apply(&operation) else {
+            return;
+        };
+        let state = &mut *self.state;
+        state.marks.splice(&state.text, &splices);
+        self.state.pending = changed(self.state.pending, &splices);
+        self.done.undo.push(RichOp::Text(undo));
+        self.done.redo.push(RichOp::Text(redo));
+    }
+}
+
+impl DocumentRead for BufferEdit<'_> {
+    fn len(&self) -> usize {
+        self.state.text.len()
+    }
+
+    fn chunk(&self, index: usize) -> &[u8] {
+        self.state.text.chunk(index)
+    }
+
+    fn anchor(&self, index: usize) -> Option<Pos> {
+        anchor_in(&self.state.text, index)
+    }
+
+    fn anchor_index(&self, anchor: Pos) -> Option<usize> {
+        anchor_index_in(&self.state.text, anchor)
+    }
+
+    fn deleted_anchor_index(&self, anchor: Pos) -> Option<usize> {
+        deleted_anchor_index_in(&self.state.text, anchor)
+    }
+
+    fn runs(&self) -> Vec<TextRun> {
+        runs_in(&self.state.text)
+    }
+
+    fn formats(&self) -> Option<Arc<Formats>> {
+        formats_in(&self.state.text, &self.state.marks, self.state.language)
+    }
+
+    fn language(&self) -> TextLanguage {
+        self.state.language
+    }
+
+    fn indentation(&self) -> TextIndentation {
+        self.state.indentation
+    }
+}
+
+impl DocumentEdit for BufferEdit<'_> {
+    fn document(&self) -> &dyn DocumentRead {
+        self
+    }
+
+    fn replace(&mut self, index: usize, delete: usize, insert: &[u8]) {
+        let len = self.state.text.len();
+        let index = index.min(len);
+        let delete = delete.min(len - index);
+        if delete > 0 {
+            let operation = self.state.text.delete(index..index + delete);
+            self.run(operation);
+        }
+        if !insert.is_empty() {
+            let operation = self.state.text.insert(LOCAL, index, insert.to_vec());
+            self.run(operation);
+        }
+    }
+
+    fn replace_atomically(&mut self, index: usize, delete: usize, insert: &[u8]) {
+        let len = self.state.text.len();
+        let index = index.min(len);
+        let delete = delete.min(len - index);
+        let operation = self
+            .state
+            .text
+            .replace(LOCAL, index..index + delete, insert.to_vec());
+        self.run(operation);
+    }
+
+    fn format(&mut self, range: Range<usize>, change: &Change) {
+        if self.state.language != TextLanguage::RichText {
+            return;
+        }
+        let bytes = self.state.text.items();
+        let state = &mut *self.state;
+        let Some(op) = format_op(&state.text, &state.marks, &bytes, range, change) else {
+            return;
+        };
+        state.pending = state.pending.then(format_change(&state.text, &op));
+        let mark = state.marks.mint(&state.text, LOCAL, op.clone());
+        self.done.undo.push(RichOp::Unformat(mark.id));
+        self.done.redo.push(RichOp::Format(op));
+    }
+}
+
+pub fn remint(undo: &mut [RichOp], minted: Vec<MarkId>) {
+    let removals = undo.iter_mut().filter_map(|operation| match operation {
+        RichOp::Unformat(id) => Some(id),
+        _ => None,
+    });
+    for (id, minted) in removals.zip(minted) {
+        *id = minted;
+    }
+}
+
+pub fn format_op(
+    text: &Sequence<u8>,
+    marks: &Marks,
+    bytes: &[u8],
+    range: Range<usize>,
+    change: &Change,
+) -> Option<FormatOp> {
+    let op = Marks::op(
+        text,
+        bytes,
+        range,
+        change.scope,
+        change.expand,
+        &change.key,
+        change.value.clone(),
+    )?;
+    let undo = marks.inverse(text, bytes, &op);
+    if !undo.is_empty() && undo.iter().all(|undone| undone.value == change.value) {
+        return None;
+    }
+    Some(op)
+}
+
+pub fn format_change(text: &Sequence<u8>, op: &FormatOp) -> TextChange {
+    let bytes = text.items();
+    Marks::covered(text, &bytes, op).map_or(TextChange::NONE, |range| {
+        TextChange::replace(range.start, range.len(), range.len())
+    })
+}

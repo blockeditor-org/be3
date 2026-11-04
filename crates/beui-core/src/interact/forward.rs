@@ -2,21 +2,23 @@ use crate::base::interactive::InteractiveNode;
 use crate::context::Context;
 use crate::document::Document;
 
-use crate::geometry::{Pos2, Rect};
-use crate::input::{Event, PointerId};
-use crate::node::{Element, NodeId, Rects};
-use crate::window::WindowId;
+use crate::node::{Element, Rects};
+use beui_types::NodeId;
+use beui_types::WindowId;
+use beui_types::{Event, PointerId};
+use beui_types::{Pos2, Rect};
 
 use super::hit;
 use super::pointer::Routed;
 
-pub use beui_types::forward::{Aim, Forwarded, ForwardedInput, Over, Replay, Replayed};
+use beui_types::{Forwarded, ForwardedInput, Over};
 
 #[derive(Default)]
 pub struct Routing {
     hovered: Option<NodeId>,
     focused: Option<NodeId>,
     entered: Vec<NodeId>,
+    placed: Vec<(NodeId, Pos2)>,
 }
 
 impl Routing {
@@ -30,6 +32,14 @@ pub fn wants_forward(element: &dyn Element) -> bool {
         .as_any()
         .downcast_ref::<InteractiveNode>()
         .is_some_and(InteractiveNode::forwards)
+}
+
+fn reachable(doc: &Document, sink: NodeId) -> bool {
+    doc.window_layers(doc.window_of(sink))
+        .is_some_and(|layers| {
+            doc.layer_of(&layers, sink)
+                .is_some_and(|layer| layers.reachable(layer))
+        })
 }
 
 fn sink_at(doc: &mut Document, rects: &Rects, window: WindowId, pos: Pos2) -> Option<NodeId> {
@@ -94,13 +104,6 @@ pub(super) fn route(
     let hovered = position.and_then(|pos| sink_at(doc, rects, window, pos));
     let pointer_events = ctx.input(|input| input.pointer_events.clone());
     let routed = std::mem::take(&mut doc.pointers.routed);
-    let reachable = |doc: &Document, sink: NodeId| {
-        doc.window_layers(doc.window_of(sink))
-            .is_some_and(|layers| {
-                doc.layer_of(&layers, sink)
-                    .is_some_and(|layer| layers.reachable(layer))
-            })
-    };
     let mut deliveries: Vec<(NodeId, Vec<Forwarded>)> = Vec::new();
     let mut deliver = |to: Option<NodeId>, event: Forwarded| {
         let Some(to) = to else {
@@ -183,11 +186,123 @@ pub(super) fn route(
             deliveries.push((sink, Vec::new()));
         }
     }
+    let placed = std::mem::take(&mut doc.forward.placed);
     doc.forward = Routing {
         hovered,
         focused,
         entered,
+        placed,
     };
+    deliver_all(doc, rects, deliveries, position, modifiers);
+}
+
+pub(crate) fn reforward(doc: &mut Document, ctx: &Context, rects: &Rects) {
+    let Some((window, pos)) =
+        ctx.input(|input| input.pointer.mouse().map(|pos| (input.pointer.window, pos)))
+    else {
+        return;
+    };
+    let alive = |doc: &Document, id: Option<NodeId>| {
+        id.filter(|id| {
+            doc.arena.contains(*id) && wants_forward(doc.arena.get(*id)) && reachable(doc, *id)
+        })
+    };
+    let modifiers = ctx.input(|input| input.modifiers);
+    let captured = alive(doc, doc.pointers.sink_of(PointerId::Mouse));
+    if captured.is_none() {
+        let under = sink_at(doc, rects, window, pos);
+        let under = alive(doc, under);
+        if under != doc.forward.hovered {
+            let mut deliveries = Vec::new();
+            if let Some(left) = alive(doc, doc.forward.hovered)
+                && doc.forward.entered.contains(&left)
+            {
+                deliveries.push((left, vec![Forwarded::Left]));
+            }
+            let hovered = doc.forward.hovered;
+            doc.forward.entered.retain(|sink| Some(*sink) != hovered);
+            doc.forward.hovered = under;
+            if let Some(under) = under {
+                if !doc.forward.entered.contains(&under) {
+                    doc.forward.entered.push(under);
+                }
+                let moved = resting_move(doc, ctx, rects, window, pos);
+                deliveries.push((under, vec![moved]));
+            }
+            deliver_all(doc, rects, deliveries, Some(pos), modifiers);
+            return;
+        }
+    }
+    let Some(sink) = captured.or_else(|| alive(doc, doc.forward.hovered)) else {
+        return;
+    };
+    let Some(placed) = doc
+        .forward
+        .placed
+        .iter()
+        .find(|(held, _)| *held == sink)
+        .map(|(_, placed)| *placed)
+    else {
+        return;
+    };
+    if rects.get(&sink).is_none_or(|rect| rect.min == placed) {
+        return;
+    }
+    let moved = resting_move(doc, ctx, rects, window, pos);
+    deliver_all(doc, rects, vec![(sink, vec![moved])], Some(pos), modifiers);
+}
+
+fn resting_move(
+    doc: &mut Document,
+    ctx: &Context,
+    rects: &Rects,
+    window: WindowId,
+    pos: Pos2,
+) -> Forwarded {
+    let event = beui_types::PointerEvent {
+        pointer: PointerId::Mouse,
+        window,
+        phase: beui_types::PointerPhase::Move,
+        pos,
+        modifiers: ctx.input(|input| input.modifiers),
+        clicks: 0,
+        force: None,
+        pen: None,
+        predicted: None,
+        time: ctx.now(),
+        source: 0,
+    };
+    let over = sink_at(doc, rects, window, pos).map(|node| Over {
+        node,
+        local: Pos2::ZERO + (pos - rects.get(&node).map_or(pos, |rect| rect.min)),
+    });
+    Forwarded::Pointer { event, over }
+}
+
+fn deliver_all(
+    doc: &mut Document,
+    rects: &Rects,
+    deliveries: Vec<(NodeId, Vec<Forwarded>)>,
+    position: Option<Pos2>,
+    modifiers: beui_types::Modifiers,
+) {
+    let Routing {
+        hovered, focused, ..
+    } = doc.forward;
+    for (sink, events) in &deliveries {
+        let pointed = events.iter().any(|event| {
+            matches!(event, Forwarded::Pointer { event, .. } if event.pointer == PointerId::Mouse)
+        });
+        if let (true, Some(rect)) = (pointed, rects.get(sink)) {
+            doc.forward.placed.retain(|(held, _)| held != sink);
+            doc.forward.placed.push((*sink, rect.min));
+        }
+    }
+    let keep: Vec<NodeId> = [hovered, doc.pointers.sink_of(PointerId::Mouse)]
+        .into_iter()
+        .flatten()
+        .collect();
+    doc.forward.placed.retain(|(held, _)| keep.contains(held));
     for (sink, events) in deliveries {
         if !doc.arena.contains(sink) {
             continue;

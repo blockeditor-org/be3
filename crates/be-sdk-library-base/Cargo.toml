@@ -1,0 +1,23 @@
+[package]
+name = "be-sdk-library-base"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-sdk = { path = "../be-sdk" }
+be-wasm-gpu-guest = { path = "../be-wasm-gpu-guest" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-lib-geometry = { path = "../be-lib-geometry" }
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v7"] }
+wgpu = { version = "29", default-features = false, features = ["custom", "std", "web", "wgsl"] }
+
+[lints]
+workspace = true

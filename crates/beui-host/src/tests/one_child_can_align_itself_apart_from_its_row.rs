@@ -1,0 +1,27 @@
+use super::*;
+use crate::primitives::*;
+use crate::reactive::*;
+
+#[test]
+fn one_child_can_align_itself_apart_from_its_row() {
+    let _root = crate::reactive::RootScope::new();
+    let (tall, centred, ended) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
+    let document = build_node(move || {
+        view! {
+            <List direction=Direction::Horizontal align=Align::Start spacing=0.0>
+                <Frame @node_ref=&tall width=10.0 height=40.0 />
+                <ListItem align=Align::Center>
+                    <Frame @node_ref=&centred width=10.0 height=10.0 />
+                </ListItem>
+                <ListItem align=Align::End>
+                    <Frame @node_ref=&ended width=10.0 height=10.0 />
+                </ListItem>
+            </List>
+        }
+    });
+    let mut harness = Harness::sized(document, vec2(200.0, 40.0));
+    harness.frame(Vec::new());
+    assert_eq!(harness.rect(tall.get()).top(), 0.0);
+    assert_eq!(harness.rect(centred.get()).top(), 15.0);
+    assert_eq!(harness.rect(ended.get()).top(), 30.0);
+}

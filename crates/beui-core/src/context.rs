@@ -1,5 +1,5 @@
-pub use beui_types::action::{ActionGroup, ActionInfo};
-use foldhash::HashSet;
+use be_lib_stable_hash::HashSet;
+use beui_types::ActionGroup;
 use std::any::Any;
 use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
@@ -8,26 +8,34 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::app::Waker;
-use crate::app::accessibility_dump::{AccessibilityDump, TestIds};
-use crate::clipboard::{PasteKind, PasteRequest};
-use crate::damage::{self, Region};
+use crate::clipboard::{ClipboardRead, PasteRequest};
+use crate::damage;
 use crate::display::{Display, Group, Layer};
-use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
-use crate::file_saver::{FileSave, FileSaveId, FileSaveRequest, SavedFile};
+use crate::file_picker::{FilePickId, FilePickRequest};
+use crate::file_saver::{FileSaveId, FileSaveRequest};
 use crate::filter::Filter;
-use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
-use crate::geometry::Vec2;
-use crate::geometry::{Pos2, Rect, pos2};
-use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord};
-use crate::node::NodeId;
+use crate::font::{FontBackend, Fonts, Galley};
+use crate::input::InputState;
 use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, PainterState, Scope, Shape};
-use crate::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences};
+use crate::program::Waker;
+use crate::program::accessibility_dump::{AccessibilityDump, TestIds};
 use crate::screen_simulation::ScreenSimulation;
-use crate::window::{
-    Appearance, HostPlacement, WindowHosting, WindowId, WindowReport, WindowRequest, WindowState,
-};
+use crate::window::{Appearance, WindowHosting, WindowState};
+use beui_types::Event;
+use beui_types::NodeId;
+use beui_types::PasteKind;
+use beui_types::Vec2;
+use beui_types::geometry::Region;
+use beui_types::layer::{EscapedLayer, HostTransform, LayerSpace};
+use beui_types::{CursorIcon, ImeArea, KeyChord};
+use beui_types::{FileFilter, FilePick};
+use beui_types::{FileSave, SavedFile};
+use beui_types::{FontId, TextLayout};
+use beui_types::{HostPlacement, WindowId, WindowReport, WindowRequest};
+use beui_types::{Pos2, Rect, pos2};
+use beui_types::{PreferenceLayer, Preferences};
+use beui_types::{PreferenceLayers, PreferenceSource};
 
 type CopyWatcher = Rc<dyn Fn(&str)>;
 
@@ -74,6 +82,7 @@ struct Inner {
     copied_text: RefCell<Option<String>>,
     copied_image: RefCell<Option<Vec<u8>>>,
     paste: Cell<Option<PasteRequest>>,
+    clipboard_reads: RefCell<Vec<ClipboardRead>>,
     copy_watchers: RefCell<Vec<CopyWatcher>>,
     file_pick_requests: RefCell<Vec<FilePickRequest>>,
     file_picks: RefCell<Vec<(FilePickId, FilePick)>>,
@@ -83,17 +92,24 @@ struct Inner {
     next_file_save: Cell<u64>,
     window: RefCell<WindowState>,
     window_requests: RefCell<Vec<WindowRequest>>,
-    windows: RefCell<foldhash::HashMap<WindowId, KnownWindow>>,
+    windows: RefCell<be_lib_stable_hash::HashMap<WindowId, KnownWindow>>,
     window_reports: RefCell<Vec<WindowReport>>,
     shown_windows: RefCell<Vec<ShownWindow>>,
     drawing_into: Cell<WindowId>,
     keyboard_window: Cell<WindowId>,
+    every_sample: RefCell<Vec<WindowId>>,
     window_hosting: Cell<WindowHosting>,
     shows_main: Cell<bool>,
+    hosts_scrims: Cell<bool>,
+    layer_spaces: RefCell<be_lib_stable_hash::HashMap<WindowId, LayerSpace>>,
+    layer_dismissals: RefCell<Vec<u64>>,
+    escaped: RefCell<Vec<EscapedOutput>>,
+    escaped_targets: RefCell<Vec<(u64, WindowId, HostTransform)>>,
     keyboard_in_a_window: Cell<bool>,
     fullscreen: Cell<Option<bool>>,
     fullscreen_shown: Cell<bool>,
     close_requested: Cell<bool>,
+    raise_requested: Cell<bool>,
     touch_emulation: Cell<bool>,
     touchscreen: Cell<bool>,
     preferences: Cell<PreferenceLayers>,
@@ -117,12 +133,16 @@ struct Inner {
     accessibility_active: Cell<bool>,
     accessibility_requested: Cell<bool>,
     automated: Cell<bool>,
+    overflows_wanted: Cell<bool>,
     unhurried: Cell<bool>,
     waker: RefCell<Option<Waker>>,
     in_frame: Cell<bool>,
     woken: Cell<bool>,
     zones_woken_in_frame: RefCell<Vec<u64>>,
     seen: Cell<bool>,
+    refresh_interval: Cell<Option<Duration>>,
+    next_present: Cell<Option<Instant>>,
+    prepared: Cell<Option<Instant>>,
     actions: RefCell<Vec<ActionGroup>>,
     action_requests: RefCell<Vec<(Option<WindowId>, String)>>,
     hit_query: Cell<Option<Pos2>>,
@@ -184,7 +204,7 @@ pub struct RendererInfo {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Moved {
     pub from: Rect,
-    pub by: crate::geometry::Vec2,
+    pub by: beui_types::Vec2,
 }
 
 impl Moved {
@@ -236,15 +256,24 @@ impl WindowOutput {
     }
 }
 
+#[derive(Clone)]
+pub struct EscapedOutput {
+    pub layer: EscapedLayer,
+    pub output: WindowOutput,
+}
+
 pub struct FrameOutput {
     pub windows: Vec<WindowOutput>,
+    pub escaped: Vec<EscapedOutput>,
     pub window_requests: Vec<WindowRequest>,
     dump: Option<AccessibilityDump>,
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
+    pub raise_requested: bool,
     pub copied_text: Option<String>,
     pub copied_image: Option<Vec<u8>>,
     pub paste: Option<PasteRequest>,
+    pub clipboard_reads: Vec<ClipboardRead>,
     pub file_picks: Vec<FilePickRequest>,
     pub file_saves: Vec<FileSaveRequest>,
     pub repaint: bool,
@@ -257,20 +286,13 @@ pub struct FrameOutput {
     pub comps: Option<Vec<String>>,
     pub overflows: Vec<String>,
     pub window_overflows: Vec<(WindowId, String)>,
-    pub typed: Vec<crate::input::Input>,
+    pub typed: Vec<beui_types::Input>,
     pixels_per_point: f32,
 }
 
 impl FrameOutput {
     pub fn main(&self) -> &WindowOutput {
         self.window(WindowId::MAIN)
-            .expect("a frame always holds the main window")
-    }
-
-    pub fn main_mut(&mut self) -> &mut WindowOutput {
-        self.windows
-            .iter_mut()
-            .find(|window| window.id == WindowId::MAIN)
             .expect("a frame always holds the main window")
     }
 
@@ -293,7 +315,7 @@ impl FrameOutput {
         self.test_ids().rect(test_id)
     }
 
-    pub fn accessibility_tree(&self, title: &str, viewport: crate::geometry::Vec2) -> TreeUpdate {
+    pub fn accessibility_tree(&self, title: &str, viewport: beui_types::Vec2) -> TreeUpdate {
         accessibility::tree_update(
             title,
             viewport,
@@ -302,11 +324,26 @@ impl FrameOutput {
         )
     }
 
+    pub fn escaped_accessibility_tree(
+        &self,
+        layer: u64,
+        viewport: beui_types::Vec2,
+        origin: beui_types::Pos2,
+        to_host: beui_types::HostTransform,
+    ) -> Option<TreeUpdate> {
+        accessibility::escaped_tree_update(
+            layer,
+            viewport,
+            (to_host.origin - origin, to_host.scale),
+            &self.accessibility,
+        )
+    }
+
     pub fn window_accessibility_tree(
         &self,
         window: WindowId,
         title: &str,
-        viewport: crate::geometry::Vec2,
+        viewport: beui_types::Vec2,
     ) -> TreeUpdate {
         accessibility::window_tree_update(
             window,
@@ -338,6 +375,7 @@ impl Context {
                 copied_text: RefCell::new(None),
                 copied_image: RefCell::new(None),
                 paste: Cell::new(None),
+                clipboard_reads: RefCell::new(Vec::new()),
                 copy_watchers: RefCell::new(Vec::new()),
                 file_pick_requests: RefCell::new(Vec::new()),
                 file_picks: RefCell::new(Vec::new()),
@@ -347,17 +385,24 @@ impl Context {
                 next_file_save: Cell::new(0),
                 window: RefCell::new(WindowState::default()),
                 window_requests: RefCell::new(Vec::new()),
-                windows: RefCell::new(foldhash::HashMap::default()),
+                windows: RefCell::new(be_lib_stable_hash::HashMap::default()),
                 window_reports: RefCell::new(Vec::new()),
                 shown_windows: RefCell::new(Vec::new()),
                 drawing_into: Cell::new(WindowId::MAIN),
                 keyboard_window: Cell::new(WindowId::MAIN),
+                every_sample: RefCell::new(Vec::new()),
                 window_hosting: Cell::new(WindowHosting::None),
                 shows_main: Cell::new(true),
+                hosts_scrims: Cell::new(false),
+                layer_spaces: RefCell::new(be_lib_stable_hash::HashMap::default()),
+                layer_dismissals: RefCell::new(Vec::new()),
+                escaped: RefCell::new(Vec::new()),
+                escaped_targets: RefCell::new(Vec::new()),
                 keyboard_in_a_window: Cell::new(false),
                 fullscreen: Cell::new(None),
                 fullscreen_shown: Cell::new(false),
                 close_requested: Cell::new(false),
+                raise_requested: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 touchscreen: Cell::new(false),
                 preferences: Cell::new(PreferenceLayers::default()),
@@ -381,12 +426,16 @@ impl Context {
                 accessibility_active: Cell::new(true),
                 accessibility_requested: Cell::new(false),
                 automated: Cell::new(false),
+                overflows_wanted: Cell::new(false),
                 unhurried: Cell::new(false),
                 waker: RefCell::new(None),
                 in_frame: Cell::new(false),
                 woken: Cell::new(false),
                 zones_woken_in_frame: RefCell::new(Vec::new()),
                 seen: Cell::new(true),
+                refresh_interval: Cell::new(None),
+                next_present: Cell::new(None),
+                prepared: Cell::new(None),
                 actions: RefCell::new(Vec::new()),
                 action_requests: RefCell::new(Vec::new()),
                 hit_query: Cell::new(None),
@@ -399,7 +448,7 @@ impl Context {
                 kept: RefCell::new(Some(Kept::default())),
                 renderer_info: RefCell::new(None),
                 clock: Cell::new(None),
-                now: Cell::new(Instant::now()),
+                now: Cell::new(crate::timer::frame_clock()),
             }),
         }
     }
@@ -454,6 +503,14 @@ impl Context {
         self.inner.automated.get()
     }
 
+    pub fn want_overflows(&self, wanted: bool) {
+        self.inner.overflows_wanted.set(wanted);
+    }
+
+    pub fn wants_overflows(&self) -> bool {
+        self.inner.overflows_wanted.get()
+    }
+
     pub fn set_hurried(&self, hurried: bool) {
         self.inner.unhurried.set(!hurried);
     }
@@ -468,6 +525,30 @@ impl Context {
 
     pub fn seen(&self) -> bool {
         self.inner.seen.get()
+    }
+
+    pub fn set_refresh_interval(&self, interval: Option<Duration>) {
+        self.inner.refresh_interval.set(interval);
+    }
+
+    pub fn refresh_interval(&self) -> Option<Duration> {
+        self.inner.refresh_interval.get()
+    }
+
+    pub fn set_next_present(&self, at: Option<Instant>) {
+        self.inner.next_present.set(at);
+    }
+
+    pub fn next_present(&self) -> Option<Instant> {
+        self.inner.next_present.get()
+    }
+
+    pub fn note_prepared(&self, at: Instant) {
+        self.inner.prepared.set(Some(at));
+    }
+
+    pub fn last_prepared(&self) -> Option<Instant> {
+        self.inner.prepared.get()
     }
 
     pub fn publish_actions(&self, group: ActionGroup) {
@@ -571,6 +652,7 @@ impl Context {
     pub fn set_clock(&self, now: Instant) {
         self.inner.clock.set(Some(now));
         self.inner.now.set(now);
+        crate::timer::set_frame_clock(now);
     }
 
     pub fn advance_clock(&self, by: Duration) {
@@ -582,9 +664,10 @@ impl Context {
             + by;
         self.inner.clock.set(Some(now));
         self.inner.now.set(now);
+        crate::timer::set_frame_clock(now);
     }
 
-    pub(crate) fn frame_time(&self) -> Instant {
+    pub fn frame_time(&self) -> Instant {
         self.inner.clock.get().unwrap_or_else(Instant::now)
     }
 
@@ -592,6 +675,7 @@ impl Context {
         self.inner.in_frame.set(true);
         self.inner.woken.set(false);
         self.inner.now.set(now);
+        crate::timer::set_frame_clock(now);
         self.apply_pixels_per_point();
         self.inner.repaint.set(false);
         self.inner.repaint_after.set(Duration::MAX);
@@ -617,6 +701,7 @@ impl Context {
             .iter()
             .any(|event| matches!(event, Event::Ime(_) | Event::Text(_)));
         self.inner.window.borrow_mut().begin_frame(typed);
+        self.inner.every_sample.borrow_mut().clear();
         self.inner.input.borrow_mut().begin_frame(events, now);
         self.inner.layers.borrow_mut().clear();
         self.inner.grouping.borrow_mut().clear();
@@ -629,21 +714,23 @@ impl Context {
         self.inner.fullscreen.set(None);
         self.inner.window_requests.borrow_mut().clear();
         self.inner.shown_windows.borrow_mut().clear();
+        self.inner.escaped.borrow_mut().clear();
         self.inner.keyboard_window.set(WindowId::MAIN);
         self.inner.close_requested.set(false);
+        self.inner.raise_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
         self.inner.actions.borrow_mut().clear();
         self.inner.overflows.borrow_mut().clear();
         let published = std::mem::take(&mut *self.inner.accessibility_published.borrow_mut());
         *self.inner.accessibility_known.borrow_mut() = published;
-        ::reactive::flush();
+        ::beui_reactive::flush();
     }
 
     fn end_frame(&self) -> FrameOutput {
-        ::reactive::flush();
+        ::beui_reactive::flush();
         self.inner.in_frame.set(false);
         let woken = std::mem::take(&mut *self.inner.zones_woken_in_frame.borrow_mut());
-        if woken.into_iter().any(::reactive::zone_pending) {
+        if woken.into_iter().any(::beui_reactive::zone_pending) {
             self.request_repaint();
         }
         if let Some(viewport) = self.inner.mouse_viewport.take() {
@@ -772,17 +859,20 @@ impl Context {
         let window_overflows = std::mem::take(&mut *self.inner.overflows.borrow_mut());
         FrameOutput {
             windows,
+            escaped: std::mem::take(&mut *self.inner.escaped.borrow_mut()),
             window_requests: std::mem::take(&mut *self.inner.window_requests.borrow_mut()),
             dump,
             copied_text,
             copied_image: self.inner.copied_image.borrow_mut().take(),
             paste: self.inner.paste.take(),
+            clipboard_reads: std::mem::take(&mut *self.inner.clipboard_reads.borrow_mut()),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             file_saves: std::mem::take(&mut *self.inner.file_save_requests.borrow_mut()),
             repaint_after: self.inner.repaint_after.get(),
             animating: self.inner.animating.get(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
+            raise_requested: self.inner.raise_requested.get(),
             repaint: self.inner.repaint.get(),
             accessibility,
             actions: std::mem::take(&mut *self.inner.actions.borrow_mut()),
@@ -814,7 +904,7 @@ impl Context {
         self.run_with(Vec::new(), self.frame_time(), frame)
     }
 
-    pub(crate) fn run_with(
+    pub fn run_with(
         &self,
         events: Vec<Event>,
         now: Instant,
@@ -855,12 +945,23 @@ impl Context {
         self.inner.close_requested.set(true);
     }
 
+    pub fn raise_window(&self) {
+        self.inner.raise_requested.set(true);
+    }
+
     pub fn handle_back(&self) {
         self.inner.window.borrow_mut().requests.handles_back = true;
     }
 
     pub fn want_keyboard(&self) {
         self.inner.window.borrow_mut().requests.wants_keyboard = true;
+    }
+
+    pub fn want_every_sample(&self, window: WindowId) {
+        let mut windows = self.inner.every_sample.borrow_mut();
+        if !windows.contains(&window) {
+            windows.push(window);
+        }
     }
 
     pub fn intercept_keys(&self, chords: &[KeyChord]) {
@@ -906,6 +1007,15 @@ impl Context {
 
     pub fn take_clipboard_keys(&self, keys: bool) {
         self.inner.window.borrow_mut().requests.clipboard_keys = keys;
+    }
+
+    /// Reads the clipboard's text for the program itself, outside any focus. Answered
+    /// at the start of a later frame, `None` without text.
+    pub fn read_clipboard(&self, answer: impl FnOnce(Option<String>) + 'static) {
+        self.inner
+            .clipboard_reads
+            .borrow_mut()
+            .push(ClipboardRead::new(answer));
     }
 
     pub fn watch_copies(&self, watcher: impl Fn(&str) + 'static) {
@@ -970,6 +1080,10 @@ impl Context {
         self.inner.window.borrow_mut().requests.cursor = cursor_icon;
     }
 
+    pub fn set_cursor_image(&self, image: Option<beui_types::CursorImage>) {
+        self.inner.window.borrow_mut().cursor_image = image;
+    }
+
     pub fn set_appearance(&self, appearance: &Appearance) {
         let mut window = self.inner.window.borrow_mut();
         if window.appearance != *appearance {
@@ -1011,6 +1125,68 @@ impl Context {
 
     pub fn set_shows_main(&self, shows: bool) {
         self.inner.shows_main.set(shows);
+    }
+
+    pub fn hosts_scrims(&self) -> bool {
+        self.inner.hosts_scrims.get()
+    }
+
+    pub fn set_hosts_scrims(&self, hosts: bool) {
+        self.inner.hosts_scrims.set(hosts);
+    }
+
+    /// Lets `window`'s escaping overlays out of its rectangle (`beui_types::LayerSpace`).
+    /// In the app protocol this is the view's anchor space.
+    pub fn set_layer_space(&self, window: WindowId, space: Option<LayerSpace>) {
+        let mut spaces = self.inner.layer_spaces.borrow_mut();
+        let held = spaces.get(&window).copied();
+        if held == space {
+            return;
+        }
+        match space {
+            Some(space) => spaces.insert(window, space),
+            None => spaces.remove(&window),
+        };
+        drop(spaces);
+        self.request_repaint();
+    }
+
+    pub fn layer_space(&self, window: WindowId) -> Option<LayerSpace> {
+        self.inner.layer_spaces.borrow().get(&window).copied()
+    }
+
+    pub(crate) fn layer_spaces(&self) -> be_lib_stable_hash::HashMap<WindowId, LayerSpace> {
+        self.inner.layer_spaces.borrow().clone()
+    }
+
+    /// Asks an escaped layer to close as a press outside it does, with its nested layers.
+    /// Heard after the frame's input, and not at all if that input already asked the layer
+    /// to close, so a press on a popover's trigger toggles it closed once.
+    pub fn dismiss_layer(&self, id: u64) {
+        self.inner.layer_dismissals.borrow_mut().push(id);
+        self.request_repaint();
+    }
+
+    pub(crate) fn take_layer_dismissals(&self) -> Vec<u64> {
+        std::mem::take(&mut *self.inner.layer_dismissals.borrow_mut())
+    }
+
+    pub fn layer_target(&self, id: u64) -> Option<(WindowId, HostTransform)> {
+        self.inner
+            .escaped_targets
+            .borrow()
+            .iter()
+            .find(|(held, _, _)| *held == id)
+            .map(|(_, window, to_host)| (*window, *to_host))
+    }
+
+    pub(crate) fn show_escaped(
+        &self,
+        escaped: Vec<EscapedOutput>,
+        targets: Vec<(u64, WindowId, HostTransform)>,
+    ) {
+        *self.inner.escaped_targets.borrow_mut() = targets;
+        *self.inner.escaped.borrow_mut() = escaped;
     }
 
     pub fn window_size(&self, window: WindowId) -> Option<Vec2> {
@@ -1156,24 +1332,29 @@ impl Context {
             state.appearance.notice.clone_from(&window.notice);
             if pointer == window.id {
                 state.requests.cursor = main.requests.cursor;
+                state.cursor_image.clone_from(&main.cursor_image);
                 state.requests.pointer_locked = main.requests.pointer_locked;
             }
             if keyboard == window.id {
                 state.requests.ime = main.requests.ime.take();
             }
+            state.requests.every_sample = self.inner.every_sample.borrow().contains(&window.id);
             others.push(state);
         }
         if shown.iter().any(|window| window.id == pointer) {
             main.requests.cursor = CursorIcon::default();
+            main.cursor_image = None;
         }
         (main, others)
     }
 
     fn shown_window(&self) -> WindowState {
         let mut window = self.inner.window.borrow().clone();
+        window.requests.every_sample = self.inner.every_sample.borrow().contains(&WindowId::MAIN);
         window.requests.keyboard_toggles = self.inner.keyboard.borrow().toggles();
         if self.touch_emulation() {
             window.requests.cursor = CursorIcon::Touch;
+            window.cursor_image = None;
         }
         window
     }
@@ -1182,7 +1363,7 @@ impl Context {
         self.inner.preferences.get().resolve()
     }
 
-    pub fn motion(&self) -> crate::animation::Motion {
+    pub fn motion(&self) -> beui_types::Motion {
         self.preferences().motion
     }
 
@@ -1256,10 +1437,6 @@ impl Context {
         self.request_repaint();
     }
 
-    pub fn keyboard_opened(&self) -> crate::software_keyboard::Opened {
-        self.inner.keyboard.borrow().opened()
-    }
-
     pub fn keyboard_rect(&self) -> Option<Rect> {
         self.inner.keyboard.borrow().rect()
     }
@@ -1268,7 +1445,7 @@ impl Context {
         self.inner.keyboard.borrow().trimmed(window, rect)
     }
 
-    pub fn type_events(&self, events: impl IntoIterator<Item = crate::input::Input>) {
+    pub fn type_events(&self, events: impl IntoIterator<Item = beui_types::Input>) {
         self.inner.keyboard.borrow_mut().type_events(events);
         self.request_repaint();
     }
@@ -1308,18 +1485,6 @@ impl Context {
         Some(read(simulation))
     }
 
-    pub fn input_simulation_as_mut<T: 'static, R>(
-        &self,
-        change: impl FnOnce(&mut T) -> R,
-    ) -> Option<R> {
-        let mut simulation = self.inner.input_simulation.borrow_mut();
-        let simulation = simulation
-            .as_deref_mut()?
-            .as_any_mut()
-            .downcast_mut::<T>()?;
-        Some(change(simulation))
-    }
-
     pub fn measure_mouse_simulation(&self, viewport: Rect) -> f32 {
         let scale = self.native_pixels_per_point() / self.pixels_per_point();
         self.inner.simulation_area.set((viewport, scale));
@@ -1356,7 +1521,7 @@ impl Context {
     pub fn set_waker(&self, waker: Waker) {
         *self.inner.waker.borrow_mut() = Some(waker);
         let inner = Rc::downgrade(&self.inner);
-        ::reactive::wake_with(move || {
+        ::beui_reactive::wake_with(move || {
             if let Some(inner) = inner.upgrade()
                 && !inner.in_frame.get()
             {
@@ -1679,10 +1844,17 @@ impl Context {
     }
 
     fn apply_pixels_per_point(&self) {
+        let window = self.inner.input.borrow().pointer.window;
+        let before = self.window_pixels_per_point(window);
         let pixels_per_point = self
             .simulated_pixels_per_point()
             .unwrap_or_else(|| self.native_pixels_per_point() * self.zoom_factor());
         self.inner.pixels_per_point.set(pixels_per_point);
+        let after = self.window_pixels_per_point(window);
+        if before != after {
+            let rescaled = self.inner.input.borrow().scaled(before / after);
+            *self.inner.input.borrow_mut() = rescaled;
+        }
     }
 
     pub fn with_input<R>(

@@ -1,6 +1,0 @@
-load("@root//buck/wasm:defs.bzl", "editor")
-
-editor(
-    module = "pixel_ray_tracer",
-    types = "//crates/editors/pixel-ray-tracer/types:module",
-)

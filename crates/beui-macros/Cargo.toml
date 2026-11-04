@@ -1,5 +1,5 @@
 [package]
-name = "beui_macros"
+name = "beui-macros"
 description = "Attribute macros for beui::reactive components"
 edition.workspace = true
 version.workspace = true

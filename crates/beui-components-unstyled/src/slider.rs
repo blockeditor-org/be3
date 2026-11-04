@@ -15,6 +15,10 @@ const PAGE_STEPS: f32 = 4.0;
 const STRAIGHT: f32 = 1.0;
 const CURVE_TOLERANCE: f32 = 0.001;
 
+/// How a slider spreads its range along the track. `Midpoint(value)` curves it
+/// exponentially so the track's centre reads `value`; a midpoint outside the range,
+/// or at the range's centre, leaves it linear. Dragging, the knob's position and
+/// keyboard steps all go through the curve, so keys move finely near the fine end.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum SliderScale {
     #[default]
@@ -60,6 +64,11 @@ pub struct SliderHandle {
     pub disabled: Memo<bool>,
 }
 
+/// A value from `min` to `max` (0 to 1 by default) along a track.
+///
+/// Right/Up step it up and Left/Down down by 5% of the track, Page Up/Down by
+/// 20%, and Home/End reach `min` and `max`. A curved `scale` keeps those steps
+/// even along the track rather than in value.
 #[component]
 pub fn Slider(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SliderApi>,

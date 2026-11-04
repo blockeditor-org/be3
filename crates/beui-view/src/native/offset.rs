@@ -3,10 +3,10 @@ use crate::reactive::Child;
 use crate::reactive::Get;
 use crate::reactive::Prop;
 use crate::reactive::create_effect;
-use beui_core::base::list::Direction;
-use beui_core::base::offset::ScrollPosition;
 use beui_core::current::with_document;
-use beui_core::node::NodeId;
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::ScrollPosition;
 
 pub(crate) fn offset(
     offset: Prop<f32>,

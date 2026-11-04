@@ -1,14 +1,15 @@
+use be_sdk_test::DocumentTest;
 use beui::datetime::Date;
-use beui::native::{Document, build};
+use beui::native::Document;
 use beui::{Input, NodeId, Pos2, Vec2, pos2};
-use block_ui_test::DocumentTest;
+use beui_host::native::build;
 
 use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
 mod a_banner_says_what_failed_until_it_is_dismissed;
-mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
-mod a_card_keeps_inside_a_small_window;
+mod a_bar_floating_over_the_dock_stays_above_its_windows_which_keep_off_its_band;
+mod a_bar_hidden_from_its_grip_menu_takes_no_room_until_the_page_shows_it;
 mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
 mod a_card_opened_from_a_button_opens_under_it_where_there_is_room;
 mod a_card_opened_from_a_button_shifts_inside_a_narrow_window;
@@ -16,20 +17,27 @@ mod a_card_opened_from_a_button_stands_apart_in_the_light_theme;
 mod a_card_pulled_out_of_its_list_floats_under_the_pointer_as_the_gap_closes;
 mod a_destructive_dialog_does_not_confirm_on_enter;
 mod a_dialog_confirms_on_enter_from_its_field;
+mod a_dialog_from_a_shortcut_points_at_its_tab_and_in_fullscreen_opens_at_the_top;
 mod a_dialog_hangs_from_the_tab_that_opened_it;
 mod a_dialog_on_a_narrow_screen_is_a_sheet_with_its_buttons_stacked;
+mod a_disabled_button_says_why_in_its_tooltip;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
 mod a_dragged_task_lifts_parts_its_neighbours_and_settles_where_it_is_dropped;
 mod a_fade_shows_what_it_holds_at_its_opacity;
+mod a_fixed_side_pane_keeps_its_width_when_the_window_resizes;
 mod a_frame_moves_turns_and_fades_what_it_holds;
 mod a_list_leaves_no_gap_for_a_hidden_frame;
 mod a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on;
 mod a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar;
 mod a_long_sheet_fades_its_content_and_bounces_as_a_panel;
+mod a_menu_and_a_card_escape_the_frame_given_a_layer_space;
+mod a_menu_grid_ticks_the_layout_last_picked;
 mod a_menu_page_opens_in_place_of_the_menu_and_its_tree_follows_the_arrow_keys;
 mod a_menu_page_opens_in_place_of_the_menu_in_a_sheet;
 mod a_menu_widens_to_show_a_long_label_and_its_shortcut;
 mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
+mod a_nested_dock_page_joins_the_demo_dock_as_a_locked_group;
+mod a_nested_dock_saved_with_a_tab_moved_out_comes_back_once_it_joins_again;
 mod a_page_dropped_on_the_middle_of_a_pane_is_grouped_with_the_page_it_shows;
 mod a_page_tab_dragged_along_its_bar_parts_the_tabs_it_passes;
 mod a_pane_shows_its_tabs_as_icons_across_the_top_or_in_a_narrow_sidebar;
@@ -40,7 +48,10 @@ mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_
 mod a_selected_row_stays_selected_under_the_pointer;
 mod a_sheet_rises_from_the_bottom_on_a_phone;
 mod a_spacer_keeps_each_space_token_between_its_neighbours;
+mod a_stage_gathers_the_panes_beside_it_on_a_phone;
+mod a_status_bar_of_the_whole_dock_runs_under_every_pane;
 mod a_swatch_button_rings_the_colour_picked;
+mod a_tab_dropped_in_the_middle_of_the_desk_fills_it_and_one_at_its_edge_splits_it;
 mod a_table_lines_its_cells_up_under_its_columns;
 mod a_tabs_pinned_action_sits_in_its_bar_tiled_and_stacked;
 mod a_tapped_popover_opens_in_a_sheet;
@@ -48,6 +59,8 @@ mod a_tapped_select_opens_its_options_in_a_sheet;
 mod a_task_carried_into_the_other_list_parts_it_where_it_would_land;
 mod a_task_dragged_out_of_its_list_stays_in_it_at_the_end;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
+mod a_tool_bar_follows_its_grip_grows_into_a_band_and_springs_into_place;
+mod a_tool_bar_moves_to_any_edge_of_its_pane_or_out_into_a_window;
 mod a_tooltip_is_as_wide_as_its_label_up_to_a_cap;
 mod a_tree_row_dragged_between_two_others_parts_them_and_moves_there;
 mod a_tree_row_dropped_on_the_middle_of_a_folder_moves_inside_it;
@@ -73,7 +86,7 @@ mod text_breaks_end_lines_and_breaking_anywhere_fills_them;
 mod text_in_a_drawing_lands_where_a_text_node_puts_it;
 mod the_action_bar_sample_pins_what_fits_and_offers_the_rest;
 mod the_arrow_keys_move_across_a_menu_grid_and_on_to_the_rows_below;
-mod the_catalog_is_locked_to_its_pane_until_unlocked_from_its_menu;
+mod the_catalog_is_locked_to_its_pane_until_unlocked_from_its_grip;
 mod the_catalog_shows_a_page_in_place_of_the_one_shown_unless_ctrl_is_held;
 mod the_code_of_a_sample_can_be_selected;
 mod the_command_palette_ticks_what_a_menu_ticks;
@@ -86,6 +99,8 @@ mod the_inspector_paints_the_component_shadow_tree;
 mod the_inspector_paints_with_the_styled_components;
 mod the_launcher_sample_narrows_its_programs_as_a_name_is_typed;
 mod the_message_toast_sample_offers_its_actions;
+mod the_nested_dock_pops_out_into_a_window_from_its_tabs_menu;
+mod the_nested_docks_outline_keeps_the_other_tabs_out_until_their_group_is_unlocked;
 mod the_on_screen_keyboard_opens_along_the_foot_of_its_fields_window;
 mod the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type;
 mod the_overlay_sample_closes_on_escape_and_a_click_outside;
@@ -93,10 +108,13 @@ mod the_rich_text_bar_styles_a_selection_and_shows_the_style_under_the_caret;
 mod the_rich_text_page_renders_its_blocks_and_voids_and_edits_them_through_them;
 mod the_runs_toggle_shows_where_each_side_typed_and_deleted;
 mod the_tree_sample_opens_on_the_left_of_a_row_and_its_menu_from_its_button;
+mod the_window_menu_cycles_a_groups_windows_hides_them_and_moves_one_to_the_other_area;
 mod the_window_sample_floats_beside_its_button_where_nothing_opens_windows;
 mod the_window_sample_opens_a_window_of_its_own_where_a_host_opens_windows;
 mod tile_buttons_pick_one_of_a_row_of_pictures;
 mod toasts_on_the_top_edge_stack_in_the_top_corner;
+mod too_many_toasts_fold_into_a_count_and_a_long_one_is_cut_short;
+mod two_tool_bars_on_one_edge_stack_and_a_bar_dropped_between_takes_that_place;
 mod typing_a_fahrenheit_temperature_moves_the_celsius_one;
 mod waiting_for_data_shows_progress_until_it_arrives;
 
@@ -131,7 +149,7 @@ fn demo_in(size: Vec2, theme: beui::ThemeKind) -> DocumentTest {
     let (year, month, day) = TODAY;
     let mut test = DocumentTest::new(demo_document(Date::new(year, month, day)), size);
     test.context().set_preference_layer(
-        beui::PreferenceSource::App,
+        beui::PreferenceSource::Program,
         beui::PreferenceLayer {
             theme: Some(theme),
             ..beui::PreferenceLayer::EMPTY
@@ -147,12 +165,22 @@ fn open_pointing_card(test: &mut DocumentTest) -> (beui::Rect, beui::Rect) {
     test.click("demo.dialog.pointing");
     test.frame(Vec::new());
     test.settle();
-    (button, test.rect_of(&dialog_id(0)))
+    (button, test.rect_of("demo.pointing.card"))
 }
 
 fn alone(size: Vec2, page: Page) -> DocumentTest {
     let (year, month, day) = TODAY;
     DocumentTest::new(alone_document(Date::new(year, month, day), page), size)
+}
+
+fn drop_bar(test: &mut DocumentTest, from: Pos2, to: Pos2) {
+    use beui_host::native::testing::Target;
+    test.down(Target::point(from), beui::PointerButton::Primary);
+    for step in 1..=8 {
+        test.hover(Target::point(from + (to - from) * (step as f32 / 8.0)));
+    }
+    test.pause(std::time::Duration::from_millis(200));
+    test.up(Target::point(to), beui::PointerButton::Primary);
 }
 
 fn open(test: &mut DocumentTest, page: Page) {
@@ -234,6 +262,40 @@ fn paint_every_page(size: Vec2, suffix: &str) {
         };
         test.snapshot(&name);
     }
+}
+
+fn text_x(test: &DocumentTest, text: &str) -> f32 {
+    let document = test.document();
+    let root = document.root().expect("the test built a root");
+    find_text(document, root, text)
+        .and_then(|node| document.node_rect(node))
+        .unwrap_or_else(|| panic!("{text} is shown"))
+        .center()
+        .x
+}
+
+fn find_text(document: &Document, id: NodeId, text: &str) -> Option<NodeId> {
+    let here = document.node_rect(id).is_some()
+        && document
+            .arena
+            .kind_of(id)
+            .is_some_and(|node| document.text(node) == text);
+    if here {
+        return Some(id);
+    }
+    document
+        .children(id)
+        .into_iter()
+        .find_map(|child| find_text(document, child, text))
+}
+
+fn menu_shows(test: &DocumentTest, text: &str) -> bool {
+    let document = test.document();
+    document
+        .layers()
+        .iter()
+        .filter_map(|layer| layer.content)
+        .any(|content| showing(document, content, text) > 0)
 }
 
 fn showing(document: &Document, id: NodeId, text: &str) -> usize {

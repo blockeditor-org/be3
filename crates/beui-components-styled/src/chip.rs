@@ -15,12 +15,7 @@ const PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs2);
 pub fn Chip(label: Prop<String>) -> NodeId {
     let label_text = create_memo(move || label.get());
     view! {
-        <Frame
-            fill=ColorRole::SurfaceRaised
-            border={Border::DEFAULT}
-            radius=Radius::Sm
-            padding=PADDING
-        >
+        <Frame fill=ColorRole::Control border={Border::DEFAULT} radius=Radius::Sm padding=PADDING>
             <Text overflow=Overflow::Ellipsis size=TextSize::Sm align=TextAlign::Center>
                 {label_text}
             </Text>

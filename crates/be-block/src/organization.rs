@@ -1,14 +1,14 @@
 use std::time::Duration;
 
-use be_commit::RetentionPolicy;
-use be_commit::retention::DAY;
-use be_model::{Document, Edit, Map, Model, ObjectId};
+use be_block_commit::RetentionPolicy;
+use be_block_commit::retention::DAY;
+use be_block_model::{Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::Root;
 use crate::resolution::{Resolution, SettingsSource};
-use crate::settings::{KindRule, Layered};
+use crate::settings::{KindRule, Layered, union};
 
 const SETTINGS_MASK: u128 = 0x6f72_6761_6e69_7a61_7469_6f6e_2d73_6574;
 
@@ -212,12 +212,7 @@ impl Layered for OfflineSettings {
     fn over(&self, lower: &Self) -> Self {
         Self {
             policy: self.policy.or(lower.policy),
-            workspaces: lower
-                .workspaces
-                .iter()
-                .chain(self.workspaces.iter())
-                .map(|(workspace, keep)| (*workspace, *keep))
-                .collect(),
+            workspaces: union(&self.workspaces, &lower.workspaces),
             on_lost_access: self.on_lost_access.or(lower.on_lost_access),
             grace_days: self.grace_days.or(lower.grace_days),
         }

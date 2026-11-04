@@ -12,7 +12,7 @@ use crate::tokens::{Space, resolved};
 pub fn Stack(
     spacing: Prop<Space>,
     #[prop(default = NARROW_WIDTH)] breakpoint: f32,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let narrow = narrower_than(breakpoint);
     let spacing = resolved(spacing, Space::resolve);

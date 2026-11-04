@@ -1,5 +1,0 @@
-# A draggable dropped on a target hands it its payload.
-clock stop
-wait 'value="Dropped nothing"'
-drag '#drag.apple' '#drag.basket' 4
-wait 'value="Dropped apple"'

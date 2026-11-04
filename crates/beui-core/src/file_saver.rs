@@ -1,4 +1,4 @@
-pub use ui_types::files::{FileSave, SavedFile};
+use beui_types::{FileSave, SavedFile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FileSaveId(pub u64);
@@ -13,14 +13,14 @@ pub struct FileSaveRequest {
 pub struct FileSaveAnswer {
     id: FileSaveId,
     sender: std::sync::mpsc::Sender<(FileSaveId, FileSave)>,
-    waker: Option<crate::app::Waker>,
+    waker: Option<crate::program::Waker>,
 }
 
 impl FileSaveAnswer {
-    pub(crate) fn new(
+    pub fn new(
         id: FileSaveId,
         sender: std::sync::mpsc::Sender<(FileSaveId, FileSave)>,
-        waker: Option<crate::app::Waker>,
+        waker: Option<crate::program::Waker>,
     ) -> Self {
         Self { id, sender, waker }
     }

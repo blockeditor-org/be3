@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use geometry::Vec2;
+use be_lib_geometry::Vec2;
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -160,7 +160,7 @@ impl std::fmt::Debug for Image {
 }
 
 impl ImageFit {
-    pub fn place(self, into: geometry::Rect, source: Vec2) -> geometry::Rect {
+    pub fn place(self, into: be_lib_geometry::Rect, source: Vec2) -> be_lib_geometry::Rect {
         if source.x <= 0.0 || source.y <= 0.0 || !into.is_positive() {
             return into;
         }
@@ -173,12 +173,32 @@ impl ImageFit {
                 .min(1.0),
         };
         let size = Vec2::new(source.x * scale, source.y * scale);
-        geometry::Rect::from_min_size(
-            geometry::Pos2::new(
+        be_lib_geometry::Rect::from_min_size(
+            be_lib_geometry::Pos2::new(
                 into.left() + (into.width() - size.x) / 2.0,
                 into.top() + (into.height() - size.y) / 2.0,
             ),
             size,
+        )
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CursorImage {
+    pub image: Image,
+    pub size: Vec2,
+    pub hotspot: Vec2,
+}
+
+impl CursorImage {
+    pub fn hotspot_pixels(&self) -> (u32, u32) {
+        let pixel = |at: f32, points: f32, pixels: u32| {
+            let at = (at * pixels as f32 / points.max(1.0)).round().max(0.0) as u32;
+            at.min(pixels.saturating_sub(1))
+        };
+        (
+            pixel(self.hotspot.x, self.size.x, self.image.width()),
+            pixel(self.hotspot.y, self.size.y, self.image.height()),
         )
     }
 }

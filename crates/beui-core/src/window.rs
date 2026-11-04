@@ -1,18 +1,31 @@
 pub(crate) mod hosted;
 
-use crate::color::Color32;
-use crate::geometry::Vec2;
+/// What a window with `WindowSpec::fit` is sized to (`Document::fit_window_to`): its frame's
+/// content, another node (an overlay's content, such as an app's menu), or a given size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WindowFit {
+    Content,
+    Node(beui_types::NodeId),
+    Size(beui_types::Vec2),
+}
 
-pub use ui_types::window::{
-    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
-    WindowRequests, WindowRole,
-};
+use beui_types::Color32;
+use beui_types::Vec2;
 
+use beui_types::window::WindowRequests;
+
+/// Which `Window`s the host opens as real windows; the rest show as overlays inside the
+/// window they were opened in. A platform may move between these, and a `Window` follows,
+/// reopening as a window or an overlay from the frame the hosting changes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum WindowHosting {
+    /// Every `Window` is shown inside the main one.
     #[default]
     None,
+    /// Only windows opened with a `WindowPlacement::Host` the platform handed out, so an
+    /// app's docked windows stay inside its region.
     Placed,
+    /// Every window, as the space layer does. `Context::opens_windows` is true only here.
     Any,
 }
 
@@ -56,13 +69,17 @@ pub enum Resize {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
+/// What the window shows for the program, filled by the `Context` during a frame.
+/// The runner calls `Platform::show_window` only when it differs from the last
+/// one shown, so a new field needs handling in every platform that acts on it.
 pub struct WindowState {
     pub requests: WindowRequests,
+    pub cursor_image: Option<beui_types::CursorImage>,
     pub typed: u64,
     pub appearance: Appearance,
 }
 
-pub use beui_types::window::SystemBars;
+use beui_types::SystemBars;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Appearance {
@@ -90,6 +107,7 @@ impl WindowState {
                 pointer_locked: self.requests.pointer_locked,
                 ..WindowRequests::default()
             },
+            cursor_image: None,
             appearance: std::mem::take(&mut self.appearance),
             typed: self.typed.wrapping_add(u64::from(typed)),
         };
@@ -111,7 +129,8 @@ struct Reported {
     scale: std::cell::Cell<Option<f32>>,
     keyboard: std::cell::Cell<Option<bool>>,
     touchscreen: std::cell::Cell<Option<bool>>,
-    preferences: std::cell::Cell<Option<crate::preferences::PreferenceLayer>>,
+    preferences: std::cell::Cell<Option<beui_types::PreferenceLayer>>,
+    refresh: std::cell::Cell<Option<std::time::Duration>>,
 }
 
 #[derive(Clone, Default)]
@@ -130,6 +149,14 @@ impl WindowReports {
         self.0.scale.set(Some(pixels_per_point));
     }
 
+    pub fn refreshes_every(&self, interval: std::time::Duration) {
+        self.0.refresh.set(Some(interval));
+    }
+
+    pub fn take_refresh(&self) -> Option<std::time::Duration> {
+        self.0.refresh.take()
+    }
+
     pub fn keyboard_attached(&self, attached: bool) {
         self.0.keyboard.set(Some(attached));
     }
@@ -138,23 +165,23 @@ impl WindowReports {
         self.0.touchscreen.set(Some(attached));
     }
 
-    pub fn system_preferences(&self, preferences: crate::preferences::PreferenceLayer) {
+    pub fn system_preferences(&self, preferences: beui_types::PreferenceLayer) {
         self.0.preferences.set(Some(preferences));
     }
 
-    pub(crate) fn take_system_preferences(&self) -> Option<crate::preferences::PreferenceLayer> {
+    pub fn take_system_preferences(&self) -> Option<beui_types::PreferenceLayer> {
         self.0.preferences.take()
     }
 
-    pub(crate) fn take_keyboard(&self) -> Option<bool> {
+    pub fn take_keyboard(&self) -> Option<bool> {
         self.0.keyboard.take()
     }
 
-    pub(crate) fn take_touchscreen(&self) -> Option<bool> {
+    pub fn take_touchscreen(&self) -> Option<bool> {
         self.0.touchscreen.take()
     }
 
-    pub(crate) fn pending(&self) -> bool {
+    pub fn pending(&self) -> bool {
         self.0.fullscreen.get().is_some()
             || self.0.size.get().is_some()
             || self.0.scale.get().is_some()
@@ -163,15 +190,15 @@ impl WindowReports {
             || self.0.preferences.get().is_some()
     }
 
-    pub(crate) fn take_fullscreen(&self) -> Option<bool> {
+    pub fn take_fullscreen(&self) -> Option<bool> {
         self.0.fullscreen.take()
     }
 
-    pub(crate) fn take_size(&self) -> Option<(u32, u32)> {
+    pub fn take_size(&self) -> Option<(u32, u32)> {
         self.0.size.take()
     }
 
-    pub(crate) fn take_scale(&self) -> Option<f32> {
+    pub fn take_scale(&self) -> Option<f32> {
         self.0.scale.take()
     }
 }

@@ -8,10 +8,10 @@ use crate::Repaint;
 use crate::Repainting;
 use crate::renderer_info;
 use crate::wgpu_color_in;
-use beui_core::color::Color32;
 use beui_core::context::{Moved, RendererInfo, WindowOutput};
-use beui_core::geometry::{Vec2, vec2};
-use beui_core::renderer::WindowHandle;
+use beui_runner::renderer::WindowHandle;
+use beui_types::Color32;
+use beui_types::{Vec2, vec2};
 
 pub trait OpenGpu: Send + Sync {
     fn adapter(&self) -> Result<(wgpu::Instance, Option<wgpu::Adapter>), Box<dyn Error>>;
@@ -108,6 +108,10 @@ pub fn open_vulkan_device(
     None
 }
 
+pub fn browser_features(adapter: &wgpu::Adapter) -> wgpu::Features {
+    adapter.features() & wgpu::Features::all_webgpu_mask()
+}
+
 #[derive(Clone)]
 pub struct GpuSetup {
     pub device: wgpu::Device,
@@ -153,7 +157,7 @@ async fn open(
     };
     let descriptor = wgpu::DeviceDescriptor {
         label: Some("beui device"),
-        required_features: wgpu::Features::empty(),
+        required_features: browser_features(&adapter),
         required_limits: adapter.limits(),
         experimental_features: wgpu::ExperimentalFeatures::disabled(),
         memory_hints: wgpu::MemoryHints::Performance,
@@ -215,7 +219,7 @@ impl Gpu {
         open_device: OpenDevice,
     ) -> Self {
         Self {
-            renderer: Renderer::new(&opened.device, format),
+            renderer: Renderer::new(&crate::Resources::new(&opened.device, format)),
             instance,
             adapter: opened.adapter,
             device: opened.device,
@@ -350,7 +354,7 @@ impl Target {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn capture(&self, gpu: &Gpu) -> Option<beui_core::renderer::Capture> {
+    pub fn capture(&self, gpu: &Gpu) -> Option<beui_runner::renderer::Capture> {
         let retained = self.retained.as_ref().filter(|_| self.presented)?;
         read_texture(&gpu.device, &gpu.queue, &retained.texture)
     }
@@ -642,7 +646,7 @@ pub fn read_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     texture: &wgpu::Texture,
-) -> Option<beui_core::renderer::Capture> {
+) -> Option<beui_runner::renderer::Capture> {
     let swap = match texture.format() {
         wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => false,
         wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => true,
@@ -705,7 +709,7 @@ pub fn read_texture(
     for pixel in rgba.as_chunks_mut::<4>().0 {
         pixel[3] = 255;
     }
-    Some(beui_core::renderer::Capture {
+    Some(beui_runner::renderer::Capture {
         width,
         height,
         rgba,

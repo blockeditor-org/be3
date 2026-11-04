@@ -9,10 +9,13 @@ pub use beui_view::components::selectable;
 pub use beui_view::escape;
 pub use beui_view::primitives;
 pub use beui_view::types::*;
-pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
+pub use beui_view::window::{
+    Window, WindowHandle, opens_windows, set_work_area, use_window, window_origin,
+};
 pub use beui_view::{CORE, Core, child_type, value_child_type};
 
 pub use beui_dock as dock;
+pub use beui_dock_host as dock_host;
 pub use beui_keyboard as keyboard;
 
 pub mod reactive {
@@ -29,40 +32,8 @@ pub mod html {
     pub use beui_view::running::{automate, hydrate, run};
 }
 
-#[cfg(not(beui_html))]
-#[cfg(all(feature = "web", target_arch = "wasm32"))]
-mod web;
-
-#[cfg(not(beui_html))]
-mod keyboard_host;
-
-#[cfg(not(beui_html))]
-#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-mod runner;
-#[cfg(not(beui_html))]
-#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-mod saved_preferences;
-
 #[cfg(beui_html)]
 mod html_paintings;
-
-#[cfg(not(beui_html))]
-#[cfg(test)]
-#[allow(hidden_glob_reexports)]
-use beui_core::{
-    base, color, context, damage, draw, drawing, filter, flash, font, geometry, image, input,
-    interact, node, painter, screen_simulation, sight,
-};
-#[cfg(not(beui_html))]
-#[cfg(test)]
-use beui_inspector::{self as inspector, mouse_simulation};
-#[cfg(not(beui_html))]
-#[cfg(test)]
-use beui_renderer_wgpu as renderer;
-
-#[cfg(not(beui_html))]
-#[cfg(test)]
-mod tests;
 
 pub fn open_inspector() -> bool {
     inspector_opener::open()

@@ -1,22 +1,24 @@
+use beui::geometry::touching;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
 use crate::rotation::{Rotation, Turn};
 
-pub fn arrange(sizes: &[((u32, u32), f32)]) -> Vec<Rect> {
-    let points: Vec<Vec2> = sizes
+pub fn arrange(displays: &[((u32, u32), f32, Option<Pos2>)]) -> Vec<Rect> {
+    let placing: Vec<(Vec2, Option<Pos2>)> = displays
         .iter()
-        .map(|&((width, height), scale)| vec2(width as f32 / scale, height as f32 / scale))
+        .map(|&(pixels, scale, at)| (points(pixels, scale), at))
         .collect();
-    let tallest = points.iter().map(|size| size.y).fold(0.0, f32::max);
-    let mut left = 0.0;
-    points
-        .into_iter()
-        .map(|size| {
-            let rect = Rect::from_min_size(pos2(left, tallest - size.y), size);
-            left += size.x;
-            rect
-        })
-        .collect()
+    touching::arrange(&placing)
+}
+
+pub fn mirrored_scale(pixels: (u32, u32), shown: Vec2) -> f32 {
+    let across = pixels.0 as f32 / shown.x.max(1.0);
+    let down = pixels.1 as f32 / shown.y.max(1.0);
+    across.min(down)
+}
+
+fn points((width, height): (u32, u32), scale: f32) -> Vec2 {
+    vec2(width as f32 / scale, height as f32 / scale)
 }
 
 pub fn absolute(normalized: Pos2, rect: Rect, rotation: Rotation) -> Pos2 {

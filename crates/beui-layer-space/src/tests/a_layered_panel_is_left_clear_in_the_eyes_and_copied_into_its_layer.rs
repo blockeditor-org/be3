@@ -10,12 +10,12 @@ fn a_layered_panel_is_left_clear_in_the_eyes_and_copied_into_its_layer() {
         Default::default(),
     ))
     .expect("no graphics adapter is available");
-    let mut setup = beui_core::app::Setup::new(beui_core::app::Waker::new(|| {}));
+    let mut setup = beui_core::program::Setup::new(beui_core::program::Waker::new(|| {}));
     setup.provide(gpu.setup());
     let (mut space, now) = space();
     space.setup(&setup);
-    let background = beui_core::color::Color32::from_rgb(200, 60, 40);
-    let mut output = app_frame(CursorIcon::Default);
+    let background = beui_types::color::Color32::from_rgb(200, 60, 40);
+    let mut output = program_frame(CursorIcon::Default);
     for window in &mut output.windows {
         window.size = PLATFORM;
         window.changed = true;

@@ -1,7 +1,6 @@
+use be_host_accounts_ui::{AccountRow, AccountsScreen};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{ItemSize, primitives};
-use block_accounts_ui::{AccountRow, AccountsScreen};
 
 #[cfg(target_arch = "wasm32")]
 mod web;
@@ -38,7 +37,7 @@ fn added(number: usize) -> AccountRow {
 }
 
 #[component]
-pub fn Spike() -> primitives::Root {
+pub fn Spike() -> Root {
     let accounts = create_signal(fixture_accounts());
     let status = create_signal(String::new());
     let listed = create_memo(move || accounts.get());
@@ -54,27 +53,28 @@ pub fn Spike() -> primitives::Root {
     view! {
         <Root>
             <List spacing=Space::None>
-                <AccountsScreen
-                    @sizing=ItemSize::Percent(100.0)
-                    accounts={listed}
-                    error
-                    on_add={move || {
-                        let number = accounts.update(|accounts| {
-                            let number = accounts.len() + 1;
-                            accounts.push(added(number));
-                            number
-                        });
-                        status.set(format!("Added account {number}"));
-                    }}
-                    on_open={move |key: String| status.set(format!("Opened {}", name_of(&key)))}
-                    on_choose_organization={move |key: String| {
-                        status.set(format!("Choosing an organization for {}", name_of(&key)))
-                    }}
-                    on_log_out={move |key: String| {
-                        status.set(format!("Logged out of {}", name_of(&key)));
-                        accounts.update(|accounts| accounts.retain(|account| account.key != key));
-                    }}
-                />
+                <ListItem grow=1.0>
+                    <AccountsScreen
+                        accounts={listed}
+                        error
+                        on_add={move || {
+                            let number = accounts.update(|accounts| {
+                                let number = accounts.len() + 1;
+                                accounts.push(added(number));
+                                number
+                            });
+                            status.set(format!("Added account {number}"));
+                        }}
+                        on_open={move |key: String| status.set(format!("Opened {}", name_of(&key)))}
+                        on_choose_organization={move |key: String| {
+                            status.set(format!("Choosing an organization for {}", name_of(&key)))
+                        }}
+                        on_log_out={move |key: String| {
+                            status.set(format!("Logged out of {}", name_of(&key)));
+                            accounts.update(|accounts| accounts.retain(|account| account.key != key));
+                        }}
+                    />
+                </ListItem>
                 <Frame padding={Padding::all(Space::Md)}>
                     <Text style=TextStyle::CAPTION @test_id="spike.status">{status}</Text>
                 </Frame>

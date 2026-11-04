@@ -7,30 +7,3 @@
 Why should every app need to reinvent live collaborative editing, permissions, accounts, undo/redo, rich text editing, teams, ...etc?
 
 BE3 aims to solve this.
-
-## Development
-
-See guides/buck2.md for detailed instructions
-
-```
-# run app
-./scripts/buck run //crates/block-app:native
-
-# test app
-./scripts/verify
-
-# run for web
-./scripts/buck run //crates/block-app:web
-
-# run for android
-./scripts/buck run //crates/block-app:android -- --install
-
-# run beui's demo
-./scripts/buck run //crates/beui-demo:native
-
-# run block-app as a Wayland session, on this machine's displays (from a TTY)
-./scripts/buck run //crates/block-app:native -- --session
-
-# install block-app as a Wayland session your login screen offers
-./scripts/buck run //crates/block-app:install-session
-```

@@ -36,6 +36,7 @@ struct Slide {
     animation: Cell<Option<Animation>>,
     shift: Signal<Vec2>,
     behind_shift: Signal<Vec2>,
+    viewport: Memo<Vec2>,
     cover: Signal<f32>,
     revealing: Signal<bool>,
     behind: bool,
@@ -53,7 +54,7 @@ impl Slide {
             state.position = position;
             state.direction
         };
-        let width = use_viewport_size().get_untracked().x;
+        let width = self.viewport.get_untracked().x;
         self.shift.set(vec2(direction * position * width, 0.0));
         let behind = -direction * BEHIND_SHARE * (1.0 - position.clamp(0.0, 1.0)) * width;
         self.behind_shift.set(vec2(behind, 0.0));
@@ -221,6 +222,17 @@ impl Slide {
     }
 }
 
+/// The motion for [`on_back`](beui_view::reactive::on_back), which only routes.
+///
+/// Held, the page follows the finger; let go, it carries on off the edge
+/// before `on_back` runs; a cancelled gesture eases it back; a back with no
+/// gesture carries it off from where it rests. `behind` builds the page back
+/// goes to under the moving one for the gesture's length, so `on_back` swaps
+/// in what was already showing; the moving page needs an opaque background,
+/// and a page that must keep its state is built once and handed to a `Portal`
+/// in both places. Given `open`, a back only asks: `on_back` runs at once, a
+/// held page eases back, and the page slides away when `open` falls, calling
+/// `on_gone` once it's off.
 #[component]
 pub fn BackSlide(
     #[prop(default = true)] enabled: Prop<bool>,
@@ -247,6 +259,7 @@ pub fn BackSlide(
         animation: Cell::new(None),
         shift,
         behind_shift,
+        viewport: use_viewport_size(),
         cover,
         revealing,
         behind: behind.is_some(),

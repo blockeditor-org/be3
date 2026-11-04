@@ -1,0 +1,44 @@
+use super::*;
+use crate::primitives::*;
+use crate::reactive::*;
+use crate::unstyled::Scroll;
+use beui::Direction;
+use beui::TOUCH_DRAG_THRESHOLD;
+
+#[test]
+fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
+    let _root = crate::reactive::RootScope::new();
+    let clicks = create_signal(0);
+    let document = build_node(move || {
+        view! {
+            <List spacing=0.0>
+                <ListItem grow=1.0>
+                    <Scroll @test_id="strip" direction=Direction::Horizontal>
+                        <ForEach keys={indices(40)}>|index: usize|
+                            <Frame width=120.0>
+                                <LabelledButton
+                                    label={format!("Card {index}")}
+                                    on_click={move || clicks.update(|clicks| *clicks += 1)}
+                                />
+                            </Frame>
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
+            </List>
+        }
+    });
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    let strip = harness.find("strip");
+
+    let start = pos2(300.0, 150.0);
+    let end = pos2(200.0, 150.0);
+    harness.touch(TouchPhase::Start, start);
+    harness.touch(TouchPhase::Move, end);
+    harness.touch(TouchPhase::End, end);
+
+    assert!(
+        (harness.document().scroll_offset(strip) - (100.0 - TOUCH_DRAG_THRESHOLD)).abs() < 0.01
+    );
+    assert_eq!(clicks.get_untracked(), 0);
+}

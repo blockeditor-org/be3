@@ -1,0 +1,127 @@
+use be_sdk_beui::be_block::DisplaySettings;
+use be_sdk_beui::beui::NodeId;
+use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::{
+    ChangesToast, DesktopBarWatch, DisplaysWatch, Editor, LayeredSettings, LayeredSettingsRow,
+    PowerWatch,
+};
+
+use super::appearance::AppearanceSection;
+use super::arrangement::ArrangementRow;
+use super::power::PowerSection;
+use super::screens::ScreenSection;
+
+pub(super) type Settings = LayeredSettings<DisplaySettings>;
+
+#[component]
+pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
+    let read_only = editor.read_only();
+    let merged = settings.effective();
+    let offered = editor.offered::<DisplaysWatch>();
+    let displays = editor.watch::<DisplaysWatch>();
+    let ids = create_memo(move || {
+        displays.with(|displays| {
+            displays
+                .iter()
+                .map(|display| display.id.clone())
+                .collect::<Vec<String>>()
+        })
+    });
+    let none = create_memo(move || offered.get() && displays.with(Vec::is_empty));
+    let arranged = create_memo(move || {
+        displays.with(|displays| {
+            displays
+                .iter()
+                .filter(|display| display.rect.width() > 0.0)
+                .count()
+                > 1
+        })
+    });
+    let bar = editor.offered::<DesktopBarWatch>();
+    let rotate_shown = create_memo(move || bar.get() && offered.get());
+    let screens = create_memo(move || bar.get() || offered.get());
+    let screens_title = create_memo(move || match offered.get() {
+        true => "Screens".to_owned(),
+        false => "Desktop bar".to_owned(),
+    });
+    let before_rotate = create_memo(move || none.get() || arranged.get());
+    let after_rotate = create_memo(move || before_rotate.get() || rotate_shown.get());
+    let in_bar = create_memo(move || merged.with(DisplaySettings::rotate_in_bar));
+    let rotate_in_bar = DisplaySettings::rotate_in_bar_setting();
+    let in_bar_row = settings.row(&rotate_in_bar);
+    let show_in_bar = settings.setter(&rotate_in_bar);
+    let keyboard_shown = create_memo(move || merged.with(DisplaySettings::keyboard_in_bar));
+    let keyboard_in_bar = DisplaySettings::keyboard_in_bar_setting();
+    let keyboard_row = settings.row(&keyboard_in_bar);
+    let show_keyboard = settings.setter(&keyboard_in_bar);
+    let power = editor.offered::<PowerWatch>();
+    let page = NodeRef::new();
+    view! {
+        <SettingsPage @node_ref=&page>
+            <AppearanceSection editor={editor} settings={settings} read_only={read_only} />
+            <Show condition={screens}>
+                <SettingsSection title={screens_title}>
+                    <Show condition={none}>
+                        <SettingsRow label="No screen is connected to this session." />
+                    </Show>
+                    <Show condition={arranged}>
+                        <ArrangementRow
+                            settings={settings}
+                            displays={displays}
+                            read_only={read_only}
+                        />
+                    </Show>
+                    <Show condition={rotate_shown}>
+                        <LayeredSettingsRow
+                            setting={in_bar_row}
+                            label="Rotate button in the bar"
+                            description="A button in the desktop's bar that turns the screen."
+                            separated={before_rotate}
+                            compact=true
+                            locked={read_only}
+                            id={"display.rotate-in-bar".to_owned()}
+                        >
+                            <Switch
+                                on={Binding::new(in_bar, move |on: bool| show_in_bar.call(Some(on)))}
+                                label="Rotate button in the bar"
+                                disabled={read_only}
+                                @test_id={"display.rotate-in-bar"}
+                            />
+                        </LayeredSettingsRow>
+                    </Show>
+                    <Show condition={bar}>
+                        <LayeredSettingsRow
+                            setting={keyboard_row}
+                            label="Keyboard button in the bar"
+                            description="A button in the desktop's bar that opens the on-screen keyboard."
+                            separated={after_rotate}
+                            compact=true
+                            locked={read_only}
+                            id={"display.keyboard-in-bar".to_owned()}
+                        >
+                            <Switch
+                                on={Binding::new(keyboard_shown, move |on: bool| show_keyboard.call(Some(on)))}
+                                label="Keyboard button in the bar"
+                                disabled={read_only}
+                                @test_id={"display.keyboard-in-bar"}
+                            />
+                        </LayeredSettingsRow>
+                    </Show>
+                </SettingsSection>
+            </Show>
+            <ForEach keys={ids}>|id: String|
+                <ScreenSection
+                    id={id}
+                    settings={settings}
+                    displays={displays}
+                    read_only={read_only}
+                />
+            </ForEach>
+            <Show condition={power}>
+                <PowerSection settings={settings} read_only={read_only} />
+            </Show>
+            <ChangesToast changes={settings.changes()} anchor={page} />
+        </SettingsPage>
+    }
+}

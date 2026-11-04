@@ -1,30 +1,35 @@
-use foldhash::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::any::Any;
 use std::cell::{Cell, Ref, RefCell};
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::color::Color;
-use crate::font::{FontFamily, FontId, Galley, TextLayout};
-use crate::font::{Overflow, TextAlign, WrapAt};
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
+use crate::font::Galley;
 use crate::painter::Painter;
+use beui_types::Color;
+use beui_types::{FontFamily, FontId, TextLayout};
+use beui_types::{Overflow, TextAlign, WrapAt};
+use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
 
-use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
+use crate::child_list::{ChildHost, ChildItem, NodeChildren};
 use crate::document::Document;
-use crate::node::{Element, NodeId, NodeOf, Rects, SpaceTransform};
-use crate::rich::{
-    CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanBackground, SpanStyle,
-    TextCaret, TextGlyph, TextMark, handle_shape,
+use crate::node::{Element, NodeOf, Rects, SpaceTransform};
+use crate::rich::{OBJECT, RichLayout, Shaper};
+use beui_tree::callback::Callback;
+use beui_tree::child_list::ChildList;
+use beui_types::Direction;
+use beui_types::LineBox;
+use beui_types::NodeId;
+use beui_types::{
+    CaretHandle, Piece, RichOptions, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark,
+    text::handle_shape,
 };
-pub use beui_types::text::LineBox;
 
-pub use beui_types::text::DEFAULT_FONT_SIZE;
 pub const CARET_BLINK: Duration = Duration::from_millis(530);
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 
-pub use beui_types::text::{FontPatch, IconSpan};
+use beui_types::text::{FontPatch, IconSpan};
 
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct SpanContent {
@@ -283,6 +288,8 @@ pub struct TextNode {
     galleys: RefCell<Galleys>,
     shapings: Cell<u64>,
     fitted: RefCell<Option<Fitted>>,
+    truncated: Cell<bool>,
+    on_truncated: Callback<bool>,
 }
 
 impl ChildHost for TextNode {
@@ -539,6 +546,18 @@ impl TextNode {
         layout
     }
 
+    fn report_truncated(&self, doc: &mut Document, layout: &RichLayout, width: f32) {
+        let truncated = (self.overflow == Overflow::Ellipsis && layout.size.x > width)
+            || self
+                .max_lines()
+                .is_some_and(|lines| layout.lines.len() > lines);
+        if self.truncated.replace(truncated) == truncated || self.on_truncated.is_empty() {
+            return;
+        }
+        let on_truncated = self.on_truncated;
+        doc.report_after_layout(move || on_truncated.call(truncated));
+    }
+
     fn fitted(&self, painter: &Painter, layout: Rc<RichLayout>, width: f32) -> Rc<RichLayout> {
         let truncate = self.overflow == Overflow::Ellipsis && layout.size.x > width;
         let clamp = self.max_lines().filter(|lines| layout.lines.len() > *lines);
@@ -582,11 +601,9 @@ impl TextNode {
     }
 
     fn place(&self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        let layout = self.fitted(
-            painter,
-            self.rich_layout(doc, painter, rect.width()),
-            rect.width(),
-        );
+        let laid = self.rich_layout(doc, painter, rect.width());
+        self.report_truncated(doc, &laid, rect.width());
+        let layout = self.fitted(painter, laid, rect.width());
         let previous = self.placed.borrow().clone();
         let top = match self.vertical {
             TextAlign::Start => rect.top(),
@@ -810,6 +827,21 @@ impl Element for TextNode {
         }
     }
 
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        _cross: f32,
+    ) -> Option<f32> {
+        match (direction, self.overflow) {
+            (Direction::Horizontal, Overflow::Wrap { .. } | Overflow::Ellipsis) => {
+                Some(self.min_width(doc, painter))
+            }
+            _ => None,
+        }
+    }
+
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
         let layout = self.rich_layout(doc, painter, available.x);
         layout.lines.first().map(|line| line.top + line.baseline)
@@ -964,7 +996,15 @@ impl Document {
             galleys: RefCell::new(Galleys::default()),
             shapings: Cell::new(0),
             fitted: RefCell::new(None),
+            truncated: Cell::new(false),
+            on_truncated: Callback::empty(),
         })
+    }
+
+    pub fn set_text_on_truncated(&mut self, text: NodeOf<TextNode>, on_truncated: Callback<bool>) {
+        let node = self.arena.touch_mut_as::<TextNode>(text);
+        node.on_truncated = on_truncated;
+        node.truncated.set(false);
     }
 
     pub fn set_text(&mut self, id: NodeOf<TextNode>, content: impl Into<String>) {
@@ -1149,6 +1189,18 @@ impl Element for TextItemNode {
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
     }
 
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        Some(self.child.map_or(0.0, |child| {
+            crate::layout::least_length(doc, painter, child, direction, cross)
+        }))
+    }
+
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
@@ -1221,10 +1273,6 @@ impl Document {
         if self.arena.get_as::<TextNode>(text).glyphs != glyphs {
             self.arena.paint_mut_as::<TextNode>(text).glyphs = glyphs;
         }
-    }
-
-    pub fn text_glyphs(&self, text: NodeOf<TextNode>) -> &[TextGlyph] {
-        &self.arena.get_as::<TextNode>(text).glyphs
     }
 
     pub fn text_marks(&self, text: NodeOf<TextNode>) -> &[TextMark] {
@@ -1404,7 +1452,7 @@ pub(crate) fn handle_under(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2)
             if !shown || pos.y < caret.max.y {
                 continue;
             }
-            let center = crate::rich::handle_center(caret, handle, scale);
+            let center = beui_types::handle_center(caret, handle, scale);
             if (pos.to_vec2() - center).length() <= HANDLE_HIT_RADIUS {
                 return true;
             }

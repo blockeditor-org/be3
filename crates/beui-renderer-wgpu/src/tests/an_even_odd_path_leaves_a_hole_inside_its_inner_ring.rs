@@ -1,6 +1,6 @@
 use super::*;
 
-use beui_core::path::{FillRule, Path};
+use beui_types::{FillRule, Path};
 
 #[test]
 fn an_even_odd_path_leaves_a_hole_inside_its_inner_ring() {

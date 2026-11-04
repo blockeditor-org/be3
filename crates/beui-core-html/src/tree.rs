@@ -11,7 +11,6 @@ pub use beui_types::node::BuildsNode;
 use beui_types::node::{CoreHooks, install_core_hooks};
 pub use beui_types::tree::{
     BareChild, CanvasKind, FromPlaced, GridKind, LayersKind, ListKind, Placed, PlacedItem,
-    WithSizing, with_sizing,
 };
 use beui_types::{Align, Direction, ItemSize, Sizing};
 
@@ -24,6 +23,7 @@ struct NodeBindings {
     target: Cell<Option<NodeId>>,
     states: RefCell<Vec<Box<dyn Any>>>,
     accessibility: RefCell<Option<accesskit::Node>>,
+    rank: Cell<u64>,
     placed: RefCell<Option<Signal<bool>>>,
     node: RefCell<Option<NodeRef>>,
 }
@@ -66,13 +66,17 @@ pub fn set_component_state<T: 'static>(state: T) {
     }
 }
 
+pub fn accessibility_reference(node: NodeId) -> accesskit::NodeId {
+    accesskit::NodeId(node.key())
+}
+
 pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
     let bindings = bindings();
     let node = node.into_prop();
     create_effect(move || {
         let node = node.get();
         match bindings.target.get() {
-            Some(target) => document::set_accessibility(target, node),
+            Some(target) => document::set_accessibility(target, node, bindings.rank.get()),
             None => {
                 bindings.accessibility.replace(Some(node));
             }
@@ -85,6 +89,7 @@ fn finish_component(root: NodeId, component: &ComponentContext, scope: &ScopeCon
         return;
     };
     bindings.target.set(Some(root));
+    bindings.rank.set(component.finish_order());
     if let Some(node) = bindings.node.borrow().as_ref() {
         node.fill(root);
     }
@@ -96,7 +101,7 @@ fn finish_component(root: NodeId, component: &ComponentContext, scope: &ScopeCon
         document::set_state(root, state);
     }
     if let Some(node) = bindings.accessibility.take() {
-        document::set_accessibility(root, node);
+        document::set_accessibility(root, node, bindings.rank.get());
     }
 }
 
@@ -165,7 +170,7 @@ pub fn host<P: ParentKind>(parent: NodeId) -> Rc<dyn SlotHost<Placed<P>>> {
     })
 }
 
-pub type ListChild = Placed<ListKind>;
+pub type ListItem = Placed<ListKind>;
 
 fn align_css(align: Align) -> &'static str {
     match align {
@@ -186,7 +191,7 @@ impl ParentKind for ListKind {
         let flex = match sizing.size {
             ItemSize::Intrinsic => format!("0 {} auto", sizing.shrink),
             ItemSize::Fixed(length) => format!("0 {} {}", sizing.shrink, px(length)),
-            ItemSize::Percent(share) => format!("{share} {} 0%", sizing.shrink),
+            ItemSize::Grow(share) => format!("{share} {} 0%", sizing.shrink),
         };
         set_placed_style(child, "flex", Some(flex));
         let held_at_content = sizing.size == ItemSize::Intrinsic && sizing.shrink <= 0.0;

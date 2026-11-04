@@ -1,0 +1,24 @@
+use super::*;
+use crate::styled::*;
+
+#[test]
+fn clicking_the_middle_of_a_placeholder_puts_the_caret_at_the_start() {
+    let (document, [input]) = toolbar_of(|| {
+        [view! {
+            <TextInput value=String::new() placeholder="Search" />
+        }]
+    });
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+
+    harness.click(harness.center(input));
+    harness.type_text("ab");
+
+    assert_eq!(
+        harness
+            .document()
+            .api::<styled::TextInputApi>(input)
+            .value(),
+        "ab"
+    );
+}

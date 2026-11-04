@@ -1,5 +1,6 @@
 mod a_closure_child_is_written_without_braces;
 mod a_frame_takes_one_child;
+mod a_list_item_is_only_a_list_child;
 mod a_render_block_takes_one_child;
 mod a_render_closure_returns_one_child;
 mod a_show_hands_its_children_no_value;

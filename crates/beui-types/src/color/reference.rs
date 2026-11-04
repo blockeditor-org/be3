@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use be_lib_stable_hash::HashMap;
 
+use be_lib_ui_types::ThemeKind;
 use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal, Signal};
-use ui_types::ThemeKind;
 
 use super::Color32;
 

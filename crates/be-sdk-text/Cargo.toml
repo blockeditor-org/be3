@@ -1,0 +1,19 @@
+[package]
+name = "be-sdk-text"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block = { path = "../be-block" }
+beui = { path = "../beui" }
+be-sdk = { path = "../be-sdk" }
+serde = { version = "1", features = ["derive"] }
+beui-text-editor-core = { path = "../beui-text-editor-core" }
+uuid = "1"
+
+[dev-dependencies]
+be-block-model = { path = "../be-block-model" }
+
+[lints]
+workspace = true

@@ -1,0 +1,639 @@
+package be3:desktop@0.1.0;
+
+/// Shapes the desktop's interfaces share.
+///
+/// `be3:desktop` is an extension beside the core app protocol, not part
+/// of it: what a host that runs a desktop (be-host's Linux session or its
+/// Windows host, or a compositor written in another language) offers the
+/// editors that draw the desktop, one interface per part of the session. An
+/// editor names the package in its manifest's `extensions` to use it; the host
+/// answers a call from any other with `denied`, and a host with no desktop
+/// answers every watch `unsupported`. A watch the host has nothing for yet is not answered.
+interface types {
+    /// An image a program gave the host, as rows of rgba pixels.
+    record host-image {
+        width: u32,
+        height: u32,
+        rgba: list<u8>,
+    }
+
+    /// A window of another program the host shows, numbered by the host.
+    type host-window-id = u64;
+}
+
+/// The windows of other programs the host shows.
+///
+/// A shell places each window as a `window` child (`child-content.window`) and
+/// hears the rest from that child's `child-status`: its title, icon, group,
+/// raises, bell, full screen ask, notice and menu ask. It closes one with
+/// `close-child` and gives it the keyboard with `focus-child`; a window placed
+/// nowhere is suspended.
+interface windows {
+    use types.{host-window-id};
+    use be3:ui/types@0.1.0.{vec2};
+
+    /// Where a window came from: the program the desktop launched, the command
+    /// it ran and the launch it answers.
+    record window-origin {
+        program: option<string>,
+        command: list<string>,
+        launch: option<u64>,
+    }
+
+    /// What an entry is: a program's window, or one whole display.
+    enum window-kind {
+        window,
+        display,
+    }
+
+    /// What a shell needs to place a window and match it to a tab it keeps
+    /// for a program that is not running.
+    record host-window {
+        id: host-window-id,
+        kind: window-kind,
+        parent: option<host-window-id>,
+        modal: bool,
+        program-id: string,
+        origin: window-origin,
+        /// The size the program picked for itself, in points; none until it
+        /// picks one. A placeholder commit (Firefox's 1×1 buffer) or a size
+        /// under the window's own least size (the 148×200 GTK commits first for
+        /// Firefox) is not a pick. A shell opens a new window at it.
+        size: option<vec2>,
+        /// The program asked to be maximized, as Firefox does before its
+        /// first frame. A shell opens such a window filling its area, at
+        /// `size` once restored.
+        maximized: bool,
+    }
+
+    resource windows-watch {
+        constructor();
+        next: async func() -> list<host-window>;
+    }
+
+    /// A program with a window open, without the window, which only the shell
+    /// sees: what an app that names programs (the input remaps) offers to pick.
+    record open-program {
+        program-id: string,
+        command: list<string>,
+    }
+
+    /// The programs with windows open, each once, for any app.
+    resource open-programs-watch {
+        constructor();
+        next: async func() -> list<open-program>;
+    }
+
+    /// Whether the system keeps Super's chords for itself, as Windows does, so the
+    /// shell's window keys use Ctrl+Alt in their place; answered only where it does.
+    resource super-kept-watch {
+        constructor();
+        next: async func() -> bool;
+    }
+}
+
+/// The pointing devices and the input remaps of the session.
+interface input {
+    use be3:preferences/types@0.1.0.{input-device, pointer-settings};
+
+    record host-input-device {
+        device: input-device,
+        /// What the device does before the user changes it.
+        defaults: pointer-settings,
+        /// Set for a touchscreen or a pen, whose touches land on a display.
+        pointing: option<pointing>,
+    }
+
+    record pointing {
+        /// The id of the display the device lands on until the user chooses one;
+        /// none while it spans every display, as a tablet with no screen does.
+        automatic: option<string>,
+    }
+
+    /// Whether the session remaps input, and whether the remapping stopped.
+    enum remap-state {
+        off,
+        on,
+        stopped,
+    }
+
+    resource input-devices-watch {
+        constructor();
+        next: async func() -> list<host-input-device>;
+    }
+
+    /// Answered only where the session filters input before programs see it: the Linux login
+    /// session. Elsewhere it is never offered.
+    resource remaps-watch {
+        constructor();
+        next: async func() -> remap-state;
+    }
+
+    /// A wheel notch, by the way it turned.
+    enum wheel-turn {
+        up,
+        down,
+        left,
+        right,
+    }
+
+    variant captured-trigger {
+        /// A key or button, by Linux input code (buttons from 0x100).
+        source(u16),
+        wheel(wheel-turn),
+    }
+
+    /// A chord the session caught for a remap editor.
+    record captured-chord {
+        /// Keys and buttons held when it was caught, by Linux input code, in the order pressed.
+        held: list<u16>,
+        trigger: captured-trigger,
+    }
+
+    /// What an input capture has seen so far.
+    record input-capture {
+        /// Keys and buttons held now, in the order pressed, for the editor to show while it waits.
+        held: list<u16>,
+        /// The chord caught, once there is one; the capture then ends.
+        chord: option<captured-chord>,
+    }
+
+    /// While an editor watches this, the session catches key, button and wheel input before
+    /// remapping and gives it to the editor instead of to the remapper and programs. Answered
+    /// where `remaps-watch` is; open it with `Editor::watch_while`, since a watch's opening
+    /// starts a capture.
+    ///
+    /// Capturing starts when the watch opens and ends at the first chord; a watch opened later
+    /// starts a new one and never hears an earlier one's chord. Pointer motion and the primary
+    /// button pass through, so the editor can still be clicked, and so do keys held when it
+    /// starts, until released. A chord is caught at the press of a key or button that is not
+    /// Shift, Ctrl, Alt or Super while others are held; at a wheel notch; or else at the first
+    /// release, as the last key pressed with the ones pressed before it held, so Ctrl alone gives
+    /// Ctrl. Keys still held after it stay away from programs until released. The session's own
+    /// keys (Ctrl+Alt+Backspace, Ctrl+Alt+F<n>, Super+L, Super+Escape) keep working, and nothing
+    /// is caught while the screen is locked.
+    resource input-capture-watch {
+        constructor();
+        next: async func() -> input-capture;
+    }
+
+    /// Which of the input settings that are not a device's own take effect in the session.
+    record input-reach {
+        /// The keymap and key repeat: for the keyboards the session reads, and the programs it hosts.
+        keyboard: bool,
+        /// Middle-click paste, for the programs the session hosts.
+        middle-click-paste: bool,
+    }
+
+    /// Answered only where some of them do. The pointers' settings take effect where
+    /// `input-devices-watch` is answered.
+    resource input-reach-watch {
+        constructor();
+        next: async func() -> input-reach;
+    }
+
+    /// One of the layouts the keymap holds.
+    record keyboard-layout {
+        /// Its name, as the keymap gives it: "English (US)", "German".
+        name: string,
+        /// A short label for an indicator, upper case: "EN", "DE".
+        label: string,
+    }
+
+    /// The keymap's layouts and the one keys type in.
+    record keyboard-layouts {
+        /// In the order the keymap's settings list them.
+        layouts: list<keyboard-layout>,
+        /// The index in `layouts` of the active one.
+        active: u32,
+    }
+
+    /// Answered where the keymap takes effect (`input-reach`'s `keyboard`).
+    resource keyboard-layouts-watch {
+        constructor();
+        next: async func() -> keyboard-layouts;
+    }
+
+    /// Makes the layout at `index` the one keys type in, for every program the session
+    /// hosts and for the session's own text. An index past the last does nothing.
+    switch-layout: async func(index: u32);
+}
+
+/// The displays connected to the session.
+interface displays {
+    use be3:ui/types@0.1.0.{rect};
+    use be3:preferences/types@0.1.0.{display-mode, rotation};
+
+    /// `rect` is where the display shows the desktop, in points, and `scale` its pixels per point;
+    /// `default-scale` is the scale it has until one is chosen, which suits its size and resolution.
+    record host-display {
+        id: string,
+        name: string,
+        connector: string,
+        modes: list<display-mode>,
+        default: display-mode,
+        current: display-mode,
+        rotation: rotation,
+        rect: rect,
+        scale: f32,
+        default-scale: f32,
+    }
+
+    resource displays-watch {
+        constructor();
+        next: async func() -> list<host-display>;
+    }
+
+    /// Whether the session shows the desktop's bar, where the display settings put buttons;
+    /// answered only where it does.
+    resource desktop-bar-watch {
+        constructor();
+        next: async func() -> bool;
+    }
+}
+
+/// Locking the screen and ending the session.
+interface power {
+    enum power-action {
+        lock,
+        suspend,
+        restart,
+        power-off,
+        log-out,
+    }
+
+    /// How the session is ending: be-host's window or the shell closing, or a power action.
+    enum session-end {
+        close,
+        log-out,
+        restart,
+        power-off,
+    }
+
+    /// What the person chose while the session waits for its programs to close.
+    enum ending-answer {
+        /// Stop ending: the programs still open stay open.
+        cancel,
+        /// End now, with the programs still open.
+        end-now,
+    }
+
+    /// Which power actions the session may take now, whether the host runs
+    /// the login session (without it only locking is possible), and how the
+    /// session is ending, if it is.
+    record power-availability {
+        lock: bool,
+        suspend: bool,
+        restart: bool,
+        power-off: bool,
+        log-out: bool,
+        session: bool,
+        ending: option<session-end>,
+    }
+
+    resource power-watch {
+        constructor();
+        next: async func() -> power-availability;
+    }
+
+    request: async func(action: power-action);
+
+    /// Answers the ending the availability names; ignored when none is.
+    answer-ending: async func(answer: ending-answer);
+}
+
+/// Sound levels and outputs, the brightness and the media players.
+interface media {
+    /// A level from 0 to 1, where 1 is full; an output's volume may be louder
+    /// than full, up to 1.5 (`MediaLevel::LOUDEST`).
+    record media-level {
+        level: f32,
+        muted: bool,
+    }
+
+    record audio-output {
+        id: string,
+        name: string,
+    }
+
+    record media-levels {
+        output: option<media-level>,
+        input: option<media-level>,
+        brightness: option<f32>,
+        outputs: list<audio-output>,
+        default-output: option<string>,
+    }
+
+    enum player-command {
+        play-pause,
+        next,
+        previous,
+        stop,
+    }
+
+    variant media-request {
+        step-volume(f32),
+        set-volume(f32),
+        toggle-mute,
+        set-mute(bool),
+        choose-output(string),
+        toggle-mic-mute,
+        step-brightness(f32),
+        player(player-command),
+    }
+
+    resource media-watch {
+        constructor();
+        next: async func() -> media-levels;
+    }
+
+    request: async func(request: media-request);
+}
+
+/// Wi-Fi networks and the connection to one.
+interface wifi {
+    enum wifi-security {
+        open,
+        /// WPA or WPA3, joined with a password.
+        password,
+        /// The old WEP, joined with a key.
+        wep,
+        /// WPA Enterprise (802.1X), which needs a sign-in only a saved connection has.
+        enterprise,
+    }
+
+    record wifi-network {
+        ssid: string,
+        /// From 0 to 100.
+        strength: u8,
+        security: wifi-security,
+        saved: bool,
+    }
+
+    variant wifi-link {
+        disconnected,
+        connecting(string),
+        connected(string),
+    }
+
+    record wifi-status {
+        available: bool,
+        enabled: bool,
+        link: wifi-link,
+        networks: list<wifi-network>,
+        failed: option<string>,
+    }
+
+    record wifi-connect {
+        ssid: string,
+        password: option<string>,
+    }
+
+    /// A network that does not broadcast its name.
+    record wifi-hidden {
+        ssid: string,
+        security: wifi-security,
+        password: option<string>,
+    }
+
+    variant wifi-request {
+        set-enabled(bool),
+        scan,
+        connect(wifi-connect),
+        join-hidden(wifi-hidden),
+        disconnect,
+    }
+
+    resource wifi-watch {
+        constructor();
+        next: async func() -> wifi-status;
+    }
+
+    request: async func(request: wifi-request);
+}
+
+/// An e-paper display.
+interface epaper {
+    /// Whether the session draws on e-paper; answered only where it does.
+    resource epaper-watch {
+        constructor();
+        next: async func() -> bool;
+    }
+
+    /// Redraws the whole panel, clearing what earlier frames left on it.
+    refresh: async func();
+}
+
+/// Notifications programs send, which the desktop shows and answers.
+interface notifications {
+    use types.{host-image};
+
+    record host-notification-action {
+        key: string,
+        label: string,
+    }
+
+    enum notification-urgency {
+        low,
+        normal,
+        critical,
+    }
+
+    record incoming-notification {
+        id: u32,
+        app-name: string,
+        summary: string,
+        body: string,
+        actions: list<host-notification-action>,
+        urgency: notification-urgency,
+        image: option<host-image>,
+        transient: bool,
+        resident: bool,
+        /// In milliseconds; -1 leaves it to the desktop and 0 never expires.
+        expire-timeout: s32,
+        /// The serial of the request that carried it.
+        received: u64,
+    }
+
+    variant notification-request {
+        notify(incoming-notification),
+        close(u32),
+    }
+
+    /// The requests the desktop has not reported it received, by serial.
+    record notification-inbox {
+        requests: list<tuple<u64, notification-request>>,
+    }
+
+    enum notification-close-reason {
+        expired,
+        dismissed,
+        closed,
+    }
+
+    record notification-closed {
+        id: u32,
+        reason: notification-close-reason,
+    }
+
+    record notification-action-invoked {
+        id: u32,
+        key: string,
+    }
+
+    variant notification-signal {
+        closed(notification-closed),
+        action-invoked(notification-action-invoked),
+    }
+
+    /// The last request the desktop received, what happened to its
+    /// notifications and which of them it still shows.
+    record notification-report {
+        received: option<u64>,
+        signals: list<notification-signal>,
+        kept: list<u32>,
+    }
+
+    resource notifications-watch {
+        constructor();
+        next: async func() -> notification-inbox;
+    }
+
+    report: async func(report: notification-report);
+}
+
+/// Whether the screen is locked.
+interface screen-lock {
+    resource screen-locked-watch {
+        constructor();
+        next: async func() -> bool;
+    }
+}
+
+/// The programs installed, and starting them.
+interface programs {
+    use types.{host-image};
+
+    record host-program {
+        id: string,
+        name: string,
+        generic-name: string,
+        comment: string,
+        keywords: list<string>,
+        wm-class: option<string>,
+        icon: option<host-image>,
+    }
+
+    /// The programs the host found. `listed` is false until it has looked
+    /// for them once, so an empty list can mean "not yet" or "none".
+    record program-catalog {
+        listed: bool,
+        programs: list<host-program>,
+    }
+
+    record program-list {
+        /// The icons' size in pixels, at most 256.
+        icon-size: u32,
+    }
+
+    record program-launch {
+        program: string,
+        launch: option<u64>,
+    }
+
+    record program-exec {
+        command: list<string>,
+        launch: option<u64>,
+    }
+
+    variant program-action {
+        /// Lists the programs, answered through the watch.
+        %list(program-list),
+        launch(program-launch),
+        /// Runs a command line through the shell.
+        run(string),
+        exec(program-exec),
+    }
+
+    resource programs-watch {
+        constructor();
+        next: async func() -> program-catalog;
+    }
+
+    request: async func(action: program-action);
+}
+
+/// The status notifier items programs show, and their menus.
+interface tray {
+    use types.{host-image};
+
+    enum tray-status {
+        passive,
+        active,
+        needs-attention,
+    }
+
+    variant tray-toggle {
+        none,
+        check(bool),
+        radio(bool),
+    }
+
+    /// An entry of an item's menu, after its parent: one deeper than the
+    /// submenu it is in.
+    record tray-menu-item {
+        depth: u32,
+        id: s32,
+        label: string,
+        separator: bool,
+        enabled: bool,
+        toggle: tray-toggle,
+    }
+
+    record host-tray-item {
+        id: string,
+        title: string,
+        tooltip: string,
+        status: tray-status,
+        icon: option<host-image>,
+        /// The item only shows its menu: it says so (`ItemIsMenu`), or it
+        /// has no `Activate` to take a click.
+        item-is-menu: bool,
+        menu: list<tray-menu-item>,
+    }
+
+    /// A click on an item, `x` and `y` where it was in desktop points: the
+    /// compositor's global coordinates, which X11 programs see as the screen's.
+    record tray-click {
+        item: string,
+        x: s32,
+        y: s32,
+    }
+
+    record tray-scroll {
+        item: string,
+        delta: s32,
+        horizontal: bool,
+    }
+
+    record tray-menu-chosen {
+        item: string,
+        entry: s32,
+    }
+
+    variant tray-request {
+        activate(tray-click),
+        secondary-activate(tray-click),
+        scroll(tray-scroll),
+        menu-opened(tray-click),
+        menu-closed(string),
+        menu-chosen(tray-menu-chosen),
+    }
+
+    resource tray-watch {
+        constructor();
+        next: async func() -> list<host-tray-item>;
+    }
+
+    request: async func(request: tray-request);
+}

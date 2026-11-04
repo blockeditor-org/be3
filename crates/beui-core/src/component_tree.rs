@@ -1,5 +1,5 @@
 use crate::document::Document;
-use crate::node::NodeId;
+use beui_types::NodeId;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ComponentTreeKey {

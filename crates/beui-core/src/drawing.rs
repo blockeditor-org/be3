@@ -3,8 +3,8 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-use crate::damage::Region;
 use crate::painting::Paints;
+use beui_types::geometry::Region;
 
 const REMEMBERED_REDRAWS: usize = 16;
 
@@ -50,6 +50,9 @@ impl Drawing {
         self.shared.draw.downcast_ref::<T>()
     }
 
+    /// The same drawing with only `damage` (in the drawing's own coordinates) redrawn:
+    /// hand it to `draw_gpu` instead of a new `Drawing` so the frame damages only that
+    /// region (the app host does this with the rects each app frame reports).
     pub fn redrawn(&self, damage: Region) -> Self {
         let revision = self.shared.latest.get() + 1;
         self.shared.latest.set(revision);

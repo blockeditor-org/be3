@@ -1,15 +1,16 @@
+use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
-use beui_core::color::Color32;
 use beui_core::context::WindowOutput;
 use beui_core::drawing::Drawing;
-use beui_core::geometry::{Rect, vec2};
 use beui_core::painting::{Painting, Paints};
-use beui_core::window::WindowId;
+use beui_draw::{Draw, DrawAt};
 use beui_renderer_wgpu::present::GpuSetup;
-use beui_renderer_wgpu::{Draw, DrawAt, Repaint, Repainting, wgpu_color_in};
+use beui_renderer_wgpu::{Repaint, Repainting, wgpu_color_in};
+use beui_types::Color32;
+use beui_types::WindowId;
+use beui_types::{Rect, vec2};
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 
@@ -37,6 +38,20 @@ pub struct PanelFrame {
     pub bend: f32,
     pub chrome: Option<ChromeFrame>,
 }
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Outline {
+    pub model: Mat4,
+    pub metres: glam::Vec2,
+    pub bend: f32,
+    pub strength: f32,
+}
+
+pub const OUTLINES: usize = 4;
+pub const OUTLINE_WIDTH: f32 = 0.003;
+pub const OUTLINE_FILL: f32 = 0.12;
+pub const OUTLINE_LINE: f32 = 0.9;
+pub const OUTLINE: Color32 = Color32::from_rgb(150, 190, 255);
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Beam {
@@ -100,6 +115,7 @@ pub struct Frame {
     pub sprite: Option<WindowOutput>,
     pub beams: Vec<Beam>,
     pub panels: Vec<PanelFrame>,
+    pub outlines: Vec<Outline>,
 }
 
 impl Frame {
@@ -148,6 +164,10 @@ struct SceneUniform {
     inverse: [[f32; 4]; 4],
     options: [f32; 4],
     beams: [[f32; 4]; 3 * BEAMS],
+    outlines: [[[f32; 4]; 4]; OUTLINES],
+    outline_shapes: [[f32; 4]; OUTLINES],
+    outline_color: [f32; 4],
+    outline_look: [f32; 4],
 }
 
 #[repr(C)]
@@ -171,6 +191,12 @@ struct Pending {
     whole: bool,
 }
 
+/// A window's texture, mipmapped, at its output's pixels per point, repainting only
+/// its damage after copying its scroll inside the texture. A window that changes
+/// size gets a new texture but keeps its renderer
+/// (decisions/beui_space_keeps_one_renderer_per_texture.md). Panels sample with
+/// a level-of-detail bias (`SHARPEN` in space.wgsl), so a texture up to 1.4 times
+/// the panel's on-screen size is read from its sharpest level.
 struct Panel {
     renderer: beui_renderer_wgpu::Renderer,
     size: (u32, u32),
@@ -198,6 +224,7 @@ struct Pipelines {
     panel: wgpu::RenderPipeline,
     chrome: wgpu::RenderPipeline,
     beam: wgpu::RenderPipeline,
+    outline: wgpu::RenderPipeline,
     cursor: wgpu::RenderPipeline,
     blit: wgpu::RenderPipeline,
     hole: wgpu::RenderPipeline,
@@ -207,6 +234,7 @@ struct Gpu {
     device: wgpu::Device,
     queue: wgpu::Queue,
     format: wgpu::TextureFormat,
+    resources: beui_renderer_wgpu::Resources,
     shader: wgpu::ShaderModule,
     sampler: wgpu::Sampler,
     linear: wgpu::Sampler,
@@ -321,7 +349,7 @@ impl Compositor {
     }
 
     pub fn drawing(&self, frame: Frame) -> Drawing {
-        beui_renderer_wgpu::painted_drawing(SpaceDraw {
+        beui_draw::painted_drawing(SpaceDraw {
             gpu: self.clone(),
             frame,
         })
@@ -339,7 +367,7 @@ impl Compositor {
         gpu.queue.submit([encoder.finish()]);
     }
 
-    pub(crate) fn read(&self, window: WindowId) -> Option<beui_core::renderer::Capture> {
+    pub(crate) fn read(&self, window: WindowId) -> Option<beui_runner::renderer::Capture> {
         let gpu = self.0.borrow();
         let panel = gpu.panels.get(&window)?;
         beui_renderer_wgpu::present::read_texture(&gpu.device, &gpu.queue, &panel.texture)
@@ -582,10 +610,12 @@ impl Gpu {
                 blend: None,
             },
         );
+        let resources = beui_renderer_wgpu::Resources::new(&device, setup.format);
         Self {
             device,
             queue: setup.queue.clone(),
             format: setup.format,
+            resources,
             shader,
             sampler,
             linear,
@@ -595,14 +625,14 @@ impl Gpu {
             blit_layout,
             blit_uniform,
             mip,
-            pipelines: HashMap::new(),
-            targets: HashMap::new(),
-            panels: HashMap::new(),
-            pending: HashMap::new(),
-            chrome: HashMap::new(),
-            chrome_pending: HashMap::new(),
-            versions: HashMap::new(),
-            fills: HashMap::new(),
+            pipelines: HashMap::default(),
+            targets: HashMap::default(),
+            panels: HashMap::default(),
+            pending: HashMap::default(),
+            chrome: HashMap::default(),
+            chrome_pending: HashMap::default(),
+            versions: HashMap::default(),
+            fills: HashMap::default(),
         }
     }
 
@@ -678,6 +708,21 @@ impl Gpu {
                     depth: Some(false),
                     blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                 },
+            ),
+            outline: pipeline_comparing(
+                device,
+                shader,
+                Stage {
+                    label: "space outline",
+                    vertex: "outline_vertex",
+                    fragment: "outline_fragment",
+                    layouts: &[&self.scene_layout],
+                    format,
+                    samples: SAMPLES,
+                    depth: Some(false),
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                },
+                wgpu::CompareFunction::Always,
             ),
             cursor: pipeline_comparing(
                 device,
@@ -879,7 +924,7 @@ impl Gpu {
         let (renderer, uniform) = match self.sheets(chrome).remove(&window) {
             Some(panel) => (panel.renderer, panel.uniform),
             None => (
-                beui_renderer_wgpu::Renderer::new(&self.device, self.format),
+                beui_renderer_wgpu::Renderer::new(&self.resources),
                 uniform_buffer(&self.device, "space panel", size_of::<PanelUniform>()),
             ),
         };
@@ -1096,6 +1141,24 @@ impl Gpu {
             inverse: sight.view_projection.inverse().to_cols_array_2d(),
             options: [f32::from(u8::from(format.is_srgb())), 0.0, 0.0, 0.0],
             beams: beams(&frame.beams, sight.eye),
+            outlines: std::array::from_fn(|index| {
+                frame
+                    .outlines
+                    .get(index)
+                    .map_or([[0.0; 4]; 4], |outline| outline.model.to_cols_array_2d())
+            }),
+            outline_shapes: std::array::from_fn(|index| {
+                frame.outlines.get(index).map_or([0.0; 4], |outline| {
+                    [
+                        outline.metres.x,
+                        outline.metres.y,
+                        outline.bend,
+                        outline.strength,
+                    ]
+                })
+            }),
+            outline_color: OUTLINE.to_linear_f32(),
+            outline_look: [OUTLINE_WIDTH, OUTLINE_FILL, OUTLINE_LINE, 0.0],
         };
         self.queue
             .write_buffer(&target.scene_uniform, 0, bytemuck::bytes_of(&scene));
@@ -1170,6 +1233,11 @@ impl Gpu {
         if !frame.beams.is_empty() {
             pass.set_pipeline(&pipelines.beam);
             pass.draw(0..4, 0..2 * BEAMS as u32);
+        }
+        let outlines = frame.outlines.len().min(OUTLINES) as u32;
+        if outlines > 0 {
+            pass.set_pipeline(&pipelines.outline);
+            pass.draw(0..VERTICES, 0..outlines);
         }
         if let Some(cursor) = &frame.cursor
             && let Some(drawn) = self.panels.get(&cursor.window)

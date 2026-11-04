@@ -21,6 +21,7 @@ pub mod datetime;
 pub mod dialog;
 pub mod disclosure;
 pub mod drag;
+mod drag_board;
 pub mod first_fit;
 pub mod fling;
 pub mod floating;
@@ -96,13 +97,16 @@ pub use date_time_picker::{
     DateTimePicker, DateTimeTimesHandle, DateTimeTriggerHandle,
 };
 pub use dialog::{
-    ActionRole, Dialog, DialogAction, DialogBody, DialogBodyHandle, DialogDismissal, DialogKind,
-    DialogLayout, DialogSheetHandle, FooterOrder, footer_order,
+    ActionRole, Dialog, DialogAction, DialogAnchor, DialogBody, DialogBodyHandle, DialogCardHandle,
+    DialogDismissal, DialogKind, DialogLayout, DialogPresentation, DialogSheetHandle, DialogSize,
+    DialogTarget, FooterOrder, FrameAnchor, dialog_presentation, footer_order,
+    provide_frame_anchor, use_frame_anchor,
 };
 pub use disclosure::{Disclosure, DisclosureApi, DisclosureHandle};
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
 };
+pub use drag_board::{Board, drag_board};
 pub use first_fit::FirstFit;
 pub use floating::{Edge, Floating};
 pub use form::Form;
@@ -111,7 +115,7 @@ pub use menu::{
     MenuCaption, MenuGrid, MenuItem, MenuListApi, MenuNodes, MenuRowHandle, MenuRowKind, MenuThen,
 };
 pub use menu_button::MenuButton;
-pub use menu_popup::{MenuPopup, MenuStyle};
+pub use menu_popup::{MenuPopup, MenuRows, MenuStyle};
 pub use modal::{Modal, ModalHandle, ModalMotion, ModalPlacement};
 pub use number_input::{
     NumberDrag, NumberFaceHandle, NumberFieldHandle, NumberInput, NumberInputApi,
@@ -151,7 +155,7 @@ pub use text_area::{
 pub use text_input::{InputKind, TextInput, TextInputApi, TextInputHandle, TextInputStyle};
 pub use text_menu::TextContextMenu;
 pub use time_list::{TimeList, TimeListApi, TimeOptionHandle, grid_columns};
-pub use toast::{TOAST_DURATION, Toast, ToastAction, ToastHandle, Toasts};
+pub use toast::{TOAST_DURATION, TOAST_LIMIT, Toast, ToastAction, ToastHandle, Toasts};
 pub use toggle::{Toggle, ToggleApi, ToggleHandle};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{

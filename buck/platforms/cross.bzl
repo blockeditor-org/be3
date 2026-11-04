@@ -54,8 +54,8 @@ PLAN_SETTINGS = {
 } | {plan_name(name): cross_setting(name) for name in CROSS_PLATFORMS}
 
 # The plans for beui's HTML core (buck/constraints:html), and the platform each
-# is built for: the crates cargo plans in them are what //:check and
-# ./scripts/verify check there.
+# is built for: the crates cargo plans in them are what ./scripts/verify
+# checks there.
 HTML_PLANS = {
     "linux-x86_64-html": "root//buck/platforms:linux_x86_64_html",
     "wasi-html": "root//buck/platforms:wasi_html",

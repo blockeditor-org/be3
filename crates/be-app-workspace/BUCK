@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "app")
+
+app(
+    module = "workspace_ui",
+    types = "//crates/be-type-workspace:module",
+)

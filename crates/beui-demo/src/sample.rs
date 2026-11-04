@@ -3,7 +3,7 @@ use beui::Align;
 use beui::Color;
 
 #[component]
-pub(crate) fn ScrollPage(children: Children<ListChild>) -> NodeId {
+pub(crate) fn ScrollPage(children: Children<ListItem>) -> NodeId {
     view! {
         <Scroll>
             <Frame padding=PAGE_PADDING>
@@ -20,7 +20,9 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>{title}</Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::HEADING>{title}</Text>
+                </ListItem>
                 <ToggleButton
                     @test_id={format!("demo.code.{title}")}
                     label="Code"
@@ -51,7 +53,7 @@ fn CodeBlock(source: String) -> NodeId {
             radius=Radius::Md
             padding=CODE_PADDING
         >
-            <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>
+            <SelectableText @test_id="demo.code" child_grow=1.0>
                 <Text size=TextSize::Sm family=Family::Mono>
                     <ForEach keys={tokens}>|(start, end, color): (usize, usize, Color)| {
                         let piece = source[start..end].to_owned(); view! {
@@ -65,7 +67,7 @@ fn CodeBlock(source: String) -> NodeId {
 }
 
 pub(crate) fn code_tokens(source: &str, colors: SyntaxColors) -> Vec<(usize, usize, Color)> {
-    let document = Arc::new(TextBuffer::new(source)) as Arc<dyn text_editor_core::Document>;
+    let document = Arc::new(TextBuffer::new(source)) as Arc<dyn beui_text_editor_core::Document>;
     let highlight = Highlighter::new(document, Language::Rust).highlight();
     let mut tokens: Vec<(usize, usize, Color)> = Vec::new();
     for (start, character) in source.char_indices() {

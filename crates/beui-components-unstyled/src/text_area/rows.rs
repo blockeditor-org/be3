@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use text_editor_core::{
+use beui_text_editor_core::{
     LineLook, ListMarker, MarkSet, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
     TableRow, TextLanguage, TextRun, VOID,
 };
@@ -311,10 +311,6 @@ impl Row {
                 SpanKind::Inline(index) => Some(index),
                 _ => None,
             })
-    }
-
-    pub fn flow_inline(&self, flow: usize) -> Option<&InlineItem> {
-        self.inline.get(self.flow_item(flow)?)
     }
 }
 

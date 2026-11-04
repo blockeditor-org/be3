@@ -12,6 +12,7 @@ pub struct ToggleHandle {
     pub checked: Binding<bool>,
     pub mixed: Memo<bool>,
     pub hovered: ReadSignal<bool>,
+    pub pointed: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
     pub disabled: Memo<bool>,
@@ -54,6 +55,7 @@ pub fn Toggle(
         false => String::new(),
     });
     let hovered = create_signal(false);
+    let pointed = create_signal(false);
     let active = create_signal(false);
     let focused = create_signal(false);
     let key_active = create_signal(false);
@@ -83,6 +85,7 @@ pub fn Toggle(
             checked,
             mixed,
             hovered: hovered.read_only(),
+            pointed: pointed.read_only(),
             active: active.read_only(),
             focused: focused.read_only(),
             disabled,
@@ -125,6 +128,7 @@ pub fn Toggle(
             key_active
             on_click={toggle_checked}
             on_hover_change={hovered}
+            on_pointed_change={pointed}
             on_active_change={active}
             children={content_node}
         />

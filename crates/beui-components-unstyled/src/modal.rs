@@ -9,17 +9,23 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::Placement;
 use beui_view::types::Pos2;
+use beui_view::types::WindowId;
+use beui_view::types::layer::LayerEdge;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModalPlacement {
     Center,
     Fill,
+    Sheet,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModalMotion {
+    /// The content sits in a [`BackSlide`], which carries it away on back.
     Slides,
     Still,
+    /// The content reports its own presence through [`ModalHandle::presence`]
+    /// (as `ModalSheet`'s sheet does), and the scrim fades with it.
     Reported,
 }
 
@@ -28,6 +34,13 @@ pub struct ModalHandle {
     pub presence: Callback<f32>,
 }
 
+/// Every modal's outer part: an overlay over a scrim that fades with the
+/// modal's presence.
+///
+/// Escape, back and a press on the scrim reach `on_dismiss` at once, but the
+/// modal only leaves when its owner writes `open` false, so an owner that asks
+/// first ("discard changes?") or an app that answers later keeps it in place.
+/// While leaving it lingers, inert.
 #[component]
 pub fn Modal(
     open: Prop<bool>,
@@ -35,6 +48,7 @@ pub fn Modal(
     #[prop(default = ModalPlacement::Center)] placement: ModalPlacement,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = ModalMotion::Slides)] motion: ModalMotion,
+    #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
     on_dismiss: ClickCallback,
     #[prop(children)] content: Render<ModalHandle>,
 ) -> NodeId {
@@ -82,6 +96,7 @@ pub fn Modal(
     let placed = match placement {
         ModalPlacement::Center => Placement::Center,
         ModalPlacement::Fill => Placement::Fill,
+        ModalPlacement::Sheet => Placement::Edge(LayerEdge::Bottom),
     };
     view! {
         <Overlay
@@ -91,6 +106,7 @@ pub fn Modal(
             placement=placed
             scrim={faded}
             level={level}
+            shown_in={shown_in}
             policy={create_memo(move || match asked.get() && !open.get() {
                 true => LayerPolicy::Inert,
                 false => LayerPolicy::BlocksAll,

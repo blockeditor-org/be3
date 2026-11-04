@@ -1,53 +1,43 @@
 # What is in the repository
 
-The repository holds the product, the tooling around it, and separate projects
-that build on it. VISION.md says why each part exists.
+The product, the tooling around it, and separate projects that build on it. VISION.md says why
+each part exists.
 
-## The product
+## Crates
 
-- The block stack (`be-*`), beui (`beui*`), block-app, and the plugin API and
-  SDK (`block-*`).
-- `lucide`: the icon set beui and the block catalog draw from.
-- `ghostty-vt`, `terminal-emulator` and `terminal-view`: the terminal emulator's
-  bindings, the emulator read back as terminal lines (the terminal host and
-  be-launcher's build output), and the beui view that draws lines (the terminal
-  editor and be-launcher).
-- The editors under `crates/editors`, except the debug and example ones below.
-- The desktop: the desktop editor, `be-wayland` and `beui-platform-drm`; on Windows, `be-win32` and `be-win32-capture`.
+`crates/` is flat: every crate is `crates/NAME/`, its Cargo package is `NAME` (hyphens), and its
+library is `//crates/NAME:NAME`, abbreviated `//crates/NAME`, with its other targets (`:test`,
+`:bin`, `:module`, `:native`, ...) beside it. A binary may have its own name (`be` is built from
+`be-tool-cli`). The prefix gives the family:
 
-## Tooling
-
-- `paint-review` and `paint-review-web`: the web page a pull request's summary
-  comment links to for reviewing the paintings it changed.
-- `be-launcher`: lists pull requests and runs any of them on Android or the
-  desktop, built on request by the build helper (guides/buck2.md).
-- `be-cli` (`be`): reads and changes the tracker (guides/tracker.md), keeps
-  a folder and a directory on disk in step with `be-sync` (guides/sync.md), and
-  hosts terminal blocks (guides/terminal.md).
-- `build-helper`: builds the APKs and native apps be-launcher installs, on
-  request, on one host, and wakes Namespace's cluster (guides/build_server.md).
-- The build and test tools: `buck-tools`, `local-tools`, `verify`, `bootstrap`,
-  `be-drive`, `app-tests`, `beui-shared-tests` (beui's two cores driven alike),
-  `paint-snapshot` and the rest.
-- `beui-html-spike` and `beui-demo-html`: beui's HTML core running block-app's
-  account picker and beui's demo pages, for trying that core (guides/running/web.md).
-
-## Debug and example editors
-
-counter, triangle, pan-zoom, beui-gallery, block-debug, checklist and
-pixel-ray-tracer. They exercise the platform; they are not apps.
+- `be-app-*`: the apps, each a manifest.json and an entry module; `be-app-example-*` exercise
+  the platform and aren't apps a person uses.
+- `be-type-*`: the block type module of the app of the same name; `be-type-bundle` holds every
+  first-party type module by app id.
+- `be-sdk-*`: what apps are written with: the protocol (`be-sdk-api`), the guest libraries
+  (`be-sdk`, `be-sdk-beui`), the libraries apps link against and the test harness.
+- `be-host-*`: be-host, split into crates that build in parallel. `be-host-base`,
+  `be-host-services` and `be-host-stack` have no beui; `be-host-runtime` runs apps;
+  `be-host-desktop` holds the desktop hosts; `be-host-testing` and `be-host-tests` are its test
+  harness and host tests.
+- `be-block-*`: the block stack (guides/the_new_block_stack.md). `be-server-*`: the server and
+  its account portal. `be-wasm-*`: running wasm guests.
+- `be-lib-*`: libraries that know nothing of blocks, apps or beui. `be-lib-stable-hash` is the
+  hash map to use where iteration order reaches output: be-tool-fix-rust-source
+  (`hash_order.rs`) reports randomly seeded ones in the crates it lists.
+- `beui-*`: beui and what only beui uses.
+- `be-tool-*`: build, test and developer tools, including the bootstrap (guides/bootstrap.md),
+  `be-tool-cli` (`be`), `be-tool-launcher` (runs any pull request on Android or the desktop) and
+  `be-tool-paint-review` (the page for reviewing a pull request's paintings).
 
 ## Separate projects
 
-These depend on beui and the plugin system and live here so a change to either
-updates them in the same pull request. They are not part of the core:
-
-- `tabletop-games` and the deterministic-game editor.
-- `logicgame` and the logic-grid editor.
-- The scene-3d editor.
+These depend on beui and the app system and live here so a change to either updates them in the
+same pull request. They are not part of the core and are named without `be-`: `tabletop-*`
+(guides/adding_a_game.md) and the deterministic-game app, `logicgame` and the logic-grid app,
+and the scene-3d app.
 
 ## Unrelated
 
-`cvl2` is a compiler for a language of its own that writes Minecraft datapacks.
-Nothing depends on it. It might one day write deterministic games, compiled both
-to wasm and to plain English rules for playing them.
+`cvl2` is a compiler for its own language that writes Minecraft datapacks. Nothing depends on
+it.

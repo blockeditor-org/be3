@@ -3,4 +3,3 @@ use super::*;
 mod a_point_on_the_panel_maps_back_to_the_picture;
 mod a_turned_picture_lands_on_the_panel_corner_it_was_turned_to;
 mod a_turned_rect_covers_the_same_pixels_on_the_panel;
-mod the_panel_corners_sample_the_turned_picture;

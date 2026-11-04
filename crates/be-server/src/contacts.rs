@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
-use be_graph::Access;
-use be_protocol::{
+use be_block_graph::Access;
+use be_block_protocol::{
     ContactLink, ContactRow, ErrorCode, KeyKind, OwnContactLink, OwnKind, OwnSealed, PendingGrant,
     WrappedBy,
 };
@@ -190,7 +190,7 @@ pub(crate) fn role_in(
     connection: &Connection,
     account: Uuid,
     organization: Uuid,
-) -> Result<Option<be_protocol::OrganizationRole>, ServerError> {
+) -> Result<Option<be_block_protocol::OrganizationRole>, ServerError> {
     connection
         .query_row(
             "SELECT role FROM memberships WHERE organization_id = ?1 AND account_id = ?2",

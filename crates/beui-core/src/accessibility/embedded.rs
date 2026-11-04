@@ -1,8 +1,8 @@
 use accesskit::{Affine, Node, NodeId as AccessNodeId, Rect as AccessRect, Role, TreeUpdate};
-use foldhash::{HashMap, HashMapExt, HashSet, HashSetExt};
+use be_lib_stable_hash::{HashMap, HashSet};
 
 use super::{DOCUMENT_SHIFT, Fragment};
-use crate::geometry::{Rect, Vec2};
+use beui_types::{Rect, Vec2};
 
 const PANE: u64 = 0;
 
@@ -17,21 +17,21 @@ pub struct Embedded {
     next: u64,
     changed: HashSet<AccessNodeId>,
     restructured: bool,
-    placed: Option<(String, Rect, Vec2, f32)>,
+    placed: Option<(Option<String>, Rect, Vec2, f32)>,
 }
 
 impl Embedded {
     pub fn new(document: u32) -> Self {
         Self {
             document,
-            nodes: HashMap::new(),
+            nodes: HashMap::default(),
             root: None,
             focus: None,
-            local: HashMap::new(),
-            remote: HashMap::new(),
-            parents: HashMap::new(),
+            local: HashMap::default(),
+            remote: HashMap::default(),
+            parents: HashMap::default(),
             next: PANE + 1,
-            changed: HashSet::new(),
+            changed: HashSet::default(),
             restructured: false,
             placed: None,
         }
@@ -62,14 +62,14 @@ impl Embedded {
 
     pub fn fragment(
         &mut self,
-        title: &str,
+        title: Option<&str>,
         area: Rect,
         origin: Vec2,
         scale: f32,
         focused: bool,
         full: bool,
     ) -> Fragment {
-        let placed = (title.to_owned(), area, origin, scale);
+        let placed = (title.map(str::to_owned), area, origin, scale);
         let moved = self.placed.as_ref() != Some(&placed);
         self.placed = Some(placed);
         let restructured = std::mem::take(&mut self.restructured);
@@ -80,8 +80,14 @@ impl Embedded {
         let root = self.root.filter(|root| self.nodes.contains_key(root));
         let mut nodes = Vec::new();
         if resend || moved {
-            let mut pane = Node::new(Role::Pane);
-            pane.set_label(title);
+            let mut pane = match title {
+                Some(title) => {
+                    let mut pane = Node::new(Role::Pane);
+                    pane.set_label(title);
+                    pane
+                }
+                None => Node::new(Role::GenericContainer),
+            };
             pane.set_bounds(bounds(area));
             if let Some(root) = root {
                 pane.set_children(vec![self.host(root)]);
@@ -119,10 +125,13 @@ impl Embedded {
             windows: Vec::new(),
             window_roots: Vec::new(),
             focus_window: None,
+            focus_layer: None,
+            escaped: Vec::new(),
+            escaped_roots: Vec::new(),
         }
     }
 
-    pub fn plugin_node(&self, id: AccessNodeId) -> Option<AccessNodeId> {
+    pub fn app_node(&self, id: AccessNodeId) -> Option<AccessNodeId> {
         if super::document_of(id) != u64::from(self.document) {
             return None;
         }
@@ -134,7 +143,7 @@ impl Embedded {
 
     fn restructure(&mut self) {
         self.parents.clear();
-        let mut reached = HashSet::with_capacity(self.nodes.len());
+        let mut reached = HashSet::with_capacity_and_hasher(self.nodes.len(), Default::default());
         let mut pending = Vec::new();
         if let Some(root) = self.root.filter(|root| self.nodes.contains_key(root)) {
             reached.insert(root);
@@ -165,7 +174,7 @@ impl Embedded {
 
     fn translate(&mut self, id: AccessNodeId, origin: Vec2, scale: f32) -> Node {
         let mut node = self.nodes[&id].clone();
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         let children: Vec<AccessNodeId> = node
             .children()
             .iter()

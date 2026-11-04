@@ -1,0 +1,61 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/platforms:profile.bzl", "released")
+load(":defs.bzl", "deploy")
+
+# What runs on this machine once a buck2 command has built what it needs,
+# built for this machine in that same command: `verify` for ./scripts/verify
+# and ./scripts/ci after buck/dev/verify.bxl, `deploy` for ./scripts/deploy, and
+# `fuzz` for a fuzz target and //:fuzz (cargo_fuzz in buck/cargo/defs.bzl).
+
+cargo_library()
+
+cargo_test(
+    env = {
+        "APK_SIGN_JDK": "$(location //buck/android:jdk)",
+        "APK_SIGN_TOOLS": "$(location //buck/android:build-tools)",
+    },
+)
+
+cargo_binary()
+
+# What CI downloads for its Android builds and paint previews
+# (buck/dev/verify.bxl), a quarter the size of :bin.
+released(
+    name = "release",
+    actual = ":bin",
+    visibility = ["PUBLIC"],
+)
+
+# ./scripts/deploy's --skip-downloads and --skip-android set
+# be3.deploy_downloads and be3.deploy_android to false, which leave those
+# downloads out of the build.
+downloads = read_config("be3", "deploy_downloads", "true") == "true"
+
+native_app = "//crates/be-host:native" if downloads else None
+
+deploy(
+    name = "deploy",
+    app_android = "//crates/be-host:android-release" if downloads and read_config("be3", "deploy_android", "true") == "true" else None,
+    app_linux_arm64 = native_app,
+    app_linux_x86_64 = native_app,
+    app_macos_arm64 = native_app,
+    app_macos_x86_64 = native_app,
+    app_windows_arm64 = native_app,
+    app_windows_x86_64 = native_app,
+    be_linux_arm64 = "//crates/be-tool-cli:native",
+    be_linux_x86_64 = "//crates/be-tool-cli:native",
+    server = "//crates/be-server-bin:bin",
+    tool = ":bin",
+    web = "//crates/be-host:web",
+    web_download = downloads,
+)
+
+[
+    genrule(
+        name = name + "-index",
+        cmd = "$(exe :bin) web-page " + name + " $OUT",
+        out = "index.html",
+        visibility = ["PUBLIC"],
+    )
+    for name in ["host", "demo", "paint-review"]
+]

@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use reactive::{Get, Memo, ReadSignal, Signal, create_memo};
+use beui_reactive::{Get, Memo, ReadSignal, Signal, create_memo};
 
 use crate::node::{NodeId, NodeRef};
 
@@ -35,6 +35,10 @@ pub fn focused_node() -> Option<NodeId> {
 pub fn focus_ring(focused: Memo<bool>) -> Memo<bool> {
     let visible = signals().visible;
     create_memo(move || focused.get() && visible.get())
+}
+
+pub fn focus_visible() -> bool {
+    signals().visible.get_untracked()
 }
 
 pub fn holds_focus(node: NodeRef) -> Memo<bool> {
@@ -110,8 +114,19 @@ pub fn focus_ancestry() -> Vec<NodeId> {
 }
 
 #[cfg(target_arch = "wasm32")]
+fn show_focus(visible: bool) {
+    use beui_reactive::Set;
+
+    let signal = signals().visible;
+    if signal.get_untracked() != visible {
+        signal.set(visible);
+        beui_reactive::flush();
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
 pub(crate) fn watch_document(document: &web_sys::Document) -> Vec<crate::dom::Listener> {
-    use reactive::Set;
+    use beui_reactive::Set;
     use wasm_bindgen::JsCast;
 
     let update = |target: Option<web_sys::EventTarget>| {
@@ -127,7 +142,7 @@ pub(crate) fn watch_document(document: &web_sys::Document) -> Vec<crate::dom::Li
         if signals.visible.get_untracked() != visible {
             signals.visible.set(visible);
         }
-        reactive::flush();
+        beui_reactive::flush();
     };
     vec![
         crate::dom::listen(
@@ -135,6 +150,24 @@ pub(crate) fn watch_document(document: &web_sys::Document) -> Vec<crate::dom::Li
             "focusin",
             true,
             move |event: web_sys::FocusEvent| update(event.target()),
+        ),
+        crate::dom::listen(
+            document.as_ref(),
+            "keydown",
+            true,
+            move |event: web_sys::KeyboardEvent| {
+                let modifier =
+                    beui_web_input::keys::key(&event).is_some_and(|key| key.is_modifier());
+                if !modifier && !event.ctrl_key() && !event.alt_key() && !event.meta_key() {
+                    show_focus(true);
+                }
+            },
+        ),
+        crate::dom::listen(
+            document.as_ref(),
+            "pointerdown",
+            true,
+            move |_: web_sys::PointerEvent| show_focus(false),
         ),
         crate::dom::listen(
             document.as_ref(),

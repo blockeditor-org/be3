@@ -1,0 +1,56 @@
+use super::*;
+use crate::primitives::Frame;
+use crate::primitives::List;
+use crate::reactive::*;
+use crate::styled::*;
+
+#[test]
+fn a_sheet_pulled_past_its_top_stretches_and_springs_back() {
+    let _root = crate::reactive::RootScope::new();
+    let sheet = NodeRef::new();
+    let open = create_signal(false);
+    let document = build_node(move || {
+        view! {
+            <List spacing=0.0>
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
+                <ModalSheet @node_ref=&sheet open={open} fit=true on_close={|| ()}>
+                    <Frame height=120.0 />
+                </ModalSheet>
+            </List>
+        }
+    });
+    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
+    harness.frame(Vec::new());
+    open.set(true);
+    harness.settle();
+    let handle = harness.find("sheet.handle");
+    let fitted = harness.rect(handle).top();
+
+    let from = pos2(200.0, fitted + 60.0);
+    harness.touch(TouchPhase::Start, from);
+    for step in 1..=20 {
+        harness.touch(TouchPhase::Move, from - vec2(0.0, step as f32 * 10.0));
+    }
+    let stretched = harness.rect(handle).top();
+    assert!(
+        stretched < fitted - 20.0 && stretched > fitted - 200.0,
+        "pulled up past where it fits, the sheet stretches a little way, \
+         to {stretched} from {fitted}"
+    );
+
+    harness.touch(TouchPhase::End, from - vec2(0.0, 200.0));
+    harness.frame(Vec::new());
+    let springing = harness.rect(handle).top();
+    assert!(
+        springing > stretched && springing < fitted,
+        "let go, it springs back down rather than jumping, and is at {springing}"
+    );
+    harness.settle();
+    assert_eq!(
+        harness.rect(handle).top(),
+        fitted,
+        "and comes to rest where it fits"
+    );
+}

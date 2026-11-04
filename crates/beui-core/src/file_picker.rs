@@ -1,4 +1,4 @@
-pub use ui_types::files::{FileFilter, FilePick, PickedFile};
+use beui_types::{FileFilter, FilePick};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FilePickId(pub u64);
@@ -13,14 +13,14 @@ pub struct FilePickRequest {
 pub struct FilePickAnswer {
     id: FilePickId,
     sender: std::sync::mpsc::Sender<(FilePickId, FilePick)>,
-    waker: Option<crate::app::Waker>,
+    waker: Option<crate::program::Waker>,
 }
 
 impl FilePickAnswer {
-    pub(crate) fn new(
+    pub fn new(
         id: FilePickId,
         sender: std::sync::mpsc::Sender<(FilePickId, FilePick)>,
-        waker: Option<crate::app::Waker>,
+        waker: Option<crate::program::Waker>,
     ) -> Self {
         Self { id, sender, waker }
     }

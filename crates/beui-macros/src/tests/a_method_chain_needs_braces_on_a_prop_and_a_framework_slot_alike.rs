@@ -4,7 +4,7 @@ use super::*;
 fn a_method_chain_needs_braces_on_a_prop_and_a_framework_slot_alike() {
     let errors = [
         syn::parse2::<View>(quote! { <Frame width=Width::default().get() /> }),
-        syn::parse2::<View>(quote! { <Frame @sizing=ItemSize::Intrinsic.min(4.0) /> }),
+        syn::parse2::<View>(quote! { <Frame @test_id=name.to_string() /> }),
     ]
     .map(|parsed| match parsed {
         Ok(_) => panic!("an unbraced method chain is rejected"),
@@ -19,7 +19,5 @@ fn a_method_chain_needs_braces_on_a_prop_and_a_framework_slot_alike() {
         ]
     );
     assert!(syn::parse2::<View>(quote! { <Frame width={Width::default().get()} /> }).is_ok());
-    assert!(
-        syn::parse2::<View>(quote! { <Frame @sizing={ItemSize::Intrinsic.min(4.0)} /> }).is_ok()
-    );
+    assert!(syn::parse2::<View>(quote! { <Frame @test_id={name.to_string()} /> }).is_ok());
 }

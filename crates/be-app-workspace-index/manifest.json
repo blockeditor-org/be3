@@ -1,0 +1,35 @@
+{
+  "id": "be3.workspace-index",
+  "name": "Folder",
+  "version": "0.1.0",
+  "editors": {
+    "folder": {
+      "id": "f7517e41-de90-46cc-a35f-dbf32acbfdb5",
+      "edits": "d4e367ab-db73-4419-bffc-b9131288c2e7",
+      "display_name": "Folder",
+      "icon": "\ue0d7",
+      "templates": {
+        "main": {
+          "category": "important"
+        }
+      },
+      "interaction": "Preview",
+      "resize": "None",
+      "views": [
+        "Main"
+      ]
+    },
+    "workspace": {
+      "id": "58b60415-65c9-4476-8bff-05536886c702",
+      "edits": "776f726b-7370-6163-652d-626c6f636b01",
+      "display_name": "Workspace",
+      "icon": "\ue2d0",
+      "interaction": "Preview",
+      "resize": "None",
+      "views": [
+        "Main"
+      ]
+    }
+  },
+  "entry_point": "workspace_index.wasm"
+}

@@ -1,15 +1,15 @@
 use std::time::{Duration, Instant};
 
 use beui_core::context::{Context, FrameOutput};
-use beui_core::geometry::Rect;
-use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
-use beui_core::input::{
+use beui_runner::{Controller, Hand, HandPose, Incoming, LayerView, Units};
+use beui_types::Rect;
+use beui_types::{
     CursorIcon, Input, Key, Keystroke, Modifiers, PointerButton, ScrollDelta, TouchPhase,
 };
-use beui_core::runner::{Controller, Hand, HandPose, Incoming, LayerView, Units};
-use beui_core::window::{
+use beui_types::{
     HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
 };
+use beui_types::{Pos2, Vec2, pos2, vec2};
 use glam::Vec3;
 
 use crate::chrome::{self, Corner, Part};
@@ -22,7 +22,7 @@ mod a_carried_panel_follows_the_cursor_and_the_head;
 mod a_carried_panel_let_go_mid_turn_lands_where_it_would_after_the_turn;
 mod a_carried_panel_swings_about_the_view_s_up_with_the_head_rolled;
 mod a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried;
-mod a_click_on_the_panel_reaches_the_app_where_the_ray_hits;
+mod a_click_on_the_panel_reaches_the_program_where_the_ray_hits;
 mod a_cursor_turned_out_of_view_shows_a_mouse_at_the_edge_pointing_at_it;
 mod a_driver_pointing_at_a_window_shows_its_icon;
 mod a_laser_drags_once_it_turns_past_where_the_trigger_froze_it;
@@ -41,7 +41,9 @@ mod a_panel_carried_under_the_floor_stays_visible_and_can_be_picked;
 mod a_panel_carried_with_the_head_rolled_rolls_to_match;
 mod a_panel_is_rastered_at_the_most_any_view_needs;
 mod a_panel_keeps_its_pixels_per_point_until_its_size_on_screen_changes_a_step;
+mod a_press_outside_a_popup_and_the_popups_over_it_closes_them_and_goes_no_further;
 mod a_pulled_trigger_touches_the_window_where_its_laser_hits;
+mod a_raised_window_hidden_behind_another_flashes_through_it;
 mod a_ray_between_a_window_and_its_chrome_never_falls_through_to_a_window_behind;
 mod a_ray_hits_a_curved_panel_on_its_bent_surface;
 mod a_ray_hits_the_nearest_panel_where_it_points;
@@ -51,11 +53,13 @@ mod a_scrolled_panel_copies_what_it_showed_and_paints_what_a_full_repaint_would;
 mod a_wheel_line_moves_a_carried_panel_a_step_and_pixels_in_proportion;
 mod a_window_asked_to_resize_keeps_its_top_left_corner_and_reports_the_size;
 mod a_window_carried_from_a_press_in_another_gives_that_one_its_release;
-mod a_window_carried_over_the_main_panel_keeps_its_distance;
+mod a_window_let_go_while_pushed_against_another_stays_in_front;
 mod a_window_moved_by_a_laser_touch_is_carried_along_that_laser;
+mod a_window_opened_again_over_another_moves_there_at_its_new_size;
 mod a_window_opened_at_a_host_placement_lands_on_that_pose;
 mod a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer;
 mod a_window_opened_over_another_sits_where_that_window_would_show_it_a_little_in_front;
+mod a_window_opened_over_another_stays_in_front_of_it_wherever_it_is_carried;
 mod a_window_opened_over_the_main_panel_takes_the_focus_and_the_keys;
 mod a_window_point_maps_to_the_screen_and_back_through_its_panel;
 mod a_window_s_notice_shows_in_place_of_its_title;
@@ -63,6 +67,7 @@ mod an_absolute_position_puts_the_cursor_where_its_ray_hits;
 mod an_off_axis_view_projects_its_field_of_view_tangents_to_the_edges_of_its_target;
 mod clicking_a_panel_or_its_chrome_focuses_it_until_another_or_nothing_is_clicked;
 mod closing_a_window_removes_its_panel;
+mod ctrl_alt_keys_tune_the_mouse_s_up_and_show_it_by_the_cursor;
 mod dragging_a_corner_handle_scales_the_panel_and_keeps_its_points;
 mod dragging_a_side_of_the_main_panel_resizes_its_window_and_keeps_its_scale;
 mod dragging_the_move_control_carries_the_panel;
@@ -77,20 +82,24 @@ mod holding_ctrl_and_shift_steers_the_head;
 mod holding_escape_lets_the_pointer_go_until_the_next_click;
 mod input_reaches_the_window_whose_panel_the_ray_hits_in_its_points;
 mod keys_a_driver_sends_steer_too;
+mod looking_straight_down_with_the_view_s_up_the_mouse_moves_the_cursor_across_the_screen;
 mod losing_focus_lets_the_pointer_go_and_the_click_back_is_swallowed;
 mod motion_a_driver_sends_turns_the_head_while_steering;
 mod mouse_motion_up_moves_the_cursor_toward_the_sky_however_the_head_is_tilted;
 mod moving_a_window_carries_its_panel;
 mod panels_get_layers_only_where_their_order_to_the_eye_is_plain;
 mod panels_through_each_other_are_painted_nearest_first_at_every_pixel;
+mod popups_have_no_chrome;
+mod pushing_a_carried_window_through_another_takes_a_deliberate_push_and_keeps_it_behind;
 mod q_and_e_roll_the_head_while_steering;
 mod resizing_a_window_drags_its_edge_and_reports_the_new_size;
+mod resizing_a_window_stops_where_it_would_touch_another;
 mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
 mod squeezing_a_panel_carries_it_along_the_laser;
 mod squeezing_a_panel_with_both_hands_scales_and_turns_it;
 mod steering_with_a_headset_moves_the_body_the_views_are_tracked_in;
 mod switching_the_cursor_icon_keeps_the_cursor_renderer;
-mod tapping_escape_reaches_the_app_and_keeps_the_grab;
+mod tapping_escape_reaches_the_program_and_keeps_the_grab;
 mod the_chrome_around_a_curved_panel;
 mod the_chrome_keeps_its_size_to_the_eye_at_any_distance;
 mod the_chrome_of_a_near_panel_draws_its_icons_at_the_panel_s_raster;
@@ -242,6 +251,7 @@ fn open(space: &mut Space, now: Instant, placement: WindowPlacement) -> (WindowI
         placement,
         size: SMALL,
         role: WindowRole::Normal,
+        level: beui_types::WindowLevel::Normal,
     });
     (window, send(space, now, []))
 }
@@ -313,7 +323,7 @@ fn on(space: &Space, window: WindowId, at: Pos2) -> Pos2 {
         .pos
 }
 
-fn app_frame(cursor: CursorIcon) -> FrameOutput {
+fn program_frame(cursor: CursorIcon) -> FrameOutput {
     let fonts = beui_font_freetype::FreetypeFonts::new(beui_font_freetype::FontLibrary::new(
         beui_font_freetype::FontSources::default(),
     ));
@@ -467,7 +477,7 @@ fn off_ray(point: Vec3, origin: Vec3, toward: Vec3) -> f32 {
 fn painted_space() -> (Space, Instant, Context) {
     let (mut space, now) = space();
     let context = Context::new(beui_font_freetype::FreetypeFonts::default());
-    let mut setup = beui_core::app::Setup::new(beui_core::app::Waker::new(|| {}));
+    let mut setup = beui_core::program::Setup::new(beui_core::program::Waker::new(|| {}));
     setup.provide(context.clone());
     space.setup(&setup);
     (space, now, context)
@@ -482,6 +492,5 @@ fn assert_scene(
     let frame = space.scene(windows, &view(now));
     let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
         .expect("the scene paints");
-    let snapshot = paint_snapshot::Snapshot::of_painting(painting).expect("the painting encodes");
-    paint_snapshot::assert_accepted(name, &snapshot, &format!("./scripts/test {name} --update"));
+    beui_paint_snapshot::assert_painting(name, painting);
 }

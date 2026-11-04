@@ -5,7 +5,7 @@ fn a_drawing_repaints_only_within_each_damaged_region() {
     let left = Rect::from_min_max(pos2(4.0, 4.0), pos2(20.0, 20.0));
     let right = Rect::from_min_max(pos2(44.0, 44.0), pos2(60.0, 60.0));
     let over = Rect::from_min_max(pos2(4.0, 4.0), pos2(12.0, 12.0));
-    let drawing = crate::drawing(Green::default());
+    let drawing = beui_draw::drawing(Green::default());
     let mut target = Target::new();
     target.draw(Color32::BLACK, Repaint::Everything, |painter| {
         painter.rect_filled(everything(), 0.0, Color32::WHITE);

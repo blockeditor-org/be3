@@ -2,7 +2,8 @@ use super::*;
 
 use std::rc::Rc;
 
-use beui_core::path::{FillRule, Path, PathPaint, PathStyle};
+use beui_core::path::PathPaint;
+use beui_types::{FillRule, Path, PathStyle};
 
 #[test]
 fn two_fills_meeting_on_a_seam_paint_as_one() {

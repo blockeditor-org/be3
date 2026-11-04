@@ -1,0 +1,31 @@
+[package]
+name = "be-tool-paint-review-web"
+description = "crates/be-tool-paint-review in a browser: the page a pull request's summary comment links to"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+beui = { path = "../beui" }
+beui-host = { path = "../beui-host", default-features = false, features = ["web"] }
+image = { version = "0.25", default-features = false, features = ["webp"] }
+js-sys = "0.3"
+be-tool-paint-review = { path = "../be-tool-paint-review" }
+be-tool-paint-review-manifest = { path = "../be-tool-paint-review-manifest" }
+serde_json = "1"
+be-wasm-threads = { path = "../be-wasm-threads" }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "Location",
+    "Response",
+    "Url",
+    "UrlSearchParams",
+    "Window",
+] }
+
+[lints]
+workspace = true

@@ -1,28 +1,29 @@
-use beui_core::font::Overflow;
-use std::collections::HashMap;
+use be_lib_stable_hash::HashMap;
+use beui_types::Overflow;
 use std::time::Duration;
 
 use crate::screen_reader::Command;
 use beui_components_styled::*;
 use beui_components_unstyled::{ChoiceOption, SliderScale, TreeItem};
-use beui_core::base::TextAlign;
 use beui_core::base::embed::EmbedSlot;
 use beui_core::current::{enter, with_document};
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::{ICON_MOUSE_POINTER_2, ICON_X};
-use beui_core::input::{BackEdge, BackGesture};
-use beui_core::node::NodeId;
 use beui_core::performance::PerformanceSnapshot;
 use beui_core::performance::PerformanceTimings;
-use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
-use beui_dock::styled::Docking;
-use beui_dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, dock_menu, use_dock_tab};
+use beui_dock::Docking;
+use beui_dock::{DockPane, DockSplit, DockTab, DockingLayout, SplitSize, dock_menu, use_dock_tab};
+use beui_dock_host::styled::DockHost;
+use beui_types::NodeId;
+use beui_types::TextAlign;
+use beui_types::{BackEdge, BackGesture};
+use beui_types::{Motion, PreferenceLayer, ThemeKind};
 use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};
 use super::{DEFAULT_WIDTH, InspectorTab, State, entry_label};
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 
 const HEADER_SPACING: Space = Space::Md;
 const BODY_PADDING: Space = Space::Md;
@@ -33,7 +34,7 @@ const PERFORMANCE_SPACING: Space = Space::Md;
 const TIMING_SPACING: Space = Space::Xs;
 const BLUR_MIDPOINT: f32 = 12.0;
 const RENDERER_LABEL_WIDTH: f32 = 104.0;
-const PROPERTIES_SHARE: f32 = 45.0;
+const PROPERTIES_SHARE: f32 = 0.45;
 pub const PICK: &str = "inspector.pick";
 pub const CLOSE: &str = "inspector.close";
 const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
@@ -184,7 +185,7 @@ impl TreeView {
     fn new() -> Self {
         Self {
             keys: create_signal(Vec::new()),
-            entries: create_signal(HashMap::new()),
+            entries: create_signal(HashMap::default()),
             selection: create_signal(Vec::new()),
             selection_text: create_signal(String::new()),
             total: create_signal(0),
@@ -201,73 +202,71 @@ pub struct Panel {
     pub summary: Signal<Summary>,
     pub performance: Signal<PerformanceSummary>,
     pub renderer: Signal<RendererRows>,
-    pub app: EmbedSlot,
-    pub width: Signal<f32>,
+    pub program: EmbedSlot,
 }
 
-pub fn build(state: Stored<State>, width: f32) -> Panel {
+pub fn build(state: Stored<State>, embeds_program: bool) -> Panel {
     let owner = RootScope::new();
     let trees = [TreeView::new(), TreeView::new(), TreeView::new()];
     let tools = DockingLayout::new();
     let summary = create_signal(Summary::default());
     let performance = create_signal(PerformanceSummary::default());
     let renderer = create_signal(RendererRows::new());
-    let width = create_signal(width);
-    let fraction = create_memo(move || app_share(width.get()));
-    let app = EmbedSlot::new();
+    let program = EmbedSlot::new();
 
     let mut document = Document::new();
     let root = enter(&mut document, || {
         provide_context(ThemeStore::new(ThemeTokens::literal(&Theme::DARK)));
         let [beui, components, accesskit] = trees;
+        let tool_pane = view! {
+            <DockPane id="tools">
+                <DockTab id=InspectorTab::Beui title={InspectorTab::Beui.title()}>
+                    <TreePanel view=beui noun="node" state summary />
+                </DockTab>
+                <DockTab id=InspectorTab::Components title={InspectorTab::Components.title()}>
+                    <TreePanel view=components noun="component" state summary />
+                </DockTab>
+                <DockTab id=InspectorTab::AccessKit title={InspectorTab::AccessKit.title()}>
+                    <TreePanel view=accesskit noun="node" state summary />
+                </DockTab>
+                <DockTab id=InspectorTab::Performance title={InspectorTab::Performance.title()}>
+                    <PerformanceTool
+                        performance={performance.read_only()}
+                        renderer={renderer.read_only()}
+                        state
+                    />
+                </DockTab>
+                <DockTab id=InspectorTab::Simulation title={InspectorTab::Simulation.title()}>
+                    <SimulationTool state summary />
+                </DockTab>
+            </DockPane>
+        };
+        let layout = match embeds_program {
+            true => view! {
+                <DockSplit
+                    id="inspector"
+                    direction=Direction::Horizontal
+                    size={SplitSize::Second(DEFAULT_WIDTH)}
+                >
+                    <DockPane id="app">
+                        <DockTab
+                            id=InspectorTab::Program
+                            title={InspectorTab::Program.title()}
+                            see_through=true
+                        >
+                            <ProgramTool program state />
+                        </DockTab>
+                    </DockPane>
+                    {tool_pane}
+                </DockSplit>
+            },
+            false => tool_pane,
+        };
         view! {
             <Frame @test_id={"inspector.dock"}>
-                <Docking layout=tools focus={Some(InspectorTab::Beui)}>
-                    <DockSplit id="inspector" direction=Direction::Horizontal fraction={fraction}>
-                        <DockPane id="app">
-                            <DockTab
-                                id=InspectorTab::App
-                                title={InspectorTab::App.title()}
-                                see_through=true
-                            >
-                                <AppTool app state />
-                            </DockTab>
-                        </DockPane>
-                        <DockPane id="tools">
-                            <DockTab id=InspectorTab::Beui title={InspectorTab::Beui.title()}>
-                                <TreePanel view=beui noun="node" state summary />
-                            </DockTab>
-                            <DockTab
-                                id=InspectorTab::Components
-                                title={InspectorTab::Components.title()}
-                            >
-                                <TreePanel view=components noun="component" state summary />
-                            </DockTab>
-                            <DockTab
-                                id=InspectorTab::AccessKit
-                                title={InspectorTab::AccessKit.title()}
-                            >
-                                <TreePanel view=accesskit noun="node" state summary />
-                            </DockTab>
-                            <DockTab
-                                id=InspectorTab::Performance
-                                title={InspectorTab::Performance.title()}
-                            >
-                                <PerformanceTool
-                                    performance={performance.read_only()}
-                                    renderer={renderer.read_only()}
-                                    state
-                                />
-                            </DockTab>
-                            <DockTab
-                                id=InspectorTab::Simulation
-                                title={InspectorTab::Simulation.title()}
-                            >
-                                <SimulationTool state summary />
-                            </DockTab>
-                        </DockPane>
-                    </DockSplit>
-                </Docking>
+                <DockHost>
+                    <Docking layout=tools focus={Some(InspectorTab::Beui)}>{layout}</Docking>
+                </DockHost>
             </Frame>
         }
     });
@@ -281,20 +280,12 @@ pub fn build(state: Stored<State>, width: f32) -> Panel {
         summary,
         performance,
         renderer,
-        app,
-        width,
-    }
-}
-
-fn app_share(width: f32) -> f32 {
-    match width > DEFAULT_WIDTH {
-        true => 1.0 - DEFAULT_WIDTH / width,
-        false => 0.5,
+        program,
     }
 }
 
 #[component]
-fn AppTool(app: EmbedSlot, state: Stored<State>) -> NodeId {
+fn ProgramTool(program: EmbedSlot, state: Stored<State>) -> NodeId {
     if let Some(tab) = use_dock_tab() {
         create_effect(move || {
             if tab.keyboard().is_some() {
@@ -302,9 +293,9 @@ fn AppTool(app: EmbedSlot, state: Stored<State>) -> NodeId {
             }
         });
     }
-    let embed = with_document(|document| document.create_embed(app.0.value())).id();
-    app.0.with(|held| held.node.set(Some(embed)));
-    test_id(embed, "inspector.app")
+    let embed = with_document(|document| document.create_embed(program.0.value())).id();
+    program.0.with(|held| held.node.set(Some(embed)));
+    test_id(embed, "inspector.program")
 }
 
 fn close_action(state: Stored<State>) -> Action {
@@ -346,39 +337,41 @@ fn TreePanel(
     }));
     view! {
         <List spacing=Space::None>
-            <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
-                <Tree
-                    @sizing=ItemSize::Percent(100.0 - PROPERTIES_SHARE)
-                    api=tree
-                    keys
-                    item={move |key: Key| item(&entries, key)}
-                    selected={selected}
-                    ancestors={move |key: Key| ancestors(selection.read_only(), key)}
-                    padding=BODY_PADDING
-                    row_test_id={move |key: Key| key.test_id()}
-                    reveal_test_id={"inspector.reveal".to_owned()}
-                    on_select={move |key: Key| state.value().select_row(key)}
-                    on_expand={move |(key, expanded): (Key, bool)| {
-                        state.value().set_expanded(key, expanded);
-                    }}
-                    on_reveal={move |key: Key| {
-                        state.value().expand_ancestors(&ancestors(selection.read_only(), key));
-                    }}
-                    on_hover_change={move |(key, hovered): (Key, bool)| {
-                        state.value().hover(key.node(), hovered);
-                    }}
-                >|row: TreeRowFace<Key>|
-                    <TreeCells row_key={row.key} entries={entries} />
-                </Tree>
-                <Show condition={has_properties}>
-                    <Frame
-                        @sizing={ItemSize::Percent(PROPERTIES_SHARE)}
-                        @test_id={"inspector.properties"}
-                    >
-                        <PropertiesSection properties />
-                    </Frame>
-                </Show>
-            </List>
+            <ListItem grow=1.0>
+                <List spacing=Space::None>
+                    <ListItem grow={1.0 - PROPERTIES_SHARE}>
+                        <Tree
+                            api=tree
+                            keys
+                            item={move |key: Key| item(&entries, key)}
+                            selected={selected}
+                            ancestors={move |key: Key| ancestors(selection.read_only(), key)}
+                            padding=BODY_PADDING
+                            row_test_id={move |key: Key| key.test_id()}
+                            reveal_test_id={"inspector.reveal".to_owned()}
+                            on_select={move |key: Key| state.value().select_row(key)}
+                            on_expand={move |(key, expanded): (Key, bool)| {
+                                state.value().set_expanded(key, expanded);
+                            }}
+                            on_reveal={move |key: Key| {
+                                state.value().expand_ancestors(&ancestors(selection.read_only(), key));
+                            }}
+                            on_hover_change={move |(key, hovered): (Key, bool)| {
+                                state.value().hover(key.node(), hovered);
+                            }}
+                        >|row: TreeRowFace<Key>|
+                            <TreeCells row_key={row.key} entries={entries} />
+                        </Tree>
+                    </ListItem>
+                    <Show condition={has_properties}>
+                        <ListItem grow=PROPERTIES_SHARE>
+                            <Frame @test_id={"inspector.properties"}>
+                                <PropertiesSection properties />
+                            </Frame>
+                        </ListItem>
+                    </Show>
+                </List>
+            </ListItem>
             <Separator />
             <Frame padding=FOOTER_PADDING>
                 <List spacing=FOOTER_SPACING>
@@ -388,13 +381,9 @@ fn TreePanel(
                         align=Align::Center
                         spacing=HEADER_SPACING
                     >
-                        <Text
-                            style=TextStyle::CODE
-                            color=TextColor::Muted
-                            @sizing=ItemSize::Percent(100.0)
-                        >
-                            {bounds_text}
-                        </Text>
+                        <ListItem grow=1.0>
+                            <Text style=TextStyle::CODE color=TextColor::Muted>{bounds_text}</Text>
+                        </ListItem>
                         <Text style=TextStyle::CAPTION>{count_text}</Text>
                     </List>
                 </List>
@@ -414,13 +403,9 @@ fn PerformanceTool(
     dock_menu(create_memo(move || vec![MenuNode::action(&close)]));
     view! {
         <List spacing=Space::None>
-            <PerformancePanel
-                @sizing=ItemSize::Percent(100.0)
-                @test_id={"inspector.performance"}
-                performance
-                renderer
-                state
-            />
+            <ListItem grow=1.0>
+                <PerformancePanel @test_id={"inspector.performance"} performance renderer state />
+            </ListItem>
             <Separator />
             <Frame padding=FOOTER_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
@@ -429,13 +414,9 @@ fn PerformanceTool(
                         variant=ButtonVariant::Secondary
                         on_click={move || state.value().reset_performance()}
                     />
-                    <Text
-                        style=TextStyle::CAPTION
-                        @sizing=ItemSize::Percent(100.0)
-                        align=TextAlign::End
-                    >
-                        {samples}
-                    </Text>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::CAPTION align=TextAlign::End>{samples}</Text>
+                    </ListItem>
                 </List>
             </Frame>
         </List>
@@ -452,7 +433,9 @@ fn SimulationTool(state: Stored<State>, summary: Signal<Summary>) -> NodeId {
     dock_menu(create_memo(move || vec![MenuNode::action(&close)]));
     view! {
         <List spacing=Space::None>
-            <SimulationPanel @sizing=ItemSize::Percent(100.0) state responsive handles_back />
+            <ListItem grow=1.0>
+                <SimulationPanel state responsive handles_back />
+            </ListItem>
             <Separator />
             <Frame padding=FOOTER_PADDING>
                 <Text style=TextStyle::CODE color=TextColor::Muted>{native_pixel_ratio_text}</Text>
@@ -586,7 +569,7 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
     let from_right = create_signal(false);
     let caption = create_memo(move || match handles_back.get() {
         true => "Drag to the end to go back, or let go early to cancel.".to_owned(),
-        false => "Nothing in the app takes back: the system would leave it.".to_owned(),
+        false => "Nothing in the program takes back: the system would leave it.".to_owned(),
     });
     let moved = move |value: f32| {
         progress.set(value);
@@ -760,20 +743,22 @@ fn CommandRow(row: usize, state: Stored<State>) -> NodeId {
     let (right_label, right_id, right) = COMMANDS[row * 2 + 1];
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Button
-                @sizing=ItemSize::Percent(100.0)
-                @test_id={format!("inspector.screen_reader.{left_id}")}
-                label={left_label.to_owned()}
-                variant=ButtonVariant::Secondary
-                on_click={move || state.value().command(left)}
-            />
-            <Button
-                @sizing=ItemSize::Percent(100.0)
-                @test_id={format!("inspector.screen_reader.{right_id}")}
-                label={right_label.to_owned()}
-                variant=ButtonVariant::Secondary
-                on_click={move || state.value().command(right)}
-            />
+            <ListItem grow=1.0>
+                <Button
+                    @test_id={format!("inspector.screen_reader.{left_id}")}
+                    label={left_label.to_owned()}
+                    variant=ButtonVariant::Secondary
+                    on_click={move || state.value().command(left)}
+                />
+            </ListItem>
+            <ListItem grow=1.0>
+                <Button
+                    @test_id={format!("inspector.screen_reader.{right_id}")}
+                    label={right_label.to_owned()}
+                    variant=ButtonVariant::Secondary
+                    on_click={move || state.value().command(right)}
+                />
+            </ListItem>
         </List>
     }
 }
@@ -818,9 +803,9 @@ fn PerformancePanel(
                             align=Align::Center
                             spacing=TIMING_SPACING
                         >
-                            <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
-                                "CPU time"
-                            </Text>
+                            <ListItem grow=1.0>
+                                <Text style=TextStyle::HEADING>"CPU time"</Text>
+                            </ListItem>
                             <Text style=TextStyle::CAPTION>"milliseconds"</Text>
                         </List>
                         <TimingHeader />
@@ -874,16 +859,18 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Separator />
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding=BODY_PADDING>
-                    <List spacing=TIMING_SPACING>
-                        <Text style=TextStyle::HEADING>"Properties"</Text>
-                        <ForEach keys={properties}>|(label, value): (String, String)|
-                            <LabeledRow label value />
-                        </ForEach>
-                    </List>
-                </Frame>
-            </Scroll>
+            <ListItem grow=1.0>
+                <Scroll>
+                    <Frame padding=BODY_PADDING>
+                        <List spacing=TIMING_SPACING>
+                            <Text style=TextStyle::HEADING>"Properties"</Text>
+                            <ForEach keys={properties}>|(label, value): (String, String)|
+                                <LabeledRow label value />
+                            </ForEach>
+                        </List>
+                    </Frame>
+                </Scroll>
+            </ListItem>
         </List>
     }
 }
@@ -892,16 +879,12 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
 fn LabeledRow(label: String, value: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH)>
-                {label}
-            </Text>
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Percent(100.0)
-                color=TextColor::Default
-            >
-                {value}
-            </Text>
+            <ListItem length=RENDERER_LABEL_WIDTH>
+                <Text style=TextStyle::CAPTION>{label}</Text>
+            </ListItem>
+            <ListItem grow=1.0>
+                <Text style=TextStyle::CAPTION color=TextColor::Default>{value}</Text>
+            </ListItem>
         </List>
     }
 }
@@ -910,16 +893,16 @@ fn LabeledRow(label: String, value: String) -> NodeId {
 fn TimingHeader() -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                "Current"
-            </Text>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                "Average"
-            </Text>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                "Peak"
-            </Text>
+            <Spacer />
+            <ListItem length=54.0>
+                <Text style=TextStyle::CAPTION align=TextAlign::End>"Current"</Text>
+            </ListItem>
+            <ListItem length=54.0>
+                <Text style=TextStyle::CAPTION align=TextAlign::End>"Average"</Text>
+            </ListItem>
+            <ListItem length=54.0>
+                <Text style=TextStyle::CAPTION align=TextAlign::End>"Peak"</Text>
+            </ListItem>
         </List>
     }
 }
@@ -929,22 +912,18 @@ fn TimingRow(label: String, values: [Memo<String>; 3]) -> NodeId {
     let [current, average, peak] = values;
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Text
-                overflow=Overflow::Ellipsis
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Percent(100.0)
-            >
-                {label}
-            </Text>
-            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                {current}
-            </Text>
-            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                {average}
-            </Text>
-            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
-                {peak}
-            </Text>
+            <ListItem grow=1.0>
+                <Text overflow=Overflow::Ellipsis style=TextStyle::CAPTION>{label}</Text>
+            </ListItem>
+            <ListItem length=54.0>
+                <Text style=TextStyle::CODE align=TextAlign::End>{current}</Text>
+            </ListItem>
+            <ListItem length=54.0>
+                <Text style=TextStyle::CODE align=TextAlign::End>{average}</Text>
+            </ListItem>
+            <ListItem length=54.0>
+                <Text style=TextStyle::CODE align=TextAlign::End>{peak}</Text>
+            </ListItem>
         </List>
     }
 }
@@ -1002,14 +981,11 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
             spacing=ROW_SPACING
         >
             <Text style=TextStyle::CODE>{kind}</Text>
-            <Text
-                overflow=Overflow::Ellipsis
-                style=TextStyle::CODE
-                @sizing=ItemSize::Percent(100.0)
-                color=TextColor::Muted
-            >
-                {detail}
-            </Text>
+            <ListItem grow=1.0>
+                <Text overflow=Overflow::Ellipsis style=TextStyle::CODE color=TextColor::Muted>
+                    {detail}
+                </Text>
+            </ListItem>
             <Text style=TextStyle::CODE color=TextColor::Muted align=TextAlign::End>{size}</Text>
         </List>
     }

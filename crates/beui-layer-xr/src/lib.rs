@@ -52,7 +52,7 @@ pub struct Frame {
     pub display: Instant,
     pub views: Vec<View>,
     pub format: wgpu::TextureFormat,
-    pub controllers: Vec<beui_core::runner::Controller>,
+    pub controllers: Vec<beui_runner::Controller>,
     pub layers: Layers,
 }
 
@@ -67,7 +67,7 @@ pub struct Layers {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Quad {
-    pub window: beui_core::window::WindowId,
+    pub window: beui_types::WindowId,
     pub position: Vec3,
     pub orientation: Quat,
     pub metres: (f32, f32),

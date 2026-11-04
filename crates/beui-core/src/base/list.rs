@@ -1,32 +1,34 @@
 use std::any::Any;
 
-use crate::geometry::{Rect, Vec2, pos2};
 use crate::painter::Painter;
-use crate::pixel_grid::PixelGrid;
+use beui_types::PixelGrid;
+use beui_types::{Rect, Vec2, pos2};
 
-use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
+use crate::child_list::{ChildHost, ChildItem, NodeChildren};
 use crate::document::Document;
 use crate::layout::share::{Part, share, snapped_run};
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeOf, Rects};
+use beui_tree::child_list::ChildList;
+use beui_types::NodeId;
 
-pub use beui_types::layout::{Align, Direction, ItemSize, Justify, Sizing};
+use beui_types::{Align, Direction, ItemSize, Justify, Sizing};
 
 #[derive(Clone, Copy)]
-pub struct ListItem {
+pub struct ListEntry {
     pub child: NodeId,
     pub size: Sizing,
 }
 
-impl ChildItem for ListItem {
+impl ChildItem for ListEntry {
     fn node(&self) -> Option<NodeId> {
         Some(self.child)
     }
 }
 
 impl ChildHost for ListNode {
-    type Stored = ListItem;
+    type Stored = ListEntry;
 
-    fn children(&mut self) -> &mut ChildList<ListItem> {
+    fn children(&mut self) -> &mut ChildList<ListEntry> {
         &mut self.items
     }
 }
@@ -37,7 +39,7 @@ pub struct ListNode {
     pub align: Align,
     pub justify: Justify,
     pub wrap: bool,
-    pub items: ChildList<ListItem>,
+    pub items: ChildList<ListEntry>,
 }
 
 struct Placed {
@@ -108,7 +110,7 @@ impl ListNode {
         &self,
         doc: &mut Document,
         painter: &Painter,
-        item: &ListItem,
+        item: &ListEntry,
         main: f32,
         cross: f32,
         gap: f32,
@@ -149,7 +151,7 @@ impl ListNode {
         for (item, gap) in self.items.iter().zip(gaps) {
             let intrinsic = match item.size.size {
                 ItemSize::Intrinsic => true,
-                ItemSize::Percent(_) => !available_main.is_finite(),
+                ItemSize::Grow(_) => !available_main.is_finite(),
                 ItemSize::Fixed(_) => false,
             };
             let length = match intrinsic {
@@ -191,7 +193,7 @@ impl ListNode {
         &self,
         doc: &mut Document,
         painter: &Painter,
-        item: &ListItem,
+        item: &ListEntry,
         available_main: f32,
     ) -> Sizing {
         let size = item.size;
@@ -207,13 +209,13 @@ impl ListNode {
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
         let gaps = self.gaps(spacing, grid);
-        let mut runs: Vec<Vec<(ListItem, f32, f32)>> = Vec::new();
-        let mut run: Vec<(ListItem, f32, f32)> = Vec::new();
+        let mut runs: Vec<Vec<(ListEntry, f32, f32)>> = Vec::new();
+        let mut run: Vec<(ListEntry, f32, f32)> = Vec::new();
         let mut taken = 0.0f32;
         for (item, gap) in self.items.iter().zip(gaps) {
             let basis = match item.size.size {
                 ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
-                ItemSize::Intrinsic | ItemSize::Percent(_) => {
+                ItemSize::Intrinsic | ItemSize::Grow(_) => {
                     let unbounded = Vec2::splat(f32::INFINITY);
                     let size = crate::layout::measure(doc, painter, item.child, unbounded);
                     let natural = self.main_and_cross(size).0;
@@ -245,8 +247,8 @@ impl ListNode {
                 let parts: Vec<Part> = run
                     .iter()
                     .map(|(item, basis, _)| match item.size.size {
-                        ItemSize::Percent(percent) => {
-                            Part::new(percent, 0.0, (item.size.max - basis).max(0.0))
+                        ItemSize::Grow(weight) => {
+                            Part::new(weight, 0.0, (item.size.max - basis).max(0.0))
                         }
                         _ => Part::new(0.0, 0.0, 0.0),
                     })
@@ -350,7 +352,11 @@ impl Element for ListNode {
             let size = item.size;
             let length = match size.size {
                 ItemSize::Fixed(fixed) if self.direction == Direction::Horizontal => {
-                    grid.snap(fixed.max(0.0))
+                    let fixed = grid.snap(fixed.max(0.0));
+                    match size.shrink > 0.0 {
+                        true => crate::layout::min_width(doc, painter, item.child).min(fixed),
+                        false => fixed,
+                    }
                 }
                 _ => crate::layout::min_width(doc, painter, item.child),
             };
@@ -364,6 +370,54 @@ impl Element for ListNode {
             };
         }
         total
+    }
+
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        if self.wrap {
+            return None;
+        }
+        let along = direction == self.direction;
+        if !along && direction == Direction::Vertical {
+            return None;
+        }
+        let grid = doc.pixel_grid();
+        let gaps = self.gaps(grid.snap(self.spacing), grid);
+        let mut total = 0.0f32;
+        for (item, gap) in self.items.iter().zip(gaps) {
+            let size = item.size;
+            if !along {
+                let least =
+                    crate::layout::least_length(doc, painter, item.child, direction, f32::INFINITY);
+                total = total.max(least);
+                continue;
+            }
+            let length = match size.size {
+                ItemSize::Fixed(fixed) if size.shrink > 0.0 => {
+                    let least =
+                        crate::layout::least_length(doc, painter, item.child, direction, cross);
+                    size.clamp(least.min(grid.snap(fixed.max(0.0))))
+                }
+                ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
+                _ if size.yields() => {
+                    let least =
+                        crate::layout::least_length(doc, painter, item.child, direction, cross);
+                    size.clamp(least)
+                }
+                _ => {
+                    let offered = direction.axes(f32::INFINITY, cross);
+                    let natural = crate::layout::measure(doc, painter, item.child, offered);
+                    size.clamp(direction.main(natural))
+                }
+            };
+            total += gap + length;
+        }
+        Some(total)
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
@@ -526,8 +580,8 @@ struct Slot {
     length: f32,
 }
 
-fn percent(size: &Sizing) -> bool {
-    matches!(size.size, ItemSize::Percent(_))
+fn grows(size: &Sizing) -> bool {
+    matches!(size.size, ItemSize::Grow(_))
 }
 
 fn distribute(grid: PixelGrid, available_main: f32, slots: &mut [Slot]) {
@@ -535,8 +589,8 @@ fn distribute(grid: PixelGrid, available_main: f32, slots: &mut [Slot]) {
         let length = match slot.size.size {
             ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
             ItemSize::Intrinsic => slot.length,
-            ItemSize::Percent(_) if !available_main.is_finite() => slot.length,
-            ItemSize::Percent(_) => {
+            ItemSize::Grow(_) if !available_main.is_finite() => slot.length,
+            ItemSize::Grow(_) => {
                 slot.length = 0.0;
                 continue;
             }
@@ -548,25 +602,25 @@ fn distribute(grid: PixelGrid, available_main: f32, slots: &mut [Slot]) {
     }
     let taken: f32 = slots
         .iter()
-        .map(|slot| match percent(&slot.size) {
+        .map(|slot| match grows(&slot.size) {
             true => slot.gap,
             false => slot.gap + slot.length,
         })
         .sum();
     let remaining = grid.snap(available_main - taken);
     let mut least = 0.0f32;
-    if slots.iter().any(|slot| percent(&slot.size)) {
+    if slots.iter().any(|slot| grows(&slot.size)) {
         let parts: Vec<Part> = slots
             .iter()
             .filter_map(|slot| match slot.size.size {
-                ItemSize::Percent(weight) => Some(Part::new(weight, slot.size.min, slot.size.max)),
+                ItemSize::Grow(weight) => Some(Part::new(weight, slot.size.min, slot.size.max)),
                 _ => None,
             })
             .collect();
         least = parts.iter().map(|part| part.min).sum();
         let shares = snapped_run(grid, &share(remaining.max(0.0), &parts));
         let mut shares = shares.into_iter();
-        for slot in slots.iter_mut().filter(|slot| percent(&slot.size)) {
+        for slot in slots.iter_mut().filter(|slot| grows(&slot.size)) {
             slot.length = shares.next().unwrap_or(0.0);
         }
     }
@@ -574,7 +628,7 @@ fn distribute(grid: PixelGrid, available_main: f32, slots: &mut [Slot]) {
     if overflow > 0.0 {
         let parts: Vec<Part> = slots
             .iter()
-            .map(|slot| match percent(&slot.size) {
+            .map(|slot| match grows(&slot.size) {
                 true => Part::new(0.0, 0.0, 0.0),
                 false => Part::new(
                     slot.size.shrink * slot.length,
@@ -585,7 +639,7 @@ fn distribute(grid: PixelGrid, available_main: f32, slots: &mut [Slot]) {
             .collect();
         let cuts = snapped_run(grid, &share(overflow, &parts));
         for (slot, cut) in slots.iter_mut().zip(cuts) {
-            if !percent(&slot.size) {
+            if !grows(&slot.size) {
                 slot.length -= cut;
             }
         }
@@ -644,7 +698,7 @@ impl Document {
         self.arena
             .get_mut_as::<ListNode>(parent)
             .items
-            .push(ListItem { child, size });
+            .push(ListEntry { child, size });
     }
 
     pub fn remove_child(&mut self, parent: NodeOf<ListNode>, child: NodeId) {

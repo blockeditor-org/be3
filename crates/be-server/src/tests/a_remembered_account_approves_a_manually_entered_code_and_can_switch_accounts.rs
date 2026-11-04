@@ -21,8 +21,9 @@ async fn a_remembered_account_approves_a_manually_entered_code_and_can_switch_ac
         .await;
     assert_eq!(status, 303);
     let page = browser.get(&harness, &format!("/auth?code={code}")).await;
-    assert!(page.contains("first@example.com"));
-    assert!(page.contains("Approve sign-in"));
+    let page = page_of(&page);
+    assert_eq!(page.account.unwrap().email, "first@example.com");
+    assert_eq!(page.screen, be_server_portal::Screen::Approve);
     let previous = browser.cookie.clone();
     assert_eq!(
         browser
@@ -60,6 +61,6 @@ async fn a_remembered_account_approves_a_manually_entered_code_and_can_switch_ac
         303
     );
     assert!(
-        matches!(app.send(|request| ClientMessage::FinishBrowserLogin { request, code, secret }).await, ServerMessage::Authenticated { email, .. } if email == "second@example.com")
+        matches!(app.call(|peer| client::account::finish_browser_login(peer, code, secret)).await, Ok(Authenticated { email, .. }) if email == "second@example.com")
     );
 }

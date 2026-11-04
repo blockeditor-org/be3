@@ -1,8 +1,9 @@
 use crate::reactive::{NodeId, OverlayAnchor};
 use crate::types::window::{
-    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole, WindowSpec,
+    WindowEdge, WindowId, WindowLevel, WindowPlacement, WindowReport, WindowRequest, WindowRole,
+    WindowSpec,
 };
-use crate::types::{LayerLevel, LayerPolicy, Placement, Pos2, Vec2};
+use crate::types::{LayerLevel, LayerPolicy, Placement, Pos2, Rect, Vec2};
 use beui_macros::{component, view};
 
 use crate::components::frame::Frame;
@@ -12,7 +13,7 @@ use crate::reactive::{
     provide_context, use_context,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct WindowHandle {
     pub id: WindowId,
     pub size: Memo<Vec2>,
@@ -25,8 +26,37 @@ impl WindowHandle {
         self.hosted.get()
     }
 
-    pub fn real_window(self) -> Option<WindowId> {
-        self.real.get_untracked()
+    pub fn real(self) -> Memo<Option<WindowId>> {
+        self.real
+    }
+
+    pub fn following(
+        id: WindowId,
+        current: impl Fn() -> Option<WindowHandle> + Clone + 'static,
+    ) -> Self {
+        let live = move || {
+            current().filter(|handle| {
+                handle.size.is_alive() && handle.hosted.is_alive() && handle.real.is_alive()
+            })
+        };
+        let last = std::rc::Rc::new(std::cell::Cell::new((Vec2::ZERO, false, None)));
+        let follow = move || {
+            if let Some(handle) = live() {
+                last.set((handle.size.get(), handle.hosted.get(), handle.real.get()));
+            }
+            last.get()
+        };
+        let sized = follow.clone();
+        let size = create_memo(move || sized().0);
+        let hosting = follow.clone();
+        let hosted = create_memo(move || hosting().1);
+        let real = create_memo(move || follow().2);
+        Self {
+            id,
+            size,
+            hosted,
+            real,
+        }
     }
 
     pub fn begin_move(self) -> bool {
@@ -42,6 +72,13 @@ impl WindowHandle {
 
     pub fn close(self) -> bool {
         crate::core::request_window(WindowRequest::Close(self.id))
+    }
+
+    pub fn place(self, placement: WindowPlacement) -> bool {
+        crate::core::request_window(WindowRequest::Place {
+            window: self.id,
+            placement,
+        })
     }
 }
 
@@ -63,8 +100,10 @@ pub fn Window(
     #[prop(default = None)] title: Prop<Option<String>>,
     #[prop(default = None)] notice: Prop<Option<String>>,
     #[prop(default = WindowRole::Normal)] role: Prop<WindowRole>,
+    #[prop(default = None)] fit: Prop<Option<Vec2>>,
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
+    #[prop(default = false)] fullscreen: Prop<bool>,
     #[prop(default = false)] keep_alive: bool,
     on_report: Callback<WindowReport>,
     #[prop(children)] content: RenderFn<WindowHandle>,
@@ -98,9 +137,18 @@ pub fn Window(
         }
         on_report.call(report);
     });
-    let width = create_memo(move || shown.get().x);
-    let height = create_memo(move || shown.get().y);
+    let fitting = fit.clone();
+    let width = create_memo(move || match fitting.get() {
+        Some(_) => crate::types::Extent::fraction(1.0),
+        None => crate::types::Extent::px(shown.get().x),
+    });
+    let fitting = fit.clone();
+    let height = create_memo(move || match fitting.get() {
+        Some(_) => crate::types::Extent::fraction(1.0),
+        None => crate::types::Extent::px(shown.get().y),
+    });
     let anchor = create_memo(move || OverlayAnchor::Point(at.get())).into_prop();
+    let leveled = level.clone();
     let spec = create_memo(move || {
         Some(WindowSpec {
             id,
@@ -109,6 +157,14 @@ pub fn Window(
             title: title.get(),
             notice: notice.get(),
             role: role.get(),
+            level: match (fullscreen.get(), leveled.get()) {
+                (true, _) => WindowLevel::Fullscreen,
+                (false, LayerLevel::Normal) => WindowLevel::Normal,
+                (false, LayerLevel::Raised | LayerLevel::Top | LayerLevel::Lock) => {
+                    WindowLevel::Above
+                }
+            },
+            fit: fit.get(),
             on_report: heard,
         })
     });
@@ -130,4 +186,12 @@ pub fn Window(
 
 pub fn opens_windows() -> crate::reactive::ReadSignal<bool> {
     crate::core::window::opens_windows()
+}
+
+pub fn window_origin(window: WindowId) -> Option<Pos2> {
+    crate::core::window::window_origin(window)
+}
+
+pub fn set_work_area(window: WindowId, area: Option<Rect>) {
+    crate::core::window::set_work_area(window, area);
 }

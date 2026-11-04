@@ -2,12 +2,21 @@ use std::error::Error;
 use std::ffi::CStr;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 
-use beui_core::app::Waker;
+use beui_core::program::Waker;
 use beui_renderer_wgpu::present::{OpenDevice, OpenGpu, plain_instance};
 
 use crate::Status;
 use crate::headset::{Missing, RETRY, Runtime, Xr};
 
+/// Finds a headset. It tries at once, then every `RETRY` on its own thread: load
+/// the runtime and make an instance, then ask for a system, keeping the instance
+/// while the answer is `FORM_FACTOR_UNAVAILABLE`, so SteamVR or a headset started
+/// later is found without restarting SteamVR. Each status change wakes the loop.
+///
+/// It is also the renderers' `OpenGpu`, since the runtime picks the GPU: it opens
+/// the device through the `Xr` it found (else a plain one) and reports `stale` once
+/// it has found an `Xr` the device was not opened through, so the renderer reopens
+/// its device as after a lost GPU.
 #[derive(Clone)]
 pub struct Link {
     inner: Arc<Inner>,
@@ -47,6 +56,7 @@ struct State {
     status: Status,
     waker: Option<Waker>,
     stopped: bool,
+    retry: bool,
 }
 
 impl Link {
@@ -59,6 +69,7 @@ impl Link {
                 status: Status::Missing(String::new()),
                 waker: None,
                 stopped: false,
+                retry: false,
             }),
             changed: Condvar::new(),
         });
@@ -105,6 +116,9 @@ impl Link {
         self.state().waker = Some(waker);
     }
 
+    /// After an instance loss: the device holds its `Xr` only weakly, since the
+    /// Khronos loader allows one instance at a time, so the headset drops it and the
+    /// `Link` looks again.
     pub fn lost(&self, xr: &Xr) {
         let mut state = self.state();
         if state.opened.as_ref().is_some_and(|opened| opened.same(xr)) {
@@ -115,6 +129,12 @@ impl Link {
             state.status = Status::Missing(format!("{} stopped", xr.runtime()));
         }
         drop(state);
+        self.inner.changed.notify_all();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn retry_now(&self) {
+        self.state().retry = true;
         self.inner.changed.notify_all();
     }
 
@@ -142,7 +162,14 @@ impl Link {
             let state = self.state();
             match state.found.as_ref().map(|xr| xr.runtime().to_owned()) {
                 Some(runtime) => eprintln!("beui-layer-xr: found a headset on {runtime}"),
-                None => drop(self.inner.changed.wait_timeout(state, RETRY)),
+                None => {
+                    let (mut state, _) = self
+                        .inner
+                        .changed
+                        .wait_timeout_while(state, RETRY, |state| !state.retry && !state.stopped)
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    state.retry = false;
+                }
             }
         }
     }

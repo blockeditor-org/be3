@@ -1,7 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 
 use beui_core::filter::Filter;
-use beui_core::geometry::Vec2;
+use beui_types::Vec2;
 
 const MAX_LEVELS: usize = 6;
 const MIN_OFFSET: f32 = 0.5;

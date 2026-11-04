@@ -13,10 +13,10 @@ struct Space {
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-@group(0) @binding(1) var atlas: texture_2d<f32>;
-@group(0) @binding(2) var atlas_sampler: sampler;
-@group(0) @binding(3) var colors: texture_2d<f32>;
 @group(1) @binding(0) var<uniform> space: Space;
+@group(2) @binding(0) var atlas: texture_2d<f32>;
+@group(2) @binding(1) var atlas_sampler: sampler;
+@group(2) @binding(2) var colors: texture_2d<f32>;
 
 struct Instance {
     @location(0) rect: vec4<f32>,
@@ -242,7 +242,10 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
         return vec4<f32>(input.color.rgb, input.color.a * edge * fade);
     }
     if input.params.z > 1.5 {
-        let texel = textureSampleLevel(atlas, atlas_sampler, input.uv, 0.0);
+        let texels = abs(input.segment.zw - input.segment.xy) * vec2<f32>(textureDimensions(atlas, 0));
+        let spread = texels / max(input.rect.zw - input.rect.xy, vec2<f32>(0.001));
+        let level = max(log2(max(spread.x, spread.y)), 0.0);
+        let texel = textureSampleLevel(atlas, atlas_sampler, input.uv, level);
         let center = (input.rect.xy + input.rect.zw) * 0.5;
         let extent = (input.rect.zw - input.rect.xy) * 0.5;
         let distance = rounded_distance(local - center, extent, input.params.x);

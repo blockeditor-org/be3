@@ -1,12 +1,12 @@
+use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui_html::Node;
+use beui_reactive::{Get, untrack};
 use beui_types::text::{FontId, LineBox, handle_shape};
 use beui_types::{Color, Rect, Vec2, pos2, vec2};
 use js_sys::{Array, Function, Reflect};
-use reactive::{Get, untrack};
 use wasm_bindgen::{JsCast, JsValue};
 
 use super::{Piece, Stop, TextModel, TextSlot, after, before, byte_at, model, text_stops};

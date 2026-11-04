@@ -11,7 +11,7 @@ use beui_view::types::{Overflow, TextAlign};
 use crate::list::List;
 use crate::tokens::{Length, Padding, Size, Space};
 use beui_view::reactive::*;
-use beui_view::types::{Align, Direction, ItemSize, Justify};
+use beui_view::types::{Align, Direction, Justify};
 
 const LABEL_SPACING: Space = Space::Xs2;
 const TREE_INDENT: Space = Space::Xl2;
@@ -196,9 +196,11 @@ pub fn RowFace(
                         </List>
                     </Frame>
                 </Show>
-                <Frame @sizing=ItemSize::Percent(100.0)>
-                    <RowLabel size label detail color={text_color} />
-                </Frame>
+                <ListItem grow=1.0>
+                    <Frame>
+                        <RowLabel size label detail color={text_color} />
+                    </Frame>
+                </ListItem>
                 <Show condition={has_shortcut}>
                     <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
                         {shortcut}

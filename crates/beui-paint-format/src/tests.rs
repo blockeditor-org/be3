@@ -1,0 +1,10 @@
+use super::*;
+
+mod a_field_left_at_its_default_is_not_written;
+mod a_painting_keeps_its_texture_pixels_through_encoding;
+mod a_painting_placed_with_a_corner_radius_shows_its_corners_rounded;
+mod a_painting_rasterizes_onto_a_transparent_background;
+mod a_preview_in_a_painting_is_replaced_by_the_painting_it_shows;
+mod a_preview_keeps_the_glyphs_it_shows_where_they_were;
+mod a_texture_drawn_smaller_averages_the_texels_it_covers;
+mod tidying_a_frame_keeps_its_pixels_and_drops_what_none_of_them_show;

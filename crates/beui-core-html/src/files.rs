@@ -34,7 +34,7 @@ mod web {
     fn answer(picked: &Picked, pick: FilePick) {
         if let Some(picked) = picked.borrow_mut().take() {
             picked(pick);
-            reactive::flush();
+            beui_reactive::flush();
         }
     }
 

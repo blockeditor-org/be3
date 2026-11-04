@@ -7,12 +7,13 @@ license.workspace = true
 [dependencies]
 accesskit = "0.24.1"
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui-macros" }
+beui-macros = { path = "../beui-macros" }
 emojis = "0.9"
 foldhash = "0.2"
 memchr = "2"
-reactive = { path = "../reactive" }
-text-editor-core = { path = "../text-editor-core" }
+beui-reactive = { path = "../beui-reactive" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+beui-text-editor-core = { path = "../beui-text-editor-core" }
 
 [lints]
 workspace = true

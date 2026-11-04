@@ -6,12 +6,12 @@ fn dragging_the_move_control_carries_the_panel() {
     let window = open_ahead(&mut space, now, 0.4);
     let grab = on_part(&space, window, Part::Move);
     assert_eq!(
-        space.cursor_icon(&app_frame(CursorIcon::Default)),
+        space.cursor_icon(&program_frame(CursorIcon::Default)),
         CursorIcon::Default
     );
     send(&mut space, now, [Input::PointerMoved(grab)]);
     assert_eq!(
-        space.cursor_icon(&app_frame(CursorIcon::Default)),
+        space.cursor_icon(&program_frame(CursorIcon::Default)),
         CursorIcon::Grab
     );
     let pressed = send(&mut space, now, [button(grab, true)]);
@@ -19,14 +19,14 @@ fn dragging_the_move_control_carries_the_panel() {
         delivered(&pressed)
             .iter()
             .all(|(_, input)| *input == Input::PointerLeft),
-        "the app sees no press"
+        "the program sees no press"
     );
     assert_eq!(
         space.mouse.carry.as_ref().map(|carry| carry.window),
         Some(window)
     );
     assert_eq!(
-        space.cursor_icon(&app_frame(CursorIcon::Default)),
+        space.cursor_icon(&program_frame(CursorIcon::Default)),
         CursorIcon::Grabbing
     );
 

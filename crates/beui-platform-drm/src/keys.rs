@@ -24,6 +24,7 @@ fn named(keysym: u32) -> Option<Key> {
         keysyms::KEY_Tab | keysyms::KEY_ISO_Left_Tab => Key::Tab,
         keysyms::KEY_Insert | keysyms::KEY_KP_Insert => Key::Insert,
         keysyms::KEY_XF86Back => Key::BrowserBack,
+        keysyms::KEY_Menu => Key::ContextMenu,
         keysyms::KEY_XF86AudioRaiseVolume => Key::VolumeUp,
         keysyms::KEY_XF86AudioLowerVolume => Key::VolumeDown,
         keysyms::KEY_XF86AudioMute => Key::VolumeMute,

@@ -23,7 +23,7 @@ use beui_view::types::TextAlign;
 use beui_view::types::icons::{
     ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_DOT,
 };
-use beui_view::types::{Align, Align2, Direction, ItemSize};
+use beui_view::types::{Align, Align2, Direction};
 use beui_view::types::{Pos2, Rect};
 
 const PADDING_HORIZONTAL: Space = Space::Lg;
@@ -47,13 +47,14 @@ const TREE_CHEVRON: Size = Size::Xs;
 pub fn ContextMenu(
     children: Child,
     items: Children<MenuItem>,
-    #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
+    #[prop(default = 0.0)] child_grow: Prop<f32>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
     #[prop(default = true)] open_at_focuses: bool,
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     on_close: ClickCallback,
     #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
     on_toolbar_close: ClickCallback,
@@ -62,13 +63,14 @@ pub fn ContextMenu(
         <unstyled::ContextMenu
             items
             menu={menu_style()}
-            child_size={child_size}
+            child_grow={child_grow}
             disabled={disabled}
             open_at={open_at}
             open_at_focuses
             selection
             toolbar_at
             opens_on_hold
+            bounds
             on_close={on_close}
             on_select={on_select}
             on_toolbar_close={on_toolbar_close}
@@ -83,9 +85,11 @@ pub fn MenuPopup(
     items: Children<MenuItem>,
     anchor: Prop<OverlayAnchor>,
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     open: Prop<bool>,
     #[prop(default = false)] sheet: Prop<bool>,
     #[prop(default = Size::Menu)] min_width: Prop<Size>,
+    #[prop(default = NodeRef::new())] overlay: NodeRef,
     on_dismiss: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
@@ -100,9 +104,28 @@ pub fn MenuPopup(
             menu={sized_menu_style(min_width.get_untracked())}
             anchor
             placement
+            bounds
             open={open}
             sheet={sheet}
+            overlay
             on_dismiss={on_dismiss}
+            on_select={on_select}
+        />
+    }
+}
+
+#[component]
+pub fn MenuRows(
+    items: Children<MenuItem>,
+    #[prop(default = Size::Menu)] min_width: Prop<Size>,
+    #[prop(default = false)] active: Prop<bool>,
+    on_select: Callback<Vec<usize>>,
+) -> NodeId {
+    view! {
+        <unstyled::MenuRows
+            items={items.into_run()}
+            menu={sized_menu_style(min_width.get_untracked())}
+            active
             on_select={on_select}
         />
     }
@@ -163,7 +186,7 @@ fn ToolbarButton(handle: ButtonHandle) -> NodeId {
 fn ToolbarPanel(children: Child) -> NodeId {
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Md
             padding=MENU_PADDING
@@ -211,7 +234,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         depth,
         expanded,
         toggle,
-        hovered,
+        pointed,
         focused,
         ..
     } = handle;
@@ -225,24 +248,23 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         (false, true) => TextColor::Danger,
         (false, false) => TextColor::Default,
     });
-    let icon_color = create_memo(move || match (disabled.get(), danger.get()) {
-        (true, _) => TextColor::Muted,
-        (false, true) => TextColor::Danger,
+    let glyph = leading_mark(kind, glyph, checked, radio);
+    let icon_color = create_memo(move || match (disabled.get(), danger.get(), glyph.get()) {
+        (true, _, _) => TextColor::Muted,
+        (false, true, _) => TextColor::Danger,
+        (false, false, LeadingMark::Mark(_)) => TextColor::Accent,
         _ => glyph_color
             .get()
             .map_or(TextColor::Muted, TextColor::Custom),
     });
-    let glyph = create_memo(move || match kind {
-        MenuRowKind::Back => Some(ICON_CHEVRON_LEFT),
-        _ => glyph.get(),
-    });
-    let has_glyph = create_memo(move || glyph.get().is_some() || glyphs.get());
+    let has_glyph = create_memo(move || glyph.get() != LeadingMark::None || glyphs.get());
+    let glyph = create_memo(move || glyph.get().glyph());
     let lead = create_memo(move || lead.get());
     let has_lead = create_memo(move || !lead.get().is_empty());
     let detail = create_memo(move || detail.get());
     let has_detail = create_memo(move || !detail.get().is_empty());
     let chevron_color = TextColor::Muted;
-    let fill_color = create_memo(move || row_background(focused.get(), hovered.get()));
+    let fill_color = create_memo(move || row_background(focused.get(), pointed.get()));
     view! {
         <List spacing=MENU_PADDING>
             <Show condition={separated}>
@@ -261,32 +283,30 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                     <Show condition={has_glyph}>
                         <GlyphSlot glyph color={icon_color} />
                     </Show>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
-                        <Text color align=TextAlign::Start overflow=Overflow::Ellipsis>
-                            {label}
-                        </Text>
-                        <Show condition={has_detail}>
-                            <Text
-                                size=TextSize::Sm
-                                color=TextColor::Muted
-                                align=TextAlign::Start
-                                overflow=Overflow::Ellipsis
-                            >
-                                {detail}
+                    <ListItem grow=1.0>
+                        <List spacing=Space::Xs2>
+                            <Text color align=TextAlign::Start overflow=Overflow::Ellipsis>
+                                {label}
                             </Text>
-                        </Show>
-                    </List>
+                            <Show condition={has_detail}>
+                                <Text
+                                    size=TextSize::Sm
+                                    color=TextColor::Muted
+                                    align=TextAlign::Start
+                                    overflow=Overflow::Ellipsis
+                                >
+                                    {detail}
+                                </Text>
+                            </Show>
+                        </List>
+                    </ListItem>
                     <Show condition={has_shortcut}>
-                        <Text
-                            @sizing={ItemSize::Intrinsic.gap(SHORTCUT_SPACING.px())}
-                            size=TextSize::Sm
-                            color=TextColor::Muted
-                            align=TextAlign::End
-                        >
-                            {shortcut}
-                        </Text>
+                        <ListItem gap={SHORTCUT_SPACING.px()}>
+                            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
+                                {shortcut}
+                            </Text>
+                        </ListItem>
                     </Show>
-                    <MenuCheck checked radio />
                     <Show condition={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
                             <Icon glyph=ICON_CHEVRON_RIGHT />
@@ -309,23 +329,40 @@ fn GlyphSlot(glyph: Memo<Option<Glyph>>, color: Memo<TextColor>) -> NodeId {
     }
 }
 
-#[component]
-pub(crate) fn MenuCheck(
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LeadingMark {
+    None,
+    Icon(Glyph),
+    Mark(Glyph),
+    Unmarked,
+}
+
+impl LeadingMark {
+    fn glyph(self) -> Option<Glyph> {
+        match self {
+            LeadingMark::Icon(glyph) | LeadingMark::Mark(glyph) => Some(glyph),
+            LeadingMark::None | LeadingMark::Unmarked => None,
+        }
+    }
+}
+
+fn leading_mark(
+    kind: MenuRowKind,
+    glyph: Prop<Option<Glyph>>,
     checked: Prop<Option<bool>>,
-    #[prop(default = false)] radio: bool,
-) -> DynamicSegment<ListChild> {
-    let ticked = create_memo(move || checked.get() == Some(true));
+    radio: bool,
+) -> Memo<LeadingMark> {
     let tick = match radio {
         true => ICON_DOT,
         false => ICON_CHECK,
     };
-    view! {
-        <Show condition={ticked}>
-            <Text size=TextSize::Sm color=TextColor::Accent align=TextAlign::Center>
-                <Icon glyph=tick />
-            </Text>
-        </Show>
-    }
+    create_memo(move || match (kind, checked.get(), glyph.get()) {
+        (MenuRowKind::Back, _, _) => LeadingMark::Icon(ICON_CHEVRON_LEFT),
+        (_, Some(true), _) => LeadingMark::Mark(tick),
+        (_, Some(false), _) => LeadingMark::Unmarked,
+        (_, None, Some(glyph)) => LeadingMark::Icon(glyph),
+        (_, None, None) => LeadingMark::None,
+    })
 }
 
 #[component]
@@ -335,7 +372,7 @@ pub(crate) fn MenuTreeLead(
     toggle: ClickCallback,
     indent: Space,
     chevron: Size,
-) -> DynamicSegment<ListChild> {
+) -> DynamicSegment<ListItem> {
     let indent = use_space(indent);
     let depth = create_memo(move || depth.get());
     let in_tree = create_memo(move || depth.get().is_some());
@@ -406,25 +443,30 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Padding) -> NodeId {
         label,
         glyph,
         glyph_color,
+        checked,
         disabled,
-        hovered,
+        pointed,
         focused,
         ..
     } = handle;
     let disabled = create_memo(move || disabled.get());
-    let color = create_memo(move || match disabled.get() {
-        true => TextColor::Muted,
-        false => TextColor::Default,
+    let ticked = create_memo(move || checked.get() == Some(true));
+    let color = create_memo(move || match (disabled.get(), ticked.get()) {
+        (true, _) => TextColor::Muted,
+        (false, true) => TextColor::Accent,
+        (false, false) => TextColor::Default,
     });
-    let icon_color = create_memo(move || match disabled.get() {
-        true => TextColor::Muted,
-        false => glyph_color
+    let icon_color = create_memo(move || match (disabled.get(), ticked.get()) {
+        (true, _) => TextColor::Muted,
+        (false, true) => TextColor::Accent,
+        (false, false) => glyph_color
             .get()
             .map_or(TextColor::Default, TextColor::Custom),
     });
-    let fill_color = create_memo(move || row_background(focused.get(), hovered.get()));
+    let fill_color = create_memo(move || row_background(focused.get(), pointed.get()));
+    let border = create_memo(move || ticked.get().then_some(Border::new(ColorRole::Accent)));
     view! {
-        <Frame fill={fill_color} radius=Radius::Md padding>
+        <Frame fill={fill_color} border radius=Radius::Md padding>
             <List align=Align::Center spacing=TILE_SPACING>
                 <Text size=TextSize::Xl color={icon_color} align=TextAlign::Center>
                     <Icon glyph={glyph} />
@@ -474,20 +516,21 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         depth,
         expanded,
         toggle,
-        hovered,
+        pointed,
         active,
         focused,
         ..
     } = handle;
-    let glyph = match kind {
-        MenuRowKind::Back => Prop::Static(Some(ICON_CHEVRON_LEFT)),
-        _ => glyph,
-    };
-    let trailing = create_memo(move || match (has_submenu.get(), checked.get(), radio) {
-        (true, _, _) => RowTrailing::Chevron,
-        (false, Some(true), true) => RowTrailing::Radio,
-        (false, Some(true), false) => RowTrailing::Check,
-        _ => RowTrailing::None,
+    let mark = leading_mark(kind, glyph, checked, radio);
+    let leading = create_memo(move || glyphs.get() || mark.get() != LeadingMark::None);
+    let glyph_color = create_memo(move || match mark.get() {
+        LeadingMark::Mark(_) => Some(TextColor::Accent),
+        _ => glyph_color.get().map(TextColor::Custom),
+    });
+    let glyph = create_memo(move || mark.get().glyph());
+    let trailing = create_memo(move || match has_submenu.get() {
+        true => RowTrailing::Chevron,
+        false => RowTrailing::None,
     });
     view! {
         <List spacing=SHEET_SEPARATOR_SPACING>
@@ -495,7 +538,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
                 <Separator />
             </Show>
             <RowFace
-                hovered
+                hovered=pointed
                 active
                 focused
                 disabled
@@ -504,9 +547,9 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
                 label
                 lead
                 glyph
-                glyph_color={create_memo(move || glyph_color.get().map(TextColor::Custom))}
+                glyph_color
                 detail
-                leading={glyphs}
+                leading
                 trailing={trailing}
                 depth
                 expanded
@@ -521,28 +564,26 @@ fn MenuPanel(min_width: Size, children: Child) -> NodeId {
     let min_width = use_size(min_width).get_untracked();
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <Frame
-                @sizing={ItemSize::Intrinsic.min(min_width).max(MENU_MAX_WIDTH).shrink(1.0)}
-                fill=ColorRole::SurfaceRaised
-                border={Border::DEFAULT}
-                radius=Radius::Md
-            >
-                <List spacing=Space::None>
-                    <unstyled::Scroll
-                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                        fit=true
-                        scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
-                    >
-                        <Frame padding=MENU_PADDING>{children}</Frame>
-                    </unstyled::Scroll>
-                </List>
-            </Frame>
+            <ListItem min=min_width max=MENU_MAX_WIDTH shrink=1.0>
+                <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius=Radius::Md>
+                    <List spacing=Space::None>
+                        <ListItem shrink=1.0>
+                            <unstyled::Scroll
+                                fit=true
+                                scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
+                            >
+                                <Frame padding=MENU_PADDING>{children}</Frame>
+                            </unstyled::Scroll>
+                        </ListItem>
+                    </List>
+                </Frame>
+            </ListItem>
         </List>
     }
 }
 
-fn row_background(focused: bool, hovered: bool) -> ColorRole {
-    match (focused, hovered) {
+fn row_background(focused: bool, pointed: bool) -> ColorRole {
+    match (focused, pointed) {
         (true, _) => ColorRole::AccentSoft,
         (false, true) => ColorRole::Pressed,
         (false, false) => ColorRole::None,

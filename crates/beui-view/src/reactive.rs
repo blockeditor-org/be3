@@ -14,11 +14,13 @@ pub use crate::actions::{
     active_actions_from, add_to_menu, document_menu, menu_action, tidy_menu,
 };
 pub use crate::animation::{
-    Animation, AnimationFrame, Easing, Fling, Motion, Spring, create_animation, motion, tween,
+    Animation, AnimationFrame, Easing, Fling, Motion, Spring, Velocity, create_animation, motion,
+    tween,
 };
 pub use crate::colors::{color_scheme, define_colors, resolve_color};
 pub use crate::component_ref::ComponentRef;
 pub use crate::components::glide::{glide_displacement, hold_glide, set_raised};
+pub use crate::components::list::ListItem;
 pub use crate::file_picker::{FileFilter, FilePick, FilePicker, create_file_picker, pick_file};
 pub use crate::file_saver::{FileSave, SavedFile, save_file};
 pub use crate::measure::{
@@ -29,10 +31,7 @@ pub use crate::painter::{Draw, Painter, TextBlock};
 pub use crate::types::keys::{KeyAt, KeyEvent, KeyInput};
 pub use crate::types::layer::OverlayAnchor;
 pub use crate::types::node::{BuildsNode, ImeCursor, NodeId, NodeRef};
-pub use crate::types::tree::{
-    BareChild, FromPlaced, ListChild, ParentKind, Placed, WithSizing, with_sizing,
-    with_sizing as sizing,
-};
+pub use crate::types::tree::{BareChild, FromPlaced, ParentKind, Placed};
 
 pub type Child = NodeId;
 
@@ -50,10 +49,13 @@ pub fn node_ref<T: BuildsNode>(built: T, reference: &NodeRef) -> T {
     built
 }
 
+/// Owned by the reactive scope that created it; calling it after that scope is gone does
+/// nothing.
 #[derive(Clone, Copy)]
 pub struct Timer(core::Timer);
 
 impl Timer {
+    /// Keeps an earlier deadline if one is set; `restart` replaces it.
     pub fn start(&self, delay: Duration) {
         self.0.start(delay);
     }
@@ -71,10 +73,17 @@ impl Timer {
     }
 }
 
+/// beui has no per-frame hook: anything that depends on time asks for it here. Due timers
+/// run at the top of a frame and the document asks for a repaint at the next deadline, so
+/// nothing is drawn while none is due. `work` returns `Some(delay)` to run again and
+/// `None` once settled. A program settles for `drive` only once no frame is asked for
+/// immediately, so endless motion (an indeterminate progress bar) should ask for its next
+/// step a frame's time later (`Some(Duration::from_millis(16))`), not `Duration::ZERO`.
 pub fn create_timer(work: impl Fn() -> Option<Duration> + 'static) -> Timer {
     Timer(core::create_timer(work))
 }
 
+/// The frame clock: tests stop and step it, so read time here, never `Instant::now()`.
 pub fn now() -> Instant {
     core::now()
 }
@@ -97,6 +106,10 @@ pub fn component_node() -> NodeRef {
 
 pub fn component_placed() -> ReadSignal<bool> {
     crate::core::tree::component_placed()
+}
+
+pub fn accessibility_reference(node: NodeId) -> accesskit::NodeId {
+    crate::core::tree::accessibility_reference(node)
 }
 
 pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
@@ -147,6 +160,10 @@ pub fn window_of(node: NodeId) -> WindowId {
     core::window_of(node)
 }
 
+pub fn opener_of(node: NodeId) -> NodeId {
+    core::opener_of(node)
+}
+
 pub fn stacked_at(nodes: &[NodeId], window: WindowId, pos: Pos2) -> Vec<NodeId> {
     core::stacked_at(nodes, window, pos)
 }
@@ -171,6 +188,10 @@ pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
     core::focus_ring(focused.into_prop())
 }
 
+pub fn focus_visible() -> bool {
+    core::focus_visible()
+}
+
 pub fn holds_focus(node: NodeRef) -> Memo<bool> {
     core::holds_focus(node)
 }
@@ -189,8 +210,28 @@ pub fn focus_outline(
     })
 }
 
-pub fn arrow_focus(row: NodeRef, direction: Direction) {
-    core::arrow_focus(row, direction);
+pub fn keep_clear(node: NodeId, rects: impl IntoProp<Vec<crate::types::Rect>>) {
+    core::keep_clear(node, rects.into_prop());
+}
+
+/// Keeps `node` above embeds painted before it: see `AboveEmbeds`.
+pub fn above_embeds(node: NodeId, above: impl IntoProp<Option<crate::types::AboveEmbeds>>) {
+    core::above_embeds(node, above.into_prop());
+}
+
+pub fn window_point(pos: Pos2, from: WindowId, to: WindowId) -> Option<Pos2> {
+    match from == to {
+        true => Some(pos),
+        false => Some(to_host(to)?.inverse_point(to_host(from)?.point(pos))),
+    }
+}
+
+pub fn to_host(window: WindowId) -> Option<crate::types::HostTransform> {
+    core::to_host(window)
+}
+
+pub fn arrow_focus(row: NodeRef, direction: impl IntoProp<Direction>) {
+    core::arrow_focus(row, direction.into_prop());
 }
 
 pub fn held_modifiers() -> ReadSignal<Modifiers> {
@@ -246,8 +287,13 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     core::pixels_per_point()
 }
 
-pub fn use_viewport_size() -> ReadSignal<Vec2> {
-    core::use_viewport_size()
+pub fn use_viewport_size() -> Memo<Vec2> {
+    let viewport = core::use_viewport_size();
+    let window = crate::window::use_window();
+    create_memo(move || match window.filter(|window| window.is_window()) {
+        Some(window) => window.size.get(),
+        None => viewport.get(),
+    })
 }
 
 pub fn use_font_revision() -> ReadSignal<u64> {

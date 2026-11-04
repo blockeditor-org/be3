@@ -1,28 +1,27 @@
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use beui_core::app::Setup;
-use beui_core::color::Color32;
 use beui_core::context::{Context, FrameOutput, WindowOutput};
-use beui_core::damage::Region;
 use beui_core::display::Layer;
 use beui_core::drawing::Drawing;
-use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
-use beui_core::input::{CursorIcon, Input, Key, Keystroke, Modifiers, PointerButton, TouchPhase};
 use beui_core::painter::Shape;
-use beui_core::runner::{
+use beui_core::program::Setup;
+use beui_core::window::{WindowHosting, WindowState};
+use beui_renderer_wgpu::present::GpuSetup;
+use beui_runner::{
     Controller, Frame as RunnerFrame, Hand, Incoming, LayerFrame, LayerView, SCROLL_LINE,
     Shown as Layered, Units, scrolled,
 };
-use beui_core::window::{
-    WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
-    WindowState,
-};
-use beui_renderer_wgpu::present::GpuSetup;
+use beui_types::Color32;
+use beui_types::geometry::Region;
+use beui_types::{CursorIcon, Input, Key, Keystroke, Modifiers, PointerButton, TouchPhase};
+use beui_types::{Pos2, Rect, Vec2, pos2};
+use beui_types::{WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole};
 use glam::{Mat4, Quat, Vec3};
 
 use crate::carry::{Carry, NEAREST};
 use crate::chrome::{self, Chrome, Corner, Gesture, Look, Part, Side};
+use crate::contact;
 use crate::cursor::{self, Sprite};
 use crate::head::{Body, Head, Ray, TURN_PER_PIXEL, View, Views};
 use crate::hold::Hold;
@@ -30,8 +29,9 @@ use crate::laser::{self, Ending, Laser};
 use crate::layers::{Allowance, Candidate, PanelLayer};
 use crate::notice::{self, Notice};
 use crate::panel::{Hit, Panel, Pose, pick};
-use crate::render::{Beam, ChromeFrame, Compositor, Frame, PanelFrame};
+use crate::render::{Beam, ChromeFrame, Compositor, Frame, Outline, PanelFrame};
 use crate::resize::Resize;
+use crate::tuning::Tuning;
 
 pub const SKY: Color32 = Color32::from_rgb(22, 25, 31);
 const MOST_SECONDS: f32 = 0.1;
@@ -42,6 +42,8 @@ pub const OPEN_GRAB: Pos2 = pos2(24.0, 16.0);
 pub const OVER_NEARER: f32 = 0.03;
 pub const CURSOR_LIFT: f32 = 0.01;
 pub const KEYBOARD_GAP: f32 = 12.0;
+pub const FLASH_SECONDS: f32 = 1.0;
+const FLASH_SAMPLES: usize = 5;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct Stroke {
@@ -131,9 +133,16 @@ struct Shown {
     look: Option<cursor::Look>,
     chrome: Vec<(WindowId, Look, f32)>,
     beams: Vec<Beam>,
+    outlines: Vec<Outline>,
     notice: Option<Notice>,
+    label: Option<String>,
 }
 
+/// The VR simulator, and the scene a headset shows: every window of the program
+/// is a `Panel` in a first-person 3D scene. Space opens every window itself
+/// (`WindowHosting::Any`), rewrites the platform's input onto the panels, and
+/// composites them into the one main window it leaves shown, which mirrors the
+/// centre eye. No platform knows about it.
 pub struct Space {
     pub head: Head,
     pub body: Body,
@@ -157,11 +166,11 @@ pub struct Space {
     grabbed: bool,
     hold: Hold,
     regrabbing: Vec<PointerButton>,
-    app_locked: bool,
+    program_locked: bool,
     sprite: Sprite,
     focused: Option<WindowId>,
     keyboards: Vec<WindowId>,
-    popups: Vec<WindowId>,
+    popups: Vec<(WindowId, Option<WindowId>)>,
     typing: Option<(WindowId, Rect)>,
     pressed: u32,
     dropped: u32,
@@ -176,7 +185,9 @@ pub struct Space {
     scales: Vec<(WindowId, f32)>,
     rescaling: Vec<(WindowId, f32, Instant)>,
     titles: Vec<(WindowId, chrome::Title)>,
+    flashes: Vec<(WindowId, Instant)>,
     notice: Option<Notice>,
+    pub tuning: Tuning,
 }
 
 impl Default for Space {
@@ -210,7 +221,7 @@ impl Space {
             grabbed: true,
             hold: Hold::default(),
             regrabbing: Vec::new(),
-            app_locked: false,
+            program_locked: false,
             sprite: Sprite::new(),
             focused: None,
             keyboards: Vec::new(),
@@ -229,7 +240,9 @@ impl Space {
             scales: Vec::new(),
             rescaling: Vec::new(),
             titles: Vec::new(),
+            flashes: Vec::new(),
             notice: None,
+            tuning: Tuning::default(),
         }
     }
 
@@ -394,6 +407,9 @@ impl Space {
         &self.keyboards
     }
 
+    /// No keyboard counts as attached while any laser has a ray, so a tapped field
+    /// opens beui's on-screen keyboard as a panel; with mouse and keyboard this says
+    /// nothing.
     pub fn keyboard_attached(&self) -> Option<bool> {
         self.lasers
             .iter()
@@ -401,11 +417,16 @@ impl Space {
             .then_some(false)
     }
 
+    /// Focus follows clicks, not the cursor, and opening or carrying a panel focuses
+    /// it; a press on nothing focuses none. A change reaches the program as
+    /// `WindowReport::Focused`, so its document lets go of, and later restores, the
+    /// keyboard focus inside that window. Keyboard and popup windows never take the
+    /// focus: the keyboard's keys type into the field, and a Wayland popup's grab ends
+    /// when its toplevel loses the keyboard.
     fn focus(&mut self, window: Option<WindowId>) {
         if self.focused == window
-            || window.is_some_and(|window| {
-                self.keyboards.contains(&window) || self.popups.contains(&window)
-            })
+            || window
+                .is_some_and(|window| self.keyboards.contains(&window) || self.is_popup(window))
         {
             return;
         }
@@ -418,6 +439,41 @@ impl Space {
         self.focused = window;
     }
 
+    fn is_popup(&self, window: WindowId) -> bool {
+        self.popups.iter().any(|(popup, _)| *popup == window)
+    }
+
+    /// A mouse press or trigger pull anywhere but on a popup or a popup placed `Over`
+    /// it (chrome included) closes it, reporting `Closed`; the press goes no further,
+    /// nor does its release.
+    fn dismiss_popups(&mut self, ray: Ray, out: &mut Vec<Incoming>) -> bool {
+        let pressed = self
+            .chrome_hit(ray)
+            .map(|(_, hit)| hit.window)
+            .or_else(|| self.pick(ray).map(|hit| hit.window));
+        let mut kept = Vec::new();
+        let mut on = pressed;
+        while let Some(window) = on.filter(|window| !kept.contains(window)) {
+            kept.push(window);
+            on = self
+                .popups
+                .iter()
+                .find(|(popup, _)| *popup == window)
+                .and_then(|(_, over)| *over);
+        }
+        let gone: Vec<WindowId> = self
+            .popups
+            .iter()
+            .map(|(popup, _)| *popup)
+            .filter(|popup| !kept.contains(popup))
+            .collect();
+        for popup in &gone {
+            self.close(*popup);
+            out.push(Incoming::Window(WindowReport::Closed(*popup)));
+        }
+        !gone.is_empty()
+    }
+
     fn pressed_on(&self, ray: Ray) -> Option<WindowId> {
         let chrome = self.chrome_hit(ray).filter(|_| self.pressed == 0);
         chrome
@@ -425,6 +481,10 @@ impl Space {
             .or_else(|| self.pick(ray).map(|hit| hit.window))
     }
 
+    /// While the main window has focus space holds the pointer locked, so the mouse
+    /// sends only motion. Losing focus, the platform dropping the lock (a browser on
+    /// Escape) or holding Escape (`hold`) lets it go, and the next press into the
+    /// window grabs it again and reaches nothing, nor does its release.
     pub fn grabbed(&self) -> bool {
         self.grabbed
     }
@@ -453,7 +513,7 @@ impl Space {
     }
 
     pub fn cursor_shown(&self) -> bool {
-        self.grabbed || self.app_locked
+        self.grabbed || self.program_locked
     }
 
     fn toward(&self, point: Vec3) -> Ray {
@@ -521,6 +581,10 @@ impl Space {
             .or_else(|| self.cursor_away().map(|(at, _)| at))
     }
 
+    /// The cursor is a point in the world, `CURSOR_LIFT` of the distance in front of
+    /// what the ray hits, or on a miss at the last hit's distance. Turning and walking
+    /// leave it where it is, and nothing holds it inside the view; `cursor_away` draws
+    /// a marker at the screen's edge pointing to it.
     fn place_cursor(&mut self, ray: Ray) {
         let distance = match self.hit_along(ray) {
             Some(hit) => {
@@ -581,13 +645,14 @@ impl Space {
         let scale = self.cursor_scale(at);
         let rotation = self.head.rotation();
         let (right, up) = (rotation * Vec3::X, rotation * Vec3::Y);
-        let centre = cursor::SIZE / 2.0 - cursor::HOTSPOT.to_vec2();
+        let size = self.sprite.size();
+        let centre = size / 2.0 - cursor::HOTSPOT.to_vec2();
         let middle = at + (right * centre.x - up * centre.y) * scale;
         PanelFrame {
             window: self.sprite.window,
             model: Mat4::from_cols(
-                (right * cursor::SIZE.x * scale).extend(0.0),
-                (up * cursor::SIZE.y * scale).extend(0.0),
+                (right * size.x * scale).extend(0.0),
+                (up * size.y * scale).extend(0.0),
                 (rotation * Vec3::Z).extend(0.0),
                 middle.extend(1.0),
             ),
@@ -683,7 +748,7 @@ impl Space {
             Input::PointerMotion(motion) if self.steering() => {
                 self.look(self.pixels(units, motion));
             }
-            Input::PointerMotion(motion) if !self.app_locked => {
+            Input::PointerMotion(motion) if !self.program_locked => {
                 self.move_cursor(self.pixels(units, motion), out);
             }
             Input::PointerMoved(at) => {
@@ -732,6 +797,7 @@ impl Space {
                                 | Input::ScrollStarted
                                 | Input::ScrollEnded
                                 | Input::Zoom(_)
+                                | Input::Touchpad(_)
                                 | Input::PointerMotion(_)
                         ) {
                             out.push(Incoming::new(units, input));
@@ -744,7 +810,8 @@ impl Space {
 
     fn swung(&self, direction: Vec3, pixels: Vec2) -> Vec3 {
         let angles = glam::Vec2::new(pixels.x, -pixels.y) / Head::pixels_per_radian(self.platform);
-        self.head.swing(direction, angles)
+        let up = self.tuning.up(self.tracked.is_some()).of(&self.head);
+        self.head.swing(direction, angles, up)
     }
 
     fn move_cursor(&mut self, pixels: Vec2, out: &mut Vec<Incoming>) {
@@ -819,6 +886,15 @@ impl Space {
         let Some(ray) = self.cursor_ray() else {
             return;
         };
+        if pressed
+            && self.mouse.gripped().is_none()
+            && self.mouse.gesture.is_none()
+            && self.pressed == 0
+            && self.dismiss_popups(ray, out)
+        {
+            self.dropped += 1;
+            return;
+        }
         if pressed && self.mouse.gripped().is_none() && self.mouse.gesture.is_none() {
             self.focus(self.pressed_on(ray));
         }
@@ -833,6 +909,10 @@ impl Space {
         }
     }
 
+    /// Off every panel with a button held, moves and the release go to the window the
+    /// press began in, at the point the ray meets that panel's surface outside its
+    /// rectangle. That is how a program tells a drop on nothing (the dock floats a tab
+    /// dropped there).
     fn beyond(&mut self, pointer: Pointer, window: WindowId, ray: Ray) -> Pos2 {
         let hit = self.panel(window).and_then(|panel| panel.intersect(ray));
         let Some(held) = self.held_mut(pointer) else {
@@ -947,6 +1027,10 @@ impl Space {
             .map_or(Pos2::ZERO, |hit| hit.pos)
     }
 
+    /// Ctrl and Shift held together steer. Either alone reaches the program; when the
+    /// other joins, the program sees both released and its modifiers cleared. No key
+    /// pressed while steering reaches the program, nor its release, so a program in
+    /// space never sees a Ctrl+Shift chord.
     fn modifiers(&mut self, units: Units, modifiers: Modifiers, out: &mut Vec<Incoming>) {
         let was = self.steering();
         self.modifiers = modifiers;
@@ -994,6 +1078,20 @@ impl Space {
         {
             self.walking.retain(|held| *held != key);
         }
+        if keystroke.pressed
+            && self.modifiers.ctrl
+            && self.modifiers.alt
+            && !self.modifiers.shift
+            && let Some(key) = keystroke.key
+            && self
+                .tuning
+                .key(key, keystroke.repeat, self.tracked.is_some(), self.clock)
+        {
+            if !self.swallowed.contains(&stroke) {
+                self.swallowed.push(stroke);
+            }
+            return;
+        }
         if self.swallowed.contains(&stroke) {
             if !keystroke.pressed {
                 self.swallowed.retain(|held| *held != stroke);
@@ -1028,6 +1126,12 @@ impl Space {
         out.push(Incoming::new(units, Input::Key(keystroke)));
     }
 
+    /// Starts a carry with no program request (chrome's move). A program's
+    /// `BeginMove` or `BeginResize` starts one only while a press it was given is held
+    /// (any window's, or for a laser while its trigger holds that window), as Wayland
+    /// ties a move to its press; see decisions/beui_space_move_needs_a_held_press.md.
+    /// Releasing the button that was down ends it; begun with none, the next click
+    /// does.
     pub fn begin_carry(&mut self, pointer: Pointer, window: WindowId) {
         if self.holders().any(|held| held.gripped() == Some(window))
             || self.both.is_some_and(|both| both.window == window)
@@ -1099,12 +1203,22 @@ impl Space {
             return;
         };
         let (pose, size) = resize.to(hit.pos);
+        let Some(before) = self.panel(resize.window).copied() else {
+            return;
+        };
+        let after = Panel {
+            pose,
+            size,
+            ..before
+        };
+        if !self.fits(&before, &after) {
+            return;
+        }
         let Some(panel) = self.panel_mut(resize.window) else {
             return;
         };
-        panel.pose = pose;
-        if panel.size != size {
-            panel.size = size;
+        *panel = after;
+        if before.size != size {
             out.push(Incoming::Window(WindowReport::Resized {
                 window: resize.window,
                 size,
@@ -1211,6 +1325,7 @@ impl Space {
                 placement,
                 size,
                 role,
+                ..
             } => self.open(*window, placement, *size, *role),
             WindowRequest::BeginMove(window) => {
                 if let Some(pointer) = self.pressing(*window) {
@@ -1223,8 +1338,81 @@ impl Space {
                 }
             }
             WindowRequest::Resize { window, size } => self.resize_window(*window, *size),
+            WindowRequest::Raise(window) => self.raise(*window),
             WindowRequest::Close(window) => self.close(*window),
+            WindowRequest::Place { .. } => {}
         }
+    }
+
+    /// Panels have no stacking order, only depth, and only a carry moves one, so
+    /// raising an unfocused panel that another hides flashes its outline through
+    /// everything instead.
+    fn raise(&mut self, window: WindowId) {
+        let Some(now) = self.clock else {
+            return;
+        };
+        if self.focused == Some(window) || !self.hidden(window) {
+            return;
+        }
+        self.flashes.retain(|(flashed, _)| *flashed != window);
+        self.flashes.push((window, now));
+    }
+
+    fn hidden(&self, window: WindowId) -> bool {
+        let Some(panel) = self.panel(window).filter(|panel| panel.framed()) else {
+            return false;
+        };
+        let framed: Vec<Panel> = self
+            .panels
+            .iter()
+            .filter(|panel| panel.framed())
+            .copied()
+            .collect();
+        let step = |index: usize| index as f32 / (FLASH_SAMPLES - 1) as f32;
+        (0..FLASH_SAMPLES).any(|row| {
+            (0..FLASH_SAMPLES).any(|column| {
+                let point =
+                    panel.world(pos2(panel.size.x * step(column), panel.size.y * step(row)));
+                let toward = self.toward(point);
+                pick(&framed, toward).is_some_and(|hit| {
+                    hit.window != window && hit.distance < point.distance(toward.origin) - 1e-3
+                })
+            })
+        })
+    }
+
+    fn flash(&self, began: Instant) -> f32 {
+        let Some(now) = self.clock else {
+            return 0.0;
+        };
+        let t = now.saturating_duration_since(began).as_secs_f32() / FLASH_SECONDS;
+        let left = (1.0 - t).clamp(0.0, 1.0);
+        left * left * (3.0 - 2.0 * left)
+    }
+
+    pub fn flashing(&self) -> bool {
+        self.flashes
+            .iter()
+            .any(|(_, began)| self.flash(*began) > 0.0)
+    }
+
+    pub fn outlines(&self) -> Vec<Outline> {
+        let outline = |panel: &Panel, strength: f32| Outline {
+            model: panel.model(),
+            metres: panel.metres(),
+            bend: panel.bend,
+            strength,
+        };
+        let ghosts = self
+            .holders()
+            .filter_map(|held| held.carry.as_ref()?.ghost())
+            .map(|ghost| outline(ghost, 1.0));
+        let flashes = self.flashes.iter().filter_map(|(window, began)| {
+            let strength = self.flash(*began);
+            let panel = self.panel(*window)?;
+            (strength > 0.0).then(|| outline(panel, strength))
+        });
+        ghosts.chain(flashes).collect()
     }
 
     pub fn open(
@@ -1235,18 +1423,23 @@ impl Space {
         role: WindowRole,
     ) {
         let opening = self.panel(window).is_none();
+        self.popups.retain(|(popup, _)| *popup != window);
+        if role == WindowRole::Popup {
+            let over = match placement {
+                WindowPlacement::Over { window: over, .. } => Some(*over),
+                _ => None,
+            };
+            self.popups.push((window, over));
+        }
         if opening {
             let mut panel = Panel::new(window, Pose::default(), size);
+            panel.role = role;
             let beside = match role {
                 WindowRole::Keyboard => {
                     self.keyboards.push(window);
                     self.beside_typing(size)
                 }
-                WindowRole::Popup => {
-                    self.popups.push(window);
-                    None
-                }
-                WindowRole::Normal => None,
+                WindowRole::Popup | WindowRole::Normal => None,
             };
             let placed = match placement {
                 _ if beside.is_some() => {
@@ -1258,7 +1451,7 @@ impl Space {
                 }
                 WindowPlacement::Host(placement) => panel.placed(placement),
                 WindowPlacement::Over { window: other, at } => self
-                    .over(*other, *at, size)
+                    .over(None, *other, *at, size)
                     .map(|(pose, metres_per_point)| {
                         panel.pose = pose;
                         panel.metres_per_point = metres_per_point;
@@ -1270,6 +1463,8 @@ impl Space {
                 panel.pose = self.at_pointer(size);
             }
             self.panels.push(panel);
+        } else {
+            self.reopen(window, placement, size);
         }
         let Some(panel) = self.panel(window) else {
             return;
@@ -1290,6 +1485,36 @@ impl Space {
         }
     }
 
+    fn reopen(&mut self, window: WindowId, placement: &WindowPlacement, size: Vec2) {
+        if self.holders().any(|held| {
+            held.resize.is_some_and(|resize| resize.window == window)
+                || held
+                    .carry
+                    .as_ref()
+                    .is_some_and(|carry| carry.window == window)
+        }) {
+            return;
+        }
+        let over = match placement {
+            WindowPlacement::Over { window: other, at } if *other != window => {
+                self.over(Some(window), *other, *at, size)
+            }
+            _ => None,
+        };
+        let Some(panel) = self.panel_mut(window) else {
+            return;
+        };
+        let corner = panel.frame_at(Pos2::ZERO);
+        panel.size = size;
+        match over {
+            Some((pose, metres_per_point)) => {
+                panel.pose = pose;
+                panel.metres_per_point = metres_per_point;
+            }
+            None => panel.anchor(Pos2::ZERO, corner),
+        }
+    }
+
     pub fn resize_window(&mut self, window: WindowId, size: Vec2) {
         if self
             .holders()
@@ -1307,6 +1532,9 @@ impl Space {
             .push(Incoming::Window(WindowReport::Resized { window, size }));
     }
 
+    /// `AtPointer` puts window point `OPEN_GRAB` on the cursor's ray, `OPEN_NEARER` in
+    /// front of the panel it hits or `OPEN_DISTANCE` away on a miss, facing the
+    /// viewer.
     fn at_pointer(&self, size: Vec2) -> Pose {
         let ray = self.ray(self.active_pointer()).unwrap_or(Ray {
             origin: self.head.position,
@@ -1330,6 +1558,9 @@ impl Space {
         panel.pose
     }
 
+    /// A `Keyboard` window ignores its placement and opens over the panel holding the
+    /// focused field, centred `KEYBOARD_GAP` below the field, or over the bottom of
+    /// the focused panel when there is none.
     fn beside_typing(&self, size: Vec2) -> Option<(Pose, f32)> {
         let typing = self
             .typing
@@ -1350,10 +1581,19 @@ impl Space {
                 )
             }
         };
-        self.over(window, at, size)
+        self.over(None, window, at, size)
     }
 
-    fn over(&self, other: WindowId, at: Pos2, size: Vec2) -> Option<(Pose, f32)> {
+    /// `Over` puts the window's top-left corner on the other panel's point, at its
+    /// scale and facing the same way, `OVER_NEARER` in front of it plus another
+    /// `OVER_NEARER` for each panel already there.
+    fn over(
+        &self,
+        own: Option<WindowId>,
+        other: WindowId,
+        at: Pos2,
+        size: Vec2,
+    ) -> Option<(Pose, f32)> {
         let other = self.panel(other)?;
         let mut panel = Panel::new(WindowId::MAIN, other.pose, size);
         panel.metres_per_point = other.metres_per_point;
@@ -1365,13 +1605,17 @@ impl Space {
         let centre = corner + Vec3::new(half.x, -half.y, 0.0);
         let mut depth = OVER_NEARER;
         for _ in 0..self.panels.len() {
-            let stacked = self.panels.iter().any(|placed| {
-                let at = local(placed);
-                let reach = placed.metres() / 2.0 + half;
-                (at.z - depth).abs() < OVER_NEARER / 2.0
-                    && (at.x - centre.x).abs() < reach.x
-                    && (at.y - centre.y).abs() < reach.y
-            });
+            let stacked = self
+                .panels
+                .iter()
+                .filter(|placed| Some(placed.window) != own)
+                .any(|placed| {
+                    let at = local(placed);
+                    let reach = placed.metres() / 2.0 + half;
+                    (at.z - depth).abs() < OVER_NEARER / 2.0
+                        && (at.x - centre.x).abs() < reach.x
+                        && (at.y - centre.y).abs() < reach.y
+                });
             if !stacked {
                 break;
             }
@@ -1388,7 +1632,7 @@ impl Space {
         }
         self.panels.retain(|panel| panel.window != window);
         self.keyboards.retain(|keyboard| *keyboard != window);
-        self.popups.retain(|popup| *popup != window);
+        self.popups.retain(|(popup, _)| *popup != window);
         self.scales.retain(|(held, _)| *held != window);
         self.rescaling.retain(|(waiting, ..)| *waiting != window);
         if let Some(compositor) = &self.compositor {
@@ -1418,6 +1662,9 @@ impl Space {
         self.titles.retain(|(on, _)| *on != window);
     }
 
+    /// The program gets the release in the window that took the press, the turn
+    /// finishes at once, and the panel's placement is reported as
+    /// `WindowReport::Placed`.
     pub fn end_carry(&mut self, pointer: Pointer, out: &mut Vec<Incoming>) {
         let Some(held) = self.held_mut(pointer) else {
             return;
@@ -1431,30 +1678,37 @@ impl Space {
                 self.chrome.hovered = self.on_chrome();
             }
         }
-        let (head, now) = (self.head, self.clock);
-        let Some(panel) = self.panel_mut(carry.window) else {
+        carry.finish();
+        let Some(panel) = self.carried(&mut carry) else {
             return;
         };
-        carry.finish();
-        carry.place(&head, panel, now);
         out.push(Incoming::Window(WindowReport::Placed {
             window: carry.window,
             placement: panel.placement(),
         }));
     }
 
+    fn carried(&mut self, carry: &mut Carry) -> Option<Panel> {
+        let (head, now) = (self.head, self.clock);
+        let mut panel = self.panel(carry.window).copied()?;
+        carry.place(&head, &mut panel, now);
+        carry.settle(&head, &mut panel, &self.panels, now);
+        let placed = self.panel_mut(carry.window)?;
+        *placed = panel;
+        Some(panel)
+    }
+
     fn place_carried(&mut self) {
         for pointer in self.pointers() {
             let ray = self.ray(pointer);
-            let (head, now) = (self.head, self.clock);
+            let head = self.head;
             let Some(mut carry) = self.held_mut(pointer).and_then(|held| held.carry.take()) else {
                 continue;
             };
             if let Some(ray) = ray {
                 carry.follow(ray);
             }
-            if let Some(panel) = self.panel_mut(carry.window) {
-                carry.place(&head, panel, now);
+            if self.carried(&mut carry).is_some() {
                 if pointer == Pointer::Mouse {
                     let grabbed = carry.grabbed_at(&head);
                     self.cursor =
@@ -1468,6 +1722,10 @@ impl Space {
         self.place_both();
     }
 
+    /// Both grips on one panel: it moves and turns with the line between the grips
+    /// and scales about its centre with their distance, between `chrome::SMALLEST_SCALE`
+    /// and `LARGEST_SCALE` of where it began. Either grip letting go reports `Placed`
+    /// and leaves neither hand holding it.
     fn place_both(&mut self) {
         let Some(both) = self.both else {
             return;
@@ -1502,7 +1760,7 @@ impl Space {
         }
     }
 
-    fn app_locks(&self, windows: &[WindowOutput]) -> bool {
+    fn program_locks(&self, windows: &[WindowOutput]) -> bool {
         self.mouse
             .hovered
             .or(self.mouse.captured)
@@ -1517,6 +1775,7 @@ impl Space {
             true => CursorIcon::None,
             false => icon,
         };
+        state.cursor_image = None;
         state.requests.pointer_locked = grabbed;
         state.requests.ime = None;
         state.appearance.clear_color = SKY;
@@ -1583,6 +1842,11 @@ impl Space {
         for request in requests {
             self.request(request);
         }
+        let flashes = std::mem::take(&mut self.flashes);
+        self.flashes = flashes
+            .into_iter()
+            .filter(|(window, began)| self.panel(*window).is_some() && self.flash(*began) > 0.0)
+            .collect();
         let resizing: Vec<WindowId> = self
             .holders()
             .filter_map(|held| held.resize.map(|resize| resize.window))
@@ -1605,13 +1869,17 @@ impl Space {
                     .as_ref()
                     .is_some_and(|carry| carry.turning(self.clock))
             })
-            || self.lasers.iter().any(Laser::settling);
+            || self.lasers.iter().any(Laser::settling)
+            || self.flashing();
         let repaint_after = match animating || !self.reports.is_empty() {
             true => Duration::ZERO,
-            false => self.settled_in().min(self.hold.due_in(self.clock)),
+            false => self
+                .settled_in()
+                .min(self.hold.due_in(self.clock))
+                .min(self.tuning.due_in(self.clock)),
         };
-        self.app_locked = self.app_locks(windows);
-        let main = find(windows, WindowId::MAIN).expect("the app shows its main window");
+        self.program_locked = self.program_locks(windows);
+        let main = find(windows, WindowId::MAIN).expect("the program shows its main window");
         let icon = self.icon_over(windows);
         let state = Self::window_state(main, self.cursor_shown(), icon);
         let chrome_changed = self.refresh_chrome(view.pixels_per_point);
@@ -1631,10 +1899,15 @@ impl Space {
             }
         }
         let look = self.sprite_look(icon);
+        let label = self.tuning.label(self.clock);
         if let Some(look) = look
-            && self.sprite.changed(look, view.pixels_per_point)
+            && self
+                .sprite
+                .changed(look, label.as_deref(), view.pixels_per_point)
         {
-            let sprite = self.sprite.paint(look, view.pixels_per_point);
+            let sprite = self
+                .sprite
+                .paint(look, label.as_deref(), view.pixels_per_point);
             changed |= compositor.update(&sprite);
         }
         let shown = Shown {
@@ -1649,7 +1922,9 @@ impl Space {
                 .map(|(window, look, _)| (*window, look.clone(), self.chrome_opacity(*window)))
                 .collect(),
             beams: self.beams(),
+            outlines: self.outlines(),
             notice: self.notice.clone(),
+            label,
         };
         let size = view.platform / view.pixels_per_point;
         if let Some((last, window)) = &mut self.shown
@@ -1712,7 +1987,7 @@ fn find(windows: &[WindowOutput], window: WindowId) -> Option<&WindowOutput> {
     windows.iter().find(|shown| shown.id == window)
 }
 
-impl beui_core::runner::Layer for Space {
+impl beui_runner::Layer for Space {
     fn attach(&mut self, context: &Context) {
         context.set_window_hosting(WindowHosting::Any);
         context.set_keyboard_in_a_window(true);
@@ -1819,10 +2094,14 @@ impl Space {
     pub(crate) fn scene(&mut self, windows: &[WindowOutput], view: &LayerView) -> Frame {
         self.refresh_chrome(view.pixels_per_point);
         let look = self.sprite_look(self.icon_over(windows));
+        let label = self.tuning.label(self.clock);
         if let Some(look) = look
-            && self.sprite.changed(look, view.pixels_per_point)
+            && self
+                .sprite
+                .changed(look, label.as_deref(), view.pixels_per_point)
         {
-            self.sprite.paint(look, view.pixels_per_point);
+            self.sprite
+                .paint(look, label.as_deref(), view.pixels_per_point);
         }
         let cursor = look.and(self.sprite_at()).map(|at| self.cursor_frame(at));
         Frame {
@@ -1840,6 +2119,7 @@ impl Space {
             sprite: cursor.as_ref().and(self.sprite.output().cloned()),
             cursor,
             beams: self.beams(),
+            outlines: self.outlines(),
             panels: self
                 .panels
                 .iter()
@@ -1848,7 +2128,7 @@ impl Space {
                     model: panel.model(),
                     metres: panel.metres(),
                     bend: panel.bend,
-                    chrome: Some(ChromeFrame {
+                    chrome: panel.framed().then(|| ChromeFrame {
                         span: chrome::span(panel),
                         opacity: self.chrome_opacity(panel.window),
                     }),
@@ -1858,9 +2138,10 @@ impl Space {
     }
 
     fn chrome_hit(&self, ray: Ray) -> Option<(Part, Hit)> {
-        let app = self.pick(ray);
+        let program = self.pick(ray);
         let (part, hit) = chrome::pick(&self.panels, ray, self.chrome.slider)?;
-        app.is_none_or(|app| hit.distance < app.distance)
+        program
+            .is_none_or(|program| hit.distance < program.distance)
             .then_some((part, hit))
     }
 
@@ -1874,7 +2155,7 @@ impl Space {
     fn refresh_chrome(&mut self, pixels_per_point: f32) -> bool {
         let mut changed = false;
         let mut shown = Vec::with_capacity(self.panels.len());
-        for panel in &self.panels {
+        for panel in self.panels.iter().filter(|panel| panel.framed()) {
             let scale = match self.scale(panel.window) {
                 Some(window) => chrome::pixels_per_point(panel, window),
                 None => self
@@ -2066,9 +2347,11 @@ impl Space {
         ) else {
             return;
         };
-        let Some(panel) = self.panel_mut(gesture.window()) else {
+        let Some(before) = self.panel(gesture.window()).copied() else {
             return;
         };
+        let mut after = before;
+        let panel = &mut after;
         let mut gesture = gesture;
         if pointer != Pointer::Mouse
             && let Gesture::Turn { aim, .. } = &mut gesture
@@ -2106,6 +2389,15 @@ impl Space {
             }
             Gesture::Move { .. } | Gesture::Resize { .. } | Gesture::Press { .. } => {}
         }
+        if self.fits(&before, &after)
+            && let Some(panel) = self.panel_mut(after.window)
+        {
+            *panel = after;
+        }
+    }
+
+    fn fits(&self, before: &Panel, after: &Panel) -> bool {
+        !contact::newly_touching(before, after, &self.panels, self.head.position)
     }
 
     fn end_gesture(&mut self, pointer: Pointer, out: &mut Vec<Incoming>) {
@@ -2247,7 +2539,7 @@ impl Space {
         let Some(ray) = laser.aimed() else {
             return;
         };
-        if busy || self.both.is_some() {
+        if busy || self.both.is_some() || self.dismiss_popups(ray, out) {
             return;
         }
         if let Some((part, hit)) = self.chrome_hit(ray) {

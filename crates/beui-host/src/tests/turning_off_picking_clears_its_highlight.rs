@@ -1,0 +1,19 @@
+use super::*;
+
+#[test]
+fn turning_off_picking_clears_its_highlight() {
+    let _root = crate::reactive::RootScope::new();
+    let HelloColumn { document, .. } = hello_column();
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+
+    harness.toggle_inspector();
+    harness.toggle_picking();
+    harness.settle();
+    let inside = harness.program_rect().min + vec2(4.0, 4.0);
+    harness.frame(vec![Input::PointerMoved(inside)]);
+    assert!(harness.inspector().state().hovered.get().is_some());
+
+    harness.toggle_picking();
+
+    assert_eq!(harness.inspector().state().hovered.get(), None);
+}

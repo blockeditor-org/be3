@@ -1,6 +1,6 @@
 use crate::reactive::Children;
 use crate::reactive::Get;
-use crate::reactive::ListChild;
+use crate::reactive::ListItem;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
 use crate::types::Align;
@@ -8,7 +8,7 @@ use crate::types::Direction;
 use crate::types::Justify;
 use beui_core::current::with_document;
 use beui_core::document::Document;
-use beui_core::node::NodeId;
+use beui_types::NodeId;
 
 pub(crate) fn list(
     direction: Prop<Direction>,
@@ -16,7 +16,7 @@ pub(crate) fn list(
     justify: Prop<Justify>,
     wrap: Prop<bool>,
     spacing: Prop<f32>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let list = with_document(|document| document.create_list(direction.get_untracked(), 0.0));
     create_binding(move || {

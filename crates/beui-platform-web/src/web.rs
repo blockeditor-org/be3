@@ -11,19 +11,22 @@ use std::time::{Duration, Instant};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
-use beui_core::app::{Lifecycle, SafeArea, Setup, Waker};
-use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
-use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
+use beui_core::clipboard::PasteAnswer;
+use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
-use beui_core::geometry::{Pos2, Rect, pos2, vec2};
-use beui_core::input::{
-    CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Modifiers, Pen, PenPhase,
-    PointerButton, TouchId, TouchPhase,
-};
-use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
-use beui_core::renderer::Loaded;
-use beui_core::runner::{Incoming, Launch, Platform, PlatformServices, Running};
+use beui_core::program::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::window::{Appearance, WindowReports, WindowState};
+use beui_runner::renderer::Loaded;
+use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
+use beui_types::PickedFile;
+use beui_types::{
+    CursorIcon, ImeArea, ImeEvent, Input, Modifiers, Pen, PenPhase, PointerButton, TouchId,
+    TouchPhase,
+};
+use beui_types::{DroppedFile, FileDrag};
+use beui_types::{Motion, PreferenceLayer, ThemeKind};
+use beui_types::{PasteKind, Pasted};
+use beui_types::{Pos2, Rect, pos2, vec2};
 
 use crate::lock::Lock;
 use beui_web_input::ime_mirror::{ImeInput, ImeMirror};
@@ -206,7 +209,7 @@ fn run_frame() {
 }
 
 struct Runner {
-    runner: beui_core::runner::Runner,
+    runner: beui_runner::Runner,
     platform: WebPlatform,
     size: (u32, u32),
     ratio: f32,
@@ -436,7 +439,9 @@ impl Runner {
 impl Runner {
     fn closed(&self, window: &web_sys::Window) {
         if let Some(failure) = self.runner.failure() {
-            web_sys::console::error_1(&format!("the app stopped after a panic: {failure}").into());
+            web_sys::console::error_1(
+                &format!("the program stopped after a panic: {failure}").into(),
+            );
         }
         if !LEAVING.get() {
             let _ = window.close();
@@ -556,7 +561,7 @@ async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn
         .map_err(|_| "could not add the text input to the page")?;
     let loaded = load(surface.clone()).await?;
 
-    let mut runner = beui_core::runner::Runner::new(launch);
+    let mut runner = beui_runner::Runner::new(launch);
     runner.start(loaded, Setup::new(waker()))?;
     let reports = runner.reports().clone();
     let runner = Runner {
@@ -921,6 +926,9 @@ fn listen(
         ) {
             event.prevent_default();
         }
+    })?;
+    on(agent_target, "contextmenu", |event: web_sys::MouseEvent| {
+        event.prevent_default();
     })?;
     on(agent_target, "keyup", |event: web_sys::KeyboardEvent| {
         if event.is_composing() {

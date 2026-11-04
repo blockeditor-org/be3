@@ -9,17 +9,19 @@ pub mod look;
 pub mod rows;
 pub mod state;
 
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::Duration;
 
 use accesskit::{Node, Role};
 
-use text_editor_core::{
+use beui_text_editor_core::{
     CursorHorizontalPositionMetric, CursorLeftRightStop, DragSelectionMode, EditorCommand,
-    ImeCommand, LRDirection, MoveMode, TextLanguage, UDDirection, VerticalMoveMode,
+    ImeCommand, LRDirection, MoveMode, RowStep, TextLanguage, UDDirection, VerticalMoveMode,
+    VisualRows,
 };
 
 use beui_macros::{component, view};
@@ -34,19 +36,19 @@ use beui_view::types::Color;
 use beui_view::types::Dismiss;
 use beui_view::types::FontId;
 use beui_view::types::PickedFile;
+use beui_view::types::ScrollPosition;
 use beui_view::types::TextLayout;
 use beui_view::types::{Area, Claim, SoftKeyboard};
 use beui_view::types::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
 use beui_view::types::{HANDLE_RADIUS, handle_center, toolbar_anchor};
-use beui_view::types::{ItemSize, ScrollPosition};
 use beui_view::types::{PasteKind, Pasted};
 use beui_view::types::{Pos2, Rect, Vec2};
 
+use beui_text_editor_core::ListMarker;
 use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
 use rows::{BODY_SIZE, Composition, Inline, InlineItem, Row, line_of};
 use state::{AreaGeometry, Grab};
-use text_editor_core::ListMarker;
 
 use beui_view::types::{Extent, Sides};
 pub use colors::{SyntaxColors, TextAreaColors};
@@ -237,6 +239,19 @@ impl AreaGeometry for Surface {
     }
 }
 
+impl VisualRows for Surface {
+    fn caret_x(&self, index: usize) -> Option<f32> {
+        let canvas = self.canvas_rect()?;
+        let caret = self.caret_rect_at(index)?;
+        Some((caret.min.x - canvas.min.x) / self.scale())
+    }
+
+    fn step(&self, index: usize, direction: UDDirection, x: f32) -> RowStep {
+        self.row_step(index, direction, x)
+            .unwrap_or(RowStep::Unknown)
+    }
+}
+
 impl Surface {
     fn caret_width(&self) -> f32 {
         self.geometry.get_untracked().caret_width
@@ -283,6 +298,57 @@ impl Surface {
         entry
             .text(&self.held.value())?
             .caret_rect(display, self.caret_width())
+    }
+
+    /// The row a caret at `index` steps to, from the rows its own line wraps into and
+    /// the built rows of the visible lines around it. `None` when one of them is
+    /// not laid out.
+    fn row_step(&self, index: usize, direction: UDDirection, x: f32) -> Option<RowStep> {
+        let held = self.held.value();
+        let line = self.line_of(index);
+        let entry = self.entry(line)?;
+        let text = entry.text(&held)?;
+        let rows = text.lines();
+        let display = entry.row().to_display(index);
+        let current = rows
+            .partition_point(|row| row.bytes.start <= display)
+            .saturating_sub(1);
+        let within = match direction {
+            UDDirection::Up => current.checked_sub(1),
+            UDDirection::Down => Some(current + 1).filter(|next| *next < rows.len()),
+        };
+        let (entry, text, rows, target) = match within {
+            Some(target) => (entry, text, rows, target),
+            None => {
+                let visible = self.visible.get_untracked();
+                let at = visible.binary_search(&line).ok()?;
+                let next = match direction {
+                    UDDirection::Up => at.checked_sub(1),
+                    UDDirection::Down => Some(at + 1).filter(|next| *next < visible.len()),
+                };
+                let Some(next) = next else {
+                    return Some(RowStep::Edge);
+                };
+                let entry = self.entry(visible[next])?;
+                let text = entry.text(&held)?;
+                let rows = text.lines();
+                let target = match direction {
+                    UDDirection::Up => rows.len().checked_sub(1)?,
+                    UDDirection::Down => 0,
+                };
+                (entry, text, rows, target)
+            }
+        };
+        let target_row = rows.get(target)?;
+        let canvas = self.canvas_rect()?;
+        let aim = Pos2::new(canvas.min.x + x * self.scale(), target_row.rect.center().y);
+        let nearest = text.index_at(aim)?;
+        let row = entry.row();
+        Some(RowStep::Row {
+            bytes: row.to_source(target_row.bytes.start)..row.to_source(target_row.bytes.end),
+            nearest: row.to_source(nearest),
+            wrapped_end: target + 1 < rows.len(),
+        })
     }
 
     fn estimated_y(&self, byte: usize) -> Option<f32> {
@@ -680,18 +746,16 @@ impl Surface {
             });
             return;
         }
-        self.state.execute(EditorCommand::MoveCursorUpDown {
-            direction: match beyond {
+        self.state.move_by_row(
+            match beyond {
                 Beyond::Before => UDDirection::Up,
                 Beyond::After => UDDirection::Down,
             },
-            mode: match mode {
+            match mode {
                 MoveMode::Select => VerticalMoveMode::Select,
                 MoveMode::Move => VerticalMoveMode::Move,
             },
-            metric: CursorHorizontalPositionMetric::Byte,
-            stop: CursorLeftRightStop::UnicodeGraphemeCluster,
-        });
+        );
     }
 }
 
@@ -1123,6 +1187,21 @@ struct Field {
     on_image_paste: Callback<PickedFile>,
 }
 
+/// Beyond the usual editing keys: Ctrl or Alt with Left/Right and
+/// Backspace/Delete go by a word; Alt+Up/Down grow and shrink the selection by
+/// syntax node; Ctrl+Alt+Up/Down add a cursor above or below; Ctrl+Enter and
+/// Ctrl+Shift+Enter insert a line below or above; Ctrl+Shift+Z and Ctrl+Y redo.
+/// Tab and Shift+Tab indent and outdent; Escape then Tab or Shift+Tab moves the
+/// focus out instead. Find (Ctrl+F), Find and replace (Ctrl+H), the next and
+/// previous match (Ctrl+G, Ctrl+Shift+G), Duplicate the line (Ctrl+Shift+D),
+/// Select the next occurrence (Ctrl+D) and folding (Ctrl+Shift+[) are actions
+/// that answer while the focus is in it; Escape closes Find. Ctrl with a letter
+/// runs the schema tool with that shortcut on the selected node.
+///
+/// Single-line (as `TextInput`), Up/Down move to the start and end, Enter calls
+/// `on_submit` or, without one, is left to what is around it (a dialog's
+/// confirm), and Tab, Escape, Alt+Up/Down and the Ctrl chords above are left
+/// alone. Space always inserts text.
 #[component]
 pub fn TextArea(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TextAreaApi>,
@@ -1289,14 +1368,14 @@ pub fn TextArea(
         state.cursors().get();
         state.content().get();
         Some(Composition {
-            range: state.with_core(|core| core.composition())?,
+            range: state.composition()?,
         })
     });
     let completion = create_memo(move || {
         let trigger = trigger?;
         state.cursors().get();
         state.content().get();
-        if !focused.get() || locked.get() || state.with_core(|core| core.composition()).is_some() {
+        if !focused.get() || locked.get() || state.composition().is_some() {
             return None;
         }
         query(state, trigger)
@@ -1377,11 +1456,17 @@ pub fn TextArea(
     state.publish_layout(TextAreaLayout::new(Rc::new(cx)));
 
     if single_line {
+        let content = state.content();
         create_effect(move || {
             let width = text_extent.get().x;
             view_width.get();
+            content.get();
+            let empty = state.with_snapshot(|snapshot| snapshot.bytes.is_empty());
             let room = untrack(|| cx.room());
-            let most = (width - room).max(0.0);
+            let most = match empty {
+                true => 0.0,
+                false => (width - room).max(0.0),
+            };
             if shift.get_untracked() > most {
                 shift.set(most);
             }
@@ -1484,19 +1569,23 @@ pub fn TextArea(
         <Frame @node_ref=&outer>
             <List spacing=0.0>
                 <Show condition={single_line}>
-                    <Editing @sizing=ItemSize::Percent(100.0) field={field} />
+                    <ListItem grow=1.0>
+                        <Editing field={field} />
+                    </ListItem>
                 </Show>
                 <Show condition={multi_line}>||
-                    <Canvas @sizing=ItemSize::Percent(100.0) width={width} height={height}>
-                        <CanvasItem x={border_x} y=0.0 width={border_width} height={height}>
-                            <Frame fill=border_color />
-                        </CanvasItem>
-                        <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                            <Scroll offset={offset} scrollbar on_change={scroll}>
-                                <Editing field={field} />
-                            </Scroll>
-                        </CanvasItem>
-                    </Canvas>
+                    <ListItem grow=1.0>
+                        <Canvas width={width} height={height}>
+                            <CanvasItem x={border_x} y=0.0 width={border_width} height={height}>
+                                <Frame fill=border_color />
+                            </CanvasItem>
+                            <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                                <Scroll offset={offset} scrollbar on_change={scroll}>
+                                    <Editing field={field} />
+                                </Scroll>
+                            </CanvasItem>
+                        </Canvas>
+                    </ListItem>
                 </Show>
                 <Show condition={menu}>|| {
                     let menu = completion_menu

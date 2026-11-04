@@ -1,5 +1,5 @@
+use be_lib_geometry::{Pos2, Rect, Vec2};
 use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal, Signal};
-use geometry::{Pos2, Rect, Vec2};
 
 use crate::input::Modifiers;
 

@@ -19,7 +19,7 @@ fn a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resi
         rescaled(&send(&mut space, now, [])).is_empty(),
         "a panel that needs more pixels per point does not change at once"
     );
-    let waiting = space.frame(&app_frame(CursorIcon::Default), &view(now));
+    let waiting = space.frame(&program_frame(CursorIcon::Default), &view(now));
     assert!(
         waiting.repaint_after > Duration::ZERO && waiting.repaint_after <= crate::scale::SETTLE,
         "the host asks for a frame when the wait is over, not every frame: {:?}",
@@ -34,7 +34,7 @@ fn a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resi
     assert_eq!(
         rescaled(&sent),
         [(window, nearer)],
-        "once it has wanted the same scale for a while, the app hears it"
+        "once it has wanted the same scale for a while, the program hears it"
     );
 
     let mut now = settled;

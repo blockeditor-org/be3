@@ -1,10 +1,13 @@
 use std::any::Any;
 
-use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
+use crate::child_list::{ChildHost, ChildItem, NodeChildren};
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeOf, Rects};
 use crate::painter::Painter;
+use beui_tree::child_list::ChildList;
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::{Rect, Vec2};
 
 #[derive(Default)]
 pub struct LayersNode {
@@ -34,6 +37,20 @@ impl Element for LayersNode {
         self.items.iter().fold(0.0, |width, item| {
             width.max(crate::layout::min_width(doc, painter, *item))
         })
+    }
+
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        Some(self.items.iter().fold(0.0, |length, item| {
+            length.max(crate::layout::least_length(
+                doc, painter, *item, direction, cross,
+            ))
+        }))
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {

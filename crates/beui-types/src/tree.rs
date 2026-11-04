@@ -67,7 +67,7 @@ impl<P: ParentKind> SlotChild for Placed<P> {
 
 #[diagnostic::on_unimplemented(
     message = "a child made for a `{P}` cannot be a child of this component",
-    label = "`@sizing` makes a list child: remove it, or put this child in a `Row`, `Column`, `List` or `Stack`"
+    label = "a `<ListItem>` is a list child: remove it, or put this child in a `List` or `Stack`"
 )]
 pub trait FromPlaced<P: ParentKind> {
     fn from_placed(child: Placed<P>) -> Self;
@@ -142,7 +142,7 @@ impl BareChild for ListKind {
     }
 }
 
-pub type ListChild = Placed<ListKind>;
+pub type ListItem = Placed<ListKind>;
 
 pub struct GridKind;
 
@@ -177,33 +177,3 @@ impl ParentKind for CanvasKind {
 }
 
 pub type CanvasItem = Placed<CanvasKind>;
-
-#[diagnostic::on_unimplemented(
-    message = "`@sizing` cannot size a `{Self}`",
-    label = "`@sizing` takes a node, or an `Option` of one"
-)]
-pub trait WithSizing {
-    type Sized;
-
-    fn with_sizing(self, size: Prop<Sizing>) -> Self::Sized;
-}
-
-impl WithSizing for NodeId {
-    type Sized = ListChild;
-
-    fn with_sizing(self, size: Prop<Sizing>) -> ListChild {
-        ListChild::new(self, size)
-    }
-}
-
-impl WithSizing for Option<NodeId> {
-    type Sized = Option<ListChild>;
-
-    fn with_sizing(self, size: Prop<Sizing>) -> Option<ListChild> {
-        self.map(|node| ListChild::new(node, size))
-    }
-}
-
-pub fn with_sizing<C: WithSizing>(child: C, size: impl IntoProp<Sizing>) -> C::Sized {
-    child.with_sizing(size.into_prop())
-}

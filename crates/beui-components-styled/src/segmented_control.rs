@@ -12,6 +12,8 @@ use beui_view::types::Direction;
 const TRACK_PADDING: Space = Space::Xs2;
 const SEGMENT_SPACING: Space = Space::Xs2;
 
+/// A radio group drawn as joined segments, with `Choice`'s radio keys. Without
+/// room for every segment it becomes a `Select`, with its keys.
 #[component]
 pub fn SegmentedControl(
     #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ChoiceApi>,

@@ -1,12 +1,12 @@
-use be_model::{BlockRef, Document, Edit, Map, Model, ObjectId};
+use be_block_model::{BlockRef, Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::metadata::MetaKey;
-use crate::settings::{Follows, KindVisibility, Layered};
+use crate::settings::{Follows, KindVisibility, Layered, union};
 use crate::{ChildChange, Root};
 
-pub use be_graph::{EDIT_KINDS, PREFIXES_TYPE, TAGS_TYPE};
+pub use be_block_graph::{EDIT_KINDS, PREFIXES_TYPE, TAGS_TYPE};
 
 pub const fn edit_kind_key(kind: Uuid) -> MetaKey<BlockRef> {
     MetaKey::defined(kind.as_u128(), "edit_kind")
@@ -31,6 +31,10 @@ pub fn normal_prefix(prefix: &str) -> String {
     prefix.trim().to_ascii_uppercase()
 }
 
+/// Database to row-id prefix, the only way a row id alone resolves. A prefix
+/// is only a label: two databases may share one, and a copy keeps it. Moving a
+/// block (`Peer::set_parent`) moves the databases inside it to the registry
+/// above its new place.
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct PrefixRegistry {
     pub databases: Map<Uuid, String>,
@@ -83,12 +87,7 @@ impl Layered for PrefixRegistry {
 
     fn over(&self, lower: &Self) -> Self {
         Self {
-            databases: lower
-                .databases
-                .iter()
-                .chain(self.databases.iter())
-                .map(|(database, prefix)| (*database, prefix.clone()))
-                .collect(),
+            databases: union(&self.databases, &lower.databases),
         }
     }
 }
@@ -219,12 +218,7 @@ impl Layered for Tags {
 
     fn over(&self, lower: &Self) -> Self {
         Self {
-            tags: lower
-                .tags
-                .iter()
-                .chain(self.tags.iter())
-                .map(|(tag, ())| (*tag, ()))
-                .collect(),
+            tags: union(&self.tags, &lower.tags),
         }
     }
 }
@@ -312,12 +306,7 @@ impl Layered for Home {
                 true => lower.pinned.clone(),
                 false => self.pinned.clone(),
             },
-            templates: lower
-                .templates
-                .iter()
-                .chain(self.templates.iter())
-                .map(|(template, ())| (*template, ()))
-                .collect(),
+            templates: union(&self.templates, &lower.templates),
         }
     }
 }

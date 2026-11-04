@@ -1,0 +1,26 @@
+[package]
+name = "be-sdk-beui-platform"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-core = { path = "../beui-core" }
+beui-types = { path = "../beui-types" }
+beui-runner = { path = "../beui-runner" }
+beui-font-freetype = { path = "../beui-font-freetype" }
+beui-host = { path = "../beui-host", default-features = false }
+be-sdk-beui-platform-api = { path = "../be-sdk-beui-platform-api" }
+be-sdk = { path = "../be-sdk" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
+wgpu = { version = "29", default-features = false }
+
+[dev-dependencies]
+beui = { path = "../beui" }
+
+[lints]
+workspace = true

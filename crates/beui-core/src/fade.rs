@@ -1,4 +1,4 @@
-use crate::geometry::{Pos2, Rect, Vec2};
+use beui_types::{Pos2, Rect, Vec2};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Fade {

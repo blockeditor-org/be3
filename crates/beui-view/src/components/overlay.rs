@@ -4,12 +4,13 @@ use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
 use crate::reactive::Prop;
 use crate::reactive::RenderFn;
-use crate::reactive::{Memo, Set, Signal, create_signal, use_context};
+use crate::reactive::{Get, Memo, Set, Signal, create_memo, create_signal, use_context};
 use crate::types::Color;
 use crate::types::Dismiss;
 use crate::types::LayerLevel;
 use crate::types::LayerPolicy;
 use crate::types::Placement;
+use crate::types::Rect;
 use crate::types::WindowId;
 use crate::types::WindowSpec;
 use beui_macros::component;
@@ -18,7 +19,9 @@ use beui_macros::component;
 pub fn Overlay(
     anchor: Prop<OverlayAnchor>,
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = Color::TRANSPARENT)] scrim: Prop<Color>,
+    #[prop(default = 0.0)] scrim_radius: Prop<f32>,
     #[prop(default = LayerPolicy::BlocksAll)] policy: Prop<LayerPolicy>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = true)] traps_focus: Prop<bool>,
@@ -29,13 +32,21 @@ pub fn Overlay(
     #[prop(default = None)] window: Prop<Option<WindowSpec>>,
     open: Prop<bool>,
     #[prop(default = false)] keep_alive: bool,
+    #[prop(default = true)] dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     #[prop(children)] content: RenderFn<()>,
 ) -> NodeId {
+    let blocks = policy.clone();
+    let presence = OverlayPresence::new(
+        create_memo(move || open.get()),
+        create_memo(move || blocks.get() == LayerPolicy::BlocksAll),
+    );
     crate::core::overlay(
         anchor,
         placement,
+        bounds,
         scrim,
+        scrim_radius,
         policy,
         level,
         traps_focus,
@@ -44,9 +55,10 @@ pub fn Overlay(
         pointer,
         beak,
         window,
-        open,
         keep_alive,
+        dismissable,
         on_dismiss,
+        presence,
         content,
     )
 }
@@ -54,19 +66,34 @@ pub fn Overlay(
 #[derive(Clone, Copy)]
 pub struct OverlayPresence {
     open: Memo<bool>,
+    modal: Memo<bool>,
     lingering: Signal<Vec<Memo<bool>>>,
 }
 
 impl OverlayPresence {
-    pub(crate) fn new(open: Memo<bool>) -> Self {
+    pub(crate) fn new(open: Memo<bool>, modal: Memo<bool>) -> Self {
         Self {
             open,
+            modal,
             lingering: create_signal(Vec::new()),
         }
     }
 
+    pub(crate) fn modality(self) -> Modality {
+        Modality(self.modal)
+    }
+
     pub(crate) fn lingering(self) -> Signal<Vec<Memo<bool>>> {
         self.lingering
+    }
+
+    pub(crate) fn shown(self) -> Memo<bool> {
+        create_memo(move || {
+            self.open.get()
+                || self
+                    .lingering
+                    .with(|lingering| lingering.iter().any(Get::get))
+        })
     }
 
     pub fn open(self) -> Memo<bool> {
@@ -80,4 +107,12 @@ impl OverlayPresence {
 
 pub fn use_overlay_presence() -> Option<OverlayPresence> {
     use_context::<OverlayPresence>()
+}
+
+#[derive(Clone, Copy)]
+pub struct Modality(pub Memo<bool>);
+
+pub fn use_modal() -> Memo<bool> {
+    let held = use_context::<Modality>();
+    create_memo(move || held.is_some_and(|Modality(modal)| modal.get()))
 }

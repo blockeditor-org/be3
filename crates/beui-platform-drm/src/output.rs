@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::os::fd::OwnedFd;
 
 use rustix::event::{PollFd, PollFlags, Timespec, poll};
@@ -13,15 +13,17 @@ use smithay::reexports::drm::control::{
 use smithay::reexports::drm::{Device as _, DriverCapability};
 
 use super::screen::{Damage, Frame, Screen};
-use be_dmabuf::{Usage, Vulkan};
+use be_host_dmabuf::{Usage, Vulkan};
 
-use crate::display::{DisplayConfig, DisplayMode, Monitor};
+use crate::density::natural_scale;
+use crate::display::{DisplayConfig, DisplayMode, DisplayUse, Monitor};
 use crate::gpu::{Gpu, Submitted};
 use crate::modes::{
     Candidate, Timing, choose, default_mode, identity, listed, monitor_id, monitor_name,
     preferred_mode, refresh_millihertz,
 };
 use crate::pacing::{Lane, refresh_interval};
+use crate::pointing;
 use crate::rotation::Rotation;
 use crate::swapchain::Swapchain;
 
@@ -42,6 +44,7 @@ pub struct Output {
     swapchain: Swapchain,
     pub screen: Screen,
     pub clear: beui::Color32,
+    pub used: DisplayUse,
     targets: HashMap<WeakDmabuf, wgpu::Texture>,
     modes: Vec<Mode>,
     candidates: Vec<Candidate>,
@@ -49,6 +52,9 @@ pub struct Output {
     id: String,
     name: String,
     connector_name: String,
+    millimetres: Option<(u32, u32)>,
+    held: bool,
+    forced_scale: Option<f32>,
     fencing: bool,
     state: State,
     damage: Damage,
@@ -57,6 +63,7 @@ pub struct Output {
     failure: Option<String>,
     stalled: bool,
     blanked: bool,
+    off: bool,
     dark: bool,
     darken_failed: bool,
     fresh: bool,
@@ -163,7 +170,7 @@ impl Output {
         info: &connector::Info,
         taken: &[crtc::Handle],
         config: &DisplayConfig,
-        default_scale: f32,
+        forced_scale: Option<f32>,
         generation: u64,
     ) -> Result<Self, String> {
         let connector_name = info.to_string();
@@ -211,20 +218,33 @@ impl Output {
         };
         let fencing = syncobj && !buffers.imported && !swapchain.is_legacy();
         let mut screen = Screen::new(gpu, size_of(&mode), config.rotation(&id));
-        screen.scale = config.scale(&id).unwrap_or(default_scale);
+        let held = matches!(
+            info.interface(),
+            connector::Interface::DSI | connector::Interface::DPI
+        );
+        let millimetres = info
+            .size()
+            .filter(|(width, height)| *width > 0 && *height > 0);
+        screen.scale = config.scale(&id).unwrap_or_else(|| {
+            forced_scale.unwrap_or_else(|| natural_scale(size_of(&mode), millimetres, held))
+        });
         Ok(Self {
             connector,
             crtc,
             swapchain,
             screen,
             clear: beui::Color32::BLACK,
-            targets: HashMap::new(),
+            used: DisplayUse::Desktop,
+            targets: HashMap::default(),
             modes,
             candidates,
             chosen,
             id,
             name: monitor_name(identity.as_ref(), &connector_name),
             connector_name,
+            millimetres,
+            held,
+            forced_scale,
             fencing,
             state: State::Idle,
             damage: None,
@@ -233,6 +253,7 @@ impl Output {
             failure: None,
             stalled: false,
             blanked: false,
+            off: false,
             dark: false,
             darken_failed: false,
             fresh: false,
@@ -247,6 +268,16 @@ impl Output {
         &self.name
     }
 
+    pub fn pointed(&self) -> pointing::Screen {
+        pointing::Screen {
+            id: self.id.clone(),
+            connector: self.connector_name.clone(),
+            size: self.millimetres,
+            rect: self.screen.rect,
+            rotation: self.screen.rotation(),
+        }
+    }
+
     pub fn monitor(&self) -> Monitor {
         let default = default_mode(&self.candidates).unwrap_or(self.chosen);
         let preferred = preferred_mode(&self.candidates).unwrap_or(default);
@@ -259,7 +290,14 @@ impl Output {
             preferred: self.candidates[preferred].mode,
             current: self.candidates[self.chosen].mode,
             rotation: self.screen.rotation(),
+            default_scale: self.default_scale(self.chosen),
         }
+    }
+
+    fn default_scale(&self, chosen: usize) -> f32 {
+        self.forced_scale.unwrap_or_else(|| {
+            natural_scale(size_of(&self.modes[chosen]), self.millimetres, self.held)
+        })
     }
 
     pub fn drawing(&self) -> bool {
@@ -271,11 +309,12 @@ impl Output {
         gpu: &Gpu,
         wanted: Option<DisplayMode>,
         rotation: Rotation,
-        scale: f32,
+        scale: Option<f32>,
     ) -> bool {
         let Some(chosen) = choose(&self.candidates, wanted) else {
             return false;
         };
+        let scale = scale.unwrap_or_else(|| self.default_scale(chosen));
         if self.drawing() {
             return false;
         }
@@ -308,15 +347,44 @@ impl Output {
     }
 
     pub fn wants_frame(&self) -> bool {
-        !self.blanked && !self.stalled && matches!(self.state, State::Idle) && self.screen.dirty()
+        !self.unlit() && !self.stalled && matches!(self.state, State::Idle) && self.screen.dirty()
+    }
+
+    pub fn shows(&self) -> Option<&str> {
+        match &self.used {
+            DisplayUse::Desktop => Some(&self.id),
+            DisplayUse::Mirror(source) => Some(source),
+            DisplayUse::Off => None,
+        }
+    }
+
+    pub fn on_desktop(&self) -> bool {
+        self.used == DisplayUse::Desktop
+    }
+
+    pub fn set_used(&mut self, used: DisplayUse) {
+        let was = self.unlit();
+        self.off = used == DisplayUse::Off;
+        self.used = used;
+        self.follow_lit(was);
     }
 
     pub fn set_blanked(&mut self, blanked: bool) {
-        if blanked == self.blanked {
+        let was = self.unlit();
+        self.blanked = blanked;
+        self.follow_lit(was);
+    }
+
+    fn unlit(&self) -> bool {
+        self.blanked || self.off
+    }
+
+    fn follow_lit(&mut self, was: bool) {
+        let unlit = self.unlit();
+        if unlit == was {
             return;
         }
-        self.blanked = blanked;
-        if blanked {
+        if unlit {
             self.darken();
         } else {
             self.dark = false;
@@ -326,11 +394,11 @@ impl Output {
     }
 
     pub fn lit_while_blanked(&self) -> bool {
-        self.blanked && !self.dark
+        self.unlit() && !self.dark
     }
 
     pub fn darken(&mut self) {
-        if !self.blanked || self.dark || !matches!(self.state, State::Idle) {
+        if !self.unlit() || self.dark || !matches!(self.state, State::Idle) {
             return;
         }
         match self.swapchain.clear() {
@@ -379,7 +447,7 @@ impl Output {
     }
 
     pub fn lane(&self) -> Option<Lane> {
-        if self.blanked || self.stalled {
+        if self.unlit() || self.stalled {
             return None;
         }
         Some(Lane {

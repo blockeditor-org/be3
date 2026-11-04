@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "app")
+
+app(
+    module = "image_block",
+    types = "//crates/be-type-image:module",
+)

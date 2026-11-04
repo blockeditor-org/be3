@@ -1,15 +1,16 @@
-use foldhash::HashSet;
+use be_lib_stable_hash::HashSet;
 
 use crate::base::embed::EmbedNode;
 use crate::base::interactive::{InteractiveNode, local_in};
 use crate::base::overlay::OverlayNode;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::Modifiers;
-use crate::layer::LayerPolicy;
-use crate::node::{NodeId, NodeOf, Rects};
-use crate::window::WindowId;
+use crate::node::{NodeOf, Rects};
+use beui_types::LayerPolicy;
+use beui_types::Modifiers;
+use beui_types::NodeId;
+use beui_types::WindowId;
 use beui_types::region::Area;
+use beui_types::{Pos2, Rect, Vec2};
 
 use super::TOUCH_REACH;
 
@@ -118,6 +119,7 @@ pub fn hit(doc: &mut Document, rects: &Rects, window: WindowId, pos: Pos2, touch
                 .is_some_and(|rect| rect.contains_half_open(pos));
             if inside && let Some(content) = layer.content {
                 let hit = within(doc, rects, content, pos, touch).unwrap_or_default();
+                outside.retain(|overlay| !doc.on_overlay_trigger(*overlay, pos));
                 return settle(doc, index, hit, outside);
             }
             if !layer.blocks_all() {
@@ -495,7 +497,9 @@ fn handlers(node: &InteractiveNode) -> Vec<&'static str> {
         ("wheel", !node.on_wheel.is_empty()),
         (
             "hover",
-            !node.on_hover_change.is_empty() || !node.on_hover_move.is_empty(),
+            !node.on_hover_change.is_empty()
+                || !node.on_hover_move.is_empty()
+                || !node.on_pointed_change.is_empty(),
         ),
         ("forwarded input", node.forwards()),
         ("focus", node.focus.is_some()),

@@ -1,9 +1,13 @@
 use std::time::{Duration, Instant};
 
-use beui_core::input::{Key, Keystroke};
+use beui_types::{Key, Keystroke};
 
 pub const LET_GO_AFTER: Duration = Duration::from_millis(600);
 
+/// Holding Escape for `LET_GO_AFTER` (frame clock) lets space's pointer grab go.
+/// Escape's press reaches the program at once, since programs use a tap of it.
+/// Once the hold fires, its repeats stop reaching the program but its release still
+/// does, so the program's key state stays whole.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Hold {
     since: Option<Instant>,

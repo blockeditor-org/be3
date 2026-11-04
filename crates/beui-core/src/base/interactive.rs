@@ -1,22 +1,25 @@
-use crate::window::WindowId;
+use beui_types::WindowId;
 use std::any::Any;
 
-use crate::base::list::Direction;
 use crate::base::overlay::OverlayNode;
 use crate::focus::Focus;
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{CursorIcon, Modifiers, PointerInput, PointerPress, TouchDrags, WheelInput};
 use crate::painter::Painter;
+use beui_types::Direction;
 use beui_types::region::{Area, Claim};
+use beui_types::{CursorIcon, CursorImage, Modifiers};
+use beui_types::{PointerInput, PointerPress, TouchDrags, WheelInput};
+use beui_types::{Pos2, Rect, Vec2};
 
-use crate::callback::{Callback, ClickCallback};
 use crate::document::Document;
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeOf, Rects};
+use beui_tree::callback::{Callback, ClickCallback};
+use beui_types::NodeId;
 
 pub struct InteractiveNode {
     pub child: Option<NodeId>,
     pub focus: Option<Focus>,
     pub cursor: Option<CursorIcon>,
+    pub cursor_image: Option<CursorImage>,
     pub locks_pointer: bool,
     pub grabs_pointer: bool,
     pub captures: Area,
@@ -30,11 +33,13 @@ pub struct InteractiveNode {
     pub armed: bool,
     pub hovered: bool,
     pub hover_pos: Option<Pos2>,
+    pub pointed: bool,
     pub active: bool,
     pub on_click: ClickCallback,
     pub on_click_at: Callback<PointerPress>,
     pub on_hover_change: Callback<bool>,
     pub on_hover_move: Callback<PointerPress>,
+    pub on_pointed_change: Callback<bool>,
     pub on_active_change: Callback<bool>,
     pub on_cancel: ClickCallback,
     pub on_middle_click: ClickCallback,
@@ -46,7 +51,7 @@ pub struct InteractiveNode {
     pub on_wheel: Callback<WheelInput, bool>,
     pub gesture_area: Area,
     pub hit_area: Area,
-    pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
+    pub on_forward: Callback<beui_types::ForwardedInput>,
     pub inhibits_shortcuts: bool,
     pub clipboard_keys: bool,
     pub forwards_wheel: bool,
@@ -66,6 +71,7 @@ impl InteractiveNode {
             child: None,
             focus: None,
             cursor: None,
+            cursor_image: None,
             locks_pointer: false,
             grabs_pointer: false,
             captures: Area::Nowhere,
@@ -79,11 +85,13 @@ impl InteractiveNode {
             armed: false,
             hovered: false,
             hover_pos: None,
+            pointed: false,
             active: false,
             on_click: ClickCallback::empty(),
             on_click_at: Callback::empty(),
             on_hover_change: Callback::empty(),
             on_hover_move: Callback::empty(),
+            on_pointed_change: Callback::empty(),
             on_active_change: Callback::empty(),
             on_cancel: ClickCallback::empty(),
             on_middle_click: ClickCallback::empty(),
@@ -179,7 +187,7 @@ pub fn press_at(
     time: std::time::Instant,
 ) -> PointerPress {
     PointerPress {
-        window: crate::window::WindowId::MAIN,
+        window: beui_types::WindowId::MAIN,
         pos,
         local: local_in(rect, scale, pos),
         size: rect.size() / scale,
@@ -227,6 +235,18 @@ impl Element for InteractiveNode {
     fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
         self.child
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
+    }
+
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        Some(self.child.map_or(0.0, |child| {
+            crate::layout::least_length(doc, painter, child, direction, cross)
+        }))
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
@@ -283,6 +303,7 @@ impl Element for InteractiveNode {
             (self.on_cancel.is_empty(), "cancel"),
             (self.on_hover_change.is_empty(), "hover"),
             (self.on_hover_move.is_empty(), "hover move"),
+            (self.on_pointed_change.is_empty(), "pointed"),
             (self.on_active_change.is_empty(), "active"),
             (self.on_drag.is_empty(), "drag"),
             (self.on_long_press_drag.is_empty(), "long press drag"),
@@ -295,6 +316,7 @@ impl Element for InteractiveNode {
         .collect();
         let states: Vec<&str> = [
             (self.hovered, "hovered"),
+            (self.pointed, "pointed"),
             (self.active, "active"),
             (self.armed, "armed"),
             (self.key_active, "key active"),
@@ -333,8 +355,14 @@ impl Element for InteractiveNode {
             ("focus", focus),
             (
                 "cursor",
-                self.cursor
-                    .map_or_else(|| "default".to_owned(), |cursor| format!("{cursor:?}")),
+                match (&self.cursor_image, self.cursor) {
+                    (Some(image), _) => format!(
+                        "image {}x{} at {},{}",
+                        image.size.x, image.size.y, image.hotspot.x, image.hotspot.y
+                    ),
+                    (None, Some(cursor)) => format!("{cursor:?}"),
+                    (None, None) => "default".to_owned(),
+                },
             ),
             ("handlers", list(handlers)),
             ("state", list(states)),
@@ -371,6 +399,16 @@ impl Document {
     ) {
         if self.arena.get_as::<InteractiveNode>(id).cursor != cursor {
             self.arena.touch_mut_as::<InteractiveNode>(id).cursor = cursor;
+        }
+    }
+
+    pub fn set_interactive_cursor_image(
+        &mut self,
+        id: NodeOf<InteractiveNode>,
+        image: Option<CursorImage>,
+    ) {
+        if self.arena.get_as::<InteractiveNode>(id).cursor_image != image {
+            self.arena.touch_mut_as::<InteractiveNode>(id).cursor_image = image;
         }
     }
 
@@ -475,10 +513,17 @@ impl Document {
         };
     }
 
-    pub fn wants_every_sample(&self, window: WindowId) -> bool {
-        self.every_sample_surfaces
-            .iter()
-            .any(|id| self.arena.contains(*id) && self.window_of(*id) == window)
+    pub(crate) fn every_sample_windows(&self) -> Vec<WindowId> {
+        let mut windows = Vec::new();
+        for id in &self.every_sample_surfaces {
+            if self.arena.contains(*id) {
+                let window = self.window_of(*id);
+                if !windows.contains(&window) {
+                    windows.push(window);
+                }
+            }
+        }
+        windows
     }
 
     pub fn drawing_rects(&self, window: WindowId) -> Vec<Rect> {
@@ -541,6 +586,10 @@ impl Document {
         }
     }
 
+    pub fn forwards_keys(&self) -> bool {
+        crate::interact::forward::takes_keys(self)
+    }
+
     pub fn clipboard_keys(&self) -> bool {
         let mut current = self.focused.filter(|focused| self.arena.contains(*focused));
         for _ in 0..crate::node::ANCESTOR_LIMIT {
@@ -598,7 +647,7 @@ impl Document {
         &mut self,
         rects: &Rects,
         layers: &[NodeOf<OverlayNode>],
-        window: crate::window::WindowId,
+        window: beui_types::WindowId,
         pos: Pos2,
         primary: bool,
     ) {
@@ -611,7 +660,7 @@ impl Document {
             .iter()
             .filter(|id| self.arena.contains(**id))
             .filter(|id| {
-                self.window_of(**id) != window
+                window != self.window_of(**id)
                     || !rects
                         .visible(id)
                         .is_some_and(|rect| rect.contains_half_open(pos))

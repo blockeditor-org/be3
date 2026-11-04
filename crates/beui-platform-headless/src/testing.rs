@@ -7,23 +7,22 @@ use std::rc::Rc;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use std::time::Duration;
 
-use beui_core::app::{App, SafeArea, Setup, Waker};
-use beui_core::color::Color32;
 use beui_core::context::RendererInfo;
-use beui_core::context::{Context, FrameOutput, WindowOutput};
+use beui_core::context::{Context, EscapedOutput, FrameOutput, WindowOutput};
 use beui_core::document::Document;
 pub use beui_core::document::delay_measurement;
-use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_core::input::typing;
-use beui_core::input::{Input, Key, Modifiers, PointerButton, TouchPhase};
-use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{
+use beui_core::program::{Program, SafeArea, Setup, Waker};
+use beui_core::window::{Resize, WindowSize};
+use beui_layer_drive::{Drive, Inbox, Reply, ask};
+use beui_runner::renderer::{Loaded, Renderer};
+use beui_runner::{
     Incoming, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner, Shown,
 };
-use beui_core::window::{
-    HostPlacement, Resize, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowSize,
-};
-use beui_layer_drive::{Drive, Inbox, Reply, ask};
+use beui_types::Color32;
+use beui_types::input::typing;
+use beui_types::{HostPlacement, WindowId, WindowPlacement, WindowReport, WindowRequest};
+use beui_types::{Input, Key, Modifiers, PointerButton, TouchPhase};
+use beui_types::{Pos2, Rect, Vec2};
 
 use crate::Simulation;
 
@@ -62,7 +61,7 @@ impl Renderer for Screen {
 
 pub struct Showing(pub Document);
 
-impl App for Showing {
+impl Program for Showing {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.0.show(context, rect);
     }
@@ -149,7 +148,7 @@ pub struct Windows {
     pub open: Vec<HostedWindow>,
     pub requests: Vec<WindowRequest>,
     pub outputs: Vec<WindowOutput>,
-    pub controllers: Vec<beui_core::runner::Controller>,
+    pub controllers: Vec<beui_runner::Controller>,
     reports: Vec<WindowReport>,
     main: Option<Vec2>,
 }
@@ -240,7 +239,10 @@ impl Layer for TestHost {
                     windows.outputs.retain(|output| output.id != *window);
                 }
                 WindowRequest::Resize { window, size } => windows.resized(*window, *size),
-                WindowRequest::BeginMove(_) | WindowRequest::BeginResize { .. } => {}
+                WindowRequest::BeginMove(_)
+                | WindowRequest::BeginResize { .. }
+                | WindowRequest::Raise(_)
+                | WindowRequest::Place { .. } => {}
             }
         }
         for window in shown.windows.iter().filter(|window| !window.id.is_main()) {
@@ -251,8 +253,8 @@ impl Layer for TestHost {
     }
 }
 
-pub struct Stepped<A: App = Showing> {
-    app: PhantomData<A>,
+pub struct Stepped<A: Program = Showing> {
+    program: PhantomData<A>,
     runner: Runner,
     windows: Option<Rc<RefCell<Windows>>>,
     window: Window,
@@ -262,13 +264,31 @@ pub struct Stepped<A: App = Showing> {
     inbox: Inbox,
     steps: Vec<String>,
     closed: bool,
+    latest: Option<Latest>,
+    recording: Option<beui_paint_snapshot::Snapshot>,
 }
 
-impl<A: App + 'static> Stepped<A> {
-    pub fn new(context: Context, app: A, window: WindowSize, screen: Option<Vec2>) -> Self {
+struct Latest {
+    main: WindowOutput,
+    escaped: Vec<EscapedOutput>,
+    pixels_per_point: f32,
+}
+
+impl Latest {
+    fn of(output: &FrameOutput) -> Self {
+        Self {
+            main: output.main().clone(),
+            escaped: output.escaped.clone(),
+            pixels_per_point: output.pixels_per_point(),
+        }
+    }
+}
+
+impl<A: Program + 'static> Stepped<A> {
+    pub fn new(context: Context, program: A, window: WindowSize, screen: Option<Vec2>) -> Self {
         Self::start(
             context,
-            app,
+            program,
             window.size,
             window.scale,
             Hosting::Alone,
@@ -276,11 +296,11 @@ impl<A: App + 'static> Stepped<A> {
         )
     }
 
-    pub fn hosting_windows(context: Context, app: A, window: WindowSize) -> Self {
+    pub fn hosting_windows(context: Context, program: A, window: WindowSize) -> Self {
         let windows = Rc::new(RefCell::new(Windows::default()));
         Self::start(
             context,
-            app,
+            program,
             window.size,
             window.scale,
             Hosting::Tested(windows),
@@ -290,14 +310,14 @@ impl<A: App + 'static> Stepped<A> {
 
     pub fn hosted(
         context: Context,
-        app: A,
+        program: A,
         window: WindowSize,
         host: Box<dyn Layer>,
         setup: Setup,
     ) -> Self {
         Self::start(
             context,
-            app,
+            program,
             window.size,
             window.scale,
             Hosting::By(host, setup),
@@ -307,18 +327,18 @@ impl<A: App + 'static> Stepped<A> {
 
     pub fn on(
         context: Context,
-        app: A,
+        program: A,
         size: Vec2,
         platform: impl PlatformServices + 'static,
     ) -> Self {
-        Self::start(context, app, size, 1.0, Hosting::Alone, |_| {
+        Self::start(context, program, size, 1.0, Hosting::Alone, |_| {
             Window::Other(Box::new(platform))
         })
     }
 
     fn start(
         context: Context,
-        app: A,
+        program: A,
         size: Vec2,
         scale: f32,
         hosting: Hosting,
@@ -340,7 +360,7 @@ impl<A: App + 'static> Stepped<A> {
         let mut runner = Runner::new(Launch {
             options: RunOptions::default(),
             context,
-            app: Box::new(app),
+            program: Box::new(program),
             layers,
         });
         let window = window(&runner);
@@ -355,7 +375,7 @@ impl<A: App + 'static> Stepped<A> {
             .expect("a screen without a gpu always loads");
         runner.context().stop_clock();
         Self {
-            app: PhantomData,
+            program: PhantomData,
             runner,
             windows,
             window,
@@ -365,17 +385,23 @@ impl<A: App + 'static> Stepped<A> {
             inbox,
             steps: Vec::new(),
             closed: false,
+            latest: None,
+            recording: None,
         }
     }
 
-    pub fn app(&self) -> &A {
-        let app: &dyn Any = self.runner.app();
-        app.downcast_ref().expect("the app is there until it exits")
+    pub fn program(&self) -> &A {
+        let program: &dyn Any = self.runner.program();
+        program
+            .downcast_ref()
+            .expect("the program is there until it exits")
     }
 
-    pub fn app_mut(&mut self) -> &mut A {
-        let app: &mut dyn Any = self.runner.app_mut();
-        app.downcast_mut().expect("the app is there until it exits")
+    pub fn program_mut(&mut self) -> &mut A {
+        let program: &mut dyn Any = self.runner.program_mut();
+        program
+            .downcast_mut()
+            .expect("the program is there until it exits")
     }
 
     pub fn context(&self) -> &Context {
@@ -410,9 +436,12 @@ impl<A: App + 'static> Stepped<A> {
             self.runner.push(Incoming::points(input));
         }
         self.paint();
-        self.runner
+        let output = self
+            .runner
             .take_output()
-            .expect("a started runner that has not exited draws every frame")
+            .expect("a started runner that has not exited draws every frame");
+        self.latest = Some(Latest::of(&output));
+        output
     }
 
     pub fn frame_in(&mut self, window: WindowId, inputs: Vec<Input>) -> FrameOutput {
@@ -420,9 +449,12 @@ impl<A: App + 'static> Stepped<A> {
             self.runner.push(Incoming::points(input).in_window(window));
         }
         self.paint();
-        self.runner
+        let output = self
+            .runner
             .take_output()
-            .expect("a started runner that has not exited draws every frame")
+            .expect("a started runner that has not exited draws every frame");
+        self.latest = Some(Latest::of(&output));
+        output
     }
 
     pub fn windows(&self) -> std::cell::Ref<'_, Windows> {
@@ -483,9 +515,12 @@ impl<A: App + 'static> Stepped<A> {
     }
 
     pub fn take_output(&mut self) -> FrameOutput {
-        self.runner
+        let output = self
+            .runner
             .take_output()
-            .expect("a frame was painted since the output was last taken")
+            .expect("a frame was painted since the output was last taken");
+        self.latest = Some(Latest::of(&output));
+        output
     }
 
     pub fn resize(&mut self, size: Vec2) {
@@ -523,7 +558,7 @@ impl<A: App + 'static> Stepped<A> {
         self.runner.frame(platform, SafeArea::default());
         self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {
-            panic!("the app panicked: {failure}\n{}", self.replay());
+            panic!("the program panicked: {failure}\n{}", self.replay());
         }
     }
 
@@ -537,7 +572,15 @@ impl<A: App + 'static> Stepped<A> {
     }
 
     pub fn painting(&mut self) -> beui_core::painting::Painting {
-        let painted = match self.reply(&["paint", "in", "platform"]) {
+        self.painted_by(&["paint", "in", "platform"])
+    }
+
+    pub fn painting_of(&mut self, target: &str) -> beui_core::painting::Painting {
+        self.painted_by(&["paint", target])
+    }
+
+    fn painted_by(&mut self, words: &[&str]) -> beui_core::painting::Painting {
+        let painted = match self.reply(words) {
             Reply::Painting(bytes) => beui_core::painting::Painting::decode(&bytes),
             Reply::Error(error) => Err(error),
             Reply::Text(_) | Reply::Image { .. } => Err("the answer is not a painting".to_owned()),
@@ -566,7 +609,7 @@ impl<A: App + 'static> Stepped<A> {
             }
         }
         panic!(
-            "the app never answered {words:?} in {ANSWER_FRAMES} frames\n{}",
+            "the program never answered {words:?} in {ANSWER_FRAMES} frames\n{}",
             self.replay()
         );
     }
@@ -756,12 +799,125 @@ impl<A: App + 'static> Stepped<A> {
 
 impl Stepped<Showing> {
     pub fn document(&self) -> &Document {
-        &self.app().0
+        &self.program().0
     }
 
     pub fn document_mut(&mut self) -> &mut Document {
-        &mut self.app_mut().0
+        &mut self.program_mut().0
     }
+
+    pub fn record(&mut self) {
+        let frame = self.painted_snapshot();
+        match &mut self.recording {
+            Some(recording) => recording.append(frame),
+            None => self.recording = Some(frame),
+        }
+    }
+
+    pub fn snapshot(&mut self, name: &str) {
+        self.record();
+        let recording = self.recording.take().expect("a frame was just recorded");
+        beui_paint_snapshot::assert_accepted(name, &recording, beui_paint_snapshot::HOW_TO_ACCEPT);
+        let found = self
+            .document()
+            .overflows()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_fits(name, found);
+    }
+
+    fn painted_snapshot(&mut self) -> beui_paint_snapshot::Snapshot {
+        let size = self.size();
+        let latest = self.latest();
+        let painting = painting(
+            &latest.main,
+            size,
+            latest.pixels_per_point,
+            latest.main.window.appearance.clear_color,
+        );
+        beui_paint_snapshot::Snapshot::of_painting(painting)
+            .expect("the painting could not be encoded")
+    }
+
+    pub fn snapshot_layers(&mut self, name: &str) {
+        let space = self
+            .context()
+            .layer_space(WindowId::MAIN)
+            .expect("snapshot_layers shows the main window in the layer space it was given");
+        let latest = self.latest();
+        let composite = beui_core::escape::composite_layers(
+            &latest.main,
+            &latest.escaped,
+            space,
+            latest.main.window.appearance.clear_color,
+        );
+        let painting = painting(
+            &composite,
+            composite.size,
+            latest.pixels_per_point,
+            LAYER_HOST,
+        );
+        beui_paint_snapshot::assert_painting(name, painting);
+    }
+
+    pub fn snapshot_window(&mut self, name: &str, window: WindowId) {
+        let output = self
+            .windows()
+            .output(window)
+            .cloned()
+            .unwrap_or_else(|| panic!("window {window:?} has painted nothing"));
+        let painting = painting(
+            &output,
+            output.size,
+            output.pixels_per_point,
+            output.window.appearance.clear_color,
+        );
+        beui_paint_snapshot::assert_painting(name, painting);
+    }
+
+    fn latest(&mut self) -> &Latest {
+        if !self.painted {
+            self.paint();
+        }
+        if let Some(output) = self.runner.output() {
+            self.latest = Some(Latest::of(output));
+        }
+        self.latest
+            .as_ref()
+            .expect("a painted runner has drawn a frame")
+    }
+}
+
+const LAYER_HOST: Color32 = Color32::from_rgb(24, 26, 32);
+
+fn painting(
+    output: &WindowOutput,
+    size: Vec2,
+    pixels_per_point: f32,
+    background: Color32,
+) -> beui_core::painting::Painting {
+    beui_core::painting::painting(
+        output,
+        size,
+        pixels_per_point,
+        background,
+        beui_core::painting::Punches::Shown,
+    )
+    .unwrap_or_else(|error| panic!("the painting could not be rendered: {error}"))
+}
+
+pub fn assert_fits(name: &str, mut found: Vec<String>) {
+    found.sort();
+    found.dedup();
+    if found.is_empty() {
+        return;
+    }
+    panic!(
+        "the painting {name} shows {} element(s) out of bounds, cut off where nothing scrolls to them, drawn outside their own box, or with an outline cut while their box shows (give a ring room: padding inside the scroll around its content, or `bleed` on a scroll inside a padded surface):\n  {}",
+        found.len(),
+        found.join("\n  ")
+    );
 }
 
 pub fn button_name(button: PointerButton) -> String {

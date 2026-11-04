@@ -1,10 +1,10 @@
+use beui_reactive::{Get, ReadSignal, Set, Signal};
 use beui_types::{Color, Color32, ColorDefinitions, ColorScheme};
-use reactive::{Get, ReadSignal, Set, Signal};
 
 use crate::css::literal_color;
 
 thread_local! {
-    static DEFINED: Signal<ColorDefinitions> = crate::global_signal(ColorDefinitions::new());
+    static DEFINED: Signal<ColorDefinitions> = crate::global_signal(ColorDefinitions::default());
 }
 
 fn defined() -> Signal<ColorDefinitions> {

@@ -1,11 +1,11 @@
+use be_lib_stable_hash::HashMap;
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use beui_html::Node;
+use beui_reactive::ScopeContext;
 use beui_types::Direction;
-use reactive::ScopeContext;
 
 use beui_types::node::NodeCell;
 
@@ -16,6 +16,8 @@ pub(crate) struct Shared {
     style: Vec<(&'static str, String)>,
     placed: Vec<(&'static str, String)>,
     test_ids: Vec<String>,
+    described: Option<(u64, accesskit::Node)>,
+    aria: Vec<(&'static str, String)>,
 }
 
 pub(crate) struct Entry {
@@ -26,7 +28,6 @@ pub(crate) struct Entry {
     pub(crate) owner: Option<ScopeContext>,
     pub(crate) direction: Direction,
     pub(crate) states: Vec<Box<dyn Any>>,
-    pub(crate) accessibility: Option<accesskit::Node>,
     refs: Vec<Weak<NodeCell>>,
 }
 
@@ -40,7 +41,7 @@ struct Arena {
 #[derive(Default)]
 struct Removals(RefCell<Vec<NodeId>>);
 
-impl reactive::Release for Removals {
+impl beui_reactive::Release for Removals {
     fn release(&self, key: u64) {
         self.0.borrow_mut().push(NodeId::from_key(key));
     }
@@ -48,7 +49,7 @@ impl reactive::Release for Removals {
 
 thread_local! {
     static SCOPE: ScopeContext = {
-        let scope = reactive::Scope::root();
+        let scope = beui_reactive::Scope::root();
         let context = scope.context();
         std::mem::forget(scope);
         context
@@ -110,10 +111,9 @@ fn create_on(kind: &'static str, element: Node, shared: Rc<RefCell<Shared>>, wra
         kind,
         shared,
         wraps,
-        owner: reactive::current_scope(),
+        owner: beui_reactive::current_scope(),
         direction: Direction::Vertical,
         states: Vec::new(),
-        accessibility: None,
         refs: Vec::new(),
     };
     let node = ARENA.with(|arena| {
@@ -131,9 +131,9 @@ fn create_on(kind: &'static str, element: Node, shared: Rc<RefCell<Shared>>, wra
             }
         }
     });
-    if reactive::current_scope().is_some() {
-        let removals: Rc<dyn reactive::Release> = REMOVALS.with(|removals| removals.clone());
-        reactive::on_release(removals, node.key());
+    if beui_reactive::current_scope().is_some() {
+        let removals: Rc<dyn beui_reactive::Release> = REMOVALS.with(|removals| removals.clone());
+        beui_reactive::on_release(removals, node.key());
     }
     node
 }
@@ -277,6 +277,9 @@ pub fn append(parent: NodeId, child: NodeId) {
 }
 
 pub fn add_test_id(node: NodeId, id: String) {
+    if id.is_empty() {
+        return;
+    }
     let ids = with_entry(node, |entry| {
         let mut shared = entry.shared.borrow_mut();
         if !shared.test_ids.contains(&id) {
@@ -300,6 +303,7 @@ pub fn remove_test_id(node: NodeId, id: &str) {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 fn outermost(keep: impl Fn(&Entry) -> bool) -> Vec<(NodeId, Node)> {
     ARENA.with(|arena| {
         let arena = arena.borrow();
@@ -333,13 +337,6 @@ fn outermost(keep: impl Fn(&Entry) -> bool) -> Vec<(NodeId, Node)> {
     })
 }
 
-pub fn nodes_with_test_id(id: &str) -> Vec<NodeId> {
-    outermost(|entry| entry.shared.borrow().test_ids.iter().any(|held| held == id))
-        .into_iter()
-        .map(|(node, _)| node)
-        .collect()
-}
-
 pub fn set_state(node: NodeId, state: Box<dyn Any>) {
     with_entry(node, |entry| entry.states.push(state));
 }
@@ -356,8 +353,41 @@ pub fn state<T: Clone + 'static>(node: NodeId) -> Option<T> {
     .flatten()
 }
 
-pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node) {
-    with_entry(node, |entry| entry.accessibility = Some(accessibility));
+pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64) {
+    let Some((element, shared)) =
+        with_entry(node, |entry| (entry.element.clone(), entry.shared.clone()))
+    else {
+        return;
+    };
+    let mut shared = shared.borrow_mut();
+    if shared
+        .described
+        .as_ref()
+        .is_some_and(|(held, _)| *held > rank)
+    {
+        return;
+    }
+    let mut attributes = crate::aria::attributes(&accessibility, element.tag());
+    if let Some(referenced) = accessibility.active_descendant() {
+        let name = format!("beui-{}", referenced.0);
+        let target = with_entry(NodeId::from_key(referenced.0), |entry| {
+            entry.element.clone()
+        });
+        if let Some(target) = target {
+            target.set_attribute("id", Some(name.clone()));
+            attributes.push(("aria-activedescendant", name));
+        }
+    }
+    shared.described = Some((rank, accessibility));
+    for (name, _) in &shared.aria {
+        if !attributes.iter().any(|(set, _)| set == name) {
+            element.set_attribute(name, None);
+        }
+    }
+    for (name, value) in &attributes {
+        element.set_attribute(name, Some(value.clone()));
+    }
+    shared.aria = attributes;
 }
 
 pub fn in_document_scope<T>(run: impl FnOnce() -> T) -> T {
@@ -400,7 +430,7 @@ pub fn about_elements() -> Vec<About> {
     ARENA.with(|arena| {
         let arena = arena.borrow();
         let mut found: Vec<(About, u32)> = Vec::new();
-        let mut by_element: HashMap<*const RefCell<Shared>, usize> = HashMap::new();
+        let mut by_element: HashMap<*const RefCell<Shared>, usize> = HashMap::default();
         for (index, (generation, entry)) in arena.slots.iter().enumerate() {
             let Some(entry) = entry.as_ref() else {
                 continue;
@@ -415,7 +445,12 @@ pub fn about_elements() -> Vec<About> {
                             element: entry.element.clone(),
                             kinds: Vec::new(),
                             test_ids: entry.shared.borrow().test_ids.clone(),
-                            accessibility: None,
+                            accessibility: entry
+                                .shared
+                                .borrow()
+                                .described
+                                .as_ref()
+                                .map(|(_, described)| described.clone()),
                         },
                         entry.wraps,
                     ));
@@ -427,11 +462,8 @@ pub fn about_elements() -> Vec<About> {
                 *wraps = entry.wraps;
             }
             about.kinds.push(entry.kind);
-            if about.accessibility.is_none() {
-                about.accessibility = entry.accessibility.clone();
-            }
         }
-        found.into_iter().map(|(about, _)| about).collect()
+        found.into_iter().map(|(about, ..)| about).collect()
     })
 }
 

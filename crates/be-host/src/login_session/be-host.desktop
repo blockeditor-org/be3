@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=be-host
+Comment=be-host as the desktop and the Wayland compositor
+Exec=env BEUI_PLATFORM=drm be-host --desktop
+TryExec=be-host
+DesktopNames=be-host
+X-LightDM-Session-Type=wayland

@@ -13,8 +13,15 @@ use crate::wake::{Held, Input};
 const DRIVER: &str = "rockchip-ebc";
 const DEFAULT_HINT: &str = "/sys/module/rockchip_ebc/parameters/default_hint";
 const HINT_MASK: u8 = 0xf0;
+/// Y2, threshold, no REDRAW: four greys, drawn while the screen is still. A Y2
+/// pixel can't change again until its transition ends, too slow for motion.
 const FOUR_GREYS_AT_ONCE: u8 = 0x10;
+/// Y1 dithered: DU transitions are short and can be reversed partway, so they
+/// keep up with motion, but leave ghosts.
 const DITHERED_BLACK_AND_WHITE: u8 = 0x40;
+/// How long after the last drawing or release the panel settles back to grey.
+/// Waiting lets an animation the release starts (a fling) draw fast instead of
+/// settling first.
 const QUIET: Duration = Duration::from_millis(100);
 const DRM_COMMAND_BASE: u8 = 0x40;
 
@@ -35,6 +42,8 @@ struct RectHints {
 const GLOBAL_REFRESH: Opcode = opcode::read_write::<GlobalRefresh>(b'd', DRM_COMMAND_BASE);
 const RECT_HINTS: Opcode = opcode::write::<RectHints>(b'd', DRM_COMMAND_BASE + 3);
 
+/// The e-paper panel's handle, for be-host's refresh button. `refresh` runs the
+/// driver's global refresh (GC16), the flashing full redraw that clears ghosts.
 #[derive(Clone)]
 pub struct Epaper {
     refreshes: Rc<Cell<bool>>,
@@ -65,6 +74,11 @@ pub(crate) enum Change {
     Settle,
 }
 
+/// When the panel hurries to black and white and when it settles back to grey.
+/// It is busy while anything animates (beui's `FrameOutput::animating`, an
+/// app's `PresentCommit::animating`) or a finger, pen tip or mouse button is
+/// held. Keys and a mouse that only moves don't count; a Wayland window counts
+/// as still.
 #[derive(Default)]
 pub(crate) struct Pace {
     hurried: bool,
@@ -128,8 +142,15 @@ impl Pace {
     }
 }
 
+/// The `rockchip-ebc` panel, found by the display device's driver name.
+///
+/// The driver reads its per-pixel hint only when it converts a commit's
+/// `FB_DAMAGE_CLIPS`, so changing the default hint changes only how later
+/// damage is drawn. Settling therefore also needs a frame whose damage covers
+/// everything drawn in black and white (`Screen::settle`).
 pub(crate) struct Panel {
     drm: DrmDeviceFd,
+    /// The default hint the module had when we started, put back on drop.
     found: Option<u8>,
     pub(crate) pace: Pace,
 }
@@ -151,6 +172,8 @@ impl Panel {
         })
     }
 
+    /// Called on start and whenever the seat comes back: another session may
+    /// have changed the default hint.
     pub(crate) fn take_over(&mut self) {
         self.pace = Pace::default();
         self.hint(FOUR_GREYS_AT_ONCE);

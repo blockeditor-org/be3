@@ -1,4 +1,4 @@
-use geometry::{Pos2, Rect, Vec2, pos2};
+use be_lib_geometry::{Pos2, Rect, Vec2, pos2};
 
 const ELLIPSE_HANDLE: f32 = 0.552_284_8;
 

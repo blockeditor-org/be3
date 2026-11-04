@@ -32,6 +32,9 @@ pub fn thumb_length(position: ScrollPosition) -> f32 {
     (length * squish).max(MINIMUM_THUMB.min(length) * 0.5)
 }
 
+/// Where the thumb starts, as a fraction of the track. Painting and hit testing
+/// both use this and [`thumb_length`], so what is drawn and what is pressed cannot
+/// drift apart.
 pub fn thumb_start(position: ScrollPosition) -> f32 {
     if position.overscroll() > 0.0 {
         return 1.0 - thumb_length(position);
@@ -124,6 +127,9 @@ fn along(direction: &Prop<Direction>, press: PointerPress) -> f32 {
     direction.get_untracked().main(press.fraction)
 }
 
+/// A scrollbar that answers the pointer itself: it drags the thumb and pages by
+/// a viewport towards a press on the track. While `shown` is false or the content
+/// fits it turns down every point, so a press on a hidden bar reaches the content.
 #[component]
 pub fn Scrollbar(
     position: Prop<ScrollPosition>,

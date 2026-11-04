@@ -1,0 +1,31 @@
+[package]
+name = "be-block-frozen"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+be-type-bundle = { path = "../be-type-bundle" }
+be-block = { path = "../be-block" }
+be-tool-cli = { path = "../be-tool-cli" }
+be-block-client = { path = "../be-block-client" }
+be-block-graph = { path = "../be-block-graph" }
+be-block-keys = { path = "../be-block-keys" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-block-protocol = { path = "../be-block-protocol" }
+be-server = { path = "../be-server" }
+be-block-store = { path = "../be-block-store" }
+be-block-type-host = { path = "../be-block-type-host" }
+be-lib-build-id = { path = "../be-lib-build-id" }
+be-type-database = { path = "../be-type-database" }
+rusqlite = { version = "0.32", features = ["bundled"] }
+be-type-text = { path = "../be-type-text" }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+uuid = { version = "1", features = ["v4"] }
+be-type-workspace = { path = "../be-type-workspace" }
+zip = { version = "8", default-features = false, features = ["deflate"] }
+
+[lints]
+workspace = true

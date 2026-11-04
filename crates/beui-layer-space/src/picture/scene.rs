@@ -1,6 +1,6 @@
-use beui_core::geometry::Rect;
 use beui_core::painting::{Content, Fade, Painting, Placement, Primitive, Triangle, Vertex};
-use beui_core::window::WindowId;
+use beui_types::Rect;
+use beui_types::WindowId;
 use glam::{Mat4, Vec3};
 
 use super::{Out, WHITE, faded, overlaps};
@@ -136,6 +136,7 @@ impl Scene {
                                 source,
                                 corners,
                                 clip: bounds,
+                                corner_radius: 0.0,
                             })
                             .iter()
                             .any(overlaps)
@@ -370,6 +371,7 @@ impl Scene {
                 out.primitives.push(Primitive {
                     clip: whole,
                     fade: Fade::NONE,
+                    rounds: Vec::new(),
                     content: Content::Mesh(triangles),
                 });
             }
@@ -383,6 +385,7 @@ impl Scene {
                     source: piece.source,
                     corners: piece.corners,
                     clip,
+                    corner_radius: 0.0,
                 });
                 for mut primitive in placed {
                     if !overlaps(&primitive) {

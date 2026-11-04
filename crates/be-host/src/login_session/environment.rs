@@ -1,0 +1,57 @@
+use std::collections::HashMap;
+
+use zbus::Connection;
+
+const BUS: &str = "org.freedesktop.DBus";
+const BUS_PATH: &str = "/org/freedesktop/DBus";
+const SYSTEMD: &str = "org.freedesktop.systemd1";
+const SYSTEMD_PATH: &str = "/org/freedesktop/systemd1";
+const SYSTEMD_MANAGER: &str = "org.freedesktop.systemd1.Manager";
+
+pub(crate) fn export(variables: Vec<(String, String)>) {
+    if variables.is_empty() {
+        return;
+    }
+    be_host_services::dbus::spawn(async move {
+        loop {
+            let bus = be_host_services::dbus::SESSION.connected().await;
+            export_to(&bus, &variables).await;
+            bus.closed().await;
+        }
+    });
+}
+
+async fn export_to(bus: &Connection, variables: &[(String, String)]) {
+    let activation: HashMap<&str, &str> = variables
+        .iter()
+        .map(|(name, value)| (name.as_str(), value.as_str()))
+        .collect();
+    if let Err(error) = bus
+        .call_method(
+            Some(BUS),
+            BUS_PATH,
+            Some(BUS),
+            "UpdateActivationEnvironment",
+            &(activation,),
+        )
+        .await
+    {
+        eprintln!("be-host: D-Bus did not take the session's environment: {error}");
+    }
+    let assignments: Vec<String> = variables
+        .iter()
+        .map(|(name, value)| format!("{name}={value}"))
+        .collect();
+    if let Err(error) = bus
+        .call_method(
+            Some(SYSTEMD),
+            SYSTEMD_PATH,
+            Some(SYSTEMD_MANAGER),
+            "SetEnvironment",
+            &(assignments,),
+        )
+        .await
+    {
+        eprintln!("be-host: systemd did not take the session's environment: {error}");
+    }
+}

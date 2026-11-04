@@ -10,12 +10,20 @@ use crate::tokens::{Size, Space};
 
 pub use beui_view::types::ThemeKind;
 
+/// The theme's colour tokens; the one place theme colours live. The built-in
+/// themes (`DARK`, `OLED`, `LIGHT`, `EPAPER`) are literal. A document with no
+/// `ThemeProvider` uses references instead (one CSS-style variable per token,
+/// light values from `LIGHT` or `EPAPER`, dark from `DARK` or `OLED`), so the
+/// colour scheme picks between them on either core and a prerendered page hydrates
+/// unchanged. Add a field, with a value in every built-in theme, for a colour that
+/// belongs to the theme rather than to one component.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Theme {
     pub kind: ThemeKind,
     pub background: Color32,
     pub surface: Color32,
-    pub surface_raised: Color32,
+    pub control: Color32,
+    pub shade: Color32,
     pub hover: Color32,
     pub pressed: Color32,
     pub border: Color32,
@@ -39,12 +47,16 @@ pub struct Theme {
     pub scroll_thumb_hover: Color32,
     pub scroll_thumb_active: Color32,
     pub track: Color32,
+    pub track_hover: Color32,
     pub knob: Color32,
     pub control_outline: Option<Color32>,
     pub knob_outline: Option<Color32>,
     pub dim: Color32,
+    /// Dims the program under a dialog, sheet or dock dialog.
     pub scrim: Color32,
+    /// Dims under the command palette and launcher, leaving the program readable.
     pub scrim_soft: Color32,
+    /// Dims under `Fullscreen`.
     pub scrim_strong: Color32,
     pub syntax: SyntaxColors,
 }
@@ -63,7 +75,8 @@ impl Theme {
         kind: ThemeKind::Dark,
         background: Color32::from_rgb(14, 17, 23),
         surface: Color32::from_rgb(22, 26, 34),
-        surface_raised: Color32::from_rgb(31, 37, 48),
+        control: Color32::from_rgb(31, 37, 48),
+        shade: Color32::from_rgb(31, 37, 48),
         hover: Color32::from_rgb(31, 37, 48),
         pressed: Color32::from_rgb(42, 50, 64),
         border: Color32::from_rgb(42, 50, 64),
@@ -87,6 +100,7 @@ impl Theme {
         scroll_thumb_hover: Color32::from_rgb(84, 98, 124),
         scroll_thumb_active: Color32::from_rgb(110, 127, 158),
         track: Color32::from_rgb(48, 57, 73),
+        track_hover: Color32::from_rgb(62, 73, 93),
         knob: Color32::from_rgb(226, 232, 244),
         control_outline: None,
         knob_outline: None,
@@ -101,7 +115,8 @@ impl Theme {
         kind: ThemeKind::OledDark,
         background: Color32::BLACK,
         surface: Color32::BLACK,
-        surface_raised: Color32::from_rgb(18, 20, 24),
+        control: Color32::from_rgb(18, 20, 24),
+        shade: Color32::from_rgb(18, 20, 24),
         hover: Color32::from_rgb(24, 27, 33),
         pressed: Color32::from_rgb(36, 41, 50),
         border: Color32::from_rgb(40, 45, 55),
@@ -125,6 +140,7 @@ impl Theme {
         scroll_thumb_hover: Color32::from_rgb(78, 90, 114),
         scroll_thumb_active: Color32::from_rgb(110, 127, 158),
         track: Color32::from_rgb(40, 46, 58),
+        track_hover: Color32::from_rgb(54, 62, 78),
         knob: Color32::from_rgb(226, 232, 244),
         control_outline: None,
         knob_outline: None,
@@ -139,7 +155,8 @@ impl Theme {
         kind: ThemeKind::Light,
         background: Color32::from_rgb(243, 245, 248),
         surface: Color32::WHITE,
-        surface_raised: Color32::from_rgb(234, 237, 242),
+        control: Color32::from_rgb(234, 237, 242),
+        shade: Color32::from_rgb(234, 237, 242),
         hover: Color32::from_rgb(228, 232, 238),
         pressed: Color32::from_rgb(214, 219, 228),
         border: Color32::from_rgb(208, 214, 224),
@@ -162,7 +179,8 @@ impl Theme {
         scroll_thumb: Color32::from_rgb(190, 197, 210),
         scroll_thumb_hover: Color32::from_rgb(160, 169, 186),
         scroll_thumb_active: Color32::from_rgb(130, 141, 162),
-        track: Color32::from_rgb(208, 214, 224),
+        track: Color32::from_rgb(196, 203, 215),
+        track_hover: Color32::from_rgb(178, 186, 200),
         knob: Color32::WHITE,
         control_outline: None,
         knob_outline: Some(Color32::from_rgb(190, 197, 210)),
@@ -177,7 +195,8 @@ impl Theme {
         kind: ThemeKind::EPaper,
         background: Color32::WHITE,
         surface: Color32::WHITE,
-        surface_raised: Color32::WHITE,
+        control: Color32::WHITE,
+        shade: Color32::WHITE,
         hover: Color32::from_gray(232),
         pressed: Color32::from_gray(200),
         border: Color32::BLACK,
@@ -201,6 +220,7 @@ impl Theme {
         scroll_thumb_hover: Color32::from_gray(64),
         scroll_thumb_active: Color32::from_gray(100),
         track: Color32::from_gray(200),
+        track_hover: Color32::from_gray(176),
         knob: Color32::WHITE,
         control_outline: Some(Color32::BLACK),
         knob_outline: Some(Color32::BLACK),
@@ -333,7 +353,7 @@ macro_rules! color_roles {
             pub fn definitions(light: &Theme, dark: &Theme) -> ColorDefinitions {
                 let syntax = |color: Color| color.as_literal().unwrap_or(Color32::TRANSPARENT);
                 let outline = |color: Option<Color32>| color.unwrap_or(Color32::TRANSPARENT);
-                ColorDefinitions::from([
+                ColorDefinitions::from_iter([
                     $((
                         role_vars::$role,
                         SchemeColors::new(light.$role, dark.$role),
@@ -356,10 +376,10 @@ pub type ThemeStore = ThemeTokensStore;
 
 color_roles! {
     roles: [
-        background, surface, surface_raised, hover, pressed, border, text, text_muted, accent,
+        background, surface, control, shade, hover, pressed, border, text, text_muted, accent,
         accent_hover, accent_active, accent_soft, accent_soft_hover, on_accent, danger, danger_fill,
         danger_fill_hover, danger_fill_active, danger_soft, on_danger, warning, success,
-        scroll_thumb, scroll_thumb_hover, scroll_thumb_active, track, knob, dim, scrim, scrim_soft,
+        scroll_thumb, scroll_thumb_hover, scroll_thumb_active, track, track_hover, knob, dim, scrim, scrim_soft,
         scrim_strong,
     ],
     outlines: [control_outline, knob_outline],
@@ -510,6 +530,8 @@ pub(crate) fn density_context() -> Option<Memo<Density>> {
 }
 
 pub const NARROW_WIDTH: f32 = 700.0;
+pub const SHORT_HEIGHT: f32 = 500.0;
+pub const PHONE_LANDSCAPE_WIDTH: f32 = 1000.0;
 
 pub const POINTER_REACH: f32 = 10.0;
 pub const SCROLLBAR_WIDTH: f32 = Size::Track.px() + Space::Xs2.px();

@@ -3,10 +3,11 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use text_editor_core::{
-    CollapsibleSection, CopyMode, Core, CursorPosition, EditorCommand, FindDirection, FindStatus,
-    Formats, MarkdownCommand, Position, Schema, Selected, SyntaxHighlight, TextChange,
-    TextIndentation, TextLanguage, TextRun,
+use beui_text_editor_core::{
+    CollapsibleSection, CopyMode, Core, CursorHorizontalPositionMetric, CursorLeftRightStop,
+    CursorPosition, EditorCommand, FindDirection, FindStatus, Formats, MarkdownCommand, Position,
+    RowStep, Schema, Selected, SyntaxHighlight, TextChange, TextIndentation, TextLanguage, TextRun,
+    UDDirection, VerticalMoveMode, VisualRows,
 };
 
 use beui_view::reactive::*;
@@ -61,7 +62,10 @@ impl Snapshot {
     }
 }
 
-pub trait AreaGeometry {
+/// What the area's view publishes about where it drew the text. As [`VisualRows`] it
+/// answers for the rows a caret moves through, in unscaled pixels from the canvas's
+/// left edge.
+pub trait AreaGeometry: VisualRows {
     fn caret_rect(&self, byte: usize) -> Option<Rect>;
     fn index_at(&self, pos: Pos2) -> Option<usize>;
 }
@@ -84,6 +88,19 @@ impl TextAreaLayout {
 
     pub fn index_at(&self, pos: Pos2) -> Option<usize> {
         self.geometry.as_ref()?.index_at(pos)
+    }
+}
+
+impl VisualRows for TextAreaLayout {
+    fn caret_x(&self, index: usize) -> Option<f32> {
+        self.geometry.as_ref()?.caret_x(index)
+    }
+
+    fn step(&self, index: usize, direction: UDDirection, x: f32) -> RowStep {
+        match &self.geometry {
+            Some(geometry) => geometry.step(index, direction, x),
+            None => RowStep::Unknown,
+        }
     }
 }
 
@@ -162,12 +179,12 @@ struct Inner {
 pub struct TextAreaState(Stored<Inner>);
 
 impl TextAreaState {
-    pub fn new(document: Arc<dyn text_editor_core::Document>) -> Self {
+    pub fn new(document: Arc<dyn beui_text_editor_core::Document>) -> Self {
         Self::from_core(Core::new(document))
     }
 
     pub fn with_schema(
-        document: Arc<dyn text_editor_core::Document>,
+        document: Arc<dyn beui_text_editor_core::Document>,
         schema: Arc<dyn Schema>,
     ) -> Self {
         let mut core = Core::new(document);
@@ -232,6 +249,19 @@ impl TextAreaState {
         self.sync();
     }
 
+    /// Moves every caret a row up or down through the rows the area shows, so a
+    /// wrapped line is crossed a row at a time. Carets whose rows are not laid out
+    /// move by source line.
+    pub fn move_by_row(&self, direction: UDDirection, mode: VerticalMoveMode) {
+        let layout = self.0.with(|inner| inner.layout.get_untracked());
+        self.execute(EditorCommand::MoveCursorUpDown {
+            direction,
+            mode,
+            metric: CursorHorizontalPositionMetric::Screen(&layout),
+            stop: CursorLeftRightStop::UnicodeGraphemeCluster,
+        });
+    }
+
     pub fn copy(&self, mode: CopyMode) -> String {
         let inner = self.0.value();
         let text = inner.core.borrow_mut().copy_utf8(mode);
@@ -239,12 +269,17 @@ impl TextAreaState {
         text
     }
 
+    /// Like [`Self::sync`], and also breaks the undo group, for an edit that
+    /// arrived from elsewhere.
     pub fn external_edit(&self) {
         let inner = self.0.value();
         inner.core.borrow_mut().external_edit();
         self.sync();
     }
 
+    /// Republishes what the area shows from the `Core`. The area does this after its
+    /// own commands; nothing polls the document, so code that changes it from
+    /// behind (adopting a remote edit) calls this.
     pub fn sync(&self) {
         self.sync_document();
         self.sync_cursors();
@@ -343,6 +378,13 @@ impl TextAreaState {
             .iter()
             .filter_map(|cursor| core.selection_range(cursor))
             .collect()
+    }
+
+    /// The input method's composing range as of the last sync. Read from what the
+    /// area published rather than the `Core`, so memos the view recomputes while the
+    /// core runs a command (asking the view for rows) never borrow it.
+    pub fn composition(&self) -> Option<Range<usize>> {
+        self.0.with(|inner| inner.cursor_cache.borrow().2.clone())
     }
 
     pub fn caret_indices(&self) -> Vec<usize> {

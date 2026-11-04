@@ -9,7 +9,11 @@ web = ["dep:web-sys", "wgpu/webgpu", "wgpu/webgl"]
 
 [dependencies]
 beui-core = { path = "../beui-core" }
+beui-types = { path = "../beui-types" }
+beui-runner = { path = "../beui-runner" }
+beui-draw = { path = "../beui-draw" }
 bytemuck = { version = "1", features = ["derive"] }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -28,7 +32,7 @@ web-sys = { version = "0.3", optional = true, features = [
 beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui-macros" }
+beui-macros = { path = "../beui-macros" }
 pollster = "0.4"
 
 [lints]

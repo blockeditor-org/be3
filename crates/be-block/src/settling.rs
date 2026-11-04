@@ -36,27 +36,6 @@ impl<Op> Landed<Op> {
             },
         }
     }
-
-    pub fn try_map<T, E>(&self, mut map: impl FnMut(&Op) -> Result<T, E>) -> Result<Landed<T>, E> {
-        Ok(match self {
-            Self::On {
-                operation,
-                unsettled,
-            } => Landed::On {
-                operation: map(operation)?,
-                unsettled: *unsettled,
-            },
-            Self::Beneath {
-                operation,
-                unsettled,
-                local,
-            } => Landed::Beneath {
-                operation: map(operation)?,
-                unsettled: *unsettled,
-                local: local.iter().map(map).collect::<Result<_, _>>()?,
-            },
-        })
-    }
 }
 
 #[derive(Clone)]
@@ -150,9 +129,5 @@ impl<C: LiveEdit> Settling<C> {
             visible.apply(operation);
         }
         visible
-    }
-
-    pub fn into_parts(self) -> (C, Vec<C::Op>) {
-        (self.settled, self.unsettled.into())
     }
 }

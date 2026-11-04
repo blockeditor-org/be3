@@ -22,6 +22,7 @@ pub struct Handlers {
     pub on_click_at: Callback<PointerPress>,
     pub on_hover_change: Callback<bool>,
     pub on_hover_move: Callback<PointerPress>,
+    pub on_pointed_change: Callback<bool>,
     pub on_active_change: Callback<bool>,
     pub on_cancel: ClickCallback,
     pub on_middle_click: ClickCallback,
@@ -95,6 +96,7 @@ mod web {
         handlers: Handlers,
         switches: Rc<Switches>,
         pressed: Cell<Option<i32>>,
+        pointed: Cell<bool>,
         held: Cell<Option<(i32, PointerButton)>>,
         pinch: RefCell<beui_web_input::wheel::Pinch>,
         composed: RefCell<String>,
@@ -388,7 +390,7 @@ mod web {
                 time: crate::frame::now(),
                 ..press
             });
-            reactive::flush();
+            beui_reactive::flush();
             Some(REPEAT)
         }
 
@@ -525,7 +527,7 @@ mod web {
             event.prevent_default();
             event.stop_propagation();
         }
-        reactive::flush();
+        beui_reactive::flush();
     }
 
     fn attach(state: &Rc<State>, element: &web_sys::Element) -> Vec<Listener> {
@@ -576,7 +578,7 @@ mod web {
                     crate::ime::begin(held.node, Rc::new(move |events| sink.ime_events(events)));
                     crate::ime::keyboard(held.node, held.switches.keyboard.get());
                 }
-                reactive::flush();
+                beui_reactive::flush();
             }),
         ));
         let held = state.clone();
@@ -595,7 +597,7 @@ mod web {
                 }
                 crate::ime::end(held.node);
                 held.handlers.on_focus_change.call(false);
-                reactive::flush();
+                beui_reactive::flush();
             }),
         ));
         let held = state.clone();
@@ -647,7 +649,7 @@ mod web {
                 let types = event.key().chars().count() == 1 && !modifiers.command();
                 if done && types && held.takes_text() {
                     event.stop_propagation();
-                    reactive::flush();
+                    beui_reactive::flush();
                     return;
                 }
                 handled(event, done);
@@ -698,7 +700,7 @@ mod web {
                 if held.down(&element, event) {
                     event.stop_propagation();
                 }
-                reactive::flush();
+                beui_reactive::flush();
             }),
         ));
         let held = state.clone();
@@ -717,7 +719,7 @@ mod web {
                 }
                 held.down(&element, pointer);
                 event.stop_propagation();
-                reactive::flush();
+                beui_reactive::flush();
             },
         ));
         if !state.handlers.on_press_outside.is_empty()
@@ -748,7 +750,7 @@ mod web {
                             pointer.client_y().into(),
                         );
                         held.handlers.on_press_outside.call(at.pos);
-                        reactive::flush();
+                        beui_reactive::flush();
                     }
                 },
             ));
@@ -782,6 +784,9 @@ mod web {
                         .unwrap_or_else(|| vec![event.clone()]),
                     false => vec![event.clone()],
                 };
+                if !held.pointed.replace(true) {
+                    held.handlers.on_pointed_change.call(true);
+                }
                 let mut done = false;
                 for sample in &samples {
                     done |= held.pointer(sample, PointerStage::Move);
@@ -820,7 +825,10 @@ mod web {
                 name,
                 Box::new(move |_| {
                     held.handlers.on_hover_change.call(hovered);
-                    reactive::flush();
+                    if !hovered && held.pointed.replace(false) {
+                        held.handlers.on_pointed_change.call(false);
+                    }
+                    beui_reactive::flush();
                 }),
             ));
         }
@@ -845,7 +853,7 @@ mod web {
                 if clicks {
                     event.stop_propagation();
                 }
-                reactive::flush();
+                beui_reactive::flush();
             }),
         ));
         let held = state.clone();
@@ -883,10 +891,13 @@ mod web {
                 if held.handlers.on_secondary_press.is_empty() {
                     return;
                 }
-                held.handlers
-                    .on_secondary_press
-                    .call(press(&element, event));
-                handled(event, true);
+                if !crate::keys::from_menu_key(event) {
+                    held.handlers
+                        .on_secondary_press
+                        .call(press(&element, event));
+                }
+                event.prevent_default();
+                beui_reactive::flush();
             }),
         ));
         let held = state.clone();
@@ -957,6 +968,7 @@ mod web {
             handlers,
             switches,
             pressed: Cell::new(None),
+            pointed: Cell::new(false),
             held: Cell::new(None),
             pinch: RefCell::default(),
             composed: RefCell::default(),

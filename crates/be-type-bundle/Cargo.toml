@@ -1,0 +1,35 @@
+[package]
+name = "be-type-bundle"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block-type-host = { path = "../be-block-type-host" }
+be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
+be-sdk-type-guest = { path = "../be-sdk-type-guest" }
+uuid = "1"
+be-type-audio = { path = "../be-type-audio" }
+be-type-example-beui-gallery = { path = "../be-type-example-beui-gallery" }
+be-type-browser-tab = { path = "../be-type-browser-tab" }
+be-type-checklist = { path = "../be-type-checklist" }
+be-type-example-counter = { path = "../be-type-example-counter" }
+be-type-database = { path = "../be-type-database" }
+be-type-deterministic-game = { path = "../be-type-deterministic-game" }
+be-type-image = { path = "../be-type-image" }
+be-type-infinite-canvas = { path = "../be-type-infinite-canvas" }
+be-type-logic-grid = { path = "../be-type-logic-grid" }
+be-type-map = { path = "../be-type-map" }
+be-type-example-pan-zoom = { path = "../be-type-example-pan-zoom" }
+be-type-pdf = { path = "../be-type-pdf" }
+be-type-presentation = { path = "../be-type-presentation" }
+be-type-scene-3d = { path = "../be-type-scene-3d" }
+be-type-settings = { path = "../be-type-settings" }
+be-type-terminal = { path = "../be-type-terminal" }
+be-type-text = { path = "../be-type-text" }
+be-type-example-triangle = { path = "../be-type-example-triangle" }
+be-type-video = { path = "../be-type-video" }
+be-type-workspace = { path = "../be-type-workspace" }
+
+[lints]
+workspace = true

@@ -1,0 +1,1161 @@
+use be_sdk_beui::be_block::BlockMetadata;
+use be_sdk_beui::be_block::display_settings::{DisplayMode, Rotation};
+use be_sdk_beui::be_block::{
+    DESKTOP_EDITOR, DisplaySettings, DisplaySettingsContent, Root, Settings, SettingsContent,
+    SettingsProfile, SettingsProfileContent, VIEW_EDITOR, WORKSPACE_EDITOR,
+};
+use be_sdk_beui::beui::native::Document;
+use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
+use be_sdk_beui::{
+    AudioOutput, BlockInfo, BlockParent, ChildContent, ChildId, DisplaysWatch, EditorHost,
+    EndingAnswer, EpaperWatch, HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId,
+    IncomingNotification, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, MediaLevel,
+    MediaLevels, MediaRequest, MediaWatch, MenuAsk, NotificationInbox, NotificationRequest,
+    NotificationSignal, NotificationsWatch, OwnedEditor, Picture, PlayerCommand, PowerAction,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, SessionEnd,
+    WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowKind,
+    WindowOrigin, WindowsWatch,
+};
+
+use be_sdk_beui::be_block::{EditorView, EditorViewContent};
+use be_sdk_shell::{SHELL_BARS, SavedProgram, saved_programs};
+use be_sdk_test::BeuiTest;
+use std::collections::HashMap;
+use uuid::Uuid;
+
+use crate::root::DesktopRoot;
+use crate::root::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
+
+mod a_bar_menu_and_its_submenu_fit_the_work_area_of_a_short_window;
+mod a_bar_moved_on_one_display_stays_put_on_the_others;
+mod a_bar_panel_opens_just_past_its_bar_on_any_edge;
+mod a_bar_panel_too_tall_for_the_work_area_scrolls_inside_it;
+mod a_bar_thrown_up_from_its_band_floats_over_the_top;
+mod a_block_shown_on_the_desktop_opens_in_its_own_window;
+mod a_calendar_the_desktop_no_longer_holds_is_replaced;
+mod a_desktop_resumed_after_a_restart_shows_each_window_where_it_was;
+mod a_desktop_started_again_adopts_live_windows_instead_of_placeholders;
+mod a_desktop_started_again_adopts_the_windows_the_host_kept;
+mod a_desktop_whose_layout_cannot_be_read_keeps_it_until_reset;
+mod a_dialog_follows_its_parent_into_the_placeholder_it_claims;
+mod a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from;
+mod a_display_keeps_its_own_bars_when_the_displays_change_places;
+mod a_display_plugged_in_later_starts_from_the_first_displays_bars;
+mod a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows;
+mod a_first_desktop_with_no_sessions_offers_a_new_one;
+mod a_floating_bar_dragged_by_its_grip_follows_to_the_end_and_lands_where_let_go;
+mod a_fullscreen_window_covers_the_bars;
+mod a_fullscreen_window_on_the_second_display_covers_only_that_displays_bars;
+mod a_held_volume_key_keeps_turning_the_volume;
+mod a_hidden_bar_stays_hidden_and_the_apps_panel_shows_it_again;
+mod a_hidden_session_chosen_from_the_apps_panel_comes_back_in_front_with_the_focus;
+mod a_hidden_window_is_still_heard_and_its_programs_raise_brings_it_back;
+mod a_hidden_window_shown_again_returns_where_it_was_moved;
+mod a_hidden_window_that_rings_the_bell_flashes_its_chip;
+mod a_key_with_nothing_to_change_says_so;
+mod a_locked_screen_shows_no_notification_toasts;
+mod a_long_window_title_ends_inside_the_window_switcher;
+mod a_moved_bar_leaves_no_focus_ring_behind_while_switching;
+mod a_narrow_desktop_shows_one_program_window_filling_it_under_the_dock_bar;
+mod a_new_window_fills_the_oldest_placeholder_of_its_program;
+mod a_new_window_opens_at_the_size_its_program_picked_and_keeps_it;
+mod a_new_window_that_asked_to_be_maximized_opens_filling_its_area;
+mod a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time;
+mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
+mod a_program_tile_whose_name_is_cut_short_shows_it_whole_on_hover;
+mod a_program_window_dragged_to_another_display_shows_on_both_on_the_way;
+mod a_programs_dialog_that_resizes_itself_still_points_at_its_windows_tab;
+mod a_programs_modal_dialog_points_at_its_windows_tab_and_dims_it;
+mod a_programs_window_given_a_parent_later_becomes_its_dialog_and_back;
+mod a_programs_window_menu_opens_where_it_asked_and_hides_or_closes_it;
+mod a_programs_window_shows_its_icon_on_its_chip_and_tab;
+mod a_query_no_program_matches_runs_as_a_command;
+mod a_restored_desktop_stacks_its_windows_as_they_were_with_the_focused_one_on_top;
+mod a_session_chosen_from_the_apps_panel_opens_in_a_window_and_choosing_it_again_focuses_it;
+mod a_session_opened_over_program_windows_opens_in_front_of_them;
+mod a_session_window_opened_or_brought_forward_is_given_the_keyboard;
+mod a_super_chord_does_not_open_the_apps_panel;
+mod a_super_tap_toggles_the_apps_panel_even_from_a_program_with_the_keyboard;
+mod a_tiny_program_window_is_framed_wide_enough_for_its_tab;
+mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;
+mod a_toast_names_its_app_and_lines_its_text_up_with_the_others;
+mod a_tray_item_without_activate_shows_its_menu_on_a_click;
+mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
+mod a_volume_louder_than_full_shows_how_much_louder;
+mod a_window_dragged_over_the_bars_passes_beneath_them;
+mod a_window_holding_one_tab_closes_from_its_tab_and_its_bar;
+mod a_window_its_program_minimizes_is_hidden;
+mod a_window_its_program_raises_comes_in_front_with_the_keyboard;
+mod a_window_launched_from_a_placeholder_takes_its_place;
+mod a_window_moved_to_a_display_at_another_scale_keeps_its_size_in_points_above_its_bars;
+mod a_window_moved_to_another_display_lists_its_chip_on_that_displays_bar;
+mod a_window_on_the_second_display_is_kept_above_its_bars;
+mod a_window_that_rings_the_bell_flashes_its_chip;
+mod a_window_the_host_focuses_leads_the_window_switcher;
+mod a_window_with_a_dialog_hides_and_comes_back_with_it;
+mod a_windows_note_shows_in_its_tab_in_place_of_its_title;
+mod a_windows_tab_dragged_onto_a_window_on_another_display_joins_it;
+mod a_windows_tab_dragged_onto_another_windows_bar_joins_it;
+mod a_windows_tab_menu_makes_it_full_screen;
+mod a_windows_tab_menu_shows_whole_past_its_window;
+mod alt_f4_closes_the_focused_window_its_focused_dialog_or_a_block_window;
+mod alt_tab_brings_forward_only_the_window_it_ends_on;
+mod alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front;
+mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
+mod arrow_keys_walk_the_status_bar_item_by_item;
+mod bars_docked_down_the_left_lay_their_parts_out_down_it;
+mod bars_of_other_displays_that_cannot_be_read_are_kept_until_reset;
+mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
+mod clicking_the_focused_windows_chip_hides_it_and_the_next_window_takes_the_focus;
+mod each_display_has_its_own_three_bars_along_its_foot;
+mod each_window_from_last_time_has_a_chip_that_shows_opens_or_dismisses_it;
+mod escape_closes_the_apps_panel_and_gives_the_focus_back_to_its_button;
+mod escape_leaves_the_window_switcher_without_switching;
+mod floating_bars_float_over_the_windows_and_toasts_follow_the_status_bar;
+mod new_windows_cascade_inside_the_work_area_and_a_tall_one_shrinks_to_it;
+mod picking_a_turned_monitor_writes_its_rotation_for_every_device;
+mod picking_a_turned_screen_writes_its_rotation_into_this_devices_display_settings;
+mod power_actions_the_host_cannot_take_say_why;
+mod quick_settings_offers_the_keyboard_rotation_and_refresh_the_screen_has;
+mod reopening_the_apps_panel_highlights_its_first_program_again;
+mod super_arrows_snap_maximize_and_restore_the_focused_window;
+mod super_backtick_switches_between_one_programs_windows;
+mod super_d_hides_every_window_and_brings_them_back;
+mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
+mod super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars;
+mod super_shift_arrows_move_the_focused_window_to_the_next_display;
+mod the_apps_button_is_named_apps;
+mod the_apps_button_opens_a_grid_of_the_programs_the_host_lists;
+mod the_calendar_popup_fits_a_narrow_screen;
+mod the_clock_counts_only_notifications_not_yet_seen_in_its_list;
+mod the_clock_lists_the_days_events_and_opens_the_full_calendar;
+mod the_clock_lists_the_notifications_that_arrived_and_answers_them;
+mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
+mod the_desktop_keeps_each_programs_window_to_bring_back;
+mod the_desktop_starts_with_nothing_open_but_its_bar;
+mod the_desktops_three_bars_share_one_band_along_its_foot;
+mod the_ending_bar_waits_for_the_programs_still_open_and_answers;
+mod the_keyboard_button_shows_when_the_display_settings_ask_for_it;
+mod the_layout_indicator_shows_the_active_layout_and_switches_from_its_menu_or_super_space;
+mod the_layout_notice_shows_above_the_desktops_windows;
+mod the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing;
+mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
+mod the_power_row_asks_before_ending_the_session;
+mod the_power_row_locks_the_screen_without_asking;
+mod the_power_row_offers_only_what_the_host_allows;
+mod the_refresh_button_shows_on_an_epaper_display_and_asks_the_host_to_refresh;
+mod the_restore_chip_leads_the_windows_bar_while_windows_from_last_time_wait;
+mod the_rotate_button_shows_when_the_display_settings_ask_for_it_and_a_screen_is_reported;
+mod the_status_button_shows_the_volume_and_opens_its_controls;
+mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
+mod the_volume_controls_ask_the_host_for_a_level_a_mute_and_an_output;
+mod the_volume_shows_on_every_monitor;
+mod the_volume_slider_reaches_past_full;
+mod the_wifi_list_asks_the_host_to_connect;
+mod the_wifi_tile_lists_the_networks_the_host_reports;
+mod the_window_keys_answer_nothing_while_the_screen_is_locked;
+mod the_window_keys_are_listed_in_the_command_palette;
+mod the_window_keys_use_ctrl_alt_where_the_system_keeps_super;
+mod the_windows_bar_shares_its_length_between_many_chips;
+mod the_windows_bar_shows_a_chip_per_window_and_shows_hides_or_closes_it;
+mod typing_in_the_apps_panel_keeps_its_search_field_still;
+mod window_chips_and_toasts_tell_a_screen_reader_their_state;
+mod windows_that_close_as_the_session_ends_are_kept;
+mod windows_that_closed_before_a_cancel_come_back_as_placeholders;
+mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
+
+const PROGRAMS_BAR: u64 = 0;
+const WINDOWS_BAR: u64 = 1;
+const STATUS_BAR: u64 = 2;
+const EVERYTHING: PowerAvailability = PowerAvailability {
+    lock: true,
+    suspend: true,
+    restart: true,
+    power_off: true,
+    log_out: true,
+    session: true,
+    ending: None,
+};
+const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);
+const DEFAULT_ACTION: &str = "default";
+const NOON: u64 = 1_768_478_400;
+const SPEAKERS: &str = "alsa_output.pci-0000_00_1f.3.analog-stereo";
+const HEADPHONES: &str = "bluez_output.headphones";
+
+struct Fixture {
+    test: BeuiTest<DesktopRoot>,
+    host: EditorHost,
+    client: Uuid,
+    settings: Uuid,
+    notified: u64,
+    windows: Vec<TestWindow>,
+    raises: HashMap<u64, u64>,
+    reported: HashMap<ChildId, (u64, Reported)>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct TestWindow {
+    id: HostWindowId,
+    kind: WindowKind,
+    title: String,
+    program_id: String,
+    name: String,
+    parent: Option<HostWindowId>,
+    modal: bool,
+    size: Vec2,
+    maximized: bool,
+    fullscreen: Option<Rect>,
+    focused: bool,
+    icon: Option<HostImage>,
+    raised: u64,
+    rung: u64,
+    minimized: u64,
+    origin: WindowOrigin,
+    note: Option<String>,
+    menu: Option<WindowMenu>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct WindowMenu {
+    asked: u64,
+    at: Vec2,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Reported {
+    title: String,
+    icon: Option<Picture>,
+    group: String,
+    raised: u64,
+    rung: u64,
+    minimized: u64,
+    fullscreen: bool,
+    notice: Option<String>,
+    menu: Option<MenuAsk>,
+    intrinsic: Option<Vec2>,
+}
+
+impl TestWindow {
+    fn listed(&self) -> HostWindow {
+        HostWindow {
+            id: self.id,
+            kind: self.kind,
+            parent: self.parent,
+            modal: self.modal,
+            program_id: self.program_id.clone(),
+            origin: self.origin.clone(),
+            size: (self.size.x >= 1.0 && self.size.y >= 1.0).then_some(self.size),
+            maximized: self.maximized,
+        }
+    }
+}
+
+impl Fixture {
+    fn new() -> Self {
+        Self::holding(EditorView::document(None))
+    }
+
+    fn away_from_linux() -> Self {
+        Self::unserved(EditorView::document(None))
+    }
+
+    fn resumed(saved: EditorViewContent) -> Self {
+        let mut fixture = Self::holding(saved);
+        fixture.test.set_watched::<ProgramsWatch>(&programs());
+        fixture.settle();
+        fixture
+    }
+
+    fn saved(&self) -> EditorViewContent {
+        self.test.content::<EditorViewContent>(None)
+    }
+
+    fn kept(&self) -> Vec<SavedProgram> {
+        self.saved()
+            .root()
+            .state("layout")
+            .map(saved_programs)
+            .unwrap_or_default()
+    }
+
+    fn block_chips(&self) -> Vec<String> {
+        let mut chips: Vec<String> = self
+            .test
+            .test_ids()
+            .iter()
+            .map(|(id, _)| id)
+            .filter(|id| {
+                id.strip_prefix("desktop.windows.block.")
+                    .is_some_and(|rest| !rest.contains('.'))
+            })
+            .map(str::to_owned)
+            .collect();
+        chips.sort();
+        chips.dedup();
+        chips
+    }
+
+    fn block_chip(&self) -> String {
+        self.block_chips().pop().expect("a block window has a chip")
+    }
+
+    fn tab_of(&self, window: u64) -> u64 {
+        self.kept()
+            .iter()
+            .rev()
+            .find(|kept| kept.record.window == Some(HostWindowId(window)))
+            .map(|kept| kept.tab)
+            .unwrap_or_else(|| panic!("window {window} has a tab"))
+    }
+
+    fn show_windows(&mut self, windows: &[TestWindow]) {
+        for window in windows {
+            let was = self
+                .windows
+                .iter()
+                .any(|held| held.id == window.id && held.focused);
+            if window.focused && !was {
+                *self.raises.entry(window.id.0).or_default() += 1;
+            }
+        }
+        self.windows = windows.to_vec();
+        let listed: Vec<HostWindow> = windows.iter().map(TestWindow::listed).collect();
+        self.test.set_watched::<WindowsWatch>(&listed);
+        self.settle();
+    }
+
+    fn raise(&mut self, window: u64) {
+        *self.raises.entry(window).or_default() += 1;
+        self.settle();
+    }
+
+    fn reported(&self, window: &TestWindow) -> Reported {
+        let parent = window
+            .parent
+            .and_then(|parent| self.windows.iter().find(|held| held.id == parent));
+        Reported {
+            title: window_name(window, parent),
+            icon: window.icon.as_ref().map(|icon| Picture {
+                width: icon.width,
+                height: icon.height,
+                rgba: icon.rgba.clone(),
+            }),
+            group: window.program_id.clone(),
+            raised: window.raised + self.raises.get(&window.id.0).copied().unwrap_or_default(),
+            rung: window.rung,
+            minimized: window.minimized,
+            fullscreen: window.fullscreen.is_some(),
+            notice: window.note.clone(),
+            menu: window.menu.map(|menu| MenuAsk {
+                asked: menu.asked,
+                at: Pos2::ZERO + menu.at,
+            }),
+            intrinsic: (window.size.x >= 1.0 && window.size.y >= 1.0).then_some(window.size),
+        }
+    }
+
+    fn report_windows(&mut self) -> bool {
+        let placed: Vec<(ChildId, u64)> = self
+            .test
+            .every_child()
+            .iter()
+            .filter_map(|placement| match placement.content {
+                ChildContent::Window(window) => Some((placement.child, window.0)),
+                _ => None,
+            })
+            .collect();
+        let mut reported = false;
+        for (child, id) in placed {
+            let Some(window) = self.windows.iter().find(|held| held.id.0 == id) else {
+                continue;
+            };
+            let status = self.reported(window);
+            if self.reported.get(&child) == Some(&(id, status.clone())) {
+                continue;
+            }
+            self.reported.insert(child, (id, status.clone()));
+            self.test.report_child(child, move |held| {
+                held.title = Some(status.title);
+                held.icon = status.icon;
+                held.group = Some(status.group);
+                held.raised = status.raised;
+                held.rung = status.rung;
+                held.minimized = status.minimized;
+                held.fullscreen = status.fullscreen;
+                held.notice = status.notice;
+                held.menu_asked = status.menu;
+                held.intrinsic = status.intrinsic.map(|size| be_sdk_beui::Size {
+                    width: size.x,
+                    height: size.y,
+                });
+            });
+            reported = true;
+        }
+        reported
+    }
+
+    fn window_of(&self, child: ChildId) -> Option<HostWindowId> {
+        self.reported
+            .get(&child)
+            .map(|(window, _)| HostWindowId(*window))
+            .or_else(|| {
+                self.test
+                    .children()
+                    .iter()
+                    .find(|placement| placement.child == child)
+                    .and_then(|placement| match placement.content {
+                        ChildContent::Window(window) => Some(window),
+                        _ => None,
+                    })
+            })
+    }
+
+    fn closed_windows(&mut self) -> Vec<HostWindowId> {
+        let closes = self.test.take_child_closes();
+        closes
+            .into_iter()
+            .filter_map(|child| self.window_of(child))
+            .collect()
+    }
+
+    fn fullscreen_windows(&self) -> Vec<HostWindowId> {
+        self.test
+            .every_child()
+            .iter()
+            .filter(|placement| placement.fullscreen)
+            .filter_map(|placement| match placement.content {
+                ChildContent::Window(window) => Some(window),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn window_rect(&self, id: u64) -> Option<Rect> {
+        self.test
+            .children()
+            .iter()
+            .find(|placement| placement.content == ChildContent::Window(HostWindowId(id)))
+            .map(|placement| placement.rect)
+    }
+
+    fn placeholder_rect(&self, key: u64) -> Option<Rect> {
+        let id = format!("workspace.placeholder.{key}");
+        self.test.shown(&id).then(|| self.test.rect_of(&id))
+    }
+
+    fn holding(view: EditorViewContent) -> Self {
+        let mut fixture = Self::unserved(view);
+        fixture
+            .test
+            .set_watched::<ProgramsWatch>(&ProgramCatalog::default());
+        fixture
+            .test
+            .set_watched::<NotificationsWatch>(&NotificationInbox::default());
+        fixture
+            .test
+            .set_watched::<MediaWatch>(&MediaLevels::default());
+        fixture
+            .test
+            .set_watched::<PowerWatch>(&PowerAvailability::default());
+        fixture
+    }
+
+    fn unserved(view: EditorViewContent) -> Self {
+        let desktop = Uuid::new_v4();
+        let client = Uuid::new_v4();
+        let host = EditorHost::default();
+        host.set_editable(true);
+        host.set_client_id(client);
+        host.set_view_block(Some(desktop));
+        let editor = OwnedEditor::new(host.clone(), desktop);
+        let mut test = BeuiTest::new(editor);
+        test.hold(None, view);
+        Self {
+            test,
+            host,
+            client,
+            settings: Uuid::new_v4(),
+            notified: 0,
+            windows: Vec::new(),
+            raises: HashMap::new(),
+            reported: HashMap::new(),
+        }
+    }
+
+    fn with_sessions(mut self, sessions: &[(&str, Uuid)]) -> (Self, Vec<Uuid>) {
+        let store = self.test.store();
+        store.add_block(BlockInfo::new(
+            self.settings,
+            Settings::CONTENT_TYPE,
+            BlockParent::Root,
+        ));
+        let mut settings = SettingsContent::default();
+        let mut blocks = Vec::new();
+        for (name, editor) in sessions {
+            let session = Uuid::new_v4();
+            let mut info = BlockInfo::new(
+                session,
+                EditorView::CONTENT_TYPE,
+                BlockParent::Block(self.settings),
+            );
+            info.metadata = BlockMetadata::view(*editor, Some((*name).to_owned()));
+            store.add_block(info);
+            store.hold(Some(session), EditorView::document(None));
+            settings.apply(&Settings::add_session(*editor, self.client, session));
+            blocks.push(session);
+        }
+        self.test.hold(Some(self.settings), settings);
+        (self, blocks)
+    }
+
+    fn with_display_settings(
+        &mut self,
+        every_device: DisplaySettingsContent,
+        own: Option<DisplaySettingsContent>,
+    ) -> (Uuid, Option<Uuid>) {
+        let store = self.test.store();
+        store.add_block(BlockInfo::new(
+            self.settings,
+            Settings::CONTENT_TYPE,
+            BlockParent::Root,
+        ));
+        let shared = Uuid::new_v4();
+        let mut settings = SettingsContent::default();
+        settings.apply(&Settings::set_kind(DisplaySettings::CONTENT_TYPE, shared));
+        store.hold(Some(shared), every_device);
+        let own = own.map(|content| {
+            let (profile, block) = (Uuid::new_v4(), Uuid::new_v4());
+            settings.apply(&Settings::add_profile(self.client, profile));
+            let mut layer = SettingsProfileContent::default();
+            layer.apply(&SettingsProfile::set_kind(
+                DisplaySettings::CONTENT_TYPE,
+                block,
+            ));
+            store.hold(Some(profile), layer);
+            store.hold(Some(block), content);
+            block
+        });
+        self.test.hold(Some(self.settings), settings);
+        self.settle();
+        (shared, own)
+    }
+
+    fn report_screens(&mut self, screens: Vec<HostDisplay>) {
+        self.test.set_watched::<DisplaysWatch>(&screens);
+        self.settle();
+    }
+
+    fn with_windows(ids: &[u64]) -> Self {
+        let mut fixture = Self::new();
+        fixture.settle();
+        for focused in std::iter::once(None).chain(ids.iter().copied().map(Some)) {
+            let windows: Vec<TestWindow> = ids
+                .iter()
+                .map(|id| host_window(*id, focused == Some(*id)))
+                .collect();
+            fixture.show_windows(&windows);
+        }
+        fixture.test.clear_calls();
+        fixture
+    }
+
+    fn focused_windows(&mut self) -> Vec<HostWindowId> {
+        let given = self.test.take_child_focus();
+        given
+            .into_iter()
+            .filter_map(|child| self.window_of(child))
+            .collect()
+    }
+
+    fn allow_power(&mut self, power: PowerAvailability) {
+        self.test.set_watched::<PowerWatch>(&power);
+        self.settle();
+    }
+
+    fn wifi(&mut self, status: WifiStatus) {
+        self.test.set_watched::<WifiWatch>(&status);
+        self.settle();
+    }
+
+    fn settle(&mut self) {
+        self.test.run();
+        for _ in 0..4 {
+            if !self.report_windows() {
+                break;
+            }
+            self.test.run();
+        }
+    }
+
+    fn hear(&mut self, level: f32, muted: bool, default_output: &str) {
+        self.test.set_watched::<MediaWatch>(&MediaLevels {
+            output: Some(MediaLevel { level, muted }),
+            outputs: vec![
+                AudioOutput {
+                    id: SPEAKERS.to_owned(),
+                    name: "Speakers".to_owned(),
+                },
+                AudioOutput {
+                    id: HEADPHONES.to_owned(),
+                    name: "Headphones".to_owned(),
+                },
+            ],
+            default_output: Some(default_output.to_owned()),
+            ..MediaLevels::default()
+        });
+        self.settle();
+    }
+
+    fn notify(&mut self, arrived: &[IncomingNotification]) {
+        let requests = arrived
+            .iter()
+            .map(|incoming| {
+                self.notified += 1;
+                (self.notified, NotificationRequest::Notify(incoming.clone()))
+            })
+            .collect();
+        self.test
+            .set_watched::<NotificationsWatch>(&NotificationInbox { requests });
+        self.settle();
+    }
+
+    fn signals(&mut self) -> Vec<NotificationSignal> {
+        self.test
+            .take_host_calls(be_sdk_test::requested::notification_report)
+            .into_iter()
+            .flat_map(|report| report.signals)
+            .collect()
+    }
+
+    fn status_label(&self) -> String {
+        let document = self.test.document();
+        document
+            .find_test_id("desktop.status")
+            .and_then(|status| accessible_under(&document, status))
+            .unwrap_or_default()
+    }
+
+    fn says(&self, words: &str) -> bool {
+        let document = self.test.document();
+        document
+            .root()
+            .is_some_and(|root| text_within(&document, root, words).is_some())
+    }
+
+    fn times_said(&self, words: &str) -> usize {
+        let document = self.test.document();
+        document
+            .root()
+            .map_or(0, |root| texts_within(&document, root, words))
+    }
+
+    fn click_text(&mut self, words: &str) {
+        let document = self.test.document();
+        let node = document
+            .root()
+            .and_then(|root| text_within(&document, root, words))
+            .unwrap_or_else(|| panic!("{words:?} is on screen"));
+        let center = document
+            .node_rect(node)
+            .expect("the text is laid out")
+            .center();
+        drop(document);
+        self.test.click(center);
+        self.settle();
+    }
+
+    fn on_two_displays(&mut self, left: (Rect, f32), right: (Rect, f32)) {
+        self.report_screens(vec![
+            monitor("left", left.0, left.1),
+            monitor("right", right.0, right.1),
+        ]);
+        self.test.show_on_displays(&[left, right]);
+        self.settle();
+    }
+
+    fn on_monitors(&mut self, monitors: &[(&str, Rect)]) {
+        self.report_screens(
+            monitors
+                .iter()
+                .map(|(id, rect)| monitor(id, *rect, 1.0))
+                .collect(),
+        );
+        let displays: Vec<_> = monitors.iter().map(|(_, rect)| (*rect, 1.0)).collect();
+        self.test.show_on_displays(&displays);
+        self.settle();
+    }
+
+    fn desk_text(&self, words: &str) -> Rect {
+        let node = {
+            let document = self.test.document();
+            document
+                .root()
+                .and_then(|root| text_within(&document, root, words))
+                .unwrap_or_else(|| panic!("{words:?} is on screen"))
+        };
+        self.test
+            .desk_rect(node)
+            .unwrap_or_else(|| panic!("{words:?} is shown on a display"))
+    }
+
+    fn window_grip(&self, window: u64) -> Pos2 {
+        let id = format!("dock.window.grip.window.{}", self.tab_of(window));
+        self.test
+            .desk_rects_of(&id)
+            .first()
+            .unwrap_or_else(|| panic!("window {window} shows its grip"))
+            .center()
+    }
+
+    fn placed_blocks(&self) -> Vec<(Uuid, Option<Uuid>, Rect)> {
+        self.test
+            .children()
+            .iter()
+            .filter_map(|placement| match placement.content {
+                ChildContent::Block {
+                    block_id,
+                    view_block,
+                    ..
+                } => Some((
+                    Uuid::from_bytes(block_id),
+                    view_block.map(Uuid::from_bytes),
+                    placement.rect,
+                )),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn calendar(&self) -> Option<Uuid> {
+        assert_eq!(
+            self.placed_blocks(),
+            Vec::new(),
+            "the clock shows its calendar without placing a block"
+        );
+        self.test.test_ids().rect("desktop.calendar")?;
+        self.test
+            .content::<EditorViewContent>(None)
+            .root()
+            .state("desktop.calendar")
+            .and_then(|state| state.refs.first().copied())
+    }
+
+    fn bar_menu(&mut self, bar: u64, rows: &[&str]) {
+        self.test
+            .click(&format!("dock.bar.{}.grip", SHELL_BARS + bar));
+        self.settle();
+        for row in rows {
+            self.test.click(&format!("grip.dock.bar.{row}"));
+            self.settle();
+        }
+    }
+
+    fn desk_click(&mut self, test_id: &str, on: Rect) {
+        let rect = self
+            .test
+            .desk_rects_of(test_id)
+            .into_iter()
+            .find(|rect| on.contains_rect(*rect))
+            .unwrap_or_else(|| panic!("{test_id} is shown on {on:?}"));
+        self.test.click(rect.center());
+        self.settle();
+    }
+
+    fn display_bar_menu(&mut self, display: u64, bar: u64, on: Rect, rows: &[&str]) {
+        self.desk_click(
+            &format!("dock.bar.{}.grip", SHELL_BARS + 3 * display + bar),
+            on,
+        );
+        for row in rows {
+            self.desk_click(&format!("grip.dock.bar.{row}"), on);
+        }
+    }
+
+    fn shown_on(&self, test_id: &str, on: Rect) -> Vec<Rect> {
+        self.test
+            .desk_rects_of(test_id)
+            .into_iter()
+            .filter(|rect| on.contains_rect(*rect))
+            .collect()
+    }
+
+    fn close_a_tab(&mut self) {
+        let document = self.test.document();
+        let mut closes: Vec<String> = self
+            .test
+            .test_ids()
+            .iter()
+            .map(|(id, _)| id)
+            .filter(|id| id.starts_with("dock.tab.") && id.ends_with(".close"))
+            .map(str::to_owned)
+            .collect();
+        closes.sort_by(|a, b| (a.len(), a).cmp(&(b.len(), b)));
+        let cross = closes
+            .iter()
+            .filter_map(|id| document.find_test_id(id))
+            .find_map(|close| document.node_rect(close))
+            .expect("an open tab can be closed");
+        drop(document);
+        self.test.click(cross.center());
+        self.settle();
+    }
+}
+
+const PANEL: &str = "DPI-1";
+
+fn monitor(id: &str, rect: Rect, scale: f32) -> HostDisplay {
+    HostDisplay {
+        id: id.to_owned(),
+        name: id.to_owned(),
+        connector: id.to_owned(),
+        rect,
+        scale,
+        ..epaper_panel()
+    }
+}
+
+fn epaper_panel() -> HostDisplay {
+    let mode = DisplayMode {
+        width: 1404,
+        height: 1872,
+        refresh_millihertz: 85_000,
+    };
+    HostDisplay {
+        id: PANEL.to_owned(),
+        name: "E-paper panel".to_owned(),
+        connector: PANEL.to_owned(),
+        modes: vec![mode],
+        default: mode,
+        current: mode,
+        rotation: Default::default(),
+        rect: be_sdk_beui::Rect::ZERO,
+        scale: 1.0,
+        default_scale: 1.0,
+    }
+}
+
+fn rotate_in_bar() -> DisplaySettingsContent {
+    let mut content = DisplaySettingsContent::default();
+    content.apply(&DisplaySettings::set_rotate_in_bar(Some(true)));
+    content
+}
+
+fn network(ssid: &str, strength: u8, security: WifiSecurity, saved: bool) -> WifiNetwork {
+    WifiNetwork {
+        ssid: ssid.to_owned(),
+        strength,
+        security,
+        saved,
+    }
+}
+
+fn nearby() -> WifiStatus {
+    WifiStatus {
+        available: true,
+        enabled: true,
+        link: WifiLink::Connected("Home".to_owned()),
+        networks: vec![
+            network("Home", 82, WifiSecurity::Password, true),
+            network("Office", 60, WifiSecurity::Enterprise, false),
+            network("Cafe", 48, WifiSecurity::Open, false),
+            network("Old", 40, WifiSecurity::Wep, false),
+            network("Flat", 25, WifiSecurity::Password, false),
+        ],
+        failed: None,
+    }
+}
+
+fn notification(id: u32, app_name: &str, summary: &str, body: &str) -> IncomingNotification {
+    IncomingNotification {
+        id,
+        app_name: app_name.to_owned(),
+        summary: summary.to_owned(),
+        body: body.to_owned(),
+        expire_timeout: -1,
+        received: NOON + u64::from(id) * 60,
+        ..IncomingNotification::default()
+    }
+}
+
+const PICTURE: u32 = 16;
+
+fn picture() -> HostImage {
+    let rgba = (0..PICTURE * PICTURE)
+        .flat_map(|at| match (at / PICTURE + at % PICTURE) % 2 {
+            0 => [64, 120, 220, 255],
+            _ => [240, 240, 255, 255],
+        })
+        .collect();
+    HostImage {
+        width: PICTURE,
+        height: PICTURE,
+        rgba,
+    }
+}
+
+fn host_window(id: u64, focused: bool) -> TestWindow {
+    TestWindow {
+        id: HostWindowId(id),
+        kind: WindowKind::Window,
+        title: format!("todo-{id}.txt"),
+        program_id: "org.kde.kate".to_owned(),
+        name: "Kate".to_owned(),
+        parent: None,
+        modal: false,
+        size: Vec2::new(320.0, 200.0),
+        maximized: false,
+        fullscreen: None,
+        focused,
+        icon: None,
+        raised: 0,
+        rung: 0,
+        minimized: 0,
+        origin: Default::default(),
+        note: None,
+        menu: None,
+    }
+}
+
+fn readable_id(program_id: &str) -> String {
+    let id = program_id.trim();
+    let last = id.rsplit('.').next().unwrap_or(id);
+    let mut letters = last.chars();
+    match letters.next() {
+        Some(first) => first.to_uppercase().chain(letters).collect(),
+        None => String::new(),
+    }
+}
+
+fn window_name(window: &TestWindow, parent: Option<&TestWindow>) -> String {
+    let named = |window: &TestWindow| Some(window.name.clone()).filter(|name| !name.is_empty());
+    let read =
+        |window: &TestWindow| Some(readable_id(&window.program_id)).filter(|name| !name.is_empty());
+    let name = named(window)
+        .or_else(|| parent.and_then(named))
+        .or_else(|| read(window))
+        .or_else(|| parent.and_then(read))
+        .unwrap_or_default();
+    let title = window.title.trim();
+    let titled = !title.is_empty()
+        && !title.eq_ignore_ascii_case(&name)
+        && title != window.program_id.trim();
+    match (name.is_empty(), titled) {
+        (true, false) => "Window".to_owned(),
+        (true, true) => title.to_owned(),
+        (false, false) => name,
+        (false, true) => format!("{name} \u{2014} {title}"),
+    }
+}
+
+fn program_window(id: u64, program_id: &str, title: &str, origin: WindowOrigin) -> TestWindow {
+    TestWindow {
+        title: title.to_owned(),
+        program_id: program_id.to_owned(),
+        name: String::new(),
+        origin,
+        ..host_window(id, false)
+    }
+}
+
+fn foot(id: u64) -> TestWindow {
+    let window = program_window(
+        id,
+        "foot",
+        &format!("Terminal {id}"),
+        WindowOrigin {
+            program: Some("foot.desktop".to_owned()),
+            command: vec!["foot".to_owned()],
+            launch: None,
+        },
+    );
+    TestWindow {
+        name: "Foot".to_owned(),
+        ..window
+    }
+}
+
+fn notes(id: u64) -> TestWindow {
+    program_window(
+        id,
+        "org.example.Notes",
+        "Shopping list",
+        WindowOrigin {
+            program: None,
+            command: vec!["/usr/bin/notes".to_owned()],
+            launch: None,
+        },
+    )
+}
+
+fn programs() -> ProgramCatalog {
+    const SIDE: u32 = 32;
+    let icon = (0..SIDE * SIDE).flat_map(|at| match (at % SIDE + at / SIDE) % 8 < 4 {
+        true => [0x2e, 0x7d, 0x32, 0xff],
+        false => [0x1b, 0x5e, 0x20, 0xff],
+    });
+    let programs = vec![
+        HostProgram {
+            id: "files.desktop".to_owned(),
+            name: "Files".to_owned(),
+            generic_name: "File Manager".to_owned(),
+            comment: String::new(),
+            keywords: vec!["folder".to_owned()],
+            wm_class: None,
+            icon: None,
+        },
+        HostProgram {
+            id: "foot.desktop".to_owned(),
+            name: "Foot".to_owned(),
+            generic_name: "Terminal".to_owned(),
+            comment: "A fast terminal emulator".to_owned(),
+            keywords: vec!["shell".to_owned()],
+            wm_class: None,
+            icon: Some(HostImage {
+                width: SIDE,
+                height: SIDE,
+                rgba: icon.collect(),
+            }),
+        },
+    ];
+    ProgramCatalog {
+        listed: true,
+        programs,
+    }
+}
+
+fn a_shelf_of_programs() -> ProgramCatalog {
+    let names = [
+        "Files",
+        "Foot",
+        "LibreOffice Calc",
+        "LibreOffice Draw",
+        "LibreOffice Impress",
+        "LibreOffice Writer",
+        "Firefox",
+        "Settings",
+        "Text Editor",
+        "Calculator",
+        "Clocks",
+        "Maps",
+        "Weather",
+        "Music",
+        "Videos",
+        "Photos",
+    ];
+    ProgramCatalog {
+        listed: true,
+        programs: names
+            .iter()
+            .map(|name| HostProgram {
+                id: format!("{}.desktop", name.to_lowercase().replace(' ', "-")),
+                name: (*name).to_owned(),
+                generic_name: String::new(),
+                comment: String::new(),
+                keywords: Vec::new(),
+                wm_class: None,
+                icon: None,
+            })
+            .collect(),
+    }
+}
+
+fn accessible_label_around(fixture: &Fixture, test_id: &str) -> Option<String> {
+    let document = fixture.test.document();
+    let mut node = document.find_test_id(test_id);
+    while let Some(at) = node {
+        if let Some(label) = document
+            .accessibility
+            .get(&at)
+            .and_then(|node| node.label())
+        {
+            return Some(label.to_owned());
+        }
+        node = document.arena.parent(at);
+    }
+    None
+}
+
+fn ending(end: SessionEnd) -> PowerAvailability {
+    PowerAvailability {
+        lock: true,
+        session: true,
+        ending: Some(end),
+        ..PowerAvailability::default()
+    }
+}
+
+fn dialog_tab(window: u64) -> u64 {
+    be_sdk_shell::dialog_tab(HostWindowId(window)).value()
+}
+
+fn kept_keys(fixture: &Fixture) -> Vec<u64> {
+    fixture.kept().iter().map(|kept| kept.tab).collect()
+}
+
+fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
+    if document
+        .arena
+        .kind_of(id)
+        .is_some_and(|node| document.text(node).contains(words))
+    {
+        return Some(id);
+    }
+    document
+        .children(id)
+        .into_iter()
+        .find_map(|child| text_within(&document, child, words))
+}
+
+fn texts_within(document: &Document, id: NodeId, words: &str) -> usize {
+    let own = document
+        .arena
+        .kind_of(id)
+        .is_some_and(|node| document.text(node).contains(words));
+    usize::from(own)
+        + document
+            .children(id)
+            .into_iter()
+            .map(|child| texts_within(document, child, words))
+            .sum::<usize>()
+}
+
+fn text_under(document: &Document, id: NodeId) -> Option<String> {
+    if let Some(node) = document.arena.kind_of(id) {
+        return Some(document.text(node).to_owned());
+    }
+    document
+        .children(id)
+        .into_iter()
+        .find_map(|child| text_under(&document, child))
+}
+
+fn accessible_under(document: &Document, id: NodeId) -> Option<String> {
+    if let Some(label) = document
+        .accessibility
+        .get(&id)
+        .and_then(|node| node.label())
+    {
+        return Some(label.to_owned());
+    }
+    document
+        .children(id)
+        .into_iter()
+        .find_map(|child| accessible_under(document, child))
+}
+
+fn toast(id: u32) -> String {
+    format!("toast.{}", (1_u64 << 32) + u64::from(id))
+}
+
+fn tray_button(id: &str) -> String {
+    format!("desktop.tray.{id}")
+}
+
+fn tray_click(fixture: &Fixture, id: &str) -> be_sdk_beui::TrayClick {
+    let at = fixture.test.rect_of(&tray_button(id)).center();
+    be_sdk_beui::TrayClick {
+        item: id.to_owned(),
+        x: at.x.round() as i32,
+        y: at.y.round() as i32,
+    }
+}

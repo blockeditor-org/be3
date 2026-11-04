@@ -8,7 +8,7 @@ fn squeezing_a_panel_carries_it_along_the_laser() {
     let grab = space.panel(window).unwrap().world(pos2(100.0, 75.0));
     drive(&mut space, now, [hand_pose(right_hand(), grab)]);
     let squeezed = drive(&mut space, now, [squeeze(Hand::Right, 1.0)]);
-    assert_eq!(touches(&squeezed), [], "the grip reaches no app");
+    assert_eq!(touches(&squeezed), [], "the grip reaches no program");
     assert_eq!(
         space
             .laser(Hand::Right)

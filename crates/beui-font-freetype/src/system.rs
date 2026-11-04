@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::path::{Path, PathBuf};
 use std::ptr;
 
@@ -19,7 +19,7 @@ impl SystemFonts {
         Self {
             fontconfig: fontconfig::Fontconfig::open(),
             scanned: None,
-            covering: HashMap::new(),
+            covering: HashMap::default(),
             given: Vec::new(),
         }
     }

@@ -2,9 +2,11 @@ use std::any::Any;
 
 use crate::context::Context;
 use crate::document::{Document, trim_bottom};
-use crate::geometry::{Pos2, Rect, pos2};
-use crate::input::{Event, ImeArea, InputState, Keyboard, PointerId, PointerPhase};
-use crate::window::{WindowId, WindowRequest};
+use crate::input::InputState;
+use beui_types::{Event, PointerId, PointerPhase};
+use beui_types::{ImeArea, Keyboard};
+use beui_types::{Pos2, Rect, pos2};
+use beui_types::{WindowId, WindowRequest};
 
 pub const MAX_SHARE: f32 = 0.5;
 pub const DEFAULT_SHARE: f32 = 0.35;
@@ -37,7 +39,7 @@ pub(crate) struct KeyboardState {
     pressed: Vec<PointerId>,
     elsewhere: Vec<PointerId>,
     owns: bool,
-    typed: Vec<crate::input::Input>,
+    typed: Vec<beui_types::Input>,
     own: Option<WindowId>,
     shown_in: Option<WindowId>,
 }
@@ -113,10 +115,6 @@ impl KeyboardState {
         std::mem::replace(&mut self.share, share) != share
     }
 
-    pub(crate) fn opened(&self) -> Opened {
-        self.opened
-    }
-
     pub(crate) fn toggle(&mut self) {
         self.toggles = self.toggles.wrapping_add(1);
     }
@@ -143,11 +141,11 @@ impl KeyboardState {
         }
     }
 
-    pub(crate) fn type_events(&mut self, events: impl IntoIterator<Item = crate::input::Input>) {
+    pub(crate) fn type_events(&mut self, events: impl IntoIterator<Item = beui_types::Input>) {
         self.typed.extend(events);
     }
 
-    pub(crate) fn take_typed(&mut self) -> Vec<crate::input::Input> {
+    pub(crate) fn take_typed(&mut self) -> Vec<beui_types::Input> {
         std::mem::take(&mut self.typed)
     }
 
@@ -250,7 +248,7 @@ impl KeyboardState {
     }
 }
 
-fn typing_window(document: &Document, ctx: &Context) -> WindowId {
+pub fn typing_window(document: &Document, ctx: &Context) -> WindowId {
     let hosted = |window: &WindowId| !window.is_main() && document.window_rect(*window).is_some();
     document
         .key_window()
@@ -269,7 +267,7 @@ pub fn show_with_keyboard(
     show: impl FnOnce(&mut Document, Rect),
 ) {
     let mut host = document.take_keyboard_host();
-    let (placed, changed, moved, left, hidden) = ctx.keyboard(|state| {
+    let (placed, changed, moved, uncovered, left, hidden) = ctx.keyboard(|state| {
         let changed = state.decide(ctx.opens_windows() && ctx.keyboard_in_a_window());
         let shown = state.rect.is_some() || state.shown_in.is_some();
         let placed = state.place(document, ctx, rect, host.as_mut());
@@ -283,8 +281,19 @@ pub fn show_with_keyboard(
         state.window = window;
         let after = (state.window, state.rect);
         let moved = (before != after).then_some([before.0, after.0]);
+        let uncovered = before
+            .1
+            .filter(|_| before != after)
+            .map(|rect| (before.0, rect));
         let left = std::mem::replace(&mut state.shown_in, own).filter(|_| own.is_none());
-        (placed, changed, moved, left, shown && placed.is_none())
+        (
+            placed,
+            changed,
+            moved,
+            uncovered,
+            left,
+            shown && placed.is_none(),
+        )
     });
     for window in moved
         .into_iter()
@@ -309,6 +318,7 @@ pub fn show_with_keyboard(
             state.elsewhere.clear();
         });
         show(document, rect);
+        damage_uncovered(ctx, uncovered);
         remember(ctx);
         if let Some(host) = host {
             document.set_keyboard_host(host);
@@ -326,6 +336,7 @@ pub fn show_with_keyboard(
         },
         || show(document, content),
     );
+    damage_uncovered(ctx, uncovered);
     remember(ctx);
     if let Some(mut host) = host {
         let typing_in = ctx.keyboard_window();
@@ -349,6 +360,16 @@ pub fn show_with_keyboard(
         );
         ctx.set_keyboard_window(typing_in);
         document.set_keyboard_host(host);
+    }
+}
+
+/// Where the keyboard was painted until this frame, it paints no more, and the
+/// window's own content may not cover the spot (a window's clear colour shows
+/// there), so nothing in the retained tree damages it. Runs after the window is
+/// shown, so a hosted window has its frame to take the damage.
+fn damage_uncovered(ctx: &Context, uncovered: Option<(WindowId, Rect)>) {
+    if let Some((window, rect)) = uncovered {
+        ctx.draw_into(window, || ctx.report_damage(rect));
     }
 }
 

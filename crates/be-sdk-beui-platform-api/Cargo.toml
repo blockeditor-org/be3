@@ -1,0 +1,15 @@
+[package]
+name = "be-sdk-beui-platform-api"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui = { path = "../beui" }
+beui-core = { path = "../beui-core" }
+be-sdk = { path = "../be-sdk" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+uuid = "1"
+
+[lints]
+workspace = true

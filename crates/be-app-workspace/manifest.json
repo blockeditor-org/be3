@@ -1,0 +1,89 @@
+{
+  "id": "be3.workspace-ui",
+  "name": "Workspace",
+  "version": "0.1.0",
+  "editors": {
+    "workspace": {
+      "id": "de8b500a-12d8-4bc0-8381-8bbfdc9fe34f",
+      "display_name": "Workspace",
+      "icon": "\ue0ff",
+      "interaction": "Live",
+      "resize": "None",
+      "views": [
+        "Main"
+      ],
+      "accepts": [
+        "show_block",
+        "dialog",
+        "panel",
+        "window"
+      ],
+      "opens": [
+        "9026bab5-b23e-4b81-a693-d3a250905f9e"
+      ]
+    },
+    "picker": {
+      "id": "79bae633-de84-4b71-8a8c-31014aa99485",
+      "display_name": "Add block",
+      "icon": "\ue0ff",
+      "interaction": "Live",
+      "resize": "None",
+      "views": [
+        "Main"
+      ],
+      "accepts": [
+        "pick"
+      ]
+    },
+    "rename": {
+      "id": "1f0c6a52-7d0e-4b8e-9a3c-5e2b8d4f7a61",
+      "display_name": "Rename",
+      "icon": "\ue0ff",
+      "interaction": "Live",
+      "resize": "None",
+      "views": [
+        "Main"
+      ],
+      "accepts": [
+        "rename"
+      ]
+    }
+  },
+  "block_types": {
+    "folder": {
+      "id": "d4e367ab-db73-4419-bffc-b9131288c2e7",
+      "display_name": "Folder",
+      "icon": "\ue0d7",
+      "color": [155, 112, 211],
+      "children": {"add": true, "delete": true, "replace": true, "reorder": true},
+      "press": "Zoom",
+      "module": "workspace_ui_types.wasm"
+    },
+    "workspace": {
+      "id": "776f726b-7370-6163-652d-626c6f636b01",
+      "display_name": "Workspace",
+      "icon": "\ue2d0",
+      "color": [211, 126, 59],
+      "children": {"add": true, "delete": true, "replace": true, "reorder": true},
+      "press": "Zoom",
+      "module": "workspace_ui_types.wasm"
+    },
+    "view": {
+      "id": "65646974-6f72-2d76-6965-772d626c6b31",
+      "display_name": "View",
+      "icon": "\ue0ba",
+      "color": [64, 155, 173],
+      "module": "workspace_ui_types.wasm"
+    },
+    "file": {
+      "id": "66696c65-2d62-6c6f-636b-2d7479700001",
+      "display_name": "File",
+      "icon": "\ue0c0",
+      "color": [65, 145, 210],
+      "module": "workspace_ui_types.wasm",
+      "plain_file": true
+    }
+  },
+  "extensions": ["be3:desktop"],
+  "entry_point": "workspace_ui.wasm"
+}

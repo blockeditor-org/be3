@@ -1,6 +1,6 @@
 use crate::reactive::*;
 use crate::styled::*;
-use paint_snapshot::BrowserSnapshot;
+use beui_paint_snapshot::BrowserSnapshot;
 
 fn painting(size: [u32; 2], root: impl FnOnce() -> crate::primitives::Root) -> BrowserSnapshot {
     let markup = crate::html::render_to_string(root);

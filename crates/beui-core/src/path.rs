@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use foldhash::HashMap;
+use be_lib_stable_hash::HashMap;
 use kurbo::Shape as _;
 
-pub use beui_types::path::{FillRule, LineCap, LineJoin, Path, PathElement, PathStyle, Stroke};
+use beui_types::{FillRule, LineCap, LineJoin, Path, PathElement, PathStyle, Stroke};
 
-use crate::geometry::{Pos2, Rect, pos2};
+use beui_types::{Pos2, Rect, pos2};
 
 const TOLERANCE: f32 = 0.05;
 const DOT: f64 = 0.001;

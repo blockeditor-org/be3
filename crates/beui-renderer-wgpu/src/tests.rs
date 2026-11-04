@@ -23,15 +23,23 @@ mod a_layer_painted_above_a_filter_keeps_its_own_colours;
 mod a_punch_clears_what_it_covers;
 mod a_rect_rounds_each_corner_by_its_own_radius;
 mod a_renderer_at_an_origin_paints_the_part_of_the_document_there;
+mod a_renderer_prepared_before_the_atlas_is_renewed_still_paints_its_glyphs;
+mod a_renderers_encoded_rows_survive_another_renderer_painting_between_its_frames;
 mod a_repaint_of_two_regions_leaves_what_lies_between_them;
 mod a_replaced_drawing_is_released_once_it_is_repainted;
 mod a_rotated_rectangle_covers_the_corners_it_turned_onto;
+mod a_rounded_texture_quad_leaves_its_corners_uncovered;
 mod a_scrolled_document_moves_the_rows_it_already_encoded;
 mod a_stroked_path_joins_caps_and_dashes_its_line;
+mod a_texture_drawing_fills_its_rect_and_nothing_else;
+mod a_translucent_texture_quad_is_blended_once_over_what_is_behind_it;
+mod a_turned_texture_quad_stops_at_its_clip;
 mod a_window_blends_a_thin_rounded_outline_as_dark_as_its_straight_edges;
 mod an_even_odd_path_leaves_a_hole_inside_its_inner_ring;
 mod an_icon_glyph_paints_over_the_background;
+mod an_image_drawn_smaller_averages_the_texels_it_covers;
 mod an_offscreen_surface_draws_every_frame_it_noted_once_it_is_looked_at;
+mod an_srgb_encoded_texture_keeps_its_colour_on_an_srgb_target;
 mod copying_a_faded_scroll_paints_what_a_full_repaint_would;
 mod copying_a_scrolled_region_paints_what_a_full_repaint_would;
 mod reducing_contrast_pulls_the_filtered_region_toward_grey;
@@ -46,6 +54,7 @@ mod turning_a_filter_off_repaints_the_frame_it_had_blurred;
 mod two_fills_meeting_on_a_seam_paint_as_one;
 mod two_filters_each_change_the_region_they_cover;
 mod two_regions_repainted_under_a_blur_match_a_full_repaint;
+mod two_renderers_on_one_set_of_resources_share_their_glyphs_and_images;
 mod zoomed_text_stretches_the_glyphs_it_was_rasterised_at;
 
 use std::cell::RefCell;
@@ -55,9 +64,9 @@ use crate::DrawAt;
 use beui_core::context::Context;
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, Filter};
-use beui_core::font::FontId;
-use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::painter::Painter;
+use beui_types::FontId;
+use beui_types::{Pos2, Rect, pos2, vec2};
 
 const SIZE: u32 = 64;
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -140,7 +149,7 @@ impl Target {
     }
 
     pub fn on(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
-        let renderer = Renderer::new(&device, format);
+        let renderer = Renderer::new(&crate::Resources::new(&device, format));
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("beui test target"),
             size: wgpu::Extent3d {
@@ -168,6 +177,12 @@ impl Target {
             cleared: false,
             bounded: false,
         }
+    }
+
+    pub fn sharing(other: &Self) -> Self {
+        let mut target = Self::on(other.device.clone(), other.queue.clone(), other.format);
+        target.renderer = Renderer::new(other.renderer.resources());
+        target
     }
 
     pub fn bound(&mut self, bounds: [u32; 4]) {
@@ -435,4 +450,50 @@ impl Patch {
             placement,
         }
     }
+}
+
+pub fn texture_of(target: &Target, width: u32, texels: &[[u8; 4]]) -> wgpu::Texture {
+    let size = wgpu::Extent3d {
+        width,
+        height: texels.len() as u32 / width,
+        depth_or_array_layers: 1,
+    };
+    let texture = target.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("beui test picture"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    target.queue.write_texture(
+        texture.as_image_copy(),
+        texels.as_flattened(),
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(width * 4),
+            rows_per_image: Some(size.height),
+        },
+        size,
+    );
+    texture
+}
+
+pub fn paint_quad(target: &Target, texture: &wgpu::Texture, quad: beui_draw::texture_quad::Quad) {
+    let pipelines = beui_draw::texture_quad::Pipelines::new(&target.device);
+    let mut encoder = target
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+    pipelines.paint(
+        &target.queue,
+        &mut encoder,
+        &target.view,
+        target.format,
+        (SIZE, SIZE),
+        &pipelines.bind(texture),
+        quad,
+    );
+    target.queue.submit([encoder.finish()]);
 }

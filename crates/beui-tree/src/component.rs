@@ -1,13 +1,14 @@
 use std::any::{Any, TypeId};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use reactive::{ScopeContext, Stored, child_scope, component_body, store};
+use beui_reactive::{ScopeContext, Stored, child_scope, component_body, store};
 
 use crate::children::IntoChild;
 
 thread_local! {
     static CURRENT_COMPONENT: RefCell<Option<Rc<ComponentContext>>> = const { RefCell::new(None) };
+    static FINISHED: Cell<u64> = const { Cell::new(0) };
 }
 
 #[derive(Debug)]
@@ -37,7 +38,7 @@ impl ComponentInfo {
         self.module
             .split("::")
             .next()
-            .is_some_and(|name| name.starts_with("beui_"))
+            .is_some_and(|name| name.starts_with("beui_") && name != "beui_host")
     }
 }
 
@@ -51,6 +52,7 @@ pub struct ComponentRecord {
 pub struct ComponentContext {
     record: ComponentRecord,
     extensions: RefCell<Vec<(TypeId, Rc<dyn Any>)>>,
+    finished: Cell<u64>,
 }
 
 impl ComponentContext {
@@ -63,6 +65,7 @@ impl ComponentContext {
                 owner: try_current_component().map(|owner| owner.record.id),
             },
             extensions: RefCell::new(Vec::new()),
+            finished: Cell::new(0),
         }
     }
 
@@ -97,6 +100,10 @@ impl ComponentContext {
                 .downcast::<T>()
                 .unwrap_or_else(|_| unreachable!("an extension is kept under its own type id")),
         )
+    }
+
+    pub fn finish_order(&self) -> u64 {
+        self.finished.get()
     }
 
     pub fn has_extensions(&self) -> bool {
@@ -144,6 +151,10 @@ pub fn component<T: ChildValue>(info: &'static ComponentInfo, f: impl FnOnce() -
     let context = Rc::new(ComponentContext::new(info));
     let (mut value, scope) =
         child_scope(|| in_component(Some(context.clone()), || component_body(f)));
+    context.finished.set(FINISHED.with(|finished| {
+        finished.set(finished.get() + 1);
+        finished.get()
+    }));
     value.finish_component(&context, &scope);
     value
 }
@@ -170,6 +181,9 @@ fn in_component<R>(owner: Option<Rc<ComponentContext>>, f: impl FnOnce() -> R) -
     f()
 }
 
+/// A render prop the component calls at most once (`RenderFn` when it may call it again).
+/// It runs with the component that wrote it installed, not the one calling it, so
+/// component-scoped state and accessibility inside it belong to the writer.
 pub struct Render<H, C> {
     owner: Option<Rc<ComponentContext>>,
     render: Box<dyn FnOnce(H) -> C>,

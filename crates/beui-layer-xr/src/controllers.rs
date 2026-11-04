@@ -1,4 +1,4 @@
-use beui_core::runner::{Controller, Hand, HandPose};
+use beui_runner::{Controller, Hand, HandPose};
 use openxr as xr;
 
 const PROFILES: [(&str, &str, &str); 5] = [
@@ -29,6 +29,9 @@ const PROFILES: [(&str, &str, &str); 5] = [
     ),
 ];
 
+/// Per hand, the aim and grip poses, trigger and squeeze, bound for the profiles in
+/// `PROFILES`, read at the predicted display time in the eyes' space. A hand whose
+/// aim stops being tracked sends `Controller::Lost` once.
 pub(crate) struct Controllers {
     set: xr::ActionSet,
     trigger: xr::Action<f32>,

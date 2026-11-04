@@ -4,6 +4,16 @@
 clock stop
 click '#demo.catalog.Docking'
 key Tab Enter
+wait 'focused #demo.catalog.Nested docks'
+wait 'Tab "Outline"'
+wait 'Tab "Preview"'
+key Tab Enter
+wait 'focused #demo.catalog.Dock bars'
+wait '#bars.tools'
+key Tab Enter
+wait 'focused #demo.catalog.Window manager'
+wait '#wm.menu'
+key Tab Enter
 wait 'focused #demo.catalog.Text'
 wait 'Tab "Text" selected'
 key Tab Enter
@@ -93,4 +103,4 @@ wait 'Tab "Interaction" selected'
 key Tab Enter
 wait 'focused #demo.catalog.Layering'
 wait 'Tab "Layering" selected'
-wait 'value="Translate"'
+wait 'Heading "Translate"'

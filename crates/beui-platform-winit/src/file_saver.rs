@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest, SavedFile};
+use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
+use beui_types::{FileSave, SavedFile};
 
 pub fn open(request: FileSaveRequest, answer: FileSaveAnswer) {
     let unanswered = answer.clone();

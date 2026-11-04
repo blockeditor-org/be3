@@ -187,6 +187,11 @@ pub struct ColorWheelHandle {
     pub disabled: Memo<bool>,
 }
 
+/// A hue wheel with saturation and brightness.
+///
+/// Left/Right change the saturation and Up/Down the brightness by 1%, or 10%
+/// with Shift; Page Up/Down turn the hue by 15 degrees; Home/End set no and full
+/// saturation.
 #[component]
 pub fn ColorWheel(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ColorWheelApi>,

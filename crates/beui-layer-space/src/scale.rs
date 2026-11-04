@@ -1,11 +1,12 @@
 use std::time::Duration;
 
-use beui_core::geometry::{Pos2, Vec2, pos2};
+use beui_types::{Pos2, Vec2, pos2};
 use glam::Vec4;
 
 use crate::head::View;
 use crate::panel::Panel;
 
+/// Chosen so the main panel, opened to fill 80% of the view's width, draws at exactly the platform's scale.
 pub const SUPERSAMPLE: f32 = 1.25;
 pub const STEPS_PER_DOUBLING: f32 = 4.0;
 pub const KEPT_STEPS: f32 = 2.0;
@@ -14,8 +15,16 @@ pub const LEAST_SCALE: f32 = 0.5;
 pub const MOST_SCALE: f32 = 4.0;
 pub const LARGEST_TEXTURE: f32 = 4096.0;
 const OUTLINE_STEPS: usize = 8;
+/// A new scale must stay wanted this long before it applies (a frame is asked for
+/// when the wait ends). A new window takes its scale at once, and one being
+/// carried, resized or reshaped keeps its scale until the gesture ends.
 pub const SETTLE: Duration = Duration::from_millis(250);
 
+/// The most pixels per point any view shows the panel at: per view, at the
+/// frustum-clipped panel's nearest depth (its outline sampled along the top and
+/// bottom edges, so a bent panel's nearer sides count), times `SUPERSAMPLE`,
+/// rounded up to a step and kept within `LEAST_SCALE`, `MOST_SCALE` and
+/// `LARGEST_TEXTURE`. `None` when no view sees it, and it keeps its scale.
 pub fn wanted(panel: &Panel, views: &[View]) -> Option<f32> {
     views
         .iter()
@@ -82,6 +91,9 @@ fn of_step(step: f32) -> f32 {
     (step / STEPS_PER_DOUBLING).exp2()
 }
 
+/// Keeps the held scale until the panel needs more or `KEPT_STEPS` less, so
+/// walking about redraws a window only now and then. A change reaches the program
+/// as `WindowReport::Rastered`: it repaints at the new raster without laying out.
 pub fn chosen(held: Option<f32>, wanted: Option<f32>, size: Vec2, platform: f32) -> f32 {
     let largest = of_step(step(LARGEST_TEXTURE / size.x.max(size.y).max(1.0)).floor());
     let most = MOST_SCALE.min(largest);

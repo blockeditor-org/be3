@@ -1,19 +1,22 @@
+use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::{
-    Color32, CursorIcon, Pos2, Rect, Vec2, WindowId, native::GpuSetup, native::RendererInfo,
-    native::Repainting, native::Setup, native::WindowOutput,
+    Color32, CursorIcon, Pos2, Rect, Vec2, WindowId, native::RendererInfo, native::Setup,
+    native::WindowOutput,
 };
-use beui_core::renderer::Renderer;
+use beui_host::{native::GpuSetup, native::Repainting};
+use beui_runner::renderer::Renderer;
 
 use crate::cursors::{Cursors, Shape};
 use crate::flips::Flips;
 use crate::gpu::{Gpu, SoftwareCursor};
 use crate::output::Output;
+use crate::pointing;
+use crate::rotation::Rotation;
 use crate::screen::{FORMAT, Frame, Pointer};
-use crate::theme::Theme;
+use crate::screenshot::{self, Shown};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Look {
@@ -31,6 +34,7 @@ pub struct Outputs {
     pub icon: CursorIcon,
     pub gpu: Rc<Gpu>,
     pub flips: Flips,
+    pub hosted: bool,
     cursor: SoftwareCursor,
     cursors: Cursors,
     cursor_scale: f32,
@@ -44,21 +48,21 @@ impl Outputs {
         Self {
             outputs: Vec::new(),
             flips: Flips::default(),
+            hosted: false,
             pointer: Pos2::ZERO,
             icon: CursorIcon::Default,
             gpu,
             cursor,
-            cursors: Cursors::new(Theme::from_env(), scale),
+            cursors: Cursors::new(scale),
             cursor_scale: scale,
             look: Look::Icon(CursorIcon::Default),
             placed: None,
-            shown: HashMap::new(),
+            shown: HashMap::default(),
         }
     }
 
     pub fn under(&self, position: Pos2) -> Option<&Output> {
-        self.outputs
-            .iter()
+        self.desktops()
             .find(|output| output.screen.rect.contains(position))
     }
 
@@ -70,16 +74,48 @@ impl Outputs {
             .fold(0.0_f32, f32::max);
         if scale > 0.0 && scale != self.cursor_scale {
             self.cursor_scale = scale;
-            self.cursors = Cursors::new(Theme::from_env(), scale);
+            self.cursors = Cursors::new(scale);
             self.replace_pointer();
         }
     }
 
     pub fn rects(&self) -> Vec<Rect> {
+        self.desktops().map(|output| output.screen.rect).collect()
+    }
+
+    /// The desktop as one picture, as its displays last drew it.
+    pub fn screenshot(&self) -> Option<beui_types::Image> {
+        let shown: Vec<Shown> = self
+            .desktops()
+            .filter_map(|output| {
+                Some(Shown {
+                    rect: output.screen.rect,
+                    scale: output.screen.scale,
+                    picture: output.screen.capture(&self.gpu)?,
+                })
+            })
+            .collect();
+        screenshot::compose(&shown)
+    }
+
+    pub fn desktops(&self) -> impl Iterator<Item = &Output> {
+        self.outputs.iter().filter(|output| output.on_desktop())
+    }
+
+    pub fn pointed(&self) -> Vec<pointing::Screen> {
+        self.lit().map(Output::pointed).collect()
+    }
+
+    pub fn areas(&self) -> Vec<(Rect, Rotation)> {
+        self.lit()
+            .map(|output| (output.screen.rect, output.screen.rotation()))
+            .collect()
+    }
+
+    fn lit(&self) -> impl Iterator<Item = &Output> {
         self.outputs
             .iter()
-            .map(|output| output.screen.rect)
-            .collect()
+            .filter(|output| output.shows().is_some())
     }
 
     pub fn moved_pointer(&mut self) {
@@ -132,7 +168,7 @@ impl Outputs {
             self.replace_pointer();
         }
         for output in &mut self.outputs {
-            let window = window_of(output.id());
+            let window = output.shows().and_then(&window_of);
             let shown = window.map(|window| window.id);
             let empty;
             let window = match window {
@@ -238,7 +274,9 @@ impl Renderer for DisplayRenderer {
             queue: outputs.gpu.queue().clone(),
             format: FORMAT,
         });
-        setup.provide(outputs.cursor.clone());
+        if !outputs.hosted {
+            setup.provide(outputs.cursor.clone());
+        }
     }
 
     fn resize(&mut self, _width: u32, _height: u32) {}

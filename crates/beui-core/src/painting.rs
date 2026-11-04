@@ -2,17 +2,17 @@ use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::hash::{Hash as _, Hasher as _};
 
-pub use paint_format::{
+pub use beui_paint_format::{
     Content, Fade, Frame, Glyph, Painting, Pixels, Placement, Primitive, RoundedRect,
     ScreenPaintings, TextureKey, Triangle, Turn, Vertex, preview_key, previewed, rasterize,
 };
 
-use crate::color::Color32;
 use crate::context::{FrameOutput, WindowOutput};
 use crate::draw::Quad;
 use crate::font::GlyphImage;
-use crate::geometry::{Rect, Vec2, pos2};
-use crate::image::Image;
+use beui_types::Color32;
+use beui_types::Image;
+use beui_types::{Rect, Vec2, pos2};
 
 pub trait Paints {
     fn painting(&self, rect: Rect) -> Option<Painting>;
@@ -75,6 +75,7 @@ pub fn painting(
         primitives.push(Primitive {
             clip: whole,
             fade: Fade::NONE,
+            rounds: Vec::new(),
             content: Content::RoundedRect(RoundedRect {
                 rect: whole,
                 corner_radius: 0.0,
@@ -113,10 +114,12 @@ pub fn painting(
                     clip: held,
                     fade: was,
                     content: Content::Mesh(triangles),
+                    ..
                 }) if joining && *held == clip && *was == fade => triangles.push(triangle),
                 _ => primitives.push(Primitive {
                     clip,
                     fade,
+                    rounds: Vec::new(),
                     content: Content::Mesh(vec![triangle]),
                 }),
             }
@@ -164,6 +167,7 @@ pub fn painting(
                         .map(move |clip| Primitive {
                             clip,
                             fade: primitive.fade,
+                            rounds: primitive.rounds.clone(),
                             content: primitive.content.clone(),
                         })
                 })
@@ -270,6 +274,7 @@ pub fn painting(
         primitives.push(Primitive {
             clip,
             fade,
+            rounds: Vec::new(),
             content,
         });
     }

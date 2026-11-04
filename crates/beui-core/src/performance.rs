@@ -17,6 +17,8 @@ pub struct PerformanceTimings {
 pub struct FrameWork {
     pub measured: usize,
     pub reused_measurements: usize,
+    pub least_lengths: usize,
+    pub reused_least_lengths: usize,
     pub placed: usize,
     pub reused_placements: usize,
     pub painted_nodes: usize,

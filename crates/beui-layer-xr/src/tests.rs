@@ -3,11 +3,11 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use beui_core::app::{Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
-use beui_core::geometry::vec2;
-use beui_core::runner::LayerView;
+use beui_core::program::{Setup, Waker};
 use beui_renderer_wgpu::present::Gpu;
+use beui_runner::LayerView;
+use beui_types::vec2;
 
 use crate::XrSpace;
 
@@ -16,6 +16,7 @@ mod monado_shows_the_frames_space_draws_for_each_eye;
 
 const FRAMES: u64 = 30;
 
+/// The tests share one Monado service directory (`XDG_RUNTIME_DIR`), so each holds this lock.
 static MONADO: Mutex<()> = Mutex::new(());
 
 struct Monado {
@@ -80,7 +81,7 @@ fn setup(host: &mut XrSpace, gpu: &Gpu, waker: Waker) {
     host.setup(&setup);
 }
 
-fn app() -> FrameOutput {
+fn program() -> FrameOutput {
     let fonts = beui_font_freetype::FreetypeFonts::new(beui_font_freetype::FontLibrary::new(
         beui_font_freetype::FontSources::default(),
     ));

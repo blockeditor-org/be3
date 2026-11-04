@@ -1,0 +1,29 @@
+{
+  "id": "be3.version-control",
+  "name": "Version control",
+  "version": "0.1.0",
+  "editors": {
+    "repository": {
+      "id": "0534878a-1b77-4dc0-a408-35137c5110ef",
+      "edits": "6be37c5e-0a1d-4f6e-9c20-7265706f0001",
+      "display_name": "Repository",
+      "icon": "\ue40a",
+      "templates": {
+        "main": {}
+      },
+      "views": [
+        "Main"
+      ]
+    },
+    "checkout": {
+      "id": "8a24823e-ef59-4d0a-a161-113a31d0f7bf",
+      "edits": "6be37c5e-0a1d-4f6e-9c20-636b6f750001",
+      "display_name": "Checkout",
+      "icon": "\ue125",
+      "views": [
+        "Main"
+      ]
+    }
+  },
+  "entry_point": "version_control.wasm"
+}

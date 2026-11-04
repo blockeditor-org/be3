@@ -1,0 +1,15 @@
+[package]
+name = "be-sdk-database"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui = { path = "../beui" }
+be-sdk-beui = { path = "../be-sdk-beui" }
+be-sdk-ui-database = { path = "../be-sdk-ui-database" }
+be-type-database = { path = "../be-type-database" }
+uuid = "1"
+
+[lints]
+workspace = true

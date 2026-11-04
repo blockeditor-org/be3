@@ -1,6 +1,7 @@
 use super::*;
 
-use beui_core::font::{FontId, Fonts, TextLayout};
+use beui_core::font::Fonts;
+use beui_types::{FontId, TextLayout};
 
 #[test]
 fn replacing_the_fonts_lays_the_text_out_again() {

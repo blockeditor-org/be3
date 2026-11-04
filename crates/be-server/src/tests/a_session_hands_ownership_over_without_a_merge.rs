@@ -14,30 +14,37 @@ async fn a_session_hands_ownership_over_without_a_merge() {
     assert!(state.is_owner(owner));
 
     let first = author.compose(b"typed on the phone\n", 1_000, None);
-    phone
+    let _ = phone
         .publish(&author, block, first.0, first.1, None, 1_000)
         .await;
     let response = phone
-        .send(|request| ClientMessage::Heartbeat {
-            request,
-            block,
-            generation: state.generation,
-            clean_at: Some(first.0),
-        })
+        .heartbeat(block, state.generation, Some(first.0))
         .await;
-    let ServerMessage::Session { state: beating, .. } = response else {
+    let Ok(beating) = response else {
         panic!("heartbeat failed: {response:?}");
     };
     assert_eq!(beating.clean_at, Some(first.0));
 
     let token = phone.token.clone();
-    drop(phone);
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
     let mut laptop = harness.second_connection(&token, organization).await;
-    let (_, taken) = laptop.join_session(block).await;
-    assert!(
-        taken.owner.is_some() && taken.owner != Some(owner),
+    let (on_laptop, joined) = laptop.join_session(block).await;
+    assert_eq!(joined.owner, Some(owner));
+    drop(phone);
+
+    let taken = loop {
+        if let Notice::SessionChanged {
+            block: changed,
+            state,
+        } = laptop.notification().await
+            && changed == block
+            && state.owner != Some(owner)
+        {
+            break state;
+        }
+    };
+    assert_eq!(
+        taken.owner,
+        Some(on_laptop),
         "the session kept a disconnected owner: {taken:?}"
     );
     assert_eq!(taken.clean_at, Some(first.0));
@@ -53,7 +60,10 @@ async fn a_session_hands_ownership_over_without_a_merge() {
         .publish(&author, block, second.0, second.1, Some(first.0), 2_000)
         .await;
     assert!(
-        matches!(response, ServerMessage::Published { .. }),
+        matches!(
+            response,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "the new owner could not continue from the head: {response:?}"
     );
 

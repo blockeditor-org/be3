@@ -7,6 +7,9 @@ license.workspace = true
 [dependencies]
 accesskit = "0.24.1"
 beui-core = { path = "../beui-core" }
+beui-runner = { path = "../beui-runner" }
+beui-types = { path = "../beui-types" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 
 [lints]
 workspace = true

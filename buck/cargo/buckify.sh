@@ -16,6 +16,9 @@ shift 5
 scratch="$(mktemp -d)"
 mkdir -p "$out"
 cp -RL "$workspace/." "$scratch/workspace"
+# buck2 hands the action its inputs read-only, and cp keeps their modes, but
+# cargo rewrites Cargo.lock in place when the manifests have changed.
+chmod -R u+w "$scratch/workspace"
 cd "$scratch/workspace"
 while IFS= read -r path || [ -n "$path" ]; do
     mkdir -p "$(dirname "$path")"
@@ -44,33 +47,35 @@ for crate in "$CARGO_HOME"/registry/cache/*/*.crate; do
     printf '%s %s\n' "$(basename "$crate" .crate)" "$(wc -c < "$crate")"
 done > "$scratch/sizes"
 
-plugins=""
+apps=""
 excluded=""
 package_name() {
     sed -n 's/^name[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$1" | head -n 1
 }
 # An editor with examples is built for the host as well, where they run
 # (editor() in buck/wasm/defs.bzl).
-for manifest in crates/editors/*/Cargo.toml; do
+for manifest in crates/be-app-*/Cargo.toml; do
     name="$(package_name "$manifest")"
-    plugins="$plugins -p $name"
+    apps="$apps -p $name"
     [ -d "$(dirname "$manifest")/examples" ] || excluded="$excluded --exclude $name"
 done
 games=""
-for manifest in crates/tabletop-games/rules/*/Cargo.toml; do
+for manifest in crates/tabletop-rules-*/Cargo.toml; do
     games="$games -p $(package_name "$manifest")"
 done
 types=""
-for manifest in crates/editors/*/types/Cargo.toml; do
+# Every app's type module; be-type-bundle runs them in process on the host.
+for manifest in crates/be-type-*/Cargo.toml; do
+    [ "$manifest" = crates/be-type-bundle/Cargo.toml ] && continue
     types="$types -p $(package_name "$manifest")"
 done
 
 # The builds buck2 stands in for, as cargo would be asked for them: the host
-# (without the wasm-only crates), block-app, beui's DOM
-# demo, the paint review page and beui-html's live DOM for the web, the plugins, beui's demo and the
-# paint review, whose tests paint as a plugin's do (a plan of their own: they
+# (without the wasm-only crates), be-host, beui's DOM
+# demo, the paint review page and beui-html's live DOM for the web, the apps, beui's demo and the
+# paint review, whose tests paint as an app's do (a plan of their own: they
 # want a different wgpu), the games, the gpu shim, the remap module and the
-# pure guests (the plugins' type modules among them), and
+# pure guests (the apps' type modules among them), and
 # the host again for each cross target. `cargo test` where
 # there are tests, so the plan has the dev-dependencies. Every plan names its
 # target, so what cargo builds for the machine running the build - proc
@@ -80,22 +85,22 @@ plan() {
     RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" "$@" --unit-graph -Z unstable-options --locked
 }
 RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" metadata --all-features --format-version 1 --locked > "$scratch/metadata.json"
-host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim --exclude beui-web-demo --exclude beui-html-spike --exclude be-portal-ui --exclude beui-demo-html --exclude paint-review-web"
+host_packages="--workspace $excluded --exclude be-sdk --exclude be-sdk-beui --exclude be-wasm-gpu-shim --exclude beui-web-demo --exclude beui-html-spike --exclude be-server-portal-ui --exclude be-server-bin --exclude beui-demo-html --exclude be-tool-paint-review-web"
 plan test --target x86_64-unknown-linux-gnu $host_packages > "$scratch/host.json"
-plan build --target wasm32-wasip1-threads -p block-app -p beui-web-demo -p paint-review-web -p beui-html --lib > "$scratch/wasi.json"
-plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin -p block-editor-beui -p beui-demo -p paint-review > "$scratch/wasi-guest.json"
-plan build --target wasm32-unknown-unknown $games $types -p block-gpu-shim -p be-remap-module -p block-guest-echo > "$scratch/wasm32.json"
+plan build --target wasm32-wasip1-threads -p be-host -p beui-web-demo -p be-tool-paint-review-web -p beui-html --lib > "$scratch/wasi.json"
+plan test --target wasm32-wasip1-threads $apps -p be-sdk -p be-sdk-beui -p beui-demo -p be-tool-paint-review > "$scratch/wasi-guest.json"
+plan build --target wasm32-unknown-unknown $games $types -p be-wasm-gpu-shim -p be-host-remap-module -p be-wasm-guest-echo > "$scratch/wasm32.json"
 # beui's HTML core (buck/constraints:html): the crates that build on it, for
 # the browser and for the host, under the cfg that picks it. cargo evaluates
 # [target.'cfg(beui_html)'.dependencies] against RUSTFLAGS, so each core's
 # dependencies drop out of the other's plans.
 # The browser's plan adds the crates whose native side runs only on the
 # native core, such as the shared tests' fixtures program, and beui's demo
-# in the browser (beui-demo-html). The host's adds be-server, whose
-# executable and tests render its account portal on that core.
-html_packages="-p beui -p beui-dock -p beui-keyboard -p beui-view -p beui-html -p beui-core-html -p beui-components-unstyled -p beui-components-styled -p block-accounts-ui -p beui-html-spike -p be-portal-ui"
-browser_packages="$html_packages -p beui-shared-tests -p beui-demo-html"
-host_html_packages="$html_packages -p be-server"
+# in the browser (beui-demo-html). The host's adds be-server-bin, the
+# server's executable, which renders its account portal on that core.
+html_packages="-p beui -p beui-dock -p beui-dock-host -p beui-dock-state -p beui-keyboard -p beui-view -p beui-html -p beui-core-html -p beui-components-unstyled -p beui-components-styled -p be-host-accounts-ui -p beui-html-spike -p be-server-portal-ui"
+browser_packages="$html_packages -p beui-tests -p beui-demo-html"
+host_html_packages="$html_packages -p be-server-bin"
 RUSTFLAGS="--cfg beui_html" plan build --target wasm32-wasip1-threads $browser_packages --lib > "$scratch/wasi-html.json"
 RUSTFLAGS="--cfg beui_html" plan test --target x86_64-unknown-linux-gnu $host_html_packages > "$scratch/linux-x86_64-html.json"
 cross=""
@@ -105,7 +110,7 @@ for platform in "$@"; do
     cross="$cross $name=$scratch/$name.json"
 done
 CARGO_TARGET_DIR="$scratch/target" PATH="$toolchain/bin:$PATH" \
-    "$toolchain/bin/cargo" build --quiet --release --locked -p buck-tools
+    "$toolchain/bin/cargo" build --quiet --release --locked -p be-tool-buck
 "$scratch/target/release/buck-tools" generate "$scratch/metadata.json" Cargo.lock "$scratch/sizes" Cargo.toml \
     "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasi-guest=$scratch/wasi-guest.json" "wasm32=$scratch/wasm32.json" \
     "wasi-html=$scratch/wasi-html.json" "linux-x86_64-html=$scratch/linux-x86_64-html.json" \

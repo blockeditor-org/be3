@@ -1,4 +1,4 @@
-use beui_core::app::{Setup, Waker};
+use beui_core::program::{Setup, Waker};
 use beui_font_freetype::FreetypeFonts;
 
 use super::the_chrome_around_a_curved_panel::window;
@@ -27,6 +27,7 @@ fn a_panel_carried_under_the_floor_stays_visible_and_can_be_picked() {
         placement: WindowPlacement::Host(panel(under, pose).placement()),
         size: SIZE,
         role: WindowRole::Normal,
+        level: beui_types::WindowLevel::Normal,
     });
     send(&mut space, now, []);
 
@@ -74,10 +75,8 @@ fn a_panel_carried_under_the_floor_stays_visible_and_can_be_picked() {
     let frame = space.scene(&windows, &view(now));
     let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
         .expect("the scene paints");
-    let snapshot = paint_snapshot::Snapshot::of_painting(painting).expect("the painting encodes");
-    paint_snapshot::assert_accepted(
+    beui_paint_snapshot::assert_painting(
         "a_panel_carried_under_the_floor_stays_visible_and_can_be_picked",
-        &snapshot,
-        "./scripts/test a_panel_carried_under_the_floor_stays_visible_and_can_be_picked --update",
+        painting,
     );
 }

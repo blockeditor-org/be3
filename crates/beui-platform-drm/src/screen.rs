@@ -1,4 +1,5 @@
-use beui::{Rect, Vec2, native::Renderer, native::Repaint, native::WindowOutput, vec2};
+use beui::{Rect, Vec2, native::WindowOutput, vec2};
+use beui_host::{native::Renderer, native::Repaint};
 use smithay::utils::{Physical, Rectangle};
 
 use crate::gpu::{Gpu, Sprite};
@@ -92,7 +93,7 @@ impl Screen {
             rect: Rect::ZERO,
             scale: 1.0,
             zoom: 1.0,
-            renderer: Renderer::new(gpu.device(), FORMAT),
+            renderer: Renderer::new(gpu.resources()),
             retained,
             turned,
             pending: Some(Repaint::Everything),
@@ -111,6 +112,11 @@ impl Screen {
 
     pub fn rotation(&self) -> Rotation {
         self.rotation
+    }
+
+    /// Reads back the last picture drawn, upright and without the pointer.
+    pub fn capture(&self, gpu: &Gpu) -> Option<beui_runner::renderer::Capture> {
+        beui_host::native::read_texture(gpu.device(), gpu.queue(), &self.retained)
     }
 
     fn picture_size(&self) -> Vec2 {
@@ -201,7 +207,9 @@ impl Screen {
             };
             let load = match effective {
                 Repaint::Region { .. } => wgpu::LoadOp::Load,
-                Repaint::Everything => wgpu::LoadOp::Clear(beui::native::wgpu_color(frame.clear)),
+                Repaint::Everything => {
+                    wgpu::LoadOp::Clear(beui_host::native::wgpu_color(frame.clear))
+                }
             };
             let view = self
                 .retained

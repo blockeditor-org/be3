@@ -1,11 +1,12 @@
 use std::time::Duration;
 
-use crate::geometry::Rect;
-use crate::geometry::{pos2, vec2};
-use crate::input::{
-    Input, Key, KeyPress, Keystroke, Modifiers, Pen, PenPhase, PointerButton, PointerEvent,
-    PointerPhase, ScrollDelta, TouchId, TouchPhase,
+use beui_types::Rect;
+use beui_types::{Aim, Replay, Replayed, pos2, vec2};
+use beui_types::{
+    Input, Key, KeyPress, Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId,
+    TouchPhase,
 };
+use beui_types::{PointerEvent, PointerPhase};
 
 use super::*;
 
@@ -13,6 +14,7 @@ mod a_held_press_is_replayed_where_the_pointer_is_and_leaves_once_over_nothing;
 mod a_mouse_press_the_host_gave_up_is_cancelled;
 mod a_move_carries_its_prediction_along;
 mod a_scroll_is_replayed_in_unzoomed_pixels;
+mod a_wheel_is_replayed_in_its_notches;
 mod an_unnamed_key_is_replayed_as_a_keystroke;
 mod focus_is_replayed_once_for_each_change;
 mod modifiers_are_replayed_only_when_they_change;
@@ -30,7 +32,7 @@ fn rect() -> Rect {
 fn pointer(pointer: PointerId, phase: PointerPhase, pos: Pos2) -> PointerEvent {
     PointerEvent {
         pointer,
-        window: crate::window::WindowId::MAIN,
+        window: beui_types::WindowId::MAIN,
         phase,
         pos,
         modifiers: Modifiers::NONE,

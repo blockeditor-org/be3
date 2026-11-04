@@ -51,7 +51,7 @@ fn a_window_opened_over_the_main_panel_takes_the_focus_and_the_keys() {
     assert_eq!(
         keys(&send(&mut space, now, [key(Key::A, 30, true)])),
         1,
-        "keys reach the app for the window just opened"
+        "keys reach the program for the window just opened"
     );
     send(&mut space, now, [key(Key::A, 30, false)]);
 
@@ -60,6 +60,7 @@ fn a_window_opened_over_the_main_panel_takes_the_focus_and_the_keys() {
         placement: over.clone(),
         size: SMALL,
         role: WindowRole::Normal,
+        level: beui_types::WindowLevel::Normal,
     });
     let (second, sent) = open(&mut space, now, over);
     assert_eq!(

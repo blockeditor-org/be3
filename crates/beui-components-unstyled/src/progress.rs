@@ -17,6 +17,11 @@ pub struct ProgressHandle {
     pub phase: ReadSignal<f32>,
 }
 
+/// A progress indicator; `None` is indeterminate (busy, with a sweeping phase).
+///
+/// The sweep runs only while the bar is laid out (`component_placed`) and motion
+/// is animated, and ticks from a timer a frame's time apart rather than an
+/// animation, so a driven program can still settle while it shows.
 #[component]
 pub fn Progress(
     value: Prop<Option<f32>>,

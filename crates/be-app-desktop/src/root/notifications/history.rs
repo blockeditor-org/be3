@@ -1,0 +1,154 @@
+use std::time::Duration;
+
+use be_sdk_beui::beui::NodeId;
+use be_sdk_beui::beui::datetime::{HourCycle, Time};
+use be_sdk_beui::beui::icons::ICON_X;
+use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::*;
+
+use super::{DesktopNotifications, Listed};
+use crate::root::bar::local_minutes;
+use beui::{Align, Direction};
+
+pub(crate) const LIST_HEIGHT: f32 = 420.0;
+const SPACING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Xs2;
+const PICTURE_SIZE: Size = Size::Lg;
+
+pub(super) fn received_at(received: u64) -> String {
+    let minutes = local_minutes(Duration::from_secs(received));
+    Time::from_minutes(minutes).format(HourCycle::H24)
+}
+
+#[component]
+pub(crate) fn NotificationList(
+    notifications: DesktopNotifications,
+    listed: Memo<Vec<Listed>>,
+    height: Memo<f32>,
+    popover: PopoverHandle,
+) -> NodeId {
+    let empty = create_memo(move || listed.with(Vec::is_empty));
+    let some = create_memo(move || !empty.get());
+    let clear = move || {
+        let ids: Vec<u32> =
+            listed.with_untracked(|listed| listed.iter().map(|shown| shown.id).collect());
+        if !ids.is_empty() {
+            notifications.dismiss(&ids);
+        }
+    };
+    view! {
+        <List spacing=SPACING @test_id={"desktop.notifications.list"}>
+            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                <Text style=TextStyle::HEADING>"Notifications"</Text>
+                <Spacer />
+                <Button
+                    label="Clear all"
+                    variant=ButtonVariant::Ghost
+                    disabled={empty}
+                    @test_id={"desktop.notifications.clear"}
+                    on_click={clear}
+                />
+            </List>
+            <Show condition={empty}>
+                <Text style=TextStyle::CAPTION>"Nothing new."</Text>
+            </Show>
+            <Show condition={some}>
+                <NotificationRows
+                    notifications={notifications}
+                    listed={listed}
+                    height={height}
+                    popover={popover}
+                />
+            </Show>
+        </List>
+    }
+}
+
+#[component]
+fn NotificationRows(
+    notifications: DesktopNotifications,
+    listed: Memo<Vec<Listed>>,
+    height: Memo<f32>,
+    popover: PopoverHandle,
+) -> NodeId {
+    let max_length = create_memo(move || Size::Custom(height.get()));
+    view! {
+        <Scroll max_length>
+            <ForEach keys={listed}>|shown: Listed|
+                <NotificationRow notifications={notifications} shown popover={popover} />
+            </ForEach>
+        </Scroll>
+    }
+}
+
+#[component]
+fn NotificationRow(
+    notifications: DesktopNotifications,
+    shown: Listed,
+    popover: PopoverHandle,
+) -> NodeId {
+    let id = shown.id;
+    let activates = shown.activates;
+    let activate = move || match activates {
+        true => {
+            notifications.activate(id);
+            popover.close.call(());
+        }
+        false => notifications.dismiss(&[id]),
+    };
+    let source = shown.source.clone();
+    let said = !shown.body.is_empty();
+    let titled = !shown.heading.is_empty();
+    let pictured = shown.image.is_some();
+    let image = shown.image.clone();
+    let body = shown.body.clone();
+    let heading = shown.heading.clone();
+    let body_color = TextColor::Muted;
+    let summary_color = match shown.critical {
+        true => TextColor::Danger,
+        false => TextColor::Default,
+    };
+    view! {
+        <List direction=Direction::Horizontal align=Align::Start spacing=ROW_SPACING>
+            <ListItem grow=1.0>
+                <ListRow @test_id={format!("desktop.notifications.{id}")} on_click={activate}>
+                    <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
+                        <Show condition={pictured}>|| {
+                            let image = image.clone(); view! {
+                                <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
+                                    <Picture image />
+                                </Frame>
+                            }
+                        }</Show>
+                        <ListItem grow=1.0>
+                            <List spacing=ROW_SPACING>
+                                <Text style=TextStyle::CAPTION>{source}</Text>
+                                <Show condition={titled}>|| {
+                                    let heading = heading.clone(); view! {
+                                        <Text color={summary_color} weight=Weight::Bold>
+                                            {heading}
+                                        </Text>
+                                    }
+                                }</Show>
+                                <Show condition={said}>|| {
+                                    let body = body.clone(); view! {
+                                        <Text size=TextSize::Sm color={body_color}>{body}</Text>
+                                    }
+                                }</Show>
+                            </List>
+                        </ListItem>
+                    </List>
+                </ListRow>
+            </ListItem>
+            <Button
+                icon_only=true
+                glyph=ICON_X
+                label="Dismiss"
+                variant=ButtonVariant::Ghost
+                size=ButtonSize::Small
+                @test_id={format!("desktop.notifications.{id}.dismiss")}
+                on_click={move || notifications.dismiss(&[id])}
+            />
+        </List>
+    }
+}

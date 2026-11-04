@@ -1,9 +1,11 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::button::ButtonSize;
 use crate::button::{Button, ButtonVariant};
 use crate::list::List;
+use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use crate::tokens::{Padding, Size, Space, use_space};
 use beui_components_unstyled as unstyled;
@@ -17,7 +19,8 @@ use beui_view::types::Image;
 use beui_view::types::Justify;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{ICON_CIRCLE_ALERT, ICON_INFO, ICON_X};
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
+use beui_view::types::{Overflow, WrapAt};
 use std::time::Duration;
 
 const MARGIN: Space = Space::Xl;
@@ -26,6 +29,16 @@ const SPACING: Space = Space::Md;
 const PADDING: Padding = Padding::symmetric(Space::Lg, Space::Md);
 const PICTURE_SIZE: Size = Size::Lg;
 const TEXT_SPACING: Space = Space::Xs2;
+const SOURCE_LINES: u32 = 1;
+const TITLE_LINES: u32 = 2;
+const MESSAGE_LINES: u32 = 4;
+
+fn clamped(lines: u32) -> Overflow {
+    Overflow::Wrap {
+        at: WrapAt::Words,
+        max_lines: Some(lines),
+    }
+}
 
 #[component]
 pub fn Toasts(
@@ -36,6 +49,7 @@ pub fn Toasts(
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
+    on_more: ClickCallback,
 ) -> NodeId {
     view! {
         <unstyled::Toasts
@@ -46,12 +60,38 @@ pub fn Toasts(
             width={WIDTH.px()}
             margin={use_space(MARGIN)}
             spacing={use_space(SPACING)}
+            scrollbar={scrollbar_style()}
             on_dismiss
             on_action
             on_activate
+            more={move |hidden: Memo<usize>| view! {
+                <ToastsHidden hidden on_more />
+            }}
         >|handle: ToastHandle|
             <ToastCard handle />
         </unstyled::Toasts>
+    }
+}
+
+#[component]
+fn ToastsHidden(hidden: Memo<usize>, on_more: ClickCallback) -> NodeId {
+    let label = create_memo(move || format!("{} more", hidden.get()));
+    let card = view! {
+        <Frame
+            @test_id="toasts.more"
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Md
+            padding=PADDING
+        >
+            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>{label}</Text>
+        </Frame>
+    };
+    match on_more.is_empty() {
+        true => card,
+        false => view! {
+            <Pressable @test_id="toasts.more.open" on_click={on_more}>{card}</Pressable>
+        },
     }
 }
 
@@ -65,6 +105,7 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
     } = handle;
     let Toast {
         id,
+        source,
         title,
         message,
         danger,
@@ -78,6 +119,7 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
         false => (ICON_INFO, TextColor::Accent),
     };
     let pictured = image.is_some();
+    let sourced = !source.is_empty();
     let titled = !title.is_empty();
     let said = !message.is_empty();
     let acted = !actions.is_empty();
@@ -86,33 +128,74 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
         false => (TextSize::Base, TextColor::Default),
     };
     let title_color = TextColor::Default;
+    let mut named = Node::new(Role::Button);
+    match titled {
+        true => {
+            named.set_label(title.clone());
+            if said {
+                named.set_description(message.clone());
+            }
+        }
+        false => named.set_label(message.clone()),
+    }
     let content = view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Show condition={pictured}>
                 <ToastPicture image={image.clone()} />
             </Show>
             <Show condition={!pictured}>
-                <Text color={tint} align=TextAlign::Center>
-                    <Icon glyph={glyph} />
-                </Text>
+                <Frame width=PICTURE_SIZE>
+                    <Text color={tint} align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
+                </Frame>
             </Show>
-            <List @sizing=ItemSize::Percent(100.0) spacing=TEXT_SPACING>
-                <Show condition={titled}>|| {
-                    let title = title.clone(); view! {
-                        <Text color={title_color} weight=Weight::Bold>{title}</Text>
-                    }
-                }</Show>
-                <Show condition={said}>|| {
-                    let message = message.clone(); view! {
-                        <Text size={message_size} color={message_color}>{message}</Text>
-                    }
-                }</Show>
-            </List>
+            <ListItem grow=1.0>
+                <List spacing=TEXT_SPACING>
+                    <Show condition={sourced}>|| {
+                        let source = source.clone(); view! {
+                            <Text
+                                size=TextSize::Xs
+                                color=TextColor::Muted
+                                overflow={clamped(SOURCE_LINES)}
+                            >
+                                {source}
+                            </Text>
+                        }
+                    }</Show>
+                    <Show condition={titled}>|| {
+                        let title = title.clone(); view! {
+                            <Text
+                                color={title_color}
+                                weight=Weight::Bold
+                                overflow={clamped(TITLE_LINES)}
+                            >
+                                {title}
+                            </Text>
+                        }
+                    }</Show>
+                    <Show condition={said}>|| {
+                        let message = message.clone(); view! {
+                            <Text
+                                size={message_size}
+                                color={message_color}
+                                overflow={clamped(MESSAGE_LINES)}
+                            >
+                                {message}
+                            </Text>
+                        }
+                    }</Show>
+                </List>
+            </ListItem>
         </List>
     };
     let body = match activates {
         true => view! {
-            <Pressable @test_id={format!("toast.{id}.activate")} on_click={activate}>
+            <Pressable
+                @test_id={format!("toast.{id}.activate")}
+                accessibility={named}
+                on_click={activate}
+            >
                 {content}
             </Pressable>
         },
@@ -121,14 +204,16 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
     view! {
         <Frame
             @test_id={format!("toast.{id}")}
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Md
             padding=PADDING
         >
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
-                    <Frame @sizing=ItemSize::Percent(100.0)>{body}</Frame>
+                    <ListItem grow=1.0>
+                        <Frame>{body}</Frame>
+                    </ListItem>
                     <Button
                         icon_only=true
                         @test_id={format!("toast.{id}.dismiss")}
@@ -172,6 +257,7 @@ fn ToastActions(id: u64, actions: Vec<ToastAction>, act: Callback<String>) -> No
                         @test_id={format!("toast.{id}.action.{}", action.key)}
                         label={action.label}
                         variant=ButtonVariant::Secondary
+                        press_focus=false
                         on_click={move || act.call(key.clone())}
                     />
                 }

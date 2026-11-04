@@ -1,4 +1,4 @@
-use crate::pixel_grid::PixelGrid;
+use beui_types::PixelGrid;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Part {

@@ -1,9 +1,14 @@
-use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
-use beui_core::file_picker::PickedFile;
-use beui_core::geometry::Vec2;
-use beui_core::runner::PlatformServices;
+use beui_core::clipboard::PasteAnswer;
 use beui_core::window::{MAX_PIXELS, Resize, WindowReports, WindowSize};
+use beui_runner::PlatformServices;
+use beui_types::PickedFile;
+use beui_types::Vec2;
+use beui_types::{PasteKind, Pasted};
 
+/// The headless platform's window: keeps a clipboard (an image copy pastes back
+/// as `Pasted::Image`), grows to `screen` for fullscreen, and reports its size,
+/// scale and fullscreen through `WindowReports` like a real window. It is the
+/// only window `PlatformServices::resize` works on.
 pub struct Simulation {
     pub window: WindowSize,
     pub screen: Vec2,

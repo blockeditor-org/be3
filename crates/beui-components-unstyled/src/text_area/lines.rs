@@ -1,21 +1,21 @@
+use be_lib_stable_hash::HashMap;
 use beui_view::types::LayerPolicy;
 use beui_view::types::Overflow;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
+use beui_text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
+use beui_view::types::Align;
 use beui_view::types::Color;
 use beui_view::types::Placement;
 use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
-use beui_view::types::{Align, ItemSize};
 use beui_view::types::{FontFamily, FontId, TextAlign, TextLayout};
 use beui_view::types::{Rect, Vec2};
 use beui_view::types::{SpanStyle, TextCaret, TextGlyph, TextMark};
-use text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
 
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -169,7 +169,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     let text_height = create_memo(move || text.get().y);
     let built = view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height} scrolls_across=true>
-            <CanvasItem x={x} y={y} width={text_width} height={text_height} clip=false>
+            <CanvasItem x={x} y={y} width={text_width} height={text_height}>
                 <AreaText cx={cx} model={model} geometry bounds />
             </CanvasItem>
         </Canvas>
@@ -270,7 +270,9 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                         <Gutter cx={cx} model={model} />
                     </Frame>
                 </Show>
-                <Frame @sizing=ItemSize::Percent(100.0)>{wrapped}</Frame>
+                <ListItem grow=1.0>
+                    <Frame>{wrapped}</Frame>
+                </ListItem>
             </List>
         </Frame>
     };
@@ -746,7 +748,7 @@ enum PieceKey {
 }
 
 fn piece_keys(row: &Row) -> Vec<(PieceKey, usize)> {
-    let mut seen: HashMap<PieceKey, usize> = HashMap::new();
+    let mut seen: HashMap<PieceKey, usize> = HashMap::default();
     row.spans
         .iter()
         .map(|span| {
@@ -1054,9 +1056,13 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
                         <Icon glyph={arrow} />
                     </Text>
                 </Frame>
-                <Frame @sizing=ItemSize::Percent(100.0) height=height>
-                    <Text font=number_font color={number_color} align=TextAlign::End>{number}</Text>
-                </Frame>
+                <ListItem grow=1.0>
+                    <Frame height=height>
+                        <Text font=number_font color={number_color} align=TextAlign::End>
+                            {number}
+                        </Text>
+                    </Frame>
+                </ListItem>
             </List>
         </Frame>
     }

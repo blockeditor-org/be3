@@ -1,0 +1,40 @@
+use super::*;
+use crate::reactive::*;
+
+#[test]
+fn a_sheet_is_never_taller_than_what_it_holds() {
+    let _root = crate::reactive::RootScope::new();
+    let sheet = NodeRef::new();
+    let rows = NodeRef::new();
+    let document = build_node(move || {
+        view! {
+            <List spacing=0.0>
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
+                <styled::Sheet @node_ref=&sheet extent=600.0 rest=0.9 on_close={|| ()}>
+                    <List @node_ref=&rows spacing=0.0>
+                        <ForEach keys={indices(3)}>|_: usize|
+                            <Frame height=SHEET_ROW_HEIGHT />
+                        </ForEach>
+                    </List>
+                </styled::Sheet>
+            </List>
+        }
+    });
+    let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
+    harness.settle();
+    let sheet = sheet.get();
+    let rows = harness.rect(rows.get());
+    assert_eq!(rows.height(), 3.0 * SHEET_ROW_HEIGHT);
+    assert_eq!(
+        harness.rect(sheet).bottom(),
+        rows.bottom(),
+        "a sheet resting at a stop taller than its content stops at the content's end"
+    );
+    assert_eq!(
+        harness.rect(sheet).bottom(),
+        600.0,
+        "and sits on the bottom edge"
+    );
+}

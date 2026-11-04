@@ -1,6 +1,6 @@
 [package]
 name = "beui-html-spike"
-description = "block-app's account picker on beui's HTML core: prerendered on the host, hydrated in the browser"
+description = "be-host's account picker on beui's HTML core: prerendered on the host, hydrated in the browser"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -13,16 +13,16 @@ name = "beui-html-spike"
 path = "src/main.rs"
 
 [dependencies]
-beui = { path = "../beui", default-features = false }
-block-accounts-ui = { path = "../block-accounts-ui" }
+beui = { path = "../beui" }
+be-host-accounts-ui = { path = "../be-host-accounts-ui" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasi-threads = { path = "../wasi-threads" }
+be-wasm-threads = { path = "../be-wasm-threads" }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 
 [dev-dependencies]
-paint-snapshot = { path = "../paint-snapshot" }
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 
 [lints]
 workspace = true

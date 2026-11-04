@@ -18,7 +18,7 @@ thread_local! {
     static NEXT: Cell<u64> = const { Cell::new(0) };
     static CURRENT: Cell<Option<Registry>> = const { Cell::new(None) };
     static CHOSEN: Signal<u64> = {
-        let owned = ::reactive::OwnedSignal::new(0);
+        let owned = ::beui_reactive::OwnedSignal::new(0);
         let handle = owned.handle();
         std::mem::forget(owned);
         handle
@@ -30,7 +30,7 @@ fn registry() -> Registry {
         let defined = create_signal(Vec::<(u64, ColorDefinitions)>::new());
         let merged = create_memo(move || {
             defined.with(|defined| {
-                let mut merged = ColorDefinitions::new();
+                let mut merged = ColorDefinitions::default();
                 for (_, definitions) in defined {
                     merged.extend(definitions.iter().map(|(var, colors)| (*var, *colors)));
                 }

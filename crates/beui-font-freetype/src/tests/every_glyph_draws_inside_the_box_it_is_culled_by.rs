@@ -1,5 +1,6 @@
 use super::*;
-use beui_core::font::{FontFamily, FontId, Fonts, TextLayout};
+use beui_core::font::Fonts;
+use beui_types::{FontFamily, FontId, TextLayout};
 
 #[test]
 fn every_glyph_draws_inside_the_box_it_is_culled_by() {

@@ -1,6 +1,6 @@
 load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/platforms:profile.bzl", "dev_only")
+load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "dev_only")
 load(":crates.bzl", "crates")
 
 # The rules for a workspace crate, filled in from its Cargo.toml through
@@ -54,6 +54,11 @@ def cargo_manifest_sources(resources = [], foreign_resources = {}):
     sources.update(foreign_resources)
     return sources
 
+# A library's sources, non-Rust files read at compile time included. Tests take
+# all of src/** but src/bin/**, so an asset under a tests/ directory reaches the
+# tests and not the library. Sources sit at their path in the package, not under
+# CARGO_MANIFEST_DIR, so a file a proc macro reads from there is passed as
+# `resources` (be-sdk-type-api's WIT is).
 def cargo_library_sources():
     return native.glob(
         ["src/**"],
@@ -69,6 +74,8 @@ def cargo_library_sources():
 def cargo_test_sources():
     return native.glob(["src/**"], exclude = ["src/bin/**"])
 
+# A binary or example in a crate with a library takes only its root file, or the
+# root's directory when it is a main.rs below src/ or examples/.
 def _target_sources(crate, root):
     if crate["library"] == None:
         return cargo_library_sources()
@@ -85,11 +92,27 @@ def _core_flags():
     })
 
 # Cargo.toml's [profile.dev.package] settings for the crate and the core's cfg,
-# ahead of the flags its BUCK file passes.
+# ahead of the flags its BUCK file passes. rustc's frontend runs on eight
+# threads: the crates under beui are a chain, each typechecked only once the
+# one below it is, and that chain is most of what a change to one of them
+# waits on.
 def _rustc_flags(crate, kwargs):
     if "srcs" in kwargs:
         fail("Rust sources are inferred; srcs is not supported")
-    return dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+    return ["-Zthreads=8"] + RELEASE_SYMBOL_FLAGS + _wasm_dev() + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+
+# Workspace crates built for wasm outside a release build, at opt-level 1 rather
+# than the app profile's 2: a change under beui recompiles each of them for
+# the apps, and at 2 that took a third of the CPU ./scripts/verify spent on a
+# change to geometry, for modules no slower to precompile or test.
+def _wasm_dev():
+    return select({
+        "DEFAULT": select({
+            "DEFAULT": [],
+            "prelude//cpu:wasm32": ["-Copt-level=1"],
+        }),
+        "root//buck/constraints:release": [],
+    })
 
 # The crate's library, named after the package. Another build of it, such as
 # one for a fuzz target, takes a name and extra_features.
@@ -118,8 +141,9 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
 #
 # A test whose env names LD_LIBRARY_PATH is a library_path_test around the
 # test harness, built as a binary, since Namespace's workers replace an
-# action's LD_LIBRARY_PATH with their own.
-def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, resources = [], foreign_resources = {}, **kwargs):
+# action's LD_LIBRARY_PATH with their own. Its compile never takes the
+# variable: a sysroot's libc in it would load into the compiler.
+def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, apart_env = {}, resources = [], foreign_resources = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     rustc_flags = _rustc_flags(crate, kwargs)
@@ -134,25 +158,32 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         srcs = cargo_test_sources(),
     )
+    compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
     if paints:
         paintings = native.glob(["snapshots/*.paint"])
         native.rust_binary(
             name = name + "-harness",
-            env = _env(crate, library["crate"], env),
+            env = _env(crate, library["crate"], compile_env),
             rustc_flags = rustc_flags + ["--test"],
             target_compatible_with = kwargs.get("target_compatible_with", []),
             **common,
         )
-        painting_test(name = name, env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", paintings = paintings, **kwargs)
+        apart = {}
+        if run_apart:
+            tests = [path.removeprefix("src/tests/").removesuffix(".rs") for path in native.glob(["src/tests/*.rs"])]
+            for test in apart_env:
+                if test not in tests:
+                    fail("apart_env names {}, which is not a file under src/tests/".format(test))
+            apart = {test: run_env | apart_env.get(test, {}) for test in tests}
+        painting_test(name = name, apart = apart, env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", paintings = paintings, **kwargs)
         if not run_apart:
             painting_test_run(name = name + "-run", env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", paintings = paintings, **kwargs)
             return
-        for path in native.glob(["src/tests/*.rs"]):
-            test = path.removeprefix("src/tests/").removesuffix(".rs")
+        for test, test_env in apart.items():
             painting_test_run(
                 name = "{}-run-{}".format(name, test),
                 args = ["tests::{}::".format(test)],
-                env = run_env,
+                env = test_env,
                 harness = ":" + name + "-harness",
                 manifest = "Cargo.toml",
                 paintings = paintings,
@@ -160,7 +191,6 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
             )
         return
     if "LD_LIBRARY_PATH" in env:
-        compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
         native.rust_binary(
             name = name + "-harness",
             env = _env(crate, library["crate"], compile_env),
@@ -219,14 +249,16 @@ library_path_test = rule(
     impl = _library_path_test_impl,
 )
 
-# A native test that compares paintings, as plugin tests do (buck/wasm/defs.bzl):
+# A native test that compares paintings, as app tests do (buck/wasm/defs.bzl):
 # :test runs here, so that UPDATE_SNAPSHOTS=1 writes into the crate's snapshots/, and
 # :test-run is the action ./scripts/verify builds on a worker, which accepts
 # every painting and outputs the ones that changed and the ones it compared.
-# crates/app-tests is one: block-app with its plugins, driven headless. With
+# crates/be-host-tests is one: be-host with its apps, driven headless. With
 # run_apart, each file under src/tests/ is a :test-run-<file> of its own, so a
 # test that fails costs only its own paintings rather than every one the crate
-# accepts, since a failed action keeps no outputs.
+# accepts, since a failed action keeps no outputs; apart_env adds to run_env
+# for the files it names, as crates/be-host-tests names each test's own app, and
+# ./scripts/test runs each file apart with its own environment too.
 def _painting_command(ctx, env):
     command = cmd_args(ctx.attrs.harness[RunInfo], getattr(ctx.attrs, "args", []))
     if "LD_LIBRARY_PATH" in env:
@@ -238,13 +270,29 @@ def _painting_command(ctx, env):
 # ExternalRunnerTestInfo is not enough: the command and environment, and the
 # files it reads that the command does not name, such as the accepted
 # paintings.
-RemoteTestInfo = provider(fields = ["command", "env", "hidden"])
+# `apart` is a run_apart test's environment for each file under src/tests/, by
+# the file's name.
+RemoteTestInfo = provider(
+    fields = {
+        "apart": provider_field(dict, default = {}),
+        "command": provider_field(typing.Any),
+        "env": provider_field(dict),
+        "hidden": provider_field(list),
+    }
+)
 
 def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
     env = dict(ctx.attrs.env)
     env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
     command = _painting_command(ctx, env)
-    remote = RemoteTestInfo(command = command, env = env, hidden = ctx.attrs.paintings)
+    apart = {}
+    for test, test_env in ctx.attrs.apart.items():
+        test_env = dict(test_env)
+        test_env["CARGO_MANIFEST_DIR"] = env["CARGO_MANIFEST_DIR"]
+        if "LD_LIBRARY_PATH" in test_env:
+            test_env["BE3_LD_LIBRARY_PATH"] = test_env.pop("LD_LIBRARY_PATH")
+        apart[test] = test_env
+    remote = RemoteTestInfo(apart = apart, command = command, env = env, hidden = ctx.attrs.paintings)
     return (
         [remote]
         + inject_test_run_info(
@@ -263,6 +311,7 @@ def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
 
 painting_test = rule(
     attrs = {
+        "apart": attrs.dict(attrs.string(), attrs.dict(attrs.string(), attrs.arg()), default = {}),
         "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
         "harness": attrs.dep(providers = [RunInfo]),
         "labels": attrs.list(attrs.string(), default = []),
@@ -365,7 +414,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
     )
 
 # One of the crate's examples, as a binary, named example-<example>:
-# `./scripts/buck run //crates/beui:example-survey`. It is built the way cargo
+# `./scripts/buck run //crates/beui-host:example-survey`. It is built the way cargo
 # builds it, with the library and the dev-dependencies.
 def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
@@ -397,6 +446,7 @@ def cargo_wasm_facts():
     crate = _crate()
     library = crate["library"]
     return struct(
+        name = crate["name"],
         crate = library["crate"],
         crate_root = library["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["deps"]),
@@ -407,16 +457,15 @@ def cargo_wasm_facts():
         test_features = _per_platform(crate, lambda entry: entry["test_features"]),
     )
 
-# Every editor's package, which is every workspace crate directly under
-# crates/editors: what the app stages as its plugins. A crate further down,
-# such as a plugin's types, belongs to the plugin above it.
-def editor_packages():
-    return sorted([package for package in crates if package.startswith("crates/editors/") and package.count("/") == 2])
+# Every app's package, which is every workspace crate named be-app-*: what
+# the host stages as its apps.
+def app_packages():
+    return sorted([package for package in crates if package.startswith("crates/be-app-")])
 
-# Every game's package, which is every workspace crate under
-# crates/tabletop-games/rules: what the games plugin stages as its data.
+# Every game's package, which is every workspace crate named tabletop-rules-*:
+# what the games app stages as its data.
 def game_packages():
-    return sorted([package for package in crates if package.startswith("crates/tabletop-games/rules/")])
+    return sorted([package for package in crates if package.startswith("crates/tabletop-rules-")])
 
 # rustc's sancov pass, which libFuzzer reads coverage and comparisons from, and
 # an optimised build that still checks for overflow and debug assertions, as
@@ -497,7 +546,7 @@ fuzz_target = rule(
     attrs = {
         "binary": attrs.dep(providers = [RunInfo]),
         "id": attrs.string(),
-        "_runner": attrs.default_only(attrs.dep(default = "root//crates/local-tools:bin", providers = [RunInfo])),
+        "_runner": attrs.default_only(attrs.dep(default = "root//crates/be-tool-local:bin", providers = [RunInfo])),
     },
     impl = _fuzz_target_impl,
 )

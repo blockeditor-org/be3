@@ -1,26 +1,30 @@
 use std::time::{Duration, Instant};
 
 use crate::base::interactive::{InteractiveNode, local_in, press_at};
-use crate::base::list::Direction;
 use crate::base::overlay::OverlayNode;
 use crate::context::Context;
 use crate::document::{Acted, Document};
-use crate::geometry::{Pos2, Rect, Vec2, vec2};
-use crate::input::{
-    FINGER_TAP_TIME, Modifiers, Pen, PointerButton, PointerEvent, PointerId, PointerInput,
-    PointerPhase, PointerPress, PointerSample, PointerStage, ScrollGesture, TOUCH_DRAG_THRESHOLD,
-    TouchId, WheelInput, ZoomGesture,
+use crate::input::FINGER_TAP_TIME;
+use crate::node::{NodeOf, Rects};
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::WindowId;
+use beui_types::{Modifiers, Pen, PointerButton, TouchId};
+use beui_types::{
+    PointerEvent, PointerId, PointerInput, PointerPhase, PointerPress, PointerSample, PointerStage,
+    ScrollGesture, TOUCH_DRAG_THRESHOLD, WheelInput, ZoomGesture,
 };
-use crate::node::{NodeId, NodeOf, Rects};
-use crate::window::WindowId;
+use beui_types::{Pos2, Rect, Vec2, vec2};
 
 use super::hit::{self, Hit, interactive};
-use super::{WHEEL_LATCH_SLOP, WHEEL_LATCH_TIMEOUT, grab};
+use super::{WHEEL_LATCH_SLOP, grab};
+use beui_types::WHEEL_LATCH_TIMEOUT;
 
 #[derive(Default)]
 pub struct Pointers {
     sessions: Vec<Session>,
     hovered: Vec<NodeId>,
+    hovered_at: Option<(WindowId, Pos2)>,
     wheel_latch: Option<(NodeId, Instant, WindowId, Pos2)>,
     wheel_held: bool,
     fingers: Fingers,
@@ -345,7 +349,9 @@ pub(crate) fn begin(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
             .is_some_and(|size| Rect::from_min_size(Pos2::ZERO, size).contains(pos))
     };
     let outside = left && frame.ctx.opens_windows() && !pos.is_some_and(within);
-    doc.drag_board().set_outside(outside);
+    if let Some(drags) = &doc.drags {
+        drags.set_outside(outside);
+    }
     grab::frame(doc, frame.ctx);
     long_presses(doc, frame)
 }
@@ -425,13 +431,17 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
             wheel(doc, frame, event, Vec2::ZERO, Vec2::ZERO);
             catch_wheel(doc, frame, event);
         }
-        PointerPhase::Scroll(delta) => wheel(doc, frame, event, delta, Vec2::ZERO),
+        PointerPhase::Scroll { delta, .. } => wheel(doc, frame, event, delta, Vec2::ZERO),
         PointerPhase::ScrollEnded { fling } => {
             let held = std::mem::take(&mut doc.pointers.wheel_held);
             wheel(doc, frame, event, Vec2::ZERO, fling);
             if held && fling == Vec2::ZERO {
                 lift_latched(doc, frame, event);
             }
+        }
+        PointerPhase::Touchpad(_) => {
+            let sink = wheel_sink(doc, frame, event.window, event.pos);
+            doc.pointers.route(sink);
         }
         PointerPhase::Zoom(factor) => {
             let path = hit(doc, frame.rects, event.window, event.pos, false).path;
@@ -723,9 +733,17 @@ fn focus_target(doc: &Document, rects: &Rects, reached: &[NodeId], pos: Pos2) ->
     {
         return doc.focused_node();
     }
-    reached.iter().copied().find(|id| {
+    let target = reached.iter().copied().find(|id| {
         interactive(doc, *id).is_some_and(|node| node.focus.is_some()) && over(rects, *id, pos)
-    })
+    });
+    let yields = target
+        .and_then(|id| interactive(doc, id))
+        .and_then(|node| node.focus.as_ref())
+        .is_some_and(|focus| focus.yields_tab_stop && !focus.tab_stop);
+    match yields {
+        true => doc.focused_node(),
+        false => target,
+    }
 }
 
 fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Option<NodeId>) {
@@ -780,6 +798,7 @@ fn drag(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2) {
 
 fn secondary(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Option<NodeId>) {
     let pos = session.pos;
+    doc.set_focus_visible(false);
     session.owners = match claimant {
         Some(claimant) => vec![claimant],
         None => session
@@ -1029,13 +1048,13 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
         Role::Press => {
             let focused = doc.focused_node();
             let owners = std::mem::take(&mut session.owners);
-            if doc.dragging() && !cancelled {
-                let board = doc.drag_board();
+            if !cancelled
+                && doc.dragging()
+                && let Some(drags) = doc.drags.clone()
+            {
                 let modifiers = frame.ctx.input(|input| input.modifiers);
-                doc.order_drags();
-                board.track(
-                    crate::drag_board::DragPoint::at(pos, modifiers).in_window(session.window),
-                );
+                let point = beui_types::drag::DragPoint::at(pos, modifiers).in_window(session.window);
+                drags.track(point, &|node| drag_order(doc, node));
             }
             if !cancelled {
                 for owner in owners.iter().rev() {
@@ -1086,14 +1105,10 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
                     true,
                 );
             }
-            if doc.dragging() {
-                doc.order_drags();
-                match cancelled {
-                    true => {
-                        doc.drag_board().end(None);
-                    }
-                    false => doc.drag_board().finish(),
-                }
+            if doc.dragging()
+                && let Some(drags) = doc.drags.clone()
+            {
+                drags.release(cancelled, &|node| drag_order(doc, node));
             }
         }
         Role::Secondary => {}
@@ -1555,6 +1570,25 @@ fn frame_drags(doc: &mut Document, frame: &Frame) {
     }
 }
 
+pub(crate) fn rehover(doc: &mut Document, ctx: &Context, rects: &Rects) -> bool {
+    let Some((window, pos)) =
+        ctx.input(|input| input.pointer.mouse().map(|pos| (input.pointer.window, pos)))
+    else {
+        return false;
+    };
+    let path: Vec<NodeId> = hit::hit(doc, rects, window, pos, false)
+        .path
+        .into_iter()
+        .filter(|id| over(rects, *id, pos))
+        .collect();
+    if path == doc.pointers.hovered {
+        return false;
+    }
+    doc.pointers.hits.clear();
+    hover(doc, &Frame::new(ctx, rects), Some((window, pos)));
+    true
+}
+
 fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
     let path: Vec<NodeId> = match pointer {
         Some((window, pos)) => hit(doc, frame.rects, window, pos, false)
@@ -1580,7 +1614,15 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
             node.hovered = false;
             node.on_hover_change.clone().call(false);
         }
+        if let Some(node) = node_mut(doc, id)
+            && node.pointed
+        {
+            node.pointed = false;
+            node.on_pointed_change.clone().call(false);
+        }
     }
+    let moved = pointer != doc.pointers.hovered_at;
+    doc.pointers.hovered_at = pointer;
     if let Some((_, pos)) = pointer {
         for id in path.iter().rev() {
             let Some((rect, scale)) = frame.rects.scaled(id) else {
@@ -1592,6 +1634,13 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
             if !node.hovered {
                 node.hovered = true;
                 node.on_hover_change.clone().call(true);
+            }
+            let Some(node) = node_mut(doc, *id) else {
+                continue;
+            };
+            if moved && !node.pointed {
+                node.pointed = true;
+                node.on_pointed_change.clone().call(true);
             }
             let Some(node) = node_mut(doc, *id) else {
                 continue;
@@ -1615,17 +1664,23 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
 }
 
 fn cursor(doc: &Document, frame: &Frame) {
-    let grabbed = grab::grabber(doc).and_then(|id| interactive(doc, id)?.cursor);
-    let held = doc
-        .pointers
-        .sessions
-        .iter()
-        .filter(|session| session.kind.shows_cursor && session.role == Role::Press)
-        .flat_map(|session| session.owners.iter())
-        .chain(doc.pointers.hovered.iter())
-        .find_map(|id| interactive(doc, *id).and_then(|node| node.cursor));
-    if let Some(cursor) = grabbed.or(held) {
-        frame.ctx.set_cursor_icon(cursor);
+    let shown = |id: NodeId| {
+        let node = interactive(doc, id)?;
+        (node.cursor.is_some() || node.cursor_image.is_some()).then_some(node)
+    };
+    let grabbed = grab::grabber(doc).and_then(shown);
+    let held = || {
+        doc.pointers
+            .sessions
+            .iter()
+            .filter(|session| session.kind.shows_cursor && session.role == Role::Press)
+            .flat_map(|session| session.owners.iter())
+            .chain(doc.pointers.hovered.iter())
+            .find_map(|id| shown(*id))
+    };
+    if let Some(node) = grabbed.or_else(held) {
+        frame.ctx.set_cursor_icon(node.cursor.unwrap_or_default());
+        frame.ctx.set_cursor_image(node.cursor_image.clone());
     }
 }
 
@@ -1646,11 +1701,18 @@ fn track(doc: &mut Document, frame: &Frame) {
         )
     });
     let Some(pos) = pointer.map(|pos| pos + shift) else {
-        doc.drag_board().stop_edge();
+        if let Some(drags) = &doc.drags {
+            drags.stop_edge();
+        }
         return;
     };
-    doc.last_pointer = Some(PointerSample { pos, touch });
-    let board = doc.drag_board();
-    doc.order_drags();
-    board.track(crate::drag_board::DragPoint::at(pos, modifiers).in_window(window));
+    doc.last_pointer = Some(PointerSample { pos, window, touch });
+    if let Some(drags) = doc.drags.clone() {
+        let point = beui_types::drag::DragPoint::at(pos, modifiers).in_window(window);
+        drags.track(point, &|node| drag_order(doc, node));
+    }
+}
+
+fn drag_order(doc: &Document, node: NodeId) -> (Vec<usize>, WindowId) {
+    (doc.paint_order(node), doc.window_of(node))
 }

@@ -1,0 +1,58 @@
+use be_wasm_gpu_host::transport;
+use wasmtime::{Caller, Linker};
+
+use crate::state::{Guest, State};
+
+type Returns<T = ()> = T;
+
+macro_rules! link_gpu {
+    ($($glue:path, $module:literal, $name:literal, $export:literal, ($($argument:ident: $kind:ty),*) $(-> $result:ty)?;)*) => {
+        fn link_gpu(linker: &mut Linker<State>) -> Result<(), String> {
+            $(
+                linker
+                    .func_wrap(
+                        $module,
+                        $name,
+                        |mut caller: Caller<'_, State>, $($argument: $kind),*| -> wasmtime::Result<Returns<$($result)?>> {
+                            let mut guest = Guest::calling(&mut caller);
+                            let result = $glue(&mut guest, $($argument),*);
+                            let state = guest.state();
+                            match state.fatal.is_some() {
+                                false => Ok(result),
+                                true => Err(crate::panic::stopped(state.fatal.take().unwrap_or_default())),
+                            }
+                        },
+                    )
+                    .map_err(|error| format!("{} could not be linked: {error}", $export))?;
+            )*
+            Ok(())
+        }
+    };
+}
+
+macro_rules! link_transport {
+    ($(fn $name:ident($($argument:ident: $kind:ty),* $(,)?) $(-> $result:ty)?;)+) => {
+        pub(super) fn link_transport(linker: &mut Linker<State>) -> Result<(), String> {
+            $(
+                linker
+                    .func_wrap(
+                        be_wasm_guest_abi::HOST_MODULE,
+                        stringify!($name),
+                        |mut caller: Caller<'_, State>, $($argument: $kind),*| $(-> $result)? {
+                            transport::$name(&mut Guest::calling(&mut caller), $($argument),*)
+                        },
+                    )
+                    .map_err(|error| format!("{} could not be linked: {error}", stringify!($name)))?;
+            )+
+            Ok(())
+        }
+    };
+}
+
+be_wasm_gpu_abi::gpu_local_imports!(link_gpu);
+be_wasm_guest_abi::transport_functions!(link_transport);
+
+pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
+    link_gpu(linker)?;
+    link_transport(linker)
+}

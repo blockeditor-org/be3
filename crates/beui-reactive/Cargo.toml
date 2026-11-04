@@ -1,0 +1,13 @@
+[package]
+name = "beui-reactive"
+description = "Single-threaded reactive signals, memos, effects, and scopes"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-reactive-macros = { path = "../beui-reactive-macros" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+
+[lints]
+workspace = true

@@ -1,52 +1,33 @@
 # Adding a game
 
-A deterministic game is a crate of its own that compiles to a single
-WebAssembly module. The app never links a game: a module is imported into a
-game module block, and the game block that references it runs the module
-through the `wasmi` interpreter in `crates/tabletop-games/host`, asking it what
-a player currently sees. That is the same on desktop, Android and the browser,
-so a game is written and built once.
+A deterministic game is a crate that compiles to one WebAssembly module.
+be-host never links a game: a module is imported into a Game Module block, and
+the Game block that references it runs the module through the `wasmi`
+interpreter in `crates/tabletop-host`, asking what a player currently sees. A
+game is written and built once for desktop, Android and the browser.
 
-Everything about games lives under `crates/tabletop-games`, split by which
-side of the WebAssembly boundary it runs on:
-
-- `api` (`game-api`) is the contract, and is compiled into every game
-  module. It holds the types the two sides exchange, the `GameHelper` a game
-  is written against, the `game!` macro that declares a module's exports,
-  and the build script helper each game calls. It has to build for
-  wasm32-unknown-unknown, so it depends on nothing that needs a host.
-- `host` (`game-host`) is the other side: it embeds `wasmi`, loads a module,
-  and calls it. Only the app depends on it. It re-exports the `game-api`
-  types it passes across, so a caller needs the one crate.
-- `rules/<game>` is one game each - the only place a game's actual rules
-  live.
+- `tabletop-api`: the contract, compiled into every game: the types both sides
+  exchange, the `GameHelper` a game is written against, the `game!` macro and
+  the build helper. It builds for wasm32-unknown-unknown.
+- `tabletop-host`: the other side, which embeds wasmi. Only be-host depends on
+  it; it re-exports the api types it passes across.
+- `tabletop-pieces`: shared rules for games of pieces on a board.
+- `tabletop-rules-<game>`: one game each, the only place its rules live.
 
 ## 1. Write the crate
 
-- `crates/tabletop-games/rules/foo/Cargo.toml` — copy `tic_tac_toe`'s. The
-  package name is the module's file name and the game's id, so it is written
-  with underscores. It needs `crate-type = ["cdylib", "rlib"]`, `game-api`
-  as a dependency, and `game-host` as a dev dependency so the tests can run
-  the module.
-- `crates/tabletop-games/rules/foo/BUCK` — copy `tic_tac_toe`'s as it is. It
-  builds the crate natively for the tests, a second time for wasm32 as the `module` target, and points the tests'
-  `GAME_WASM` at that module.
-- `crates/tabletop-games/rules/foo/src/lib.rs` — the game, ending in
-  `game_api::game!("Foo", foo);`. The first argument is the name the module
-  gives itself, which is what the game module block's editor shows; the second
-  is the game function.
-- `crates/tabletop-games/rules/foo/rulebook.md` — the rules in English,
-  written the way a rulebook explains a game: who plays, what the pieces or
-  cards are, how a turn goes, how it ends. Write this one first, because the
-  code is meant to read like it.
-- Root `Cargo.toml` — add `crates/tabletop-games/rules/foo` to the members,
-  which is how the generated buck rules find the crate and its dependencies.
+- `crates/tabletop-rules-foo/Cargo.toml` and `BUCK`: copy tic-tac-toe's. BUCK
+  builds the crate natively for tests and for wasm32 as `:module`, and points
+  the tests' `GAME_WASM` at that module.
+- `src/lib.rs`: the game, ending in `tabletop_api::game!("Foo", foo);` (the
+  name the module gives itself, and the game function).
+- `rulebook.md`: the rules in English, as a rulebook explains them. The code
+  is meant to read like it, so write it first.
+- Root `Cargo.toml`: add the crate to `members`.
 
-Anything a game depends on has to build for wasm32-unknown-unknown with no
-host to call into: no clock, no filesystem, no randomness. Whatever a game
-would want randomness for, it seeds from the action log instead, the way
-`crazy_8s` seeds its shuffle from the ids of the players who joined - two
-clients replaying the same log must reach the same screen.
+A game has no clock, filesystem or randomness. Seed anything random from the
+action log (`crazy_8s` seeds its shuffle from the joining players' ids): two
+clients replaying one log must reach the same screen.
 
 ## 2. Write the game
 
@@ -59,7 +40,7 @@ fn foo(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
             |player| Scene::new(describe(player)).on(board(player)),
             |player, action| {
                 if action(Move::new("Do the thing").click(Spot::tile(0, 0))) {
-                    // the log records this move for this player
+                    // the log records this move for this player: update the state here
                 }
             },
         )?;
@@ -67,173 +48,61 @@ fn foo(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
 }
 ```
 
-`helper.action` blocks on a player until the log supplies their move, so the
-game reads like a normal loop rather than a replay pass. Each legal move is
-offered by calling `action(Move::new(label))`; when it answers `true`, that
-move is the one the log records next for that actor, so the state updates
-happen right there, inline. A move is identified by its position among the
-`action` calls reached for its actor, never by its label or its gesture, so
-nothing a client sends can name a move it was not offered. While the game
-waits in `action`, the host can also ask it for any player's screen, which
-`action` answers from the same `describe` and `body` and then goes on waiting.
+`helper.action` blocks until the log supplies a move, so the game reads as a
+normal loop rather than a replay. The game runs as one long call the host
+pauses (a wasmi resumable call) at each `action` until a move arrives or a
+screen is asked for; `tabletop_host::Session` is that paused instance. Since a
+paused instance cannot be copied, looking back at a move or reopening a game
+replays the log from the top (`Game::show`).
 
 ### What the player sees
 
-A game never draws anything. The screen it returns is a `Scene`: a sentence
-for the viewer and a `Board` (`game_api::board`) that says what is on the
-table and where, and the Game block's editor decides what each thing looks
-like - which is what lets a player pick their own skin for the pieces.
+A game draws nothing (decisions/games_describe_their_table_and_never_draw.md).
+It returns a `Scene`: a sentence for the viewer and a `Board` saying what is on
+the table and where; the Game block's editor decides how each thing looks, so
+a player can pick their own skin. Positions are integers in units of the
+game's choosing; the helpers use a 64-unit tile and a 70 by 100 card.
 
-A `Board` is a table `width` by `height` in units of the game's own choosing,
-and the `Item`s on it, painted in order. Each item has an `Area` on the table
-(integers, in those units), a `Sprite`, an `ItemId`, and optionally the `Spot`
-a gesture names it by. The editor scales the whole table to fit, keeping its
-aspect ratio, so only proportions matter; the helpers below use a 64-unit
-tile and a 70 by 100 card. A sprite is a `Square` (a light or dark board
-square), a `Tint` over it (the last move, or a king in danger), a `Piece` (a
-`kind` such as `"x"`, `"o"`, `"disc"`, `"knight"` or `"man"`, and the `seat`
-it belongs to, which decides its colour), a `Card` or a `CardBack`, or the
-table's own furniture: a wooden `Frame` or a plain `Tray` under a board, a
-`Cell` (an empty place on a board of cells), a `Slot` (an empty place for a
-pile) and a `Label`. Every item on one spot is that spot: a click on any of
-them is a click on it, it is highlighted as the bottom item's kind (a square,
-a cell or a card), and a drag from it lifts its topmost piece or card.
+Moves carry gestures, `.click(spot)` or `.drag(from, to)`, and the editor
+highlights where each can start and land. The editor shows no list of moves
+and no status line, so a move without a gesture cannot be made (even joining
+or dealing is a click on the deck); only `.control(Control::Resign)` is shown
+as an icon. The editor draws the table on a pan-and-zoom canvas, so a game
+plays the same in a tab or inside an infinite canvas, and players can draw
+arrows and circles over it that never reach the game.
 
-An `ItemId` names one thing for as long as the game shows it, so give a piece
-or a card the same id wherever it goes: when a new screen shows an id
-somewhere else, the editor slides it there rather than making it disappear in
-one place and appear in another. `ItemId::new(group, index)` keeps a game's
-kinds of thing apart; the two highest groups belong to the helpers below, so a
-game numbers its own from 0.
-
-The board's `hand` is the viewer's own cards, which are not on the table at
-all: the editor shows them in a bar under the board, at a fixed size however
-far the board is zoomed, and fans them to fit its width. Each `HandCard` has an
-id and a spot like an item, so a card played from the hand flies onto the
-table.
-
-Two helpers place the usual tables:
-
-- `Squares::checkered(columns, rows)` and `Squares::cells(columns, rows)` lay
-  out a board of tiles, the top row first. `board(tile)` makes the table with
-  its frame or tray and one item per tile from `tile(column, row)` (a
-  `Square` or a `Cell`), each under its `Spot::Tile`, and `place` puts another
-  sprite on a tile, under the same spot.
-- `card_table(rows)` lays `Pile`s out in rows, centred, each with its label,
-  its slot (`Spot::Pile`) and its cards, stacked on the slot or fanned
-  (`Spot::Card`). `Table::board(viewer)` builds one for the usual deck,
-  discard pile and everyone else's hands face down, with the viewer's own
-  hand in `hand`, and gives every card of the deal an id of its own.
-
-A move may carry a gesture, which is how a player makes it on the board
-rather than with a button: `.click(spot)` is a click on one `Spot` (a tile, a
-pile, or one card in a pile or a hand), and `.drag(from, to)` is dragging one spot onto
-another - or clicking the first and then the second. The editor highlights
-every spot a move can start from, and once one is picked up, every spot it
-can land on. Two moves may share a gesture - playing an eight onto the
-discard pile is four moves, one per suit it can call - and the editor then
-asks which one was meant. Give every move a gesture: the editor shows no list
-of moves and no status line, only the board and the move table, so a player
-joins or deals by clicking the deck. The one exception is a move that is about
-the game rather than the board - `.control(Control::Resign)` - which the editor
-shows as an icon under the move table and asks before it plays.
-
-When the game ends, the screen from `game_over` is the result: its
-description, with a `Scene::score` such as `1-0` or `½-½`, closes the move
-table and shows in a banner over the board until it is closed.
-
-The editor draws the table in a world of its own on a pan-and-zoom canvas, so a Game block plays the same in a tab of its own as
-inside an infinite canvas. Players can mark it up the way they would a chess
-board online - arrows and circles drawn with a right-drag, or with a second
-finger while one is held down - and none of that reaches the game.
+When the game ends, `game_over`'s scene with a `Scene::score` (`1-0`,
+`½-½`) closes the move table and shows in a banner.
 
 ### The history
 
-Every move the log records becomes a line of the game's history (`Turn`s on
-the `GameScreen`), which the editor lays out as a move table beside the board
-and steps back through by showing the log up to that move. The game names the
-table's columns once with `helper.columns(...)` - White and Black, X and O,
-one per seat - and puts each move in one with `.column(seat)`; a move with no
-column (joining, dealing) stays out of the table. A row holds one move per
-column, and a seat's moves in a row share its cell, so Crazy 8s reads
-`draw 7♥`. Write a move the way the game's own notation would, as tersely:
-`e4`, `11-15`, `b2`, `K♣`. The move reads as its label unless
-`.recorded(text)` says otherwise. The history is shown to every
-player, so a move whose label names something only its player may know is
-recorded as what the table saw: Crazy 8s records `draw`, never which card.
-`helper.annotate(suffix)` adds to the last line once the game knows more about
-it (chess marks a check `+` on the move that gave it), and
-`helper.describe_last_turn(text)` replaces it. `helper.listing()` says whether
-the moves being offered are listed for the viewer rather than matched against
-the log, which is the only time their labels are read, so a game whose labels
-are costly to write can offer unlabelled moves while it plays one out and
-describe the one that was chosen.
+Every move the log records becomes a line of the history, laid out as a move
+table beside the board; stepping back shows the log up to that move. Name the
+columns once with `helper.columns(...)` (one per seat) and put each move in one
+with `.column(seat)`. Write moves as tersely as the game's own notation
+(`e4`, `11-15`, `K♣`).
 
-Some of what a rulebook says in one sentence is a paragraph of Rust, so
-`GameHelper` says those the short way too:
+### Shared helpers
 
-- `helper.gather(2)?` fills a table before play begins - anyone may join,
-  and once two have, any of them may start - and answers with the players in
-  the order they joined.
-- `helper.turn(whose, yours, theirs, board, |choose| ...)` waits on the one
-  player whose turn it is, who is offered the moves `choose` names; everyone
-  else is only told they are waiting. `board` is what each viewer sees
-  meanwhile; since `choose` changes the game's state, it looks at a copy of
-  the state taken before the turn.
-- `helper.game_over(|player| ...)` ends the game: every viewer is told how
-  it ended and nobody is offered anything.
+Whenever a rulebook sentence is plain and its Rust is not, `tabletop-api` says
+it, and the game keeps only its own rules: `helper.gather`, `helper.turn` and
+`helper.game_over`; `Squares` for boards of tiles and `card_table` for piles
+of cards; `cards` and `table` for a 52-card deck and a `Table` that deals,
+draws, reshuffles and passes the turn, seeded from the players' ids.
+`crazy_8s` is written this way, one `lib.rs` following its rulebook section by
+section.
 
-`game_api::cards` and `game_api::table` are the same idea for card games:
-a deck of the usual 52, and a `Table` that deals it, holds each player's
-hand, the draw pile and the discard pile, draws (reshuffling the discard
-pile back under the face-up card when the draw pile runs out), counts
-passes and passes the turn to the left. Its shuffle is seeded from the ids
-of the players it deals to, so it needs no randomness of its own.
-
-These all live in `game-api` rather than in a game, so put anything new of
-the same sort there too: whenever a rulebook sentence is plain and the Rust
-for it is not, the sentence belongs in the shared crate and the game keeps
-only its own rules. `crazy_8s` is written that way - one `lib.rs` that
-follows its `rulebook.md` section by section - so what is left in it is
-what makes Crazy 8s that game: eights are wild, a played eight calls a
-suit, and drawing gets you one card you may play.
-
-The game runs once, as one long call the host pauses. `game_api::game!`
-exports `play`, which runs the game function against the host: whenever
-`action` needs the next move it calls the host's `next` import, and the host
-pauses the whole instance there (a wasmi resumable call) until a move arrives
-or a screen is asked for, then resumes it. `game-host`'s `Session` is that
-paused instance: `play(action)` feeds it one move, `show(player)` asks it for a
-screen, and each of those gets a fuel budget of its own, so a move that never
-finishes is cut off as that move's failure however long the game has run.
-wasmi cannot copy a paused instance, so there are no snapshots: looking back at
-an earlier move, or opening a game again, starts a fresh session and plays the
-log into it from the top, each move again on its own budget. `Game::show`
-is that in one call.
-
-### Games with pieces on a board
-
-`crates/tabletop-games/pieces` (`game-pieces`) is the same idea for games
-like chess and checkers, where the rules are mostly how each piece moves. A
-piece is an implementation of `Piece`: its name (which is also its sprite
-kind), its letter for notation, whether it is royal - a side may never leave
-a royal piece where an enemy move could capture it - and the `Step`s it can
-make from a square: where it lands, what it captures, where it stops on the
-way, another piece that moves with it, what it becomes. `Rider` and `Leaper`
-describe most pieces in a line; `chess` and `checkers` hold the rest. A game
-is then a `Rules` - the board's size, the setup, each side's `Army` (its
-name, colour, and whether it must capture when it can) and how moves are
-written - and `play(helper, &RULES)` runs all of it: seating, turns, check,
-the endings, resigning, and the history in the game's notation. Each man keeps the
-id of the square it was set up on wherever it moves, which is its `ItemId`,
-so a move slides the piece and a promotion keeps it. Chess,
-Checkers and Chess vs Checkers are three `Rules` over the same pieces, so a
-new variant is a new setup, and a new kind of piece is one `Piece`.
+`tabletop-pieces` does the same for games like chess and checkers: a piece
+is a `Piece` (its moves as `Step`s; `Rider` and `Leaper` cover most), and a
+game is a `Rules` (board size, setup, each side's `Army`, notation) that
+`play(helper, &RULES)` runs entirely, including check, endings, resigning and
+history. Chess, Checkers and Chess vs Checkers are three `Rules` over the same
+pieces, so a variant is a new setup and a new kind of piece is one `Piece`.
 
 ## 3. Test it
 
-Tests live in the game crate (`src/tests.rs` plus one file per test under
-`src/tests/`) and drive the module rather than the Rust source:
+Tests live in the game crate (`src/tests/`, one per file) and drive the built
+module, so what is tested is the artifact that ships:
 
 ```rust
 fn show(actions: &[GameAction], player: Uuid) -> GameScreen {
@@ -244,26 +113,21 @@ fn show(actions: &[GameAction], player: Uuid) -> GameScreen {
 }
 ```
 
-so what is tested is the artifact that ships. Pure helpers (a deck, a win
-check) are still tested directly. A guest panic has nowhere to print, so it
-reaches the test as a trap rather than a message.
+Pure helpers (a deck, a win check) can be tested directly. A guest panic has
+nowhere to print, so it reaches the test as a trap with no message.
 
-## 4. Getting the module into the app
+## 4. Getting the module into the host
 
-Every crate under `crates/tabletop-games/rules` is staged beside the app as
-the Games plugin's data (`games/<game>.wasm`, see
-crates/editors/deterministic-game/BUCK), so nothing else needs editing. Creating a Game block opens a dialog listing
-those games by the name each module gives itself; choosing one copies that
-exact module into the workspace as a Game Module block under the new game, so
-the game keeps playing the bytes it started with whatever the app is later
-rebuilt with. The same dialog can instead play a Game Module block the
-workspace already holds, or one imported there and then from a `.wasm` file,
-which is how a game the app was not built with gets played:
-`./scripts/buck build //crates/tabletop-games/rules/<game>:module --out <game>.wasm`
+Every `tabletop-rules-*` crate is staged as the Games app's data
+(`games/<game>.wasm`, the folder name after `tabletop-rules-` with
+underscores; see `crates/be-app-deterministic-game/BUCK`), so nothing else
+needs editing. Creating a Game block lists those games; choosing one copies
+that exact module into the workspace as a Game Module block, so the game keeps
+playing the bytes it started with whatever be-host is later built with. The
+same dialog plays an existing Game Module block or a `.wasm` file:
+`./scripts/buck build //crates/tabletop-rules-<game>:module --out <game>.wasm`
 writes one.
 
-To try a game without a second client, the Game block's "Playing as" menu
-switches which player this client is: you, a guest you have already played as,
-or a new guest. Each guest is a player of their own in the log, so one person
-can play every side of a game. Other people are never in the menu: playing as
-them would show their hand and move in their name.
+To try a game alone, the Game block's "Playing as" menu switches this client
+between you and guests, each a separate player in the log. Other people are
+never in it: playing as them would show their hand.

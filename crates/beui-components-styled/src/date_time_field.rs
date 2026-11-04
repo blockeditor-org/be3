@@ -25,7 +25,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::icons::{ICON_CALENDAR_DAYS, ICON_CLOCK};
 use beui_view::types::{Align, Direction, Justify, TextAlign};
-use beui_view::types::{Align2, Extent, ItemSize};
+use beui_view::types::{Align2, Extent};
 
 const HEIGHT: Size = Size::Field;
 const PADDING_HORIZONTAL: Space = Space::Md;
@@ -114,7 +114,7 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
     });
     let fill = create_memo(move || match disabled.get() {
         true => ColorRole::Surface,
-        false => ColorRole::SurfaceRaised,
+        false => ColorRole::Control,
     });
     let outer = trigger.is_some();
     let ring = create_memo(move || outer && focused.get());
@@ -128,7 +128,7 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
                 padding={Padding::ZERO.right(TRIGGER_GAP)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-                    {field} @sizing=ItemSize::Percent(100.0)
+                    <ListItem grow=1.0>{field}</ListItem>
                     {trigger}
                 </List>
             </Frame>
@@ -306,13 +306,14 @@ fn PanelBody(
             <Show condition={shape == DateTimePanelLayout::Beside}>
                 <List direction=Direction::Horizontal spacing=PANEL_SPACING>
                     <CalendarPane handle={calendar} width={beside} first_weekday />
-                    <TimePane
-                        @sizing=ItemSize::Percent(100.0)
-                        handle={times}
-                        step_minutes
-                        max_columns=1
-                        height=TIME_LIST_HEIGHT
-                    />
+                    <ListItem grow=1.0>
+                        <TimePane
+                            handle={times}
+                            step_minutes
+                            max_columns=1
+                            height=TIME_LIST_HEIGHT
+                        />
+                    </ListItem>
                 </List>
             </Show>
             <Show condition={shape == DateTimePanelLayout::Date}>

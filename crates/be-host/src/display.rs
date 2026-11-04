@@ -1,0 +1,121 @@
+use std::cell::RefCell;
+use std::time::Duration;
+
+use be_block::display_settings::DisplayMode;
+use be_block::{DisplaySettings, SettingsLayer};
+
+use crate::local_settings::{LayerContents, LayerEdit, LocalSettings};
+use be_host_base::host_state::{HostStateError, HostStateStore};
+
+mod guard;
+pub(crate) mod shown;
+
+pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
+use guard::{Change, Guard, written};
+pub(crate) use shown::{apply as apply_shown, create_handle, made, owner, shown};
+
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+use linux::apply;
+#[cfg(target_os = "linux")]
+pub(crate) use linux::{epaper, run_epaper, start, stop};
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn start(_setup: &beui::native::Setup) {}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn epaper() -> bool {
+    false
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn stop() {}
+
+#[cfg(not(target_os = "linux"))]
+fn apply(_settings: &DisplaySettings) {}
+
+thread_local! {
+    static GUARD: RefCell<Guard> = RefCell::new(Guard::default());
+}
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(crate) fn set_screens(screens: Vec<Screen>) {
+    GUARD.with(|guard| guard.borrow_mut().set_screens(screens));
+}
+
+#[cfg(test)]
+pub(crate) fn asking() -> bool {
+    GUARD.with(|guard| guard.borrow().asking())
+}
+
+pub(crate) fn prompt(now: Duration) -> Prompt {
+    GUARD.with(|guard| guard.borrow_mut().prompt(now))
+}
+
+pub(crate) fn boot(store: &HostStateStore) {
+    let tried = match store.tried_display_modes() {
+        Ok(Some(text)) => serde_json::from_str::<Vec<(String, DisplayMode)>>(&text)
+            .map(|tried| tried.into_iter().collect())
+            .unwrap_or_default(),
+        Ok(None) => Default::default(),
+        Err(error) => {
+            eprintln!("be-host: the display modes tried here were not read: {error}");
+            Default::default()
+        }
+    };
+    GUARD.with(|guard| guard.borrow_mut().remember(tried));
+}
+
+pub(crate) fn keep(
+    store: &HostStateStore,
+    layers: &LayerContents<DisplaySettings>,
+) -> Vec<(SettingsLayer, LayerEdit<DisplaySettings>)> {
+    settle(store, layers, Guard::keep)
+}
+
+pub(crate) fn revert(
+    store: &HostStateStore,
+    layers: &LayerContents<DisplaySettings>,
+) -> Vec<(SettingsLayer, LayerEdit<DisplaySettings>)> {
+    settle(store, layers, Guard::revert)
+}
+
+fn settle(
+    store: &HostStateStore,
+    layers: &LayerContents<DisplaySettings>,
+    answer: impl FnOnce(&mut Guard) -> Vec<Change>,
+) -> Vec<(SettingsLayer, LayerEdit<DisplaySettings>)> {
+    let (changes, applied, tried) = GUARD.with(|guard| {
+        let mut guard = guard.borrow_mut();
+        let changes = answer(&mut guard);
+        (changes, guard.applied().clone(), guard.tried().clone())
+    });
+    apply(&applied);
+    let tried: Vec<(String, DisplayMode)> = tried.into_iter().collect();
+    match serde_json::to_string(&tried) {
+        Ok(text) => {
+            if let Err(error) = store.set_tried_display_modes(&text) {
+                eprintln!("be-host: the display modes tried here were not saved: {error}");
+            }
+        }
+        Err(error) => eprintln!("be-host: the display modes tried here were not saved: {error}"),
+    }
+    written(layers, &changes)
+}
+
+impl LocalSettings for DisplaySettings {
+    fn load(store: &HostStateStore) -> Result<Option<Vec<u8>>, HostStateError> {
+        store.display_settings()
+    }
+
+    fn save(store: &HostStateStore, content: &[u8]) -> Result<(), HostStateError> {
+        store.set_display_settings(content)
+    }
+
+    fn apply(&self) -> bool {
+        let settled = GUARD.with(|guard| guard.borrow_mut().take(self.clone()));
+        apply(self);
+        settled
+    }
+}

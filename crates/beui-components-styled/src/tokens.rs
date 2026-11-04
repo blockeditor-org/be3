@@ -1,9 +1,13 @@
-use beui_view::reactive::{Get, IntoProp, Memo, Prop, ReadSignal, Signal};
+use beui_view::reactive::into_prop_via;
+use beui_view::reactive::{Get, IntoProp, Prop};
 use beui_view::types::Corners;
 use beui_view::types::{Extent, Sides};
 
 use crate::theme::{Density, density_context};
 
+/// A spacing step. Resolves through the density: under `Density::Comfortable`
+/// each step from `Xs` up is one step larger. `Custom` is for lengths that come
+/// from content (a measured indent, a canvas), not for a gap the scale already has.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Space {
     None,
@@ -155,6 +159,9 @@ impl Default for Padding {
     }
 }
 
+/// A size step, resolved through the density: under `Density::Comfortable` a
+/// `Row` is tall enough to tap and a `Field` grows as a regular button does, so a
+/// field and a button in one row stay level. `Custom` is for sizes from content.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Size {
     Track,
@@ -212,6 +219,7 @@ impl Size {
             Size::Row if comfortable => 44.0,
             Size::Row => 22.0,
             Size::Toolbar => 30.0,
+            Size::Field if comfortable => 42.0,
             Size::Field => 34.0,
             Size::TouchRow => 52.0,
             Size::Menu => 200.0,
@@ -247,6 +255,7 @@ impl Size {
 pub enum Length {
     Extent(Extent),
     Size(Size),
+    AtLeast(Size),
 }
 
 impl Length {
@@ -257,6 +266,7 @@ impl Length {
         match self {
             Length::Extent(extent) => extent,
             Length::Size(size) => Extent::px(size.resolve(density)),
+            Length::AtLeast(size) => Extent::at_least(size.resolve(density)),
         }
     }
 }
@@ -360,40 +370,6 @@ pub fn use_space(space: impl IntoProp<Space>) -> Prop<f32> {
 
 pub fn use_size(size: impl IntoProp<Size>) -> Prop<f32> {
     resolved(size.into_prop(), Size::resolve)
-}
-
-macro_rules! into_prop_via {
-    ($target:ty, $value:ty, $convert:expr) => {
-        impl IntoProp<$target> for $value {
-            fn into_prop(self) -> Prop<$target> {
-                Prop::Static(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Prop<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                self.map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Memo<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for ReadSignal<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Signal<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-    };
 }
 
 into_prop_via!(Padding, Space, Padding::all);

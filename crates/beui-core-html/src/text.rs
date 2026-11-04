@@ -1,14 +1,14 @@
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::ops::Range;
 use std::rc::Rc;
 
 use beui_html::Node;
+use beui_reactive::{Get, Set, Signal, create_signal, on_cleanup};
 use beui_tree::reactive::Prop;
 use beui_tree::reactive::{ChildList, IntoSlotHost, SlotHost, SlotId};
 use beui_types::Color;
 use beui_types::text::{FontId, TextCaret, TextGlyph, TextMark};
-use reactive::{Get, Set, Signal, create_signal, on_cleanup};
 
 use crate::document::element;
 use crate::node::NodeId;
@@ -299,7 +299,7 @@ impl TextModel {
 
     pub fn insert(&self, node: NodeId, piece: Piece) {
         if let Piece::Item(slot) = &piece
-            && let TextSlot::Anchored(_) = reactive::untrack(|| slot.get())
+            && let TextSlot::Anchored(_) = beui_reactive::untrack(|| slot.get())
         {
             self.anchor(node);
         }
@@ -356,7 +356,7 @@ impl TextModel {
         if let Some(mirror) = mirror {
             let mut order = self.order.borrow_mut();
             order.fill(mirror, nodes.clone());
-            let kept: std::collections::HashSet<NodeId> = order.iter().copied().collect();
+            let kept: be_lib_stable_hash::HashSet<NodeId> = order.iter().copied().collect();
             self.pieces
                 .borrow_mut()
                 .retain(|node, _| kept.contains(node));
@@ -528,3 +528,27 @@ pub fn byte_at<D>(stops: &[Stop<D>], same: impl Fn(&D) -> bool, utf16: u32) -> O
 
 #[cfg(test)]
 mod tests;
+
+pub fn report_truncated(node: NodeId, on_truncated: beui_tree::callback::Callback<bool>) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let truncated = Cell::new(false);
+        crate::frame::on_layout(Rc::new(move || {
+            let Some(element) = crate::dom::element(node) else {
+                return false;
+            };
+            if !element.is_connected() {
+                return false;
+            }
+            let cut = element.scroll_width() > element.client_width()
+                || element.scroll_height() > element.client_height();
+            if truncated.replace(cut) == cut {
+                return false;
+            }
+            on_truncated.call(cut);
+            true
+        }));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (node, on_truncated);
+}

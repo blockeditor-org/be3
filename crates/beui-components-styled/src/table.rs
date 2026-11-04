@@ -7,7 +7,7 @@ use beui_components_unstyled as unstyled;
 use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{Direction, ItemSize};
+use beui_view::types::Direction;
 
 const LABEL_WEIGHT: f32 = 4.0;
 const CELL_WEIGHT: f32 = 3.0;
@@ -42,7 +42,7 @@ pub fn Table(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] heading: Prop<String>,
     columns: Prop<Vec<TableColumn>>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let heading = create_memo(move || TableColumn::new(heading.get()));
     let columns = create_memo(move || columns.get());
@@ -83,25 +83,27 @@ fn TableHeader(
 }
 
 #[component]
-fn ColumnHeading(weight: f32, column: Memo<TableColumn>) -> ListChild {
+fn ColumnHeading(weight: f32, column: Memo<TableColumn>) -> ListItem {
     let title = create_memo(move || column.with(|column| column.title.clone()));
     let caption = create_memo(move || column.with(|column| column.caption.clone()));
     let captioned = create_memo(move || !caption.with(String::is_empty));
     let label = create_memo(move || spoken(&title.get(), &caption.get()));
     view! {
-        <unstyled::TableColumnHeader @sizing=ItemSize::Percent(weight) label={label}>
-            <List spacing=Space::None>
-                <Text style=COLUMN_TITLE>{title}</Text>
-                <Show condition={captioned}>
-                    <Text style=TextStyle::CAPTION>{caption}</Text>
-                </Show>
-            </List>
-        </unstyled::TableColumnHeader>
+        <ListItem grow=weight>
+            <unstyled::TableColumnHeader label={label}>
+                <List spacing=Space::None>
+                    <Text style=COLUMN_TITLE>{title}</Text>
+                    <Show condition={captioned}>
+                        <Text style=TextStyle::CAPTION>{caption}</Text>
+                    </Show>
+                </List>
+            </unstyled::TableColumnHeader>
+        </ListItem>
     }
 }
 
 #[component]
-pub fn TableRow(label: Prop<String>, children: Children<ListChild>) -> NodeId {
+pub fn TableRow(label: Prop<String>, children: Children<ListItem>) -> NodeId {
     let label = create_memo(move || label.get());
     view! {
         <unstyled::TableRow>
@@ -121,11 +123,13 @@ pub fn TableRow(label: Prop<String>, children: Children<ListChild>) -> NodeId {
 }
 
 #[component]
-fn RowHeading(label: Memo<String>) -> ListChild {
+fn RowHeading(label: Memo<String>) -> ListItem {
     view! {
-        <unstyled::TableRowHeader @sizing=ItemSize::Percent(LABEL_WEIGHT) label={label}>
-            <Text>{label}</Text>
-        </unstyled::TableRowHeader>
+        <ListItem grow=LABEL_WEIGHT>
+            <unstyled::TableRowHeader label={label}>
+                <Text>{label}</Text>
+            </unstyled::TableRowHeader>
+        </ListItem>
     }
 }
 
@@ -134,20 +138,22 @@ pub fn TableCell(
     #[prop(default = String::new())] text: Prop<String>,
     #[prop(default = String::new())] caption: Prop<String>,
     #[prop(default = TextColor::Default)] color: Prop<TextColor>,
-) -> ListChild {
+) -> ListItem {
     let text = create_memo(move || text.get());
     let caption = create_memo(move || caption.get());
     let captioned = create_memo(move || !caption.get().is_empty());
     let label = create_memo(move || spoken(&text.get(), &caption.get()));
     view! {
-        <unstyled::TableCell @sizing=ItemSize::Percent(CELL_WEIGHT) label={label}>
-            <List spacing=CAPTION_SPACING>
-                <Text color={color}>{text}</Text>
-                <Show condition={captioned}>
-                    <Text style=TextStyle::CAPTION>{caption}</Text>
-                </Show>
-            </List>
-        </unstyled::TableCell>
+        <ListItem grow=CELL_WEIGHT>
+            <unstyled::TableCell label={label}>
+                <List spacing=CAPTION_SPACING>
+                    <Text color={color}>{text}</Text>
+                    <Show condition={captioned}>
+                        <Text style=TextStyle::CAPTION>{caption}</Text>
+                    </Show>
+                </List>
+            </unstyled::TableCell>
+        </ListItem>
     }
 }
 

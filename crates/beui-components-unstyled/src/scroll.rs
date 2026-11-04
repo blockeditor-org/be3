@@ -31,7 +31,7 @@ use beui_view::types::{
     AutoscrollGesture, CursorIcon, DragGesture, Key, KeyPress, PointerPress, ScrollGesture, Vec2,
     WHEEL_LATCH_TIMEOUT, WheelInput,
 };
-use beui_view::types::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
+use beui_view::types::{Direction, Justify, ScrollPosition};
 use beui_view::{CORE, Core};
 
 const STEP: f32 = 40.0;
@@ -40,6 +40,9 @@ const END_SLACK: f32 = 1.0;
 const AUTOSCROLL_GAIN: f32 = 6.0;
 const AUTOSCROLL_ACCELERATION: f32 = 0.02;
 
+/// How long the bar stays fully shown after the offset changes or the pointer
+/// leaves it, before fading out over [`SCROLLBAR_FADE_OUT`] on a timer that stops
+/// once hidden.
 pub const SCROLLBAR_LINGER: Duration = Duration::from_millis(1000);
 pub const SCROLLBAR_FADE_OUT: Duration = Duration::from_millis(250);
 
@@ -77,11 +80,14 @@ impl ScrollbarStyle {
         self.bar.as_ref().map_or(0.0, |(width, _)| *width)
     }
 
-    fn over(&self, handle: ScrollHandle) -> Children<ListChild> {
+    fn over(&self, handle: ScrollHandle) -> Children<ListItem> {
         match &self.bar {
             None => Children::default(),
             Some((width, bar)) => {
-                Children::from(with_sizing(bar.call(handle), ItemSize::Fixed(*width)))
+                let (width, bar) = (*width, bar.call(handle));
+                Children::from(view! {
+                    <ListItem length=width>{bar}</ListItem>
+                })
             }
         }
     }
@@ -302,6 +308,27 @@ fn chaining(
             return false;
         }
         wheel.call(input)
+    })
+}
+
+fn crosswise(
+    direction: Prop<Direction>,
+    wheel: Callback<WheelInput, bool>,
+) -> Callback<WheelInput, bool> {
+    Callback::new(move |input: WheelInput| match input {
+        WheelInput::Scroll(gesture)
+            if gesture.unclaimed
+                && direction.get_untracked() == Direction::Horizontal
+                && gesture.delta.x == 0.0
+                && gesture.fling.x == 0.0 =>
+        {
+            wheel.call(WheelInput::Scroll(ScrollGesture {
+                delta: Vec2::new(gesture.delta.y, 0.0),
+                fling: Vec2::new(gesture.fling.y, 0.0),
+                ..gesture
+            }))
+        }
+        input => wheel.call(input),
     })
 }
 
@@ -778,15 +805,18 @@ fn Scrolling(
             move |gesture: DragGesture| motion.value().drag(gesture),
         ),
     ]);
-    let wheel = gestures::first_of([
-        autoscroll.wheel,
-        chaining(
-            motion,
-            gestures::scroll_wheel(axis, move |gesture: ScrollGesture| {
-                motion.value().wheel(gesture)
-            }),
-        ),
-    ]);
+    let wheel = crosswise(
+        direction,
+        gestures::first_of([
+            autoscroll.wheel,
+            chaining(
+                motion,
+                gestures::scroll_wheel(axis, move |gesture: ScrollGesture| {
+                    motion.value().wheel(gesture)
+                }),
+            ),
+        ]),
+    );
     let cursor = create_memo(move || {
         autoscroll.active.get().then(|| match direction.get() {
             Direction::Vertical => CursorIcon::ResizeVertical,
@@ -799,6 +829,7 @@ fn Scrolling(
         false => Vec::new(),
     });
     let outset = create_memo(move || -bleed.get());
+    let (grow, shrink) = content_grow_and_shrink(fit);
     view! {
         <Frame padding={outset}>
             <Layers>
@@ -831,7 +862,7 @@ fn Scrolling(
                 >
                     <Frame outline={ring_when(focused, focus_ring)}>
                         <List direction={marker_axis} spacing=0.0>
-                            {node} @sizing={content_sizing(fit)}
+                            <ListItem grow shrink>{node}</ListItem>
                             <Overlay
                                 anchor
                                 placement=Placement::Around
@@ -853,6 +884,27 @@ fn Scrolling(
     }
 }
 
+/// Scrolls its children along `direction` with wheel, touch drag, arrow keys,
+/// momentum and rubber banding, over a base `Offset`.
+///
+/// A gesture that starts with the scroll already at its edge that way is turned
+/// down so an enclosing scroll takes it; the choice is made once per gesture, so
+/// a fling into the band never moves the outer scroll mid-gesture. Unclaimed input
+/// is taken even at the edge, so the outermost scroll still bands.
+///
+/// `fit`/`max_length` make it as long as its content up to a bound; a `Frame` with
+/// a maximum around a scroll does not, since such a frame fills up to its maximum.
+///
+/// On the HTML core this is a real `overflow: auto` element (`BrowserScroll`): the
+/// browser scrolls and chains it, with none of the momentum, band or drawn bar,
+/// and `ScrollApi::animating` is always false.
+///
+/// Keys scroll it only while it can scroll that way, so one at its end leaves
+/// the key to the scroll around it: the arrows along its axis move 40 points
+/// and Home/End to the ends, and a vertical one also takes Page Up/Down and
+/// Space/Shift+Space by a page. Keys the focused control inside leaves unused
+/// bubble here. It is a Tab stop only while it overflows and nothing inside it
+/// is one.
 #[component]
 pub fn Scroll(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ScrollApi>,
@@ -866,7 +918,7 @@ pub fn Scroll(
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     marker: Option<Render<Memo<Direction>>>,
     on_change: Callback<ScrollPosition>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let rows = NodeRef::new();
     if CORE == Core::Html {
@@ -956,7 +1008,7 @@ fn BrowserScroll(
     scrollbar: ScrollbarStyle,
     on_change: Callback<ScrollPosition>,
     rows: NodeRef,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let reported = create_signal(None::<ScrollPosition>);
     let fade = scrollbar.fade();
@@ -1015,10 +1067,7 @@ fn BrowserScroll(
             escape.style("scrollbar-width", "none".to_owned());
         }
         escape.style("display", "grid".to_owned());
-        let track = match fit {
-            true => "minmax(100%, max-content)",
-            false => "max-content",
-        };
+        let track = "minmax(100%, max-content)";
         for (property, vertical, sideways) in [
             ("overflow-y", "auto", "hidden"),
             ("overflow-x", "hidden", "auto"),
@@ -1140,30 +1189,35 @@ fn BrowserScroll(
             .is_some_and(|position| position.max_offset() > 0.0)
     });
     let outset = create_memo(move || -bleed.get());
+    let (grow, shrink) = content_grow_and_shrink(fit);
     view! {
         <Frame padding={outset}>
             <Frame outline={ring_when(focused, focus_ring)}>
                 <List direction={direction} spacing=0.0>
-                    <Frame fade_edges={edges} @sizing={content_sizing(fit)}>
-                        <Interactive
-                            focusable=true
-                            tab_stop={overflows}
-                            yields_tab_stop=true
-                            @node_ref=&viewport
-                        >
-                            {node}
-                        </Interactive>
-                    </Frame>
+                    <ListItem grow shrink>
+                        <Frame fade_edges={edges}>
+                            <Interactive
+                                focusable=true
+                                tab_stop={overflows}
+                                yields_tab_stop=true
+                                @node_ref=&viewport
+                            >
+                                {node}
+                            </Interactive>
+                        </Frame>
+                    </ListItem>
                 </List>
             </Frame>
         </Frame>
     }
 }
 
-fn content_sizing(fit: bool) -> Sizing {
+/// A scroll's content fills it, or with `fit` takes its own length and shrinks to the
+/// scroll's.
+fn content_grow_and_shrink(fit: bool) -> (f32, f32) {
     match fit {
-        true => ItemSize::Intrinsic.shrink(1.0),
-        false => ItemSize::Percent(100.0).into(),
+        true => (0.0, 1.0),
+        false => (1.0, 0.0),
     }
 }
 

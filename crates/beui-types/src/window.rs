@@ -1,9 +1,9 @@
-use beui_tree::reactive::Callback;
-use geometry::Vec2;
-pub use ui_types::window::{
-    HostPlacement, ImeArea, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
-    WindowRole,
+use be_lib_geometry::Vec2;
+pub use be_lib_ui_types::window::{
+    HostPlacement, ImeArea, WindowEdge, WindowId, WindowLevel, WindowPlacement, WindowReport,
+    WindowRequest, WindowRequests, WindowRole,
 };
+use beui_tree::reactive::Callback;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
 pub enum SystemBars {
@@ -20,6 +20,8 @@ pub struct WindowSpec {
     pub title: Option<String>,
     pub notice: Option<String>,
     pub role: WindowRole,
+    pub level: WindowLevel,
+    pub fit: Option<Vec2>,
     pub on_report: Callback<WindowReport>,
 }
 
@@ -31,5 +33,7 @@ impl PartialEq for WindowSpec {
             && self.title == other.title
             && self.notice == other.notice
             && self.role == other.role
+            && self.level == other.level
+            && self.fit == other.fit
     }
 }

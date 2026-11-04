@@ -6,6 +6,8 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::{Key, KeyPress, PointerPress};
 
+/// A selectable row: a click reports `on_click`, and, while `activates`, a
+/// double click or Enter reports `on_activate` (Space only clicks).
 #[component]
 pub fn ListRow(
     #[prop(default = String::new())] label: Prop<String>,

@@ -5,7 +5,7 @@
 #
 # Usage:
 #   ./scripts/test NAME [--update]
-#   ./scripts/test //crates/editors/checklist:test [NAME] [--update]
+#   ./scripts/test //crates/be-app-checklist:test [NAME] [--update]
 #
 # guides/bootstrap.md says what runs it.
 

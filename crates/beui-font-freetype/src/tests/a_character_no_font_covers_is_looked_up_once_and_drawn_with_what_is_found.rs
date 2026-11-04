@@ -2,7 +2,8 @@ use super::*;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use beui_core::font::{FontId, Fonts, TextLayout};
+use beui_core::font::Fonts;
+use beui_types::{FontId, TextLayout};
 
 #[test]
 fn a_character_no_font_covers_is_looked_up_once_and_drawn_with_what_is_found() {

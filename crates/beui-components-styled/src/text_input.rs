@@ -17,7 +17,7 @@ use beui_view::reactive::*;
 use crate::button::{Button, ButtonSize};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use beui_view::types::TextAlign;
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 
 const HEIGHT: Size = Size::Field;
 const MULTILINE_HEIGHT: Size = Size::Custom(104.0);
@@ -119,7 +119,7 @@ fn TextInputFrame(
     let fill = create_memo(move || match (raised.get(), disabled.get()) {
         (false, _) => ColorRole::None,
         (true, true) => ColorRole::Surface,
-        (true, false) => ColorRole::SurfaceRaised,
+        (true, false) => ColorRole::Control,
     });
     view! {
         <Frame
@@ -150,7 +150,7 @@ fn TextInputFrame(
                             </Text>
                         </Frame>
                     </Show>
-                    {field} @sizing=ItemSize::Percent(100.0)
+                    <ListItem grow=1.0>{field}</ListItem>
                     <Show condition={clearable}>
                         <Frame padding={Padding::horizontal(CLEAR_PADDING)}>
                             <Button

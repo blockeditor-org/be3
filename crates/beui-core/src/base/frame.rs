@@ -1,14 +1,17 @@
 use std::any::Any;
 
-use crate::base::list::Align;
-use crate::color::Color;
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, NodeId, NodeOf, Outlined, Rects, SpaceId};
-use crate::painter::{Corners, Painter};
-use crate::pixel_grid::PixelGrid;
+use crate::node::{Element, NodeOf, Outlined, Rects, SpaceId};
+use crate::painter::Painter;
+use beui_types::Align;
+use beui_types::Color;
+use beui_types::Corners;
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::PixelGrid;
+use beui_types::{Rect, Vec2, vec2};
 
-pub use beui_types::layout::{Align2, Extent, Outline, Sides};
+use beui_types::{Align2, Extent, Outline, Sides};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct FrameStyle {
@@ -43,7 +46,27 @@ pub struct FrameNode {
 }
 
 impl FrameNode {
-    fn moved(&self, grid: PixelGrid) -> Vec2 {
+    fn floor_width(&self, doc: &Document, inner: f32) -> f32 {
+        self.floor(doc, Direction::Horizontal, inner)
+    }
+
+    fn floor(&self, doc: &Document, direction: Direction, inner: f32) -> f32 {
+        let padding = self.padding(doc.pixel_grid()).amount();
+        let (width, padding) = match direction {
+            Direction::Horizontal => (self.width, padding.x),
+            Direction::Vertical => (self.height, padding.y),
+        };
+        let length = (inner + padding).max(0.0);
+        let length = match (width.exact, width.fraction) {
+            (Some(exact), _) => length.min(exact),
+            (None, Some(_)) => 0.0,
+            (None, None) => length,
+        };
+        let length = width.max.map_or(length, |max| length.min(max));
+        width.min.map_or(length, |min| length.max(min))
+    }
+
+    pub(crate) fn moved(&self, grid: PixelGrid) -> Vec2 {
         grid.snap_vec(self.translate)
     }
 
@@ -202,19 +225,34 @@ impl Element for FrameNode {
     }
 
     fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
-        let width = self.width;
-        let padding = self.padding(doc.pixel_grid()).amount().x;
         let inner = self
             .child
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child));
-        let length = (inner + padding).max(0.0);
-        let length = match (width.exact, width.fraction) {
-            (Some(exact), _) => length.min(exact),
-            (None, Some(_)) => 0.0,
-            (None, None) => length,
+        self.floor_width(doc, inner)
+    }
+
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        let extent = match direction {
+            Direction::Horizontal => self.width,
+            Direction::Vertical => self.height,
         };
-        let length = width.max.map_or(length, |max| length.min(max));
-        width.min.map_or(length, |min| length.max(min))
+        if extent.exact.is_some() || extent.fraction.is_some() {
+            return None;
+        }
+        let grid = doc.pixel_grid();
+        let padding = self.padding(grid).amount();
+        let inner = self.child.map_or(0.0, |child| {
+            let offered = self.child_available(direction.axes(f32::INFINITY, cross), padding);
+            let (_, cross) = direction.main_and_cross(offered);
+            crate::layout::least_length(doc, painter, child, direction, cross)
+        });
+        Some(self.floor(doc, direction, inner))
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {

@@ -1,5 +1,5 @@
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use beui_tree::reactive::Callback;
@@ -32,6 +32,24 @@ thread_local! {
     static LAYERS: RefCell<HashMap<NodeId, Weak<Layer>>> = RefCell::default();
     static OPEN: RefCell<Vec<Weak<Layer>>> = RefCell::default();
     static NEXT: Cell<u32> = const { Cell::new(0) };
+    static INERT: RefCell<HashMap<NodeId, usize>> = RefCell::default();
+}
+
+fn make_inert(node: NodeId, inert: bool) {
+    let shown = INERT.with(|held| {
+        let mut held = held.borrow_mut();
+        let count = held.entry(node).or_default();
+        match inert {
+            true => *count += 1,
+            false => *count = count.saturating_sub(1),
+        }
+        let shown = *count > 0;
+        if !shown {
+            held.remove(&node);
+        }
+        shown
+    });
+    set_attribute(node, "inert", shown.then(String::new));
 }
 
 pub struct Parts {
@@ -53,7 +71,11 @@ pub struct Layer {
     pointer: Option<NodeRef>,
     reach: Cell<f32>,
     wanted: Cell<bool>,
+    dismissable: Cell<bool>,
     on_dismiss: Callback<Dismiss>,
+    inert: Cell<Option<NodeId>>,
+    #[cfg(target_arch = "wasm32")]
+    shown_modal: Cell<bool>,
     #[cfg(target_arch = "wasm32")]
     web: RefCell<web::Held>,
 }
@@ -66,6 +88,7 @@ pub fn layer(
 ) -> Rc<Layer> {
     let index = NEXT.with(|next| next.replace(next.get() + 1));
     set_attribute(parts.dialog, "class", Some("beui-overlay".to_owned()));
+    set_attribute(parts.dialog, "role", Some("generic".to_owned()));
     set_style(parts.host, "display", Some("contents".to_owned()));
     for (property, value) in [
         ("position", "fixed"),
@@ -88,7 +111,11 @@ pub fn layer(
         pointer,
         reach: Cell::new(0.0),
         wanted: Cell::new(false),
+        dismissable: Cell::new(true),
         on_dismiss,
+        inert: Cell::new(None),
+        #[cfg(target_arch = "wasm32")]
+        shown_modal: Cell::new(false),
         #[cfg(target_arch = "wasm32")]
         web: RefCell::default(),
     });
@@ -118,7 +145,7 @@ fn open_layers() -> Vec<Rc<Layer>> {
 #[cfg(target_arch = "wasm32")]
 pub fn stacked_layers() -> Vec<(NodeId, Rect)> {
     let mut open = open_layers();
-    open.sort_by_key(|layer| layer.level.get());
+    open.sort_by_key(|layer| layer.level.get().stacked(layer.policy.get()));
     open.iter()
         .filter(|layer| layer.policy.get() != LayerPolicy::Inert)
         .filter_map(|layer| {
@@ -135,6 +162,14 @@ pub fn stacked_layers() -> Vec<(NodeId, Rect)> {
     Vec::new()
 }
 
+impl Drop for Layer {
+    fn drop(&mut self) {
+        if let Some(held) = self.inert.take() {
+            make_inert(held, false);
+        }
+    }
+}
+
 fn anchor_name(node: NodeId) -> String {
     format!("--beui-anchor-{}-{}", node.index(), node.generation())
 }
@@ -148,13 +183,14 @@ impl Layer {
         self.wanted.get()
     }
 
-    fn modal(&self) -> bool {
+    fn blocks_all(&self) -> bool {
         self.policy.get() == LayerPolicy::BlocksAll
     }
 
     pub fn set_anchor(&self, anchor: OverlayAnchor) {
         *self.anchor.borrow_mut() = anchor;
         self.place();
+        self.sync_inert();
     }
 
     pub fn set_placement(&self, placement: Placement) {
@@ -178,6 +214,7 @@ impl Layer {
             (policy == LayerPolicy::Inert).then(|| "none".to_owned()),
         );
         self.sync_attributes();
+        self.sync_inert();
         crate::frame::request_frame();
     }
 
@@ -188,6 +225,14 @@ impl Layer {
 
     pub fn set_traps_focus(&self, traps: bool) {
         self.traps.set(traps);
+    }
+
+    pub fn set_dismissable(&self, dismissable: bool) {
+        self.dismissable.set(dismissable);
+    }
+
+    fn dismisses(&self) -> bool {
+        self.dismissable.get() && !self.on_dismiss.is_empty()
     }
 
     pub fn set_beak(&self, reach: f32) {
@@ -204,6 +249,7 @@ impl Layer {
             OPEN.with(|open| open.borrow_mut().push(weak));
         }
         self.sync_attributes();
+        self.sync_inert();
         self.place();
         crate::frame::request_frame();
     }
@@ -231,7 +277,7 @@ impl Layer {
     }
 
     pub fn dismiss(&self, reason: Dismiss) {
-        if self.wanted.get() && !self.on_dismiss.is_empty() {
+        if self.wanted.get() && self.dismisses() {
             self.on_dismiss.call(reason);
         }
     }
@@ -241,10 +287,40 @@ impl Layer {
         set_attribute(
             dialog,
             "popover",
-            (!self.modal()).then(|| "manual".to_owned()),
+            (!self.blocks_all()).then(|| "manual".to_owned()),
         );
         if !crate::frame::started() {
             set_attribute(dialog, "open", self.wanted.get().then(String::new));
+        }
+    }
+
+    fn blocked(&self) -> Option<NodeId> {
+        if !self.wanted.get() || self.policy.get() != LayerPolicy::BlocksParent {
+            return None;
+        }
+        let blocked = match self.anchor.borrow().clone() {
+            OverlayAnchor::Node(node)
+            | OverlayAnchor::Band { node, .. }
+            | OverlayAnchor::Pinned { node, .. } => node.try_get()?,
+            OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => return None,
+        };
+        let holds_layer = crate::document::element(blocked)
+            .zip(crate::document::element(self.parts.host))
+            .is_none_or(|(blocked, host)| blocked.find(&|node| node.is(&host)).is_some());
+        (!holds_layer).then_some(blocked)
+    }
+
+    fn sync_inert(&self) {
+        let blocked = self.blocked();
+        let held = self.inert.replace(blocked);
+        if held == blocked {
+            return;
+        }
+        if let Some(held) = held {
+            make_inert(held, false);
+        }
+        if let Some(blocked) = blocked {
+            make_inert(blocked, true);
         }
     }
 
@@ -256,6 +332,17 @@ impl Layer {
                 let name = anchor_name(node);
                 set_style(node, "anchor-name", Some(name.clone()));
                 return Some(name);
+            }
+            OverlayAnchor::Band { node, band } => {
+                let shown = banded_rect(node, band, self.placement.get());
+                let Some(rect) = shown else {
+                    let node = node.try_get()?;
+                    let name = anchor_name(node);
+                    set_style(node, "anchor-name", Some(name.clone()));
+                    return Some(name);
+                };
+                let origin = banded_origin();
+                rect.translate(-origin.to_vec2())
             }
             OverlayAnchor::Point(point) => Rect::from_min_size(point, beui_types::Vec2::ZERO),
             OverlayAnchor::Rect(rect) | OverlayAnchor::Pinned { rect, .. } => rect,
@@ -313,6 +400,34 @@ impl Layer {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn banded_rect(node: NodeRef, band: NodeRef, placement: Placement) -> Option<Rect> {
+    let shown = |node: NodeRef| {
+        node.try_get()
+            .and_then(crate::dom::element)
+            .map(|element| crate::dom::client_rect(&element))
+    };
+    let rect = shown(node)?;
+    Some(shown(band).map_or(rect, |band| {
+        beui_types::layer::banded(rect, band, placement)
+    }))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn banded_rect(_node: NodeRef, _band: NodeRef, _placement: Placement) -> Option<Rect> {
+    None
+}
+
+#[cfg(target_arch = "wasm32")]
+fn banded_origin() -> beui_types::Pos2 {
+    crate::dom::origin()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn banded_origin() -> beui_types::Pos2 {
+    beui_types::Pos2::ZERO
+}
+
 fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static str, String)> {
     let mut styles: Vec<(&'static str, String)> = Vec::new();
     let mut put = |property: &'static str, value: String| styles.push((property, value));
@@ -325,7 +440,7 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("max-height", "100vh".to_owned());
             return styles;
         }
-        Placement::Fill => {
+        Placement::Fill | Placement::Edge(_) => {
             for side in ["top", "left", "right", "bottom"] {
                 put(side, "0".to_owned());
             }
@@ -378,6 +493,10 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("left", "anchor(center)".to_owned());
             put("translate", "-50% 0".to_owned());
         }
+        Placement::InsideTopStart => {
+            put("top", "anchor(top)".to_owned());
+            put("left", "anchor(left)".to_owned());
+        }
         Placement::InsideTopEnd => {
             put("top", "anchor(top)".to_owned());
             put("right", "anchor(right)".to_owned());
@@ -387,14 +506,13 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("left", "anchor(center)".to_owned());
             put("translate", "-50% 0".to_owned());
         }
+        Placement::InsideBottomStart => {
+            put("bottom", "anchor(bottom)".to_owned());
+            put("left", "anchor(left)".to_owned());
+        }
         Placement::InsideBottomEnd => {
             put("bottom", "anchor(bottom)".to_owned());
             put("right", "anchor(right)".to_owned());
-        }
-        Placement::HangFrom(gap) => {
-            put("top", format!("calc(anchor(top) + {gap}px)"));
-            put("left", "anchor(center)".to_owned());
-            put("translate", "-50% 0".to_owned());
         }
         Placement::Popover { gap, margin } => {
             put("position-area", "bottom".to_owned());
@@ -405,7 +523,7 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
                 format!("calc(100vw - {}px)", 2 * u32::from(margin)),
             );
         }
-        Placement::Center | Placement::Fill => {}
+        Placement::Center | Placement::Fill | Placement::Edge(_) => {}
     }
     styles
 }
@@ -494,11 +612,29 @@ mod web {
             if !on_trigger {
                 layer.dismiss(Dismiss::OutsidePress);
             }
-            if layer.modal() {
+            if shown_modal(&layer) {
                 break;
             }
         }
-        reactive::flush();
+        beui_reactive::flush();
+    }
+
+    fn shown_modal(layer: &Layer) -> bool {
+        layer.shown_modal.get()
+    }
+
+    fn within_blocking(dialog: &web_sys::Element) -> bool {
+        let Some(outer) = dialog
+            .parent_element()
+            .and_then(|parent| parent.closest(".beui-overlay").ok().flatten())
+        else {
+            return false;
+        };
+        open_layers().iter().any(|other| {
+            other.blocks_all()
+                && other.wanted.get()
+                && crate::dom::element(other.parts.dialog).as_ref() == Some(&outer)
+        })
     }
 
     fn keyed(event: web_sys::Event) {
@@ -512,12 +648,12 @@ mod web {
             .into_iter()
             .rev()
             .find(|layer| layer.policy.get() != LayerPolicy::Inert);
-        let Some(layer) = top.filter(|layer| !layer.modal() && !layer.on_dismiss.is_empty()) else {
+        let Some(layer) = top.filter(|layer| !shown_modal(layer) && layer.dismisses()) else {
             return;
         };
         event.prevent_default();
         layer.dismiss(Dismiss::Escape);
-        reactive::flush();
+        beui_reactive::flush();
     }
 
     fn focused(event: web_sys::Event) {
@@ -528,7 +664,7 @@ mod web {
             .into_iter()
             .rev()
             .find(|layer| layer.policy.get() != LayerPolicy::Inert);
-        let Some(layer) = top.filter(|layer| layer.traps.get() && !layer.modal()) else {
+        let Some(layer) = top.filter(|layer| layer.traps.get() && !shown_modal(layer)) else {
             return;
         };
         let Some(dialog) = crate::dom::element(layer.parts.dialog) else {
@@ -594,7 +730,7 @@ mod web {
                 if let Some(layer) = super::find(host) {
                     layer.dismiss(Dismiss::Escape);
                 }
-                reactive::flush();
+                beui_reactive::flush();
             },
         );
         let close =
@@ -661,14 +797,30 @@ mod web {
                 .try_get()
                 .and_then(crate::dom::element)
                 .map(|element| crate::dom::client_rect(&element)),
+            OverlayAnchor::Band { node, band } => {
+                super::banded_rect(node, band, layer.placement.get())
+            }
             OverlayAnchor::Point(point) => Some(shifted(Rect::from_min_size(point, Vec2::ZERO))),
             OverlayAnchor::Rect(rect) | OverlayAnchor::Pinned { rect, .. } => Some(shifted(rect)),
         }
     }
 
+    fn fit(layer: &Layer) {
+        let placement = layer.placement.get();
+        let room = anchor_rect(layer).and_then(|anchor| {
+            beui_types::layer::room_beside(crate::dom::viewport(), anchor, placement)
+        });
+        if let Some(room) = room {
+            set_style(layer.parts.dialog, "max-height", Some(px(room)));
+        }
+    }
+
     fn measured(layer: &Layer, dialog: &web_sys::Element) {
         let placement = layer.placement.get();
-        if matches!(placement, Placement::Center | Placement::Fill) {
+        if matches!(
+            placement,
+            Placement::Center | Placement::Fill | Placement::Edge(_)
+        ) {
             return;
         }
         let Some(anchor) = anchor_rect(layer) else {
@@ -723,14 +875,14 @@ mod web {
     }
 
     fn raise_above(layer: &Layer) {
-        let level = layer.level.get();
+        let level = layer.level.get().stacked(layer.policy.get());
         let mut after = false;
         for other in open_layers() {
             if std::ptr::eq(Rc::as_ptr(&other), layer) {
                 after = true;
                 continue;
             }
-            let other_level = other.level.get();
+            let other_level = other.level.get().stacked(other.policy.get());
             if other_level < level || (other_level == level && !after) {
                 continue;
             }
@@ -740,7 +892,7 @@ mod web {
     }
 
     fn anchored_above(layer: &Layer) -> bool {
-        let OverlayAnchor::Node(node) = layer.anchor.borrow().clone() else {
+        let Some(node) = layer.anchor.borrow().node() else {
             return false;
         };
         let Some(anchor) = node.try_get().and_then(crate::dom::dom) else {
@@ -768,9 +920,13 @@ mod web {
         if layer.wanted.get() && anchored_above(layer) {
             layer.raise();
         }
+        let wanted = layer
+            .wanted
+            .get()
+            .then(|| layer.blocks_all() && !within_blocking(&dialog));
+        layer.shown_modal.set(wanted == Some(true));
         let mut held = layer.web.borrow_mut();
         attach(layer, &mut held, &dialog);
-        let wanted = layer.wanted.get().then(|| layer.modal());
         let mut changed = false;
         if held.shown != wanted || state(&dialog) != wanted {
             let active = crate::dom::document().and_then(|document| document.active_element());
@@ -808,6 +964,7 @@ mod web {
         if wanted.is_none() {
             return changed;
         }
+        fit(layer);
         let anchors = anchors_supported();
         if !anchors {
             measured(layer, &dialog);

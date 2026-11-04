@@ -89,7 +89,7 @@ mod web {
         let sink = SESSION.with(|session| session.borrow().as_ref().map(|(_, sink)| sink.clone()));
         if let Some(sink) = sink {
             sink(events);
-            reactive::flush();
+            beui_reactive::flush();
         }
     }
 

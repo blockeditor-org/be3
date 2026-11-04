@@ -169,10 +169,6 @@ pub fn call(
     function.apply(target, &args).ok()
 }
 
-pub fn has_method(target: &wasm_bindgen::JsValue, method: &str) -> bool {
-    js_sys::Reflect::get(target, &method.into()).is_ok_and(|held| held.is_function())
-}
-
 pub fn css_supports(property: &str, value: &str) -> bool {
     let Some(window) = window() else {
         return false;
@@ -209,6 +205,18 @@ pub fn scale_of(element: &web_sys::Element, rect: beui_types::Rect) -> f32 {
         true => rect.width() / laid,
         false => 1.0,
     }
+}
+
+pub fn clips(element: &web_sys::Element) -> bool {
+    let Some(style) = window().and_then(|window| window.get_computed_style(element).ok().flatten())
+    else {
+        return false;
+    };
+    ["overflow-x", "overflow-y"].iter().any(|axis| {
+        style
+            .get_property_value(axis)
+            .is_ok_and(|value| value != "visible")
+    })
 }
 
 pub fn viewport() -> beui_types::Rect {

@@ -1,9 +1,9 @@
+use be_lib_stable_hash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use reactive::{Get, OwnedSignal, ReadSignal, Set, Signal, Stored, on_cleanup, store};
+use beui_reactive::{Get, OwnedSignal, ReadSignal, Set, Signal, Stored, on_cleanup, store};
 
 use crate::node::NodeId;
 
@@ -15,7 +15,9 @@ thread_local! {
     static PINNED_WALL_CLOCK: Cell<Option<(Instant, Duration)>> = const { Cell::new(None) };
     static STARTED: Cell<bool> = const { Cell::new(false) };
     static PENDING: Cell<bool> = const { Cell::new(false) };
+    static WANTED_NOW: Cell<bool> = const { Cell::new(false) };
     static IN_FRAME: Cell<bool> = const { Cell::new(false) };
+    static WOKEN_IN_FRAME: Cell<bool> = const { Cell::new(false) };
     static FIRING: Cell<bool> = const { Cell::new(false) };
     static TIMERS: RefCell<Vec<Weak<TimerState>>> = RefCell::default();
     static LAYOUT: RefCell<Vec<Weak<dyn Fn() -> bool>>> = RefCell::default();
@@ -225,6 +227,7 @@ fn layout_pass() -> bool {
 
 pub fn frame() {
     PENDING.with(|pending| pending.set(false));
+    WANTED_NOW.with(|wanted| wanted.set(false));
     if !FROZEN.with(Cell::get) {
         CLOCK.with(|clock| clock.set(Some(Instant::now())));
     }
@@ -232,7 +235,7 @@ pub fn frame() {
     IN_FRAME.with(|held| held.set(true));
     run_after_input();
     run_timers(now);
-    reactive::flush();
+    flush_in_frame();
     lay_out();
     IN_FRAME.with(|held| held.set(false));
     if !FROZEN.with(Cell::get) {
@@ -245,9 +248,25 @@ fn lay_out() {
         if !layout_pass() {
             break;
         }
-        reactive::flush();
+        flush_in_frame();
     }
     crate::focus::apply_wanted();
+    if WOKEN_IN_FRAME.with(|woken| woken.replace(false)) {
+        request_frame();
+    }
+}
+
+fn flush_in_frame() {
+    WOKEN_IN_FRAME.with(|woken| woken.set(false));
+    beui_reactive::flush();
+}
+
+fn wake() {
+    if IN_FRAME.with(Cell::get) {
+        WOKEN_IN_FRAME.with(|woken| woken.set(true));
+    } else {
+        request_frame();
+    }
 }
 
 pub fn relayout() {
@@ -256,13 +275,13 @@ pub fn relayout() {
         return;
     }
     IN_FRAME.with(|held| held.set(true));
-    reactive::flush();
+    flush_in_frame();
     lay_out();
     IN_FRAME.with(|held| held.set(false));
 }
 
-pub fn pending() -> bool {
-    PENDING.with(Cell::get)
+pub fn busy() -> bool {
+    PENDING.with(Cell::get) && WANTED_NOW.with(Cell::get)
 }
 
 pub fn frozen() -> bool {
@@ -273,14 +292,23 @@ pub fn started() -> bool {
     STARTED.with(Cell::get)
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub(crate) fn start() {
     STARTED.with(|started| started.set(true));
-    reactive::wake_with(request_frame);
+    beui_reactive::wake_with(wake);
     request_frame();
 }
 
 pub fn request_frame() {
+    WANTED_NOW.with(|wanted| wanted.set(true));
+    ask_frame();
+}
+
+fn timed_frame() {
+    ask_frame();
+}
+
+fn ask_frame() {
     if !started() || PENDING.with(|pending| pending.replace(true)) {
         return;
     }
@@ -298,6 +326,9 @@ fn schedule_after(delay: Duration) {
     if delay.is_zero() {
         request_frame();
     } else {
-        crate::dom::set_timeout(delay, request_frame);
+        crate::dom::set_timeout(delay, timed_frame);
     }
 }
+
+#[cfg(test)]
+mod tests;

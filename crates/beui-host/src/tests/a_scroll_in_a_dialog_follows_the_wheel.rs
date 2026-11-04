@@ -1,0 +1,51 @@
+use super::*;
+use crate::primitives::Frame;
+use crate::primitives::List;
+use crate::reactive::*;
+use crate::styled::Scroll;
+use crate::styled::*;
+
+#[test]
+fn a_scroll_in_a_dialog_follows_the_wheel() {
+    let _root = crate::reactive::RootScope::new();
+    let first = NodeRef::new();
+    let document = build_node(move || {
+        view! {
+            <List spacing=0.0>
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
+                <Dialog open=true title="Add block" width={Size::Custom(300.0)} on_dismiss={|| {}}>
+                    <Frame height=200.0>
+                        <List spacing=8.0>
+                            <Show condition=true>
+                                <ListItem grow=1.0>
+                                    <Scroll>
+                                        <List spacing=8.0>
+                                            <Frame @node_ref=&first height=120.0 />
+                                            <Frame height=120.0 />
+                                            <Frame height=120.0 />
+                                        </List>
+                                    </Scroll>
+                                </ListItem>
+                            </Show>
+                        </List>
+                    </Frame>
+                </Dialog>
+            </List>
+        }
+    });
+    let first = first.get();
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    harness.frame(Vec::new());
+    let top = harness.rect(first).top();
+
+    harness.frame(vec![
+        Input::PointerMoved(harness.center(first)),
+        Input::Scroll(ScrollDelta::Pixels(Vec2::new(0.0, -40.0))),
+    ]);
+    harness.frame(Vec::new());
+
+    assert!(harness.rect(first).top() < top);
+}

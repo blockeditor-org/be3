@@ -9,7 +9,7 @@ fn a_lock_the_browser_drops_while_asked_for_is_reported_once() {
     assert_eq!(
         lock.changed(false),
         Some(Input::PointerUnlocked),
-        "Escape or a blur took the lock while the app still asks, so the app hears it is gone"
+        "Escape or a blur took the lock while the program still asks, so the program hears it is gone"
     );
     assert!(
         !lock.held(),

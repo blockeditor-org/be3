@@ -1,6 +1,6 @@
-use crate::color::Color32;
-use crate::geometry::{Pos2, Rect, Vec2};
 use crate::painter::Painter;
+use beui_types::Color32;
+use beui_types::{Pos2, Rect, Vec2};
 
 pub const SIZE: f32 = 20.0;
 pub const STROKE: f32 = 1.0;

@@ -42,7 +42,7 @@ impl Display {
     }
 }
 
-enum App {
+enum Program {
     Idle,
     Animating,
     Ticking,
@@ -52,20 +52,20 @@ struct Session {
     now: Duration,
     pacer: Pacer,
     displays: Vec<Display>,
-    app: App,
+    program: Program,
     frames: u32,
     shown: bool,
 }
 
 impl Session {
-    fn new(app: App, displays: Vec<Display>) -> Self {
+    fn new(program: Program, displays: Vec<Display>) -> Self {
         let mut pacer = Pacer::default();
         pacer.ask();
         Self {
             now: Duration::ZERO,
             pacer,
             displays,
-            app,
+            program,
             frames: 0,
             shown: false,
         }
@@ -77,9 +77,9 @@ impl Session {
 
     fn frame(&mut self) {
         self.frames += 1;
-        let changed = !self.shown || matches!(self.app, App::Animating);
+        let changed = !self.shown || matches!(self.program, Program::Animating);
         self.shown = true;
-        let again = !matches!(self.app, App::Idle);
+        let again = !matches!(self.program, Program::Idle);
         self.pacer.ran(self.now, again, None);
         for display in &mut self.displays {
             display.flipped = false;

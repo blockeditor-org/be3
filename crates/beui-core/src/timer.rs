@@ -3,7 +3,7 @@ use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::current::{try_with_document, with_document};
-use ::reactive::{Stored, on_cleanup, store};
+use ::beui_reactive::{Stored, on_cleanup, store};
 
 pub struct TimerState {
     due: Cell<Option<Instant>>,
@@ -72,9 +72,27 @@ impl Timer {
     }
 }
 
-pub fn now() -> Instant {
-    try_with_document(|document| document.now()).unwrap_or_else(Instant::now)
+thread_local! {
+    static FRAME_CLOCK: Cell<Option<Instant>> = const { Cell::new(None) };
 }
+
+pub(crate) fn set_frame_clock(now: Instant) {
+    FRAME_CLOCK.with(|clock| clock.set(Some(now)));
+}
+
+pub(crate) fn frame_clock() -> Instant {
+    FRAME_CLOCK.with(|clock| {
+        let now = clock.get().unwrap_or_else(Instant::now);
+        clock.set(Some(now));
+        now
+    })
+}
+
+pub fn now() -> Instant {
+    try_with_document(|document| document.now()).unwrap_or_else(frame_clock)
+}
+
+pub const TEST_WALL_CLOCK: Duration = Duration::from_secs(1_772_444_460);
 
 thread_local! {
     static PINNED_WALL_CLOCK: Cell<Option<(Instant, Duration)>> = const { Cell::new(None) };

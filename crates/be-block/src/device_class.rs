@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use be_model::Edit;
+use be_block_model::Edit;
 use serde::{Deserialize, Serialize};
 
 use crate::display_settings::{DisplaySettings, Motion, ThemeKind};
@@ -37,8 +37,9 @@ impl DeviceClass {
 
     pub fn display_defaults(self) -> Vec<ClassDefault<DisplaySettings>> {
         match self {
-            Self::Desktop | Self::Phone | Self::Tablet => Vec::new(),
-            Self::EpaperTablet => vec![
+            Self::Desktop | Self::Phone => Vec::new(),
+            Self::Tablet => bar_tools(),
+            Self::EpaperTablet => [
                 ClassDefault::new(
                     DisplaySettings::theme_setting(),
                     ThemeKind::EPaper,
@@ -49,15 +50,23 @@ impl DeviceClass {
                     Motion::Instant,
                     |motion| motion.name().to_owned(),
                 ),
-                ClassDefault::new(DisplaySettings::scale_setting(), 150, |percent| {
-                    format!("{percent}%")
-                }),
-                ClassDefault::new(DisplaySettings::rotate_in_bar_setting(), true, |shown| {
-                    on_off(*shown)
-                }),
-            ],
+            ]
+            .into_iter()
+            .chain(bar_tools())
+            .collect(),
         }
     }
+}
+
+fn bar_tools() -> Vec<ClassDefault<DisplaySettings>> {
+    vec![
+        ClassDefault::new(DisplaySettings::rotate_in_bar_setting(), true, |shown| {
+            on_off(*shown)
+        }),
+        ClassDefault::new(DisplaySettings::keyboard_in_bar_setting(), true, |shown| {
+            on_off(*shown)
+        }),
+    ]
 }
 
 fn on_off(on: bool) -> String {

@@ -13,6 +13,15 @@ pub struct PointerLockHandle {
     pub focused: ReadSignal<bool>,
 }
 
+/// Takes the pointer when pressed and reports relative motion through
+/// `on_motion` while `locked`. It lets go on Escape, on losing focus and when
+/// removed.
+///
+/// It only asks (`pointer_locked` on its `Interactive`, published as
+/// `WindowRequests::pointer_locked`); whoever shows the document locks the cursor.
+/// A browser drops the lock itself on blur and Escape and refuses one without a
+/// user gesture; the document answers by clearing focus, so the next press locks
+/// again.
 #[component]
 pub fn PointerLock(
     locked: Binding<bool>,

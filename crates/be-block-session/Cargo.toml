@@ -1,0 +1,21 @@
+[package]
+name = "be-block-session"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[features]
+default = ["store"]
+# Resuming over the commit store, which a pure guest asks its host to do.
+store = ["be-block-commit/store"]
+
+[dependencies]
+be-block-commit = { path = "../be-block-commit", default-features = false }
+be-block-protocol = { path = "../be-block-protocol" }
+be-block-store = { path = "../be-block-store", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[lints]
+workspace = true

@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use text_editor_core::{Core, Document, EditorCommand, MarkdownCommand, Position};
+use beui_text_editor_core::{Core, Document, EditorCommand, MarkdownCommand, Position};
 
 use super::{Caret, Side, SideDocument, Simulation};
 

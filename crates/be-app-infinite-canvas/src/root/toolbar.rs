@@ -1,0 +1,307 @@
+use be_sdk_beui::beui::NodeId;
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
+use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
+use be_sdk_beui::beui::dock::{DockingLayout, use_dock_bar};
+use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::*;
+use be_type_infinite_canvas::CanvasProfile;
+
+use super::actions::CanvasActions;
+use super::mode::ModeMenu;
+use super::selection_bar::SelectionTools;
+use super::state::{CanvasState, Tool};
+use crate::raster::PixelTool;
+use beui::{Align, Align2, Direction, Vec2};
+
+const TOOLS_SHOWN: [(Tool, &str, &str); 18] = [
+    (Tool::Select, "Select", "Select"),
+    (Tool::Pen, "Pen", "Pen"),
+    (Tool::Rectangle, "Rectangle", "Rectangle"),
+    (Tool::Ellipse, "Ellipse", "Ellipse"),
+    (Tool::Diamond, "Diamond", "Diamond"),
+    (Tool::Arrow, "Arrow", "Arrow"),
+    (Tool::Line, "Line", "Line"),
+    (Tool::Text, "Text", "Text"),
+    (Tool::Pixel(PixelTool::Pencil), "Pencil", "pencil"),
+    (
+        Tool::Pixel(PixelTool::Eraser),
+        "Pixel eraser",
+        "pixel-eraser",
+    ),
+    (Tool::Pixel(PixelTool::Fill), "Fill", "fill"),
+    (
+        Tool::Pixel(PixelTool::Eyedropper),
+        "Eyedropper",
+        "eyedropper",
+    ),
+    (
+        Tool::Pixel(PixelTool::ReplaceColor),
+        "Replace colour",
+        "replace-color",
+    ),
+    (Tool::Pixel(PixelTool::Line), "Pixel line", "pixel-line"),
+    (
+        Tool::Pixel(PixelTool::Rectangle),
+        "Pixel rectangle",
+        "pixel-rectangle",
+    ),
+    (
+        Tool::Pixel(PixelTool::Ellipse),
+        "Pixel ellipse",
+        "pixel-ellipse",
+    ),
+    (Tool::Frame, "Frame", "Frame"),
+    (Tool::Eraser, "Eraser", "Eraser"),
+];
+const PILL_MARGIN: Space = Space::Lg;
+const BAR_MARGIN: Space = Space::Md;
+
+pub(crate) const STAGE: &str = "stage";
+pub(crate) const TOOLS: &str = "tools";
+pub(crate) const ZOOM: &str = "zoom";
+
+pub(crate) fn tools_open(state: CanvasState, shown: ReadSignal<bool>) -> Memo<bool> {
+    let previewing = state.previewing();
+    create_memo(move || shown.get() && !previewing)
+}
+
+#[component]
+pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) -> NodeId {
+    let bar = use_dock_bar();
+    let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
+    let across = create_memo(move || match direction.get() {
+        Direction::Horizontal => Direction::Vertical,
+        Direction::Vertical => Direction::Horizontal,
+    });
+    let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
+    let tool_keys = create_memo(move || {
+        let profile = state.profile.get();
+        (0..TOOLS_SHOWN.len())
+            .filter(|index| TOOLS_SHOWN[*index].0.belongs_to(profile))
+            .collect::<Vec<usize>>()
+    });
+    let narrow = be_sdk_beui::narrow_chrome();
+    let block_button = NodeRef::new();
+    let add_block = move || state.open_block_picker_at(block_button);
+    create_effect(move || {
+        if !open.get() && size.get_untracked() != Vec2::ZERO {
+            size.set(Vec2::ZERO);
+        }
+    });
+    let content = Render::new(move |()| {
+        let tools = actions.clone();
+        let pill = view! {
+            <DockBarSurface @test_id={"infinite-canvas.dock"}>
+                <Frame @test_id={"infinite-canvas.dock.grip"}>
+                    <DockBarGrip />
+                </Frame>
+                <Show condition={narrow}>
+                    <ModeMenu state />
+                </Show>
+                <ToggleButton
+                    icon_only=true
+                    action={actions.tool_lock.clone()}
+                    @test_id={"infinite-canvas.dock.tool-lock"}
+                />
+                <ForEach keys={tool_keys}>|index: usize| {
+                    let actions = tools.clone();
+                    view! {
+                        <ToolChoice state actions index />
+                    }
+                }</ForEach>
+                <Button
+                    icon_only=true
+                    @node_ref={&block_button}
+                    label="Block"
+                    glyph={actions.add_block.glyph().to_owned()}
+                    disabled={actions.add_block.disabled()}
+                    @test_id={"infinite-canvas.dock.block"}
+                    on_click={add_block}
+                />
+                <Separator direction={across} length=Size::Md />
+                <ToggleButton
+                    icon_only=true
+                    action={actions.ignore_touch.clone()}
+                    @test_id={"infinite-canvas.dock.ignore-touch"}
+                />
+            </DockBarSurface>
+        };
+        let measured = measure(pill);
+        create_effect(move || {
+            let shown = match open.get() {
+                true => measured.get().map_or(Vec2::ZERO, |measured| measured.size),
+                false => Vec2::ZERO,
+            };
+            if size.get_untracked() != shown {
+                size.set(shown);
+            }
+        });
+        pill
+    })
+    .once();
+    view! {
+        <List spacing=Space::None>
+            <ShowKeepAlive condition={open}>{content.call(())}</ShowKeepAlive>
+        </List>
+    }
+}
+
+#[component]
+pub(crate) fn SelectionDock(
+    state: CanvasState,
+    layout: DockingLayout<&'static str>,
+    open: Memo<bool>,
+    bar: ReadSignal<Vec2>,
+) -> NodeId {
+    let placement = create_memo(move || {
+        layout
+            .bar_placement(&TOOLS)
+            .unwrap_or(DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center))
+    });
+    let edge = create_memo(move || placement.get().edge());
+    let direction = create_memo(move || edge.get().direction());
+    let narrow = be_sdk_beui::narrow_chrome();
+    let chosen = create_memo(move || {
+        let tool = state.tool.get();
+        let profile = state.profile.get();
+        open.get()
+            && (!state.selection.get().is_empty()
+                || tool.draws_a_line()
+                || (profile == CanvasProfile::Prototyping && tool.styles())
+                || (profile == CanvasProfile::Raster && narrow.get()))
+    });
+    let align = create_memo(move || match edge.get() {
+        DockEdge::Top => Align2::new(Align::Center, Align::Start),
+        DockEdge::Bottom => Align2::new(Align::Center, Align::End),
+        DockEdge::Left => Align2::new(Align::Start, Align::Center),
+        DockEdge::Right => Align2::new(Align::End, Align::Center),
+    });
+    let padding = create_memo(move || {
+        let away = match placement.get() {
+            DockBarPlacement::Over(edge, _) => {
+                let bar = bar.get();
+                let thickness = match edge.direction() {
+                    Direction::Horizontal => bar.y,
+                    Direction::Vertical => bar.x,
+                };
+                Space::Custom(BAR_MARGIN.px() + thickness + PILL_MARGIN.px())
+            }
+            _ => BAR_MARGIN,
+        };
+        let sides = Padding::all(BAR_MARGIN);
+        match edge.get() {
+            DockEdge::Top => Padding { top: away, ..sides },
+            DockEdge::Bottom => Padding {
+                bottom: away,
+                ..sides
+            },
+            DockEdge::Left => Padding {
+                left: away,
+                ..sides
+            },
+            DockEdge::Right => Padding {
+                right: away,
+                ..sides
+            },
+        }
+    });
+    view! {
+        <Frame align={align} padding={padding}>
+            <List spacing=Space::None>
+                <Show condition={chosen}>
+                    <SelectionTools state layout direction />
+                </Show>
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+pub(crate) fn ZoomBar(state: CanvasState, open: Memo<bool>) -> NodeId {
+    let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
+    let scale = state.editor().scale();
+    let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
+    let reset = actions.zoom_reset.clone();
+    let content = Render::new(move |()| {
+        let reset = reset.clone();
+        view! {
+            <DockBarSurface @test_id={"infinite-canvas.zoom-pill"}>
+                <Frame @test_id={"infinite-canvas.zoom.grip"}>
+                    <DockBarGrip />
+                </Frame>
+                <Button
+                    icon_only=true
+                    @test_id={"infinite-canvas.pill.zoom-out"}
+                    action={actions.zoom_out.clone()}
+                />
+                <Button
+                    label={readout}
+                    variant=ButtonVariant::Ghost
+                    @test_id={"infinite-canvas.pill.zoom"}
+                    on_click={move || {
+                        reset.run();
+                    }}
+                />
+                <Button
+                    icon_only=true
+                    @test_id={"infinite-canvas.pill.zoom-in"}
+                    action={actions.zoom_in.clone()}
+                />
+                <Button
+                    icon_only=true
+                    @test_id={"infinite-canvas.pill.fit"}
+                    action={actions.fit_all.clone()}
+                />
+            </DockBarSurface>
+        }
+    })
+    .once();
+    view! {
+        <List spacing=Space::None>
+            <ShowKeepAlive condition={open}>{content.call(())}</ShowKeepAlive>
+        </List>
+    }
+}
+
+#[component]
+fn ToolChoice(state: CanvasState, actions: CanvasActions, index: usize) -> NodeId {
+    let (tool, name, id) = TOOLS_SHOWN[index];
+    let (label, glyph, action) = match tool {
+        Tool::Select => {
+            let mode = create_memo(move || state.select_tool());
+            (
+                Prop::dynamic(move || match mode.get() {
+                    Tool::Lasso => "Lasso select".to_owned(),
+                    _ => name.to_owned(),
+                }),
+                Prop::dynamic(move || mode.get().glyph().to_owned()),
+                actions.select_mode,
+            )
+        }
+        _ => (
+            Prop::Static(name.to_owned()),
+            Prop::Static(tool.glyph().to_owned()),
+            actions.tool(tool),
+        ),
+    };
+    view! {
+        <ToggleButton
+            label={label}
+            glyph={glyph}
+            icon_only=true
+            action={action}
+            @test_id={format!("infinite-canvas.dock.tool.{id}")}
+        />
+    }
+}
+
+#[component]
+pub(crate) fn ImportError(state: CanvasState) -> NodeId {
+    view! {
+        <Banner
+            message={state.import_error}
+            id="infinite-canvas.import-error"
+            on_dismiss={move || state.dismiss_import_error()}
+        />
+    }
+}

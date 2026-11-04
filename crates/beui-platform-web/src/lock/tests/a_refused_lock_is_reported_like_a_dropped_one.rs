@@ -7,6 +7,6 @@ fn a_refused_lock_is_reported_like_a_dropped_one() {
     assert_eq!(
         lock.refused(),
         Some(Input::PointerUnlocked),
-        "a lock asked for without a user gesture is refused, and the app hears it does not hold the pointer"
+        "a lock asked for without a user gesture is refused, and the program hears it does not hold the pointer"
     );
 }

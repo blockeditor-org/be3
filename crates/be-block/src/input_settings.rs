@@ -1,12 +1,14 @@
-use be_model::{Change, Document, Edit, Map, Model, ObjectId};
+use be_block_model::{Change, Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::Root;
 use crate::setting::Setting;
 use crate::settings::Layered;
-pub use ui_types::pointer::{MAX_POINTER_SPEED, MIN_POINTER_SPEED};
-pub use ui_types::{InputDevice, PointerSetting, PointerSettings, PointerSpeed};
+pub use be_lib_ui_preferences::{
+    InputDevice, MAX_POINTER_SPEED, MIN_POINTER_SPEED, PointerSetting, PointerSettings,
+    PointerSpeed,
+};
 
 pub const MIN_REPEAT_DELAY: u32 = 150;
 pub const MAX_REPEAT_DELAY: u32 = 2000;
@@ -56,6 +58,7 @@ pub struct InputSettings {
     pub repeat_rate: Option<RepeatRate>,
     pub every_pointer: PointerSettings,
     pub pointers: Map<InputDevice, PointerSettings>,
+    pub displays: Map<InputDevice, String>,
     pub middle_click_paste: Option<bool>,
     pub remapper: Option<RemapperChoice>,
 }
@@ -73,10 +76,6 @@ impl InputSettings {
 
     pub fn middle_click_paste(&self) -> bool {
         self.middle_click_paste.unwrap_or(false)
-    }
-
-    pub fn set_middle_click_paste(on: Option<bool>) -> Edit {
-        Self::MIDDLE_CLICK_PASTE.set(ObjectId::ROOT, &on).into()
     }
 
     pub fn set_remapper(choice: Option<RemapperChoice>) -> Edit {
@@ -133,6 +132,16 @@ impl InputSettings {
 
     pub fn set_device_pointer(&self, device: &InputDevice, setting: PointerSetting) -> Edit {
         Self::store_pointer(device, self.device_pointer(device).with(setting)).into()
+    }
+
+    pub fn display(&self, device: &InputDevice) -> Option<&str> {
+        self.displays.get(device).map(String::as_str)
+    }
+
+    pub fn set_display(device: &InputDevice, display: Option<&str>) -> Edit {
+        Self::DISPLAYS
+            .put(ObjectId::ROOT, device, display.map(str::to_owned).as_ref())
+            .into()
     }
 
     fn store_pointer(device: &InputDevice, pointer: PointerSettings) -> Change {
@@ -248,21 +257,31 @@ impl InputSettings {
     }
 
     pub fn middle_click_paste_setting() -> Setting<Self, bool> {
-        Setting::new(
+        Setting::field(
             "middle-click-paste",
             "Middle-click paste",
-            |settings: &Self| settings.middle_click_paste,
-            |_, on| Self::set_middle_click_paste(on),
+            Self::MIDDLE_CLICK_PASTE,
+            |settings| settings.middle_click_paste,
         )
         .with_default(Some(false))
     }
 
     pub fn remapper_setting() -> Setting<Self, RemapperChoice> {
+        Setting::field("remapper", "Remaps", Self::REMAPPER, |settings| {
+            settings.remapper
+        })
+    }
+
+    pub fn display_setting(device: InputDevice) -> Setting<Self, String> {
+        let read = device.clone();
         Setting::new(
-            "remapper",
-            "Remaps",
-            |settings: &Self| settings.remapper,
-            |_, choice| Self::set_remapper(choice),
+            format!(
+                "pointer.{}.{}.{}.display",
+                device.name, device.vendor, device.product
+            ),
+            "Display",
+            move |settings: &Self| settings.display(&read).map(str::to_owned),
+            move |_, display: Option<String>| Self::set_display(&device, display.as_deref()),
         )
     }
 
@@ -340,6 +359,13 @@ impl Layered for InputSettings {
             repeat_rate: self.repeat_rate.or(lower.repeat_rate),
             every_pointer: self.every_pointer.or(lower.every_pointer),
             pointers,
+            displays: lower
+                .displays
+                .iter()
+                .filter(|(device, _)| !self.displays.contains_key(*device))
+                .chain(self.displays.iter())
+                .map(|(device, display)| (device.clone(), display.clone()))
+                .collect(),
             middle_click_paste: self.middle_click_paste.or(lower.middle_click_paste),
             remapper: self.remapper.or(lower.remapper),
         }

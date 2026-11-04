@@ -1,6 +1,0 @@
-load("@root//buck/wasm:defs.bzl", "editor")
-
-editor(
-    module = "calendar",
-    types = "//crates/editors/calendar/types:module",
-)

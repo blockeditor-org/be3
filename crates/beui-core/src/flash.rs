@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
-use crate::color::Color32;
+use beui_types::Color32;
 
 pub const LIFETIME: Duration = Duration::from_millis(700);
 pub const CHANGE: Color32 = Color32::from_rgb(126, 231, 135);

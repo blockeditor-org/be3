@@ -20,6 +20,7 @@ pub mod dialog;
 pub mod focus_ring;
 pub mod frame;
 pub mod fullscreen;
+pub mod key_cap;
 pub mod link;
 pub mod list;
 pub mod list_row;
@@ -33,6 +34,7 @@ pub mod root;
 pub mod row;
 pub mod scroll;
 pub mod scrollbar;
+pub mod search_list;
 pub mod segmented_control;
 pub mod select;
 pub mod selectable_text;
@@ -63,14 +65,15 @@ pub use action_row::ActionRow;
 pub use banner::Banner;
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::{
-    ActionRole, DialogAction, DialogKind, ModalMotion, ModalPlacement,
+    ActionRole, DialogAction, DialogAnchor, DialogKind, DialogSize, ModalMotion, ModalPlacement,
+    provide_frame_anchor, use_frame_anchor,
 };
 pub use beui_components_unstyled::{
     BackSlide, ChoiceOption, Container, DragHandle, DragPoint, DragSource, Draggable, DropHandle,
     DropTarget, Edge, Floating, MenuCaption, MenuGrid, MenuItem, MenuNodes, MenuThen, PanZoom,
-    PanZoomHandle, PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, Pressable, Prose,
-    ProseLine, RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors, TextAreaState,
-    TextWidget, TreeDragOver, TreeDrop, TreeItem, container_size, narrower_than,
+    PanZoomHandle, PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, PopoverPlacement,
+    Pressable, Prose, ProseLine, RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors,
+    TextAreaState, TextWidget, TreeDragOver, TreeDrop, TreeItem, container_size, narrower_than,
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
@@ -79,8 +82,8 @@ pub use beui_components_unstyled::{
 };
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
-    Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, Layer, Layers, Offset, Overlay,
-    Portal, SystemBars, TextChild, TextItem, VirtualList,
+    Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, Layer, Layers, ListItem, Modality,
+    Offset, Overlay, Portal, SystemBars, TextChild, TextItem, VirtualList, use_modal,
 };
 pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use border::Separator;
@@ -93,7 +96,7 @@ pub use color_input::ColorInput;
 pub use color_picker::{ColorPicker, DEFAULT_SWATCHES, PICKER_WIDTH};
 pub use color_wheel::{ColorWheel, OklchColorWheel, WHEEL_SIZE};
 pub use command_palette::CommandPalette;
-pub use context_menu::{ContextMenu, MenuPopup};
+pub use context_menu::{ContextMenu, MenuPopup, MenuRows};
 pub use date_time_field::DateTimeField;
 pub use dialog::{
     DIALOG_WIDTH, Dialog, DialogBody, DialogCard, DialogFrame, Modal, SHEET_BELOW, Scrim,
@@ -101,6 +104,7 @@ pub use dialog::{
 pub use focus_ring::FocusRing;
 pub use frame::{Border, ColorRole, Frame, Radius, focus_border};
 pub use fullscreen::Fullscreen;
+pub use key_cap::KeyCap;
 pub use link::Link;
 pub use list::{Grid, List, Spacer};
 pub use list_row::ListRow;
@@ -114,11 +118,12 @@ pub use root::Root;
 pub use row::{RowFace, RowSize, RowTrailing};
 pub use scroll::{Bleed, Scroll};
 pub use scrollbar::Scrollbar;
+pub use search_list::SearchList;
 pub use segmented_control::SegmentedControl;
 pub use select::Select;
 pub use selectable_text::SelectableText;
 pub use settings::{SettingsLink, SettingsPage, SettingsRow, SettingsSection};
-pub use sheet::{ModalSheet, SHEET_STOPS, Sheet};
+pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, modal_sheet_room};
 pub use shortcut::Shortcut;
 pub use slider::Slider;
 pub use split_button::SplitButton;

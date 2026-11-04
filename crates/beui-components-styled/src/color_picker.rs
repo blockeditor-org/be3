@@ -19,7 +19,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::Painter;
 use beui_view::reactive::*;
 use beui_view::types::{Align, Direction};
-use beui_view::types::{Align2, ItemSize, Track};
+use beui_view::types::{Align2, Track};
 use beui_view::types::{Color32, Hsva};
 use beui_view::types::{Pos2, Rect, Vec2, pos2};
 
@@ -69,28 +69,34 @@ pub fn ColorPicker(
     view! {
         <Frame width={Size::Custom(PICKER_WIDTH)}>
             <List spacing=SPACING>
-                <ColorPickerArea
-                    @sizing=ItemSize::Fixed(AREA_HEIGHT)
-                    picker={picker}
-                    thumb={THUMB_RADIUS * 2.0 + GRAB_SLOP}
-                    focused
-                >|handle: ColorAreaHandle|
-                    <PlaneFace handle />
-                </ColorPickerArea>
+                <ListItem length=AREA_HEIGHT>
+                    <ColorPickerArea
+                        picker={picker}
+                        thumb={THUMB_RADIUS * 2.0 + GRAB_SLOP}
+                        focused
+                    >|handle: ColorAreaHandle|
+                        <PlaneFace handle />
+                    </ColorPickerArea>
+                </ListItem>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=FIELD_SPACING>
-                        <HueSlider picker={picker} thumb={SLIDER_HEIGHT.px()}>|handle: SliderHandle|
-                            <StripFace handle strip=Strip::Hue />
-                        </HueSlider>
-                        <Show condition=alpha>
-                            <AlphaSlider
+                    <ListItem grow=1.0>
+                        <List spacing=FIELD_SPACING>
+                            <HueSlider
                                 picker={picker}
                                 thumb={SLIDER_HEIGHT.px()}
                             >|handle: SliderHandle|
-                                <StripFace handle strip={Strip::Alpha(color)} />
-                            </AlphaSlider>
-                        </Show>
-                    </List>
+                                <StripFace handle strip=Strip::Hue />
+                            </HueSlider>
+                            <Show condition=alpha>
+                                <AlphaSlider
+                                    picker={picker}
+                                    thumb={SLIDER_HEIGHT.px()}
+                                >|handle: SliderHandle|
+                                    <StripFace handle strip={Strip::Alpha(color)} />
+                                </AlphaSlider>
+                            </Show>
+                        </List>
+                    </ListItem>
                     <ColorSwatch color={shown} width=PREVIEW_SIZE height=PREVIEW_SIZE />
                 </List>
                 <ColorFields picker={picker} alpha />
@@ -129,22 +135,24 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
     view! {
         <List spacing=FIELD_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
-                <TextInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={hex.text()}
-                    label="Hex"
-                    placeholder={hex.placeholder()}
-                    select_on_focus=true
-                    on_submit={move |typed: String| hex.submit(typed)}
-                />
-                <Show condition=alpha>
-                    <NumberInput
-                        @sizing=ItemSize::Fixed(ALPHA_WIDTH)
-                        value={Binding::new(opacity, set_opacity)}
-                        min=0.0
-                        max=100.0
-                        label="Opacity percent"
+                <ListItem grow=1.0>
+                    <TextInput
+                        value={hex.text()}
+                        label="Hex"
+                        placeholder={hex.placeholder()}
+                        select_on_focus=true
+                        on_submit={move |typed: String| hex.submit(typed)}
                     />
+                </ListItem>
+                <Show condition=alpha>
+                    <ListItem length=ALPHA_WIDTH>
+                        <NumberInput
+                            value={Binding::new(opacity, set_opacity)}
+                            min=0.0
+                            max=100.0
+                            label="Opacity percent"
+                        />
+                    </ListItem>
                 </Show>
             </List>
             <Grid

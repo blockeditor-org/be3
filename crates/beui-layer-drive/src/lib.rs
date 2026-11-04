@@ -4,17 +4,20 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
+use std::time::Duration;
 
-use beui_core::app::Waker;
+use beui_core::program::Waker;
 
 mod diff;
 pub mod gestures;
+mod plan;
 mod session;
 #[cfg(all(unix, not(target_arch = "wasm32")))]
 pub mod socket;
 mod target;
 
 pub use diff::changes;
+pub use plan::plan;
 pub use session::{Drive, PANE, USAGE};
 
 pub enum Reply {
@@ -101,6 +104,24 @@ impl Future for Answered {
     }
 }
 
+pub fn timed_out(timeout: Duration, inbox: &Inbox) -> String {
+    let state = inbox
+        .inner
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let mut text = format!("timed out after {} seconds", timeout.as_secs_f32());
+    if !state.busy.is_empty() {
+        text.push_str(&format!(
+            "; the program was still busy: {}",
+            state.busy.join("; ")
+        ));
+    }
+    if let Some(held) = &state.held {
+        text.push_str(&format!("; {held}"));
+    }
+    text
+}
+
 pub fn ask(inbox: &Inbox, words: Vec<String>) -> Answered {
     let answer = Arc::new(Mutex::new(Answer::default()));
     let cancelled = Arc::new(AtomicBool::new(false));
@@ -122,6 +143,8 @@ pub struct Inbox {
 struct InboxState {
     requests: VecDeque<Request>,
     waker: Option<Waker>,
+    busy: Vec<String>,
+    held: Option<String>,
 }
 
 impl Inbox {
@@ -137,6 +160,33 @@ impl Inbox {
         if let Some(waker) = waker {
             waker.wake();
         }
+    }
+
+    pub(crate) fn note_busy(&self, busy: &[String], held: Option<String>) {
+        let mut state = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        if state.busy != busy {
+            state.busy = busy.to_vec();
+        }
+        state.held = held;
+    }
+
+    pub fn held(&self) -> Option<String> {
+        self.inner
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .held
+            .clone()
+    }
+
+    pub fn busy(&self) -> Vec<String> {
+        self.inner
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .busy
+            .clone()
     }
 
     pub(crate) fn waiting(&self) -> bool {

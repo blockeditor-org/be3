@@ -1,10 +1,10 @@
 use std::error::Error;
 
-use beui_core::app::Setup;
-use beui_core::color::Color32;
 use beui_core::context::{RendererInfo, WindowOutput};
-use beui_core::geometry::Vec2;
-use beui_core::renderer;
+use beui_core::program::Setup;
+use beui_runner::renderer;
+use beui_types::Color32;
+use beui_types::Vec2;
 
 use crate::present::{GpuSetup, surface_format};
 use crate::{Renderer, Repaint, renderer_info, wgpu_color_in};
@@ -73,7 +73,7 @@ impl CanvasSurface {
                 .unwrap_or(wgpu::CompositeAlphaMode::Auto),
         };
         let info = renderer_info(&adapter.get_info(), format);
-        let renderer = Renderer::new(&device, format);
+        let renderer = Renderer::new(&crate::Resources::new(&device, format));
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,

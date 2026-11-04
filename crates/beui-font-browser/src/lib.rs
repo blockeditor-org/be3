@@ -1,4 +1,4 @@
-use beui_core::font::{FontFamily, FontId};
+use beui_types::{FontFamily, FontId};
 
 #[cfg(target_arch = "wasm32")]
 mod measure;

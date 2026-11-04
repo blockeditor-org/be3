@@ -1,5 +1,5 @@
-use beui_core::app::{Setup, Waker};
 use beui_core::painting::Punches;
+use beui_core::program::{Setup, Waker};
 
 use super::the_chrome_around_a_curved_panel::window;
 use super::*;
@@ -19,7 +19,7 @@ fn the_mirror_shows_a_notice_over_the_scene() {
     setup.provide(gpu.setup());
     setup.provide(context.clone());
     space.setup(&setup);
-    let mut output = app_frame(CursorIcon::Default);
+    let mut output = program_frame(CursorIcon::Default);
     output.windows = vec![window(&context, WindowId::MAIN, PLATFORM, "Main")];
     let bare = space.frame(&output, &view(now)).window.layers.len();
 
@@ -34,12 +34,7 @@ fn the_mirror_shows_a_notice_over_the_scene() {
     );
     let painting = beui_core::painting::painting(&shown, PLATFORM, 1.0, SKY, Punches::Shown)
         .expect("the mirror paints");
-    let snapshot = paint_snapshot::Snapshot::of_painting(painting).expect("the painting encodes");
-    paint_snapshot::assert_accepted(
-        "the_mirror_shows_a_notice_over_the_scene",
-        &snapshot,
-        "./scripts/test the_mirror_shows_a_notice_over_the_scene --update",
-    );
+    beui_paint_snapshot::assert_painting("the_mirror_shows_a_notice_over_the_scene", painting);
 
     space.set_notice(None);
     assert_eq!(

@@ -1,0 +1,55 @@
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+
+fn temporary_directory() -> PathBuf {
+    let sequence = NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!("fix-rust-source-{}-{sequence}", std::process::id()))
+}
+
+fn formatted(source: &str) -> String {
+    String::from_utf8(crate::format_views(source.as_bytes()).expect("source parses")).unwrap()
+}
+
+mod a_component_method_needs_a_component_block;
+mod fix_repository_accepts_tagged_unsafe;
+mod fix_repository_check_reports_without_changes;
+mod fix_repository_does_not_rewrite_compliant_repository;
+mod fix_repository_enforces_rust_layout;
+mod fix_repository_formats_views;
+mod fix_repository_ignores_sources_outside_crates;
+mod fix_repository_keeps_a_public_test_module_declared_once;
+mod fix_repository_keeps_multiline_attributes_with_their_test_modules;
+mod fix_repository_merges_imports_without_repeating_them;
+mod fix_repository_removes_test_path_attributes;
+mod fix_repository_reports_a_core_cfg_outside_the_cores;
+mod fix_repository_reports_a_fixed_extent_outside_beui;
+mod fix_repository_reports_a_primitive_used_outside_beui;
+mod fix_repository_reports_a_public_item_on_one_core;
+mod fix_repository_reports_a_randomly_seeded_hash_map_in_beui;
+mod fix_repository_reports_beui_rule_breaks;
+mod fix_repository_reports_document_use_in_a_component;
+mod fix_repository_reports_unsafe_tag_problems;
+mod fix_repository_skips_hidden_directories;
+mod fix_repository_sorts_test_modules;
+mod format_views_always_breaks_children_onto_their_own_lines;
+mod format_views_breaks_a_block_after_a_value_that_does_not_fit;
+mod format_views_breaks_a_nested_view_inside_an_expression;
+mod format_views_breaks_a_tag_that_does_not_fit;
+mod format_views_collapses_an_element_whose_children_are_expressions;
+mod format_views_formats_component_valued_props;
+mod format_views_formats_nested_fragments_and_direct_props;
+mod format_views_ignores_nested_markup_when_shifting_rust_expressions;
+mod format_views_keeps_a_short_block_after_a_value_on_one_line;
+mod format_views_keeps_string_literal_children;
+mod format_views_keeps_the_macro_body_on_its_own_lines;
+mod format_views_leaves_a_view_it_cannot_parse_alone;
+mod format_views_preserves_a_multi_line_string_literal;
+mod format_views_preserves_generic_modifiers;
+mod format_views_puts_the_value_a_tag_hands_its_children_after_the_tag;
+mod format_views_removes_redundant_render_slot_macros;
+mod format_views_shifts_a_multi_line_expression_to_its_new_indent;
+mod unsafe_sites_reads_unparseable_source;
+mod unsafe_sites_resolves_the_nearest_tag;
+mod view_helpers_require_components_independently_of_return_type;

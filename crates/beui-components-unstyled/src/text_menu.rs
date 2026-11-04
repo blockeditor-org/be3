@@ -1,6 +1,6 @@
 use beui_macros::{component, view};
 
-use text_editor_core::{CopyMode, EditorCommand};
+use beui_text_editor_core::{CopyMode, EditorCommand};
 
 use crate::ContextMenu;
 use crate::MenuItem;
@@ -9,7 +9,6 @@ use crate::menu_popup::MenuStyle;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::ItemSize;
 use beui_view::types::Rect;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -38,13 +37,15 @@ pub fn TextContextMenu(
     #[prop(default = false)] masked: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] read_only: Prop<bool>,
-    #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
+    #[prop(default = 0.0)] child_grow: Prop<f32>,
     #[prop(children)] content: Render<Callback<Option<Rect>>>,
 ) -> NodeId {
     let Some(menu) = menu else {
         let content = content.call(Callback::new(|_: Option<Rect>| ()));
         return view! {
-            <List spacing=0.0>{content} @sizing={child_size}</List>
+            <List spacing=0.0>
+                <ListItem grow=child_grow>{content}</ListItem>
+            </List>
         };
     };
     let requested = create_signal(None::<(Rect, u64)>);
@@ -81,7 +82,7 @@ pub fn TextContextMenu(
     view! {
         <ContextMenu
             menu
-            child_size
+            child_grow
             disabled={off}
             selection=true
             toolbar_at

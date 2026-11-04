@@ -17,7 +17,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::ICON_CHEVRON_DOWN;
-use beui_view::types::{Align, Direction, Extent, ItemSize};
+use beui_view::types::{Align, Direction, Extent};
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
 const POPUP_WIDTH: Size = Size::Custom(220.0);
@@ -103,7 +103,7 @@ fn SelectTrigger(
     });
     let fill = create_memo(move || match disabled.get() {
         true => ColorRole::Surface,
-        false => ColorRole::SurfaceRaised,
+        false => ColorRole::Control,
     });
     let text_color = create_memo(move || match disabled.get() || empty.get() {
         true => TextColor::Muted,
@@ -127,14 +127,11 @@ fn SelectTrigger(
                 padding={Padding::horizontal(PADDING_HORIZONTAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ARROW_SPACING>
-                    <Text
-                        color={text_color}
-                        align=TextAlign::Start
-                        overflow=Overflow::Ellipsis
-                        @sizing=ItemSize::Percent(100.0)
-                    >
-                        {label_text}
-                    </Text>
+                    <ListItem grow=1.0>
+                        <Text color={text_color} align=TextAlign::Start overflow=Overflow::Ellipsis>
+                            {label_text}
+                        </Text>
+                    </ListItem>
                     <Text color={arrow_color} align=TextAlign::Center>
                         <Icon glyph=ICON_CHEVRON_DOWN />
                     </Text>
@@ -191,7 +188,7 @@ fn SelectPopup(children: Child) -> NodeId {
     view! {
         <Frame
             width=POPUP_WIDTH
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Md
             padding=POPUP_PADDING

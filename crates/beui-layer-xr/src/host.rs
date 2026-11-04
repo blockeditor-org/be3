@@ -1,15 +1,15 @@
 use std::time::{Duration, Instant};
 
-use beui_core::app::Setup;
 use beui_core::context::{Context, FrameOutput};
-use beui_core::geometry::{Pos2, vec2};
-use beui_core::runner::{Frame as RunnerFrame, Incoming, Layer, LayerFrame, LayerView, Shown};
-use beui_core::window::WindowId;
+use beui_core::program::Setup;
 use beui_layer_space::head::{Fov, View, Views};
 use beui_layer_space::layers::Allowance;
 use beui_layer_space::notice::Notice;
 use beui_layer_space::{Composed, LayerTarget, Space, ViewTarget};
 use beui_renderer_wgpu::present::GpuSetup;
+use beui_runner::{Frame as RunnerFrame, Incoming, Layer, LayerFrame, LayerView, Shown};
+use beui_types::WindowId;
+use beui_types::{Pos2, vec2};
 
 use crate::{Frame, Headset, Link, Lost, Quad, RETRY, Status};
 
@@ -91,7 +91,7 @@ impl XrSpace {
         match headset.lost() {
             None if headset.running() => None,
             None => waiting(format!(
-                "{} has not started this app's session yet",
+                "{} has not started this program's session yet",
                 headset.runtime()
             )),
             Some(Lost::Session) => waiting(format!("{} lost the headset", headset.runtime())),

@@ -10,14 +10,22 @@ use beui_view::components::selectable::{
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::ItemSize;
 use beui_view::types::Rect;
 
+/// Makes the plain text nodes under it selectable together: a drag selects from
+/// one text to another in tree order (and scrolls the scroll around it past its
+/// edge), a double click selects a word and a triple click a whole text,
+/// Shift+click extends, and a click clears. `copy_key` (Ctrl+C) copies the
+/// selection, joining texts on one line with a space and lines with a line
+/// break; `select_all_key` (Ctrl+A) selects everything under it. `None` turns
+/// either off, as the terminal does to leave them to the shell; the secondary
+/// click menu shows whichever keys are set. It is not a Tab stop: the keys also
+/// reach it from a focused control inside it.
 #[component]
 pub fn SelectableText(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,
     children: Child,
-    #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
+    #[prop(default = 0.0)] child_grow: Prop<f32>,
     #[prop(default = Some(COPY_KEY))] copy_key: Prop<Option<Chord>>,
     #[prop(default = Some(SELECT_ALL_KEY))] select_all_key: Prop<Option<Chord>>,
 ) -> NodeId {
@@ -32,7 +40,7 @@ pub fn SelectableText(
         create_memo(move || select_all_key.get().map(Chord::label).unwrap_or_default());
     view! {
         <ContextMenu
-            child_size
+            child_grow
             selection=true
             toolbar_at
             opens_on_hold=false

@@ -1,0 +1,68 @@
+use super::*;
+use crate::primitives::Frame;
+use crate::primitives::List;
+use crate::reactive::*;
+use crate::styled::Scroll;
+
+const CONTENT_HEIGHT: f32 = 2000.0;
+
+#[test]
+fn the_scrollbar_thumb_brightens_under_the_pointer_and_while_it_is_dragged() {
+    let _root = crate::reactive::RootScope::new();
+    let scroll = NodeRef::new();
+    let document = build_node(move || {
+        view! {
+            <List spacing=0.0>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <Frame height=CONTENT_HEIGHT />
+                    </Scroll>
+                </ListItem>
+            </List>
+        }
+    });
+    let mut harness = Harness::new(document);
+    let theme = styled::Theme::DARK;
+    let output = harness.frame(Vec::new());
+    assert_eq!(
+        painted(&output, theme.scroll_thumb),
+        0,
+        "a resting bar is hidden"
+    );
+
+    let bar = harness.rect(scrollbar_of(&harness, scroll.get()));
+    let thumb = bar.height() * VIEWPORT.y / CONTENT_HEIGHT;
+    let over_thumb = pos2(bar.center().x, bar.top() + thumb / 2.0);
+    let over_track = pos2(bar.center().x, bar.bottom() - 1.0);
+
+    harness.frame(vec![Input::PointerMoved(over_thumb)]);
+    let output = harness.frame(Vec::new());
+    assert_eq!(painted(&output, theme.scroll_thumb_hover), 1);
+    assert_eq!(painted(&output, theme.scroll_thumb), 0);
+
+    let output = harness.frame(vec![Input::PointerMoved(over_track)]);
+    assert_eq!(painted(&output, theme.scroll_thumb), 1);
+    assert_eq!(painted(&output, theme.scroll_thumb_hover), 0);
+
+    harness.frame(vec![Input::PointerMoved(over_thumb)]);
+    let output = harness.frame(vec![Input::PointerButton {
+        pos: over_thumb,
+        button: PointerButton::Primary,
+        pressed: true,
+    }]);
+    assert_eq!(painted(&output, theme.scroll_thumb_active), 1);
+
+    let output = harness.frame(vec![Input::PointerMoved(pos2(over_thumb.x, bar.bottom()))]);
+    assert_eq!(painted(&output, theme.scroll_thumb_active), 1);
+}
+
+fn painted(output: &crate::native::FrameOutput, color: Color32) -> usize {
+    output
+        .main()
+        .shapes()
+        .iter()
+        .filter(
+            |shape| matches!(shape, crate::native::Shape::Rect { color: painted, .. } if *painted == color),
+        )
+        .count()
+}

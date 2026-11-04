@@ -1,14 +1,15 @@
-use std::collections::HashMap;
+use be_lib_stable_hash::HashMap;
 use std::rc::Rc;
 
 use crate::context::Moved;
-use crate::damage::{Region, bounds};
+use crate::damage::bounds;
 use crate::display::{Display, Group, Part};
 use crate::fade::Fade;
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::node::NodeId;
 use crate::painter::{Shape, placed_shape};
-use crate::window::WindowId;
+use beui_types::NodeId;
+use beui_types::WindowId;
+use beui_types::geometry::Region;
+use beui_types::{Pos2, Rect, Vec2};
 
 type Key = (NodeId, u32);
 
@@ -37,12 +38,12 @@ impl Seen {
     pub fn of(painting: &[(Rc<Display>, Vec2)], area: Option<Rect>) -> Self {
         let mut walk = Walk {
             seen: Self {
-                nodes: HashMap::new(),
+                nodes: HashMap::default(),
                 roots: Vec::new(),
                 cover: None,
             },
             area,
-            occurrences: HashMap::new(),
+            occurrences: HashMap::default(),
             count: 0,
         };
         for (display, at) in painting {
@@ -484,7 +485,7 @@ pub fn changed_area(old: &Seen, new: &Seen) -> Region {
             [rect.min.x, rect.min.y, rect.max.x, rect.max.y].map(f32::to_bits),
         )
     };
-    let mut held: HashMap<_, Vec<&Shape>> = HashMap::new();
+    let mut held: HashMap<_, Vec<&Shape>> = HashMap::default();
     for shape in old.shapes() {
         held.entry(key(shape)).or_default().push(shape);
     }

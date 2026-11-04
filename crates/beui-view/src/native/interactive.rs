@@ -7,23 +7,23 @@ use crate::reactive::create_binding;
 use crate::reactive::create_effect;
 use crate::reactive::on_cleanup;
 use beui_core::base::interactive::InteractiveNode;
-use beui_core::clipboard::PasteKind;
-use beui_core::clipboard::Pasted;
 use beui_core::current::with_document;
-use beui_core::focus::ImeCursor;
-use beui_core::geometry::Pos2;
-use beui_core::geometry::Vec2;
-use beui_core::input::CursorIcon;
-use beui_core::input::ImeEvent;
-use beui_core::input::ImeText;
-use beui_core::input::KeyPress;
-use beui_core::input::PointerInput;
-use beui_core::input::PointerPress;
-use beui_core::input::SoftKeyboard;
-use beui_core::input::TouchDrags;
-use beui_core::input::WheelInput;
-use beui_core::interact::forward::ForwardedInput;
-use beui_core::node::NodeId;
+use beui_types::CursorIcon;
+use beui_types::ForwardedInput;
+use beui_types::ImeCursor;
+use beui_types::ImeEvent;
+use beui_types::ImeText;
+use beui_types::KeyPress;
+use beui_types::NodeId;
+use beui_types::PasteKind;
+use beui_types::Pasted;
+use beui_types::PointerInput;
+use beui_types::PointerPress;
+use beui_types::Pos2;
+use beui_types::SoftKeyboard;
+use beui_types::TouchDrags;
+use beui_types::Vec2;
+use beui_types::WheelInput;
 use beui_types::region::{Area, Claim};
 use std::cell::Cell;
 use std::rc::Rc;
@@ -49,6 +49,7 @@ pub(crate) fn interactive(
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
     cursor: Prop<Option<CursorIcon>>,
+    cursor_image: Prop<Option<beui_types::CursorImage>>,
     pointer_locked: Prop<bool>,
     key_active: Prop<bool>,
     capture_presses: Prop<Area>,
@@ -62,6 +63,7 @@ pub(crate) fn interactive(
     on_click_at: Callback<PointerPress>,
     on_hover_change: Callback<bool>,
     on_hover_move: Callback<PointerPress>,
+    on_pointed_change: Callback<bool>,
     on_active_change: Callback<bool>,
     on_cancel: ClickCallback,
     on_middle_click: ClickCallback,
@@ -130,6 +132,7 @@ pub(crate) fn interactive(
         node.on_click_at = on_click_at;
         node.on_hover_change = on_hover_change;
         node.on_hover_move = on_hover_move;
+        node.on_pointed_change = on_pointed_change;
         node.on_active_change = on_active_change;
         node.on_cancel = on_cancel;
         node.on_middle_click = on_middle_click;
@@ -187,6 +190,10 @@ pub(crate) fn interactive(
     create_binding(move || {
         let cursor = cursor.get();
         with_document(|document| document.set_interactive_cursor(interactive, cursor))
+    });
+    create_binding(move || {
+        let image = cursor_image.get();
+        with_document(|document| document.set_interactive_cursor_image(interactive, image))
     });
     create_binding(move || {
         let (repeat, touch) = (repeat_drag.get(), touch_drags.get());

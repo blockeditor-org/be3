@@ -31,7 +31,7 @@ fn a_window_moved_by_a_laser_touch_is_carried_along_that_laser() {
     assert_eq!(
         touches(&moved),
         [],
-        "the app sees no moves while it is carried"
+        "the program sees no moves while it is carried"
     );
     let held = space.panel(window).unwrap().world(bar);
     assert!(off_ray(held, left_hand(), to) < 0.005, "{held} {to}");

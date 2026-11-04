@@ -15,12 +15,12 @@ use crate::reactive::create_effect;
 use crate::reactive::on_cleanup;
 use crate::reactive::owner_scope;
 use crate::reactive::untrack;
-use beui_core::base::list::Direction;
+use be_lib_stable_hash::HashMap;
 use beui_core::current::with_document;
-use beui_core::node::NodeId;
+use beui_types::Direction;
+use beui_types::NodeId;
 use std::cell::Cell;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 use std::rc::Weak;
@@ -234,7 +234,8 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
     fn position(&self, key: &K) -> Option<usize> {
         let mut indices = self.indices.borrow_mut();
         let indices = indices.get_or_insert_with(|| {
-            let mut indices = HashMap::with_capacity(self.keys.borrow().len());
+            let mut indices =
+                HashMap::with_capacity_and_hasher(self.keys.borrow().len(), Default::default());
             for (index, key) in self.keys.borrow().iter().enumerate() {
                 indices.entry(key.clone()).or_insert(index);
             }

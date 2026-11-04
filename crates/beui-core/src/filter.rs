@@ -1,4 +1,4 @@
-use crate::geometry::Rect;
+use beui_types::Rect;
 
 pub const MAX_BLUR: f32 = 120.0;
 

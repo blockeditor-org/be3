@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use be_commit::{CommitId, now_milliseconds};
-use be_protocol::{ClientId, SessionState};
-use be_session::{Claim, Lease};
+use be_block_commit::{CommitId, now_milliseconds};
+use be_block_protocol::{ClientId, SessionState};
+use be_block_session::{Claim, Lease};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -117,6 +117,9 @@ impl SessionRegistry {
     }
 }
 
+/// An empty session is remembered while it carries a `clean_at`, so the registry grows with the
+/// number of blocks ever edited live. If that matters, evict by age: dropping the marker would
+/// lose what it is for.
 fn forgettable(lease: &Lease) -> bool {
     lease.is_empty() && lease.clean_at().is_none()
 }

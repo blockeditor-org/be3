@@ -5,14 +5,14 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-commit = { path = "../be-commit", default-features = false }
-be-graph = { path = "../be-graph" }
-be-model = { path = "../be-model" }
-be-store = { path = "../be-store", default-features = false }
+be-block-commit = { path = "../be-block-commit", default-features = false }
+be-block-graph = { path = "../be-block-graph" }
+be-block-model = { path = "../be-block-model" }
+be-block-store = { path = "../be-block-store", default-features = false }
 memchr = "2"
 postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }
-ui-types = { path = "../ui-types" }
+be-lib-ui-preferences = { path = "../be-lib-ui-preferences" }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [lints]

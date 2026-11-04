@@ -1,0 +1,430 @@
+use std::cell::RefCell;
+
+use be_sdk_beui::be_sdk_ui::{BlockCatalog, BlockTypes};
+use be_sdk_beui::beui::NodeId;
+use be_sdk_beui::beui::dock::{TabId, dock_menu};
+use be_sdk_beui::beui::icons::ICON_LOCK;
+use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use be_sdk_beui::{
+    ArtifactState, BarAction, ChildBlock, ChildBlockHandle, ChildDockTab, ChildMode, ChildTarget,
+    Editor, TopBar,
+};
+use uuid::Uuid;
+
+use super::artifact::ArtifactBar;
+use super::block_menu::with_block_menu;
+use super::deleted::DeletedBar;
+use super::linked::LinkedBar;
+use super::tab::TabItem;
+use super::workspace::{PanelStatus, Workspace};
+use beui::Align;
+
+const PANEL_PADDING: Space = Space::Lg;
+const PANEL_SPACING: Space = Space::Sm;
+
+#[derive(Clone, PartialEq)]
+pub struct Refs {
+    pub state: Ready<()>,
+    pub list: Vec<BlockInfo>,
+}
+
+impl Default for Refs {
+    fn default() -> Self {
+        Self {
+            state: Err(Pending::Loading),
+            list: Vec::new(),
+        }
+    }
+}
+
+impl Refs {
+    fn sort(&mut self, types: &BlockCatalog) {
+        self.list.sort_by_cached_key(|info| {
+            (info.deleted, info.label(types).name.to_lowercase(), info.id)
+        });
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub struct TabInfo {
+    pub item: TabItem,
+    pub editor: Option<Uuid>,
+    pub view: Option<Uuid>,
+    pub access: AccessLevel,
+    pub ceiling: AccessLevel,
+    pub can_edit: bool,
+    pub dynamic_artifact: bool,
+    pub type_name: String,
+    pub parent: Option<BlockParent>,
+    pub container: Option<Uuid>,
+    pub parents: Refs,
+    pub references: Refs,
+    pub backrefs: Refs,
+    pub artifact: Option<ArtifactState>,
+    pub deleted: Option<Deleted>,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct Deleted {
+    pub root: Uuid,
+    pub inside: Option<String>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Content {
+    Block,
+    Denied,
+}
+
+#[derive(Default)]
+pub struct Watched {
+    id: Option<Uuid>,
+    parents: Option<BlockList>,
+    references: Option<BlockList>,
+    backrefs: Option<BlockList>,
+}
+
+impl Watched {
+    fn follow(&mut self, client: &Blocks, id: Uuid) {
+        if self.id == Some(id) {
+            return;
+        }
+        self.id = Some(id);
+        self.parents = Some(client.watch(BlockQuery::Parents(id)));
+        self.references = Some(client.watch(BlockQuery::References(id)));
+        self.backrefs = Some(client.watch(BlockQuery::Backrefs(id)));
+    }
+}
+
+fn refs(list: Option<&BlockList>) -> Refs {
+    list.map_or_else(Refs::default, |list| match list.read() {
+        Ok(list) => Refs {
+            state: Ok(()),
+            list,
+        },
+        Err(pending) => Refs {
+            state: Err(pending),
+            list: Vec::new(),
+        },
+    })
+}
+
+pub fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> Option<TabInfo> {
+    let item = workspace.tab(tab)?;
+    read_item_info(workspace, item, workspace.view_of(tab), watched)
+}
+
+fn read_owner_info(
+    workspace: &Workspace,
+    block: Uuid,
+    watched: &RefCell<Watched>,
+) -> Option<TabInfo> {
+    let block_type = workspace.known_type(block)?;
+    read_item_info(workspace, TabItem::new(block, block_type), None, watched)
+}
+
+fn read_item_info(
+    workspace: &Workspace,
+    item: TabItem,
+    view: Option<Uuid>,
+    watched: &RefCell<Watched>,
+) -> Option<TabInfo> {
+    workspace.record_type(item.id, item.block_type);
+    let mut watched = watched.borrow_mut();
+    watched.follow(&workspace.blocks(), item.id);
+    let access = workspace.access(item.id);
+    let ceiling = workspace.ceiling(item.id);
+    let own = workspace.info(item.id);
+    let parent = own.as_ref().and_then(|info| info.parent);
+    let parents = refs(watched.parents.as_ref());
+    let mut references = refs(watched.references.as_ref());
+    let mut backrefs = refs(watched.backrefs.as_ref());
+    for reference in parents
+        .list
+        .iter()
+        .chain(references.list.iter())
+        .chain(backrefs.list.iter())
+    {
+        workspace.record_reference_types(reference);
+    }
+    let types = workspace.types();
+    references.sort(&types);
+    backrefs.sort(&types);
+    let deleted = own.filter(|info| info.deleted).map(|info| {
+        let root = parents.list.iter().find(|above| above.deleted);
+        Deleted {
+            root: root.map_or(info.id, |root| root.id),
+            inside: root.map(|root| root.label(types.as_ref()).name),
+        }
+    });
+    let type_name = types
+        .display_name(item.block_type)
+        .map_or_else(|| item.block_type.to_string(), str::to_owned);
+    Some(TabInfo {
+        editor: workspace.editor_of(&item),
+        item,
+        view,
+        access,
+        ceiling,
+        can_edit: workspace.can_edit(item.id),
+        dynamic_artifact: workspace
+            .info(item.id)
+            .is_some_and(|info| info.is_artifact()),
+        type_name,
+        parent,
+        container: workspace.container_of(item.id),
+        parents,
+        references,
+        backrefs,
+        artifact: {
+            workspace.editor().artifacts().get();
+            workspace.host().artifact(item.id)
+        },
+        deleted,
+    })
+}
+
+#[component]
+pub(crate) fn BlockPanel(
+    workspace: Workspace,
+    tab: TabId,
+    bar: RenderFn<(), NodeId>,
+    preview: Prop<Option<ChildTarget>>,
+    on_details: Callback<()>,
+) -> NodeId {
+    let info = create_signal(None::<TabInfo>);
+    let watched = RefCell::new(Watched::default());
+    create_effect(move || {
+        info.set(read_info(&workspace, tab, &watched));
+    });
+    let content = create_memo(move || match info.get() {
+        Some(info) if !info.access.can_view() => Content::Denied,
+        Some(_) | None => Content::Block,
+    });
+    let editor = workspace.editor();
+    let phone = workspace.phone;
+    let top_bar = create_memo(move || match phone.get() {
+        true => TopBar::Phone,
+        false => TopBar::Shown,
+    });
+    let session = untrack(|| workspace.tab(tab)).is_some_and(|item| {
+        item.block_type
+            == <be_sdk_beui::be_block::EditorViewContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE
+    });
+    let preview = create_memo(move || preview.get());
+    let previewing = create_memo(move || preview.get().is_some());
+    let live = create_memo(move || !previewing.get());
+    let child_menu = create_signal(Vec::<MenuNode>::new());
+    dock_menu(create_memo(move || {
+        let nodes = child_menu.get();
+        match session {
+            true => nodes,
+            false => info.with(|info| match info {
+                Some(info) => with_block_menu(workspace, info, nodes),
+                None => nodes,
+            }),
+        }
+    }));
+    let docked_tab = RenderFn::new(move |docked: ChildDockTab| {
+        view! {
+            <DockedBlockTab
+                workspace={workspace}
+                info={info.read_only()}
+                session
+                docked
+                bar={move || bar.call(())}
+            />
+        }
+    });
+    view! {
+        <Frame>
+            <List spacing=Space::None>
+                <Show condition={!session}>
+                    <ArtifactBar workspace={workspace} info={info.read_only()} />
+                </Show>
+                <Show condition={!session}>
+                    <DeletedBar workspace={workspace} info={info.read_only()} />
+                </Show>
+                <Show condition={!session}>
+                    <LinkedBar workspace={workspace} info={info.read_only()} />
+                </Show>
+                <TabBar bar={move || bar.call(())} own=true />
+                <ShowKeepAlive condition={live}>
+                    <ListItem grow=1.0>
+                        <List spacing=Space::None>
+                            <Dynamic value={content}>|content: Content| {
+                                match content {
+                                    Content::Denied => view! {
+                                        <ListItem grow=1.0>
+                                            <AccessDenied info={info.read_only()} />
+                                        </ListItem>
+                                    },
+                                    Content::Block => view! {
+                                        <ListItem grow=1.0>
+                                            <BlockChild
+                                                editor={editor}
+                                                info={info.read_only()}
+                                                menu={child_menu}
+                                                docked_tab
+                                                top_bar={top_bar}
+                                                on_bar={move |action: BarAction| match action {
+                                                    BarAction::Details => on_details.call(()),
+                                                }}
+                                            />
+                                        </ListItem>
+                                    },
+                                }
+                            }</Dynamic>
+                        </List>
+                    </ListItem>
+                </ShowKeepAlive>
+                <Show condition={previewing}>
+                    <ListItem grow=1.0>
+                        <ChildBlock
+                            editor
+                            block={preview}
+                            mode=ChildMode::Live
+                            own_frame=true
+                            top_bar=TopBar::Hidden
+                            @test_id={"workspace.revision.preview"}
+                        >|handle: ChildBlockHandle|
+                            <PanelStatus state={handle.state} loading="Loading revision…" />
+                        </ChildBlock>
+                    </ListItem>
+                </Show>
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn BlockChild(
+    editor: Editor,
+    info: ReadSignal<Option<TabInfo>>,
+    menu: Signal<Vec<MenuNode>>,
+    docked_tab: RenderFn<ChildDockTab, NodeId>,
+    top_bar: Memo<TopBar>,
+    on_bar: be_sdk_beui::beui::reactive::Callback<BarAction>,
+) -> NodeId {
+    let target = create_memo(move || {
+        info.with(|info| {
+            info.as_ref().map(|info| {
+                let target =
+                    ChildTarget::new(info.item.id, info.item.block_type).edited_with(info.editor);
+                match info.view {
+                    Some(view) => target.viewed_by(view),
+                    None => target,
+                }
+            })
+        })
+    });
+    view! {
+        <ChildBlock
+            editor={editor}
+            block={target}
+            mode=ChildMode::Live
+            own_frame=true
+            top_bar={top_bar}
+            on_bar={on_bar}
+            docked_tab={docked_tab}
+            @test_id={"workspace.block"}
+        >|handle: ChildBlockHandle| {
+            let own = handle.menu;
+            create_effect(move || menu.set(own.get()));
+            on_cleanup(move || menu.set(Vec::new()));
+            view! {
+                <PanelStatus state={handle.state} loading="This block is loading…" />
+            }
+        }</ChildBlock>
+    }
+}
+
+#[component]
+fn DockedBlockTab(
+    workspace: Workspace,
+    info: ReadSignal<Option<TabInfo>>,
+    session: bool,
+    docked: ChildDockTab,
+    bar: RenderFn<(), NodeId>,
+) -> NodeId {
+    let ChildDockTab { menu, body, owner } = docked;
+    let own = owner.is_none();
+    let (info, session) = match owner {
+        None => (info, session),
+        Some(block) => {
+            let owned = create_signal(None::<TabInfo>);
+            let watched = RefCell::new(Watched::default());
+            create_effect(move || owned.set(read_owner_info(&workspace, block, &watched)));
+            let session = untrack(|| workspace.known_type(block)) == Some(
+                <be_sdk_beui::be_block::EditorViewContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE,
+            );
+            (owned.read_only(), session)
+        }
+    };
+    dock_menu(create_memo(move || {
+        let nodes = menu.get();
+        match session {
+            true => nodes,
+            false => info.with(|info| match info {
+                Some(info) => with_block_menu(workspace, info, nodes),
+                None => nodes,
+            }),
+        }
+    }));
+    view! {
+        <List spacing=Space::None>
+            <Show condition={!session}>
+                <ArtifactBar workspace={workspace} info={info} />
+            </Show>
+            <Show condition={!session}>
+                <DeletedBar workspace={workspace} info={info} />
+            </Show>
+            <Show condition={!session}>
+                <LinkedBar workspace={workspace} info={info} />
+            </Show>
+            <TabBar bar={move || bar.call(())} own />
+            <ListItem grow=1.0>
+                <Layers @test_id={"workspace.block"}>{body}</Layers>
+            </ListItem>
+        </List>
+    }
+}
+
+#[component]
+fn TabBar(bar: RenderFn<(), NodeId>, own: bool) -> NodeId {
+    match own {
+        true => bar.call(()),
+        false => view! {
+            <List spacing=Space::None />
+        },
+    }
+}
+
+#[component]
+fn AccessDenied(info: ReadSignal<Option<TabInfo>>) -> NodeId {
+    let simulated = create_memo(move || {
+        info.with(|info| info.as_ref().is_some_and(|info| info.ceiling.can_view()))
+    });
+    let first = create_memo(move || match simulated.get() {
+        true => "An account that only knows this block exists cannot open it.".to_owned(),
+        false => "You do not have permission to open this block.".to_owned(),
+    });
+    let second = create_memo(move || match simulated.get() {
+        true => "Switch back to Can view or Can edit to see it.".to_owned(),
+        false => "Ask someone who can edit it to share it with you.".to_owned(),
+    });
+    view! {
+        <Frame padding=PANEL_PADDING>
+            <List spacing=PANEL_SPACING align=Align::Center>
+                <Text style=TextStyle::HEADING>
+                    <Icon glyph=ICON_LOCK />
+                    "No access"
+                </Text>
+                <Text style=TextStyle::CAPTION>{first}</Text>
+                <Text style=TextStyle::CAPTION>{second}</Text>
+            </List>
+        </Frame>
+    }
+}

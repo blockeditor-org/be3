@@ -1,9 +1,9 @@
+use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 
+use beui_reactive::{Get, OwnedSignal, ReadSignal, Set, Signal};
 use beui_types::text::LineBox;
 use beui_types::{Measured, Pos2, Rect};
-use reactive::{Get, OwnedSignal, ReadSignal, Set, Signal};
 
 use crate::node::NodeId;
 

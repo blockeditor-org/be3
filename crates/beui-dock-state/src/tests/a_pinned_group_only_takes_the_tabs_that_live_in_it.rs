@@ -1,0 +1,67 @@
+use super::*;
+
+#[test]
+fn a_pinned_group_only_takes_the_tabs_that_live_in_it() {
+    let mut state = DockState::new([TabId::new(1)]);
+    let leaf = state.leaves(state.main())[0];
+    let layout = DockTree::Tabs {
+        entries: vec![DockTreeEntry::Tab(TabId::new(10))],
+        active: 0,
+        vertical: false,
+        icons_only: false,
+        sidebar: SIDEBAR_WIDTH,
+        bare: false,
+    };
+    let group = state.insert_pinned_group(leaf, 1, &layout);
+    let inner = state.tree_leaves(Tree::Group(group))[0];
+
+    state.drop_tab(
+        TabId::new(1),
+        DockDrop::Tab {
+            leaf: inner,
+            index: 1,
+        },
+    );
+
+    assert_eq!(
+        state.group_tabs(group),
+        vec![TabId::new(10)],
+        "a tab from outside is refused"
+    );
+    state.set_locked(DockHome::Group(group), false);
+    state.drop_tab(TabId::new(1), DockDrop::Tab { leaf: inner, index: usize::MAX });
+    assert_eq!(
+        state.group_tabs(group),
+        vec![TabId::new(10)],
+        "unlocked too: a pinned group holds only its own tabs"
+    );
+
+    state.drop_tab(
+        TabId::new(10),
+        DockDrop::Window {
+            pos: Pos2::new(40.0, 40.0),
+        },
+    );
+
+    assert!(
+        state.group_tabs(group).is_empty(),
+        "its own tab can leave once the group is unlocked"
+    );
+    assert_eq!(state.windows().len(), 1);
+
+    let inner = state.tree_leaves(Tree::Group(group))[0];
+    state.drop_tab(
+        TabId::new(10),
+        DockDrop::Tab {
+            leaf: inner,
+            index: 0,
+        },
+    );
+
+    assert_eq!(
+        state.group_tabs(group),
+        vec![TabId::new(10)],
+        "and its own tab can come back"
+    );
+    assert!(state.windows().is_empty());
+}

@@ -2,21 +2,29 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use reactive::{Stored, on_cleanup, store};
+use beui_reactive::{Stored, on_cleanup, store};
 
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeOf, Rects};
 use crate::painter::Painter;
+use beui_types::Direction;
+use beui_types::NodeId;
+use beui_types::{Rect, Vec2};
 
+/// Where an embed was laid out, in window coordinates, and the clip around it. `raster` is
+/// its window's raster over the document's scale (1 unless the host draws the window
+/// finer or coarser), announced again when a `WindowReport::Rastered` changes it, so the
+/// host can draw the embed as sharp as the window.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EmbedPlacement {
     pub rect: Rect,
     pub clip: Rect,
+    pub radius: f32,
     pub raster: f32,
 }
 
 type PlaceListener = Box<dyn Fn(Option<EmbedPlacement>)>;
+type InertListener = Box<dyn Fn(bool)>;
 
 #[derive(Default)]
 pub struct EmbedState {
@@ -24,6 +32,8 @@ pub struct EmbedState {
     placement: Cell<Option<EmbedPlacement>>,
     concealed: Cell<bool>,
     listener: RefCell<Option<PlaceListener>>,
+    inert: Cell<bool>,
+    inert_listener: RefCell<Option<InertListener>>,
 }
 
 impl EmbedState {
@@ -48,6 +58,15 @@ impl EmbedState {
         }
     }
 
+    fn make_inert(&self, inert: bool) {
+        if self.inert.replace(inert) == inert {
+            return;
+        }
+        if let Some(listener) = self.inert_listener.borrow().as_ref() {
+            listener(inert);
+        }
+    }
+
     pub(crate) fn conceal(&self, concealed: bool) {
         let was = self.shown();
         self.concealed.set(concealed);
@@ -65,6 +84,9 @@ impl EmbedState {
     }
 }
 
+/// How an `Embed` hands its placement to whoever draws what it reserves; owned by the scope
+/// that made it. `on_inert` hears when a layer modal to assistive technology covers it, so
+/// a host leaves that app out of its description.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct EmbedSlot(pub Stored<EmbedState>);
 
@@ -92,12 +114,27 @@ impl EmbedSlot {
         *state.listener.borrow_mut() = Some(Box::new(listener));
         on_cleanup(move || drop(state.listener.take()));
     }
+
+    pub fn inert(&self) -> bool {
+        self.0.with(|state| state.inert.get())
+    }
+
+    pub fn on_inert(&self, listener: impl Fn(bool) + 'static) {
+        let state = self.0.value();
+        *state.inert_listener.borrow_mut() = Some(Box::new(listener));
+        on_cleanup(move || drop(state.inert_listener.take()));
+    }
 }
 
+/// Reserves a rectangle for something outside the document (an editor the host composites
+/// behind the surface) and, unless `punch` is false, cuts it out of the surface so what is
+/// behind shows through. What the host draws there covers the document, overlays aside,
+/// and nodes marked `above_embeds` that paint after it.
 pub struct EmbedNode {
     child: Option<NodeId>,
     punch: bool,
     rotation: f32,
+    radius: f32,
     state: Rc<EmbedState>,
     own: Option<NodeId>,
 }
@@ -127,6 +164,18 @@ impl Element for EmbedNode {
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
     }
 
+    fn least_length(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        direction: Direction,
+        cross: f32,
+    ) -> Option<f32> {
+        Some(self.child.map_or(0.0, |child| {
+            crate::layout::least_length(doc, painter, child, direction, cross)
+        }))
+    }
+
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let grid = doc.pixel_grid();
         let placed = grid.snap_rect(painter.to_screen(rect));
@@ -135,6 +184,9 @@ impl Element for EmbedNode {
             clip: grid
                 .snap_rect(painter.to_screen(painter.clip_rect()))
                 .intersect(placed),
+            radius: painter
+                .to_screen(Rect::from_min_size(rect.min, Vec2::new(self.radius, 0.0)))
+                .width(),
             raster: self.own.map_or(1.0, |own| doc.raster_of(own)),
         }));
         if let Some(child) = self.child {
@@ -146,7 +198,7 @@ impl Element for EmbedNode {
         if self.punch {
             painter
                 .rotated(rect.center(), self.rotation)
-                .punch(rect, 0.0);
+                .punch(rect, self.radius);
         }
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
@@ -217,6 +269,19 @@ impl Document {
         }
     }
 
+    pub(crate) fn refresh_inert_embeds(&mut self) {
+        let embeds: Vec<Rc<EmbedState>> = self
+            .embeds
+            .iter()
+            .filter_map(std::rc::Weak::upgrade)
+            .collect();
+        for embed in embeds {
+            if let Some(node) = embed.node.get().filter(|node| self.contains(*node)) {
+                embed.make_inert(self.inert(node));
+            }
+        }
+    }
+
     pub fn create_embed(&mut self, state: Rc<EmbedState>) -> NodeOf<EmbedNode> {
         state.concealed.set(self.hidden);
         if !self
@@ -230,6 +295,7 @@ impl Document {
             child: None,
             punch: false,
             rotation: 0.0,
+            radius: 0.0,
             state,
             own: None,
         });
@@ -252,6 +318,12 @@ impl Document {
     pub fn set_embed_rotation(&mut self, embed: NodeOf<EmbedNode>, rotation: f32) {
         if self.arena.get_as::<EmbedNode>(embed).rotation != rotation {
             self.arena.paint_mut_as::<EmbedNode>(embed).rotation = rotation;
+        }
+    }
+
+    pub fn set_embed_radius(&mut self, embed: NodeOf<EmbedNode>, radius: f32) {
+        if self.arena.get_as::<EmbedNode>(embed).radius != radius {
+            self.arena.get_mut_as::<EmbedNode>(embed).radius = radius;
         }
     }
 }

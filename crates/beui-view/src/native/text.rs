@@ -1,3 +1,4 @@
+use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::ChildSegment;
 use crate::reactive::Children;
@@ -10,23 +11,23 @@ use crate::reactive::SlotId;
 use crate::reactive::create_binding;
 use crate::reactive::create_effect;
 use crate::text_children::{Span, TextChild, TextItem};
-use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::base::text::SpanContent;
 use beui_core::base::text::SpanHandle;
 use beui_core::base::text::TextNode;
 use beui_core::base::text::TextPart;
 use beui_core::base::text::TextStyle;
-use beui_core::color::Color;
 use beui_core::current::with_document;
-use beui_core::font::FontId;
-use beui_core::font::Overflow;
-use beui_core::font::TextAlign;
-use beui_core::node::NodeId;
 use beui_core::node::NodeOf;
-use beui_core::rich::TextCaret;
-use beui_core::rich::TextGlyph;
-use beui_core::rich::TextMark;
 use beui_core::tree::ParentKind;
+use beui_types::Color;
+use beui_types::DEFAULT_FONT_SIZE;
+use beui_types::FontId;
+use beui_types::NodeId;
+use beui_types::Overflow;
+use beui_types::TextAlign;
+use beui_types::TextCaret;
+use beui_types::TextGlyph;
+use beui_types::TextMark;
 use std::rc::Rc;
 
 pub(crate) fn text(
@@ -42,6 +43,7 @@ pub(crate) fn text(
     marks: Prop<Vec<TextMark>>,
     glyphs: Prop<Vec<TextGlyph>>,
     carets: Prop<Vec<TextCaret>>,
+    on_truncated: Callback<bool>,
     children: Children<TextChild>,
 ) -> NodeId {
     let (string, children) = match children.into_only() {
@@ -94,6 +96,9 @@ pub(crate) fn text(
         let carets = carets.get();
         with_document(|document| document.set_text_carets(node, carets))
     });
+    if !on_truncated.is_empty() {
+        with_document(|document| document.set_text_on_truncated(node, on_truncated));
+    }
     children.mount(node);
     node.id()
 }

@@ -1,17 +1,18 @@
-use foldhash::{HashMap, HashSet};
+use be_lib_stable_hash::{HashMap, HashSet};
 use std::any::Any;
 use std::collections::VecDeque;
 use std::hash::Hash;
 use std::rc::Rc;
 
-use crate::base::list::Direction;
 use crate::base::offset::item_rect;
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, FocusChild, NodeId, NodeOf, Rects};
+use crate::node::{Element, FocusChild, NodeOf, Rects};
 use crate::painter::Painter;
-use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope};
+use ::beui_reactive::{KeyedItems, ScopeContext, numbered, owner_scope};
+use beui_types::Direction;
+use beui_types::NodeId;
 use beui_types::rows::RowMetrics;
+use beui_types::{Rect, Vec2};
 
 const ROW_LIMIT: usize = 4096;
 const ANCHOR_SLACK: f32 = 4.0;

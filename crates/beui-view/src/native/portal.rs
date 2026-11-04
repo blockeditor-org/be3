@@ -4,7 +4,7 @@ use crate::reactive::create_binding;
 use crate::reactive::on_cleanup;
 use beui_core::current::with_document;
 use beui_core::document::Document;
-use beui_core::node::NodeId;
+use beui_types::NodeId;
 
 pub(crate) fn portal(node: Prop<Option<NodeId>>) -> NodeId {
     let portal = with_document(Document::create_portal);

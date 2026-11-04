@@ -43,7 +43,7 @@ impl Node {
         }))
     }
 
-    fn tag(&self) -> Option<&'static str> {
+    pub fn tag(&self) -> Option<&'static str> {
         match self.0.kind {
             Kind::Element(tag) => Some(tag),
             _ => None,

@@ -6,33 +6,30 @@ license.workspace = true
 
 [dependencies]
 base64 = "0.22"
-be-portal = { path = "../be-portal" }
+be-server-portal = { path = "../be-server-portal" }
 argon2 = "0.5"
 chacha20poly1305 = "0.10"
 be-block = { path = "../be-block" }
-be-commit = { path = "../be-commit" }
-be-graph = { path = "../be-graph" }
-be-keys = { path = "../be-keys" }
-be-protocol = { path = "../be-protocol" }
-be-session = { path = "../be-session" }
-be-store = { path = "../be-store" }
-build-id = { path = "../build-id" }
+be-block-commit = { path = "../be-block-commit" }
+be-block-graph = { path = "../be-block-graph" }
+be-block-keys = { path = "../be-block-keys" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-block-protocol = { path = "../be-block-protocol" }
+be-block-session = { path = "../be-block-session" }
+be-block-store = { path = "../be-block-store" }
+be-lib-build-id = { path = "../be-lib-build-id" }
 futures-util = "0.3"
 httparse = "1"
 rand = "0.9"
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
-sqlite-schema = { path = "../sqlite-schema" }
+be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-tungstenite = "0.23"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ureq = { version = "2", features = ["json"] }
 uuid = { version = "1", features = ["serde", "v4"] }
-
-[target.'cfg(beui_html)'.dependencies]
-be-portal-ui = { path = "../be-portal-ui" }
 
 [lints]
 workspace = true

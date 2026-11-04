@@ -14,7 +14,7 @@ fn Switch(
 
 #[test]
 fn a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own() {
-    let _root = ::reactive::RootScope::new();
+    let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let given = create_signal(false);

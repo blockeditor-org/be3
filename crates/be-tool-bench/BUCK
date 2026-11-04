@@ -1,0 +1,34 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/platforms:profile.bzl", "released")
+load(":defs.bzl", "suite")
+
+# The benchmark suite (guides/performance.md): what each benchmark reports its
+# metrics through, and the runner that runs them and compares two builds.
+
+cargo_library()
+
+cargo_test()
+
+cargo_binary()
+
+# `./scripts/buck run //crates/be-tool-bench:suite -- [run|compare BASE|list]`, always
+# in release. The names under programs are the ones src/suite.rs runs.
+suite(
+    name = "suite-any-profile",
+    host = "//crates/be-host:native",
+    libraries = "//buck/sysroot:amd64-libraries",
+    programs = {
+        "access-bench": "//crates/be-block-graph:example-access-bench",
+        "canvas-bench": "//crates/be-app-infinite-canvas:example-canvas-bench",
+        "host-bench": "//crates/be-host-bench:bin",
+        "open-bench": "//crates/beui-demo:example-open-bench",
+        "space-bench": "//crates/beui-demo:example-space-bench",
+        "text-bench": "//crates/beui-host:example-text-bench",
+    },
+    runner = ":bin",
+)
+
+released(
+    name = "suite",
+    actual = ":suite-any-profile",
+)

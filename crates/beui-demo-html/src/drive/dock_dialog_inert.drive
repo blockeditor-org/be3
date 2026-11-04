@@ -1,0 +1,13 @@
+# A modal dock dialog blocks only its parent's tab, so it is not modal, but the
+# page it blocks is inert to assistive technology until it closes; the
+# dialog itself stays live.
+clock stop
+click '#demo.catalog.Docking'
+wheel '#dock.tab.2+0,300' 20
+role button 'Open a modal dialog' not-inert
+click '#demo.dialog.modal'
+wait '#dock.dialog.1099511627776'
+role button 'Open a modal dialog' inert
+click '#demo.dialog.1099511627776.close'
+gone '#dock.dialog.1099511627776'
+role button 'Open a modal dialog' not-inert

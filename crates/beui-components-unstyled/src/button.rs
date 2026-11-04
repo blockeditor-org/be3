@@ -14,6 +14,7 @@ use beui_view::{CORE, Core};
 #[derive(Clone, Copy)]
 pub struct ButtonHandle {
     pub hovered: ReadSignal<bool>,
+    pub pointed: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
     pub disabled: Memo<bool>,
@@ -25,6 +26,7 @@ pub struct ButtonHandle {
 
 #[derive(Clone, Copy)]
 struct State {
+    hovered: ReadSignal<bool>,
     active: ReadSignal<bool>,
     focused: ReadSignal<bool>,
 }
@@ -34,6 +36,7 @@ pub fn Button(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ButtonApi>,
     #[prop(children)] content: Option<Render<ButtonHandle>>,
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] description: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = Role::Button)] role: Role,
     action: Option<Action>,
@@ -56,6 +59,7 @@ pub fn Button(
 ) -> NodeId {
     let focus_request = focused;
     let hovered = create_signal(false);
+    let pointed = create_signal(false);
     let active = create_signal(false);
     let focused = create_signal(false);
     let key_active = create_signal(false);
@@ -68,18 +72,33 @@ pub fn Button(
     let glyph = create_memo(move || glyph.get());
     let icon_only = create_memo(move || icon_only.get());
     let expanded = expanded.map(|expanded| create_memo(move || expanded.get()));
+    let description = create_memo(move || description.get());
     let tooltip = create_memo(move || {
         let quiet = !icon_only.get() || expanded.is_some_and(|expanded| expanded.get());
-        match quiet {
+        let named = match quiet {
             true => String::new(),
             false => tooltip.get(),
-        }
+        };
+        description.with(
+            |description| match (named.is_empty(), description.is_empty()) {
+                (_, true) => named,
+                (true, false) => description.clone(),
+                (false, false) => format!("{named}\n{description}"),
+            },
+        )
     });
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
         if node.label().is_none() && !label.get().is_empty() {
             node.set_label(label.get());
+        }
+        if node.description().is_none() {
+            description.with(|description| {
+                if !description.is_empty() {
+                    node.set_description(description.clone());
+                }
+            });
         }
         if let Some(expanded) = expanded {
             node.set_expanded(expanded.get());
@@ -95,6 +114,7 @@ pub fn Button(
     let content_node = content.map(|build| {
         build.call(ButtonHandle {
             hovered: hovered.read_only(),
+            pointed: pointed.read_only(),
             active: active.read_only(),
             focused: focused.read_only(),
             disabled,
@@ -128,6 +148,7 @@ pub fn Button(
     let tab_stop = Prop::dynamic(move || tab_stop.get() && !disabled.get());
 
     api.fill(ButtonApi(State {
+        hovered: hovered.read_only(),
         active: active.read_only(),
         focused: focused.read_only(),
     }));
@@ -185,6 +206,7 @@ pub fn Button(
             on_click_at={click_at}
             on_press={on_press}
             on_hover_change={hovered}
+            on_pointed_change={pointed}
             on_active_change={active}
             children={content_node}
         />
@@ -195,6 +217,10 @@ pub fn Button(
 pub struct ButtonApi(State);
 
 impl ButtonApi {
+    pub fn hovered(&self) -> ReadSignal<bool> {
+        self.0.hovered
+    }
+
     pub fn active(&self) -> ReadSignal<bool> {
         self.0.active
     }
