@@ -96,6 +96,7 @@ impl DockState {
                 keep: leaf.keep,
                 area: leaf.area.clone(),
                 bare: leaf.bare,
+                hide_empty_bar: leaf.hide_empty_bar,
             }),
             Node::Split(split) => DockSpecNode::Split {
                 key: split.key.clone().unwrap_or_default(),
@@ -205,6 +206,7 @@ impl DockState {
                 leaf.keep = pane.keep && leaf.key.is_some();
                 leaf.area.clone_from(&pane.area);
                 leaf.bare = pane.bare;
+                leaf.hide_empty_bar = pane.hide_empty_bar;
                 Node::Leaf(leaf)
             }
             DockSpecNode::Split {

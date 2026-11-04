@@ -94,11 +94,13 @@ impl Desk {
                 takes: report
                     .floating
                     .iter()
+                    .filter(|rect| !report.marks.contains(rect))
                     .map(|rect| rect.translate(at))
                     .collect(),
                 paints: report
                     .floating_painted
                     .iter()
+                    .filter(|rect| !report.marks_painted.contains(rect))
                     .map(|rect| rect.translate(at))
                     .collect(),
             };

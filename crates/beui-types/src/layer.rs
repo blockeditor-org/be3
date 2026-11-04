@@ -34,6 +34,9 @@ pub enum AboveEmbeds {
     /// Also has the host draw the document's pixels there (the splitter's line and focus
     /// ring), so it counts in `overlay_painted_rects` too.
     Paints,
+    /// Paints, and stays above the windows a host opens over the document, as an overlay
+    /// does (a raised dock bar's band), where `Reaches` and `Paints` stay under them.
+    Raised,
 }
 
 /// Puts a layer and everything above it over every layer of a lower level.

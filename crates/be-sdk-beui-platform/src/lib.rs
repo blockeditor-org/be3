@@ -604,6 +604,8 @@ impl ModuleRunner {
             painted: report.painted.into_iter().map(to_region).collect(),
             floating: report.floating.into_iter().map(to_region).collect(),
             floating_painted: report.floating_painted.into_iter().map(to_region).collect(),
+            marks: report.marks.into_iter().map(to_region).collect(),
+            marks_painted: report.marks_painted.into_iter().map(to_region).collect(),
             scrims: report
                 .scrims
                 .into_iter()
