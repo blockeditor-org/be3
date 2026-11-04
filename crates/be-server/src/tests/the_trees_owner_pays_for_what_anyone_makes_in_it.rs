@@ -70,14 +70,18 @@ async fn the_trees_owner_pays_for_what_anyone_makes_in_it() {
     let moved = owner.move_to(child, BlockParent::Root).await;
     assert!(moved.is_ok(), "{moved:?}");
     assert_eq!(
-        held(&mut owner).await,
-        0,
-        "a block moved out takes its bytes"
+        (held(&mut owner).await, held(&mut editor).await),
+        (size, 0),
+        "a block moved to the top is charged to whoever moved it, never to its author"
     );
+
+    let own = editor.create_block(BlockParent::Root).await;
+    let moved = editor.move_to(child, BlockParent::Block(own)).await;
+    assert!(moved.is_ok(), "{moved:?}");
     assert_eq!(
-        held(&mut editor).await,
-        size,
-        "at the top a block is charged to its author"
+        (held(&mut owner).await, held(&mut editor).await),
+        (0, size),
+        "a block moved into someone's tree takes its bytes to that tree's owner"
     );
 
     harness.stop().await;

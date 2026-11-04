@@ -341,7 +341,8 @@ impl ServerStore {
     }
 
     /// Moves the charge for `block`'s subtree to the payer of where it is going: the new parent's
-    /// payer, or its author's at the top. Moving to the trash changes nothing until it is
+    /// payer, or at the top the mover's (an agent's creator), so nobody can put what they filled
+    /// onto someone else's quota by moving it to the top. Moving to the trash changes nothing until it is
     /// collected. Re-charging touches each block of the moved subtree and its objects, nothing
     /// else, and is refused when it would take the new payer past its quota. Call it before
     /// `BlockGraph::set_parent`, inside the move's transaction.
@@ -349,15 +350,18 @@ impl ServerStore {
         &self,
         graph: &BlockGraph,
         connection: &Connection,
-        organization: Uuid,
+        mover: Identity,
         block: Uuid,
         parent: BlockParent,
     ) -> Result<(), ServerError> {
-        let author = graph.get(block).ok_or(ServerError::Corrupt)?.author;
+        let organization = mover.organization;
+        if !graph.contains(block) {
+            return Err(ServerError::Corrupt);
+        }
         let payer = match parent {
             BlockParent::Detached => return Ok(()),
             BlockParent::Block(parent) => block_payer(connection, organization, parent)?,
-            BlockParent::Root => payer_of(connection, author)?,
+            BlockParent::Root => payer_of(connection, mover.account)?,
         };
         if block_payer(connection, organization, block)? == payer {
             return Ok(());
@@ -595,18 +599,15 @@ fn block_payer(
     organization: Uuid,
     block: Uuid,
 ) -> Result<Uuid, ServerError> {
-    let (payer, author): (String, String) = connection
-        .prepare_cached("SELECT payer, author FROM blocks WHERE organization_id = ?1 AND id = ?2")?
+    let payer: String = connection
+        .prepare_cached("SELECT payer FROM blocks WHERE organization_id = ?1 AND id = ?2")?
         .query_row(
             params![organization.to_string(), block.to_string()],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| row.get(0),
         )
         .optional()?
         .ok_or(ServerError::Corrupt)?;
-    match payer.is_empty() {
-        true => payer_of(connection, parse_uuid(&author)?),
-        false => parse_uuid(&payer),
-    }
+    parse_uuid(&payer)
 }
 
 /// The distinct objects a block holds, by any version or by `HoldObjects`.

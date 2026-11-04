@@ -23,6 +23,12 @@ async fn a_move_past_the_new_payers_quota_is_refused() {
 
     let moved = owner.move_to(child, BlockParent::Root).await;
     assert!(
+        moved.is_ok(),
+        "moving to the top keeps the mover paying: {moved:?}"
+    );
+    let own = editor.create_block(BlockParent::Root).await;
+    let moved = editor.move_to(child, BlockParent::Block(own)).await;
+    assert!(
         refused_as(&moved, ErrorCode::OverQuota),
         "a move charged its block to an account with no room: {moved:?}"
     );
@@ -32,8 +38,8 @@ async fn a_move_past_the_new_payers_quota_is_refused() {
         "a refused move left the charge"
     );
     assert_eq!(held(&mut editor).await, 0);
-    assert_ne!(
-        owner.read_block(child).await.parent,
+    assert_eq!(
+        editor.read_block(child).await.parent,
         Some(BlockParent::Root),
         "a refused move left the block where it was"
     );

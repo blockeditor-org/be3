@@ -11,11 +11,12 @@ Every block has a payer, stored on its row (`blocks.payer`):
   block "2" inside "1" and writes into it. "2" counts toward A's quota, not
   B's.
 - A move makes the moved subtree's payer that of where it goes: the new
-  parent's payer, or the block's author's at the top. When that changes the
-  payer, every block of the moved subtree and its objects are re-charged
-  (`follow_payer`), and the move is refused when it would take the new payer
-  past its quota. Moving to the trash changes nothing; the block stays charged
-  until it is collected, and restoring it keeps its payer.
+  parent's payer, or, at the top, the account that moved it (an agent's
+  creator). When that changes the payer, every block of the moved subtree and
+  its objects are re-charged (`follow_payer`), and the move is refused when it
+  would take the new payer past its quota. Moving to the trash changes
+  nothing; the block stays charged until it is collected, and restoring it
+  keeps its payer.
 - An account is charged once for each distinct object across the blocks it
   pays for (`account_objects`), and for every object those blocks hold: each
   version they keep, not only the head, and what they hold with
@@ -44,6 +45,10 @@ Every block has a payer, stored on its row (`blocks.payer`):
 - Agents are made freely by members, so charging them to their creator keeps
   one person to one quota. The payer is stored when a block is made, so
   removing an agent never moves its blocks onto a fresh quota.
+- At the top the mover pays, not the author: otherwise A could fill a block B
+  made inside A's tree, then move it to the top and leave its bytes on B's
+  quota. Making a block at the top is the same rule, since its maker is its
+  mover.
 - Only a move re-charges, and only the moved subtree: every other counter
   changes in O(depth).
 

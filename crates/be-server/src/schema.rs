@@ -113,7 +113,7 @@ const SCHEMA: &str = "
         metadata        BLOB NOT NULL DEFAULT x'',
         version         INTEGER NOT NULL DEFAULT 0,
         key_id          TEXT NOT NULL DEFAULT '',
-        payer           TEXT NOT NULL DEFAULT '',
+        payer           TEXT NOT NULL,
         PRIMARY KEY (organization_id, id)
     );
 

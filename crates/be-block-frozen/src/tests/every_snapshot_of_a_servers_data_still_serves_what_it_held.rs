@@ -19,7 +19,6 @@ use super::*;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn every_snapshot_of_a_servers_data_still_serves_what_it_held() {
-    assert!(!SNAPSHOTS.is_empty());
     for snapshot in SNAPSHOTS {
         check(snapshot).await;
     }

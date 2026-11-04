@@ -96,8 +96,8 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         for _ in 0..MAX_BLOCKS_PER_ACCOUNT {
             transaction
                 .execute(
-                    "INSERT INTO blocks (organization_id, id, content_type, author, parent_kind)
-                     VALUES (?1, ?2, ?3, ?4, 0)",
+                    "INSERT INTO blocks (organization_id, id, content_type, author, parent_kind, payer)
+                     VALUES (?1, ?2, ?3, ?4, 0, ?4)",
                     params![
                         organization.to_string(),
                         Uuid::new_v4().to_string(),

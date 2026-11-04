@@ -774,7 +774,7 @@ impl ServerStore {
                         && seen.can_view(graph, owner)
                 },
             )?;
-            store.follow_payer(graph, &transaction, identity.organization, block, parent)?;
+            store.follow_payer(graph, &transaction, identity, block, parent)?;
             let mut resized = chain(graph, block);
             graph.set_parent(block, parent)?;
             graph.touch(block)?;

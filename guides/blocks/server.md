@@ -158,8 +158,8 @@ with no bytes moving either way, so a large post on a slow link goes through.
 - **Storage** is charged to each block's payer (`blocks.payer`): its parent's
   payer, or at the top its author (an agent's creator), counting each distinct
   object once per payer and every version a block keeps. A move re-charges the
-  moved subtree to the payer of where it goes (`follow_payer`); the trash
-  changes nothing
+  moved subtree to the payer of where it goes (`follow_payer`), the mover at
+  the top; the trash changes nothing
   (`decisions/storage_is_charged_to_the_trees_owner.md`; `store/usage.rs`). An
   account may store `ServerConfig::account_quota` bytes, and an organization
   its settings' `storage_quota` bytes; an upload, publish or hold that would
