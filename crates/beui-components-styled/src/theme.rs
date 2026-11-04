@@ -10,6 +10,13 @@ use crate::tokens::{Size, Space};
 
 pub use beui_view::types::ThemeKind;
 
+/// The theme's colour tokens; the one place theme colours live. The built-in
+/// themes (`DARK`, `OLED`, `LIGHT`, `EPAPER`) are literal. A document with no
+/// `ThemeProvider` uses references instead (one CSS-style variable per token,
+/// light values from `LIGHT` or `EPAPER`, dark from `DARK` or `OLED`), so the
+/// colour scheme picks between them on either core and a prerendered page hydrates
+/// unchanged. Add a field, with a value in every built-in theme, for a colour that
+/// belongs to the theme rather than to one component.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Theme {
     pub kind: ThemeKind,
@@ -44,8 +51,11 @@ pub struct Theme {
     pub control_outline: Option<Color32>,
     pub knob_outline: Option<Color32>,
     pub dim: Color32,
+    /// Dims the program under a dialog, sheet or dock dialog.
     pub scrim: Color32,
+    /// Dims under the command palette and launcher, leaving the program readable.
     pub scrim_soft: Color32,
+    /// Dims under `Fullscreen`.
     pub scrim_strong: Color32,
     pub syntax: SyntaxColors,
 }

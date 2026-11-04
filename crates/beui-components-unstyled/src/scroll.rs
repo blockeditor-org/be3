@@ -37,6 +37,9 @@ const END_SLACK: f32 = 1.0;
 const AUTOSCROLL_GAIN: f32 = 6.0;
 const AUTOSCROLL_ACCELERATION: f32 = 0.02;
 
+/// How long the bar stays fully shown after the offset changes or the pointer
+/// leaves it, before fading out over [`SCROLLBAR_FADE_OUT`] on a timer that stops
+/// once hidden.
 pub const SCROLLBAR_LINGER: Duration = Duration::from_millis(1000);
 pub const SCROLLBAR_FADE_OUT: Duration = Duration::from_millis(250);
 
@@ -827,6 +830,20 @@ fn Scrolling(
     }
 }
 
+/// Scrolls its children along `direction` with wheel, touch drag, arrow keys,
+/// momentum and rubber banding, over a base `Offset`.
+///
+/// A gesture that starts with the scroll already at its edge that way is turned
+/// down so an enclosing scroll takes it; the choice is made once per gesture, so
+/// a fling into the band never moves the outer scroll mid-gesture. Unclaimed input
+/// is taken even at the edge, so the outermost scroll still bands.
+///
+/// `fit`/`max_length` make it as long as its content up to a bound; a `Frame` with
+/// a maximum around a scroll does not, since such a frame fills up to its maximum.
+///
+/// On the HTML core this is a real `overflow: auto` element (`BrowserScroll`): the
+/// browser scrolls and chains it, with none of the momentum, band or drawn bar,
+/// and `ScrollApi::animating` is always false.
 #[component]
 pub fn Scroll(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ScrollApi>,

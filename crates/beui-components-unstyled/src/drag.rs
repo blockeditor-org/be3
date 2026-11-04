@@ -34,6 +34,13 @@ pub struct DropHandle {
     pub pointer: ReadSignal<Option<DragPoint>>,
 }
 
+/// Puts `payload` on the document's drag board when dragged; a `None` payload
+/// cannot be dragged.
+///
+/// A press that never travels `threshold` is reported through `on_click`, so a
+/// draggable row does not also select itself at the end of a drag. Nested
+/// draggables set `capture_presses` so the innermost takes the press. A finger
+/// drag inside something that scrolls needs `touch_drags`, or it scrolls instead.
 #[component]
 pub fn Draggable<P>(
     payload: Prop<Option<P>>,
@@ -174,6 +181,11 @@ where
     }
 }
 
+/// Takes drops of `P` over the rectangle its content was laid out at (its
+/// on-screen part only). Of the accepting targets under the pointer the one painted
+/// last wins, whatever order they were built in, so nested targets each take
+/// their own drops. The drop is handed over before the source hears
+/// `on_drag_change(false)`, so the source can keep what it set up until then.
 #[component]
 pub fn DropTarget<P>(
     #[prop(default = None)] accepts: Option<Func<P, bool>>,

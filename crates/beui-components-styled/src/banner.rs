@@ -10,6 +10,9 @@ use crate::text::{Text, TextColor};
 use crate::tokens::{Padding, Space};
 use beui_view::types::{Align, Direction, ItemSize};
 
+/// An inline bar across an editor saying what failed until dismissed; shows
+/// nothing while `message` is `None`. Its test ids are `{id}` and `{id}.dismiss`,
+/// and it is an assertive live region (alert role) for screen readers.
 #[component]
 pub fn Banner(
     message: Prop<Option<String>>,

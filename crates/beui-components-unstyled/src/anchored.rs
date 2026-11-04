@@ -46,6 +46,11 @@ pub enum SheetWhen {
     Never,
 }
 
+/// The surface every anchored popup sits on: a dropdown under `anchor` when a
+/// mouse or pen opened it, the same content in a sheet when a finger did
+/// (`touched_by_finger`), unless `sheet` says otherwise. Content is built once per
+/// look the first time that look opens; bind focus to the handle's `shown`, not to
+/// `open`.
 #[component]
 pub fn Anchored(
     style: AnchoredStyle,

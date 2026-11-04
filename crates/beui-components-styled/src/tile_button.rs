@@ -9,6 +9,9 @@ use crate::frame::{Border, ColorRole, Frame, Radius};
 use crate::tokens::{Size, Stroke};
 use crate::tooltip::Tooltip;
 
+/// A square tile around any child, for a pick among pictures. `radio` reads it as
+/// one choice of a group and `toggle` as pressed while `selected`; with neither,
+/// `selected` is only drawn, for a tile that only acts.
 #[component]
 pub fn TileButton(
     label: Prop<String>,

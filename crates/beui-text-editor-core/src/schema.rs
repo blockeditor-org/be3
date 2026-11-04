@@ -48,6 +48,10 @@ pub struct TableLine {
     pub last: bool,
 }
 
+/// What is on a line, which markdown and rich text both describe and a text
+/// area's render hooks are keyed by; never how big anything is. `marker` covers
+/// the bytes the marker item draws (indentation, `>`, the list marker), which the
+/// caret still steps through. `continues` is a line continuing a list item.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LineLook {
     pub marker: std::ops::Range<usize>,
@@ -117,6 +121,10 @@ pub struct Tool {
     pub command: fn(&Selected) -> EditorCommand<'static>,
 }
 
+/// Gives a rich text document's keys their meaning: the document knows nothing
+/// of bold or headings. A schema decides what Enter, Backspace at a block's start
+/// and Tab do to a block, its tools, each leaf's style, and which blocks a
+/// highlighter decorates; `Core` itself owns only generic mark and block edits.
 pub trait Schema: Send + Sync {
     fn expand(&self, _key: &str) -> Expand {
         Expand::After

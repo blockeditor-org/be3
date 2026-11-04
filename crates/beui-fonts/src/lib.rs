@@ -1,3 +1,8 @@
+//! The bundled font faces: Inter (unmodified from Inter's release), Hack for
+//! monospace, Noto Emoji as the fallback and Lucide for icons. beui-font-freetype
+//! loads their bytes, and the HTML core writes `@font-face` rules from [`FACES`].
+//! There are no bold or italic faces: both are synthesised from the regular face.
+
 pub struct Face {
     pub family: &'static str,
     pub file: &'static str,

@@ -135,6 +135,10 @@ impl Camera {
     }
 }
 
+/// Turns wheel, trackpad, middle-button and pinch gestures over its rectangle
+/// into writes to `view`, which the caller may own so toolbars and hosts write the
+/// same camera. Momentum, snapping and clamping to content are the caller's; only
+/// `min_scale` and `max_scale` are applied here.
 #[component]
 pub fn PanZoom(
     #[prop(default = ComponentRef::new())] api: ComponentRef<PanZoomApi>,
