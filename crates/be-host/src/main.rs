@@ -568,6 +568,7 @@ struct HostCore {
     agents: Vec<be_block_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
     contacts: contacts::Contacts,
+    storage_published: Option<u64>,
     members: members::Members,
     scheduled_organization_list: bool,
     server_url: String,
@@ -855,6 +856,7 @@ impl HostCore {
             agents: Vec::new(),
             agent_created: None,
             contacts: contacts::Contacts::default(),
+            storage_published: None,
             members: members::Members::default(),
             scheduled_organization_list: false,
             server_url,
@@ -2880,6 +2882,7 @@ impl HostCore {
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
         self.contacts.publish();
+        self.publish_storage();
         self.load_organizations_if_needed();
         if self.choosing_session {
             self.root_settings.ensure();
@@ -2970,6 +2973,24 @@ impl HostCore {
             data_dir: self.data_dir.clone(),
             clock: be_block_client::Clock::real(),
         });
+    }
+
+    /// Follows the account's storage while an editor watches it, and publishes each answer.
+    fn publish_storage(&mut self) {
+        be_host_stack::watch_storage(be_host_base::watches::watched::<
+            be_sdk_api::StorageUsageWatch,
+        >());
+        let revision = Some(be_host_stack::storage_revision());
+        if self.storage_published == revision {
+            return;
+        }
+        self.storage_published = revision;
+        let usage = be_host_stack::storage_usage().map(|usage| be_sdk_api::AccountStorage {
+            held: usage.held,
+            pending: usage.pending,
+            quota: usage.quota,
+        });
+        be_host_base::watches::publish::<be_sdk_api::StorageUsageWatch>(&usage);
     }
 
     fn publish_administrator(&self) {

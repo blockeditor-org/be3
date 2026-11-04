@@ -21,6 +21,15 @@
         "Main"
       ]
     },
+    "storage": {
+      "id": "5b1f3c2e-7d4a-4e8b-9c61-2f0a8d3e7b45",
+      "edits": "73657474-696e-6773-2d62-6c6f636b3032",
+      "display_name": "Storage",
+      "icon": "\ue154",
+      "views": [
+        "Main"
+      ]
+    },
     "organization": {
       "id": "1367cb00-ef42-407f-a3d3-67cbd1eaafae",
       "edits": "73657474-696e-6773-2d62-6c6f636b3032",

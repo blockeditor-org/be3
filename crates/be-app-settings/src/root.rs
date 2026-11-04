@@ -7,6 +7,7 @@ mod block;
 mod devices;
 mod organization;
 mod setup;
+mod storage;
 mod ui;
 
 use be_sdk_beui::BlockQuery;
@@ -14,11 +15,14 @@ use be_sdk_beui::beui::styled::{Frame, List, Space};
 use block::{BlockSettingsView, is_block_settings};
 use devices::DevicesPage;
 use organization::{OfflinePage, OrganizationPage};
+use storage::StoragePage;
 use ui::{SettingsProfileView, SettingsView};
 use uuid::Uuid;
 
 /// The `devices` editor in manifest.json: the user's `Settings` block, compared across devices.
 pub(crate) const DEVICES_EDITOR: Uuid = Uuid::from_u128(0x9900d002_c861_49f7_a966_6243a3c4d1f3);
+/// The `storage` editor in manifest.json: the account's storage, on the user's `Settings` block.
+pub(crate) const STORAGE_EDITOR: Uuid = Uuid::from_u128(0x5b1f3c2e_7d4a_4e8b_9c61_2f0a8d3e7b45);
 /// The `organization` editor in manifest.json: the organization's `Settings` block, as policies.
 pub(crate) const ORGANIZATION_EDITOR: Uuid =
     Uuid::from_u128(0x1367cb00_ef42_407f_a3d3_67cbd1eaafae);
@@ -99,6 +103,22 @@ impl be_sdk_beui::BeuiRoot for DevicesRoot {
             <Root>
                 <Loaded>
                     <DevicesPage editor={editor} />
+                </Loaded>
+            </Root>
+        }
+    }
+}
+
+pub struct StorageRoot;
+
+#[component]
+impl be_sdk_beui::BeuiRoot for StorageRoot {
+    #[component]
+    fn View(editor: Editor) -> Root {
+        view! {
+            <Root>
+                <Loaded>
+                    <StoragePage editor={editor} />
                 </Loaded>
             </Root>
         }

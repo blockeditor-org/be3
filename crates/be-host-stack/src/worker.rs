@@ -83,6 +83,8 @@ pub(super) enum Command {
     },
     #[cfg(any(test, feature = "testing"))]
     Close(Uuid),
+    /// Ask the server for the account's storage again.
+    Storage,
     Operate(Uuid, Vec<u8>, Instant),
     ChangeChild {
         block: Uuid,
@@ -293,6 +295,7 @@ impl Command {
             | Command::Invite { .. }
             | Command::CreateAgent { .. }
             | Command::Sync
+            | Command::Storage
             | Command::HoldClock(_) => None,
         }
     }
@@ -392,6 +395,10 @@ pub struct Shared {
     pub pairing: Vec<PairingRequest>,
     pub contacts: Vec<be_block_client::Contact>,
     pub contacts_revision: u64,
+    /// The account's storage, while an editor watches it (`storage_watched`).
+    pub storage: Option<be_block_protocol::AccountStorage>,
+    pub storage_revision: u64,
+    pub storage_watched: bool,
     pub escrow_warning: Option<&'static str>,
     pub locked: std::collections::HashSet<Uuid>,
     pub version_watch: std::collections::HashSet<Uuid>,
@@ -1040,6 +1047,7 @@ impl Session<'_> {
         relist(shared);
         spawn_listings(peer, shared, &self.tasks.0);
         self.tasks.0.contacts(peer, shared);
+        self.tasks.0.storage(peer, shared);
         self.rejoin = true;
         self.settle_outbox().await;
         for (block, content_type) in self.wanted.blocks() {
@@ -1393,6 +1401,10 @@ impl Ran<'_> {
                 contact(self.peer, self.shared, self.config, self.tasks, command).await;
                 false
             }
+            Command::Storage => {
+                self.tasks.storage(self.peer, self.shared);
+                false
+            }
             Command::Members(command) => {
                 members(self.peer, self.shared, command).await;
                 false
@@ -1495,6 +1507,23 @@ async fn approve_pairing(
     ))
     .await?;
     Ok(())
+}
+
+async fn fetch_storage(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    match ask(client::account::storage_usage(&peer.connection())).await {
+        Ok(usage) => {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            if held.storage.as_ref() != Some(&usage) {
+                held.storage = Some(usage);
+                held.storage_revision += 1;
+                drop(held);
+                be_host_base::host::wake();
+            }
+        }
+        Err(error) => {
+            eprintln!("be-host-stack: the server did not say the account's storage: {error}")
+        }
+    }
 }
 
 async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
@@ -1790,6 +1819,7 @@ async fn apply(
         | Command::Members(_)
         | Command::Invite { .. }
         | Command::CreateAgent { .. }
+        | Command::Storage
         | Command::Sync => false,
         Command::Leave(block) => {
             if let Err(error) = peer.leave(block).await {
@@ -2423,6 +2453,8 @@ async fn heard(
             if block.opens_inside {
                 held.graph.relist_open_settings();
             }
+            drop(held);
+            tasks.storage(peer, shared);
         }
         Some(Event::BlockRemoved { block, revision }) => {
             shared
@@ -2569,6 +2601,14 @@ pub(super) struct Tasks {
     finished: tokio::sync::mpsc::UnboundedSender<()>,
     contacts: Arc<tokio::sync::Mutex<()>>,
     outbox: std::rc::Rc<std::cell::RefCell<Outbox>>,
+    storage: std::rc::Rc<std::cell::Cell<Asking>>,
+}
+
+/// Whether a storage usage call is out, and whether something changed since it left.
+#[derive(Clone, Copy, Default)]
+struct Asking {
+    out: bool,
+    again: bool,
 }
 
 #[derive(Default)]
@@ -2588,6 +2628,7 @@ impl Tasks {
                 finished,
                 contacts,
                 outbox,
+                storage: Default::default(),
             },
             receiver,
         )
@@ -2652,6 +2693,48 @@ impl Tasks {
     fn contacts(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         let (peer, shared, tasks) = (Arc::clone(peer), Arc::clone(shared), self.clone());
         self.spawn(async move { tasks.sync_contacts(&peer, &shared).await });
+    }
+
+    /// Asks the server for the account's storage while an editor watches it, one call at a
+    /// time: a change while one is out asks once more when it answers.
+    fn storage(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+        let watched = shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .storage_watched;
+        if !watched || !peer.is_attached() {
+            return;
+        }
+        let asking = self.storage.get();
+        if asking.out {
+            self.storage.set(Asking {
+                again: true,
+                ..asking
+            });
+            return;
+        }
+        self.storage.set(Asking {
+            out: true,
+            again: false,
+        });
+        let (peer, shared, storage) = (
+            Arc::clone(peer),
+            Arc::clone(shared),
+            std::rc::Rc::clone(&self.storage),
+        );
+        self.spawn(async move {
+            loop {
+                fetch_storage(&peer, &shared).await;
+                if !storage.get().again || !peer.is_attached() {
+                    storage.set(Asking::default());
+                    break;
+                }
+                storage.set(Asking {
+                    out: true,
+                    again: false,
+                });
+            }
+        });
     }
 
     async fn sync_contacts(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
@@ -2829,6 +2912,8 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         head: summary.head,
         held: summary.held,
         sets_access: summary.sets_access,
+        size: summary.size,
+        tree_size: summary.tree_size,
     }
 }
 

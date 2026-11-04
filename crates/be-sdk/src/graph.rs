@@ -101,6 +101,10 @@ pub struct BlockInfo {
     pub locked: bool,
     pub deleted: bool,
     pub sets_access: bool,
+    /// Bytes the server keeps for this block alone, history included.
+    pub size: u64,
+    /// `size` plus each child's `tree_size`, as the server counts them.
+    pub tree_size: u64,
 }
 
 impl BlockInfo {
@@ -116,6 +120,8 @@ impl BlockInfo {
             locked: false,
             deleted: false,
             sets_access: false,
+            size: 0,
+            tree_size: 0,
         }
     }
 
@@ -197,6 +203,8 @@ impl BlockInfo {
             locked: self.locked,
             deleted: self.deleted,
             sets_access: self.sets_access,
+            size: self.size,
+            tree_size: self.tree_size,
         }
     }
 
@@ -215,6 +223,8 @@ impl BlockInfo {
             locked: info.locked,
             deleted: info.deleted,
             sets_access: info.sets_access,
+            size: info.size,
+            tree_size: info.tree_size,
         }
     }
 }

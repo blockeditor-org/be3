@@ -96,6 +96,8 @@ pub fn info_of(node: &Node, deleted: bool) -> BlockInfo {
         locked: node.locked,
         deleted,
         sets_access: node.sets_access,
+        size: node.size,
+        tree_size: node.tree_size,
     }
 }
 
