@@ -1,7 +1,7 @@
 use super::*;
+use crate::clipboard::formats;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::clipboard::formats;
 use crate::{ClipItem, ForwardedInput, native::PasteRequest};
 
 #[test]
@@ -72,8 +72,5 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
     );
     forwarded.update(|forwarded| forwarded.clear());
     harness.frame(vec![Input::Paste(image.clone())]);
-    assert_eq!(
-        forwarded.get_untracked(),
-        [Event::Paste(image)]
-    );
+    assert_eq!(forwarded.get_untracked(), [Event::Paste(image)]);
 }

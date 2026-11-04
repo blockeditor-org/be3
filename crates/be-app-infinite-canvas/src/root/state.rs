@@ -28,7 +28,6 @@ use be_type_infinite_canvas::{
     CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle,
     CanvasTransform, InfiniteCanvasOperation,
 };
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::geometry::*;
@@ -2183,13 +2182,15 @@ impl CanvasState {
         if canvas == self.block_id() {
             return Ok(self.rasters_of(entities));
         }
-        self.editor.content_of::<CanvasContent>(canvas).read(|content| {
-            entities
-                .iter()
-                .filter(|entity| entity.shape == CanvasShape::Raster)
-                .filter_map(|entity| Some((entity.id, Canvas::raster(content, entity.id)?)))
-                .collect()
-        })
+        self.editor
+            .content_of::<CanvasContent>(canvas)
+            .read(|content| {
+                entities
+                    .iter()
+                    .filter(|entity| entity.shape == CanvasShape::Raster)
+                    .filter_map(|entity| Some((entity.id, Canvas::raster(content, entity.id)?)))
+                    .collect()
+            })
     }
 
     fn place_pasted(&self, entities: Vec<CanvasEntity>, rasters: &Rasters) {

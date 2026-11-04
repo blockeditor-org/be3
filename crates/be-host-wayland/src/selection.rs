@@ -244,13 +244,13 @@ impl State {
 
     /// Starts reading a program's selection: its text, and its PNG.
     fn start_reading(&mut self, mime_types: &[String]) -> Vec<Reading> {
-        let offers = |mime: &&str| mime_types.iter().any(|offered| offered == *mime);
+        let offers = |mime: &str| mime_types.iter().any(|offered| offered == mime);
         let text = TEXT_TYPES
             .iter()
-            .find(offers)
+            .find(|mime| offers(mime))
             .map(|mime| (formats::TEXT, *mime));
         let png = Some(PNG)
-            .filter(|mime| offers(&mime))
+            .filter(|mime| offers(mime))
             .map(|mime| (formats::PNG, mime));
         text.into_iter()
             .chain(png)

@@ -39,7 +39,10 @@ fn a_paste_brings_the_first_kind_the_focus_accepts_unless_the_platform_pastes_it
         PasteRequest::Shortcut { plain: true },
         &[formats::PNG],
     );
-    assert!(seen.is_empty(), "nor anything to a focus without text: {seen:?}");
+    assert!(
+        seen.is_empty(),
+        "nor anything to a focus without text: {seen:?}"
+    );
 
     let seen = paste(&mut intaken, PasteRequest::Asked, &[formats::TEXT]);
     assert_eq!(seen, [Event::Paste(ClipItem::text("pasted"))]);
