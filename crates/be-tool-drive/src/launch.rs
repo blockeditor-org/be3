@@ -23,6 +23,8 @@ moment tests use (2026-03-02 09:41 UTC) in the UTC time zone, instead of the rea
 With --archive, PROGRAM is a path in that program archive (crates/be-host-archive), unpacked first.
 Arguments it does not know go to the program.";
 const STARTUP: Duration = Duration::from_secs(120);
+/// A Unix socket's path fits in 107 bytes, and the drive socket sits in `BE_DRIVE_DIR`, so keep
+/// that directory's path short (`/tmp/be3-123`).
 const SOCKET_PATH: usize = 107;
 const SCREEN: &str = "1440x900";
 
@@ -204,6 +206,16 @@ impl Launch {
     }
 }
 
+/// `be-drive launch`, which every `:dev` target runs (`headless(...)` in buck/program/drive.bzl).
+///
+/// It adds drive to the `BEUI_LAYERS` it finds: `drive` alone when it names none, a tap under
+/// each named layer plus one on top when it names no drive (`space` becomes
+/// `drive,space,drive`), and the list unchanged when it names drive itself. It binds the drive
+/// socket itself and hands the program the listener (`BEUI_DRIVE_LISTENER`), so it can ask the
+/// program to settle at once instead of watching for the socket to appear. A program started
+/// with `--data` keeps its data in `~/.cache/be3/NAME/data` through `XDG_DATA_HOME`, which
+/// `--fresh` deletes. `--latency` sets `BE_LATENCY`, which be-block-client's native transport
+/// reads; `--pin-clock` sets `BEUI_HEADLESS_CLOCK=pinned` and `TZ=UTC`.
 pub fn run(arguments: &[String]) -> Result<(), String> {
     let launch = parse(arguments, USAGE)?;
     let name = launch.name();
