@@ -12,6 +12,7 @@ fn the_editor_changes_rules_and_keeps_the_comments() {
         editor.shown("input-remaps.picker"),
         "a new remap asks for what is pressed"
     );
+    all_keys(&mut editor);
     editor.click("input-remaps.picker.key.f20");
     editor.run();
     assert!(!editor.shown("input-remaps.picker"));

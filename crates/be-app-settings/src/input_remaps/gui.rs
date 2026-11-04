@@ -288,7 +288,7 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
                     />
                 </SettingsRow>
             </SettingsSection>
-            <KeyPicker picking={picking} choose={choose} />
+            <KeyPicker editor={editor} picking={picking} choose={choose} />
             <ProgramDialog editor={editor} scoping={scoping} current={current} apply={apply} />
         </List>
     }

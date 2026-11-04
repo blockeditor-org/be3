@@ -15,6 +15,7 @@ fn a_sequence_is_built_from_taps_and_waits() {
         editor.shown("input-remaps.picker"),
         "a new tap asks for its key"
     );
+    all_keys(&mut editor);
     editor.click("input-remaps.picker.key.x");
     editor.run();
 

@@ -8,10 +8,8 @@ fn picking_what_is_pressed_from_all_keys_writes_its_name() {
     editor.run();
     editor.click("input-remaps.group.0.rule.0.on");
     editor.run();
-    assert!(
-        editor.shown("input-remaps.picker.key.f13"),
-        "with no capture to press keys into, the picker opens on All keys"
-    );
+    all_keys(&mut editor);
+    assert!(editor.shown("input-remaps.picker.key.f13"));
     editor.snapshot("the_key_picker_lists_every_key_by_kind");
 
     editor.click("input-remaps.picker.search");

@@ -3,8 +3,14 @@
 
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Align, Direction, ItemSize, NodeId};
-use be_sdk_beui::beui::icons::ICON_SEARCH;
+use be_sdk_beui::beui::{Align, Direction, ItemSize, NodeId, TextAlign};
+use be_host_remap::names::{Modifier, Source};
+use be_host_remap::rules::Wheel;
+use be_sdk_beui::beui::icons::{ICON_KEYBOARD, ICON_SEARCH};
+use be_sdk_beui::{
+    CapturedChord, CapturedTrigger, Editor, InputCapture, InputCaptureWatch, RemapsWatch,
+    WheelTurn,
+};
 
 use super::keys::{self, id_part, label};
 
@@ -48,6 +54,7 @@ impl Picked {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Tab {
+    Press,
     Mouse,
     AllKeys,
 }
@@ -55,6 +62,7 @@ enum Tab {
 impl Tab {
     const fn label(self) -> &'static str {
         match self {
+            Self::Press => "Press it",
             Self::Mouse => "Mouse",
             Self::AllKeys => "All keys",
         }
@@ -62,7 +70,11 @@ impl Tab {
 }
 
 #[component]
-pub(super) fn KeyPicker(picking: Signal<Option<Picking>>, choose: Callback<(Picking, Picked)>) -> NodeId {
+pub(super) fn KeyPicker(
+    editor: Editor,
+    picking: Signal<Option<Picking>>,
+    choose: Callback<(Picking, Picked)>,
+) -> NodeId {
     let open = create_memo(move || picking.get().is_some());
     let target = create_memo(move || picking.get().map(|picking| picking.target));
     let wheel = create_memo(move || target.get() == Some(Target::On));
@@ -75,18 +87,28 @@ pub(super) fn KeyPicker(picking: Signal<Option<Picking>>, choose: Callback<(Pick
         }
         .to_owned()
     });
-    let tabs = create_memo(|| vec![Tab::Mouse, Tab::AllKeys]);
+    let pressable = editor.offered::<RemapsWatch>();
+    let tabs = create_memo(move || match pressable.get() {
+        true => vec![Tab::Press, Tab::Mouse, Tab::AllKeys],
+        false => vec![Tab::Mouse, Tab::AllKeys],
+    });
     let first = move || {
-        tabs.with_untracked(|tabs| tabs.iter().position(|tab| *tab == Tab::AllKeys))
-            .unwrap_or(0)
+        tabs.with_untracked(|tabs| {
+            tabs.iter()
+                .position(|tab| *tab == Tab::Press)
+                .or_else(|| tabs.iter().position(|tab| *tab == Tab::AllKeys))
+        })
+        .unwrap_or(0)
     };
     let tab = create_signal(first());
     let query = create_signal(String::new());
     let typing = create_signal(false);
     let typed = create_signal(String::new());
+    let listening = create_signal(false);
     create_effect(move || {
         if open.get() {
             untrack(|| {
+                listening.set(false);
                 tab.set(first());
                 query.set(String::new());
                 typing.set(false);
@@ -97,6 +119,10 @@ pub(super) fn KeyPicker(picking: Signal<Option<Picking>>, choose: Callback<(Pick
     let shown = move |which: Tab| {
         create_memo(move || tabs.with(|tabs| tabs.get(tab.get()) == Some(&which)))
     };
+    let pressing = shown(Tab::Press);
+    let capture = editor.watch_while::<InputCaptureWatch>(move || {
+        open.get() && pressing.get() && listening.get()
+    });
     let pick = Callback::new(move |picked: Picked| {
         if let Some(now) = picking.get_untracked() {
             picking.set(None);
@@ -122,6 +148,14 @@ pub(super) fn KeyPicker(picking: Signal<Option<Picking>>, choose: Callback<(Pick
                     label="Find the key by"
                     @test_id={"input-remaps.picker.tabs"}
                 />
+                <Show condition={pressing}>
+                    <PressTab
+                        target={target}
+                        listening={listening}
+                        capture={capture}
+                        pick={pick}
+                    />
+                </Show>
                 <Show condition={shown(Tab::Mouse)}>
                     <MouseTab wheel={wheel} pick={pick} />
                 </Show>
@@ -132,6 +166,146 @@ pub(super) fn KeyPicker(picking: Signal<Option<Picking>>, choose: Callback<(Pick
                 <TypedKey open={typing} typed={typed} wheel={wheel} pick={pick} />
             </List>
         </Dialog>
+    }
+}
+
+/// The name the TOML gives a captured key or button.
+fn source_name(code: u16) -> String {
+    Source::from_code(code).name()
+}
+
+/// What a chord the session caught picks, for what is being picked: what is
+/// pressed takes all that was held with it, a key sent or tapped only the
+/// modifiers, and a key to hold only itself. A wheel turn is only ever pressed.
+fn caught(chord: &CapturedChord, target: Target) -> Result<Picked, String> {
+    let key = match chord.trigger {
+        CapturedTrigger::Source(code) => source_name(code),
+        CapturedTrigger::Wheel(turn) if target == Target::On => {
+            let wheel = match turn {
+                WheelTurn::Up => Wheel::Up,
+                WheelTurn::Down => Wheel::Down,
+                WheelTurn::Left => Wheel::Left,
+                WheelTurn::Right => Wheel::Right,
+            };
+            wheel.name().to_owned()
+        }
+        CapturedTrigger::Wheel(_) => {
+            return Err("A wheel turn can only be what you press. Press a key or button.".to_owned());
+        }
+    };
+    if target == Target::Held {
+        return Ok(Picked { key, with: None });
+    }
+    let mut with: Vec<String> = Vec::new();
+    for code in &chord.held {
+        let source = Source::from_code(*code);
+        let name = match Modifier::of(source) {
+            Some(modifier) => modifier.name().to_owned(),
+            None if target == Target::On => source.name(),
+            None => continue,
+        };
+        if !with.contains(&name) && name != key {
+            with.push(name);
+        }
+    }
+    let modifiers: Vec<String> = Modifier::ALL
+        .into_iter()
+        .map(|modifier| modifier.name().to_owned())
+        .filter(|name| with.contains(name))
+        .collect();
+    let others = with.into_iter().filter(|name| !modifiers.contains(name));
+    Ok(Picked {
+        key,
+        with: Some(modifiers.iter().cloned().chain(others).collect()),
+    })
+}
+
+/// Catches the next key, button or wheel turn, before any remap or program
+/// sees it, while the session offers that.
+#[component]
+fn PressTab(
+    target: Memo<Option<Target>>,
+    listening: Signal<bool>,
+    capture: ReadSignal<InputCapture>,
+    pick: Callback<Picked>,
+) -> NodeId {
+    let problem = create_signal(None::<String>);
+    create_effect(move || {
+        let Some(chord) = capture.with(|capture| capture.chord.clone()) else {
+            return;
+        };
+        untrack(|| {
+            listening.set(false);
+            let Some(target) = target.get() else {
+                return;
+            };
+            match caught(&chord, target) {
+                Ok(picked) => {
+                    problem.set(None);
+                    pick.call(picked);
+                }
+                Err(why) => problem.set(Some(why)),
+            }
+        });
+    });
+    let held = create_memo(move || {
+        capture.with(|capture| capture.held.iter().map(|code| source_name(*code)).collect::<Vec<_>>())
+    });
+    let idle = create_memo(move || !listening.get());
+    let waiting = create_memo(move || listening.get() && held.with(Vec::is_empty));
+    let prompt = create_memo(move || {
+        match (listening.get(), target.get()) {
+            (true, _) if !held.with(Vec::is_empty) => "Now the key, or let go…",
+            (true, Some(Target::On)) => "Press a key or mouse button, or turn the wheel",
+            (true, _) => "Press a key or mouse button",
+            (false, Some(Target::Held)) => "Press the key that must be held as well.",
+            (false, _) => {
+                "Hold Shift, Ctrl, Alt or Super first to include them. Nothing else sees what you press while it listens. Left click is on the Mouse tab."
+            }
+        }
+        .to_owned()
+    });
+    let failed = create_memo(move || problem.get().is_some());
+    let why = create_memo(move || problem.get().unwrap_or_default());
+    view! {
+        <Frame border=Border::DEFAULT radius=Radius::Md padding={Padding::all(Space::Xl)}>
+            <List spacing=SPACING align=Align::Center>
+                <Show condition={idle}>
+                    <Button
+                        label="Start listening"
+                        glyph={Some(ICON_KEYBOARD)}
+                        variant=ButtonVariant::Primary
+                        @test_id={"input-remaps.picker.listen"}
+                        on_click={move || {
+                            problem.set(None);
+                            listening.set(true);
+                        }}
+                    />
+                </Show>
+                <Show condition={listening}>
+                    <List spacing=SPACING align=Align::Center>
+                        <List direction=Direction::Horizontal spacing=KEY_SPACING wrap=true>
+                            <ForEach keys={held}>|name: String|
+                                <KeyCap label={label(&name)} />
+                            </ForEach>
+                            <Show condition={waiting}>
+                                <Text color=TextColor::Muted>"Listening…"</Text>
+                            </Show>
+                        </List>
+                        <Button
+                            label="Stop listening"
+                            variant=ButtonVariant::Ghost
+                            @test_id={"input-remaps.picker.stop"}
+                            on_click={move || listening.set(false)}
+                        />
+                    </List>
+                </Show>
+                <Text style=TextStyle::CAPTION align=TextAlign::Center>{prompt}</Text>
+                <Show condition={failed}>
+                    <Text style={TextStyle::CAPTION.color(TextColor::Danger)}>{why}</Text>
+                </Show>
+            </List>
+        </Frame>
     }
 }
 

@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::input_remaps::InputRemapsRoot;
 
+mod a_chord_pressed_while_the_picker_listens_is_what_is_pressed;
 mod a_held_modifier_and_a_tap_held_for_a_preset_write_the_rule;
 mod a_program_group_comes_from_a_window_open_now;
 mod a_sequence_is_built_from_taps_and_waits;
@@ -68,10 +69,22 @@ fn choose_does(editor: &mut BeuiTest<InputRemapsRoot>, rule: &str, does: usize) 
     }
 }
 
+/// Shows the open picker's All keys, the last of its tabs after Press it and Mouse.
+fn all_keys(editor: &mut BeuiTest<InputRemapsRoot>) {
+    let rect = editor.rect_of("input-remaps.picker.tabs");
+    editor.click(pos2(rect.min.x + 12.0, rect.center().y));
+    editor.run();
+    for _ in 0..2 {
+        editor.key(Key::ArrowRight, Modifiers::NONE);
+        editor.run();
+    }
+}
+
 /// Opens a rule, and picks its key from All keys.
 fn pick_from_all_keys(editor: &mut BeuiTest<InputRemapsRoot>, opener: &str, name: &str) {
     editor.click(opener);
     editor.run();
+    all_keys(editor);
     editor.click(format!("input-remaps.picker.key.{name}").as_str());
     editor.run();
 }

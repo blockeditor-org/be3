@@ -130,7 +130,11 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   or per profile. Any app can offer a remapper by declaring an editor for that type.
 - **The shipped one** is the settings app's Input Remaps editor (`be-app-settings`, `input_remaps`):
   TOML config stored exactly as written, edited in place through `be_host_remap::edit`
-  (`toml_edit`). Its module is `crates/be-host-remap-module` (staged as `remapper.wasm`), which
+  (`toml_edit`). Its editor shows rules as key caps and never needs a key name typed: keys come
+  from a picker (Press it, through `InputCaptureWatch`; Mouse; All keys, listed from
+  `be_host_remap::names`), with a typed name or code, read as the TOML reads it, as the fallback.
+  A program group is picked from `OpenProgramsWatch` and `ProgramsWatch`; the TOML itself is
+  behind an "Edit as TOML" switch. Its module is `crates/be-host-remap-module` (staged as `remapper.wasm`), which
   runs `be-host-remap`'s engine and text reader (`be_host_remap::text`, key names in
   `be_host_remap::names`). Rules can be scoped to a window by executable, program id or title.
 - **The protocol.** A module exports `memory`, `be_remap_buffer` and `be_remap_handle` and trades
