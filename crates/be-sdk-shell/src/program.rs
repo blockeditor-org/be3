@@ -626,8 +626,8 @@ impl Workspace {
         });
     }
 
-/// Set from the host's `PowerAvailability::ending`. The programs are asked to close only after
-/// that is published, so every window that closes during the ending is kept as a placeholder.
+    /// Set from the host's `PowerAvailability::ending`. The programs are asked to close only after
+    /// that is published, so every window that closes during the ending is kept as a placeholder.
     pub fn keep_through_ending(&self, ending: bool) {
         if self.ending.get_untracked() != ending {
             self.ending.set(ending);
