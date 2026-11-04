@@ -1,10 +1,15 @@
 //! Who a connection comes from, and how much each address may hold at once.
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     net::{IpAddr, SocketAddr},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
+
+use tokio::sync::Notify;
 
 /// The address a request comes from: its peer, or, when the peer is a trusted proxy, the
 /// nearest address in its `X-Forwarded-For` that is not itself a trusted proxy. Every
@@ -90,3 +95,129 @@ impl Drop for Held {
 
 #[cfg(test)]
 mod tests;
+
+/// What limits on clients that are not signed in count by: an IPv4 address, or an IPv6
+/// address's /48, since one site is often given a whole /48 and anyone may take many /64s.
+pub(crate) fn unsigned_key(address: IpAddr) -> IpAddr {
+    match address.to_canonical() {
+        IpAddr::V6(address) => IpAddr::V6((u128::from(address) & !((1u128 << 80) - 1)).into()),
+        address => address,
+    }
+}
+
+/// Whether a client that is not signed in was let go of to make room for a newer one.
+#[derive(Default)]
+pub(crate) struct Eviction {
+    evicted: AtomicBool,
+    notify: Notify,
+}
+
+impl Eviction {
+    pub(crate) fn evicted(&self) -> bool {
+        self.evicted.load(Ordering::Acquire)
+    }
+
+    /// Waits until the client is evicted.
+    pub(crate) async fn wait(&self) {
+        loop {
+            let notified = self.notify.notified();
+            if self.evicted() {
+                return;
+            }
+            notified.await;
+        }
+    }
+
+    pub(crate) fn evict(&self) {
+        self.evicted.store(true, Ordering::Release);
+        self.notify.notify_waiters();
+    }
+}
+
+/// Clients that are not signed in yet: connections, or HTTP sessions. They are counted apart
+/// from the rest and held to a fraction of the room, so they never take what signed-in clients
+/// need. One address (see [`unsigned_key`]) holds at most `per_address`; admitting one past
+/// `limit` evicts the oldest, so however many there are a new client still gets in to sign in.
+pub(crate) struct Unsigned {
+    held: Mutex<UnsignedHeld>,
+    limit: usize,
+    per_address: usize,
+}
+
+#[derive(Default)]
+struct UnsignedHeld {
+    next: u64,
+    order: BTreeMap<u64, (IpAddr, Arc<Eviction>)>,
+    by_address: HashMap<IpAddr, usize>,
+}
+
+impl UnsignedHeld {
+    fn remove(&mut self, id: u64) -> Option<Arc<Eviction>> {
+        let (key, eviction) = self.order.remove(&id)?;
+        if let Some(count) = self.by_address.get_mut(&key) {
+            *count -= 1;
+            if *count == 0 {
+                self.by_address.remove(&key);
+            }
+        }
+        Some(eviction)
+    }
+}
+
+/// A place among the clients that are not signed in, given back when dropped: once the client
+/// signs in, or ends.
+pub(crate) struct Anonymous {
+    of: Arc<Unsigned>,
+    id: u64,
+}
+
+impl Unsigned {
+    pub(crate) fn new(limit: usize, per_address: usize) -> Arc<Self> {
+        Arc::new(Self {
+            held: Mutex::new(UnsignedHeld::default()),
+            limit,
+            per_address,
+        })
+    }
+
+    /// A place for a client from `address` that `eviction` tells when it is let go of, or none
+    /// while the address already holds `per_address`.
+    pub(crate) fn admit(
+        self: &Arc<Self>,
+        address: IpAddr,
+        eviction: &Arc<Eviction>,
+    ) -> Option<Anonymous> {
+        let key = unsigned_key(address);
+        let mut held = self.held.lock().unwrap();
+        if held.by_address.get(&key).copied().unwrap_or(0) >= self.per_address {
+            return None;
+        }
+        while held.order.len() >= self.limit {
+            let Some((&oldest, _)) = held.order.first_key_value() else {
+                break;
+            };
+            if let Some(evicted) = held.remove(oldest) {
+                evicted.evict();
+            }
+        }
+        let id = held.next;
+        held.next += 1;
+        held.order.insert(id, (key, Arc::clone(eviction)));
+        *held.by_address.entry(key).or_default() += 1;
+        Some(Anonymous {
+            of: Arc::clone(self),
+            id,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.held.lock().unwrap().order.len()
+    }
+}
+
+impl Drop for Anonymous {
+    fn drop(&mut self) {
+        self.of.held.lock().unwrap().remove(self.id);
+    }
+}

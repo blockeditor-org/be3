@@ -103,7 +103,15 @@ struct Interest {
     /// matching a block costs a few lookups rather than a pass over every listing.
     references: HashSet<Uuid>,
     open_settings: usize,
+    /// The listings that count against `MAX_LISTINGS_PER_CONNECTION`: every one but a block's
+    /// own (`read-block`), which a client never unlists. Those are bounded instead by the blocks
+    /// the caller may know of, and refused ones by `REFUSED_LISTINGS`.
+    counted: usize,
     known: HashMap<Uuid, Facts>,
+}
+
+fn counts(listing: Listing) -> bool {
+    !matches!(listing, Listing::Block(_))
 }
 
 impl Interest {
@@ -113,8 +121,11 @@ impl Interest {
         if self.listings.contains(&listing) {
             return Some(false);
         }
-        if self.listings.len() >= MAX_LISTINGS_PER_CONNECTION {
-            return None;
+        if counts(listing) {
+            if self.counted >= MAX_LISTINGS_PER_CONNECTION {
+                return None;
+            }
+            self.counted += 1;
         }
         self.listings.insert(listing);
         match listing {
@@ -130,6 +141,9 @@ impl Interest {
     fn unlist(&mut self, listing: Listing) {
         if !self.listings.remove(&listing) {
             return;
+        }
+        if counts(listing) {
+            self.counted -= 1;
         }
         match listing {
             Listing::References(referrer) => {

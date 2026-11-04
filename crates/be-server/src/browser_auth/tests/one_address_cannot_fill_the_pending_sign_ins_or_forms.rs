@@ -4,9 +4,9 @@ use super::*;
 async fn one_address_cannot_fill_the_pending_sign_ins_or_forms() {
     let sessions = Arc::new(Sessions::default());
     let busy = IpAddr::from([192, 0, 2, 1]);
-    let (oldest, oldest_secret, _) = sessions.begin(0, busy).unwrap();
+    let (oldest, oldest_secret, _) = sessions.begin(0, busy, None).unwrap();
     for client in 1..=2 * PENDING_PER_ADDRESS as u64 {
-        sessions.begin(client, busy).unwrap();
+        sessions.begin(client, busy, None).unwrap();
     }
     assert_eq!(
         sessions.pending.lock().unwrap().len(),
@@ -18,7 +18,7 @@ async fn one_address_cannot_fill_the_pending_sign_ins_or_forms() {
         "beginning another lets go of the address's oldest"
     );
     let (other, other_secret, _) = sessions
-        .begin(100, IpAddr::from([198, 51, 100, 1]))
+        .begin(100, IpAddr::from([198, 51, 100, 1]), None)
         .unwrap();
     assert!(
         matches!(

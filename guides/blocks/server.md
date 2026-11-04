@@ -117,14 +117,29 @@ with no bytes moving either way, so a large post on a slow link goes through.
     address; `MAX_HTTP_SESSIONS` and `MAX_HTTP_SESSIONS_PER_ADDRESS` likewise.
     HTTP sessions are swept every `SWEEP_INTERVAL` by a task off the accept
     loop, which also closes sessions whose token was revoked.
+  - Connections and HTTP sessions not signed in are counted apart
+    (`address::Unsigned`), from a connection's first byte until it signs in
+    (again after a logout): at most `MAX_UNSIGNED_CONNECTIONS` (a quarter of
+    `MAX_CONNECTIONS`) and `MAX_UNSIGNED_HTTP_SESSIONS`, and
+    `MAX_UNSIGNED_CONNECTIONS_PER_ADDRESS` and
+    `MAX_UNSIGNED_HTTP_SESSIONS_PER_ADDRESS` for one address, counted by
+    `unsigned_key` (an IPv6 /48). One past the overall limit lets go of the
+    oldest rather than being refused (`Eviction`), so signed-in clients always
+    have the rest of the room and a new client still gets in to sign in. A
+    connection carrying HTTP posts counts as not signed in until a post is for
+    a signed-in session.
   - A connection without an account is closed `sign_in_timeout`
-    (`ServerConfig`) after its greeting or logout, unless it waits on a browser
-    sign-in, until that expires. Clients connect only to authenticate or to
-    begin a browser sign-in at once (`be_host_stack::link`, `accounts.rs`), so
-    the deadline never closes a connection be-host keeps. Pending browser sign-ins and portal form
-    tokens are bounded per address (`PENDING_PER_ADDRESS`,
-    `FORMS_PER_ADDRESS`; another lets go of the address's oldest), and one
-    call waits on a code at a time.
+    (`ServerConfig`) after its greeting or logout, unless a browser sign-in it
+    began or waits on is still pending and its own (`browser_auth::SigningIn`),
+    and at most `browser_auth::LIFETIME` after it lost its account. Clients
+    connect only to authenticate or to begin a browser sign-in at once
+    (`be_host_stack::link`, `accounts.rs`), so the deadline never closes a
+    connection be-host keeps. Pending browser sign-ins and portal form tokens
+    are kept in a `browser_auth::Bounded` table, indexed by age and by
+    address: one address holds `PENDING_PER_ADDRESS` or `FORMS_PER_ADDRESS`,
+    the server `LIMIT`, and another lets go of the oldest instead of being
+    refused. A connection holds one pending sign-in at a time, and one call
+    waits on a code at a time.
   - Request bodies grow only as their bytes arrive and stall out after
     `BODY_READ_TIMEOUT`. A websocket is idle only after `IDLE_TIMEOUT` with no
     bytes read at all (`next_heard`), so a large message on a slow link is
@@ -239,7 +254,10 @@ folder is still announced, then forgotten). The blocks a change starts or stops
 referencing are announced with it. `unlist` drops a listing; a refused listing
 stays until then, so a block read before it is made is announced once it is,
 but a connection keeps at most `REFUSED_LISTINGS` of them (`watch.rs`) and
-drops any refused past that at once.
+drops any refused past that at once. A block's own listing (`read-block`),
+which clients never unlist, does not count against
+`MAX_LISTINGS_PER_CONNECTION`: it is bounded by the blocks the caller may know
+of.
 
 Every `BlockSummary` and `BlockRemoved` carries a `revision`
 (`ServerStore::with_graph`). Replies and announcements can arrive out of order

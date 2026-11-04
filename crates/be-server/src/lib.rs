@@ -176,6 +176,13 @@ impl Default for ServerConfig {
 const MAX_CONNECTIONS: usize = 1024;
 /// Connections one client address (see [`address::address_key`]) may hold open at once.
 const MAX_CONNECTIONS_PER_ADDRESS: usize = 64;
+/// Connections not signed in yet, counted from their first byte until they sign in. Taking one
+/// past this lets go of the oldest (`address::Unsigned`), so they never hold more than this of
+/// `MAX_CONNECTIONS`, and signed-in clients always have the rest.
+const MAX_UNSIGNED_CONNECTIONS: usize = MAX_CONNECTIONS / 4;
+/// Connections not signed in that one address (see [`address::unsigned_key`]: an IPv6 /48)
+/// may hold at once.
+pub(crate) const MAX_UNSIGNED_CONNECTIONS_PER_ADDRESS: usize = 8;
 pub(crate) const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 /// The default for [`ServerConfig::sign_in_timeout`].
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(30);
@@ -323,6 +330,10 @@ pub async fn serve_with_mail(
         http: Arc::new(http::Sessions::default()),
         browser_auth: Arc::new(browser_auth::Sessions::default()),
         addresses: address::PerAddress::new(MAX_CONNECTIONS_PER_ADDRESS),
+        unsigned: address::Unsigned::new(
+            MAX_UNSIGNED_CONNECTIONS,
+            MAX_UNSIGNED_CONNECTIONS_PER_ADDRESS,
+        ),
     };
     let slots = Arc::new(Semaphore::new(MAX_CONNECTIONS));
     let upkeep = tokio::spawn(upkeep(services.clone()));
@@ -350,11 +361,15 @@ pub async fn serve_with_mail(
                 };
                 // A proxy speaks for many clients, so its connections are counted by the
                 // address it forwards, once the request head is read.
-                let place = match services.config.trusted_proxies.contains(&peer.ip().to_canonical()) {
-                    true => None,
-                    false => match services.addresses.take(peer.ip()) {
-                        Some(place) => Some(place),
-                        None => {
+                let eviction = Arc::new(address::Eviction::default());
+                let (place, anonymous) = match services.config.trusted_proxies.contains(&peer.ip().to_canonical()) {
+                    true => (None, None),
+                    false => match (
+                        services.addresses.take(peer.ip()),
+                        services.unsigned.admit(peer.ip(), &eviction),
+                    ) {
+                        (Some(place), Some(anonymous)) => (Some(place), Some(anonymous)),
+                        _ => {
                             tracing::debug!(%peer, "refusing a connection: its address holds too many");
                             continue;
                         }
@@ -363,7 +378,8 @@ pub async fn serve_with_mail(
                 let _ = stream.set_nodelay(true);
                 let services = services.clone();
                 tokio::spawn(async move {
-                    if let Err(error) = handle_connection(stream, peer, place, services).await {
+                    let admitted = Admitted { place, anonymous, eviction };
+                    if let Err(error) = handle_connection(stream, peer, admitted, services).await {
                         tracing::debug!(%peer, %error, "a connection ended with an error");
                     }
                     drop(slot);
@@ -408,6 +424,17 @@ pub(crate) struct Services {
     browser_auth: Arc<browser_auth::Sessions>,
     portal: Option<Arc<portal::Served>>,
     addresses: Arc<address::PerAddress>,
+    /// Connections and requests that are not signed in.
+    unsigned: Arc<address::Unsigned>,
+}
+
+/// What a connection was let in with: its place among its address's connections and among
+/// those not signed in, both taken later for a trusted proxy's, and what tells it it was let go
+/// of to make room.
+pub(crate) struct Admitted {
+    place: Option<address::Held>,
+    anonymous: Option<address::Anonymous>,
+    eviction: Arc<address::Eviction>,
 }
 
 impl Services {
@@ -420,15 +447,21 @@ impl Services {
 async fn handle_connection(
     stream: TcpStream,
     peer: SocketAddr,
-    place: Option<address::Held>,
+    admitted: Admitted,
     services: Services,
 ) -> Result<(), ServerError> {
+    let eviction = Arc::clone(&admitted.eviction);
+    let routed = tokio::select! {
+        routed = http::route(stream, peer, admitted, &services) => routed?,
+        () = eviction.wait() => return Ok(()),
+    };
     let Some(http::Upgrade {
         stream,
         client,
         authorization,
         place: _place,
-    }) = http::route(stream, peer, place, &services).await?
+        anonymous,
+    }) = routed
     else {
         return Ok(());
     };
@@ -441,11 +474,21 @@ async fn handle_connection(
             ..WebSocketConfig::default()
         }),
     );
-    let socket = tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake)
-        .await
-        .map_err(|_| ServerError::Socket("the websocket handshake timed out".into()))??;
+    let socket = tokio::select! {
+        socket = tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake) => socket
+            .map_err(|_| ServerError::Socket("the websocket handshake timed out".into()))??,
+        () = eviction.wait() => return Ok(()),
+    };
     tracing::debug!(%client, "connected");
-    serve_socket(socket, &heard, &services, client, authorization).await
+    serve_socket(
+        socket,
+        &heard,
+        &services,
+        client,
+        authorization,
+        (anonymous, eviction),
+    )
+    .await
 }
 
 /// When a connection last read any bytes, so a message still arriving is not taken for silence.
@@ -583,12 +626,17 @@ async fn serve_socket<S>(
     services: &Services,
     address: IpAddr,
     authorization: Option<String>,
+    anonymous: (address::Anonymous, Arc<address::Eviction>),
 ) -> Result<(), ServerError>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
     let (mut sink, mut source) = socket.split();
-    if !greet(&mut sink, &mut source).await? {
+    let greeted = tokio::select! {
+        greeted = greet(&mut sink, &mut source) => greeted?,
+        () = anonymous.1.wait() => return Ok(()),
+    };
+    if !greeted {
         return Ok(());
     }
     let mut pings =
@@ -597,7 +645,7 @@ where
     let queued = Arc::new(Outbound::default());
     let mut client = {
         let (outgoing, queued) = (outgoing.clone(), Arc::clone(&queued));
-        Client::open(services, address, move |frame| {
+        Client::open(services, address, &services.unsigned, anonymous, move |frame| {
             if queued.queue(frame.len()) {
                 let _ = outgoing.send(Message::Binary(frame));
             }
@@ -674,7 +722,16 @@ where
                 }
                 let roomy = queued.roomy();
                 let deadline = client.connection.sign_in_deadline();
+                let eviction = Arc::clone(&client.connection.eviction);
                 tokio::select! {
+                    () = eviction.wait(), if deadline.is_some() => {
+                        tracing::debug!("closing a connection let go of for a newer one that is not signed in");
+                        let _ = outgoing.send(Message::Close(None));
+                        return Ok(());
+                    }
+                    () = sign_in_ended(&mut client.connection.signing_in) => {
+                        client.connection.signing_in = None;
+                    }
                     () = sleep_until_some(deadline) => {
                         if client.connection.sign_in_deadline().is_some_and(|deadline| deadline <= tokio::time::Instant::now()) {
                             tracing::debug!("closing a connection that did not sign in in time");
@@ -738,6 +795,16 @@ where
 
     client.close().await;
     outcome
+}
+
+/// Ends once the connection's browser sign-in is no longer its own.
+async fn sign_in_ended(signing_in: &mut Option<browser_auth::SigningIn>) {
+    match signing_in {
+        Some(signing_in) => {
+            let _ = (&mut signing_in.gone).await;
+        }
+        None => std::future::pending().await,
+    }
 }
 
 async fn sleep_until_some(deadline: Option<tokio::time::Instant>) {

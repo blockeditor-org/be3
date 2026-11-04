@@ -17,7 +17,9 @@ use uuid::Uuid;
 
 use crate::{
     CONTENTS_BYTES, Identity, PublishOutcome, ServerConfig, ServerError, ServerStore, Services,
-    SessionRegistry, WatchHub, browser_auth, contacts,
+    SessionRegistry, WatchHub,
+    address::{Anonymous, Eviction, Unsigned},
+    browser_auth, contacts,
     limits::{
         MAX_PAIRING_BYTES, MAX_RELAY_BYTES, MAX_SESSIONS_PER_CONNECTION, MAX_STREAMS_PER_CONNECTION,
     },
@@ -283,8 +285,14 @@ pub(crate) struct Connection {
     pub(crate) address: IpAddr,
     /// Since when the connection has had no account.
     anonymous_since: tokio::time::Instant,
-    /// Until when a browser sign-in this connection began or waits on can still finish.
-    signing_in_until: Option<tokio::time::Instant>,
+    /// The browser sign-in this connection began or waits on, which keeps it open longer.
+    pub(crate) signing_in: Option<browser_auth::SigningIn>,
+    /// The connection's place among those not signed in, while it has no account.
+    anonymous: Option<Anonymous>,
+    /// Where `anonymous` came from, to take a place again after a logout.
+    unsigned: Arc<Unsigned>,
+    /// Tells when `anonymous` was let go of for a newer connection.
+    pub(crate) eviction: Arc<Eviction>,
 }
 
 pub(crate) struct Client {
@@ -300,9 +308,13 @@ pub(crate) struct Client {
 }
 
 impl Client {
+    /// A client from `address`, holding `anonymous`, its place in `unsigned` that `eviction`
+    /// tells the loss of, until it signs in.
     pub(crate) async fn open(
         services: &Services,
         address: IpAddr,
+        unsigned: &Arc<Unsigned>,
+        (anonymous, eviction): (Anonymous, Arc<Eviction>),
         sink: impl Fn(Vec<u8>) + Send + Sync + 'static,
     ) -> Self {
         let (sender, pushes) = mpsc::channel(PUSHES);
@@ -323,7 +335,10 @@ impl Client {
                 config: services.config.clone(),
                 address,
                 anonymous_since: tokio::time::Instant::now(),
-                signing_in_until: None,
+                signing_in: None,
+                anonymous: Some(anonymous),
+                unsigned: Arc::clone(unsigned),
+                eviction,
             },
             peer: Peer::new(be_wasm_ops::Side::Host, sink),
             pushes,
@@ -689,10 +704,13 @@ impl Client {
             Call::BeginBrowserLogin { reply } => {
                 let begun = prelude.and_then(|()| {
                     let connection = &mut self.connection;
-                    let (code, secret, expires) = connection
-                        .browser_auth
-                        .begin(connection.client, connection.address)?;
-                    connection.signing_in_until = Some(expires);
+                    let previous = connection.signing_in.as_ref().map(|began| began.code.as_str());
+                    let (code, secret, signing_in) = connection.browser_auth.begin(
+                        connection.client,
+                        connection.address,
+                        previous,
+                    )?;
+                    connection.signing_in = Some(signing_in);
                     Ok(BrowserLogin { code, secret })
                 });
                 self.reply(reply, begun);
@@ -732,7 +750,10 @@ impl Client {
                     }
                     Ok(browser_auth::Finished::Waiting(waiting)) => waiting,
                 };
-                self.connection.signing_in_until = Some(waiting.expires);
+                let mut waiting = waiting;
+                if let Some(signing_in) = waiting.signing_in.take() {
+                    self.connection.signing_in = Some(signing_in);
+                }
                 self.wait_for_browser(reply, code, secret, waiting);
             }
             Call::CreateLocalProfile {
@@ -788,6 +809,12 @@ impl Client {
                     }
                     connection.account = None;
                     connection.anonymous_since = tokio::time::Instant::now();
+                    connection.anonymous = connection
+                        .unsigned
+                        .admit(connection.address, &connection.eviction);
+                    if connection.anonymous.is_none() {
+                        connection.eviction.evict();
+                    }
                     connection.identity = None;
                     connection.hub.leave_account(connection.client).await;
                     Ok(())
@@ -1994,20 +2021,40 @@ impl Client {
 
 impl Connection {
     /// When the connection is closed unless it signs in first, or none once it has an account.
+    /// A browser sign-in it began or waits on keeps it open until the sign-in ends, at most
+    /// `browser_auth::LIFETIME` after it stopped having an account; one let go of to make room
+    /// for a newer connection closes at once.
     pub(crate) fn sign_in_deadline(&self) -> Option<tokio::time::Instant> {
         if self.account.is_some() {
             return None;
         }
+        if self.eviction.evicted() {
+            return Some(self.anonymous_since);
+        }
         let deadline = self.anonymous_since + self.config.sign_in_timeout;
-        Some(
-            self.signing_in_until
-                .map_or(deadline, |until| until.max(deadline)),
-        )
+        let longest = self.anonymous_since + browser_auth::LIFETIME;
+        Some(self.signing_in.as_ref().map_or(deadline, |signing_in| {
+            signing_in.until.min(longest).max(deadline)
+        }))
+    }
+
+    /// Forgets a browser sign-in that is no longer this connection's, so it no longer keeps the
+    /// connection open.
+    pub(crate) fn forget_ended_sign_in(&mut self) {
+        if self
+            .signing_in
+            .as_mut()
+            .is_some_and(browser_auth::SigningIn::ended)
+        {
+            self.signing_in = None;
+        }
     }
 
     async fn authenticated(&mut self, profile: store::Profile, token: String) -> Authenticated {
         self.hub.join_account(self.client, profile.account).await;
         self.account = Some(profile.account);
+        self.anonymous = None;
+        self.signing_in = None;
         self.token = Some(token.clone());
         self.checked = None;
         Authenticated {
