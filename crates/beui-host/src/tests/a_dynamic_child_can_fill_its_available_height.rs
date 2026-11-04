@@ -12,12 +12,16 @@ fn a_dynamic_child_can_fill_its_available_height() {
             <Frame>
                 <List spacing=0.0>
                     <Dynamic value={state}>|_: bool|
-                        <List @sizing=ItemSize::Percent(100.0) spacing=10.0>
-                            <Frame height=20.0 />
-                            <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                                <List spacing=0.0 />
-                            </Offset>
-                        </List>
+                        <ListItem grow=1.0>
+                            <List spacing=10.0>
+                                <Frame height=20.0 />
+                                <ListItem grow=1.0>
+                                    <Offset @node_ref=&scroll>
+                                        <List spacing=0.0 />
+                                    </Offset>
+                                </ListItem>
+                            </List>
+                        </ListItem>
                     </Dynamic>
                 </List>
             </Frame>

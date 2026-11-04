@@ -12,15 +12,14 @@ fn a_container_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_at() {
         view! {
             <List direction=Direction::Horizontal wrap=true spacing=10.0>
                 <Frame width=40.0 height=20.0 />
-                <Container
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref=&container
-                >|size: ReadSignal<Vec2>| {
-                    create_effect(move || seen.update(|seen| seen.push(size.get().x)));
-                    view! {
-                        <Frame height=20.0 />
-                    }
-                }</Container>
+                <ListItem grow=1.0>
+                    <Container @node_ref=&container>|size: ReadSignal<Vec2>| {
+                        create_effect(move || seen.update(|seen| seen.push(size.get().x)));
+                        view! {
+                            <Frame height=20.0 />
+                        }
+                    }</Container>
+                </ListItem>
             </List>
         }
     });

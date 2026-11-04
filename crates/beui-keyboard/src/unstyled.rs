@@ -12,7 +12,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::types::{ForwardedInput, PointerButton, PointerPhase, vec2};
 
-use beui_view::types::{Direction, ItemSize};
+use beui_view::types::Direction;
 pub use compose::{Preview, preview};
 pub use engine::{Engine, Latch, Mods, modify};
 pub use layout::{Action, KeyAt, KeyDef, Layer, Layout, Modifier, Role, Slider, Slot, Value};
@@ -143,17 +143,18 @@ pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHan
             <Dynamic value={layer}>|layer: Layer| {
                 match layer {
                     Layer::Emoji => view! {
-                        {emoji.call(keyboard)} @sizing=ItemSize::Percent(100.0)
+                        <ListItem grow=1.0>{emoji.call(keyboard)}</ListItem>
                     },
                     _ => view! {
-                        <Interactive
-                            @sizing=ItemSize::Percent(100.0)
-                            press_focus=false
-                            forwards_wheel=false
-                            on_forward={forward}
-                        >
-                            <KeyRows layout={layout::layout(layer)} keyboard cap />
-                        </Interactive>
+                        <ListItem grow=1.0>
+                            <Interactive
+                                press_focus=false
+                                forwards_wheel=false
+                                on_forward={forward}
+                            >
+                                <KeyRows layout={layout::layout(layer)} keyboard cap />
+                            </Interactive>
+                        </ListItem>
                     },
                 }
             }</Dynamic>
@@ -178,13 +179,9 @@ fn KeyRows(
     view! {
         <List spacing=0.0>
             <ForEach keys={rows}>|row: usize|
-                <KeyRow
-                    @sizing=ItemSize::Percent(layout.rows[row].height)
-                    layout
-                    row
-                    keyboard
-                    cap
-                />
+                <ListItem grow={layout.rows[row].height}>
+                    <KeyRow layout row keyboard cap />
+                </ListItem>
             </ForEach>
         </List>
     }
@@ -219,10 +216,14 @@ fn KeyRow(
             <ForEach keys={cells}>|cell: Cell| {
                 match cell {
                     Cell::Gap(column) => view! {
-                        <Frame @sizing=ItemSize::Percent(keys[column].shift) />
+                        <ListItem grow={keys[column].shift}>
+                            <Frame />
+                        </ListItem>
                     },
                     Cell::Fill => view! {
-                        <Frame @sizing=ItemSize::Percent(fill) />
+                        <ListItem grow=fill>
+                            <Frame />
+                        </ListItem>
                     },
                     Cell::Key(column) => {
                         let def = &keys[column];
@@ -265,7 +266,9 @@ fn KeyRow(
                             active,
                         };
                         view! {
-                            <KeyCell @sizing=ItemSize::Percent(def.width) handle cap />
+                            <ListItem grow={def.width}>
+                                <KeyCell handle cap />
+                            </ListItem>
                         }
                     }
                 }

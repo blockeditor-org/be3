@@ -6,7 +6,7 @@ use crate::frame::{Border, ColorRole, Frame, Radius};
 use crate::list::List;
 use crate::scroll::Scroll;
 use crate::tokens::Space;
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 
 /// The fill of a toolbar band, which beui-dock-host's band is drawn with too.
 pub const BAND_FILL: ColorRole = ColorRole::Surface;
@@ -20,7 +20,7 @@ pub fn ToolPill(
     #[prop(default = Direction::Horizontal)] direction: Prop<Direction>,
     #[prop(default = false)] band: Prop<bool>,
     #[prop(default = Space::Xs2)] spacing: Prop<Space>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let row = NodeRef::new();
     arrow_focus(row, direction);
@@ -36,17 +36,21 @@ pub fn ToolPill(
     view! {
         <Frame fill={fill} border={border} radius={radius}>
             <List direction={direction} spacing=Space::None>
-                <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} direction={direction} fit=true>
-                    <Frame @sizing={ItemSize::Intrinsic.shrink(1.0)} padding=Space::Xs>
-                        <List
-                            @node_ref=&row
-                            direction={direction}
-                            align=Align::Center
-                            spacing={spacing}
-                            children
-                        />
-                    </Frame>
-                </Scroll>
+                <ListItem shrink=1.0>
+                    <Scroll direction={direction} fit=true>
+                        <ListItem shrink=1.0>
+                            <Frame padding=Space::Xs>
+                                <List
+                                    @node_ref=&row
+                                    direction={direction}
+                                    align=Align::Center
+                                    spacing={spacing}
+                                    children
+                                />
+                            </Frame>
+                        </ListItem>
+                    </Scroll>
+                </ListItem>
             </List>
         </Frame>
     }

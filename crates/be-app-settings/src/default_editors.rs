@@ -7,7 +7,6 @@ use be_type_settings::EditorSettings;
 
 mod ui;
 
-use beui::ItemSize;
 use ui::DefaultEditorsView;
 
 const INTRINSIC_WIDTH: f32 = 360.0;
@@ -31,11 +30,9 @@ impl be_sdk_beui::BeuiRoot for DefaultEditorsRoot {
                                 value={device}
                                 key={|device: bool| device}
                             >|_device: ReadSignal<bool>|
-                                <DefaultEditorsView
-                                    editor={editor}
-                                    settings={settings}
-                                    @sizing=ItemSize::Percent(100.0)
-                                />
+                                <ListItem grow=1.0>
+                                    <DefaultEditorsView editor={editor} settings={settings} />
+                                </ListItem>
                             </Keyed>
                         </List>
                     }

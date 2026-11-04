@@ -13,9 +13,9 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
 
     let document = build_node(move || {
         let tall = create_signal(false);
-        let sizing = create_memo(move || match tall.get() {
-            true => ItemSize::Fixed(TALL_HEIGHT),
-            false => ItemSize::Fixed(SHORT_HEIGHT),
+        let length = create_memo(move || match tall.get() {
+            true => TALL_HEIGHT,
+            false => SHORT_HEIGHT,
         });
         view! {
             <List spacing=0.0>
@@ -25,14 +25,15 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
                 <ForEach keys={vec![0, 1]}>|index: usize| {
                     match index {
                         0 => view! {
-                            <Frame @crate::reactive::sizing={sizing} @node_ref=&header />
+                            <ListItem length>
+                                <Frame @node_ref=&header />
+                            </ListItem>
                         },
                         _ => {
                             view! {
-                                <Frame
-                                    @crate::reactive::sizing=ItemSize::Percent(100.0)
-                                    @node_ref=&body
-                                />
+                                <ListItem grow=1.0>
+                                    <Frame @node_ref=&body />
+                                </ListItem>
                             }
                         }
                     }

@@ -16,23 +16,25 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
                     <Frame height=40.0>
                         <Interactive @test_id="bar" on_hover_change={hovered} />
                     </Frame>
-                    <dock_host::styled::DockHost @sizing=ItemSize::Percent(100.0)>
-                        <dock::Docking layout>
-                            <DockPane id="tabs">
-                                <DockTab
-                                    id=1u64
-                                    title="Tab 1"
-                                    content={move || {
-                                        let tab = use_dock_tab();
-                                        control.update(|control| *control = tab);
-                                        view! {
-                                            <Frame @test_id="content" />
-                                        }
-                                    }}
-                                />
-                            </DockPane>
-                        </dock::Docking>
-                    </dock_host::styled::DockHost>
+                    <ListItem grow=1.0>
+                        <dock_host::styled::DockHost>
+                            <dock::Docking layout>
+                                <DockPane id="tabs">
+                                    <DockTab
+                                        id=1u64
+                                        title="Tab 1"
+                                        content={move || {
+                                            let tab = use_dock_tab();
+                                            control.update(|control| *control = tab);
+                                            view! {
+                                                <Frame @test_id="content" />
+                                            }
+                                        }}
+                                    />
+                                </DockPane>
+                            </dock::Docking>
+                        </dock_host::styled::DockHost>
+                    </ListItem>
                 </List>
             }
         })

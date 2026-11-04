@@ -7,7 +7,7 @@ use beui_terminal_view::{Fit, Lines, TerminalInput, TerminalView};
 
 use super::offline::{Offline, SetupSteps};
 use super::session::Session;
-use beui::{Align, Align2, Direction, Extent, ItemSize};
+use beui::{Align, Align2, Direction, Extent};
 
 const BAR_PADDING: Space = Space::Md;
 const BAR_HEIGHT: Size = Size::Xl2;
@@ -21,10 +21,14 @@ pub(crate) fn TerminalBlock(editor: Editor) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Show condition={setup}>
-                <Offline @sizing=ItemSize::Percent(100.0) editor={editor} />
+                <ListItem grow=1.0>
+                    <Offline editor={editor} />
+                </ListItem>
             </Show>
             <Show condition={running}>
-                <Running @sizing=ItemSize::Percent(100.0) session editor={editor} />
+                <ListItem grow=1.0>
+                    <Running session editor={editor} />
+                </ListItem>
             </Show>
         </List>
     }
@@ -115,7 +119,7 @@ fn Running(session: Session, editor: Editor) -> NodeId {
                         </List>
                     </Show>
                     <Text style=TextStyle::CAPTION @test_id={"terminal.status"}>{status}</Text>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Spacer />
                     <Show condition={alternate}>
                         <ToggleButton
                             label="Main screen"
@@ -126,19 +130,21 @@ fn Running(session: Session, editor: Editor) -> NodeId {
                     </Show>
                 </List>
             </Frame>
-            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                <TerminalView
-                    history
-                    rows
-                    cursor
-                    colors={session.colors}
-                    input
-                    wheel={program}
-                    on_input={move |input: TerminalInput| session.input(input)}
-                    on_wheel={move |wheel: TerminalWheel| session.wheel(wheel)}
-                    on_fit={move |fit: Fit| session.fit(fit)}
-                />
-            </Frame>
+            <ListItem grow=1.0>
+                <Frame @node_ref={&content}>
+                    <TerminalView
+                        history
+                        rows
+                        cursor
+                        colors={session.colors}
+                        input
+                        wheel={program}
+                        on_input={move |input: TerminalInput| session.input(input)}
+                        on_wheel={move |wheel: TerminalWheel| session.wheel(wheel)}
+                        on_fit={move |fit: Fit| session.fit(fit)}
+                    />
+                </Frame>
+            </ListItem>
         </List>
     }
 }

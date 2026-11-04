@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
@@ -16,33 +15,35 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <List spacing=0.0>
-                        <Frame height=HEADER>
-                            <Spacer />
-                        </Frame>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
                         <List spacing=0.0>
-                            <VirtualList
-                                @node_ref=&list
-                                keys={indices(ROWS)}
-                                item_size=VIRTUAL_ITEM_HEIGHT
-                            >|index: ReadSignal<usize>| {
-                                create_binding(move || {
-                                    let index = index.get();
-                                    built.update(|built| built.push(index));
-                                });
-                                view! {
-                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                        <Spacer />
-                                    </Frame>
-                                }
-                            }</VirtualList>
+                            <Frame height=HEADER>
+                                <Frame />
+                            </Frame>
+                            <List spacing=0.0>
+                                <VirtualList
+                                    @node_ref=&list
+                                    keys={indices(ROWS)}
+                                    item_size=VIRTUAL_ITEM_HEIGHT
+                                >|index: ReadSignal<usize>| {
+                                    create_binding(move || {
+                                        let index = index.get();
+                                        built.update(|built| built.push(index));
+                                    });
+                                    view! {
+                                        <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                            <Frame />
+                                        </Frame>
+                                    }
+                                }</VirtualList>
+                            </List>
+                            <Frame height=FOOTER>
+                                <Frame />
+                            </Frame>
                         </List>
-                        <Frame height=FOOTER>
-                            <Spacer />
-                        </Frame>
-                    </List>
-                </Scroll>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

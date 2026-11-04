@@ -11,7 +11,7 @@ use be_sdk_beui::{
     VersionHistory, VersionSteps, short_id,
 };
 use beui::Overflow;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 use uuid::Uuid;
 
 const PADDING: Space = Space::Xl3;
@@ -170,154 +170,160 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
 
     view! {
         <List spacing=Space::None>
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding=PADDING>
-                    <List spacing=SECTION_SPACING>
-                        <List spacing=Space::Sm>
-                            <Text style=TextStyle::HEADING>"Checkout"</Text>
-                            <Text style=TextStyle::CAPTION @test_id={"checkout.summary"}>
-                                {summary}
-                            </Text>
-                            <BlockLink
-                                editor={editor}
-                                block={repository}
-                                @test_id={"checkout.repository"}
-                            />
-                            <Show condition={has_note}>
-                                <Text style=TextStyle::CAPTION @test_id={"checkout.note"}>
-                                    {note}
+            <ListItem grow=1.0>
+                <Scroll>
+                    <Frame padding=PADDING>
+                        <List spacing=SECTION_SPACING>
+                            <List spacing=Space::Sm>
+                                <Text style=TextStyle::HEADING>"Checkout"</Text>
+                                <Text style=TextStyle::CAPTION @test_id={"checkout.summary"}>
+                                    {summary}
                                 </Text>
-                            </Show>
-                        </List>
-                        <Show condition={behind}>
-                            <Card>
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=Space::Md
-                                >
-                                    <Text @sizing=ItemSize::Percent(100.0)>
-                                        "Someone saved newer changes on this branch."
-                                    </Text>
-                                    <Button
-                                        label="Bring them in"
-                                        glyph=ICON_ARROW_DOWN_TO_LINE
-                                        variant=ButtonVariant::Primary
-                                        disabled={blocked}
-                                        @test_id={"checkout.update"}
-                                        on_click={move || editor.version(VersionCommand::Update)}
-                                    />
-                                </List>
-                            </Card>
-                        </Show>
-                        <Show condition={conflicted}>
-                            <Card>
-                                <List spacing=Space::Lg>
-                                    <Text style=TextStyle::HEADING>"Clashing edits"</Text>
-                                    <Text style=TextStyle::CAPTION>
-                                        "These blocks were changed in two ways at once. Choose a version for each, or edit it and keep it as it is. You can keep working and save changes before you decide."
-                                    </Text>
-                                    <ForEach keys={conflicts} view={conflict_rows} />
-                                </List>
-                            </Card>
-                        </Show>
-                        <Card>
-                            <List spacing=Space::Md>
-                                <Text style=TextStyle::HEADING>"Current change"</Text>
-                                <Text style=TextStyle::CAPTION>
-                                    "Your edits are kept here as you make them. Describe them and save to start a new change on top."
-                                </Text>
-                                <Show condition={empty_note}>
-                                    <Text style=TextStyle::CAPTION>
-                                        "Nothing has changed since the last saved change."
-                                    </Text>
-                                </Show>
-                                <Show condition={combined_note}>
-                                    <Text style=TextStyle::CAPTION>
-                                        "This change combines another branch into this one."
-                                    </Text>
-                                </Show>
-                                <ForEach keys={changes} view={change_rows} />
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=Space::Md
-                                >
-                                    <TextInput
-                                        @sizing=ItemSize::Percent(100.0)
-                                        value={description}
-                                        placeholder="What does this change do?"
-                                        label="Description"
-                                        @test_id={"checkout.description"}
-                                    />
-                                    <Button
-                                        label="Save change"
-                                        glyph=ICON_CHECK
-                                        variant=ButtonVariant::Primary
-                                        disabled={save_blocked}
-                                        @test_id={"checkout.save"}
-                                        on_click={move || {
-                                            let text = description.get().trim().to_owned();
-                                            editor.version(VersionCommand::Finish { description: text });
-                                            description.set(String::new());
-                                        }}
-                                    />
-                                </List>
-                            </List>
-                        </Card>
-                        <Card>
-                            <List spacing=Space::Md>
-                                <Text style=TextStyle::HEADING>"Branches"</Text>
-                                <ForEach keys={branches} view={branch_rows} />
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=Space::Md
-                                >
-                                    <TextInput
-                                        @sizing=ItemSize::Percent(100.0)
-                                        value={branch_name}
-                                        placeholder="New branch"
-                                        label="New branch name"
-                                        @test_id={"checkout.branch-name"}
-                                    />
-                                    <Button
-                                        label="Make branch"
-                                        glyph=ICON_GIT_BRANCH
-                                        variant=ButtonVariant::Secondary
-                                        disabled={branch_blocked}
-                                        @test_id={"checkout.make-branch"}
-                                        on_click={move || {
-                                            let name = branch_name.get().trim().to_owned();
-                                            editor.version(VersionCommand::CreateBranch { name });
-                                            branch_name.set(String::new());
-                                        }}
-                                    />
-                                </List>
-                            </List>
-                        </Card>
-                        <Card>
-                            <List spacing=Space::Md>
-                                <Text style=TextStyle::HEADING>"Saved changes"</Text>
-                                <VersionHistory log={log} />
-                            </List>
-                        </Card>
-                        <Card>
-                            <List spacing=Space::Md>
-                                <Text style=TextStyle::HEADING>"What was done"</Text>
-                                <Text style=TextStyle::CAPTION>
-                                    "Every step is kept here, so any of them can be undone."
-                                </Text>
-                                <VersionSteps
+                                <BlockLink
                                     editor={editor}
-                                    operations={operations}
-                                    blocked={blocked}
+                                    block={repository}
+                                    @test_id={"checkout.repository"}
                                 />
+                                <Show condition={has_note}>
+                                    <Text style=TextStyle::CAPTION @test_id={"checkout.note"}>
+                                        {note}
+                                    </Text>
+                                </Show>
                             </List>
-                        </Card>
-                    </List>
-                </Frame>
-            </Scroll>
+                            <Show condition={behind}>
+                                <Card>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=Space::Md
+                                    >
+                                        <ListItem grow=1.0>
+                                            <Text>
+                                                "Someone saved newer changes on this branch."
+                                            </Text>
+                                        </ListItem>
+                                        <Button
+                                            label="Bring them in"
+                                            glyph=ICON_ARROW_DOWN_TO_LINE
+                                            variant=ButtonVariant::Primary
+                                            disabled={blocked}
+                                            @test_id={"checkout.update"}
+                                            on_click={move || editor.version(VersionCommand::Update)}
+                                        />
+                                    </List>
+                                </Card>
+                            </Show>
+                            <Show condition={conflicted}>
+                                <Card>
+                                    <List spacing=Space::Lg>
+                                        <Text style=TextStyle::HEADING>"Clashing edits"</Text>
+                                        <Text style=TextStyle::CAPTION>
+                                            "These blocks were changed in two ways at once. Choose a version for each, or edit it and keep it as it is. You can keep working and save changes before you decide."
+                                        </Text>
+                                        <ForEach keys={conflicts} view={conflict_rows} />
+                                    </List>
+                                </Card>
+                            </Show>
+                            <Card>
+                                <List spacing=Space::Md>
+                                    <Text style=TextStyle::HEADING>"Current change"</Text>
+                                    <Text style=TextStyle::CAPTION>
+                                        "Your edits are kept here as you make them. Describe them and save to start a new change on top."
+                                    </Text>
+                                    <Show condition={empty_note}>
+                                        <Text style=TextStyle::CAPTION>
+                                            "Nothing has changed since the last saved change."
+                                        </Text>
+                                    </Show>
+                                    <Show condition={combined_note}>
+                                        <Text style=TextStyle::CAPTION>
+                                            "This change combines another branch into this one."
+                                        </Text>
+                                    </Show>
+                                    <ForEach keys={changes} view={change_rows} />
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=Space::Md
+                                    >
+                                        <ListItem grow=1.0>
+                                            <TextInput
+                                                value={description}
+                                                placeholder="What does this change do?"
+                                                label="Description"
+                                                @test_id={"checkout.description"}
+                                            />
+                                        </ListItem>
+                                        <Button
+                                            label="Save change"
+                                            glyph=ICON_CHECK
+                                            variant=ButtonVariant::Primary
+                                            disabled={save_blocked}
+                                            @test_id={"checkout.save"}
+                                            on_click={move || {
+                                                let text = description.get().trim().to_owned();
+                                                editor.version(VersionCommand::Finish { description: text });
+                                                description.set(String::new());
+                                            }}
+                                        />
+                                    </List>
+                                </List>
+                            </Card>
+                            <Card>
+                                <List spacing=Space::Md>
+                                    <Text style=TextStyle::HEADING>"Branches"</Text>
+                                    <ForEach keys={branches} view={branch_rows} />
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=Space::Md
+                                    >
+                                        <ListItem grow=1.0>
+                                            <TextInput
+                                                value={branch_name}
+                                                placeholder="New branch"
+                                                label="New branch name"
+                                                @test_id={"checkout.branch-name"}
+                                            />
+                                        </ListItem>
+                                        <Button
+                                            label="Make branch"
+                                            glyph=ICON_GIT_BRANCH
+                                            variant=ButtonVariant::Secondary
+                                            disabled={branch_blocked}
+                                            @test_id={"checkout.make-branch"}
+                                            on_click={move || {
+                                                let name = branch_name.get().trim().to_owned();
+                                                editor.version(VersionCommand::CreateBranch { name });
+                                                branch_name.set(String::new());
+                                            }}
+                                        />
+                                    </List>
+                                </List>
+                            </Card>
+                            <Card>
+                                <List spacing=Space::Md>
+                                    <Text style=TextStyle::HEADING>"Saved changes"</Text>
+                                    <VersionHistory log={log} />
+                                </List>
+                            </Card>
+                            <Card>
+                                <List spacing=Space::Md>
+                                    <Text style=TextStyle::HEADING>"What was done"</Text>
+                                    <Text style=TextStyle::CAPTION>
+                                        "Every step is kept here, so any of them can be undone."
+                                    </Text>
+                                    <VersionSteps
+                                        editor={editor}
+                                        operations={operations}
+                                        blocked={blocked}
+                                    />
+                                </List>
+                            </Card>
+                        </List>
+                    </Frame>
+                </Scroll>
+            </ListItem>
         </List>
     }
 }
@@ -437,7 +443,9 @@ fn BranchLine(editor: Editor, blocked: Memo<bool>, name: String, current: bool) 
             spacing=Space::Md
             @test_id=branch_test_id
         >
-            <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{name}</Text>
+            <ListItem grow=1.0>
+                <Text overflow=Overflow::Ellipsis>{name}</Text>
+            </ListItem>
             <Show condition={!current}>|| {
                 let (merged, merge_test_id) = (merged.clone(), merge_test_id.clone());
                 view! {

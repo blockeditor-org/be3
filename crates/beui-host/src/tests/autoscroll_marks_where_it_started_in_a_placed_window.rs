@@ -24,11 +24,13 @@ fn autoscroll_marks_where_it_started_in_a_placed_window() {
                 placement={WindowPlacement::Host(HostPlacement("display".to_owned()))}
             >|_: WindowHandle|
                 <List spacing=0.0>
-                    <Scroll @sizing=ItemSize::Percent(100.0) marker={marker}>
-                        <ForEach keys={indices(100)}>|index: usize|
-                            <LabelledButton label={format!("Row {index}")} />
-                        </ForEach>
-                    </Scroll>
+                    <ListItem grow=1.0>
+                        <Scroll marker={marker}>
+                            <ForEach keys={indices(100)}>|index: usize|
+                                <LabelledButton label={format!("Row {index}")} />
+                            </ForEach>
+                        </Scroll>
+                    </ListItem>
                 </List>
             </Window>
         }

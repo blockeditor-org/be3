@@ -19,7 +19,7 @@ use beui_view::types::Image;
 use beui_view::types::Justify;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{ICON_CIRCLE_ALERT, ICON_INFO, ICON_X};
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 use beui_view::types::{Overflow, WrapAt};
 use std::time::Duration;
 
@@ -150,41 +150,43 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
                     </Text>
                 </Frame>
             </Show>
-            <List @sizing=ItemSize::Percent(100.0) spacing=TEXT_SPACING>
-                <Show condition={sourced}>|| {
-                    let source = source.clone(); view! {
-                        <Text
-                            size=TextSize::Xs
-                            color=TextColor::Muted
-                            overflow={clamped(SOURCE_LINES)}
-                        >
-                            {source}
-                        </Text>
-                    }
-                }</Show>
-                <Show condition={titled}>|| {
-                    let title = title.clone(); view! {
-                        <Text
-                            color={title_color}
-                            weight=Weight::Bold
-                            overflow={clamped(TITLE_LINES)}
-                        >
-                            {title}
-                        </Text>
-                    }
-                }</Show>
-                <Show condition={said}>|| {
-                    let message = message.clone(); view! {
-                        <Text
-                            size={message_size}
-                            color={message_color}
-                            overflow={clamped(MESSAGE_LINES)}
-                        >
-                            {message}
-                        </Text>
-                    }
-                }</Show>
-            </List>
+            <ListItem grow=1.0>
+                <List spacing=TEXT_SPACING>
+                    <Show condition={sourced}>|| {
+                        let source = source.clone(); view! {
+                            <Text
+                                size=TextSize::Xs
+                                color=TextColor::Muted
+                                overflow={clamped(SOURCE_LINES)}
+                            >
+                                {source}
+                            </Text>
+                        }
+                    }</Show>
+                    <Show condition={titled}>|| {
+                        let title = title.clone(); view! {
+                            <Text
+                                color={title_color}
+                                weight=Weight::Bold
+                                overflow={clamped(TITLE_LINES)}
+                            >
+                                {title}
+                            </Text>
+                        }
+                    }</Show>
+                    <Show condition={said}>|| {
+                        let message = message.clone(); view! {
+                            <Text
+                                size={message_size}
+                                color={message_color}
+                                overflow={clamped(MESSAGE_LINES)}
+                            >
+                                {message}
+                            </Text>
+                        }
+                    }</Show>
+                </List>
+            </ListItem>
         </List>
     };
     let body = match activates {
@@ -209,7 +211,9 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
         >
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
-                    <Frame @sizing=ItemSize::Percent(100.0)>{body}</Frame>
+                    <ListItem grow=1.0>
+                        <Frame>{body}</Frame>
+                    </ListItem>
                     <Button
                         icon_only=true
                         @test_id={format!("toast.{id}.dismiss")}

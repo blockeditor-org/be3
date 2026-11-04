@@ -5,7 +5,7 @@ use beui::reactive::*;
 use beui::styled::*;
 
 use crate::Creation;
-use beui::{Align, Direction, ItemSize, PickedFile};
+use beui::{Align, Direction, PickedFile};
 
 const SPACING: Space = Space::Md;
 
@@ -177,7 +177,9 @@ where
                     @test_id={choose_id}
                     on_click={choose}
                 />
-                <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::CAPTION>{name}</Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CAPTION>{name}</Text>
+                </ListItem>
             </List>
             <Show condition={failed}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={error_id.clone()}>

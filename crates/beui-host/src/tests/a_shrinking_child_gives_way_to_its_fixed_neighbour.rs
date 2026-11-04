@@ -9,12 +9,9 @@ fn a_shrinking_child_gives_way_to_its_fixed_neighbour() {
     let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal spacing=10.0>
-                <Frame
-                    @sizing={ItemSize::Intrinsic.shrink(1.0).min(50.0)}
-                    @node_ref=&label
-                    width=300.0
-                    height=20.0
-                />
+                <ListItem shrink=1.0 min=50.0>
+                    <Frame @node_ref=&label width=300.0 height=20.0 />
+                </ListItem>
                 <Frame @node_ref=&button width=60.0 height=20.0 />
             </List>
         }

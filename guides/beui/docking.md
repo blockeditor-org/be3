@@ -29,13 +29,13 @@ A `Docking` only declares: its children describe the starting layout and the ful
 `DockHost` above it lays the dock out and draws it where the `Docking` is. An editor's frame already
 has one (be-sdk-beui), so an editor writes only the `Docking`; a program, test or shell that needs
 the host's settings (`drag_modifier`) or its `DockHostLayout` puts one around its `Docking`.
-Attributes that place the dock (`@sizing`, `@test_id`, `@node_ref`) go on the `DockHost`.
+A `<ListItem>` that places the dock, and `@test_id` and `@node_ref`, go on the `DockHost`.
 
 ```rust
 let layout = DockingLayout::new();
 let host = DockHostLayout::new();
 view! {
-    <DockHost @sizing=ItemSize::Percent(100.0) layout=host>
+    <ListItem grow=1.0><DockHost layout=host>
         <Docking layout>
             <DockSplit id="root" direction=Direction::Horizontal fraction=0.25>
                 <DockPane id="files"><DockTab id=Key::Files title="Files"><Files /></DockTab></DockPane>
@@ -48,7 +48,7 @@ view! {
                 </DockPane>
             </DockSplit>
         </Docking>
-    </DockHost>
+    </DockHost></ListItem>
 }
 ```
 

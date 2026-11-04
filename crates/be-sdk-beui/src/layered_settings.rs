@@ -467,7 +467,7 @@ pub fn LayeredSettingsRow(
     #[prop(default = false)] locked: Prop<bool>,
     #[prop(default = false)] overridden: Prop<bool>,
     id: String,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let SettingHandle {
         source,

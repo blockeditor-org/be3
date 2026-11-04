@@ -36,11 +36,11 @@ use beui_view::types::Color;
 use beui_view::types::Dismiss;
 use beui_view::types::FontId;
 use beui_view::types::PickedFile;
+use beui_view::types::ScrollPosition;
 use beui_view::types::TextLayout;
 use beui_view::types::{Area, Claim, SoftKeyboard};
 use beui_view::types::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
 use beui_view::types::{HANDLE_RADIUS, handle_center, toolbar_anchor};
-use beui_view::types::{ItemSize, ScrollPosition};
 use beui_view::types::{PasteKind, Pasted};
 use beui_view::types::{Pos2, Rect, Vec2};
 
@@ -1569,19 +1569,23 @@ pub fn TextArea(
         <Frame @node_ref=&outer>
             <List spacing=0.0>
                 <Show condition={single_line}>
-                    <Editing @sizing=ItemSize::Percent(100.0) field={field} />
+                    <ListItem grow=1.0>
+                        <Editing field={field} />
+                    </ListItem>
                 </Show>
                 <Show condition={multi_line}>||
-                    <Canvas @sizing=ItemSize::Percent(100.0) width={width} height={height}>
-                        <CanvasItem x={border_x} y=0.0 width={border_width} height={height}>
-                            <Frame fill=border_color />
-                        </CanvasItem>
-                        <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                            <Scroll offset={offset} scrollbar on_change={scroll}>
-                                <Editing field={field} />
-                            </Scroll>
-                        </CanvasItem>
-                    </Canvas>
+                    <ListItem grow=1.0>
+                        <Canvas width={width} height={height}>
+                            <CanvasItem x={border_x} y=0.0 width={border_width} height={height}>
+                                <Frame fill=border_color />
+                            </CanvasItem>
+                            <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                                <Scroll offset={offset} scrollbar on_change={scroll}>
+                                    <Editing field={field} />
+                                </Scroll>
+                            </CanvasItem>
+                        </Canvas>
+                    </ListItem>
                 </Show>
                 <Show condition={menu}>|| {
                     let menu = completion_menu

@@ -10,23 +10,25 @@ fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <VirtualList
-                        @node_ref=&list
-                        keys={keys}
-                        item_size=VIRTUAL_ITEM_HEIGHT
-                    >|index: ReadSignal<usize>| {
-                        create_binding(move || {
-                            let index = index.get();
-                            built.update(|built| built.push(index));
-                        });
-                        view! {
-                            <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                <Spacer />
-                            </Frame>
-                        }
-                    }</VirtualList>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={keys}
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >|index: ReadSignal<usize>| {
+                            create_binding(move || {
+                                let index = index.get();
+                                built.update(|built| built.push(index));
+                            });
+                            view! {
+                                <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                    <Frame />
+                                </Frame>
+                            }
+                        }</VirtualList>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

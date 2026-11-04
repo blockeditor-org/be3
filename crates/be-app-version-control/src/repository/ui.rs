@@ -8,7 +8,7 @@ use be_sdk_beui::{
     short_id,
 };
 use beui::Overflow;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const PADDING: Space = Space::Xl3;
 const SECTION_SPACING: Space = Space::Xl2;
@@ -76,106 +76,108 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
 
     view! {
         <List spacing=Space::None>
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding=PADDING>
-                    <List spacing=SECTION_SPACING>
-                        <List spacing=Space::Sm>
-                            <Text style=TextStyle::HEADING>"Repository"</Text>
-                            <Show condition={has_note}>
-                                <Text style=TextStyle::CAPTION @test_id={"repository.note"}>
-                                    {note}
-                                </Text>
+            <ListItem grow=1.0>
+                <Scroll>
+                    <Frame padding=PADDING>
+                        <List spacing=SECTION_SPACING>
+                            <List spacing=Space::Sm>
+                                <Text style=TextStyle::HEADING>"Repository"</Text>
+                                <Show condition={has_note}>
+                                    <Text style=TextStyle::CAPTION @test_id={"repository.note"}>
+                                        {note}
+                                    </Text>
+                                </Show>
+                            </List>
+                            <Show condition={unversioned}>
+                                <Card>
+                                    <List spacing=Space::Md>
+                                        <Text>"Nothing is versioned here yet."</Text>
+                                        <Text style=TextStyle::CAPTION>
+                                            "Choose a block, and everything inside it is saved as the first change. From then on its edits gather into changes you describe and save, and any step can be undone."
+                                        </Text>
+                                        <Button
+                                            @node_ref={&adopt}
+                                            label="Choose what to version"
+                                            variant=ButtonVariant::Primary
+                                            disabled={blocked}
+                                            @test_id={"repository.adopt"}
+                                            on_click={choose}
+                                        />
+                                    </List>
+                                </Card>
                             </Show>
-                        </List>
-                        <Show condition={unversioned}>
+                            <Show condition={versioned}>
+                                <Card>
+                                    <List spacing=Space::Md>
+                                        <Text style=TextStyle::HEADING>"Branches"</Text>
+                                        <ForEach keys={branches} view={rows} />
+                                    </List>
+                                </Card>
+                            </Show>
                             <Card>
                                 <List spacing=Space::Md>
-                                    <Text>"Nothing is versioned here yet."</Text>
-                                    <Text style=TextStyle::CAPTION>
-                                        "Choose a block, and everything inside it is saved as the first change. From then on its edits gather into changes you describe and save, and any step can be undone."
-                                    </Text>
-                                    <Button
-                                        @node_ref={&adopt}
-                                        label="Choose what to version"
-                                        variant=ButtonVariant::Primary
-                                        disabled={blocked}
-                                        @test_id={"repository.adopt"}
-                                        on_click={choose}
-                                    />
+                                    <Text style=TextStyle::HEADING>"Original"</Text>
+                                    <Show condition={has_upstream}>
+                                        <BlockLink
+                                            editor={editor}
+                                            block={upstream_target}
+                                            @test_id={"repository.upstream"}
+                                        />
+                                    </Show>
+                                    <Show condition={no_upstream}>
+                                        <Text style=TextStyle::CAPTION>
+                                            "A copy of a repository follows the one it was made from: it can bring in its changes and send its own back."
+                                        </Text>
+                                    </Show>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=Space::Md
+                                    >
+                                        <Button
+                                            label="Copy this history"
+                                            variant=ButtonVariant::Secondary
+                                            disabled={blocked}
+                                            @test_id={"repository.fork"}
+                                            on_click={move || editor.version(VersionCommand::Fork)}
+                                        />
+                                        <Button
+                                            label="Bring in"
+                                            variant=ButtonVariant::Secondary
+                                            disabled={pull_blocked}
+                                            @test_id={"repository.pull"}
+                                            on_click={move || editor.version(VersionCommand::PullUpstream)}
+                                        />
+                                        <Button
+                                            label="Send back"
+                                            variant=ButtonVariant::Secondary
+                                            disabled={pull_blocked}
+                                            @test_id={"repository.push"}
+                                            on_click={move || editor.version(VersionCommand::PushUpstream)}
+                                        />
+                                    </List>
                                 </List>
                             </Card>
-                        </Show>
-                        <Show condition={versioned}>
                             <Card>
                                 <List spacing=Space::Md>
-                                    <Text style=TextStyle::HEADING>"Branches"</Text>
-                                    <ForEach keys={branches} view={rows} />
+                                    <Text style=TextStyle::HEADING>"Saved changes"</Text>
+                                    <VersionHistory log={log} />
                                 </List>
                             </Card>
-                        </Show>
-                        <Card>
-                            <List spacing=Space::Md>
-                                <Text style=TextStyle::HEADING>"Original"</Text>
-                                <Show condition={has_upstream}>
-                                    <BlockLink
+                            <Card>
+                                <List spacing=Space::Md>
+                                    <Text style=TextStyle::HEADING>"What was done"</Text>
+                                    <VersionSteps
                                         editor={editor}
-                                        block={upstream_target}
-                                        @test_id={"repository.upstream"}
-                                    />
-                                </Show>
-                                <Show condition={no_upstream}>
-                                    <Text style=TextStyle::CAPTION>
-                                        "A copy of a repository follows the one it was made from: it can bring in its changes and send its own back."
-                                    </Text>
-                                </Show>
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=Space::Md
-                                >
-                                    <Button
-                                        label="Copy this history"
-                                        variant=ButtonVariant::Secondary
-                                        disabled={blocked}
-                                        @test_id={"repository.fork"}
-                                        on_click={move || editor.version(VersionCommand::Fork)}
-                                    />
-                                    <Button
-                                        label="Bring in"
-                                        variant=ButtonVariant::Secondary
-                                        disabled={pull_blocked}
-                                        @test_id={"repository.pull"}
-                                        on_click={move || editor.version(VersionCommand::PullUpstream)}
-                                    />
-                                    <Button
-                                        label="Send back"
-                                        variant=ButtonVariant::Secondary
-                                        disabled={pull_blocked}
-                                        @test_id={"repository.push"}
-                                        on_click={move || editor.version(VersionCommand::PushUpstream)}
+                                        operations={operations}
+                                        blocked={blocked}
                                     />
                                 </List>
-                            </List>
-                        </Card>
-                        <Card>
-                            <List spacing=Space::Md>
-                                <Text style=TextStyle::HEADING>"Saved changes"</Text>
-                                <VersionHistory log={log} />
-                            </List>
-                        </Card>
-                        <Card>
-                            <List spacing=Space::Md>
-                                <Text style=TextStyle::HEADING>"What was done"</Text>
-                                <VersionSteps
-                                    editor={editor}
-                                    operations={operations}
-                                    blocked={blocked}
-                                />
-                            </List>
-                        </Card>
-                    </List>
-                </Frame>
-            </Scroll>
+                            </Card>
+                        </List>
+                    </Frame>
+                </Scroll>
+            </ListItem>
         </List>
     }
 }
@@ -192,7 +194,9 @@ fn BranchRow(editor: Editor, blocked: Memo<bool>, name: String, head: String) ->
             spacing=Space::Md
             @test_id=branch_test_id
         >
-            <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{name}</Text>
+            <ListItem grow=1.0>
+                <Text overflow=Overflow::Ellipsis>{name}</Text>
+            </ListItem>
             <Text style=TextStyle::CAPTION>{head}</Text>
             <Button
                 label="Open a copy to edit"

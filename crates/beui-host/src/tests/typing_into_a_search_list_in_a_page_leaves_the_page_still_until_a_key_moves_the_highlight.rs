@@ -21,18 +21,20 @@ fn typing_into_a_search_list_in_a_page_leaves_the_page_still_until_a_key_moves_t
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @node_ref=&page @sizing=ItemSize::Percent(100.0)>
-                    <List spacing=0.0>
-                        <Frame height=Size::Custom(150.0) />
-                        <SearchList
-                            api={list}
-                            items
-                            query
-                            list_height=2000.0
-                            on_choose={|_: String| {}}
-                        />
-                    </List>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&page>
+                        <List spacing=0.0>
+                            <Frame height=Size::Custom(150.0) />
+                            <SearchList
+                                api={list}
+                                items
+                                query
+                                list_height=2000.0
+                                on_choose={|_: String| {}}
+                            />
+                        </List>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

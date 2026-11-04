@@ -11,7 +11,7 @@ use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign, Vec2};
 
 use super::entries::{Entry, Folder, FolderSort, Listing};
-use beui::{Align, Direction, ItemSize, Justify};
+use beui::{Align, Direction, Justify};
 
 const PADDING: Space = Space::Lg;
 const TILE_SPACING: Space = Space::Md;
@@ -161,33 +161,35 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                                     </Text>
                                 </Frame>
                             </Show>
-                            <Scroll @sizing=ItemSize::Percent(100.0)>
-                                <Frame padding=PADDING>
-                                    <List spacing=Space::None>
-                                        <Dynamic value={mode}>|shown: FolderView| {
-                                            match shown {
-                                                FolderView::List => view! {
-                                                    <EntryRows cells={cells} />
-                                                },
-                                                FolderView::LargeGrid => view! {
-                                                    <EntryTiles
-                                                        cells={cells}
-                                                        tile=LARGE_TILE
-                                                        icon_size=LARGE_ICON
-                                                    />
-                                                },
-                                                FolderView::SmallGrid => view! {
-                                                    <EntryTiles
-                                                        cells={cells}
-                                                        tile=SMALL_TILE
-                                                        icon_size=SMALL_ICON
-                                                    />
-                                                },
-                                            }
-                                        }</Dynamic>
-                                    </List>
-                                </Frame>
-                            </Scroll>
+                            <ListItem grow=1.0>
+                                <Scroll>
+                                    <Frame padding=PADDING>
+                                        <List spacing=Space::None>
+                                            <Dynamic value={mode}>|shown: FolderView| {
+                                                match shown {
+                                                    FolderView::List => view! {
+                                                        <EntryRows cells={cells} />
+                                                    },
+                                                    FolderView::LargeGrid => view! {
+                                                        <EntryTiles
+                                                            cells={cells}
+                                                            tile=LARGE_TILE
+                                                            icon_size=LARGE_ICON
+                                                        />
+                                                    },
+                                                    FolderView::SmallGrid => view! {
+                                                        <EntryTiles
+                                                            cells={cells}
+                                                            tile=SMALL_TILE
+                                                            icon_size=SMALL_ICON
+                                                        />
+                                                    },
+                                                }
+                                            }</Dynamic>
+                                        </List>
+                                    </Frame>
+                                </Scroll>
+                            </ListItem>
                         </List>
                     </Frame>
                 </DockTab>
@@ -200,38 +202,40 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                 >
                     <DockBarSurface spacing=Space::Md @test_id={"folder.toolbar"}>
                         <DockBarGrip />
-                        <Select
-                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                            options={view! {
-                                <ChoiceOption label={FolderView::LargeGrid.label()} />
-                                <ChoiceOption label={FolderView::SmallGrid.label()} />
-                                <ChoiceOption label={FolderView::List.label()} />
-                            }}
-                            selected={Binding::new(mode_index, move |chosen: Option<usize>| {
-                                if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
-                                {
-                                    mode.set(*shown);
-                                }
-                            })}
-                            label="Layout"
-                            @test_id={"folder.view"}
-                        />
-                        <Select
-                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                            options={view! {
-                                <ChoiceOption label={FolderSort::Intrinsic.label()} />
-                                <ChoiceOption label={FolderSort::Name.label()} />
-                                <ChoiceOption label={FolderSort::Type.label()} />
-                            }}
-                            selected={Binding::new(sort_index, move |chosen: Option<usize>| {
-                                if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
-                                {
-                                    sort.set(*order);
-                                }
-                            })}
-                            label="Sort"
-                            @test_id={"folder.sort"}
-                        />
+                        <ListItem shrink=1.0>
+                            <Select
+                                options={view! {
+                                    <ChoiceOption label={FolderView::LargeGrid.label()} />
+                                    <ChoiceOption label={FolderView::SmallGrid.label()} />
+                                    <ChoiceOption label={FolderView::List.label()} />
+                                }}
+                                selected={Binding::new(mode_index, move |chosen: Option<usize>| {
+                                    if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
+                                    {
+                                        mode.set(*shown);
+                                    }
+                                })}
+                                label="Layout"
+                                @test_id={"folder.view"}
+                            />
+                        </ListItem>
+                        <ListItem shrink=1.0>
+                            <Select
+                                options={view! {
+                                    <ChoiceOption label={FolderSort::Intrinsic.label()} />
+                                    <ChoiceOption label={FolderSort::Name.label()} />
+                                    <ChoiceOption label={FolderSort::Type.label()} />
+                                }}
+                                selected={Binding::new(sort_index, move |chosen: Option<usize>| {
+                                    if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
+                                    {
+                                        sort.set(*order);
+                                    }
+                                })}
+                                label="Sort"
+                                @test_id={"folder.sort"}
+                            />
+                        </ListItem>
                         <Button
                             icon_only=true
                             glyph={direction_glyph}
@@ -267,13 +271,11 @@ fn EntryRows(cells: Cells) -> NodeId {
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <EntryGlyph entry={entry} size=ROW_ICON />
-                            <Text
-                                overflow=Overflow::Ellipsis
-                                @sizing=ItemSize::Percent(100.0)
-                                color={name_color(entry)}
-                            >
-                                {name_of(entry)}
-                            </Text>
+                            <ListItem grow=1.0>
+                                <Text overflow=Overflow::Ellipsis color={name_color(entry)}>
+                                    {name_of(entry)}
+                                </Text>
+                            </ListItem>
                             <Text style=TextStyle::CAPTION>{type_of(entry)}</Text>
                         </List>
                     </ListRow>
@@ -295,25 +297,26 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
                 let open = cells.open(entry);
                 let here = chosen.memo(Some(key));
                 view! {
-                    <ListRow
-                        @sizing=ItemSize::Fixed(tile.x)
-                        selected={here}
-                        @test_id={entry_test_id(key)}
-                        on_click={move || selected.set(Some(key))}
-                        on_activate={open}
-                    >
-                        <Frame height={Size::Custom(tile.y)}>
-                            <List align=Align::Center justify=Justify::Center spacing=Space::Xs>
-                                <EntryGlyph entry={entry} size={icon_size} />
-                                <Text color={name_color(entry)} align=TextAlign::Center>
-                                    {name_of(entry)}
-                                </Text>
-                                <Text style=TextStyle::CAPTION align=TextAlign::Center>
-                                    {type_of(entry)}
-                                </Text>
-                            </List>
-                        </Frame>
-                    </ListRow>
+                    <ListItem length={tile.x}>
+                        <ListRow
+                            selected={here}
+                            @test_id={entry_test_id(key)}
+                            on_click={move || selected.set(Some(key))}
+                            on_activate={open}
+                        >
+                            <Frame height={Size::Custom(tile.y)}>
+                                <List align=Align::Center justify=Justify::Center spacing=Space::Xs>
+                                    <EntryGlyph entry={entry} size={icon_size} />
+                                    <Text color={name_color(entry)} align=TextAlign::Center>
+                                        {name_of(entry)}
+                                    </Text>
+                                    <Text style=TextStyle::CAPTION align=TextAlign::Center>
+                                        {type_of(entry)}
+                                    </Text>
+                                </List>
+                            </Frame>
+                        </ListRow>
+                    </ListItem>
                 }
             }</ForEach>
         </List>

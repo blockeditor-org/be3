@@ -16,14 +16,15 @@ fn drag_up_from_below(make: fn() -> TextAreaState) {
         held.update(|held| *held = Some(state));
         view! {
             <List spacing=0.0>
-                <TextArea
-                    colors={area_colors()}
-                    look={area_look()}
-                    font_size=AREA_FONT_SIZE
-                    padding=AREA_PADDING
-                    @sizing=ItemSize::Fixed(300.0)
-                    state
-                />
+                <ListItem length=300.0>
+                    <TextArea
+                        colors={area_colors()}
+                        look={area_look()}
+                        font_size=AREA_FONT_SIZE
+                        padding=AREA_PADDING
+                        state
+                    />
+                </ListItem>
             </List>
         }
     });

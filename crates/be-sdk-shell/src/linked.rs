@@ -11,7 +11,7 @@ use super::menu::unlink_permission;
 use super::panel::{Refs, TabInfo};
 use super::workspace::Workspace;
 use be_sdk_beui::beui::TextAlign;
-use beui::{Align, Direction, ItemSize, Overflow};
+use beui::{Align, Direction, Overflow};
 
 const PADDING_HORIZONTAL: Space = Space::Md;
 const PADDING_VERTICAL: Space = Space::Xs;
@@ -21,7 +21,7 @@ const SPACING: Space = Space::Md;
 pub(crate) fn LinkedBar(
     workspace: Workspace,
     info: ReadSignal<Option<TabInfo>>,
-) -> DynamicSegment<ListChild> {
+) -> DynamicSegment<ListItem> {
     let backrefs = create_memo(move || {
         info.with(|info| {
             info.as_ref()
@@ -87,22 +87,18 @@ pub(crate) fn LinkedBar(
                         </Text>
                         <Text>"Linked block"</Text>
                         <Show condition={via_reference}>
-                            <Text
-                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                style=TextStyle::CAPTION
-                                overflow=Overflow::Ellipsis
-                            >
-                                {elsewhere}
-                            </Text>
+                            <ListItem shrink=1.0>
+                                <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                                    {elsewhere}
+                                </Text>
+                            </ListItem>
                         </Show>
                         <Show condition={original}>
-                            <Text
-                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                style=TextStyle::CAPTION
-                                overflow=Overflow::Ellipsis
-                            >
-                                {everywhere}
-                            </Text>
+                            <ListItem shrink=1.0>
+                                <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                                    {everywhere}
+                                </Text>
+                            </ListItem>
                         </Show>
                     </List>
                     <Show condition={via_reference}>

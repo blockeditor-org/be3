@@ -7,7 +7,7 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{BlockQuery, ContentProjection, Editor};
-use beui::{Direction, Extent, ItemSize, Justify};
+use beui::{Direction, Extent, Justify};
 use uuid::Uuid;
 
 const CELL_PADDING_HORIZONTAL: Space = Space::Xl;
@@ -196,15 +196,16 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
     view! {
         <SettingsSection title="Device">
             <SettingsRow label="Name" locked={blocked}>
-                <TextInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={Binding::new(name, move |text: String| {
-                        editor.blocks().set_name(block, Some(text));
-                    })}
-                    label="Name"
-                    disabled={blocked}
-                    @test_id={"setup.name"}
-                />
+                <ListItem grow=1.0>
+                    <TextInput
+                        value={Binding::new(name, move |text: String| {
+                            editor.blocks().set_name(block, Some(text));
+                        })}
+                        label="Name"
+                        disabled={blocked}
+                        @test_id={"setup.name"}
+                    />
+                </ListItem>
             </SettingsRow>
             <SettingsRow
                 label="Kind of device"
@@ -212,24 +213,25 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
                 separated=true
                 locked={blocked}
             >
-                <Select
-                    @sizing=ItemSize::Percent(100.0)
-                    width={Extent::fraction(1.0)}
-                    options={view! {
-                        <ForEach keys={DeviceClass::ALL.to_vec()}>|class: DeviceClass|
-                            <ChoiceOption label={class.name().to_owned()} />
-                        </ForEach>
-                    }}
-                    selected={Binding::new(selected, move |index: Option<usize>| {
-                        if let Some(class) = index.and_then(|index| DeviceClass::ALL.get(index)) {
-                            setup.choose(*class);
-                        }
-                    })}
-                    label="Kind of device"
-                    placeholder="Choose"
-                    disabled={blocked}
-                    @test_id={"setup.kind"}
-                />
+                <ListItem grow=1.0>
+                    <Select
+                        width={Extent::fraction(1.0)}
+                        options={view! {
+                            <ForEach keys={DeviceClass::ALL.to_vec()}>|class: DeviceClass|
+                                <ChoiceOption label={class.name().to_owned()} />
+                            </ForEach>
+                        }}
+                        selected={Binding::new(selected, move |index: Option<usize>| {
+                            if let Some(class) = index.and_then(|index| DeviceClass::ALL.get(index)) {
+                                setup.choose(*class);
+                            }
+                        })}
+                        label="Kind of device"
+                        placeholder="Choose"
+                        disabled={blocked}
+                        @test_id={"setup.kind"}
+                    />
+                </ListItem>
             </SettingsRow>
         </SettingsSection>
     }

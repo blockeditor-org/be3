@@ -55,11 +55,11 @@ pub enum ItemSize {
     #[default]
     Intrinsic,
     Fixed(f32),
-    /// A weight in the bounded space left over. A list measured intrinsically has none
-    /// to share, so its percent children fall back to their intrinsic length there, like
-    /// CSS `height: 50%` in an auto-height parent; a percent scroll, which measures as
-    /// nothing, collapses there, so give it a fixed length.
-    Percent(f32),
+    /// A weight in the bounded space left over, shared with the siblings that grow. A list
+    /// measured intrinsically has none to share, so its growing children fall back to their
+    /// intrinsic length there, like CSS `height: 50%` in an auto-height parent; a growing
+    /// scroll, which measures as nothing, collapses there, so give it a fixed length.
+    Grow(f32),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -126,7 +126,7 @@ impl Sizing {
     }
 
     pub fn yields(self) -> bool {
-        matches!(self.size, ItemSize::Percent(_)) || self.shrink > 0.0
+        matches!(self.size, ItemSize::Grow(_)) || self.shrink > 0.0
     }
 }
 

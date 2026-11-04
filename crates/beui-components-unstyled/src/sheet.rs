@@ -17,7 +17,6 @@ use beui_view::reactive::*;
 use beui_view::types::Claim;
 use beui_view::types::Color;
 use beui_view::types::Direction;
-use beui_view::types::ItemSize;
 use beui_view::types::ScrollPosition;
 use beui_view::types::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
 use beui_view::types::{Measured, Rect, vec2};
@@ -1133,10 +1132,13 @@ pub fn Sheet(
     let shift = create_signal(HIDDEN_SHIFT);
     let gone = create_signal(true);
     let present = create_memo(move || !gone.get());
-    let sheet_sizing = create_memo(move || match rest_at.get() {
-        Rest::Share(share) => ItemSize::Intrinsic.max(share * extent.get()).shrink(1.0),
-        Rest::Fitted => ItemSize::Intrinsic.shrink(1.0),
-        Rest::Free(height) => ItemSize::Fixed(height).shrink(1.0),
+    let sheet_length = create_memo(move || match rest_at.get() {
+        Rest::Free(height) => Some(height),
+        Rest::Share(_) | Rest::Fitted => None,
+    });
+    let sheet_max = create_memo(move || match rest_at.get() {
+        Rest::Share(share) => share * extent.get(),
+        Rest::Fitted | Rest::Free(_) => f32::INFINITY,
     });
     let content = NodeRef::new();
     let slot = NodeRef::new();
@@ -1214,48 +1216,49 @@ pub fn Sheet(
     let sheet = view! {
         <List spacing=0.0>
             <ShowKeepAlive condition={present}>
-                <Frame @sizing={sheet_sizing} @node_ref=&slot translate={shifted}>
-                    {panel.call(view! {
-                        <Frame>
-                            <Interactive
-                                @node_ref=&catcher
-                                claims={flinging}
-                                on_press={move |_: PointerPress| motion.value().stop_fling()}
-                                on_wheel={gestures::scroll_wheel(axis, move |gesture: ScrollGesture| motion.value().wheel(gesture))}
-                                on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().drag(gesture))}
-                            >
-                                <List spacing=0.0>
-                                    <Interactive
-                                        @test_id={"sheet.handle"}
-                                        cursor=CursorIcon::ResizeVertical
-                                        on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().outside_drag(gesture))}
-                                        on_press={move |press: PointerPress| motion.value().handle_press(press)}
-                                        on_drag={move |press: PointerPress| motion.value().handle_drag(press)}
-                                        on_cancel={move || motion.value().handle_cancel()}
-                                        on_active_change={move |active: bool| motion.value().handle_active(active)}
-                                        children={Some(grip)}
-                                    />
-                                    <Frame
-                                        fade_edges={edges}
-                                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                    >
-                                        <Offset
-                                            @node_ref=&content
-                                            fit=true
-                                            on_change={move |value: ScrollPosition| {
-                                                if !motion.value().settle_content(value) {
-                                                    position.set(Some(value));
-                                                }
-                                            }}
-                                        >
-                                            {children}
-                                        </Offset>
-                                    </Frame>
-                                </List>
-                            </Interactive>
-                        </Frame>
-                    })}
-                </Frame>
+                <ListItem length=sheet_length max=sheet_max shrink=1.0>
+                    <Frame @node_ref=&slot translate={shifted}>
+                        {panel.call(view! {
+                            <Frame>
+                                <Interactive
+                                    @node_ref=&catcher
+                                    claims={flinging}
+                                    on_press={move |_: PointerPress| motion.value().stop_fling()}
+                                    on_wheel={gestures::scroll_wheel(axis, move |gesture: ScrollGesture| motion.value().wheel(gesture))}
+                                    on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().drag(gesture))}
+                                >
+                                    <List spacing=0.0>
+                                        <Interactive
+                                            @test_id={"sheet.handle"}
+                                            cursor=CursorIcon::ResizeVertical
+                                            on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().outside_drag(gesture))}
+                                            on_press={move |press: PointerPress| motion.value().handle_press(press)}
+                                            on_drag={move |press: PointerPress| motion.value().handle_drag(press)}
+                                            on_cancel={move || motion.value().handle_cancel()}
+                                            on_active_change={move |active: bool| motion.value().handle_active(active)}
+                                            children={Some(grip)}
+                                        />
+                                        <ListItem shrink=1.0>
+                                            <Frame fade_edges={edges}>
+                                                <Offset
+                                                    @node_ref=&content
+                                                    fit=true
+                                                    on_change={move |value: ScrollPosition| {
+                                                        if !motion.value().settle_content(value) {
+                                                            position.set(Some(value));
+                                                        }
+                                                    }}
+                                                >
+                                                    {children}
+                                                </Offset>
+                                            </Frame>
+                                        </ListItem>
+                                    </List>
+                                </Interactive>
+                            </Frame>
+                        })}
+                    </Frame>
+                </ListItem>
             </ShowKeepAlive>
         </List>
     };
@@ -1333,35 +1336,37 @@ fn ModalSheetBody(
     });
     let extent = create_signal(0.0);
     let highest = stops.iter().copied().fold(0.0, f32::max);
-    let room = create_memo(move || ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest)));
+    let room = create_memo(move || extent.get() * (1.0 - highest));
     let built = view! {
         <List spacing=0.0>
-            <Interactive
-                @sizing={room}
-                @test_id={"sheet.outside"}
-                on_click={on_close}
-                on_pointer={gestures::scroll_drag(Some(Direction::Vertical), move |gesture: DragGesture| {
-                    if let Some(handler) = drag.get() { handler.call(gesture); }
-                })}
-            >
-                <Spacer />
-            </Interactive>
-            <Sheet
-                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                extent
-                open
-                rest
-                stops
-                fit
-                fade
-                grip
-                panel
-                on_presence={move |presence: f32| on_presence.call(presence)}
-                on_gone={move || gone.set(true)}
-                on_close={on_close}
-            >
-                {children}
-            </Sheet>
+            <ListItem grow=1.0 min=room>
+                <Interactive
+                    @test_id={"sheet.outside"}
+                    on_click={on_close}
+                    on_pointer={gestures::scroll_drag(Some(Direction::Vertical), move |gesture: DragGesture| {
+                        if let Some(handler) = drag.get() { handler.call(gesture); }
+                    })}
+                >
+                    <Frame />
+                </Interactive>
+            </ListItem>
+            <ListItem shrink=1.0>
+                <Sheet
+                    extent
+                    open
+                    rest
+                    stops
+                    fit
+                    fade
+                    grip
+                    panel
+                    on_presence={move |presence: f32| on_presence.call(presence)}
+                    on_gone={move || gone.set(true)}
+                    on_close={on_close}
+                >
+                    {children}
+                </Sheet>
+            </ListItem>
         </List>
     };
     let measured = measure(built);

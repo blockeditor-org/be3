@@ -14,8 +14,8 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Align2;
 use beui_view::types::Image;
+use beui_view::types::TextAlign;
 use beui_view::types::{Align, Direction, Justify};
-use beui_view::types::{ItemSize, TextAlign};
 
 const GLYPH_SPACING: Space = Space::Sm;
 const MIN_HIT: Size = Size::Md;
@@ -279,15 +279,16 @@ pub fn ButtonFace(
                             </Text>
                         </Show>
                         <Show condition={labelled}>
-                            <Text
-                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                size=text
-                                color={label_color}
-                                align=TextAlign::Center
-                                overflow=Overflow::Ellipsis
-                            >
-                                {label}
-                            </Text>
+                            <ListItem shrink=1.0>
+                                <Text
+                                    size=text
+                                    color={label_color}
+                                    align=TextAlign::Center
+                                    overflow=Overflow::Ellipsis
+                                >
+                                    {label}
+                                </Text>
+                            </ListItem>
                         </Show>
                         <Show condition={has_trailing}>
                             <Text size=text color={label_color} align=TextAlign::Center>

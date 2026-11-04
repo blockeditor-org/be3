@@ -10,7 +10,6 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Direction;
-use beui_view::types::ItemSize;
 use beui_view::types::{Key, KeyPress};
 
 const WEEKS: usize = 6;
@@ -216,11 +215,12 @@ pub fn Calendar(
                 <CalendarGrid label=label spacing>
                     <List direction=Direction::Horizontal spacing>
                         <ForEach keys={(0..DAYS_PER_WEEK).collect::<Vec<_>>()}>|column: usize|
-                            <CalendarWeekday
-                                @sizing=ItemSize::Percent(100.0)
-                                weekday={first_weekday.offset(column as u32)}
-                                face={weekday}
-                            />
+                            <ListItem grow=1.0>
+                                <CalendarWeekday
+                                    weekday={first_weekday.offset(column as u32)}
+                                    face={weekday}
+                                />
+                            </ListItem>
                         </ForEach>
                     </List>
                     <ForEach keys={(0..WEEKS).collect::<Vec<_>>()}>|week: usize|
@@ -270,13 +270,14 @@ fn CalendarYearRow(
     view! {
         <List direction=Direction::Horizontal spacing>
             <ForEach keys={(0..YEAR_COLUMNS).collect::<Vec<_>>()}>|column: usize|
-                <CalendarYear
-                    @sizing=ItemSize::Percent(100.0)
-                    state={state}
-                    offset={(row * YEAR_COLUMNS + column) as i32}
-                    first_year={first_year}
-                    face={year}
-                />
+                <ListItem grow=1.0>
+                    <CalendarYear
+                        state={state}
+                        offset={(row * YEAR_COLUMNS + column) as i32}
+                        first_year={first_year}
+                        face={year}
+                    />
+                </ListItem>
             </ForEach>
         </List>
     }
@@ -351,7 +352,7 @@ fn CalendarYear(
 fn CalendarGrid(
     label: Memo<String>,
     spacing: f32,
-    children: beui_view::reactive::Children<beui_view::reactive::ListChild>,
+    children: beui_view::reactive::Children<beui_view::reactive::ListItem>,
 ) -> NodeId {
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Grid);
@@ -385,13 +386,14 @@ fn CalendarWeek(
     view! {
         <List direction=Direction::Horizontal spacing>
             <ForEach keys={(0..DAYS_PER_WEEK).collect::<Vec<_>>()}>|column: usize|
-                <CalendarDay
-                    @sizing=ItemSize::Percent(100.0)
-                    state={state}
-                    offset={(week * DAYS_PER_WEEK + column) as i64}
-                    grid_start={grid_start}
-                    face={day}
-                />
+                <ListItem grow=1.0>
+                    <CalendarDay
+                        state={state}
+                        offset={(week * DAYS_PER_WEEK + column) as i64}
+                        grid_start={grid_start}
+                        face={day}
+                    />
+                </ListItem>
             </ForEach>
         </List>
     }
@@ -470,12 +472,13 @@ fn CalendarMonthRow(
     view! {
         <List direction=Direction::Horizontal spacing>
             <ForEach keys={(0..MONTH_COLUMNS).collect::<Vec<_>>()}>|column: usize|
-                <CalendarMonth
-                    @sizing=ItemSize::Percent(100.0)
-                    state={state}
-                    number={(row * MONTH_COLUMNS + column + 1) as u8}
-                    face={month}
-                />
+                <ListItem grow=1.0>
+                    <CalendarMonth
+                        state={state}
+                        number={(row * MONTH_COLUMNS + column + 1) as u8}
+                        face={month}
+                    />
+                </ListItem>
             </ForEach>
         </List>
     }

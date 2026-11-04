@@ -1,6 +1,6 @@
 use crate::reactive::Children;
 use crate::reactive::Get;
-use crate::reactive::ListChild;
+use crate::reactive::ListItem;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
 use crate::types::Align;
@@ -16,7 +16,7 @@ pub(crate) fn list(
     justify: Prop<Justify>,
     wrap: Prop<bool>,
     spacing: Prop<f32>,
-    children: Children<ListChild>,
+    children: Children<ListItem>,
 ) -> NodeId {
     let list = with_document(|document| document.create_list(direction.get_untracked(), 0.0));
     create_binding(move || {

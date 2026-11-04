@@ -14,7 +14,7 @@ use beui_types::{Vec2, vec2};
 use beui_view::reactive::*;
 
 use super::State;
-use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Align, Direction};
 
 pub const HEIGHT: f32 = 51.0;
 const PADDING: Space = Space::Md;
@@ -190,7 +190,7 @@ fn ResponsiveToolbar(
                             label="Zoom"
                         />
                     </Frame>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Spacer />
                     <Button
                         icon_only=true
                         @test_id={"inspector.responsive.close"}

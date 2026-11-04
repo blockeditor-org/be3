@@ -4,7 +4,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{ChangesToast, Editor, LayeredSettings, LayeredSettingsRow};
 use be_type_settings::EditorSettings;
-use beui::{Extent, ItemSize};
+use beui::Extent;
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq)]
@@ -124,36 +124,37 @@ fn DefaultEditor(
             locked={read_only}
             id={format!("default-editors.{block_type}")}
         >
-            <Select
-                @sizing=ItemSize::Percent(100.0)
-                width={Extent::fraction(1.0)}
-                options={view! {
-                    <ChoiceOption label={inherited_label} />
-                    <ForEach keys={names}>|index: usize| {
-                        let label = create_memo(move || {
-                            choices.with(|choices| {
-                                choices
-                                    .editors
-                                    .get(index)
-                                    .map(|(_, name)| name.clone())
-                                    .unwrap_or_default()
-                            })
+            <ListItem grow=1.0>
+                <Select
+                    width={Extent::fraction(1.0)}
+                    options={view! {
+                        <ChoiceOption label={inherited_label} />
+                        <ForEach keys={names}>|index: usize| {
+                            let label = create_memo(move || {
+                                choices.with(|choices| {
+                                    choices
+                                        .editors
+                                        .get(index)
+                                        .map(|(_, name)| name.clone())
+                                        .unwrap_or_default()
+                                })
+                            });
+                            view! {
+                                <ChoiceOption label={label} />
+                            }
+                        }</ForEach>
+                    }}
+                    selected={Binding::new(selected, move |index: Option<usize>| {
+                        let chosen = index.and_then(|index| index.checked_sub(1)).and_then(|index| {
+                            choices.with_untracked(|choices| choices.editors.get(index).map(|(id, _)| *id))
                         });
-                        view! {
-                            <ChoiceOption label={label} />
-                        }
-                    }</ForEach>
-                }}
-                selected={Binding::new(selected, move |index: Option<usize>| {
-                    let chosen = index.and_then(|index| index.checked_sub(1)).and_then(|index| {
-                        choices.with_untracked(|choices| choices.editors.get(index).map(|(id, _)| *id))
-                    });
-                    set.call(chosen);
-                })}
-                label={name}
-                disabled={read_only}
-                @test_id={format!("default-editors.{block_type}")}
-            />
+                        set.call(chosen);
+                    })}
+                    label={name}
+                    disabled={read_only}
+                    @test_id={format!("default-editors.{block_type}")}
+                />
+            </ListItem>
         </LayeredSettingsRow>
     }
 }

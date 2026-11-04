@@ -2,9 +2,9 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use be_host_remap::text;
+use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{ItemSize, NodeId};
 use beui_text_editor_core::{Document, TextBuffer, TextLanguage};
 
 use super::ui::Shared;
@@ -73,14 +73,15 @@ pub(super) fn TomlTab(shared: Shared) -> NodeId {
     view! {
         <Frame padding={Padding::horizontal(SIDE_INSET)}>
             <List spacing=ROW_SPACING>
-                <TextArea
-                    @sizing=ItemSize::Fixed(TEXT_HEIGHT)
-                    @test_id={"input-remaps.text"}
-                    state={state}
-                    placeholder={EXAMPLE.to_owned()}
-                    read_only={shared.read_only}
-                    emoji=false
-                />
+                <ListItem length=TEXT_HEIGHT>
+                    <TextArea
+                        @test_id={"input-remaps.text"}
+                        state={state}
+                        placeholder={EXAMPLE.to_owned()}
+                        read_only={shared.read_only}
+                        emoji=false
+                    />
+                </ListItem>
                 <Show condition={failed}>
                     <Text style={TextStyle::CAPTION.color(TextColor::Danger)}>{problem}</Text>
                 </Show>

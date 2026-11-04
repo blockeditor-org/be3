@@ -13,14 +13,16 @@ fn a_wheel_over_the_software_keyboard_scrolls_what_holds_it() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <List spacing=0.0>
-                        <Frame height=300.0 @node_ref=&keyboard>
-                            <SoftwareKeyboard />
-                        </Frame>
-                        <Frame height=2000.0 />
-                    </List>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <List spacing=0.0>
+                            <Frame height=300.0 @node_ref=&keyboard>
+                                <SoftwareKeyboard />
+                            </Frame>
+                            <Frame height=2000.0 />
+                        </List>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

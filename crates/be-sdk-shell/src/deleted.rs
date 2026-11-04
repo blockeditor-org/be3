@@ -5,7 +5,7 @@ use be_sdk_beui::beui::styled::*;
 
 use super::panel::TabInfo;
 use super::workspace::Workspace;
-use beui::{Align, Direction, ItemSize, Overflow};
+use beui::{Align, Direction, Overflow};
 
 const PADDING_HORIZONTAL: Space = Space::Md;
 const PADDING_VERTICAL: Space = Space::Xs;
@@ -15,7 +15,7 @@ const SPACING: Space = Space::Md;
 pub(crate) fn DeletedBar(
     workspace: Workspace,
     info: ReadSignal<Option<TabInfo>>,
-) -> DynamicSegment<ListChild> {
+) -> DynamicSegment<ListItem> {
     let deleted = create_memo(move || {
         info.with(|info| {
             info.as_ref()
@@ -54,13 +54,11 @@ pub(crate) fn DeletedBar(
                             <Icon glyph=ICON_TRASH />
                         </Text>
                         <Text>"Deleted block"</Text>
-                        <Text
-                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                            style=TextStyle::CAPTION
-                            overflow=Overflow::Ellipsis
-                        >
-                            {caption}
-                        </Text>
+                        <ListItem shrink=1.0>
+                            <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                                {caption}
+                            </Text>
+                        </ListItem>
                     </List>
                     <Button
                         @test_id={"workspace.deleted.restore"}

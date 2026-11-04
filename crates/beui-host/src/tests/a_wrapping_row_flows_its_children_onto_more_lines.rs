@@ -11,9 +11,15 @@ fn a_wrapping_row_flows_its_children_onto_more_lines() {
     let document = build_node(move || {
         let row = view! {
             <List direction=Direction::Horizontal wrap=true spacing=10.0>
-                <Frame @sizing=ItemSize::Fixed(40.0) height=20.0 />
-                <Frame @sizing=ItemSize::Fixed(40.0) height=20.0 />
-                <Frame @sizing=ItemSize::Fixed(40.0) height=20.0 />
+                <ListItem length=40.0>
+                    <Frame height=20.0 />
+                </ListItem>
+                <ListItem length=40.0>
+                    <Frame height=20.0 />
+                </ListItem>
+                <ListItem length=40.0>
+                    <Frame height=20.0 />
+                </ListItem>
             </List>
         };
         tiles.set(with_document(|document| document.children(row)));

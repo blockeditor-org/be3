@@ -26,15 +26,17 @@ fn a_canvas_finds_items_added_and_removed_between_its_others() {
                 <Button @node_ref=&change on_click={changed}>
                     <Text>"change"</Text>
                 </Button>
-                <Canvas @sizing=ItemSize::Percent(100.0) @node_ref=&canvas>
-                    <ForEach keys={keys}>|key: u32| {
-                        let (x, y) = spot(key);
-                        view! {
-                            <CanvasItem x={x} y={y} width=20.0 height=10.0 />
-                        }
-                    }</ForEach>
-                    <CanvasItem @node_ref=&last x=10.0 y=400.0 width=20.0 height=10.0 />
-                </Canvas>
+                <ListItem grow=1.0>
+                    <Canvas @node_ref=&canvas>
+                        <ForEach keys={keys}>|key: u32| {
+                            let (x, y) = spot(key);
+                            view! {
+                                <CanvasItem x={x} y={y} width=20.0 height=10.0 />
+                            }
+                        }</ForEach>
+                        <CanvasItem @node_ref=&last x=10.0 y=400.0 width=20.0 height=10.0 />
+                    </Canvas>
+                </ListItem>
             </List>
         }
     });

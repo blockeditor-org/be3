@@ -6,19 +6,17 @@ use crate::unstyled::Button;
 const FIXED_WIDTH: f32 = 30.0;
 
 #[test]
-fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
+fn a_list_items_reactive_props_move_a_child_between_fixed_and_growing() {
     let _root = crate::reactive::RootScope::new();
     let (toggle, left, right) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
 
     let document = build_node(move || {
         let shared = create_signal(false);
-        let sizing = create_memo(move || {
-            if shared.get() {
-                ItemSize::Percent(100.0)
-            } else {
-                ItemSize::Fixed(FIXED_WIDTH)
-            }
+        let grow = create_memo(move || match shared.get() {
+            true => 1.0,
+            false => 0.0,
         });
+        let length = create_memo(move || (!shared.get()).then_some(FIXED_WIDTH));
         view! {
             <List spacing=0.0>
                 <Button
@@ -27,18 +25,16 @@ fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
                 >
                     <Text>"toggle"</Text>
                 </Button>
-                <List
-                    @crate::reactive::sizing=ItemSize::Percent(100.0)
-                    direction=Direction::Horizontal
-                    spacing=0.0
-                >
-                    <List @crate::reactive::sizing={sizing} @node_ref=&left spacing=0.0></List>
-                    <List
-                        @crate::reactive::sizing=ItemSize::Percent(100.0)
-                        @node_ref=&right
-                        spacing=0.0
-                    ></List>
-                </List>
+                <ListItem grow=1.0>
+                    <List direction=Direction::Horizontal spacing=0.0>
+                        <ListItem grow length>
+                            <List @node_ref=&left spacing=0.0></List>
+                        </ListItem>
+                        <ListItem grow=1.0>
+                            <List @node_ref=&right spacing=0.0></List>
+                        </ListItem>
+                    </List>
+                </ListItem>
             </List>
         }
     });
@@ -56,7 +52,7 @@ fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
     assert_eq!(
         harness.rect(left).width(),
         WIDE_VIEWPORT.x / 2.0,
-        "a memo behind `@sizing` must relay a new `ItemSize` to the row that lays the child out"
+        "memos behind a `ListItem`'s props must relay a new sizing to the row that lays the child out"
     );
     assert_eq!(harness.rect(right).width(), WIDE_VIEWPORT.x / 2.0);
 }

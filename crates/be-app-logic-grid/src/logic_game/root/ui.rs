@@ -11,7 +11,7 @@ use crate::logic_game::binary_addition::ui::BinaryAddition;
 
 use super::game::{Game, Level, Solution};
 use be_sdk_beui::beui::TextAlign;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const PADDING: Space = Space::Xl;
 const ROW_SPACING: Space = Space::Md;
@@ -92,31 +92,33 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                             on_click={open_world_hotbar}
                         />
                     </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Spacer />
                 </List>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <List spacing=Space::Xs>
-                        <ForEach keys={keys}>|challenge: ChallengeId| {
-                            let level = level_of(levels, challenge);
-                            let here = open.memo(Some(challenge));
-                            let toggle = move || {
-                                let shown = expanded.get_untracked() == Some(challenge);
-                                expanded.set((!shown).then_some(challenge));
-                            };
-                            view! {
-                                <LevelRow
-                                    editor={editor}
-                                    block={block}
-                                    game={game}
-                                    challenge={challenge}
-                                    level={level}
-                                    expanded={here}
-                                    on_toggle={toggle}
-                                />
-                            }
-                        }</ForEach>
-                    </List>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll>
+                        <List spacing=Space::Xs>
+                            <ForEach keys={keys}>|challenge: ChallengeId| {
+                                let level = level_of(levels, challenge);
+                                let here = open.memo(Some(challenge));
+                                let toggle = move || {
+                                    let shown = expanded.get_untracked() == Some(challenge);
+                                    expanded.set((!shown).then_some(challenge));
+                                };
+                                view! {
+                                    <LevelRow
+                                        editor={editor}
+                                        block={block}
+                                        game={game}
+                                        challenge={challenge}
+                                        level={level}
+                                        expanded={here}
+                                        on_toggle={toggle}
+                                    />
+                                }
+                            }</ForEach>
+                        </List>
+                    </Scroll>
+                </ListItem>
             </List>
         </Frame>
     }
@@ -156,7 +158,7 @@ fn LevelRow(
                             <Icon glyph=ICON_CIRCLE_CHECK />
                         </Text>
                     </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Spacer />
                     <Text style=TextStyle::CAPTION>{attempts}</Text>
                 </List>
             </ListRow>
@@ -229,7 +231,7 @@ fn Solutions(
                     @test_id={format!("logic-game.new-attempt.{}", challenge as usize)}
                     on_click={start}
                 />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
         </List>
     }
@@ -264,7 +266,7 @@ fn SolutionRow(
                     <Icon glyph=ICON_CIRCLE_CHECK />
                 </Text>
             </Show>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Spacer />
             <Button
                 icon_only=true
                 glyph=ICON_TRASH

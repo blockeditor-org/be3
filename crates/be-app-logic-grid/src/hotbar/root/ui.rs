@@ -9,7 +9,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{BlockLink, ChildTarget, ContentProjection, Editor};
 use be_type_logic_grid::hotbar::{HotbarContent, HotbarSlot, SlotKind};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 use uuid::Uuid;
 
 const PADDING: Space = Space::Xl;
@@ -57,24 +57,26 @@ pub fn HotbarView(editor: Editor) -> NodeId {
                         "Nothing is pinned yet. Compiling a grid pins the component it builds."
                     </Text>
                 </Show>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <List spacing=ROW_SPACING>
-                        <ForEach keys={keys}>|index: usize| {
-                            let row = create_memo(move || {
-                                rows.with(|rows| rows.get(index).cloned())
-                            });
-                            view! {
-                                <SlotRow
-                                    index={index}
-                                    editor={editor}
-                                    hotbar={hotbar}
-                                    row={row}
-                                    read_only={read_only}
-                                />
-                            }
-                        }</ForEach>
-                    </List>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll>
+                        <List spacing=ROW_SPACING>
+                            <ForEach keys={keys}>|index: usize| {
+                                let row = create_memo(move || {
+                                    rows.with(|rows| rows.get(index).cloned())
+                                });
+                                view! {
+                                    <SlotRow
+                                        index={index}
+                                        editor={editor}
+                                        hotbar={hotbar}
+                                        row={row}
+                                        read_only={read_only}
+                                    />
+                                }
+                            }</ForEach>
+                        </List>
+                    </Scroll>
+                </ListItem>
             </List>
         </Frame>
     }
@@ -173,7 +175,7 @@ fn SlotRow(
                 />
             </Show>
             <Text style=TextStyle::CAPTION>{note}</Text>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Spacer />
             <Show condition={is_component}>
                 <Button
                     icon_only=true

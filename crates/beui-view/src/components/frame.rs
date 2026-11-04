@@ -12,7 +12,7 @@ use beui_macros::component;
 
 /// Sizing, padding, fill and outline on one retained node. A `max` extent caps the room
 /// the frame takes, not its content, like CSS `max-width` on a block; for a box as wide as
-/// its content up to a cap, size a list child `ItemSize::Intrinsic.max(..)` instead.
+/// its content up to a cap, wrap a list child in `<ListItem max=..>` instead.
 ///
 /// `translate`, `rotate`, `opacity` and `fade_edges` leave the space the frame takes alone.
 /// `translate` snaps to the pixel grid and paints nothing while off screen. Opacity and

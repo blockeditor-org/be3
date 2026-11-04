@@ -1,9 +1,9 @@
 use std::time::Duration;
 
+use beui::Align;
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align, ItemSize};
 
 const GRACE: Duration = Duration::from_millis(300);
 
@@ -19,11 +19,11 @@ pub fn LoadingPane(#[prop(default = "Loading".to_owned())] label: Prop<String>) 
     view! {
         <Frame @test_id={"editor.loading"}>
             <List spacing=Space::None align=Align::Center>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
                 <Show condition={late}>
                     <Progress width=INLINE_PROGRESS_WIDTH label={label} />
                 </Show>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
         </Frame>
     }
@@ -34,9 +34,9 @@ pub fn FailedPane(error: String) -> NodeId {
     view! {
         <Frame @test_id={"editor.failed"}>
             <List spacing=Space::None align=Align::Center>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
                 <Text color=TextColor::Muted>{error}</Text>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
         </Frame>
     }

@@ -11,9 +11,9 @@ use std::cell::RefCell;
 
 use be_block_protocol::OrganizationRole;
 use be_sdk_api::HostPanel;
+use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{ItemSize, NodeId};
 use uuid::Uuid;
 
 use crate::compositor::{AnchoredViews, ShellDisplay};
@@ -548,11 +548,9 @@ fn SecondaryDisplay(view: HostUiStore, index: Memo<usize>) -> NodeId {
                     <Dynamic value={index}>|index: usize| {
                         let display = u32::try_from(index).unwrap_or(u32::MAX);
                         view! {
-                            <ShellDisplay
-                                @sizing=ItemSize::Percent(100.0)
-                                shell={create_memo(move || shell.get())}
-                                display
-                            />
+                            <ListItem grow=1.0>
+                                <ShellDisplay shell={create_memo(move || shell.get())} display />
+                            </ListItem>
                         }
                     }</Dynamic>
                 </Show>
@@ -572,31 +570,39 @@ pub(crate) fn Root(view: HostUiStore) -> NodeId {
                 <Dynamic value={screen}>|screen: Screen| {
                     match screen {
                         Screen::Error => view! {
-                            <onboarding::ErrorScreen @sizing=ItemSize::Percent(100.0) view />
+                            <ListItem grow=1.0>
+                                <onboarding::ErrorScreen view />
+                            </ListItem>
                         },
                         Screen::Accounts => view! {
-                            <onboarding::AccountsScreen @sizing=ItemSize::Percent(100.0) view />
+                            <ListItem grow=1.0>
+                                <onboarding::AccountsScreen view />
+                            </ListItem>
                         },
                         Screen::Organizations => view! {
-                            <onboarding::OrganizationsScreen
-                                @sizing=ItemSize::Percent(100.0)
-                                view
-                            />
+                            <ListItem grow=1.0>
+                                <onboarding::OrganizationsScreen view />
+                            </ListItem>
                         },
                         Screen::Recovery => view! {
-                            <keys::RecoveryScreen @sizing=ItemSize::Percent(100.0) view />
+                            <ListItem grow=1.0>
+                                <keys::RecoveryScreen view />
+                            </ListItem>
                         },
                         Screen::Unlock => view! {
-                            <keys::UnlockScreen @sizing=ItemSize::Percent(100.0) view />
+                            <ListItem grow=1.0>
+                                <keys::UnlockScreen view />
+                            </ListItem>
                         },
                         Screen::Sessions => view! {
-                            <onboarding::SessionsScreen @sizing=ItemSize::Percent(100.0) view />
+                            <ListItem grow=1.0>
+                                <onboarding::SessionsScreen view />
+                            </ListItem>
                         },
                         Screen::Organization => view! {
-                            <organization::OrganizationScreen
-                                @sizing=ItemSize::Percent(100.0)
-                                view
-                            />
+                            <ListItem grow=1.0>
+                                <organization::OrganizationScreen view />
+                            </ListItem>
                         },
                     }
                 }</Dynamic>

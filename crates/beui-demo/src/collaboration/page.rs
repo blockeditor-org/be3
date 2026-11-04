@@ -9,7 +9,7 @@ use beui::icons::{
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
-use beui::{Color32, Direction, ItemSize, NodeId};
+use beui::{Color32, Direction, NodeId};
 use beui_macros::{component, sample};
 use beui_text_editor_core::schema::basic::{self, Basic};
 use beui_text_editor_core::{CursorPosition, EditorCommand, TextLanguage, Value};
@@ -243,30 +243,32 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
             </List>
             <Slider value={latency} max=MAX_LATENCY label="Latency" />
             <unstyled::Stack spacing={use_space(ROW_SPACING)} narrow={narrow}>
-                <EditorPane
-                    @sizing=ItemSize::Percent(50.0)
-                    id="demo.collaboration.left"
-                    title="Left, the owner"
-                    state={left}
-                    remote={left_remote}
-                    runs={runs.read_only()}
-                    rich
-                />
+                <ListItem grow=0.5>
+                    <EditorPane
+                        id="demo.collaboration.left"
+                        title="Left, the owner"
+                        state={left}
+                        remote={left_remote}
+                        runs={runs.read_only()}
+                        rich
+                    />
+                </ListItem>
                 <SendButtons
                     send={pump}
                     flight={flight.read_only()}
                     paused={paused.read_only()}
                     narrow
                 />
-                <EditorPane
-                    @sizing=ItemSize::Percent(50.0)
-                    id="demo.collaboration.right"
-                    title="Right, a follower"
-                    state={right}
-                    remote={right_remote}
-                    runs={runs.read_only()}
-                    rich
-                />
+                <ListItem grow=0.5>
+                    <EditorPane
+                        id="demo.collaboration.right"
+                        title="Right, a follower"
+                        state={right}
+                        remote={right_remote}
+                        runs={runs.read_only()}
+                        rich
+                    />
+                </ListItem>
             </unstyled::Stack>
             <Text style=TextStyle::CAPTION>{status}</Text>
         </List>
@@ -383,18 +385,19 @@ fn EditorPane(
             <Show condition={rich}>
                 <FormatBar state={state} glyphs={GLYPHS.to_vec()} test_prefix={id} />
             </Show>
-            <TextArea
-                @test_id=id
-                @sizing=ItemSize::Fixed(EDITOR_HEIGHT)
-                state={state}
-                remote_cursors={remote}
-                show_runs={runs}
-                client_colors={vec![
-                    (Side::Left.client(), LEFT_COLOR.into()),
-                    (Side::Right.client(), RIGHT_COLOR.into()),
-                ]}
-                marker={render_marker()}
-            />
+            <ListItem length=EDITOR_HEIGHT>
+                <TextArea
+                    @test_id=id
+                    state={state}
+                    remote_cursors={remote}
+                    show_runs={runs}
+                    client_colors={vec![
+                        (Side::Left.client(), LEFT_COLOR.into()),
+                        (Side::Right.client(), RIGHT_COLOR.into()),
+                    ]}
+                    marker={render_marker()}
+                />
+            </ListItem>
         </List>
     }
 }

@@ -10,7 +10,7 @@ use crate::model::{Loaded, Model};
 use crate::time::{now, relative};
 use crate::view::{Labels, MERGED, PADDING, readable_on, state_glyph};
 use beui::TextAlign;
-use beui::{Align, Direction, ItemSize, Track};
+use beui::{Align, Direction, Track};
 
 const SPACING: Space = Space::Lg;
 const CARD_PADDING: Space = Space::Lg;
@@ -94,16 +94,16 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let open = move || model.open(&pull_request.get_untracked().url);
     let refresh = move || model.refresh_timeline(&pull_request.get_untracked());
     view! {
-        <SelectableText child_size=ItemSize::Percent(100.0)>
+        <SelectableText child_grow=1.0>
             <List spacing=Space::None>
                 <Frame padding={Padding::symmetric(PADDING, Space::Xs)}>
                     <List spacing=SPACING>
                         <Text size=TextSize::Xl>{title}</Text>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <StateBadge state />
-                            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>
-                                {summary}
-                            </Text>
+                            <ListItem grow=1.0>
+                                <Text style=TextStyle::CAPTION>{summary}</Text>
+                            </ListItem>
                         </List>
                         <Show condition={tagged}>
                             <Labels labels={labels} checked_out={checked_out} />
@@ -120,7 +120,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                                 variant=ButtonVariant::Ghost
                                 on_click={open}
                             />
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                            <Spacer />
                             <Button
                                 icon_only=true
                                 glyph=ICON_REFRESH_CW
@@ -145,18 +145,22 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         </Show>
                     </List>
                 </Frame>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame padding={Padding::horizontal(PADDING).top(Space::Md).bottom(PADDING)}>
-                        <List spacing=Space::None>
-                            <ForEach keys>|index: usize| {
-                                let entry = create_memo(move || entries.get().get(index).cloned());
-                                view! {
-                                    <TimelineEntry model={model} entry />
-                                }
-                            }</ForEach>
-                        </List>
-                    </Frame>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll>
+                        <Frame
+                            padding={Padding::horizontal(PADDING).top(Space::Md).bottom(PADDING)}
+                        >
+                            <List spacing=Space::None>
+                                <ForEach keys>|index: usize| {
+                                    let entry = create_memo(move || entries.get().get(index).cloned());
+                                    view! {
+                                        <TimelineEntry model={model} entry />
+                                    }
+                                }</ForEach>
+                            </List>
+                        </Frame>
+                    </Scroll>
+                </ListItem>
             </List>
         </SelectableText>
     }
@@ -212,7 +216,7 @@ fn TimelineEntry(model: Model, entry: Memo<Option<Entry>>) -> NodeId {
                         <EventRow actor text when />
                     },
                     None => view! {
-                        <Spacer />
+                        <Frame />
                     },
                 }
             }</Dynamic>
@@ -257,7 +261,9 @@ fn CommentCard(
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <Avatar model={model} url={author.avatar} />
-                            <Text @sizing=ItemSize::Percent(100.0)>{heading}</Text>
+                            <ListItem grow=1.0>
+                                <Text>{heading}</Text>
+                            </ListItem>
                             <Link label={time} size=TextSize::Sm on_click={open} />
                         </List>
                     </Frame>
@@ -312,7 +318,9 @@ fn CommitRow(sha: String, message: String) -> NodeId {
                     <Icon glyph=ICON_GIT_COMMIT_HORIZONTAL />
                 </Text>
                 <Text style=TextStyle::CODE color=TextColor::Muted>{sha}</Text>
-                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{message}</Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CAPTION>{message}</Text>
+                </ListItem>
             </List>
         </Frame>
     }
@@ -446,8 +454,12 @@ fn CodeBlock(text: String) -> NodeId {
 fn Quote(text: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=Space::Md>
-            <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) fill=ColorRole::Border />
-            <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Muted>{text}</Text>
+            <ListItem length=QUOTE_BAR>
+                <Frame fill=ColorRole::Border />
+            </ListItem>
+            <ListItem grow=1.0>
+                <Text color=TextColor::Muted>{text}</Text>
+            </ListItem>
         </List>
     }
 }
@@ -459,7 +471,9 @@ fn Item(text: String) -> NodeId {
             <Frame padding={Padding::symmetric(BULLET_INDENT, Space::Sm)}>
                 <Frame width=BULLET height=BULLET radius=Radius::Full fill=ColorRole::TextMuted />
             </Frame>
-            <Text @sizing=ItemSize::Percent(100.0)>{text}</Text>
+            <ListItem grow=1.0>
+                <Text>{text}</Text>
+            </ListItem>
         </List>
     }
 }

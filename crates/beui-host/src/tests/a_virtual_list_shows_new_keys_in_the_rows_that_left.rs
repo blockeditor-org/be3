@@ -10,23 +10,25 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <VirtualList
-                        @node_ref=&list
-                        keys={indices(VIRTUAL_ITEM_COUNT)}
-                        item_size=VIRTUAL_ITEM_HEIGHT
-                    >|key: ReadSignal<usize>| {
-                        built.update(|built| *built += 1);
-                        let label = create_memo(move || format!("Row {}", key.get()));
-                        view! {
-                            <Interactive focusable=true>
-                                <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                    <Text>{label}</Text>
-                                </Frame>
-                            </Interactive>
-                        }
-                    }</VirtualList>
-                </Offset>
+                <ListItem grow=1.0>
+                    <Offset @node_ref=&scroll>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >|key: ReadSignal<usize>| {
+                            built.update(|built| *built += 1);
+                            let label = create_memo(move || format!("Row {}", key.get()));
+                            view! {
+                                <Interactive focusable=true>
+                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                        <Text>{label}</Text>
+                                    </Frame>
+                                </Interactive>
+                            }
+                        }</VirtualList>
+                    </Offset>
+                </ListItem>
             </List>
         }
     });

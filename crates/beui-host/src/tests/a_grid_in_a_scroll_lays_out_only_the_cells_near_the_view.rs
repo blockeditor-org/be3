@@ -1,6 +1,5 @@
 use super::*;
 use crate::primitives::Grid;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -17,20 +16,22 @@ fn a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0)>
-                        <Grid columns={vec![Track::Fraction(1.0); 2]}>
-                            <ForEach keys={indices(CELLS)}>|index: usize| {
-                                let (cell, inside) = (cells[index], insides[index]);
-                                view! {
-                                    <Frame @node_ref=&cell height=CELL_HEIGHT>
-                                        <Frame @node_ref=&inside>
-                                            <Spacer />
+                    <ListItem grow=1.0>
+                        <Offset>
+                            <Grid columns={vec![Track::Fraction(1.0); 2]}>
+                                <ForEach keys={indices(CELLS)}>|index: usize| {
+                                    let (cell, inside) = (cells[index], insides[index]);
+                                    view! {
+                                        <Frame @node_ref=&cell height=CELL_HEIGHT>
+                                            <Frame @node_ref=&inside>
+                                                <Frame />
+                                            </Frame>
                                         </Frame>
-                                    </Frame>
-                                }
-                            }</ForEach>
-                        </Grid>
-                    </Offset>
+                                    }
+                                }</ForEach>
+                            </Grid>
+                        </Offset>
+                    </ListItem>
                 </List>
             }
         }

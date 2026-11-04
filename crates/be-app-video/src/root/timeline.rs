@@ -15,7 +15,7 @@ use crate::timeline::{
 };
 
 use super::state::{ClipDrag, VideoState};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const THUMBNAIL_MARGIN: Space = Space::Xs2;
 const CLIP_RADIUS: Radius = Radius::Sm;
@@ -329,9 +329,9 @@ fn Clip(
                                     on_state={move |_| {}}
                                 />
                             </Frame>
-                            <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
-                                {name}
-                            </Text>
+                            <ListItem grow=1.0>
+                                <Text overflow=Overflow::Ellipsis>{name}</Text>
+                            </ListItem>
                             <TrimHandle state={state} id={id} scale={scale} />
                         </List>
                     </Frame>

@@ -77,7 +77,7 @@ fn with_a_second_window_open_each_windows_scroll_is_copied_in_that_window_alone(
 }
 
 #[component]
-fn Bands(count: usize) -> DynamicSegment<ListChild> {
+fn Bands(count: usize) -> DynamicSegment<ListItem> {
     view! {
         <ForEach keys={indices(count)}>|index: usize|
             <Frame height=40.0 fill={Color32::from_gray((index * 10) as u8)} radius=0.0 />

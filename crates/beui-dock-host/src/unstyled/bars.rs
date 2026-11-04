@@ -19,8 +19,7 @@ use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::window::{WindowPlacement, WindowReport};
 use beui_view::types::{
-    AboveEmbeds, Align, Align2, Color, Direction, ItemSize, LayerLevel, LayerPolicy, Placement,
-    PointerPress,
+    AboveEmbeds, Align, Align2, Color, Direction, LayerLevel, LayerPolicy, Placement, PointerPress,
 };
 use beui_view::types::{Pos2, Rect, Sides, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle};
@@ -1133,91 +1132,101 @@ pub(super) fn DockBarred(
     view! {
         <List @node_ref=&pane direction=Direction::Vertical spacing=0.0>
             <DockBarBand dock holder edge=DockEdge::Top />
-            <List direction=Direction::Horizontal spacing=0.0 @sizing=ItemSize::Percent(100.0)>
-                <DockBarBand dock holder edge=DockEdge::Left />
-                <Layers @node_ref=&body @sizing=ItemSize::Percent(100.0)>
-                    {children}
-                    <DockBarFloat
-                        dock
-                        holder
-                        edge=DockEdge::Top
-                        align=DockAlign::Start
-                        ends={top}
-                    />
-                    <DockBarFloat
-                        dock
-                        holder
-                        edge=DockEdge::Top
-                        align=DockAlign::Center
-                        ends={top}
-                    />
-                    <DockBarFloat dock holder edge=DockEdge::Top align=DockAlign::End ends={top} />
-                    <DockBarFloat
-                        dock
-                        holder
-                        edge=DockEdge::Bottom
-                        align=DockAlign::Start
-                        ends={bottom}
-                    />
-                    <DockBarFloat
-                        dock
-                        holder
-                        edge=DockEdge::Bottom
-                        align=DockAlign::Center
-                        ends={bottom}
-                    />
-                    <DockBarFloat
-                        dock
-                        holder
-                        edge=DockEdge::Bottom
-                        align=DockAlign::End
-                        ends={bottom}
-                    />
-                    <DockBarFloat
-                        dock
-                        holder
-                        edge=DockEdge::Left
-                        align=DockAlign::Start
-                        ends={left}
-                    />
-                    <DockBarFloat
-                        dock
-                        holder
-                        edge=DockEdge::Left
-                        align=DockAlign::Center
-                        ends={left}
-                    />
-                    <DockBarFloat
-                        dock
-                        holder
-                        edge=DockEdge::Left
-                        align=DockAlign::End
-                        ends={left}
-                    />
-                    <DockBarFloat
-                        dock
-                        holder
-                        edge=DockEdge::Right
-                        align=DockAlign::Start
-                        ends={right}
-                    />
-                    <DockBarFloat
-                        dock
-                        holder
-                        edge=DockEdge::Right
-                        align=DockAlign::Center
-                        ends={right}
-                    />
-                    <DockBarFloat
-                        dock
-                        holder
-                        edge=DockEdge::Right
-                        align=DockAlign::End
-                        ends={right}
-                    />
-                </Layers>
-                <DockBarBand dock holder edge=DockEdge::Right />
-            </List>
+            <ListItem grow=1.0>
+                <List direction=Direction::Horizontal spacing=0.0>
+                    <DockBarBand dock holder edge=DockEdge::Left />
+                    <ListItem grow=1.0>
+                        <Layers @node_ref=&body>
+                            {children}
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Top
+                                align=DockAlign::Start
+                                ends={top}
+                            />
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Top
+                                align=DockAlign::Center
+                                ends={top}
+                            />
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Top
+                                align=DockAlign::End
+                                ends={top}
+                            />
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Bottom
+                                align=DockAlign::Start
+                                ends={bottom}
+                            />
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Bottom
+                                align=DockAlign::Center
+                                ends={bottom}
+                            />
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Bottom
+                                align=DockAlign::End
+                                ends={bottom}
+                            />
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Left
+                                align=DockAlign::Start
+                                ends={left}
+                            />
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Left
+                                align=DockAlign::Center
+                                ends={left}
+                            />
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Left
+                                align=DockAlign::End
+                                ends={left}
+                            />
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Right
+                                align=DockAlign::Start
+                                ends={right}
+                            />
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Right
+                                align=DockAlign::Center
+                                ends={right}
+                            />
+                            <DockBarFloat
+                                dock
+                                holder
+                                edge=DockEdge::Right
+                                align=DockAlign::End
+                                ends={right}
+                            />
+                        </Layers>
+                    </ListItem>
+                    <DockBarBand dock holder edge=DockEdge::Right />
+                </List>
+            </ListItem>
             <DockBarBand dock holder edge=DockEdge::Bottom />
         </List>
     }
@@ -1325,7 +1334,9 @@ fn DockBarLine(
                 <ForEach keys={bars}>|bar: TabId| {
                     let dock = dock;
                     view! {
-                        <DockBarSlot dock bar placement @sizing={ItemSize::Intrinsic.shrink(1.0)} />
+                        <ListItem shrink=1.0>
+                            <DockBarSlot dock bar placement />
+                        </ListItem>
                     }
                 }</ForEach>
             </List>
@@ -1500,7 +1511,9 @@ fn DockBarOverlay(dock: State, edge: DockEdge, align: DockAlign, ends: Signal<[f
                 let dock = dock;
                 let placement = DockBarPlacement::Over(edge, align);
                 view! {
-                    <DockBarSlot dock bar placement @sizing={ItemSize::Intrinsic.shrink(1.0)} />
+                    <ListItem shrink=1.0>
+                        <DockBarSlot dock bar placement />
+                    </ListItem>
                 }
             }</ForEach>
         </List>

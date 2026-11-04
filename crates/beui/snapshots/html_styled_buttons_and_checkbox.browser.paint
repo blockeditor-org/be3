@@ -127,7 +127,7 @@ BE3BROWSER 1
     "</div>",
     "</div>",
     "<!--[-->",
-    "<div style=\"font: 14px Inter, NotoEmoji, system-ui, sans-serif; line-height: 16px; color: var(--v-248e1604); text-align: start; align-content: center; white-space: pre; overflow: hidden; text-overflow: ellipsis; flex: 100 0 0%; min-width: 0px;\">",
+    "<div style=\"font: 14px Inter, NotoEmoji, system-ui, sans-serif; line-height: 16px; color: var(--v-248e1604); text-align: start; align-content: center; white-space: pre; overflow: hidden; text-overflow: ellipsis; flex: 1 0 0%; min-width: 0px;\">",
     "Remember me</div>",
     "<!--]-->",
     "</div>",

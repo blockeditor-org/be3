@@ -14,7 +14,7 @@ use be_sdk_beui::beui::icons::{ICON_KEYBOARD, ICON_REFRESH_CW};
 use be_sdk_beui::beui::reactive::toggle_keyboard;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{ItemSize, NodeId, Rect};
+use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
     DisplaysWatch, Editor, EpaperWatch, MediaWatch, PowerWatch, SavedDockLayout, WifiWatch,
     utc_offset,
@@ -323,12 +323,9 @@ pub(crate) fn WindowsBar(shell: Shell, display: u32) -> NodeId {
     view! {
         <DockBarSurface @test_id={"desktop.bar.windows"}>
             <DockBarGrip bounds={bar_bounds()} />
-            <WindowChips
-                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                windows={shell.windows}
-                direction
-                display
-            />
+            <ListItem shrink=1.0>
+                <WindowChips windows={shell.windows} direction display />
+            </ListItem>
         </DockBarSurface>
     }
 }

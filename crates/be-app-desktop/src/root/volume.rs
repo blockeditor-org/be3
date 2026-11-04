@@ -6,7 +6,7 @@ use be_sdk_beui::desktop;
 use be_sdk_beui::{Editor, MediaLevel, MediaLevels, MediaRequest};
 
 use super::media::volume_glyph;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const SPACING: Space = Space::Lg;
 const LABEL_SPACING: Space = Space::Xs;
@@ -30,18 +30,23 @@ pub(crate) fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
     view! {
         <List spacing=SPACING @test_id={"desktop.volume.panel"}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Slider
-                    @sizing=ItemSize::Percent(100.0)
-                    value={Binding::new(volume, move |level: f32| editor.act(move || desktop::media::request(MediaRequest::SetVolume(level)).detach()))}
-                    max={MediaLevel::LOUDEST}
-                    mark=1.0
-                    label="Volume"
-                    @test_id={"desktop.volume.level"}
-                />
-                <Text @sizing=ItemSize::Fixed(PERCENT_WIDTH)>{shown}</Text>
+                <ListItem grow=1.0>
+                    <Slider
+                        value={Binding::new(volume, move |level: f32| editor.act(move || desktop::media::request(MediaRequest::SetVolume(level)).detach()))}
+                        max={MediaLevel::LOUDEST}
+                        mark=1.0
+                        label="Volume"
+                        @test_id={"desktop.volume.level"}
+                    />
+                </ListItem>
+                <ListItem length=PERCENT_WIDTH>
+                    <Text>{shown}</Text>
+                </ListItem>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text @sizing=ItemSize::Percent(100.0)>"Mute"</Text>
+                <ListItem grow=1.0>
+                    <Text>"Mute"</Text>
+                </ListItem>
                 <Switch
                     on={Binding::new(muted, move |mute: bool| editor.act(move || desktop::media::request(MediaRequest::SetMute(mute)).detach()))}
                     label="Mute"

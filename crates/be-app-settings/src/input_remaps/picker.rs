@@ -6,7 +6,7 @@ use be_host_remap::rules::Wheel;
 use be_sdk_beui::beui::icons::{ICON_KEYBOARD, ICON_SEARCH};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Align, Direction, ItemSize, NodeId, TextAlign};
+use be_sdk_beui::beui::{Align, Direction, NodeId, TextAlign};
 use be_sdk_beui::{
     CapturedChord, CapturedTrigger, Editor, InputCapture, InputCaptureWatch, RemapsWatch, WheelTurn,
 };
@@ -439,14 +439,15 @@ fn TypedKey(
         >
             <List spacing=CATEGORY_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=KEY_SPACING>
-                    <TextInput
-                        @sizing=ItemSize::Percent(100.0)
-                        value={typed}
-                        placeholder="F13, MouseTask, Key 0x9e"
-                        label="Key name or code"
-                        on_submit={move |_: String| use_it()}
-                        @test_id={"input-remaps.picker.typed"}
-                    />
+                    <ListItem grow=1.0>
+                        <TextInput
+                            value={typed}
+                            placeholder="F13, MouseTask, Key 0x9e"
+                            label="Key name or code"
+                            on_submit={move |_: String| use_it()}
+                            @test_id={"input-remaps.picker.typed"}
+                        />
+                    </ListItem>
                     <Button
                         label="Use"
                         variant=ButtonVariant::Primary

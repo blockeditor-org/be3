@@ -16,7 +16,7 @@ fn a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears() {
                 <Frame @node_ref=&outer width=width>
                     <Frame width=CHILD_WIDTH height=CHILD_HEIGHT />
                 </Frame>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
         }
     });

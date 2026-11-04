@@ -13,9 +13,11 @@ fn the_scrollbar_thumb_brightens_under_the_pointer_and_while_it_is_dragged() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame height=CONTENT_HEIGHT />
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <Frame height=CONTENT_HEIGHT />
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

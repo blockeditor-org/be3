@@ -1,6 +1,5 @@
 use super::*;
 use crate::primitives::List;
-use crate::reactive::*;
 use crate::styled::*;
 
 #[test]
@@ -9,7 +8,7 @@ fn a_vertical_separator_rules_down_the_row_it_sits_in() {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Separator direction=Direction::Vertical />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
         }
     });

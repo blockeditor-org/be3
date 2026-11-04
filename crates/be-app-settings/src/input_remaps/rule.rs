@@ -9,7 +9,7 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::unstyled;
-use be_sdk_beui::beui::{Align, Direction, ItemSize, NodeId, Overflow, TextAlign};
+use be_sdk_beui::beui::{Align, Direction, NodeId, Overflow, TextAlign};
 
 use super::gui::{Change, Edits};
 use super::keys::label;
@@ -214,14 +214,15 @@ fn RuleRowFace(
                         <Text style=TextStyle::CAPTION>"taps"</Text>
                     </Show>
                     <Caps caps={result} />
-                    <Text
-                        @sizing=ItemSize::Percent(100.0)
-                        style=TextStyle::CAPTION
-                        overflow=Overflow::Ellipsis
-                        align=TextAlign::End
-                    >
-                        {tags}
-                    </Text>
+                    <ListItem grow=1.0>
+                        <Text
+                            style=TextStyle::CAPTION
+                            overflow=Overflow::Ellipsis
+                            align=TextAlign::End
+                        >
+                            {tags}
+                        </Text>
+                    </ListItem>
                     <Text color=TextColor::Muted align=TextAlign::Center>
                         <Icon glyph={chevron} />
                     </Text>
@@ -451,15 +452,16 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                                 set={move |ms: i64| edit(RuleEdit::HoldMs(Some(ms)))}
                             />
                             <Text style=TextStyle::CAPTION>"or"</Text>
-                            <NumberInput
-                                @sizing=ItemSize::Fixed(MS_WIDTH)
-                                value={Binding::new(hold, move |ms: f64| edit(RuleEdit::HoldMs(Some(ms.round() as i64))))}
-                                min=0.0
-                                decimals={Some(0)}
-                                label="Hold for, in milliseconds"
-                                disabled={read_only}
-                                @test_id={id("hold")}
-                            />
+                            <ListItem length=MS_WIDTH>
+                                <NumberInput
+                                    value={Binding::new(hold, move |ms: f64| edit(RuleEdit::HoldMs(Some(ms.round() as i64))))}
+                                    min=0.0
+                                    decimals={Some(0)}
+                                    label="Hold for, in milliseconds"
+                                    disabled={read_only}
+                                    @test_id={id("hold")}
+                                />
+                            </ListItem>
                             <Text style=TextStyle::CAPTION>"ms"</Text>
                         </List>
                     </Part>
@@ -609,10 +611,12 @@ fn MoreOption(title: &'static str, description: Prop<String>, children: Child) -
     let description = create_memo(move || description.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-            <List @sizing=ItemSize::Percent(100.0) spacing=LABEL_SPACING>
-                <Text>{title}</Text>
-                <Text style=TextStyle::CAPTION>{description}</Text>
-            </List>
+            <ListItem grow=1.0>
+                <List spacing=LABEL_SPACING>
+                    <Text>{title}</Text>
+                    <Text style=TextStyle::CAPTION>{description}</Text>
+                </List>
+            </ListItem>
             {children}
         </List>
     }
@@ -805,16 +809,19 @@ fn StepTile(
                         "wait"
                     </Text>
                 </Show>
-                <NumberInput
-                    @sizing=ItemSize::Fixed(MS_WIDTH)
-                    value={Binding::new(ms, move |ms: f64| edit(RuleEdit::StepMs(step, Some(ms.round() as i64))))}
-                    min=0.0
-                    decimals={Some(0)}
-                    label="Milliseconds"
-                    disabled={edits.read_only}
-                    @test_id={id("ms")}
-                />
-                <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::CAPTION>"ms"</Text>
+                <ListItem length=MS_WIDTH>
+                    <NumberInput
+                        value={Binding::new(ms, move |ms: f64| edit(RuleEdit::StepMs(step, Some(ms.round() as i64))))}
+                        min=0.0
+                        decimals={Some(0)}
+                        label="Milliseconds"
+                        disabled={edits.read_only}
+                        @test_id={id("ms")}
+                    />
+                </ListItem>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CAPTION>"ms"</Text>
+                </ListItem>
                 <Button
                     label={format!("Remove step {}", step + 1)}
                     glyph={Some(ICON_X)}

@@ -1,5 +1,4 @@
 use super::*;
-use crate::primitives::Spacer;
 use crate::primitives::*;
 use crate::reactive::*;
 
@@ -17,28 +16,30 @@ fn nested_offsets_lay_their_content_out_once_a_layout() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <Offset fit=true>
+                <ListItem grow=1.0>
+                    <Offset @node_ref=&scroll>
                         <Offset fit=true>
                             <Offset fit=true>
                                 <Offset fit=true>
                                     <Offset fit=true>
-                                        <VirtualList
-                                            keys={indices(ROWS)}
-                                            item_size=ESTIMATE
-                                        >|index: ReadSignal<usize>|
-                                            <Frame
-                                                height={create_memo(move || height(index.get()))}
-                                            >
-                                                <Spacer />
-                                            </Frame>
-                                        </VirtualList>
+                                        <Offset fit=true>
+                                            <VirtualList
+                                                keys={indices(ROWS)}
+                                                item_size=ESTIMATE
+                                            >|index: ReadSignal<usize>|
+                                                <Frame
+                                                    height={create_memo(move || height(index.get()))}
+                                                >
+                                                    <Frame />
+                                                </Frame>
+                                            </VirtualList>
+                                        </Offset>
                                     </Offset>
                                 </Offset>
                             </Offset>
                         </Offset>
                     </Offset>
-                </Offset>
+                </ListItem>
             </List>
         }
     });

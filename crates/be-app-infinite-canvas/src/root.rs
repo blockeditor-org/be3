@@ -47,7 +47,7 @@ use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, 
 use touch::TouchSetting;
 
 use crate::geometry::MIN_SIZE;
-use beui::{Direction, ItemSize};
+use beui::Direction;
 
 pub(crate) const INSPECTOR: &str = "inspector";
 const LAYERS: &str = "layers";
@@ -130,10 +130,12 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                             <ImportError state={state} />
                             <ExportDialog exporter />
                             <RasterDialogs state />
-                            <Layers @sizing=ItemSize::Percent(100.0)>
-                                <CanvasStage @node_ref={&content} state={state} />
-                                <SelectionDock state layout open bar={bar_size.read_only()} />
-                            </Layers>
+                            <ListItem grow=1.0>
+                                <Layers>
+                                    <CanvasStage @node_ref={&content} state={state} />
+                                    <SelectionDock state layout open bar={bar_size.read_only()} />
+                                </Layers>
+                            </ListItem>
                         </List>
                     </DockTab>
                 </DockPane>

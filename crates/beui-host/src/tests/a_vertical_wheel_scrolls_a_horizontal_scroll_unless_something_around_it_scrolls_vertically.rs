@@ -42,14 +42,16 @@ fn a_vertical_wheel_scrolls_a_horizontal_scroll_unless_something_around_it_scrol
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @test_id="page" @sizing=ItemSize::Percent(100.0)>
-                    <Strip />
-                    <ForEach keys={indices(40)}>|index: usize|
-                        <Frame height=40.0>
-                            <Text color=Color32::WHITE>{format!("Row {index}")}</Text>
-                        </Frame>
-                    </ForEach>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @test_id="page">
+                        <Strip />
+                        <ForEach keys={indices(40)}>|index: usize|
+                            <Frame height=40.0>
+                                <Text color=Color32::WHITE>{format!("Row {index}")}</Text>
+                            </Frame>
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

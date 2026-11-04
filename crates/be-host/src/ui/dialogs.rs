@@ -9,7 +9,7 @@ use uuid::Uuid;
 use be_host_accounts_ui::ErrorText;
 
 use super::{HostUiStore, UiCommand, send};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 #[component]
 pub(super) fn Dialogs(view: HostUiStore) -> NodeId {
@@ -204,10 +204,12 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                     let unremovable = create_memo(move || row.get().me || busy.get());
                     view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                            <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
-                                <Text>{name}</Text>
-                                <Text style=TextStyle::CAPTION>{detail}</Text>
-                            </List>
+                            <ListItem grow=1.0>
+                                <List spacing=Space::Xs2>
+                                    <Text>{name}</Text>
+                                    <Text style=TextStyle::CAPTION>{detail}</Text>
+                                </List>
+                            </ListItem>
                             <Button
                                 label={role_label}
                                 variant=ButtonVariant::Secondary
@@ -307,10 +309,12 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                     });
                     view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                            <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
-                                <Text>{name}</Text>
-                                <Text style=TextStyle::CAPTION>{detail}</Text>
-                            </List>
+                            <ListItem grow=1.0>
+                                <List spacing=Space::Xs2>
+                                    <Text>{name}</Text>
+                                    <Text style=TextStyle::CAPTION>{detail}</Text>
+                                </List>
+                            </ListItem>
                             <Button
                                 icon_only=true
                                 glyph=ICON_TRASH
@@ -349,13 +353,14 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                 </Show>
                 <Text style=TextStyle::CAPTION>"Open a contact link someone sent you"</Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <TextInput
-                        @sizing=ItemSize::Percent(100.0)
-                        value={pasted}
-                        label="Contact link"
-                        @test_id={"host.contacts.paste"}
-                        on_submit={move |value: String| send(UiCommand::OpenContactLink(value))}
-                    />
+                    <ListItem grow=1.0>
+                        <TextInput
+                            value={pasted}
+                            label="Contact link"
+                            @test_id={"host.contacts.paste"}
+                            on_submit={move |value: String| send(UiCommand::OpenContactLink(value))}
+                        />
+                    </ListItem>
                     <Button
                         label="Open"
                         variant=ButtonVariant::Secondary
@@ -432,12 +437,9 @@ fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
                                     align=Align::Center
                                     spacing=Space::Md
                                 >
-                                    <Text
-                                        overflow=Overflow::Ellipsis
-                                        @sizing=ItemSize::Percent(100.0)
-                                    >
-                                        {label}
-                                    </Text>
+                                    <ListItem grow=1.0>
+                                        <Text overflow=Overflow::Ellipsis>{label}</Text>
+                                    </ListItem>
                                     <Button
                                         icon_only=true
                                         glyph=ICON_TRASH
@@ -595,10 +597,12 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
                     let blocked = create_memo(move || !row.get().offerable);
                     view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                            <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
-                                <Text>{name}</Text>
-                                <Text style=TextStyle::CAPTION>{detail}</Text>
-                            </List>
+                            <ListItem grow=1.0>
+                                <List spacing=Space::Xs2>
+                                    <Text>{name}</Text>
+                                    <Text style=TextStyle::CAPTION>{detail}</Text>
+                                </List>
+                            </ListItem>
                             <Button
                                 label="Restore"
                                 variant=ButtonVariant::Primary

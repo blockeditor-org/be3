@@ -2,14 +2,13 @@ use super::*;
 use crate::primitives::Frame;
 use crate::primitives::List;
 use crate::reactive::*;
-use crate::styled::*;
 use crate::unstyled::{Container, narrower_than};
 
 const PAGE_WIDTH: f32 = 200.0;
 const BREAKPOINT: f32 = 300.0;
 
 #[component]
-fn Page(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
+fn Page(#[prop(children)] sections: Render<(), Children<ListItem>>) -> NodeId {
     view! {
         <Container>|_size|
             <List spacing=0.0 children={sections.call(())} />
@@ -22,7 +21,7 @@ fn Section(narrows: Signal<Vec<Memo<bool>>>) -> NodeId {
     let narrow = narrower_than(BREAKPOINT);
     narrows.update(|narrows| narrows.push(narrow));
     view! {
-        <Spacer />
+        <Frame />
     }
 }
 

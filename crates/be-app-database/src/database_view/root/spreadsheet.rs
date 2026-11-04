@@ -14,7 +14,7 @@ use crate::database_view::root::data::Data;
 use crate::database_view::sort::{
     DisplayRow, ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width, display_rows, next_sort,
 };
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const CELL_PADDING: Space = Space::Sm;
 const SWATCH_WIDTH: f32 = 18.0;
@@ -39,14 +39,15 @@ pub fn Spreadsheet(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={filled}>
-                    <Grid
-                        @sizing=ItemSize::Percent(100.0)
-                        data={data}
-                        header={data}
-                        display={display}
-                        keys={keys}
-                        on_key={keyboard}
-                    />
+                    <ListItem grow=1.0>
+                        <Grid
+                            data={data}
+                            header={data}
+                            display={display}
+                            keys={keys}
+                            on_key={keyboard}
+                        />
+                    </ListItem>
                 </Show>
             </List>
         </Frame>
@@ -72,27 +73,29 @@ fn Grid(
     });
     view! {
         <List spacing=Space::None>
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Scroll direction=Direction::Horizontal>
-                    <Interactive focusable=true on_key={on_key}>
-                        <List spacing=Space::None>
-                            <HeaderRow data={header} />
-                            <VirtualList
-                                keys={keys}
-                                item_size=ROW_HEIGHT
-                                overscan={ROW_HEIGHT * 2.0}
-                            >|index: ReadSignal<usize>|
-                                <Row
-                                    data={data}
-                                    display={display}
-                                    positions={positions}
-                                    index={index}
-                                />
-                            </VirtualList>
-                        </List>
-                    </Interactive>
+            <ListItem grow=1.0>
+                <Scroll>
+                    <Scroll direction=Direction::Horizontal>
+                        <Interactive focusable=true on_key={on_key}>
+                            <List spacing=Space::None>
+                                <HeaderRow data={header} />
+                                <VirtualList
+                                    keys={keys}
+                                    item_size=ROW_HEIGHT
+                                    overscan={ROW_HEIGHT * 2.0}
+                                >|index: ReadSignal<usize>|
+                                    <Row
+                                        data={data}
+                                        display={display}
+                                        positions={positions}
+                                        index={index}
+                                    />
+                                </VirtualList>
+                            </List>
+                        </Interactive>
+                    </Scroll>
                 </Scroll>
-            </Scroll>
+            </ListItem>
         </List>
     }
 }
@@ -176,7 +179,7 @@ fn HeaderCell(
                 <Frame padding={Padding::horizontal(CELL_PADDING)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text>{label}</Text>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Spacer />
                         <Show condition={marked}>
                             <Text color=TextColor::Muted align=TextAlign::Center>
                                 <Icon glyph={glyph} />
@@ -222,14 +225,15 @@ fn Row(
     });
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <Frame
-                @sizing=ItemSize::Fixed(ROW_HEADER_WIDTH)
-                height={Size::Custom(ROW_HEIGHT)}
-                fill={header_fill}
-                border={Border::new(ColorRole::Border)}
-            >
-                <Text style=TextStyle::CAPTION align=TextAlign::Center>{number}</Text>
-            </Frame>
+            <ListItem length=ROW_HEADER_WIDTH>
+                <Frame
+                    height={Size::Custom(ROW_HEIGHT)}
+                    fill={header_fill}
+                    border={Border::new(ColorRole::Border)}
+                >
+                    <Text style=TextStyle::CAPTION align=TextAlign::Center>{number}</Text>
+                </Frame>
+            </ListItem>
             <ForEach keys={keys}>|id: Uuid| {
                 let field = create_memo(move || {
                     fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
@@ -350,21 +354,18 @@ fn Cell(
                             </Text>
                         </Show>
                         <Show condition={colored}>
-                            <Frame
-                                @sizing=ItemSize::Fixed(SWATCH_WIDTH)
-                                height=SWATCH_HEIGHT
-                                fill={ColorRole::custom(swatch)}
-                                border={Border::new(ColorRole::Border)}
-                                radius=Radius::Xs
-                            />
+                            <ListItem length=SWATCH_WIDTH>
+                                <Frame
+                                    height=SWATCH_HEIGHT
+                                    fill={ColorRole::custom(swatch)}
+                                    border={Border::new(ColorRole::Border)}
+                                    radius=Radius::Xs
+                                />
+                            </ListItem>
                         </Show>
-                        <Text
-                            @sizing=ItemSize::Percent(100.0)
-                            align={align}
-                            overflow=Overflow::Ellipsis
-                        >
-                            {text}
-                        </Text>
+                        <ListItem grow=1.0>
+                            <Text align={align} overflow=Overflow::Ellipsis>{text}</Text>
+                        </ListItem>
                     </List>
                 </Frame>
             </Interactive>

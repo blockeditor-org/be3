@@ -5,7 +5,7 @@ use be_sdk_beui::beui::{NodeId, ThemeKind};
 use be_sdk_beui::{Editor, LayeredSettingsRow, PreferenceSourcesWatch};
 
 use super::ui::Settings;
-use beui::{Extent, ItemSize};
+use beui::Extent;
 
 #[component]
 pub(super) fn AppearanceSection(
@@ -85,14 +85,15 @@ pub(super) fn AppearanceSection(
                 overridden={create_memo(move || developer.get().theme.is_some())}
                 id={"display.theme".to_owned()}
             >
-                <ThemeSelect
-                    @sizing=ItemSize::Percent(100.0)
-                    chosen={chosen_theme}
-                    inherited={create_memo(move || below_theme.get().unwrap_or(system.get().theme))}
-                    on_change={set_theme}
-                    disabled={read_only}
-                    @test_id={"display.theme"}
-                />
+                <ListItem grow=1.0>
+                    <ThemeSelect
+                        chosen={chosen_theme}
+                        inherited={create_memo(move || below_theme.get().unwrap_or(system.get().theme))}
+                        on_change={set_theme}
+                        disabled={read_only}
+                        @test_id={"display.theme"}
+                    />
+                </ListItem>
             </LayeredSettingsRow>
             <LayeredSettingsRow
                 setting={motion_row}
@@ -103,14 +104,15 @@ pub(super) fn AppearanceSection(
                 overridden={create_memo(move || developer.get().motion.is_some())}
                 id={"display.motion".to_owned()}
             >
-                <MotionSelect
-                    @sizing=ItemSize::Percent(100.0)
-                    chosen={chosen_motion}
-                    inherited={create_memo(move || below_motion.get().unwrap_or(system.get().motion))}
-                    on_change={set_motion}
-                    disabled={read_only}
-                    @test_id={"display.motion"}
-                />
+                <ListItem grow=1.0>
+                    <MotionSelect
+                        chosen={chosen_motion}
+                        inherited={create_memo(move || below_motion.get().unwrap_or(system.get().motion))}
+                        on_change={set_motion}
+                        disabled={read_only}
+                        @test_id={"display.motion"}
+                    />
+                </ListItem>
             </LayeredSettingsRow>
             <LayeredSettingsRow
                 setting={scale_row}
@@ -120,25 +122,26 @@ pub(super) fn AppearanceSection(
                 locked={read_only}
                 id={"display.scale".to_owned()}
             >
-                <Select
-                    @sizing=ItemSize::Percent(100.0)
-                    width={Extent::fraction(1.0)}
-                    options={view! {
-                        <ChoiceOption label={inherited_scale_label} />
-                        <ForEach keys={DisplaySettings::SCALES.to_vec()}>|percent: u32|
-                            <ChoiceOption label={format!("{percent}%")} />
-                        </ForEach>
-                    }}
-                    selected={Binding::new(selected_scale, move |index: Option<usize>| {
-                        let percent = index
-                            .and_then(|index| index.checked_sub(1))
-                            .and_then(|index| DisplaySettings::SCALES.get(index).copied());
-                        set_scale.call(percent);
-                    })}
-                    label="Scale"
-                    disabled={read_only}
-                    @test_id={"display.scale"}
-                />
+                <ListItem grow=1.0>
+                    <Select
+                        width={Extent::fraction(1.0)}
+                        options={view! {
+                            <ChoiceOption label={inherited_scale_label} />
+                            <ForEach keys={DisplaySettings::SCALES.to_vec()}>|percent: u32|
+                                <ChoiceOption label={format!("{percent}%")} />
+                            </ForEach>
+                        }}
+                        selected={Binding::new(selected_scale, move |index: Option<usize>| {
+                            let percent = index
+                                .and_then(|index| index.checked_sub(1))
+                                .and_then(|index| DisplaySettings::SCALES.get(index).copied());
+                            set_scale.call(percent);
+                        })}
+                        label="Scale"
+                        disabled={read_only}
+                        @test_id={"display.scale"}
+                    />
+                </ListItem>
             </LayeredSettingsRow>
             <LayeredSettingsRow
                 setting={keyboard_row}
@@ -148,25 +151,28 @@ pub(super) fn AppearanceSection(
                 locked={read_only}
                 id={"display.keyboard".to_owned()}
             >
-                <Select
-                    @sizing=ItemSize::Percent(100.0)
-                    width={Extent::fraction(1.0)}
-                    options={view! {
-                        <ChoiceOption label={inherited_keyboard_label} />
-                        <ForEach keys={DisplaySettings::KEYBOARD_HEIGHTS.to_vec()}>|percent: u32|
-                            <ChoiceOption label={format!("{percent}%")} />
-                        </ForEach>
-                    }}
-                    selected={Binding::new(selected_keyboard, move |index: Option<usize>| {
-                        let percent = index
-                            .and_then(|index| index.checked_sub(1))
-                            .and_then(|index| DisplaySettings::KEYBOARD_HEIGHTS.get(index).copied());
-                        set_keyboard.call(percent);
-                    })}
-                    label="On-screen keyboard height"
-                    disabled={read_only}
-                    @test_id={"display.keyboard"}
-                />
+                <ListItem grow=1.0>
+                    <Select
+                        width={Extent::fraction(1.0)}
+                        options={view! {
+                            <ChoiceOption label={inherited_keyboard_label} />
+                            <ForEach
+                                keys={DisplaySettings::KEYBOARD_HEIGHTS.to_vec()}
+                            >|percent: u32|
+                                <ChoiceOption label={format!("{percent}%")} />
+                            </ForEach>
+                        }}
+                        selected={Binding::new(selected_keyboard, move |index: Option<usize>| {
+                            let percent = index
+                                .and_then(|index| index.checked_sub(1))
+                                .and_then(|index| DisplaySettings::KEYBOARD_HEIGHTS.get(index).copied());
+                            set_keyboard.call(percent);
+                        })}
+                        label="On-screen keyboard height"
+                        disabled={read_only}
+                        @test_id={"display.keyboard"}
+                    />
+                </ListItem>
             </LayeredSettingsRow>
         </SettingsSection>
     }

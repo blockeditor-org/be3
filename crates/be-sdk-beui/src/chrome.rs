@@ -1,7 +1,7 @@
 use beui::reactive::*;
 pub use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 use beui::{NodeId, Vec2};
 
 pub const SIDE_PANEL_WIDTH: f32 = 260.0;
@@ -38,8 +38,8 @@ pub fn Toolbar(
     #[prop(default = true)] shown: Prop<bool>,
     #[prop(default = BAND_SPACING)] spacing: Prop<Space>,
     #[prop(default = false)] fit: Prop<bool>,
-    #[prop(children)] children: Children<ListChild>,
-) -> DynamicSegment<ListChild> {
+    #[prop(children)] children: Children<ListItem>,
+) -> DynamicSegment<ListItem> {
     let row = NodeRef::new();
     arrow_focus(row, Direction::Horizontal);
     view! {
@@ -56,7 +56,7 @@ pub fn Toolbar(
 }
 
 #[component]
-fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicSegment<ListChild> {
+fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicSegment<ListItem> {
     let shown = create_memo(move || shown.get());
     let fit = create_memo(move || fit.get());
     let squeezed = narrow_chrome();
@@ -75,7 +75,9 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicS
                                 align=Align::Center
                                 spacing=Space::None
                             >
-                                <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
+                                <ListItem grow=1.0>
+                                    <Portal node={spread} />
+                                </ListItem>
                             </List>
                         </Frame>
                     </Show>
@@ -85,14 +87,15 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicS
                             align=Align::Center
                             spacing=Space::None
                         >
-                            <Scroll
-                                @sizing=ItemSize::Percent(100.0)
-                                direction=Direction::Horizontal
-                            >
-                                <Frame @sizing=ItemSize::Percent(100.0) padding=BAND_PADDING>
-                                    <Portal node={scrolled} />
-                                </Frame>
-                            </Scroll>
+                            <ListItem grow=1.0>
+                                <Scroll direction=Direction::Horizontal>
+                                    <ListItem grow=1.0>
+                                        <Frame padding=BAND_PADDING>
+                                            <Portal node={scrolled} />
+                                        </Frame>
+                                    </ListItem>
+                                </Scroll>
+                            </ListItem>
                         </List>
                     </Show>
                     <Separator />

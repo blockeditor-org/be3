@@ -11,20 +11,17 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset
-                    @sizing=ItemSize::Percent(100.0)
-                    @test_id="strip"
-                    direction=Direction::Horizontal
-                    offset=30.0
-                >
-                    <List direction=Direction::Horizontal spacing=0.0>
-                        <Frame @node_ref=&first width=120.0 />
-                        <Frame @node_ref=&second width=120.0 />
-                        <ForEach keys={indices(4)}>|_: usize|
-                            <Frame width=120.0 />
-                        </ForEach>
-                    </List>
-                </Offset>
+                <ListItem grow=1.0>
+                    <Offset @test_id="strip" direction=Direction::Horizontal offset=30.0>
+                        <List direction=Direction::Horizontal spacing=0.0>
+                            <Frame @node_ref=&first width=120.0 />
+                            <Frame @node_ref=&second width=120.0 />
+                            <ForEach keys={indices(4)}>|_: usize|
+                                <Frame width=120.0 />
+                            </ForEach>
+                        </List>
+                    </Offset>
+                </ListItem>
             </List>
         }
     });

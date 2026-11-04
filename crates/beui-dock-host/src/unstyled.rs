@@ -44,7 +44,7 @@ use beui_view::types::Image;
 use beui_view::types::Placement;
 use beui_view::types::window::{WindowEdge, WindowId, WindowPlacement, WindowReport};
 use beui_view::types::{Area, Claim, HitRegion, TouchDrags};
-use beui_view::types::{CanvasArrangement, Direction, ItemSize};
+use beui_view::types::{CanvasArrangement, Direction};
 use beui_view::types::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_view::window::{
@@ -1331,10 +1331,10 @@ impl State {
     }
 }
 
-pub fn sidebar_size(vertical: bool, width: Memo<f32>) -> Prop<ItemSize> {
+fn sidebar_length(vertical: bool, width: Memo<f32>) -> Prop<Option<f32>> {
     match vertical {
-        true => width.into_prop().map(ItemSize::Fixed),
-        false => ItemSize::Intrinsic.into_prop(),
+        true => width.into_prop().map(Some),
+        false => Prop::Static(None),
     }
 }
 
@@ -1848,22 +1848,28 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     });
     let built = view! {
         <List spacing=0.0>
-            <DockBarred dock leaf={None} holder={BarHolder::Dock} @sizing=ItemSize::Percent(100.0)>
-                <Frame padding=inset>
-                    <List spacing=0.0>
-                        <Dynamic value={stacks}>|stacks: bool| {
-                            match stacks {
-                                false => view! {
-                                    <DockTiles dock @sizing=ItemSize::Percent(100.0) />
-                                },
-                                true => view! {
-                                    <DockStack dock @sizing=ItemSize::Percent(100.0) />
-                                },
-                            }
-                        }</Dynamic>
-                    </List>
-                </Frame>
-            </DockBarred>
+            <ListItem grow=1.0>
+                <DockBarred dock leaf={None} holder={BarHolder::Dock}>
+                    <Frame padding=inset>
+                        <List spacing=0.0>
+                            <Dynamic value={stacks}>|stacks: bool| {
+                                match stacks {
+                                    false => view! {
+                                        <ListItem grow=1.0>
+                                            <DockTiles dock />
+                                        </ListItem>
+                                    },
+                                    true => view! {
+                                        <ListItem grow=1.0>
+                                            <DockStack dock />
+                                        </ListItem>
+                                    },
+                                }
+                            }</Dynamic>
+                        </List>
+                    </Frame>
+                </DockBarred>
+            </ListItem>
             <DockFullscreenView dock={dock} />
             <DockDialogs dock={dock} />
             <DockSwitchView dock={dock} />
@@ -2074,33 +2080,38 @@ fn DockStack(dock: State) -> NodeId {
                     <Portal node={bar} />
                 </Show>
                 <Show condition={vacant}>
-                    <EmptyPane
-                        dock
-                        leaf={state.with_untracked(vacant_leaf)}
-                        @sizing=ItemSize::Percent(100.0)
-                    />
+                    <ListItem grow=1.0>
+                        <EmptyPane dock leaf={state.with_untracked(vacant_leaf)} />
+                    </ListItem>
                 </Show>
                 <Show condition={here}>
-                    <DockBarred
-                        dock
-                        leaf={None}
-                        holder={BarHolder::Tab { tab: shown, stacked: true }}
-                        @sizing=ItemSize::Percent(100.0)
-                    >
-                        <Portal node={panel} />
-                    </DockBarred>
+                    <ListItem grow=1.0>
+                        <DockBarred
+                            dock
+                            leaf={None}
+                            holder={BarHolder::Tab { tab: shown, stacked: true }}
+                        >
+                            <Portal node={panel} />
+                        </DockBarred>
+                    </ListItem>
                 </Show>
                 <Show condition={left}>
-                    <DockAway dock gone @sizing=ItemSize::Percent(100.0) />
+                    <ListItem grow=1.0>
+                        <DockAway dock gone />
+                    </ListItem>
                 </Show>
                 <Dynamic value={staged}>|staged: Option<Tree>| {
                     let dock = dock;
                     match staged {
                         Some(tree) => view! {
-                            <DockCompactView dock tree @sizing=ItemSize::Percent(100.0) />
+                            <ListItem grow=1.0>
+                                <DockCompactView dock tree />
+                            </ListItem>
                         },
                         None => view! {
-                            <List spacing=0.0 @sizing=ItemSize::Fixed(0.0) />
+                            <ListItem length=0.0>
+                                <List spacing=0.0 />
+                            </ListItem>
                         },
                     }
                 }</Dynamic>
@@ -2140,7 +2151,9 @@ fn BackPreview(dock: State, switching: Signal<bool>) -> NodeId {
     view! {
         <List spacing=0.0>
             {bar}
-            <Portal node={Some(panel)} @sizing=ItemSize::Percent(100.0) />
+            <ListItem grow=1.0>
+                <Portal node={Some(panel)} />
+            </ListItem>
         </List>
     }
 }
@@ -2292,11 +2305,9 @@ fn DockTiles(dock: State) -> NodeId {
                     <Dynamic value={main}>|surface: SurfaceId| {
                         let dock = dock;
                         view! {
-                            <DockTreeView
-                                dock
-                                tree={Tree::Surface(surface)}
-                                @sizing=ItemSize::Percent(100.0)
-                            />
+                            <ListItem grow=1.0>
+                                <DockTreeView dock tree={Tree::Surface(surface)} />
+                            </ListItem>
                         }
                     }</Dynamic>
                     <ForEach keys={windows}>|surface: SurfaceId| {
@@ -2379,10 +2390,14 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
     let content = view! {
         <List direction spacing=0.0>
             <Show condition={bar_shown}>
-                <Portal node={bar} @sizing={sidebar_size(vertical, sidebar_width)} />
+                <ListItem length={sidebar_length(vertical, sidebar_width)}>
+                    <Portal node={bar} />
+                </ListItem>
             </Show>
-            {sidebar_splitter} @sizing=ItemSize::Fixed(dock.thickness + 2.0 * dock.reach)
-            {body} @sizing=ItemSize::Percent(100.0)
+            {sidebar_splitter.map(|splitter| view! {
+                <ListItem length={dock.thickness + 2.0 * dock.reach}>{splitter}</ListItem>
+            })}
+            <ListItem grow=1.0>{body}</ListItem>
         </List>
     };
     let state = dock.state;
@@ -2413,10 +2428,14 @@ fn DockTreeView(dock: State, tree: Tree) -> NodeId {
                 let dock = dock;
                 match staged {
                     true => view! {
-                        <DockCompactView dock tree @sizing=ItemSize::Percent(100.0) />
+                        <ListItem grow=1.0>
+                            <DockCompactView dock tree />
+                        </ListItem>
                     },
                     false => view! {
-                        <DockTreeCanvas dock tree @sizing=ItemSize::Percent(100.0) />
+                        <ListItem grow=1.0>
+                            <DockTreeCanvas dock tree />
+                        </ListItem>
                     },
                 }
             }</Dynamic>
@@ -2694,7 +2713,9 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                         },
                     };
                     view! {
-                        <DockChrome dock parts @sizing=ItemSize::Percent(100.0) />
+                        <ListItem grow=1.0>
+                            <DockChrome dock parts />
+                        </ListItem>
                     }
                 }</Dynamic>
             </List>
@@ -2768,12 +2789,16 @@ fn DockPanelBody(dock: State, leaf: LeafId) -> NodeId {
                 let inset = dock.group_inset;
                 match group {
                     Some(group) => view! {
-                        <Frame padding=inset @sizing=ItemSize::Percent(100.0)>
-                            <DockTreeView dock tree={Tree::Group(group)} />
-                        </Frame>
+                        <ListItem grow=1.0>
+                            <Frame padding=inset>
+                                <DockTreeView dock tree={Tree::Group(group)} />
+                            </Frame>
+                        </ListItem>
                     },
                     None => view! {
-                        <DockTabBody dock leaf @sizing=ItemSize::Percent(100.0) />
+                        <ListItem grow=1.0>
+                            <DockTabBody dock leaf />
+                        </ListItem>
                     },
                 }
             }</Dynamic>
@@ -2790,10 +2815,14 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={vacant}>
-                <EmptyPane dock leaf @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <EmptyPane dock leaf />
+                </ListItem>
             </Show>
             <Show condition={occupied}>
-                <DockShownBody dock leaf={Some(leaf)} shown @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <DockShownBody dock leaf={Some(leaf)} shown />
+                </ListItem>
             </Show>
         </List>
     }
@@ -2836,17 +2865,16 @@ fn DockShownBody(dock: State, leaf: Option<LeafId>, shown: Memo<Option<TabId>>) 
     view! {
         <List spacing=0.0>
             <Show condition={occupied}>
-                <DockBarred
-                    dock
-                    leaf
-                    holder={BarHolder::Tab { tab: shown, stacked: false }}
-                    @sizing=ItemSize::Percent(100.0)
-                >
-                    <Portal node={panel} />
-                </DockBarred>
+                <ListItem grow=1.0>
+                    <DockBarred dock leaf holder={BarHolder::Tab { tab: shown, stacked: false }}>
+                        <Portal node={panel} />
+                    </DockBarred>
+                </ListItem>
             </Show>
             <Show condition={left}>
-                <DockAway dock gone @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <DockAway dock gone />
+                </ListItem>
             </Show>
         </List>
     }
@@ -3861,11 +3889,9 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                                 body: pane,
                                                             };
                                                             view! {
-                                                                <DockChrome
-                                                                    dock
-                                                                    parts
-                                                                    @sizing=ItemSize::Percent(100.0)
-                                                                />
+                                                                <ListItem grow=1.0>
+                                                                    <DockChrome dock parts />
+                                                                </ListItem>
                                                             }
                                                         }</Dynamic>
                                                     </List>

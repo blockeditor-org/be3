@@ -24,13 +24,11 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
                 view! {
                     <List spacing=0.0>
                         <Stack spacing=Space::None breakpoint=BREAKPOINT>
-                            <Frame
-                                @sizing=ItemSize::Percent(100.0)
-                                @node_ref=&outer_item
-                                height=ITEM_HEIGHT
-                            >
-                                <Spacer />
-                            </Frame>
+                            <ListItem grow=1.0>
+                                <Frame @node_ref=&outer_item height=ITEM_HEIGHT>
+                                    <Frame />
+                                </Frame>
+                            </ListItem>
                         </Stack>
                         <Frame width=INNER_WIDTH>
                             <Container>|size| {
@@ -39,13 +37,11 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
                                 collapsed.update(|collapsed| collapsed.push(narrow));
                                 view! {
                                     <Stack spacing=Space::None breakpoint=BREAKPOINT>
-                                        <Frame
-                                            @sizing=ItemSize::Percent(100.0)
-                                            @node_ref=&inner_item
-                                            height=ITEM_HEIGHT
-                                        >
-                                            <Spacer />
-                                        </Frame>
+                                        <ListItem grow=1.0>
+                                            <Frame @node_ref=&inner_item height=ITEM_HEIGHT>
+                                                <Frame />
+                                            </Frame>
+                                        </ListItem>
                                     </Stack>
                                 }
                             }</Container>

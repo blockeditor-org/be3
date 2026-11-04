@@ -11,18 +11,21 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <List @sizing=ItemSize::Fixed(200.0) spacing=0.0>
-                    <TimeList
-                        @sizing=ItemSize::Percent(100.0)
-                        value={Binding::new(Some(Time::new(10, 7)), move |time| picked.update(|picked| picked.push(time)))}
-                        step_minutes=30
-                        focused=true
-                        row_height=32.0
-                        option={|handle: TimeOptionHandle| view! {
-                            <Text>{handle.label}</Text>
-                        }}
-                    />
-                </List>
+                <ListItem length=200.0>
+                    <List spacing=0.0>
+                        <ListItem grow=1.0>
+                            <TimeList
+                                value={Binding::new(Some(Time::new(10, 7)), move |time| picked.update(|picked| picked.push(time)))}
+                                step_minutes=30
+                                focused=true
+                                row_height=32.0
+                                option={|handle: TimeOptionHandle| view! {
+                                    <Text>{handle.label}</Text>
+                                }}
+                            />
+                        </ListItem>
+                    </List>
+                </ListItem>
             </List>
         }
     });

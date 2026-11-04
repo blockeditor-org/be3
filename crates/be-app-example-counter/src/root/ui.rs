@@ -4,7 +4,7 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_type_example_counter::{Counter as CounterModel, CounterContent};
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const PADDING: Space = Space::Xl2;
 const BUTTON_WIDTH: f32 = 44.0;
@@ -26,20 +26,22 @@ pub fn Counter(editor: Editor) -> NodeId {
             <List spacing=Space::Xl>
                 <Text style=TextStyle::DISPLAY @test_id={"counter.value"}>{shown}</Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Button
-                        @sizing=ItemSize::Fixed(BUTTON_WIDTH)
-                        label="-"
-                        variant=ButtonVariant::Primary
-                        @test_id={"counter.decrement"}
-                        on_click={decrement}
-                    />
-                    <Button
-                        @sizing=ItemSize::Fixed(BUTTON_WIDTH)
-                        label="+"
-                        variant=ButtonVariant::Primary
-                        @test_id={"counter.increment"}
-                        on_click={increment}
-                    />
+                    <ListItem length=BUTTON_WIDTH>
+                        <Button
+                            label="-"
+                            variant=ButtonVariant::Primary
+                            @test_id={"counter.decrement"}
+                            on_click={decrement}
+                        />
+                    </ListItem>
+                    <ListItem length=BUTTON_WIDTH>
+                        <Button
+                            label="+"
+                            variant=ButtonVariant::Primary
+                            @test_id={"counter.increment"}
+                            on_click={increment}
+                        />
+                    </ListItem>
                     <Button
                         label="Reset"
                         variant=ButtonVariant::Secondary

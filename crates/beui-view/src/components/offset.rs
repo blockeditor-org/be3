@@ -12,7 +12,7 @@ use beui_macros::component;
 ///
 /// With `fit` it measures as long as its child. Without, it measures nothing along its
 /// direction (it fills what it is given), except when measured with no limit there (a
-/// `Percent` child of a content-sized box): then it measures as long as its child.
+/// growing child of a content-sized box): then it measures as long as its child.
 ///
 /// The offset is anchored to the node at the top of the viewport, found by walking down
 /// through nodes whose `Element::passes_scroll_anchor` is true, so content above it

@@ -333,7 +333,9 @@ fn ContentDrag() -> NodeId {
                         }
                     })}
                 />
-                <Text @sizing=ItemSize::Percent(100.0)>"Alt moves and resizes windows"</Text>
+                <ListItem grow=1.0>
+                    <Text>"Alt moves and resizes windows"</Text>
+                </ListItem>
             </List>
             <Text style=TextStyle::CAPTION>
                 "A dock can be given a drag modifier, which is off unless asked for. \
@@ -711,7 +713,7 @@ fn Links() -> NodeId {
 #[component]
 fn SelectableParagraph() -> NodeId {
     view! {
-        <SelectableText child_size=ItemSize::Percent(100.0)>
+        <SelectableText child_grow=1.0>
             <Text style=TextStyle::PARAGRAPH>
                 <Icon glyph=ICON_INFO />
                 "Drag across this paragraph to select it, or long-press a word with a finger. \
@@ -1135,25 +1137,17 @@ fn LoadSliders() -> NodeId {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text style=TextStyle::CAPTION>"Simulated load"</Text>
-                <Text
-                    style=TextStyle::CAPTION
-                    @sizing=ItemSize::Percent(100.0)
-                    align=TextAlign::End
-                >
-                    {load_text}
-                </Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CAPTION align=TextAlign::End>{load_text}</Text>
+                </ListItem>
             </List>
             <Slider value={load} label="Load" />
             <Progress value={create_memo(move || Some(load.get()))} label="Load" />
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text style=TextStyle::CAPTION>"Zoom, with 1x in the middle"</Text>
-                <Text
-                    style=TextStyle::CAPTION
-                    @sizing=ItemSize::Percent(100.0)
-                    align=TextAlign::End
-                >
-                    {zoom_text}
-                </Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CAPTION align=TextAlign::End>{zoom_text}</Text>
+                </ListItem>
             </List>
             <Slider
                 value={zoom}
@@ -3103,9 +3097,9 @@ fn FullscreenBody(on_close: ClickCallback) -> NodeId {
         <Frame fill=ColorRole::Background padding=PAGE_PADDING>
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text style=TextStyle::TITLE @sizing=ItemSize::Percent(100.0)>
-                        "Fullscreen"
-                    </Text>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::TITLE>"Fullscreen"</Text>
+                    </ListItem>
                     <Button label="Close" variant=ButtonVariant::Secondary on_click={on_close} />
                 </List>
                 <Text style=TextStyle::PARAGRAPH>
@@ -3176,10 +3170,7 @@ fn SelectableServerLog() -> NodeId {
                     <Frame
                         padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
                     >
-                        <SelectableText
-                            child_size=ItemSize::Percent(100.0)
-                            @test_id="rows.server.selection"
-                        >
+                        <SelectableText child_grow=1.0 @test_id="rows.server.selection">
                             <VirtualList
                                 keys={(0..SERVER_LINES).collect::<Vec<usize>>()}
                                 item_size=SERVER_LINE_HEIGHT
@@ -3213,15 +3204,17 @@ fn CardStrip() -> NodeId {
                 "A horizontal list scrolls with Shift+scroll, a sideways swipe, a touch \
                  drag, or the arrow keys once something in it has focus."
             </Text>
-            <Scroll @sizing=ItemSize::Fixed(STRIP_HEIGHT) direction=Direction::Horizontal>
-                <VirtualList
-                    direction=Direction::Horizontal
-                    keys={(0..STRIP_COUNT).collect::<Vec<usize>>()}
-                    item_size=STRIP_ITEM_WIDTH
-                >|index: ReadSignal<usize>|
-                    <StripCard index />
-                </VirtualList>
-            </Scroll>
+            <ListItem length=STRIP_HEIGHT>
+                <Scroll direction=Direction::Horizontal>
+                    <VirtualList
+                        direction=Direction::Horizontal
+                        keys={(0..STRIP_COUNT).collect::<Vec<usize>>()}
+                        item_size=STRIP_ITEM_WIDTH
+                    >|index: ReadSignal<usize>|
+                        <StripCard index />
+                    </VirtualList>
+                </Scroll>
+            </ListItem>
         </List>
     }
 }
@@ -3371,33 +3364,31 @@ fn ThousandsOfRows() -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
                 <Checkbox label="Show timings" checked={timings} />
                 <LabelledSwitch label="Compact rows" on={compact} />
-                <Text
-                    style=TextStyle::CAPTION
-                    @sizing=ItemSize::Percent(100.0)
-                    align=TextAlign::End
-                >
-                    {status}
-                </Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CAPTION align=TextAlign::End>{status}</Text>
+                </ListItem>
             </List>
             <Separator />
-            <Scroll @sizing=ItemSize::Fixed(ROWS_HEIGHT)>
-                <VirtualList
-                    keys={(0..ROW_COUNT).collect::<Vec<usize>>()}
-                    item_size={row_height}
-                >|index: ReadSignal<usize>|
-                    <ScrollRow
-                        index
-                        selection={selection}
-                        timings={timings.read_only()}
-                        compact={compact.read_only()}
-                        on_click={move || {
-                            let index = index.get_untracked();
-                            selected.set(Some(index));
-                            status.set(format!("Row {index} selected"));
-                        }}
-                    />
-                </VirtualList>
-            </Scroll>
+            <ListItem length=ROWS_HEIGHT>
+                <Scroll>
+                    <VirtualList
+                        keys={(0..ROW_COUNT).collect::<Vec<usize>>()}
+                        item_size={row_height}
+                    >|index: ReadSignal<usize>|
+                        <ScrollRow
+                            index
+                            selection={selection}
+                            timings={timings.read_only()}
+                            compact={compact.read_only()}
+                            on_click={move || {
+                                let index = index.get_untracked();
+                                selected.set(Some(index));
+                                status.set(format!("Row {index} selected"));
+                            }}
+                        />
+                    </VirtualList>
+                </Scroll>
+            </ListItem>
         </List>
     }
 }
@@ -3454,7 +3445,9 @@ fn ScrollRowFace(
             padding={create_memo(move || Padding::symmetric(ROW_PADDING_HORIZONTAL, vertical.get()))}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
-                <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
+                <ListItem grow=1.0>
+                    <Text>{label}</Text>
+                </ListItem>
                 <Show condition={timings}>
                     <Text style=TextStyle::CAPTION align=TextAlign::End color={value_color}>
                         {timing}
@@ -3515,71 +3508,72 @@ fn ProjectTree() -> NodeId {
                 label="Comfortable rows"
                 on={comfortable}
             />
-            <Tree
-                @sizing=ItemSize::Fixed(TREE_HEIGHT)
-                keys
-                item={move |row: usize| tree_item(row, &name(row), &collapsed.get())}
-                selected
-                editing
-                ancestors={tree_ancestors}
-                row_test_id={|row: usize| format!("demo.tree.{row}")}
-                menu={move |row: usize| Some(TreeMenu {
-                    items: view! {
-                        <MenuItem
-                            label="Rename"
-                            glyph=ICON_PENCIL
-                            row_test_id={"demo.tree.rename".to_owned()}
-                            on_click={move || editing.set(Some(row))}
-                        />
-                        <MenuItem
-                            label="Delete"
-                            glyph=ICON_TRASH
-                            danger=true
-                            on_click={move || chosen.set(Some(format!("Delete {}", name(row))))}
-                        />
-                    },
-                })}
-                on_edit={move |row: usize| editing.set(Some(row))}
-                on_rename={move |(row, renamed): (usize, String)| {
-                    chosen.set(Some(format!("Renamed {} to {renamed}", name(row))));
-                    names.update(|names| names[row] = renamed);
-                    editing.set(None);
-                }}
-                on_cancel_edit={move |row: usize| {
-                    chosen.set(Some(format!("Kept {}", name(row))));
-                    editing.set(None);
-                }}
-                on_reveal={move |row: usize| {
-                    collapsed.update(|collapsed| {
-                        collapsed.retain(|candidate| !tree_ancestors(row).contains(candidate));
-                    });
-                }}
-                on_select={move |row: usize| {
-                    chosen.set(None);
-                    selected.set(Some(row));
-                }}
-                leading={|row: TreeRowFace<usize>| {
-                    let glyph = match has_children(row.key) {
-                        true => ICON_FOLDER,
-                        false => ICON_FILE,
-                    };
-                    Children::from([into_segment(view! {
-                        <Text color=TextColor::Muted>
-                            <Icon glyph=glyph />
-                        </Text>
-                    })])
-                }}
-                on_expand={move |(row, expanded): (usize, bool)| {
-                    collapsed.update(|collapsed| {
-                        collapsed.retain(|candidate| *candidate != row);
-                        if !expanded {
-                            collapsed.push(row);
-                        }
-                    });
-                }}
-            >|row: TreeRowFace<usize>|
-                <Text>{create_memo(move || name(row.key))}</Text>
-            </Tree>
+            <ListItem length=TREE_HEIGHT>
+                <Tree
+                    keys
+                    item={move |row: usize| tree_item(row, &name(row), &collapsed.get())}
+                    selected
+                    editing
+                    ancestors={tree_ancestors}
+                    row_test_id={|row: usize| format!("demo.tree.{row}")}
+                    menu={move |row: usize| Some(TreeMenu {
+                        items: view! {
+                            <MenuItem
+                                label="Rename"
+                                glyph=ICON_PENCIL
+                                row_test_id={"demo.tree.rename".to_owned()}
+                                on_click={move || editing.set(Some(row))}
+                            />
+                            <MenuItem
+                                label="Delete"
+                                glyph=ICON_TRASH
+                                danger=true
+                                on_click={move || chosen.set(Some(format!("Delete {}", name(row))))}
+                            />
+                        },
+                    })}
+                    on_edit={move |row: usize| editing.set(Some(row))}
+                    on_rename={move |(row, renamed): (usize, String)| {
+                        chosen.set(Some(format!("Renamed {} to {renamed}", name(row))));
+                        names.update(|names| names[row] = renamed);
+                        editing.set(None);
+                    }}
+                    on_cancel_edit={move |row: usize| {
+                        chosen.set(Some(format!("Kept {}", name(row))));
+                        editing.set(None);
+                    }}
+                    on_reveal={move |row: usize| {
+                        collapsed.update(|collapsed| {
+                            collapsed.retain(|candidate| !tree_ancestors(row).contains(candidate));
+                        });
+                    }}
+                    on_select={move |row: usize| {
+                        chosen.set(None);
+                        selected.set(Some(row));
+                    }}
+                    leading={|row: TreeRowFace<usize>| {
+                        let glyph = match has_children(row.key) {
+                            true => ICON_FOLDER,
+                            false => ICON_FILE,
+                        };
+                        Children::from([into_segment(view! {
+                            <Text color=TextColor::Muted>
+                                <Icon glyph=glyph />
+                            </Text>
+                        })])
+                    }}
+                    on_expand={move |(row, expanded): (usize, bool)| {
+                        collapsed.update(|collapsed| {
+                            collapsed.retain(|candidate| *candidate != row);
+                            if !expanded {
+                                collapsed.push(row);
+                            }
+                        });
+                    }}
+                >|row: TreeRowFace<usize>|
+                    <Text>{create_memo(move || name(row.key))}</Text>
+                </Tree>
+            </ListItem>
             <Text style=TextStyle::CAPTION>{status_text}</Text>
         </List>
     }
@@ -3729,7 +3723,7 @@ fn SpacedMarks() -> NodeId {
                         fill=ColorRole::Accent
                         radius=Radius::Sm
                     />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Spacer />
                     <Text style=TextStyle::CAPTION>{Space::ALL[index].name()}</Text>
                 </List>
             </ForEach>
@@ -3839,18 +3833,22 @@ fn StackedCards() -> NodeId {
                 "A stack lays its children side by side, and one above the other once it is narrow."
             </Text>
             <Stack spacing=COLUMN_SPACING breakpoint=COLUMNS_BREAKPOINT>
-                <Card @sizing=ItemSize::Percent(50.0)>
-                    <List spacing=Space::Xs>
-                        <Text style=TextStyle::CAPTION>"Left"</Text>
-                        <Text style=TextStyle::DISPLAY>"42"</Text>
-                    </List>
-                </Card>
-                <Card @sizing=ItemSize::Percent(50.0)>
-                    <List spacing=Space::Xs>
-                        <Text style=TextStyle::CAPTION>"Right"</Text>
-                        <Text style=TextStyle::DISPLAY>"17"</Text>
-                    </List>
-                </Card>
+                <ListItem grow=0.5>
+                    <Card>
+                        <List spacing=Space::Xs>
+                            <Text style=TextStyle::CAPTION>"Left"</Text>
+                            <Text style=TextStyle::DISPLAY>"42"</Text>
+                        </List>
+                    </Card>
+                </ListItem>
+                <ListItem grow=0.5>
+                    <Card>
+                        <List spacing=Space::Xs>
+                            <Text style=TextStyle::CAPTION>"Right"</Text>
+                            <Text style=TextStyle::DISPLAY>"17"</Text>
+                        </List>
+                    </Card>
+                </ListItem>
             </Stack>
         </List>
     }
@@ -3977,13 +3975,9 @@ fn SettingsSections() -> NodeId {
                         />
                     }}
                 >
-                    <Slider
-                        @sizing=ItemSize::Percent(100.0)
-                        value={volume}
-                        min=0.0
-                        max=1.0
-                        label="Volume"
-                    />
+                    <ListItem grow=1.0>
+                        <Slider value={volume} min=0.0 max=1.0 label="Volume" />
+                    </ListItem>
                 </SettingsRow>
                 <SettingsRow
                     label="Text size"
@@ -3997,17 +3991,18 @@ fn SettingsSections() -> NodeId {
                         />
                     }}
                 >
-                    <Select
-                        @sizing=ItemSize::Percent(100.0)
-                        width={Extent::fraction(1.0)}
-                        options={view! {
-                            <ChoiceOption label="Small" />
-                            <ChoiceOption label="Medium" />
-                            <ChoiceOption label="Large" />
-                        }}
-                        selected={size}
-                        label="Text size"
-                    />
+                    <ListItem grow=1.0>
+                        <Select
+                            width={Extent::fraction(1.0)}
+                            options={view! {
+                                <ChoiceOption label="Small" />
+                                <ChoiceOption label="Medium" />
+                                <ChoiceOption label="Large" />
+                            }}
+                            selected={size}
+                            label="Text size"
+                        />
+                    </ListItem>
                 </SettingsRow>
                 <SettingsRow
                     label="Vibrate"
@@ -4069,15 +4064,17 @@ fn NestedScroll() -> NodeId {
     view! {
         <Card>
             <List spacing=Space::None>
-                <Scroll @sizing=ItemSize::Fixed(NESTED_SCROLL_HEIGHT)>
-                    <List spacing=Space::Xs>
-                        <ForEach
-                            keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
-                        >|line: usize|
-                            <Text>{format!("Line {line}")}</Text>
-                        </ForEach>
-                    </List>
-                </Scroll>
+                <ListItem length=NESTED_SCROLL_HEIGHT>
+                    <Scroll>
+                        <List spacing=Space::Xs>
+                            <ForEach
+                                keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
+                            >|line: usize|
+                                <Text>{format!("Line {line}")}</Text>
+                            </ForEach>
+                        </List>
+                    </Scroll>
+                </ListItem>
             </List>
         </Card>
     }
@@ -4089,15 +4086,17 @@ fn BleedingScroll() -> NodeId {
     view! {
         <Card>
             <List spacing=Space::None>
-                <Scroll @sizing=ItemSize::Fixed(NESTED_SCROLL_HEIGHT) bleed=Bleed::CARD>
-                    <List spacing=Space::Md>
-                        <ForEach
-                            keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
-                        >|topic: usize|
-                            <Checkbox label={format!("Topic {topic}")} checked=false />
-                        </ForEach>
-                    </List>
-                </Scroll>
+                <ListItem length=NESTED_SCROLL_HEIGHT>
+                    <Scroll bleed=Bleed::CARD>
+                        <List spacing=Space::Md>
+                            <ForEach
+                                keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
+                            >|topic: usize|
+                                <Checkbox label={format!("Topic {topic}")} checked=false />
+                            </ForEach>
+                        </List>
+                    </Scroll>
+                </ListItem>
             </List>
         </Card>
     }
@@ -4140,7 +4139,9 @@ fn MarkdownEditor() -> NodeId {
                     }}
                 />
             </List>
-            <TextArea @sizing=ItemSize::Fixed(EDITOR_HEIGHT) state={state} />
+            <ListItem length=EDITOR_HEIGHT>
+                <TextArea state={state} />
+            </ListItem>
         </List>
     }
 }
@@ -4152,16 +4153,17 @@ fn ReadOnlyNote() -> NodeId {
     let state = TextAreaState::new(document);
     view! {
         <List spacing=Space::None>
-            <TextArea
-                @sizing=ItemSize::Fixed(NOTE_HEIGHT)
-                @test_id={"demo.read-only-note"}
-                state={state}
-                read_only=true
-                color=TextColor::Accent
-                size=TextSize::Lg
-                line_numbers=false
-                find=false
-            />
+            <ListItem length=NOTE_HEIGHT>
+                <TextArea
+                    @test_id={"demo.read-only-note"}
+                    state={state}
+                    read_only=true
+                    color=TextColor::Accent
+                    size=TextSize::Lg
+                    line_numbers=false
+                    find=false
+                />
+            </ListItem>
         </List>
     }
 }
@@ -4195,26 +4197,32 @@ fn ZoomableStage() -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{zoom_label}</Text>
-                <Button
-                    @sizing=ItemSize::Fixed(ICON_BUTTON_WIDTH)
-                    label="-"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || stage_view.update(scale_out)}
-                />
-                <Button
-                    @sizing=ItemSize::Fixed(ICON_BUTTON_WIDTH)
-                    label="+"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || stage_view.update(scale_in)}
-                />
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CAPTION>{zoom_label}</Text>
+                </ListItem>
+                <ListItem length=ICON_BUTTON_WIDTH>
+                    <Button
+                        label="-"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || stage_view.update(scale_out)}
+                    />
+                </ListItem>
+                <ListItem length=ICON_BUTTON_WIDTH>
+                    <Button
+                        label="+"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || stage_view.update(scale_in)}
+                    />
+                </ListItem>
                 <Button
                     label="Reset"
                     variant=ButtonVariant::Secondary
                     on_click={move || stage_view.set(STAGE_VIEW)}
                 />
             </List>
-            <CanvasStage @sizing=ItemSize::Fixed(STAGE_HEIGHT) view={stage_view} />
+            <ListItem length=STAGE_HEIGHT>
+                <CanvasStage view={stage_view} />
+            </ListItem>
             <Text style=TextStyle::CAPTION>
                 "Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom, \
                  and drag with the middle button. Tab to it for arrows, + and -."
@@ -4313,20 +4321,28 @@ fn ThemedSamples() -> NodeId {
                  A theme provider restyles only what it holds, as the samples below show."
             </Text>
             <Stack spacing=COLUMN_SPACING breakpoint=COLUMNS_BREAKPOINT>
-                <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::DARK>
-                    <ThemeSample name="Dark" />
-                </ThemeProvider>
-                <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::OLED>
-                    <ThemeSample name="OLED dark" />
-                </ThemeProvider>
+                <ListItem grow=0.5>
+                    <ThemeProvider theme=Theme::DARK>
+                        <ThemeSample name="Dark" />
+                    </ThemeProvider>
+                </ListItem>
+                <ListItem grow=0.5>
+                    <ThemeProvider theme=Theme::OLED>
+                        <ThemeSample name="OLED dark" />
+                    </ThemeProvider>
+                </ListItem>
             </Stack>
             <Stack spacing=COLUMN_SPACING breakpoint=COLUMNS_BREAKPOINT>
-                <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::LIGHT>
-                    <ThemeSample name="Light" />
-                </ThemeProvider>
-                <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::EPAPER>
-                    <ThemeSample name="E-paper" />
-                </ThemeProvider>
+                <ListItem grow=0.5>
+                    <ThemeProvider theme=Theme::LIGHT>
+                        <ThemeSample name="Light" />
+                    </ThemeProvider>
+                </ListItem>
+                <ListItem grow=0.5>
+                    <ThemeProvider theme=Theme::EPAPER>
+                        <ThemeSample name="E-paper" />
+                    </ThemeProvider>
+                </ListItem>
             </Stack>
         </List>
     }
@@ -4658,43 +4674,47 @@ pub(crate) fn WindowManagerPage() -> NodeId {
                     </Text>
                 </List>
             </Frame>
-            <DockHost @sizing=ItemSize::Percent(100.0) layout=host>
-                <Docking layout>
-                    <DockPane
-                        id="desk"
-                        hide_empty_bar=true
-                        empty={move || view! {
-                            <Frame @test_id="wm.desk" />
-                        }}
-                    ></DockPane>
-                    <ForEach keys={open}>|id: u64| {
-                        let (_, title, group, at) = DESK_WINDOWS[id as usize - 1];
-                        view! {
-                            <DockWindow
-                                id={format!("wm.window.{id}")}
-                                rect={Rect::from_min_size(at, DESK_WINDOW_SIZE)}
-                            >
-                                <DockPane id={format!("wm.pane.{id}")}>
-                                    <DockTab
-                                        id
-                                        title
-                                        icon=ICON_APP_WINDOW
-                                        group={Some(group.to_owned())}
-                                        on_close={move || closed.update(|closed| closed.push(id))}
-                                    >
-                                        <Frame
-                                            @test_id={format!("wm.window.{id}")}
-                                            padding=PAGE_PADDING
+            <ListItem grow=1.0>
+                <DockHost layout=host>
+                    <Docking layout>
+                        <DockPane
+                            id="desk"
+                            hide_empty_bar=true
+                            empty={move || view! {
+                                <Frame @test_id="wm.desk" />
+                            }}
+                        ></DockPane>
+                        <ForEach keys={open}>|id: u64| {
+                            let (_, title, group, at) = DESK_WINDOWS[id as usize - 1];
+                            view! {
+                                <DockWindow
+                                    id={format!("wm.window.{id}")}
+                                    rect={Rect::from_min_size(at, DESK_WINDOW_SIZE)}
+                                >
+                                    <DockPane id={format!("wm.pane.{id}")}>
+                                        <DockTab
+                                            id
+                                            title
+                                            icon=ICON_APP_WINDOW
+                                            group={Some(group.to_owned())}
+                                            on_close={move || closed.update(|closed| closed.push(id))}
                                         >
-                                            <Text>{format!("{title}, of the {group} group")}</Text>
-                                        </Frame>
-                                    </DockTab>
-                                </DockPane>
-                            </DockWindow>
-                        }
-                    }</ForEach>
-                </Docking>
-            </DockHost>
+                                            <Frame
+                                                @test_id={format!("wm.window.{id}")}
+                                                padding=PAGE_PADDING
+                                            >
+                                                <Text>
+                                                    {format!("{title}, of the {group} group")}
+                                                </Text>
+                                            </Frame>
+                                        </DockTab>
+                                    </DockPane>
+                                </DockWindow>
+                            }
+                        }</ForEach>
+                    </Docking>
+                </DockHost>
+            </ListItem>
         </List>
     }
 }

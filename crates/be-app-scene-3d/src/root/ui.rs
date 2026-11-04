@@ -9,7 +9,7 @@ use beui::{CursorIcon, Key, KeyPress, NodeId, Vec2};
 use crate::camera::Camera;
 use crate::renderer::Scene;
 use beui::native::draw_gpu;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 const LONGEST_STEP: f32 = 0.1;
 const HINT_INSET: Space = Space::Xl;
@@ -113,10 +113,9 @@ pub(crate) fn Scene3DView() -> NodeId {
             on_key={walked}
         >|_: PointerLockHandle|
             <List spacing=Space::None>
-                <Drawing
-                    draw={Prop::dynamic(move || draw_gpu(drawing.get()))}
-                    @sizing=ItemSize::Percent(100.0)
-                />
+                <ListItem grow=1.0>
+                    <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                </ListItem>
                 <Floating anchor={anchor} edge=Edge::Bottom open={idle} interactive=false>
                     <Hint />
                 </Floating>

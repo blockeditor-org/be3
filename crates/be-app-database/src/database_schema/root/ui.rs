@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 use super::field_line_count;
 use be_sdk_beui::beui::TextAlign;
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 
 #[derive(Clone, Copy)]
 struct Schema(ContentProjection<DatabaseSchemaContent>);
@@ -94,40 +94,42 @@ pub fn SchemaView(editor: Editor) -> NodeId {
         <Frame padding=PADDING>
             <List spacing=SECTION_SPACING>
                 <Text style=TextStyle::HEADING>"Fields"</Text>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <List spacing=SECTION_SPACING>
-                        <ForEach keys={keys}>|id: Uuid| {
-                            let field = create_memo(move || {
-                                rows.with(|rows| {
-                                    rows.iter().find(|field| field.id == id).cloned()
-                                })
-                            });
-                            view! {
-                                <FieldRow
-                                    editor={editor}
-                                    schema={schema}
-                                    id={id}
-                                    field={field}
-                                    read_only={read_only}
+                <ListItem grow=1.0>
+                    <Scroll>
+                        <List spacing=SECTION_SPACING>
+                            <ForEach keys={keys}>|id: Uuid| {
+                                let field = create_memo(move || {
+                                    rows.with(|rows| {
+                                        rows.iter().find(|field| field.id == id).cloned()
+                                    })
+                                });
+                                view! {
+                                    <FieldRow
+                                        editor={editor}
+                                        schema={schema}
+                                        id={id}
+                                        field={field}
+                                        read_only={read_only}
+                                    />
+                                }
+                            }</ForEach>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=ROW_SPACING
+                            >
+                                <Button
+                                    label="Add field"
+                                    variant=ButtonVariant::Primary
+                                    disabled={read_only}
+                                    @test_id={"database-schema.add-field"}
+                                    on_click={add}
                                 />
-                            }
-                        }</ForEach>
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=ROW_SPACING
-                        >
-                            <Button
-                                label="Add field"
-                                variant=ButtonVariant::Primary
-                                disabled={read_only}
-                                @test_id={"database-schema.add-field"}
-                                on_click={add}
-                            />
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                                <Spacer />
+                            </List>
                         </List>
-                    </List>
-                </Scroll>
+                    </Scroll>
+                </ListItem>
             </List>
         </Frame>
     }
@@ -225,7 +227,7 @@ fn FieldRow(
                     disabled={read_only}
                     @test_id={format!("database-schema.type.{id}")}
                 />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
                 <Button
                     icon_only=true
                     glyph=ICON_ARROW_UP
@@ -447,7 +449,7 @@ fn OptionalNumber(
                     @test_id={format!("database-schema.number.{id}.{}", bound.test_id())}
                 />
             </Frame>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Spacer />
         </List>
     }
 }
@@ -500,7 +502,7 @@ fn EnumOptions(
                         on_click={add}
                     />
                     <Text>"Add option"</Text>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Spacer />
                 </List>
                 <Text style=TextStyle::CAPTION>
                     "A closed option marks a row finished: views can hide closed rows, the board folds their columns, and a merged pull request moves rows to the first one. New rows start at the default."
@@ -783,7 +785,7 @@ fn BlockOptions(
                     disabled={read_only}
                     @test_id={format!("database-schema.block.{id}.type")}
                 />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
             </List>
         </Frame>
     }
@@ -886,7 +888,7 @@ fn RelationOptions(
                         disabled={read_only}
                         @test_id={format!("database-schema.relation.{id}.multiple")}
                     />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Spacer />
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Text>"Shown on the linked rows as"</Text>
@@ -898,7 +900,7 @@ fn RelationOptions(
                             @test_id={format!("database-schema.relation.{id}.inverse")}
                         />
                     </Frame>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Spacer />
                 </List>
             </List>
         </Frame>

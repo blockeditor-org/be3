@@ -6,7 +6,7 @@ use beui_view::reactive::*;
 use beui_view::types::{Direction, Sizing};
 
 #[component]
-pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children<ListChild>) -> NodeId {
+pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children<ListItem>) -> NodeId {
     let stacked = create_memo(move || narrow.get());
 
     let direction = create_memo(move || {
@@ -18,7 +18,7 @@ pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children<ListChil
     });
 
     let children = children.map(move |child| {
-        let ListChild { node, data: size } = child;
+        let ListItem { node, data: size } = child;
         let size = Prop::dynamic(move || {
             let size = size.get();
             if stacked.get() {
@@ -27,7 +27,7 @@ pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children<ListChil
                 size
             }
         });
-        ListChild { node, data: size }
+        ListItem { node, data: size }
     });
 
     view! {

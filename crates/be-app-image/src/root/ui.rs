@@ -8,7 +8,7 @@ use be_sdk_beui::{Editor, FileChooser, SIDE_PANEL_WIDTH, fit_content};
 use super::picture::{thumbhash, watch};
 use super::{filter, imported};
 use be_type_image::ImageContent;
-use beui::{Align, ItemSize};
+use beui::Align;
 
 const STAGE: &str = "stage";
 const PANEL: &str = "panel";
@@ -125,12 +125,9 @@ fn ImageArea(
     let reason = create_memo(move || error.get().unwrap_or_default());
     view! {
         <List align=Align::Stretch spacing=Space::None>
-            <Artwork
-                @sizing=ItemSize::Percent(100.0)
-                editor={editor}
-                image={image}
-                thumbhash={thumbhash}
-            />
+            <ListItem grow=1.0>
+                <Artwork editor={editor} image={image} thumbhash={thumbhash} />
+            </ListItem>
             <Show condition={failed}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>

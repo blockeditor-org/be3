@@ -9,11 +9,12 @@ fn a_kept_alive_child_shown_again_keeps_the_sizing_it_was_last_given() {
     let shown = create_signal(true);
     let height = create_signal(40.0_f32);
     let document = build_node(move || {
-        let given = create_memo(move || ItemSize::Fixed(height.get()));
         view! {
             <List spacing=0.0>
                 <ShowKeepAlive condition={shown}>
-                    <Frame @node_ref=&child @sizing={given} />
+                    <ListItem length=height>
+                        <Frame @node_ref=&child />
+                    </ListItem>
                 </ShowKeepAlive>
             </List>
         }

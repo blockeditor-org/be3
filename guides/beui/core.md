@@ -6,7 +6,7 @@ and measurement, base components, the HTML core and `beui-html`, and testing.
 ## Writing views
 
 **Slots and child types.** A children slot names the child it takes:
-`Children<ListChild>` (`List`, `Stack`), `Children<NodeId>` (`Scroll`),
+`Children<ListItem>` (`List`, `Stack`), `Children<NodeId>` (`Scroll`),
 `Children<CanvasItem>`, or `Child` / `Option<Child>` for one node. The child
 types are all `Placed<P>`: a node plus the data its parent `P` keeps beside it
 (a `Sizing`, a span), so a child built for one parent does not fit another and
@@ -17,14 +17,20 @@ fragment, `Show` or `ForEach` fills places among siblings it does not own. So
 control flow has no spacing, takes no `@test_id` or `@node_ref`, and does not
 compile in a single-child slot until a `List` goes around it. A `Vec` of nodes
 does not fill a slot; write a `ForEach` over the keys inside the same `view!`.
-A component whose whole view is a `Show` returns `DynamicSegment<ListChild>`.
+A component whose whole view is a `Show` returns `DynamicSegment<ListItem>`.
 
 **Modifiers.** `@test_id` (a one-word `Prop<String>`, carried on the node's
 accessibility node as AccessKit's `author_id`, so it reaches `drive` and tests
-only where the tree shows the node), `@node_ref` and `@sizing` (only in a list;
-on a `view!` root it builds a `ListChild`). Any `@path=value` expands to
+only where the tree shows the node) and `@node_ref`. Any `@path=value` expands to
 `path(built, value)` after the component is built, in source order, and may
-change the output type.
+change the output type. A modifier works on the node itself; how a parent places
+a child is a tag around it that builds the child that parent takes:
+`<ListItem grow=1.0>` (a list or stack child's length: `grow`, `length`, `min`,
+`max`, `shrink`, `align`, `gap`) and `<GridCell span=2>`. So
+`<ListItem grow=1.0><Text>..</Text></ListItem>` is a `ListItem`, and only a list
+takes it. Most `grow=1.0` children are the one child that takes what its siblings
+leave; `<Spacer />` is an empty one that grows, to push the children after it to
+the end.
 
 **Other trees.** `beui-tree` knows nothing of documents, so its components and
 control flow build any tree (`beui-html`'s DOM, a chat message): the tree's

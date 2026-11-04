@@ -8,7 +8,7 @@ use super::panel::TabInfo;
 use super::tab::TabItem;
 use super::workspace::Workspace;
 use be_sdk_beui::beui::TextAlign;
-use beui::{Align, Direction, ItemSize, Overflow};
+use beui::{Align, Direction, Overflow};
 
 const PADDING_HORIZONTAL: Space = Space::Md;
 const PADDING_VERTICAL: Space = Space::Xs;
@@ -18,7 +18,7 @@ const SPACING: Space = Space::Md;
 pub(crate) fn ArtifactBar(
     workspace: Workspace,
     info: ReadSignal<Option<TabInfo>>,
-) -> DynamicSegment<ListChild> {
+) -> DynamicSegment<ListItem> {
     let shown = create_memo(move || {
         info.with(|info| {
             info.as_ref()
@@ -118,34 +118,36 @@ pub(crate) fn ArtifactBar(
                                 <Text style=TextStyle::CAPTION>"Loading…"</Text>
                             </Show>
                             <Show condition={described}>
-                                <List
-                                    @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=SPACING
-                                >
-                                    <Text style=TextStyle::CAPTION>"Generated from"</Text>
-                                    <Button
-                                        @test_id={"workspace.artifact.source"}
-                                        label={source_name}
-                                        variant=ButtonVariant::Ghost
-                                        on_click={move || {
-                                            if let Some(source) = source.get_untracked() {
-                                                workspace.open(source, None);
-                                            }
-                                        }}
-                                    />
-                                    <Text
-                                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                        style=TextStyle::CAPTION
-                                        overflow=Overflow::Ellipsis
+                                <ListItem shrink=1.0>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=SPACING
                                     >
-                                        {summary}
-                                    </Text>
-                                </List>
+                                        <Text style=TextStyle::CAPTION>"Generated from"</Text>
+                                        <Button
+                                            @test_id={"workspace.artifact.source"}
+                                            label={source_name}
+                                            variant=ButtonVariant::Ghost
+                                            on_click={move || {
+                                                if let Some(source) = source.get_untracked() {
+                                                    workspace.open(source, None);
+                                                }
+                                            }}
+                                        />
+                                        <ListItem shrink=1.0>
+                                            <Text
+                                                style=TextStyle::CAPTION
+                                                overflow=Overflow::Ellipsis
+                                            >
+                                                {summary}
+                                            </Text>
+                                        </ListItem>
+                                    </List>
+                                </ListItem>
                             </Show>
                         </List>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Spacer />
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Show condition={running}>
                                 <Text style=TextStyle::CAPTION>"Regenerating…"</Text>

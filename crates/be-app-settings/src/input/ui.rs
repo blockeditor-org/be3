@@ -12,7 +12,7 @@ use be_sdk_beui::{
 };
 
 use super::remapper::RemapperSetting;
-use beui::{Extent, ItemSize};
+use beui::Extent;
 
 const VALUE_WIDTH: f32 = 64.0;
 
@@ -241,24 +241,25 @@ fn Pointers(
     view! {
         <SettingsSection title="Pointers" description={description}>
             <SettingsRow label="Change" description="Every pointer at once, or one on its own.">
-                <Select
-                    options={view! {
-                        <ChoiceOption label="All pointers" />
-                        <ForEach keys={keys}>|key: DeviceKey|
-                            <ChoiceOption label={key.0} />
-                        </ForEach>
-                    }}
-                    @sizing=ItemSize::Percent(100.0)
-                    width={Extent::fraction(1.0)}
-                    selected={Binding::new(selected, move |index: Option<usize>| {
-                        let key = index
-                            .and_then(|index| index.checked_sub(1))
-                            .and_then(|index| keys.with_untracked(|keys| keys.get(index).cloned()));
-                        chosen.set(key);
-                    })}
-                    label="Pointer"
-                    @test_id={"input.pointer"}
-                />
+                <ListItem grow=1.0>
+                    <Select
+                        options={view! {
+                            <ChoiceOption label="All pointers" />
+                            <ForEach keys={keys}>|key: DeviceKey|
+                                <ChoiceOption label={key.0} />
+                            </ForEach>
+                        }}
+                        width={Extent::fraction(1.0)}
+                        selected={Binding::new(selected, move |index: Option<usize>| {
+                            let key = index
+                                .and_then(|index| index.checked_sub(1))
+                                .and_then(|index| keys.with_untracked(|keys| keys.get(index).cloned()));
+                            chosen.set(key);
+                        })}
+                        label="Pointer"
+                        @test_id={"input.pointer"}
+                    />
+                </ListItem>
             </SettingsRow>
             <ForEach keys={scopes}>|scope: Option<DeviceKey>|
                 <PointerRows
@@ -470,28 +471,29 @@ fn DisplayChoice(
             locked={read_only}
             id={"input.pointer.display".to_owned()}
         >
-            <Select
-                @sizing=ItemSize::Percent(100.0)
-                width={Extent::fraction(1.0)}
-                options={view! {
-                    <ChoiceOption label={automatic} />
-                    <ForEach keys={shown}>|display: (String, String)|
-                        <ChoiceOption label={display.1} />
-                    </ForEach>
-                }}
-                selected={Binding::new(selected, move |index: Option<usize>| {
-                    let Some(index) = index else {
-                        return;
-                    };
-                    let chosen = index
-                        .checked_sub(1)
-                        .and_then(|index| shown.with_untracked(|shown| shown.get(index).map(|(id, _)| id.clone())));
-                    set.call(chosen);
-                })}
-                label="Display"
-                disabled={read_only}
-                @test_id={"input.pointer.display"}
-            />
+            <ListItem grow=1.0>
+                <Select
+                    width={Extent::fraction(1.0)}
+                    options={view! {
+                        <ChoiceOption label={automatic} />
+                        <ForEach keys={shown}>|display: (String, String)|
+                            <ChoiceOption label={display.1} />
+                        </ForEach>
+                    }}
+                    selected={Binding::new(selected, move |index: Option<usize>| {
+                        let Some(index) = index else {
+                            return;
+                        };
+                        let chosen = index
+                            .checked_sub(1)
+                            .and_then(|index| shown.with_untracked(|shown| shown.get(index).map(|(id, _)| id.clone())));
+                        set.call(chosen);
+                    })}
+                    label="Display"
+                    disabled={read_only}
+                    @test_id={"input.pointer.display"}
+                />
+            </ListItem>
         </LayeredSettingsRow>
     }
 }
@@ -546,20 +548,21 @@ fn TextSetting(
             locked={read_only}
             id={format!("input.{id}")}
         >
-            <TextInput
-                @sizing=ItemSize::Percent(100.0)
-                value={Binding::new(shown, move |text: String| {
-                    if text != shown.get_untracked() {
-                        on_change.call(Some(text));
-                    }
-                })}
-                label={label}
-                placeholder={create_memo(move || {
-                    inherited.get().unwrap_or_else(|| "Default".to_owned())
-                })}
-                disabled={read_only}
-                @test_id={format!("input.{id}")}
-            />
+            <ListItem grow=1.0>
+                <TextInput
+                    value={Binding::new(shown, move |text: String| {
+                        if text != shown.get_untracked() {
+                            on_change.call(Some(text));
+                        }
+                    })}
+                    label={label}
+                    placeholder={create_memo(move || {
+                        inherited.get().unwrap_or_else(|| "Default".to_owned())
+                    })}
+                    disabled={read_only}
+                    @test_id={format!("input.{id}")}
+                />
+            </ListItem>
         </LayeredSettingsRow>
     }
 }
@@ -587,18 +590,19 @@ fn SliderSetting(
             locked={read_only}
             id={format!("input.{id}")}
         >
-            <Slider
-                @sizing=ItemSize::Percent(100.0)
-                value={Binding::new(value, move |value: f32| on_change.call(Some(value)))}
-                min={min}
-                max={max}
-                label={label}
-                disabled={read_only}
-                @test_id={format!("input.{id}")}
-            />
-            <Text @sizing=ItemSize::Fixed(VALUE_WIDTH) color=TextColor::Muted align=TextAlign::End>
-                {shown}
-            </Text>
+            <ListItem grow=1.0>
+                <Slider
+                    value={Binding::new(value, move |value: f32| on_change.call(Some(value)))}
+                    min={min}
+                    max={max}
+                    label={label}
+                    disabled={read_only}
+                    @test_id={format!("input.{id}")}
+                />
+            </ListItem>
+            <ListItem length=VALUE_WIDTH>
+                <Text color=TextColor::Muted align=TextAlign::End>{shown}</Text>
+            </ListItem>
         </LayeredSettingsRow>
     }
 }

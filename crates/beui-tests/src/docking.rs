@@ -1,3 +1,4 @@
+use beui::Direction;
 use beui::dock::Docking;
 use beui::dock::{
     DockPane, DockSplit, DockState, DockTab, DockTree, DockTreeEntry, DockingLayout, SplitSize,
@@ -6,7 +7,6 @@ use beui::dock::{
 use beui::dock_host::styled::DockHost;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Direction, ItemSize};
 
 const ALPHA: TabId = TabId::new(1);
 const BETA: TabId = TabId::new(2);
@@ -133,7 +133,7 @@ pub fn DockingFixture() -> NodeId {
                     </Docking>
                 </DockHost>
             </Frame>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Spacer />
         </List>
     }
 }

@@ -9,7 +9,7 @@ use beui::icons::{
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{MarkerKind, TextAreaState, TextMarker};
-use beui::{Direction, ItemSize, NodeId, TextAlign};
+use beui::{Direction, NodeId, TextAlign};
 use beui_macros::{component, sample};
 use beui_text_editor_core::schema::basic::{
     self, Basic, CHECK, CHECKED, CODE_BLOCK, LIST, MENTION, NUMBER, QUOTE,
@@ -154,12 +154,9 @@ fn RichTextEditor() -> NodeId {
                     }}
                 />
             </List>
-            <TextArea
-                @test_id="demo.rich.editor"
-                @sizing=ItemSize::Fixed(EDITOR_HEIGHT)
-                state
-                marker={render_marker()}
-            />
+            <ListItem length=EDITOR_HEIGHT>
+                <TextArea @test_id="demo.rich.editor" state marker={render_marker()} />
+            </ListItem>
         </List>
     }
 }

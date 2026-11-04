@@ -1,12 +1,12 @@
 use super::*;
 
 #[test]
-fn percent_items_land_on_device_pixels_at_a_fractional_scale() {
+fn growing_items_land_on_device_pixels_at_a_fractional_scale() {
     let grid = PixelGrid::new(2.0);
     let sizes = [
-        ItemSize::Percent(100.0),
-        ItemSize::Percent(100.0),
-        ItemSize::Percent(100.0),
+        ItemSize::Grow(1.0),
+        ItemSize::Grow(1.0),
+        ItemSize::Grow(1.0),
     ];
     let intrinsic_lengths = [0.0, 0.0, 0.0];
 

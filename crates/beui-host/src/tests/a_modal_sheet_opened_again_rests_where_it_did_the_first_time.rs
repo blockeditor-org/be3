@@ -12,7 +12,9 @@ fn a_modal_sheet_opened_again_rests_where_it_did_the_first_time() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
                 <ModalSheet open={open} on_close={move || open.set(false)}>
                     <Frame @node_ref=&content height=120.0 />
                 </ModalSheet>

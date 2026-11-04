@@ -21,7 +21,7 @@ use uuid::Uuid;
 mod choice;
 pub mod tags;
 
-use beui::{Align, Direction, ItemSize};
+use beui::{Align, Direction};
 pub use choice::{
     ChoiceColors, ChoiceMark, choice_color_label, choice_glyph, choice_icon_label,
     use_choice_colors,
@@ -120,7 +120,7 @@ fn DatabaseValueRow(
                 <Show condition={headings}>
                     <Text style=TextStyle::CAPTION>{heading}</Text>
                 </Show>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Spacer />
                 <Show condition={set}>
                     <Button
                         icon_only=true
@@ -173,7 +173,7 @@ fn DatabaseValueControl(
                 let on_submit = forward(on_submit);
                 match kind {
                     None => view! {
-                        <Spacer />
+                        <Frame />
                     },
                     Some(Some(DatabaseFieldType::String)) => view! {
                         <StringValue
@@ -523,16 +523,17 @@ fn BlockValue(
     };
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <Button
-                @node_ref={&button}
-                label={label}
-                variant=ButtonVariant::Secondary
-                disabled={disabled}
-                @test_id={id}
-                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                on_click={choose}
-            />
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <ListItem shrink=1.0>
+                <Button
+                    @node_ref={&button}
+                    label={label}
+                    variant=ButtonVariant::Secondary
+                    disabled={disabled}
+                    @test_id={id}
+                    on_click={choose}
+                />
+            </ListItem>
+            <Spacer />
         </List>
     }
 }
@@ -694,9 +695,9 @@ fn LinksValue(
                 };
                 view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
-                            {label}
-                        </Text>
+                        <ListItem grow=1.0>
+                            <Text overflow=Overflow::Ellipsis>{label}</Text>
+                        </ListItem>
                         <Button
                             icon_only=true
                             glyph=ICON_X

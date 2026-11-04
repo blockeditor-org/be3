@@ -9,16 +9,15 @@ fn the_scroll_position_is_reported_to_its_listener() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset
-                    @sizing=ItemSize::Percent(100.0)
-                    on_change={move |position| reported.set(Some(position))}
-                >
-                    <List spacing=0.0>
-                        <ForEach keys={indices(100)}>|index: usize|
-                            <Text color=Color32::WHITE>{format!("Row {index}")}</Text>
-                        </ForEach>
-                    </List>
-                </Offset>
+                <ListItem grow=1.0>
+                    <Offset on_change={move |position| reported.set(Some(position))}>
+                        <List spacing=0.0>
+                            <ForEach keys={indices(100)}>|index: usize|
+                                <Text color=Color32::WHITE>{format!("Row {index}")}</Text>
+                            </ForEach>
+                        </List>
+                    </Offset>
+                </ListItem>
             </List>
         }
     });

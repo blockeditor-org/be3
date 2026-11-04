@@ -10,11 +10,13 @@ fn fingers_resting_on_the_trackpad_stop_a_fling() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={indices(300)}>|index: usize|
-                        <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
-                    </ForEach>
-                </Scroll>
+                <ListItem grow=1.0>
+                    <Scroll @node_ref=&scroll>
+                        <ForEach keys={indices(300)}>|index: usize|
+                            <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
+                        </ForEach>
+                    </Scroll>
+                </ListItem>
             </List>
         }
     });

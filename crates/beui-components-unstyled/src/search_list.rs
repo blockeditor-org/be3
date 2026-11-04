@@ -14,7 +14,7 @@ use beui_view::types::{Key, KeyPress};
 use crate::button::{Button, ButtonHandle};
 use crate::scroll::{Scroll, ScrollbarStyle};
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
-use beui_view::types::{ItemSize, Track};
+use beui_view::types::Track;
 
 const EXACT: u32 = 100;
 const PREFIX: u32 = 90;
@@ -239,31 +239,26 @@ where
                 on_focus_change={move |has_focus: bool| on_focus_change.call(has_focus)}
                 on_submit={move |_: String| state.submit()}
             />
-            <Scroll
-                @sizing={create_memo(move || {
-                    let height = list_height.get();
-                    let size = match fill_height.get() {
-                        true => ItemSize::Fixed(height),
-                        false => ItemSize::Intrinsic,
-                    };
-                    size.max(height).shrink(1.0)
-                })}
-                fit=true
-                scrollbar
+            <ListItem
+                length={create_memo(move || fill_height.get().then(|| list_height.get()))}
+                max=list_height
+                shrink=1.0
             >
-                <Show condition={listed}>
-                    <ForEach keys={shown}>|key: K|
-                        <SearchRow state key accessibility row highlight />
-                    </ForEach>
-                </Show>
-                <Show condition={gridded}>
-                    <Grid columns={tracks} column_spacing=spacing row_spacing=spacing>
+                <Scroll fit=true scrollbar>
+                    <Show condition={listed}>
                         <ForEach keys={shown}>|key: K|
                             <SearchRow state key accessibility row highlight />
                         </ForEach>
-                    </Grid>
-                </Show>
-            </Scroll>
+                    </Show>
+                    <Show condition={gridded}>
+                        <Grid columns={tracks} column_spacing=spacing row_spacing=spacing>
+                            <ForEach keys={shown}>|key: K|
+                                <SearchRow state key accessibility row highlight />
+                            </ForEach>
+                        </Grid>
+                    </Show>
+                </Scroll>
+            </ListItem>
         </List>
     };
     create_effect(move || {

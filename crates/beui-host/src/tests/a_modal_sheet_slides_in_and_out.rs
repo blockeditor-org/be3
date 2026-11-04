@@ -12,7 +12,9 @@ fn a_modal_sheet_slides_in_and_out() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ListItem grow=1.0>
+                    <Frame />
+                </ListItem>
                 <ModalSheet open={open} fit=true on_close={move || open.set(false)}>
                     <Frame @node_ref=&content height=120.0 />
                 </ModalSheet>

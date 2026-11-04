@@ -10,7 +10,7 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{Direction, ItemSize};
+use beui_view::types::Direction;
 use beui_view::types::{Key, KeyPress};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -116,9 +116,9 @@ pub fn Choice(
     };
     api.fill(ChoiceApi(state));
     let built_options: Stored<RefCell<Vec<Rc<ChoiceOption>>>> = store(RefCell::default());
-    let option_size = create_memo(move || match shrink.get() {
-        true => ItemSize::Intrinsic.shrink(1.0),
-        false => ItemSize::Intrinsic.into(),
+    let option_shrink = create_memo(move || match shrink.get() {
+        true => 1.0,
+        false => 0.0,
     });
     let buttons = options.build_each(
         built_options,
@@ -141,29 +141,30 @@ pub fn Choice(
                 node
             });
             view! {
-                <unstyled::Button
-                    tab_stop={tab_stop_owner.memo(index)}
-                    focused={focused.memo(Some(index))}
-                    accessibility
-                    on_focus_change={move |has_focus: bool| track_focus(state, index, has_focus)}
-                    on_click={move || select(state, Some(index))}
-                    on_key={move |press: KeyPress| key(state, index, press)}
-                    on_text={move |typed: String| {
-                        if state.kind == ChoiceKind::Listbox {
-                            typeahead(state, index, &typed);
-                        }
-                    }}
-                    @sizing={option_size}
-                >|button: ButtonHandle| {
-                    option.call(ChoiceOptionHandle {
-                        index,
-                        label: label.into_prop(),
-                        selected: is_selected,
-                        hovered: button.hovered,
-                        active: button.active,
-                        focused: button.focused,
-                    })
-                }</unstyled::Button>
+                <ListItem shrink=option_shrink>
+                    <unstyled::Button
+                        tab_stop={tab_stop_owner.memo(index)}
+                        focused={focused.memo(Some(index))}
+                        accessibility
+                        on_focus_change={move |has_focus: bool| track_focus(state, index, has_focus)}
+                        on_click={move || select(state, Some(index))}
+                        on_key={move |press: KeyPress| key(state, index, press)}
+                        on_text={move |typed: String| {
+                            if state.kind == ChoiceKind::Listbox {
+                                typeahead(state, index, &typed);
+                            }
+                        }}
+                    >|button: ButtonHandle| {
+                        option.call(ChoiceOptionHandle {
+                            index,
+                            label: label.into_prop(),
+                            selected: is_selected,
+                            hovered: button.hovered,
+                            active: button.active,
+                            focused: button.focused,
+                        })
+                    }</unstyled::Button>
+                </ListItem>
             }
         },
     );
