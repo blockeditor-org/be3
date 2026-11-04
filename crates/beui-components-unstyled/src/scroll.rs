@@ -13,7 +13,9 @@ use crate::drag_board::drag_board;
 use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
 use beui_view::components::overlay::Overlay;
 use beui_view::drag::EdgeScroller;
-use beui_view::escape::beui_html::{Event as HtmlEvent, Node as HtmlNode, attr, elements as html, on};
+use beui_view::escape::beui_html::{
+    Event as HtmlEvent, Node as HtmlNode, attr, elements as html, on,
+};
 use beui_view::escape::html_escape;
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
@@ -1107,7 +1109,9 @@ fn BrowserScroll(
                 on_blur={move |_: HtmlEvent| focused.set(false)}
                 @on={("scroll", move |_: HtmlEvent| scrolled())}
             >
-                <html::Div @attr={("style", Prop::dynamic(move || Some(content_clip(direction.get()))))}>
+                <html::Div
+                    @attr={("style", Prop::dynamic(move || Some(content_clip(direction.get()))))}
+                >
                     {content}
                 </html::Div>
             </html::Div>
