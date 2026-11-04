@@ -48,6 +48,15 @@ struct State {
     highlighted: Signal<Option<usize>>,
 }
 
+/// A trigger that opens a popup with a search box over the options.
+///
+/// Opening it focuses the search box; typing filters the options to those whose
+/// label contains every typed word, ignoring case. Up/Down/Home/End on the
+/// closed trigger open it with the highlight moved that way. In the popup,
+/// Up/Down move the highlight without moving the search box's caret, Page
+/// Up/Down move eight options, and Home/End reach the first and last shown
+/// option; Enter picks the highlighted one and closes. Escape or a press outside
+/// closes without changing the selection and returns the focus to the trigger.
 #[component]
 pub fn Select(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SelectApi>,

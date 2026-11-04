@@ -64,6 +64,11 @@ pub struct SliderHandle {
     pub disabled: Memo<bool>,
 }
 
+/// A value from `min` to `max` (0 to 1 by default) along a track.
+///
+/// Right/Up step it up and Left/Down down by 5% of the track, Page Up/Down by
+/// 20%, and Home/End reach `min` and `max`. A curved `scale` keeps those steps
+/// even along the track rather than in value.
 #[component]
 pub fn Slider(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SliderApi>,

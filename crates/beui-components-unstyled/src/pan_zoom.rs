@@ -139,6 +139,10 @@ impl Camera {
 /// into writes to `view`, which the caller may own so toolbars and hosts write the
 /// same camera. Momentum, snapping and clamping to content are the caller's; only
 /// `min_scale` and `max_scale` are applied here.
+///
+/// Focused, the arrows pan by a step, `+` and `-` zoom around the middle, and
+/// `0` sets the scale back to one. It keeps those keys from any scroll around
+/// it.
 #[component]
 pub fn PanZoom(
     #[prop(default = ComponentRef::new())] api: ComponentRef<PanZoomApi>,

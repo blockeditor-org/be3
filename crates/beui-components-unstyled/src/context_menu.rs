@@ -30,6 +30,11 @@ struct State {
     more: NodeRef,
 }
 
+/// Opens a menu of `items` over its child on a secondary click (at the pointer)
+/// or, with the focus inside it or on the control it belongs to, on Shift+F10 or
+/// the Menu key (beneath the child); Ctrl or Alt with either is left alone. The
+/// menu's own keys are `MenuList`'s. Choosing a leaf closes every level; a press
+/// outside closes them all.
 #[component]
 pub fn ContextMenu(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ContextMenuApi>,

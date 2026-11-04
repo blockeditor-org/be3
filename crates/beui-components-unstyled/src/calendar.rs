@@ -75,6 +75,16 @@ struct State {
     first_weekday: Weekday,
 }
 
+/// A month of days, with grids of months and of twenty years behind the title.
+///
+/// Each grid is one Tab stop, at its focused cell. In days, Left/Right move a
+/// day and Up/Down a week, crossing months; Home/End reach the start and end of
+/// the week (from `first_weekday`); Page Up/Down move a month and Shift+Page
+/// Up/Down a year, keeping the day within the month. In months, the arrows move
+/// a month and a row, Home/End reach January and December, and Page Up/Down a
+/// year. In years, the arrows move a year and a row, Home/End reach the ends of
+/// the page, and Page Up/Down move twenty years. Every move is clamped to `min`
+/// and `max`. Picking a year shows its months, and a month its days.
 #[component]
 pub fn Calendar(
     #[prop(default = ComponentRef::new())] api: ComponentRef<CalendarApi>,
