@@ -9,7 +9,7 @@ use crate::platform::target_platform;
 use crate::quiet::Quiet;
 use be_lib_prompt::columns;
 
-use crate::{Result, buck2, env_set, in_ci, repository, server, write_if_changed};
+use crate::{Result, buck2, env_set, freeze, in_ci, repository, server, write_if_changed};
 
 const BUILD_COMMANDS: [&str; 11] = [
     "build", "run", "test", "bxl", "install", "targets", "query", "cquery", "uquery", "aquery",
@@ -186,9 +186,28 @@ fn attempt_once(
     stderr: Option<&Path>,
 ) -> Result<(i32, Vec<u8>)> {
     let mut command = Command::new(buck2);
-    command.args(arguments.iter().map(OsString::from));
+    let watched = arguments
+        .first()
+        .filter(|command| BUILD_COMMANDS.contains(&command.as_str()));
+    let build_id = repository().join(format!("target/buck2-build-id-{}", std::process::id()));
+    if let Some(subcommand) = watched {
+        let _ = std::fs::remove_file(&build_id);
+        command.arg(subcommand).arg("--write-build-id").arg(&build_id);
+        command.args(arguments.iter().skip(1).map(OsString::from));
+    } else {
+        command.args(arguments.iter().map(OsString::from));
+    }
     let spawn_error = |error: std::io::Error| format!("could not run {}: {error}", buck2.display());
     let mut output = Vec::new();
+    // A daemon found stopped is killed, and the command is then an
+    // infrastructure error, which `retrying` runs again.
+    let finish = |watchdog: Option<freeze::Watchdog>, status: ExitStatus| {
+        if watchdog.is_some_and(freeze::Watchdog::finish) {
+            2
+        } else {
+            status_code(status)
+        }
+    };
     if quiet {
         let (reader, writer) =
             std::io::pipe().map_err(|error| format!("could not open a pipe: {error}"))?;
@@ -198,6 +217,7 @@ fn attempt_once(
         command.stdout(writer).stderr(duplicate);
         let mut child = command.spawn().map_err(spawn_error)?;
         drop(command);
+        let watchdog = watched.map(|_| freeze::watch(buck2, build_id.clone(), child.id()));
         let mut filter = Quiet::new(!capture, columns());
         let mut reader = BufReader::new(reader);
         let mut line = Vec::new();
@@ -215,7 +235,7 @@ fn attempt_once(
         }
         filter.finish(out);
         let status = child.wait().map_err(spawn_error)?;
-        return Ok((status_code(status), output));
+        return Ok((finish(watchdog, status), output));
     }
     if let Some(log) = stderr {
         let file = File::create(log)
@@ -226,11 +246,12 @@ fn attempt_once(
         command.stdout(Stdio::piped());
     }
     let mut child = command.spawn().map_err(spawn_error)?;
+    let watchdog = watched.map(|_| freeze::watch(buck2, build_id.clone(), child.id()));
     if let Some(mut stdout) = child.stdout.take() {
         let _ = stdout.read_to_end(&mut output);
     }
     let status = child.wait().map_err(spawn_error)?;
-    Ok((status_code(status), output))
+    Ok((finish(watchdog, status), output))
 }
 
 pub fn write_build_id() -> Result<()> {

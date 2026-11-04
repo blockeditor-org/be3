@@ -435,6 +435,14 @@ pub mod relay {
         !crc
     }
 
+    /// Where this checkout's two relays listen, the executor's and the storage's,
+    /// on ports picked from the checkout's path.
+    pub fn addresses() -> [String; 2] {
+        let path = repository().to_string_lossy().into_owned();
+        let port = 20000 + cksum(path.as_bytes()) % 2000 * 2;
+        [format!("127.0.0.1:{port}"), format!("127.0.0.1:{}", port + 1)]
+    }
+
     pub fn ensure(engine: &str, storage: &str) -> Result<(String, String)> {
         let source = repository().join("scripts/internal/re-relay");
         let go = Command::new("go").args(["env", "GOEXE"]).output();
@@ -481,10 +489,7 @@ pub mod relay {
             std::fs::rename(&partial, &relay)
                 .map_err(|error| format!("could not write {}: {error}", relay.display()))?;
         }
-        let path = repository().to_string_lossy().into_owned();
-        let port = 20000 + cksum(path.as_bytes()) % 2000 * 2;
-        let engine_address = format!("127.0.0.1:{port}");
-        let storage_address = format!("127.0.0.1:{}", port + 1);
+        let [engine_address, storage_address] = addresses();
         let log = repository().join("target/re-relay.log");
         for (listen, upstream) in [(&engine_address, engine), (&storage_address, storage)] {
             let started = Command::new(&relay)

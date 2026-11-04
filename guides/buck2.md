@@ -85,6 +85,10 @@ rebuilds nothing else:
 - **Retries.** buck2 exits 2 on an infrastructure error, such as a reset partway through a
   download, and does not retry; the wrapper runs the command three times in all
   (`BE3_BUCK_ATTEMPTS`). For `run` it retries the build, not the program.
+- **A watchdog.** A build command's event log grows every 10 to 20 seconds even while it only
+  waits; when it has not grown for five minutes, the wrapper saves what the daemon and the relays
+  were waiting on to `target/buck2-stopped.txt`, kills the daemon, and counts the run as an
+  infrastructure error (crates/be-tool-bootstrap/src/freeze.rs, guides/build_server.md).
 - **Tests on the workers** for `./scripts/test` (below).
 
 A file's executable bit is part of every action that reads it, and a Windows checkout has none,

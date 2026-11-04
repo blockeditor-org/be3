@@ -7,6 +7,7 @@ mod buck;
 mod buck2;
 mod deploy;
 mod download;
+mod freeze;
 mod nsc;
 mod pins;
 mod platform;

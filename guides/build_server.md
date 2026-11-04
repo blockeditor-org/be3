@@ -36,6 +36,19 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches the server through
   what finished cached. Failing every time means the server is down or overloaded. The proxy
   also cuts every call after five minutes; the relay then repeats the `Execute`, which joins the
   running action (`broke off ..., making it again` in its log), and buck2 sees nothing.
+- **A build that stops with no output**: buck2's daemon stopped making progress, its event log
+  (`buck-out/v2/log/*_events.pb.zst`) stopped growing, and `buck2 status` shows the same span
+  counts. Seen once in a cloud session about 30 seconds into a cold `verify`, with hundreds of
+  `re_download` spans open (`buck2 log whatup`) and data from the storage relay sitting unread in
+  buck2's sockets (`/proc/net/tcp` receive queues); eight cold runs did not reproduce it. After
+  five minutes the watchdog (guides/buck2.md) writes `target/buck2-stopped.txt` (`buck2 status`,
+  each relay's calls in flight and goroutines, and with `gdb` installed every daemon thread's
+  stack), kills the daemon and runs the command again. Each relay also logs
+  `N of M calls have not moved` every 30 seconds while a call is stuck, saying whether it waits on
+  buck2 to read (buck2 has stopped), on the upstream (the proxy or the server), or for one of its
+  128 connections upstream. `curl 127.0.0.1:PORT/__be3-re-relay/calls` (the ports are in
+  `.buckconfig.local`) shows the same at any time. Read the saved file before the next freeze
+  overwrites it; the threads show what the daemon waited on.
 - **`the proxy answered 401 Unauthorized`**: the session has no key for that server
   (`credentials missing`) or a refused one (`invalid token`).
 - **A test that hangs**: a test run is stopped after `TEST_TIME_LIMIT` (buck/cargo/defs.bzl);
