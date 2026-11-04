@@ -9,9 +9,9 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{Overflow, TextAlign};
 use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
 use beui_view::types::{Align, Direction, ItemSize};
+use beui_view::types::{Overflow, TextAlign};
 
 const SPACING: Space = Space::Md;
 const PADDING_HORIZONTAL: Space = Space::Md;

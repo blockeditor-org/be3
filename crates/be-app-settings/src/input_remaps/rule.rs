@@ -23,7 +23,12 @@ const PART_SPACING: Space = Space::Xl;
 const LABEL_SPACING: Space = Space::Xs2;
 const CONTROL_SPACING: Space = Space::Sm;
 const MS_WIDTH: f32 = 88.0;
-const HOLD_PRESETS: [(i64, &str); 4] = [(0, "Instant"), (20, "20 ms"), (50, "50 ms"), (100, "100 ms")];
+const HOLD_PRESETS: [(i64, &str); 4] = [
+    (0, "Instant"),
+    (20, "20 ms"),
+    (50, "50 ms"),
+    (100, "100 ms"),
+];
 
 /// A key cap as a row shows it: its label, and whether it only stands in for
 /// a key (a wait).
@@ -43,7 +48,10 @@ fn key_cap(name: &str) -> Cap {
 /// What must be held for a rule, from `on` and its `held` list.
 fn held(outline: &RuleOutline) -> Vec<String> {
     let on = Combo::parse(&outline.on);
-    on.held.into_iter().chain(outline.held.iter().cloned()).collect()
+    on.held
+        .into_iter()
+        .chain(outline.held.iter().cloned())
+        .collect()
 }
 
 fn trigger_caps(outline: &RuleOutline) -> Vec<Cap> {
@@ -436,7 +444,12 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                             spacing=CONTROL_SPACING
                             wrap=true
                         >
-                            <HoldPresets hold={hold} disabled={read_only} id={id("hold")} set={move |ms: i64| edit(RuleEdit::HoldMs(Some(ms)))} />
+                            <HoldPresets
+                                hold={hold}
+                                disabled={read_only}
+                                id={id("hold")}
+                                set={move |ms: i64| edit(RuleEdit::HoldMs(Some(ms)))}
+                            />
                             <Text style=TextStyle::CAPTION>"or"</Text>
                             <NumberInput
                                 @sizing=ItemSize::Fixed(MS_WIDTH)
@@ -458,7 +471,13 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                     >
                         <List spacing=CONTROL_SPACING>
                             <ForEach keys={steps}>|step: usize|
-                                <StepTile edits={edits} group={group} rule={rule} step={step} outline={outline} />
+                                <StepTile
+                                    edits={edits}
+                                    group={group}
+                                    rule={rule}
+                                    step={step}
+                                    outline={outline}
+                                />
                             </ForEach>
                             <List direction=Direction::Horizontal spacing=CONTROL_SPACING>
                                 <Button
@@ -601,10 +620,20 @@ fn MoreOption(title: &'static str, description: Prop<String>, children: Child) -
 
 /// A key shown as its cap, which opens the picker to change it.
 #[component]
-fn KeyButton(label: Memo<String>, disabled: Memo<bool>, id: String, on_click: ClickCallback) -> NodeId {
+fn KeyButton(
+    label: Memo<String>,
+    disabled: Memo<bool>,
+    id: String,
+    on_click: ClickCallback,
+) -> NodeId {
     let named = create_memo(move || format!("Change {}", label.get()));
     view! {
-        <unstyled::Button label={named} disabled={disabled} @test_id={id} on_click={on_click}>|handle: unstyled::ButtonHandle| {
+        <unstyled::Button
+            label={named}
+            disabled={disabled}
+            @test_id={id}
+            on_click={on_click}
+        >|handle: unstyled::ButtonHandle| {
             let fill = create_memo(move || match handle.hovered.get() && !handle.disabled.get() {
                 true => ColorRole::Hover,
                 false => ColorRole::None,
@@ -612,10 +641,16 @@ fn KeyButton(label: Memo<String>, disabled: Memo<bool>, id: String, on_click: Cl
             view! {
                 <FocusRing focused={handle.focused}>
                     <Frame fill={fill} radius=Radius::Md padding={Padding::all(Space::Xs)}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=CONTROL_SPACING>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=CONTROL_SPACING
+                        >
                             <KeyCap label={label} />
                             <Show condition={create_memo(move || !handle.disabled.get())}>
-                                <Text style={TextStyle::CAPTION.color(TextColor::Accent)}>"Change"</Text>
+                                <Text style={TextStyle::CAPTION.color(TextColor::Accent)}>
+                                    "Change"
+                                </Text>
                             </Show>
                         </List>
                     </Frame>
@@ -653,7 +688,12 @@ fn ModifierToggles(
 
 /// Keys that are no modifier, each with a button that removes it.
 #[component]
-fn RemovableKeys(names: Memo<Vec<String>>, disabled: Memo<bool>, id: String, remove: Callback<String>) -> NodeId {
+fn RemovableKeys(
+    names: Memo<Vec<String>>,
+    disabled: Memo<bool>,
+    id: String,
+    remove: Callback<String>,
+) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CAP_SPACING>
             <ForEach keys={names}>|name: String| {
@@ -684,7 +724,9 @@ fn RemovableKeys(names: Memo<Vec<String>>, disabled: Memo<bool>, id: String, rem
 fn HoldPresets(hold: Memo<f64>, disabled: Memo<bool>, id: String, set: Callback<i64>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=CAP_SPACING>
-            <ForEach keys={create_memo(|| HOLD_PRESETS.to_vec())}>|(ms, name): (i64, &'static str)| {
+            <ForEach
+                keys={create_memo(|| HOLD_PRESETS.to_vec())}
+            >|(ms, name): (i64, &'static str)| {
                 let pressed = create_memo(move || hold.get().round() as i64 == ms);
                 let control_id = format!("{id}.{ms}");
                 view! {
@@ -705,11 +747,19 @@ fn HoldPresets(hold: Memo<f64>, disabled: Memo<bool>, id: String, set: Callback<
 }
 
 #[component]
-fn StepTile(edits: Edits, group: usize, rule: usize, step: usize, outline: Memo<RuleOutline>) -> NodeId {
+fn StepTile(
+    edits: Edits,
+    group: usize,
+    rule: usize,
+    step: usize,
+    outline: Memo<RuleOutline>,
+) -> NodeId {
     let id = move |part: &str| format!("input-remaps.group.{group}.rule.{rule}.step.{step}.{part}");
     let edit = move |edit: RuleEdit| edits.edit_rule(group, rule, edit);
     let shown = create_memo(move || {
-        outline.with(|outline| outline.steps.get(step).cloned()).unwrap_or(StepOutline::Wait { ms: 0 })
+        outline
+            .with(|outline| outline.steps.get(step).cloned())
+            .unwrap_or(StepOutline::Wait { ms: 0 })
     });
     let tap = create_memo(move || matches!(shown.get(), StepOutline::Tap { .. }));
     let wait = create_memo(move || !tap.get());
@@ -727,11 +777,19 @@ fn StepTile(edits: Edits, group: usize, rule: usize, step: usize, outline: Memo<
     });
     let number = format!("{}", step + 1);
     view! {
-        <Frame border={Border::DEFAULT} radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Xs)}>
+        <Frame
+            border={Border::DEFAULT}
+            radius=Radius::Md
+            padding={Padding::symmetric(Space::Md, Space::Xs)}
+        >
             <List direction=Direction::Horizontal align=Align::Center spacing=CONTROL_SPACING>
                 <Text style=TextStyle::CAPTION>{number}</Text>
                 <Show condition={tap}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=CONTROL_SPACING>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=CONTROL_SPACING
+                    >
                         <KeyButton
                             label={key}
                             disabled={edits.read_only}

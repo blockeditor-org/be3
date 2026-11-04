@@ -33,5 +33,8 @@ fn the_editor_changes_rules_and_keeps_the_comments() {
     editor.click("input-remaps.group.0.rule.0.remove");
     editor.run();
     let text = stored(&editor);
-    assert!(!text.contains("MouseLeft") && !text.contains("F20"), "{text}");
+    assert!(
+        !text.contains("MouseLeft") && !text.contains("F20"),
+        "{text}"
+    );
 }

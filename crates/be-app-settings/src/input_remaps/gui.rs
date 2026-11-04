@@ -213,8 +213,9 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
     };
     let groups = create_memo(move || (0..outline.with(Vec::len)).collect::<Vec<usize>>());
     let blocked = create_memo(move || unreadable.get().is_some());
-    let no_everywhere =
-        create_memo(move || !blocked.get() && outline.with(|outline| !outline.iter().any(everywhere)));
+    let no_everywhere = create_memo(move || {
+        !blocked.get() && outline.with(|outline| !outline.iter().any(everywhere))
+    });
     let message = create_memo(move || {
         unreadable
             .get()
@@ -231,7 +232,8 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
     let warned = create_memo(move || !message.get().is_empty());
     let adding_off = create_memo(move || shared.read_only.get() || blocked.get());
     let current = Callback::new(move |group: usize| {
-        let outline = outline.with_untracked(|outline| outline.get(group).cloned().unwrap_or_default());
+        let outline =
+            outline.with_untracked(|outline| outline.get(group).cloned().unwrap_or_default());
         Scope {
             name: outline.name,
             exe: outline.exe,
@@ -243,7 +245,8 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
         Scoping::Add => change.call(Change::AddGroup(scope)),
         Scoping::Group(group) => change.call(Change::Scope(group, scope)),
     });
-    let choose = Callback::new(move |(picking, picked): (Picking, Picked)| edits.picked(picking, picked));
+    let choose =
+        Callback::new(move |(picking, picked): (Picking, Picked)| edits.picked(picking, picked));
     view! {
         <List spacing=SECTION_SPACING>
             <Show condition={warned}>

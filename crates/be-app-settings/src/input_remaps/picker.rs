@@ -1,15 +1,14 @@
 //! The key picker: what a rule's key, held key, sent key or step is chosen
 //! with, so no key name has to be typed. Typing one is the fallback at its foot.
 
-use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Align, Direction, ItemSize, NodeId, TextAlign};
 use be_host_remap::names::{Modifier, Source};
 use be_host_remap::rules::Wheel;
 use be_sdk_beui::beui::icons::{ICON_KEYBOARD, ICON_SEARCH};
+use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::beui::{Align, Direction, ItemSize, NodeId, TextAlign};
 use be_sdk_beui::{
-    CapturedChord, CapturedTrigger, Editor, InputCapture, InputCaptureWatch, RemapsWatch,
-    WheelTurn,
+    CapturedChord, CapturedTrigger, Editor, InputCapture, InputCaptureWatch, RemapsWatch, WheelTurn,
 };
 
 use super::keys::{self, id_part, label};
@@ -120,9 +119,8 @@ pub(super) fn KeyPicker(
         create_memo(move || tabs.with(|tabs| tabs.get(tab.get()) == Some(&which)))
     };
     let pressing = shown(Tab::Press);
-    let capture = editor.watch_while::<InputCaptureWatch>(move || {
-        open.get() && pressing.get() && listening.get()
-    });
+    let capture = editor
+        .watch_while::<InputCaptureWatch>(move || open.get() && pressing.get() && listening.get());
     let pick = Callback::new(move |picked: Picked| {
         if let Some(now) = picking.get_untracked() {
             picking.set(None);
@@ -149,12 +147,7 @@ pub(super) fn KeyPicker(
                     @test_id={"input-remaps.picker.tabs"}
                 />
                 <Show condition={pressing}>
-                    <PressTab
-                        target={target}
-                        listening={listening}
-                        capture={capture}
-                        pick={pick}
-                    />
+                    <PressTab target={target} listening={listening} capture={capture} pick={pick} />
                 </Show>
                 <Show condition={shown(Tab::Mouse)}>
                     <MouseTab wheel={wheel} pick={pick} />
@@ -190,7 +183,9 @@ fn caught(chord: &CapturedChord, target: Target) -> Result<Picked, String> {
             wheel.name().to_owned()
         }
         CapturedTrigger::Wheel(_) => {
-            return Err("A wheel turn can only be what you press. Press a key or button.".to_owned());
+            return Err(
+                "A wheel turn can only be what you press. Press a key or button.".to_owned(),
+            );
         }
     };
     if target == Target::Held {
@@ -249,7 +244,13 @@ fn PressTab(
         });
     });
     let held = create_memo(move || {
-        capture.with(|capture| capture.held.iter().map(|code| source_name(*code)).collect::<Vec<_>>())
+        capture.with(|capture| {
+            capture
+                .held
+                .iter()
+                .map(|code| source_name(*code))
+                .collect::<Vec<_>>()
+        })
     });
     let idle = create_memo(move || !listening.get());
     let waiting = create_memo(move || listening.get() && held.with(Vec::is_empty));
@@ -332,7 +333,8 @@ fn AllKeysTab(query: Signal<String>, wheel: Memo<bool>, pick: Callback<Picked>) 
             true => keys::wheels()
                 .into_iter()
                 .filter(|name| {
-                    name.to_lowercase().contains(&query) || label(name).to_lowercase().contains(&query)
+                    name.to_lowercase().contains(&query)
+                        || label(name).to_lowercase().contains(&query)
                 })
                 .collect(),
             false => Vec::new(),
@@ -343,7 +345,8 @@ fn AllKeysTab(query: Signal<String>, wheel: Memo<bool>, pick: Callback<Picked>) 
         listed.with(|listed| listed.iter().map(|(kind, _)| *kind).collect::<Vec<_>>())
     });
     let none = create_memo(move || kinds.with(Vec::is_empty) && !wheeled.get());
-    let nothing = create_memo(move || format!("No key matches \u{201c}{}\u{201d}.", query.get().trim()));
+    let nothing =
+        create_memo(move || format!("No key matches \u{201c}{}\u{201d}.", query.get().trim()));
     view! {
         <List spacing=SPACING>
             <TextInput
@@ -404,7 +407,12 @@ fn KeyButtons(title: Prop<String>, names: Memo<Vec<String>>, pick: Callback<Pick
 /// The fallback for a key no list has: its name, an alias or its code, read as
 /// the TOML reads it.
 #[component]
-fn TypedKey(open: Signal<bool>, typed: Signal<String>, wheel: Memo<bool>, pick: Callback<Picked>) -> NodeId {
+fn TypedKey(
+    open: Signal<bool>,
+    typed: Signal<String>,
+    wheel: Memo<bool>,
+    pick: Callback<Picked>,
+) -> NodeId {
     let read = create_memo(move || keys::written(&typed.get(), wheel.get()));
     let empty = create_memo(move || typed.with(|typed| typed.trim().is_empty()));
     let unusable = create_memo(move || read.with(Result::is_err));

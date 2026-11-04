@@ -21,6 +21,9 @@ rules = [
 #[test]
 fn remaps_show_as_keys_in_a_list() {
     let mut editor = editor(RemapState::On, Some(WRITTEN));
-    assert!(!editor.shown("input-remaps.group.0.rule.0.on"), "every remap starts closed");
+    assert!(
+        !editor.shown("input-remaps.group.0.rule.0.on"),
+        "every remap starts closed"
+    );
     editor.snapshot("remaps_show_as_keys_in_a_list");
 }

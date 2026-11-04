@@ -179,7 +179,11 @@ pub(super) fn ProgramDialog(
                 .programs
                 .iter()
                 .map(installed_program)
-                .filter(|listed| !running.iter().any(|open| !open.id.is_empty() && open.id == listed.id))
+                .filter(|listed| {
+                    !running
+                        .iter()
+                        .any(|open| !open.id.is_empty() && open.id == listed.id)
+                })
                 .filter(|listed| matches(listed, &query))
                 .collect();
             listed.sort_by_key(|listed| listed.name.to_lowercase());
@@ -187,13 +191,22 @@ pub(super) fn ProgramDialog(
         })
     });
     let shown = create_memo(move || {
-        installed.with(|installed| installed.iter().take(INSTALLED_SHOWN).cloned().collect::<Vec<_>>())
+        installed.with(|installed| {
+            installed
+                .iter()
+                .take(INSTALLED_SHOWN)
+                .cloned()
+                .collect::<Vec<_>>()
+        })
     });
     let more = create_memo(move || installed.with(Vec::len) > INSTALLED_SHOWN);
     let any_running = create_memo(move || running.with(|running| !running.is_empty()));
     let any_installed = create_memo(move || shown.with(|shown| !shown.is_empty()));
     let none = create_memo(move || {
-        listing.get() && !any_running.get() && !any_installed.get() && catalog.with(|catalog| catalog.listed || !installed_offered.get())
+        listing.get()
+            && !any_running.get()
+            && !any_installed.get()
+            && catalog.with(|catalog| catalog.listed || !installed_offered.get())
     });
     let choose = Callback::new(move |listed: Listed| {
         chosen.set(Some(listed.key));
@@ -298,11 +311,7 @@ pub(super) fn ProgramDialog(
                     </List>
                 </Show>
                 <Field label="Name">
-                    <TextInput
-                        value={name}
-                        label="Name"
-                        @test_id={"input-remaps.programs.name"}
-                    />
+                    <TextInput value={name} label="Name" @test_id={"input-remaps.programs.name"} />
                 </Field>
                 <Accordion
                     title="Match a pattern instead"

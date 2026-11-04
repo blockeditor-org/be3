@@ -39,5 +39,8 @@ fn the_outline_shows_rules_as_written_even_before_they_read() {
             },
         ]
     );
-    assert!(rule.not_held.is_empty(), "either Shift key stands for Shift");
+    assert!(
+        rule.not_held.is_empty(),
+        "either Shift key stands for Shift"
+    );
 }

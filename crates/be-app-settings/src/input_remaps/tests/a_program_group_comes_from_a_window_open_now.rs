@@ -1,5 +1,7 @@
 use super::*;
-use be_sdk_beui::{HostProgram, OpenProgram, OpenProgramsWatch, ProgramAction, ProgramCatalog, ProgramsWatch};
+use be_sdk_beui::{
+    HostProgram, OpenProgram, OpenProgramsWatch, ProgramAction, ProgramCatalog, ProgramsWatch,
+};
 
 #[test]
 fn a_program_group_comes_from_a_window_open_now() {
@@ -49,7 +51,9 @@ fn a_program_group_comes_from_a_window_open_now() {
     assert!(!editor.shown("input-remaps.programs"));
     let text = stored(&editor);
     assert!(
-        text.contains("name = \"hollow_knight\"\nrules = []\nwindow = { exe = \"hollow_knight.exe\" }"),
+        text.contains(
+            "name = \"hollow_knight\"\nrules = []\nwindow = { exe = \"hollow_knight.exe\" }"
+        ),
         "a game run through Proton is matched by its executable: {text}"
     );
 

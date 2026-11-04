@@ -63,7 +63,9 @@ pub enum RuleEdit {
     NotHeld(String, bool),
     Keep(bool),
     Blind(bool),
-    AddStep { wait: bool },
+    AddStep {
+        wait: bool,
+    },
     RemoveStep(usize),
     StepKey(usize, String),
     StepMs(usize, Option<i64>),
@@ -206,7 +208,11 @@ impl Editing {
         match table.get_mut("rules") {
             Some(Item::Value(Value::Array(rules))) if rule < rules.len() => {
                 let mut copy = rules.get(rule).cloned().unwrap_or(Value::from(false));
-                let prefix = copy.decor().prefix().and_then(|prefix| prefix.as_str()).map(plain);
+                let prefix = copy
+                    .decor()
+                    .prefix()
+                    .and_then(|prefix| prefix.as_str())
+                    .map(plain);
                 copy.decor_mut().set_suffix("");
                 if let Some(prefix) = prefix {
                     copy.decor_mut().set_prefix(prefix);
@@ -224,8 +230,9 @@ impl Editing {
 
     pub fn edit_rule(&mut self, group: usize, rule: usize, edit: RuleEdit) {
         self.change_rule(group, rule, edit);
-        if let Some(Item::Value(Value::Array(rules))) =
-            self.group_mut(group).and_then(|group| group.get_mut("rules"))
+        if let Some(Item::Value(Value::Array(rules))) = self
+            .group_mut(group)
+            .and_then(|group| group.get_mut("rules"))
             && let Some(table) = rules.get_mut(rule).and_then(Value::as_inline_table_mut)
         {
             table.fmt();
@@ -250,7 +257,11 @@ impl Editing {
                 let listed = table
                     .get("held")
                     .and_then(Item::as_array)
-                    .is_some_and(|held| held.iter().filter_map(Value::as_str).any(|held| same(held, &name)));
+                    .is_some_and(|held| {
+                        held.iter()
+                            .filter_map(Value::as_str)
+                            .any(|held| same(held, &name))
+                    });
                 if !on.holds(&name) && !listed {
                     on.hold(&name);
                     table.insert("on", value(on.text()));
@@ -455,7 +466,13 @@ fn rule(table: &dyn TableLike) -> RuleOutline {
         table
             .get(key)
             .and_then(Item::as_array)
-            .map(|names| names.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+            .map(|names| {
+                names
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect()
+            })
             .unwrap_or_default()
     };
     RuleOutline {
@@ -595,7 +612,10 @@ impl Combo {
 
     /// The modifiers held, whichever side's key names them.
     pub fn modifiers(&self) -> Vec<Modifier> {
-        self.held.iter().filter_map(|held| modifier_of(held)).collect()
+        self.held
+            .iter()
+            .filter_map(|held| modifier_of(held))
+            .collect()
     }
 
     /// What is held that is no modifier, like the F20 of `F20+WheelUp`.
