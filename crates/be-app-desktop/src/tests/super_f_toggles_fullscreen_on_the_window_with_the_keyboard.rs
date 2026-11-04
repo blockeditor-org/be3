@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn super_f_toggles_fullscreen_on_the_window_with_the_keyboard() {
     let mut fixture = Fixture::with_windows(&[1, 2]);
+    let band = fixture.test.rect_of("dock.bar.band.bottom");
     assert!(
         fixture.test.host_key(Modifiers::LOGO, Key::F),
         "the desktop takes Super+F before the program that has the keyboard"
@@ -12,6 +13,11 @@ fn super_f_toggles_fullscreen_on_the_window_with_the_keyboard() {
         fixture.fullscreen_windows(),
         vec![HostWindowId(2)],
         "Super+F shows the window with the keyboard full screen"
+    );
+    let shown = fixture.test.rect_of("dock.fullscreen");
+    assert!(
+        shown.contains_rect(band),
+        "over the whole display, bars included: {shown:?} {band:?}"
     );
 
     let fullscreen = TestWindow {

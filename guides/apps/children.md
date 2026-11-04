@@ -136,7 +136,8 @@ the workspace as dock windows holding `SubregionContent::Host(panel)`.
 
 Program windows are placed the same way. On Linux the host is a Wayland
 compositor (guides/desktop/wayland.md); `editor.watch::<WindowsWatch>()` lists
-its windows, answered only to the shell. be-sdk-shell's `Workspace` gives each
+its windows, answered only to the shell; any app may watch `OpenProgramsWatch`, the programs
+with windows open, without the windows. be-sdk-shell's `Workspace` gives each
 top window a program tab holding `SubregionContent::Window(id)`, and a window
 with a parent a `DockDialog` hanging from its tab. The rest (title, icon,
 raise, fullscreen, attention) is the child's `ChildState`, reported only while

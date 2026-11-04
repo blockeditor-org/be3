@@ -4,7 +4,7 @@ use crate::known_window::KnownWindow;
 use beui::reactive::*;
 use beui::styled::theme::SCROLL_FADE;
 use beui::styled::*;
-use beui::{Align, Align2, Direction, NodeId, Sides, Vec2};
+use beui::{Align, Align2, Direction, NodeId, Sides, Vec2, primitives};
 
 use crate::naming::{program_name, window_name};
 
@@ -74,6 +74,21 @@ pub fn clipped_edges(drawn: Vec2, shown: Vec2) -> Sides {
     }
 }
 
+/// Where the part of the body the program has not drawn begins: past its buffer, or under the
+/// fade where its buffer overhangs. Until a resizing program draws the new size, the body there is
+/// filled, never left showing through.
+pub fn undrawn_from(drawn: Vec2, shown: Vec2) -> Vec2 {
+    let fade = clipped_edges(drawn, shown);
+    let from = |drawn: f32, shown: f32, fade: f32| match fade > 0.0 {
+        true => shown - fade,
+        false => drawn,
+    };
+    Vec2::new(
+        from(drawn.x, shown.x, fade.right),
+        from(drawn.y, shown.y, fade.bottom),
+    )
+}
+
 pub fn too_small(least: Vec2, shown: Vec2) -> bool {
     least.x > shown.x + SLACK || least.y > shown.y + SLACK
 }
@@ -92,6 +107,19 @@ pub fn WindowBody(
                 clipped_edges(status.drawn, shown)
             })
         })
+    });
+    let undrawn = create_memo(move || {
+        let shown = shown.get();
+        let drawn = status.with(|status| status.as_ref().map_or(Vec2::ZERO, |status| status.drawn));
+        undrawn_from(drawn, shown)
+    });
+    let right = create_memo(move || Sides {
+        left: undrawn.get().x,
+        ..Sides::ZERO
+    });
+    let below = create_memo(move || Sides {
+        top: undrawn.get().y,
+        ..Sides::ZERO
     });
     let cramped = create_memo(move || {
         let shown = shown.get();
@@ -125,6 +153,12 @@ pub fn WindowBody(
     });
     let built = view! {
         <Layers>
+            <primitives::Frame padding={right}>
+                <Frame fill=ColorRole::Background />
+            </primitives::Frame>
+            <primitives::Frame padding={below}>
+                <Frame fill=ColorRole::Background />
+            </primitives::Frame>
             <Frame fade_edges={fade}>{children}</Frame>
             <Show condition={cramped}>
                 <Frame align=Align2::CENTER>

@@ -699,7 +699,7 @@ fn host_anchored(root: &Screen, anchored: &[AnchoredScreen], region: ViewId) -> 
                         let rect = scrim.rect.translate(to_host).intersect(bounds);
                         rect.is_positive().then(|| beui::layer::Scrim {
                             rect,
-                            color: crate::runtime::scrim_color(&scrim.color),
+                            color: crate::runtime::reported_color(&scrim.color),
                             radius: scrim.radius,
                         })
                     })
@@ -3316,8 +3316,19 @@ impl Instances {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };
-        entry.published.watch(open);
+        be_host_base::watches::opened(open);
+        entry.published.watch(open, self.published.get(&open));
         true
+    }
+
+    pub(super) fn unwatch_published(
+        &mut self,
+        instance: EditorInstanceId,
+        open: be_sdk_api::ops::MethodId,
+    ) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.published.unwatch(open);
+        }
     }
 
     pub(super) fn published_call(

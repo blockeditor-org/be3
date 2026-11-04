@@ -26,6 +26,7 @@ fn hosted(bar: u64, placement: DockBarPlacement) -> DockUpdate {
                                 area: Some("stage".to_owned()),
                                 empty: None,
                                 bare: true,
+                                hide_empty_bar: false,
                             }),
                         },
                         DockItem {

@@ -100,7 +100,7 @@ fn key_fill(pressed: bool, latch: Latch, active: bool, faded: bool, role: Role) 
         _ if faded => ColorRole::None,
         (_, Latch::Locked, _) => ColorRole::Accent,
         (_, Latch::Latched, _) | (_, _, true) => ColorRole::AccentSoft,
-        _ if role == Role::Normal => ColorRole::SurfaceRaised,
+        _ if role == Role::Normal => ColorRole::Control,
         _ => ColorRole::Surface,
     }
 }

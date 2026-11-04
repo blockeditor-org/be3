@@ -167,6 +167,7 @@ fn hosted_tabs(tabs: &[u64], visible: &[u64], focused: Option<u64>) -> be_sdk_ap
             area: None,
             empty: None,
             bare: false,
+            hide_empty_bar: false,
         }),
     }];
     items.extend(tabs.iter().map(|tab| DockItem {
@@ -460,6 +461,7 @@ fn joined_dock() -> be_sdk_api::DockDeclaration {
             area: Some(key.to_owned()),
             empty,
             bare: false,
+            hide_empty_bar: false,
         }),
     };
     DockDeclaration {

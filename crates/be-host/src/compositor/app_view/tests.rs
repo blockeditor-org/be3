@@ -38,7 +38,9 @@ pub(super) fn placed(children: Vec<HostChild>) -> PlacedView {
         loading: false,
         base: Vec::new(),
         floating: Vec::new(),
+        marks: Vec::new(),
         floating_rects: Vec::new(),
+        overlay_rects: Vec::new(),
         scrims: Vec::new(),
         drawing: Vec::new(),
         claims: Vec::new(),
@@ -59,6 +61,7 @@ pub(super) fn placed(children: Vec<HostChild>) -> PlacedView {
         every_sample: false,
         work_area: None,
         used: None,
+        backdrop: None,
     }
 }
 

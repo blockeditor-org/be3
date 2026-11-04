@@ -63,6 +63,8 @@ fn frame_screens_and_reports_round_trip() {
                 Pos2::new(8.0, 44.0),
                 Vec2::new(120.0, 90.0),
             )],
+            marks: Vec::new(),
+            marks_painted: Vec::new(),
             scrims: vec![Scrim {
                 rect: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(640.0, 480.0)),
                 color: crate::accessibility::Color {
@@ -97,6 +99,12 @@ fn frame_screens_and_reports_round_trip() {
             }),
             anchored: None,
             work_area: None,
+            backdrop: Some(crate::accessibility::Color {
+                red: 16,
+                green: 18,
+                blue: 24,
+                alpha: 255,
+            }),
         }],
         ..frame(1)
     };

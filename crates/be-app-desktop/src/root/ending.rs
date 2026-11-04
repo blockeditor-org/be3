@@ -80,7 +80,7 @@ pub(crate) fn EndingBar(workspace: Workspace, area: Memo<Rect>) -> NodeId {
                 <Frame padding={Padding::all(MARGIN)}>
                     <Frame
                         width=Size::Dialog
-                        fill=ColorRole::SurfaceRaised
+                        fill=ColorRole::Surface
                         border={Border::DEFAULT}
                         radius=Radius::Lg
                         padding=PADDING

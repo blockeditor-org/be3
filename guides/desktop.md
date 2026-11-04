@@ -121,7 +121,8 @@ arguments are not saved (decisions/kept_windows_store_no_program_arguments.md).
 
 **Drawing.** be-host-desktop's `PlacedWindow` draws a placed window child: the platform's
 `WindowSurface` inside `WindowBody` (`window_body.rs`), which fades where the program's buffer
-overhangs the rect, says "Too small for" below the program's least size, and draws the "not
+overhangs the rect, fills with the theme's background what the buffer does not cover yet (a window
+being resized before the program draws the new size), says "Too small for" below the program's least size, and draws the "not
 responding" Wait and Force close. Window drawings paint (`Paints` on `WindowDraw`), so paintings and
 `drive paint` show what programs drew. be-host's `compositor/editors.rs` turns `close-child`,
 fullscreen and the keyboard into requests to the program.
@@ -147,9 +148,13 @@ side along their bottom edges. `DisplaysWatch` gives each `HostDisplay` its `rec
   `BeginMove`/`BeginResize` hand the press to the host.
 - A display's work area is the display less its bars' bands (`DockHostLayout::area`). The shell
   reports it per view (`frame-report.work-area`), and windows are kept wholly inside it on edges a
-  band insets; a window on no display (unplugged) moves to the nearest.
+  band insets, except a `WindowLevel::Fullscreen` window (the dock's fullscreen), which covers the
+  whole display; a window on no display (unplugged) moves to the nearest.
 - A window is drawn on the display holding most of it, at that display's raster scale; while it is
   moved, on every display it overlaps.
+- The shell's view draws its surface, every child it places (the tabs docked in its own dock)
+  and its marks over them (`frame-report.marks`: a splitter's line and reach) under the
+  windows, and only its overlays (menus, scrims) above them, for drawing and input (`AppView`).
 - A raised dock bar (`bar_level` `Raised`) is a floating layer above windows; a bar popped into its
   own window opens at `WindowLevel::Above`. A fullscreen window drops bars to `Normal`.
 - The pointer crosses display windows with a press held (beui's cross-window rules) and between the

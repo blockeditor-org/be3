@@ -11,9 +11,17 @@ use crate::tokens::{CornerSet, Length, Padding, Stroke, resolved};
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ColorRole {
     None,
+    /// What everything sits on: a window, the desktop.
     Background,
+    /// Every panel above the background, floating ones included: bars, side
+    /// panels, popovers, menus, tooltips, dialogs, toasts.
     Surface,
-    SurfaceRaised,
+    /// The fill of something you press, type into or drag: fields, buttons that
+    /// have one, unchecked boxes, chips, tiles, keys, cards you pick or move.
+    Control,
+    /// A tinted area inside a panel that is not a control: code, a header strip,
+    /// a highlighted lane.
+    Shade,
     Hover,
     Pressed,
     Border,
@@ -49,10 +57,11 @@ pub enum ColorRole {
 }
 
 impl ColorRole {
-    pub const ROLES: [ColorRole; 34] = [
+    pub const ROLES: [ColorRole; 35] = [
         ColorRole::Background,
         ColorRole::Surface,
-        ColorRole::SurfaceRaised,
+        ColorRole::Control,
+        ColorRole::Shade,
         ColorRole::Hover,
         ColorRole::Pressed,
         ColorRole::Border,
@@ -91,7 +100,8 @@ impl ColorRole {
             ColorRole::None => Color::TRANSPARENT,
             ColorRole::Background => theme.background.get(),
             ColorRole::Surface => theme.surface.get(),
-            ColorRole::SurfaceRaised => theme.surface_raised.get(),
+            ColorRole::Control => theme.control.get(),
+            ColorRole::Shade => theme.shade.get(),
             ColorRole::Hover => theme.hover.get(),
             ColorRole::Pressed => theme.pressed.get(),
             ColorRole::Border => theme.border.get(),
@@ -132,7 +142,8 @@ impl ColorRole {
             ColorRole::None => "none",
             ColorRole::Background => "background",
             ColorRole::Surface => "surface",
-            ColorRole::SurfaceRaised => "surface raised",
+            ColorRole::Control => "control",
+            ColorRole::Shade => "shade",
             ColorRole::Hover => "hover",
             ColorRole::Pressed => "pressed",
             ColorRole::Border => "border",

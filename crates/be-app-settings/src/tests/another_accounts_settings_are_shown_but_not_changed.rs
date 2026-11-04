@@ -7,8 +7,6 @@ fn another_accounts_settings_are_shown_but_not_changed() {
     editor.click("settings.display");
     editor.run();
     editor.snapshot("another_accounts_settings_are_shown_but_not_changed");
-    editor.click("settings.devices");
-    editor.run();
     editor.click("settings.new-profile");
     editor.run();
     assert!(

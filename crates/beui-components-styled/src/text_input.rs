@@ -119,7 +119,7 @@ fn TextInputFrame(
     let fill = create_memo(move || match (raised.get(), disabled.get()) {
         (false, _) => ColorRole::None,
         (true, true) => ColorRole::Surface,
-        (true, false) => ColorRole::SurfaceRaised,
+        (true, false) => ColorRole::Control,
     });
     view! {
         <Frame

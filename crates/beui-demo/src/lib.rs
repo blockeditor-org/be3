@@ -12,7 +12,7 @@ use beui::dock::{
     DockDocumentTabs, DockDocuments, DockEdge, DockOpened, DockPane, DockSlot, DockSplit, DockTab,
     DockTabControl, DockWindow, DockingLayout, SplitSize, TabId, dock_menu, use_dock_tab,
 };
-use beui::dock_host::styled::{DockHost, DockHostLayout};
+use beui::dock_host::styled::{DockArea, DockHost, DockHostLayout};
 use beui::icons::Glyph;
 use beui::icons::{
     ICON_APP_WINDOW, ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG,
@@ -313,11 +313,7 @@ impl Page {
 #[derive(Clone, Copy)]
 struct Today(Date);
 
-const WINDOW_BACKGROUNDS: [ColorRole; 3] = [
-    ColorRole::Background,
-    ColorRole::Surface,
-    ColorRole::SurfaceRaised,
-];
+const WINDOW_BACKGROUNDS: [ColorRole; 2] = [ColorRole::Background, ColorRole::Surface];
 
 #[derive(Clone, Copy)]
 struct DemoWindow {

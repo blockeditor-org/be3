@@ -38,7 +38,7 @@ use be_host_base::{host, host_state, notices, panic_guard, performance, platform
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_host_runtime::{BlockOpen, EditorAction};
 #[cfg(target_os = "linux")]
-use be_host_services::{media, notifications, tray, wifi};
+use be_host_services::{media, notifications, screenshot, tray, wifi};
 #[cfg(not(target_arch = "wasm32"))]
 use be_host_stack::embedded_server;
 use be_host_stack::{accounts, invite_link, keys, offline_choice};
@@ -631,6 +631,8 @@ struct HostCore {
     #[cfg(target_os = "linux")]
     notifications: Option<notifications::Notifications>,
     #[cfg(target_os = "linux")]
+    screenshots: Option<screenshot::Screenshots>,
+    #[cfg(target_os = "linux")]
     tray: Option<tray::Tray>,
     #[cfg(target_os = "linux")]
     wifi: Option<wifi::Wifi>,
@@ -912,6 +914,8 @@ impl HostCore {
             #[cfg(target_os = "linux")]
             notifications: None,
             #[cfg(target_os = "linux")]
+            screenshots: None,
+            #[cfg(target_os = "linux")]
             tray: None,
             #[cfg(target_os = "linux")]
             wifi: None,
@@ -936,6 +940,11 @@ impl HostCore {
             }
             if self.tray.is_none() {
                 self.tray = Some(tray::Tray::start());
+            }
+            if self.screenshots.is_none() {
+                self.screenshots = Some(screenshot::Screenshots::start(
+                    be_host_desktop::desktop_host::screenshot,
+                ));
             }
         }
     }
@@ -2374,7 +2383,11 @@ impl HostCore {
         }
         let hidden = be_host_desktop::programs::bound_windows();
         if Some((Host::revision(), hidden.clone())) != self.windows_sent {
-            be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&Host::listed(&hidden));
+            let listed = Host::listed(&hidden);
+            be_host_base::watches::publish::<be_sdk_api::OpenProgramsWatch>(&open_programs(
+                &listed,
+            ));
+            be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&listed);
             self.windows_sent = Some((Host::revision(), hidden));
         }
         let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
@@ -3634,3 +3647,21 @@ fn drag_source(location: BlockLocation) -> SidebarDragSource {
 
 #[cfg(test)]
 mod tests;
+
+/// The programs of the listed windows, each once, for apps other than the shell.
+fn open_programs(listed: &[be_sdk_api::HostWindow]) -> Vec<be_sdk_api::OpenProgram> {
+    let mut programs: Vec<be_sdk_api::OpenProgram> = Vec::new();
+    for window in listed {
+        if window.kind != be_sdk_api::WindowKind::Window {
+            continue;
+        }
+        let program = be_sdk_api::OpenProgram {
+            program_id: window.program_id.clone(),
+            command: window.origin.command.clone(),
+        };
+        if !programs.contains(&program) {
+            programs.push(program);
+        }
+    }
+    programs
+}

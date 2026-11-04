@@ -80,6 +80,18 @@ impl Chord {
 }
 
 impl Wheel {
+    pub const ALL: [Self; 4] = [Self::Up, Self::Down, Self::Left, Self::Right];
+
+    /// The name a person reads: `Wheel up`.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Up => "Wheel up",
+            Self::Down => "Wheel down",
+            Self::Left => "Wheel left",
+            Self::Right => "Wheel right",
+        }
+    }
+
     pub const fn name(self) -> &'static str {
         match self {
             Self::Up => "WheelUp",
@@ -90,7 +102,7 @@ impl Wheel {
     }
 
     pub fn named(name: &str) -> Option<Self> {
-        [Self::Up, Self::Down, Self::Left, Self::Right]
+        Self::ALL
             .into_iter()
             .find(|wheel| wheel.name().eq_ignore_ascii_case(name.trim()))
     }

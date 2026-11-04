@@ -1089,6 +1089,7 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::
                     area: pane.area.clone(),
                     empty: empty(pane),
                     bare: pane.bare,
+                    hide_empty_bar: pane.hide_empty_bar,
                 },
                 entries: kept,
             }
@@ -1229,6 +1230,7 @@ fn api_node(node: &api::DockNode, tab: TabOf<'_>) -> DockSpecNode {
                 keep: pane.keep,
                 area: pane.area.clone(),
                 bare: pane.bare,
+                hide_empty_bar: pane.hide_empty_bar,
             })
         }
     }

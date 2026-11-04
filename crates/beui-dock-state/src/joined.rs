@@ -542,6 +542,7 @@ impl DockState {
                 copy.keep = keep;
                 copy.area = leaf.area.as_deref().and_then(map.key);
                 copy.bare = leaf.bare;
+                copy.hide_empty_bar = leaf.hide_empty_bar;
                 copied.leaves.insert(leaf.id, copy.id);
                 Some(Node::Leaf(copy))
             }

@@ -830,6 +830,7 @@ impl<K: DockKey> DockingLayout<K> {
                 sidebar,
                 locked,
                 bare,
+                hide_empty_bar,
                 empty,
                 entries,
             } => {
@@ -856,6 +857,7 @@ impl<K: DockKey> DockingLayout<K> {
                     keep: empty.is_some() || *bare,
                     area: locked.then(|| key.clone()),
                     bare: *bare,
+                    hide_empty_bar: *hide_empty_bar,
                 }))
             }
             NodeKind::Window { .. } | NodeKind::Dialog { .. } | NodeKind::Bar { .. } => None,

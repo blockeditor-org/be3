@@ -202,7 +202,7 @@ pub(crate) fn ConflictNotice(block: Uuid, count: usize) -> NodeId {
         <Frame align={Align2::new(Align::Center, Align::Start)} padding={Padding::all(Space::Md)}>
             <Frame
                 @test_id={format!("conflict.{block}")}
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Surface
                 border={Border::DEFAULT}
                 radius=Radius::Md
                 padding={Padding::symmetric(Space::Lg, Space::Sm)}

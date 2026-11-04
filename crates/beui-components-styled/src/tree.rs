@@ -330,7 +330,7 @@ fn RowEditField(edit: TreeRowEdit, sized: Memo<Metrics>) -> NodeId {
             content={move |handle: TextInputHandle| view! {
                 <Frame
                     height={height}
-                    fill=ColorRole::SurfaceRaised
+                    fill=ColorRole::Control
                     border={Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)}
                     radius=Radius::Sm
                 >

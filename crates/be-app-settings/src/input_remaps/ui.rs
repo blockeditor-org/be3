@@ -46,13 +46,12 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
         stored,
         read_only,
     };
-    let tab = create_signal(0usize);
-    let editing = create_memo(move || tab.get() == 0);
-    let raw = create_memo(move || tab.get() == 1);
+    let toml = create_signal(false);
+    let editing = create_memo(move || !toml.get());
     let status = create_memo(move || {
         match device.get() {
             RemapState::Off => "This device runs no remaps.",
-            RemapState::On => "This device runs the remaps its input settings pick.",
+            RemapState::On => "Running on this device.",
             RemapState::Stopped => {
                 "The remaps on this device stopped, and start again once they change."
             }
@@ -63,28 +62,26 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
         <SettingsPage>
             <SettingsSection
                 title="Input remaps"
-                description="Keys, buttons and wheel turns to change in a Linux session, in every program or in the ones a group names. They are kept as TOML text, comments and all, which both tabs edit."
+                description="Change what keys, mouse buttons and the wheel do in a Linux session, everywhere or only in the programs you choose."
             >
-                <SettingsRow label="Edit as" compact=true>
-                    <Tabs
-                        options={view! {
-                            <ChoiceOption label="Editor" />
-                            <ChoiceOption label="TOML" />
-                        }}
-                        selected={tab}
-                        @test_id={"input-remaps.tabs"}
-                    />
-                </SettingsRow>
                 <Show condition={offered}>
-                    <SettingsRow label="This device" separated=true>
+                    <SettingsRow label="This device">
                         <Text style=TextStyle::CAPTION>{status}</Text>
                     </SettingsRow>
                 </Show>
+                <SettingsRow
+                    label="Edit as TOML"
+                    description="The remaps are kept as TOML text, comments and all."
+                    separated={offered}
+                    compact=true
+                >
+                    <Switch on={toml} label="Edit as TOML" @test_id={"input-remaps.toml"} />
+                </SettingsRow>
             </SettingsSection>
             <Show condition={editing}>
-                <EditorTab shared={shared} />
+                <EditorTab shared={shared} editor={editor} />
             </Show>
-            <Show condition={raw}>
+            <Show condition={toml}>
                 <TomlTab shared={shared} />
             </Show>
         </SettingsPage>

@@ -519,6 +519,9 @@ pub(crate) fn TextPage() -> NodeId {
             <Sample title="Shortcuts" code={vec![Shortcuts::SOURCE]}>
                 <Shortcuts />
             </Sample>
+            <Sample title="Key caps" code={vec![KeyCaps::SOURCE]}>
+                <KeyCaps />
+            </Sample>
             <Sample title="Links" code={vec![Links::SOURCE]}>
                 <Links />
             </Sample>
@@ -661,6 +664,22 @@ fn Shortcuts() -> NodeId {
             <Shortcut keys="Ctrl+Z" description="undo an edit in a text field" />
             <Shortcut keys="Ctrl+Shift+I" description="open the inspector" />
             <Shortcut keys="Ctrl+Shift+C" description="pick a node to inspect" />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn KeyCaps() -> NodeId {
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm wrap=true>
+            <KeyCap label="F20" />
+            <Text color=TextColor::Muted>"+"</Text>
+            <KeyCap label="Wheel up" />
+            <Text color=TextColor::Muted>"then"</Text>
+            <KeyCap label="X" />
+            <KeyCap label="wait 80 ms" muted=true />
+            <KeyCap label="Left Ctrl" />
         </List>
     }
 }
@@ -1244,12 +1263,12 @@ fn LightSwitches() -> NodeId {
 
 #[sample]
 #[component]
-fn RaisedSwitches() -> NodeId {
+fn PanelSwitches() -> NodeId {
     let muted = create_signal(false);
     let wifi = create_signal(true);
     view! {
         <Frame
-            fill=ColorRole::SurfaceRaised
+            fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Lg
             padding={Padding::all(Space::Lg)}
@@ -1283,10 +1302,10 @@ pub(crate) fn ChoicesPage() -> NodeId {
                 <LightSwitches />
             </Sample>
             <Sample
-                title="Switches on a raised surface"
-                code={vec![RaisedSwitches::SOURCE, LabelledSwitch::SOURCE]}
+                title="Switches on a panel"
+                code={vec![PanelSwitches::SOURCE, LabelledSwitch::SOURCE]}
             >
-                <RaisedSwitches />
+                <PanelSwitches />
             </Sample>
             <Sample title="Tabs" code={vec![ScaleTabs::SOURCE]}>
                 <ScaleTabs />
@@ -3324,7 +3343,7 @@ fn StripCard(index: ReadSignal<usize>) -> NodeId {
     view! {
         <Frame padding={Padding::symmetric(Space::Xs, Space::None)}>
             <Frame
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Control
                 border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Md
                 padding={Padding::symmetric(Space::Lg, Space::Md)}
@@ -3857,6 +3876,18 @@ fn Accordions() -> NodeId {
                          parts of the tree whose inputs changed are laid out again."
                     </Text>
                 </Accordion>
+                <Separator />
+                <Accordion
+                    title="More options"
+                    detail="Repeats, ends at midnight"
+                    size=TextSize::Base
+                    open=false
+                >
+                    <Text style=TextStyle::PARAGRAPH>
+                        "A smaller one tucks options away inside a form, and says \
+                         what is set while it is closed."
+                    </Text>
+                </Accordion>
             </List>
         </Card>
     }
@@ -4241,7 +4272,7 @@ fn StageCard(card: (f32, f32, f32, f32, &'static str)) -> CanvasItem {
     view! {
         <CanvasItem x y width height scales=true>
             <Frame
-                fill=ColorRole::SurfaceRaised
+                fill=ColorRole::Control
                 border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Lg
                 padding=STAGE_PADDING
@@ -4316,7 +4347,6 @@ fn WindowSample() -> NodeId {
                 options={view! {
                     <ChoiceOption label="Background" />
                     <ChoiceOption label="Surface" />
-                    <ChoiceOption label="Raised surface" />
                 }}
                 selected={window.background}
             />
@@ -4571,8 +4601,8 @@ pub(crate) fn WindowManagerPage() -> NodeId {
         let area = host.area();
         let middle = (area.min.x + area.width() / 2.0).round();
         let halves = vec![
-            Rect::from_min_max(area.min, beui::pos2(middle, area.max.y)),
-            Rect::from_min_max(beui::pos2(middle, area.min.y), area.max),
+            DockArea::whole(Rect::from_min_max(area.min, beui::pos2(middle, area.max.y))),
+            DockArea::whole(Rect::from_min_max(beui::pos2(middle, area.min.y), area.max)),
         ];
         untrack(|| host.set_areas(halves));
     });
@@ -4622,13 +4652,21 @@ pub(crate) fn WindowManagerPage() -> NodeId {
                          window: close it, hide it, snap it to half of its area, fill its area, \
                          move it to the other area keeping its place, or switch to the next \
                          window of its group (the two notes). Show desktop hides every window and \
-                         brings them back. A shell binds its own keys to the same actions."
+                         brings them back. A tab dropped in the middle of the desk fills it beneath the \
+                         windows, and one dropped at its edge splits it; emptied, the desk shows no \
+                         bar. A shell binds its own keys to the same actions."
                     </Text>
                 </List>
             </Frame>
             <DockHost @sizing=ItemSize::Percent(100.0) layout=host>
                 <Docking layout>
-                    <DockPane id="desk" bare=true></DockPane>
+                    <DockPane
+                        id="desk"
+                        hide_empty_bar=true
+                        empty={move || view! {
+                            <Frame @test_id="wm.desk" />
+                        }}
+                    ></DockPane>
                     <ForEach keys={open}>|id: u64| {
                         let (_, title, group, at) = DESK_WINDOWS[id as usize - 1];
                         view! {

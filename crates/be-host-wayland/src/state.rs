@@ -32,6 +32,7 @@ use crate::server::{Waiter, readable};
 use crate::shortcuts_inhibit::Shortcuts;
 use crate::toplevel_icon::ToplevelIcons;
 use crate::xwayland::XWaylandState;
+use smithay::backend::input::{Axis, AxisSource};
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
 use smithay::delegate_fractional_scale;
@@ -78,6 +79,10 @@ use smithay::xwayland::XWaylandClientData;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WindowId(pub u64);
+
+/// The axis value of one wheel notch: libinput's 15 degrees, which clients
+/// read from every compositor that passes libinput's values on.
+const WHEEL_NOTCH: f64 = 15.0;
 
 pub const PING_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -180,6 +185,9 @@ pub struct State {
     pub(crate) pointer_window: Option<WindowId>,
     pub(crate) pointer_target: Option<(WindowId, Point<f64, Logical>)>,
     buttons: Vec<u32>,
+    /// Fingers are on a trackpad, scrolling, between `ScrollStarted` and
+    /// `ScrollEnded`.
+    fingers_scrolling: bool,
     pub(crate) keyboard_window: Option<WindowId>,
     pings: Vec<Ping>,
     unresponsive: Vec<ClientId>,
@@ -287,6 +295,7 @@ impl State {
             pointer_window: None,
             pointer_target: None,
             buttons: Vec::new(),
+            fingers_scrolling: false,
             keyboard_window: None,
             pings: Vec::new(),
             unresponsive: Vec::new(),
@@ -1029,16 +1038,59 @@ impl State {
         }
     }
 
-    pub fn pointer_axis(&mut self, delta: (f64, f64)) {
+    /// Scrolls the pointer's window by `delta` in surface coordinates, the
+    /// way Wayland signs them (positive is down and right). `notches` is set
+    /// when a mouse wheel turned, so the client scrolls its own wheel step
+    /// rather than reading a turn as a slide. A slide between
+    /// `pointer_fingers_scrolling(true)` and `(false)` comes from fingers on a
+    /// trackpad, which clients pan by and fling once they stop.
+    pub fn pointer_axis(&mut self, delta: (f64, f64), notches: Option<(f64, f64)>) {
         let pointer = self.pointer();
-        let mut frame =
-            AxisFrame::new(self.time()).source(smithay::backend::input::AxisSource::Continuous);
-        if delta.0 != 0.0 {
-            frame = frame.value(smithay::backend::input::Axis::Horizontal, delta.0);
+        let mut frame = AxisFrame::new(self.time());
+        let axes = [
+            (Axis::Horizontal, delta.0, notches.map(|n| n.0)),
+            (Axis::Vertical, delta.1, notches.map(|n| n.1)),
+        ];
+        match notches {
+            Some(_) => {
+                frame = frame.source(AxisSource::Wheel);
+                for (axis, _, notches) in axes {
+                    let notches = notches.unwrap_or(0.0);
+                    if notches != 0.0 {
+                        frame = frame
+                            .value(axis, notches * WHEEL_NOTCH)
+                            .v120(axis, (notches * 120.0).round() as i32);
+                    }
+                }
+            }
+            None => {
+                frame = frame.source(match self.fingers_scrolling {
+                    true => AxisSource::Finger,
+                    false => AxisSource::Continuous,
+                });
+                for (axis, delta, _) in axes {
+                    if delta != 0.0 {
+                        frame = frame.value(axis, delta);
+                    }
+                }
+            }
         }
-        if delta.1 != 0.0 {
-            frame = frame.value(smithay::backend::input::Axis::Vertical, delta.1);
+        pointer.axis(self, frame);
+        pointer.frame(self);
+    }
+
+    /// Fingers touch a trackpad to scroll (`true`), or lift off it (`false`),
+    /// which tells the pointer's window the slide stopped so it can fling.
+    pub fn pointer_fingers_scrolling(&mut self, scrolling: bool) {
+        let was = std::mem::replace(&mut self.fingers_scrolling, scrolling);
+        if scrolling || !was {
+            return;
         }
+        let pointer = self.pointer();
+        let frame = AxisFrame::new(self.time())
+            .source(AxisSource::Finger)
+            .stop(Axis::Horizontal)
+            .stop(Axis::Vertical);
         pointer.axis(self, frame);
         pointer.frame(self);
     }

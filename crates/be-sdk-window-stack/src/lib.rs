@@ -19,6 +19,10 @@ pub trait Stacked {
     fn above(&self) -> bool {
         false
     }
+    /// Covers its whole display (`WindowLevel::Fullscreen`), so it is never kept in a work area.
+    fn fullscreen(&self) -> bool {
+        false
+    }
 }
 
 pub trait Host<W> {
@@ -184,7 +188,7 @@ pub fn keep_in_work_areas<W: Stacked>(
 ) -> bool {
     let mut moved = false;
     for (index, window) in windows.iter_mut().enumerate() {
-        if window.pinned() || Some(index) == moving {
+        if window.pinned() || window.fullscreen() || Some(index) == moving {
             continue;
         }
         let Some((display, work)) = area(window) else {

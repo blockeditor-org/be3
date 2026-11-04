@@ -4,13 +4,13 @@ use crate::styled::Frame;
 use crate::styled::*;
 
 #[test]
-fn an_off_switch_shows_its_track_on_a_raised_surface_in_every_theme() {
+fn an_off_switch_shows_its_track_on_any_fill_in_every_theme() {
     let _root = crate::reactive::RootScope::new();
     let theme = create_signal(Theme::DARK);
     let (document, [_switch]) = toolbar_of(move || {
         [view! {
             <ThemeProvider theme>
-                <Frame fill=ColorRole::SurfaceRaised padding=Padding::all(Space::Lg)>
+                <Frame fill=ColorRole::Surface padding=Padding::all(Space::Lg)>
                     <Switch on=false />
                 </Frame>
             </ThemeProvider>
@@ -38,10 +38,10 @@ fn an_off_switch_shows_its_track_on_a_raised_surface_in_every_theme() {
             "{:?}: the off track is painted in the track colour",
             each.kind
         );
-        for surface in [each.background, each.surface, each.surface_raised] {
+        for surface in [each.background, each.surface, each.control, each.shade] {
             assert_ne!(
                 each.track, surface,
-                "{:?}: the off track stands out from every surface",
+                "{:?}: the off track stands out from every fill",
                 each.kind
             );
         }

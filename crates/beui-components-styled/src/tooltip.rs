@@ -45,7 +45,7 @@ fn TooltipBubble(handle: TooltipHandle) -> NodeId {
                 <Frame
                     @sizing={ItemSize::Intrinsic.max(MAX_WIDTH)}
                     @test_id={"tooltip"}
-                    fill=ColorRole::SurfaceRaised
+                    fill=ColorRole::Surface
                     border={Border::DEFAULT}
                     radius=Radius::Md
                     padding=PADDING

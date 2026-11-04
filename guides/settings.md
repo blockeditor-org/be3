@@ -83,10 +83,15 @@ never deletes anything on losing access
 
 ## The UI and tests
 
-be-app-settings holds the pages: `root` (the user's settings, workspaces, organization
-policies), `root/block.rs` (a block's settings: what is set here, who may read each kind, what
-comes from above) and one module per kind. "Settings" in the file tree's and shell's block menus
-opens or makes a block's settings.
+be-app-settings holds the pages. The user's `Settings` block opens as a list
+(`root/ui.rs`, docked as the workspace's Settings panel), and every row in it opens a page in the
+main area, whose row stays selected while it is focused; the list itself changes nothing.
+The pages are the kind blocks (Display, Input, Default editors, and Offline, `root/organization.rs`),
+each profile (`SettingsProfileView`), and two more editors of the `Settings` type opened with
+`open_block_with`: `devices` on the user's block (`root/devices.rs`) and `organization` on the
+organization's (`root/organization.rs`). `root/block.rs` is a block's settings: what is set here,
+who may read each kind, what comes from above. "Settings" in the file tree's and shell's block
+menus opens or makes a block's settings.
 
 Tests: be-block's `settings_resolve_from_the_organization_the_nearest_block_and_the_viewer`;
 be-block-graph's access tests, including random graphs (`src/tests.rs`); be-server's settings

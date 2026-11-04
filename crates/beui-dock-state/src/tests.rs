@@ -79,6 +79,7 @@ fn pane_spec(key: &str) -> DockSpecPane {
         keep: false,
         area: None,
         bare: false,
+        hide_empty_bar: false,
     }
 }
 
