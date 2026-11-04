@@ -171,9 +171,11 @@ decisions/our_own_cursors_where_we_draw_them.md). Over a window, a `wp_cursor_sh
 its `CursorIcon` (`Windows::cursor`); a `wl_pointer.set_cursor` surface reaches the DRM platform as
 a `beui_platform_drm::SoftwareCursor` texture (be-host-desktop's `desktop_host/linux.rs`), and other
 platforms as `cursor_image` (`Windows::cursor_image`, shm buffers only; winit shows it, headless
-reports it in `drive state`). GTK 3 programs (Firefox, xfce4-terminal) never use the shape protocol:
-they draw their own cursor from the theme dconf's `org.gnome.desktop.interface cursor-theme` names.
-Under `BEUI_LAYERS=space` the layer draws its own cursor from the `CursorIcon`.
+reports it in `drive state`). A null cursor, or a cursor surface with no buffer (how GTK clients
+such as Firefox hide the pointer over a video), is `CursorIcon::None`. GTK 3 programs (Firefox,
+xfce4-terminal) never use the shape protocol: they draw their own cursor from the theme dconf's
+`org.gnome.desktop.interface cursor-theme` names. Under `BEUI_LAYERS=space` the layer draws its own
+cursor from the `CursorIcon`.
 
 ## Frame pacing
 
