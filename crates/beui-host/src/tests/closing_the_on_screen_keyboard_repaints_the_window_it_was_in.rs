@@ -31,12 +31,17 @@ fn closing_the_on_screen_keyboard_repaints_the_window_it_was_in() {
     press_in(&mut harness, window, at, false);
     harness.context().toggle_keyboard();
     harness.settle();
-    assert!(
-        harness.context().keyboard_rect().is_some(),
-        "the keyboard opens in the field's window"
-    );
+    let keyboard = harness
+        .context()
+        .keyboard_rect()
+        .expect("the keyboard opens in the field's window");
 
     harness.context().close_keyboard();
-    harness.settle();
+    let output = harness.frame(Vec::new());
     assert!(harness.context().keyboard_rect().is_none());
+    let shown = output.window(window).expect("the window is shown");
+    assert!(
+        shown.changed && shown.damage.bounds().contains_rect(keyboard),
+        "the window draws again where the keyboard was, though its content does not reach there"
+    );
 }
