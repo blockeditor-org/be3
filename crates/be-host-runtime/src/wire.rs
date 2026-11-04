@@ -779,7 +779,14 @@ impl Wire {
                 self.docks.retain(|_, watch| !watch.is(op));
                 self.audio.retain(|_, watch| !watch.is(op));
                 self.web_views.remove(&op);
-                self.published.remove(&op);
+                if let Some((instance, open, _)) = self.published.remove(&op)
+                    && !self
+                        .published
+                        .values()
+                        .any(|(watcher, watched, _)| (*watcher, *watched) == (instance, open))
+                {
+                    heard.push(Heard::Unwatch(instance, open));
+                }
                 if watched {
                     self.connection
                         .complete(op, Outcome::Err(OpError::Canceled));

@@ -32,7 +32,7 @@ be_wasm_ops_bindgen::generate!({
         "block-metadata", "artifact-state", "version-status",
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
         "catalog", "audio-status", "child-layer", "child-mode", "host-preference-sources",
-        "host-contact", "host-image", "window-origin", "remap-state", "input-reach", "keyboard-layout", "keyboard-layouts",
+        "host-contact", "host-image", "window-origin", "remap-state", "input-capture", "input-reach", "keyboard-layout", "keyboard-layouts",
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "program-catalog", "tray-toggle", "tray-menu-item", "host-tray-item",
@@ -100,7 +100,10 @@ pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
 pub use desktop::{
     displays::HostDisplay,
-    input::{HostInputDevice, InputReach, KeyboardLayout, KeyboardLayouts, Pointing, RemapState},
+    input::{
+        CapturedChord, CapturedTrigger, HostInputDevice, InputCapture, InputReach, KeyboardLayout,
+        KeyboardLayouts, Pointing, RemapState, WheelTurn,
+    },
     media::{AudioOutput, MediaLevel, MediaLevels, MediaRequest, PlayerCommand},
     notifications::{
         HostNotificationAction, IncomingNotification, NotificationCloseReason, NotificationInbox,
@@ -119,7 +122,9 @@ pub use guest::contacts::ContactsWatch;
 pub use guest::desktop::{
     displays::{DesktopBarWatch, DisplaysWatch},
     epaper::EpaperWatch,
-    input::{InputDevicesWatch, InputReachWatch, KeyboardLayoutsWatch, RemapsWatch},
+    input::{
+        InputCaptureWatch, InputDevicesWatch, InputReachWatch, KeyboardLayoutsWatch, RemapsWatch,
+    },
     media::MediaWatch,
     notifications::NotificationsWatch,
     power::PowerWatch,
@@ -554,6 +559,12 @@ pub fn is_published(interface: &str) -> bool {
     interface == AdministratorWatch::INTERFACE
         || interface == ContactsWatch::INTERFACE
         || extension_of(interface).is_some()
+}
+
+/// Whether every opening of the watch `open` starts something anew on the host (an input
+/// capture), so a new watch is told only what is published after it opens.
+pub fn starts_anew(open: ops::MethodId) -> bool {
+    open == InputCaptureWatch::OPEN
 }
 
 pub use blocks::MetadataEntries;

@@ -3316,8 +3316,19 @@ impl Instances {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };
-        entry.published.watch(open);
+        be_host_base::watches::opened(open);
+        entry.published.watch(open, self.published.get(&open));
         true
+    }
+
+    pub(super) fn unwatch_published(
+        &mut self,
+        instance: EditorInstanceId,
+        open: be_sdk_api::ops::MethodId,
+    ) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.published.unwatch(open);
+        }
     }
 
     pub(super) fn published_call(

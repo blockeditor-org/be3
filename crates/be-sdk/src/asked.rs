@@ -107,7 +107,7 @@ struct TaskState {
     waker: RefCell<Option<Waker>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Task(Rc<TaskState>);
 
 impl Task {
@@ -124,8 +124,17 @@ impl Task {
 }
 
 pub(crate) fn spawn(future: impl Future<Output = ()> + 'static) -> Task {
-    let state = Rc::new(TaskState::default());
-    let task = Task(Rc::clone(&state));
+    let task = Task(Rc::default());
+    run(&task, future);
+    task
+}
+
+/// Runs `future` as `task`, which may have been handed out before it could start.
+pub(crate) fn run(task: &Task, future: impl Future<Output = ()> + 'static) {
+    let state = Rc::clone(&task.0);
+    if state.canceled.get() {
+        return;
+    }
     let mut future = Box::pin(future);
     guest::spawn(std::future::poll_fn(move |context| {
         if state.canceled.get() {
@@ -142,5 +151,4 @@ pub(crate) fn spawn(future: impl Future<Output = ()> + 'static) -> Task {
             }
         }
     }));
-    task
 }
