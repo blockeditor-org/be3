@@ -23,6 +23,7 @@ mod find_next_cycles_through_matches_and_wraps;
 mod find_previous_cycles_through_matches_and_wraps;
 mod find_status_reports_current_match_index;
 mod has_stop;
+mod home_and_end_at_a_line_edge_stay_on_the_line;
 mod ime_a_composing_region_over_existing_text_is_recomposed;
 mod ime_any_other_command_ends_the_composition;
 mod ime_commit_replaces_the_composition_and_ends_it;

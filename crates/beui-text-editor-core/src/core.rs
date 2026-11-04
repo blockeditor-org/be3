@@ -930,7 +930,7 @@ impl Core {
                 direction,
                 stop,
                 BoundaryMode::Direction,
-                false,
+                stop == CursorLeftRightStop::Line,
                 stops,
             );
             *cursor = match mode {
