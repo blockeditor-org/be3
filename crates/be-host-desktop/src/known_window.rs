@@ -58,6 +58,7 @@ impl KnownWindow {
             modal: self.modal,
             program_id: self.program_id.clone(),
             origin: self.origin.clone(),
+            size: (self.size.x >= 1.0 && self.size.y >= 1.0).then_some(self.size),
         }
     }
 }

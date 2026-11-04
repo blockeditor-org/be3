@@ -30,6 +30,7 @@ interface types {
 /// nowhere is suspended.
 interface windows {
     use types.{host-window-id};
+    use be3:ui/types@0.1.0.{vec2};
 
     /// Where a window came from: the program the desktop launched, the command
     /// it ran and the launch it answers.
@@ -54,6 +55,10 @@ interface windows {
         modal: bool,
         program-id: string,
         origin: window-origin,
+        /// The size the program picked for itself, in points; none until it
+        /// picks one (a placeholder commit, such as Firefox's 1×1 buffer, is
+        /// not a pick). A shell opens a new window at it.
+        size: option<vec2>,
     }
 
     resource windows-watch {

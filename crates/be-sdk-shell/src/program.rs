@@ -110,9 +110,11 @@ pub(crate) fn listed_windows(entries: &[HostWindow]) -> Vec<HostWindow> {
 }
 
 /// Where a new program window or restored placeholder opens: a cascade step from its tab key,
-/// with fewer steps when the area leaves little room. Applied at the placeholder's size, then once
-/// more at the child's first `intrinsic` size. There is no size negotiation after that: the dock
-/// sizes the window and the host fits the program to it.
+/// with fewer steps when the area leaves little room. A new window opens at the size its program
+/// picked (`HostWindow::size`), so the program is never told another size first; a placeholder, a
+/// window filling one, and a window whose program picked no size open at the placeholder's size.
+/// There is no size negotiation after that: the dock sizes the window and the host fits the
+/// program to it.
 pub(crate) fn cascaded(key: u64, size: Vec2, area: Rect) -> Rect {
     if !area.is_positive() {
         let step = (key % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
@@ -726,6 +728,21 @@ impl Workspace {
         });
     }
 
+    /// The size the program of a new tab's window picked, which its window opens at; none for a
+    /// tab that was restored or already sized, or whose program picked none.
+    pub(crate) fn picked_size(&self, tab: TabId) -> Option<Vec2> {
+        if !self.needs_size(tab) || self.is_display(tab) {
+            return None;
+        }
+        let window = self.program_window(tab)?;
+        self.windows.with(|windows| {
+            windows
+                .iter()
+                .find(|listed| listed.id == window)
+                .and_then(|listed| listed.size)
+        })
+    }
+
     pub(crate) fn needs_size(&self, tab: TabId) -> bool {
         self.programs
             .with_untracked(|programs| programs.get(&tab).is_some_and(|program| !program.sized))
@@ -797,8 +814,15 @@ pub fn ProgramWindow(workspace: Workspace, tab: TabId) -> DockNode<TabId> {
     let host = workspace.dock_host();
     let area = untrack(|| host.area()).size();
     let area = Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area - reach);
-    let rect = cascaded(tab.value(), PLACEHOLDER_SIZE + WINDOW_CHROME, area);
-    if untrack(|| workspace.is_display(tab)) && workspace.needs_size(tab) {
+    let picked = untrack(|| workspace.picked_size(tab));
+    let rect = cascaded(
+        tab.value(),
+        picked.unwrap_or(PLACEHOLDER_SIZE) + WINDOW_CHROME,
+        area,
+    );
+    if !untrack(|| workspace.is_display(tab)) {
+        create_effect(move || untrack(|| workspace.sized(tab)));
+    } else if workspace.needs_size(tab) {
         let heard = workspace.heard_of(tab);
         let named = create_memo(move || heard.with(|heard| heard.title.is_some()));
         create_effect(move || {
@@ -875,39 +899,6 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
         if floating {
             control.offer_fullscreen();
         }
-        let intrinsic = create_memo(move || heard.with(|heard| heard.intrinsic));
-        create_effect(move || {
-            let Some(size) = intrinsic.get().filter(|size| size.x > 1.0 && size.y > 1.0) else {
-                return;
-            };
-            let placed = floating
-                && workspace
-                    .on_dock_host(tab, |host, tab| host.window_rect(tab))
-                    .flatten()
-                    .is_some();
-            untrack(|| {
-                if !workspace.needs_size(tab) {
-                    return;
-                }
-                if !floating {
-                    workspace.sized(tab);
-                    return;
-                }
-                if !placed || control.window_size().is_none() {
-                    return;
-                }
-                workspace.sized(tab);
-                let area = workspace.dock_host().area();
-                let reach = Vec2::splat(be_sdk_beui::beui::dock_host::unstyled::HANDLE_REACH);
-                let local =
-                    Rect::from_min_max(Pos2::ZERO + reach, Pos2::ZERO + area.size() - reach);
-                let rect = cascaded(tab.value(), size + WINDOW_CHROME, local);
-                control.resize_window(rect.size());
-                workspace.on_dock_host(tab, |host, tab| {
-                    host.move_window(tab, rect.min + area.min.to_vec2());
-                });
-            });
-        });
     }
     on_cleanup(move || workspace.forget_child(tab));
     let minimized = create_memo(move || heard.with(|heard| heard.minimized));

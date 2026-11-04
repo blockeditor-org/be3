@@ -745,7 +745,13 @@ impl State {
             return None;
         }
         let size = window.chosen.unwrap_or(window.window.geometry().size);
-        (size.w > 0 && size.h > 0).then(|| beui::vec2(size.w as f32, size.h as f32))
+        if size.w <= 0 || size.h <= 0 {
+            return None;
+        }
+        Some(match picked(size) {
+            true => beui::vec2(size.w as f32, size.h as f32),
+            false => beui::Vec2::ZERO,
+        })
     }
 
     pub fn drawn_size(&self, id: WindowId) -> beui::Vec2 {
@@ -1165,7 +1171,7 @@ impl State {
             .window
             .toplevel()
             .and_then(|toplevel| toplevel.current_state().size);
-        let chosen = (size.w > 0 && size.h > 0 && asked != Some(size)).then_some(size);
+        let chosen = (picked(size) && asked != Some(size)).then_some(size);
         if let Some(chosen) = chosen
             && window.chosen != Some(chosen)
         {
@@ -1192,6 +1198,15 @@ impl State {
             self.events.push(ServerEvent::Committed(id));
         }
     }
+}
+
+/// A side shorter than this, in points, makes a commit a placeholder rather than a size the
+/// program picked: Firefox commits a 1×1 buffer for a server-side-decorated window and waits to be
+/// sized, and before it sets its buffer scale that buffer is 2×2 or 3×3 points on a scaled display.
+const PLACEHOLDER_SIDE: i32 = 8;
+
+fn picked(size: Size<i32, Logical>) -> bool {
+    size.w >= PLACEHOLDER_SIDE && size.h >= PLACEHOLDER_SIDE
 }
 
 fn set_state(

@@ -35,9 +35,12 @@ both unless it says otherwise.
 **Size.** A window is configured to the rect its view is placed at, always, with the tiled states.
 The dock decides sizes; there is no negotiation. Until first placed it is configured 0×0 so it
 picks its own size: `WindowInfo::size` is the size it last chose itself (a commit not answering a
-size the compositor asked for), which becomes the window child's `intrinsic`. `WindowInfo` also
-carries the min and max size (`set_min_size`/`set_max_size`, X11 `WM_NORMAL_HINTS`). A 1×1 buffer
-(Firefox commits one for server-side-decorated windows) opens at a default size. Maximize is not
+size the compositor asked for), which becomes the window child's `intrinsic` and the listing's
+`host-window.size`, so a new window's tab opens at it. A commit with a side under
+`PLACEHOLDER_SIDE` (`state.rs`) is no pick: Firefox commits a 1×1 buffer for server-side-decorated
+windows, 2×2 or 3×3 points on a scaled display, and waits to be sized, so it opens at a default
+size. `WindowInfo` also carries the min and max size (`set_min_size`/`set_max_size`, X11
+`WM_NORMAL_HINTS`). Maximize is not
 offered in `wm_capabilities`, since the dock owns the size, but a request is answered with the
 maximized state.
 

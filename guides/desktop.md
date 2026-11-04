@@ -73,7 +73,7 @@ or Start menu program (Windows) matching the window's program id.
 
 `WindowsWatch` lists every entry the host could show: program windows (`kind: window`) and, on
 Windows, whole displays (`kind: display`). Each entry (`host-window`) holds only what the shell
-needs to place it: id, kind, parent, modal, program id and origin. Only the shell instance gets
+needs to place it: id, kind, parent, modal, program id, origin and the size the program picked. Only the shell instance gets
 this watch; a session opened inside the desktop is a block window and sees no program windows.
 Everything else about a window is its child's `child-status`, and the shell acts on it as on any
 child.
@@ -90,7 +90,10 @@ tab, chip and dialog header; `group` onto `DockTab::group`; a count up of `raise
 and gives it the keyboard; `fullscreen` toggles the tab's full screen, whose state goes back as
 `child-placement.fullscreen`; `rung` flashes the chip; `notice` replaces the tab's title while set
 (the Windows host uses it to say how to get back; Linux sets none); `menu-asked` opens the tab menu;
-a count up of `minimized` hides the tab's dock window; `intrinsic` is the size the program picked.
+a count up of `minimized` hides the tab's dock window; `intrinsic` is the size the program picked,
+which only a dialog's card follows. A new window's dock window opens at the listing's `size` (or a
+default size when there is none), so the program is never told another size first; a window
+filling a placeholder takes the placeholder's place and size (`program::cascaded`).
 `close-child` asks the program to close; the tab stays until the window leaves the list.
 
 **Shown and hidden.** The host keeps no shown state: whether an entry shows is the dock's. A

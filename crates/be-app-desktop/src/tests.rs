@@ -58,6 +58,7 @@ mod a_long_window_title_ends_inside_the_window_switcher;
 mod a_moved_bar_leaves_no_focus_ring_behind_while_switching;
 mod a_narrow_desktop_shows_one_program_window_filling_it_under_the_dock_bar;
 mod a_new_window_fills_the_oldest_placeholder_of_its_program;
+mod a_new_window_opens_at_the_size_its_program_picked_and_keeps_it;
 mod a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time;
 mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
 mod a_program_tile_whose_name_is_cut_short_shows_it_whole_on_hover;
@@ -241,6 +242,7 @@ impl TestWindow {
             modal: self.modal,
             program_id: self.program_id.clone(),
             origin: self.origin.clone(),
+            size: (self.size.x >= 1.0 && self.size.y >= 1.0).then_some(self.size),
         }
     }
 }
