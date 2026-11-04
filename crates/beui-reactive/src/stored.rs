@@ -4,6 +4,10 @@ use std::rc::Rc;
 
 use crate::arena::{self, Key};
 
+/// A non-reactive value in the arena, freed with the scope that made it: shared state
+/// closures capture by `Copy` instead of cloning. Reads never track. Put a `Cell` or
+/// `RefCell` inside for state that changes, or use a signal when readers must hear of it.
+/// `with` and `value` panic once the scope is disposed; the `try_` forms do not.
 pub struct Stored<T> {
     key: Key,
     ty: PhantomData<*const T>,
@@ -61,6 +65,7 @@ impl<T: 'static> Stored<T> {
     }
 }
 
+/// A `Stored` freed when this value drops, for state made outside a scope.
 pub struct OwnedStored<T: 'static> {
     handle: Stored<T>,
 }
@@ -94,6 +99,8 @@ impl<T: 'static> Drop for OwnedStored<T> {
     }
 }
 
+/// A `Copy` cell owned by the current scope, for a `Copy` value several closures read and
+/// write, such as where a gesture started.
 pub struct StoredCell<T>(Stored<Cell<T>>);
 
 impl<T> Clone for StoredCell<T> {

@@ -371,11 +371,21 @@ impl Computation {
     }
 }
 
+/// A handle to an effect. Dropping it does not stop the effect; its scope owns it.
 #[derive(Clone)]
 pub struct Effect {
     computation: Rc<Computation>,
 }
 
+/// Queues a first run, then reruns after any tracked input changes, with writes coalesced
+/// into one run. It runs only while its zone is entered (see `enter_zone`) and its scope is
+/// not paused. Effects it creates run after it finishes.
+///
+/// One that finishes its first run having read nothing, opened no scope and registered no
+/// cleanup is disposed then and there. More than 10,000 runs in one flush panics and
+/// disposes it, to stop a feedback loop. Use it for work that needs the tree built around
+/// it (moving focus) or that acts outside the graph; bind an existing node's property with
+/// `create_binding`.
 pub fn create_effect(mut effect: impl FnMut() + 'static) -> Effect {
     let computation = Computation::new(None, move || {
         effect();
@@ -385,6 +395,12 @@ pub fn create_effect(mut effect: impl FnMut() + 'static) -> Effect {
     Effect { computation }
 }
 
+/// An effect whose first run happens now, as a memo's does, instead of being queued. A
+/// first run that reads nothing costs only the closure: no computation is made.
+///
+/// Each binding still costs a probe, so props applied together share one binding. Unlike
+/// an effect, a binding runs while its scope's effects are paused by
+/// `Scope::pausable_effects`, so a hidden `Loading` content still builds its tree.
 pub fn create_binding(mut binding: impl FnMut() + 'static) {
     let probed = probe(false, &mut binding);
     if probed.constant() {

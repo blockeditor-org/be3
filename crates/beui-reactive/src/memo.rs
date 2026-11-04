@@ -11,6 +11,14 @@ pub struct Memo<T> {
     ty: PhantomData<*const T>,
 }
 
+/// A cached derived value. It computes once at once, then lazily on read after a
+/// dependency changes; an equal output wakes nothing downstream, and chains and diamonds
+/// settle before any effect sees them.
+///
+/// A first run that reads nothing and leaves nothing to clean up makes a constant, with no
+/// computation behind it. The closure must be pure: writing a signal in it panics, even
+/// under `untrack`, and `./scripts/verify` flags writes in a `create_memo` closure. Nothing
+/// registers with a loading `Boundary` from inside a memo, since it reruns on every read.
 pub fn create_memo<T: PartialEq + 'static>(mut compute: impl FnMut() -> T + 'static) -> Memo<T> {
     let probed = probe(true, &mut compute);
     let constant = probed.constant();

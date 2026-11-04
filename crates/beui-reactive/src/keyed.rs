@@ -17,6 +17,10 @@ struct Inner<K: 'static, V: 'static> {
     entries: RefCell<HashMap<K, OwnedSignal<V>>>,
 }
 
+/// One signal per item plus a signal of the order, for a list whose rows bind to their own
+/// item. `get(&key)` stays the same handle across reconciles, which is why `ForEach` takes
+/// keys: key rows by identity, since a key that changes with the content rebuilds the row
+/// and loses its focus and caret.
 pub struct KeyedStore<K: 'static, V: 'static> {
     inner: Stored<Inner<K, V>>,
 }
@@ -96,6 +100,7 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
         }
     }
 
+    /// The order. Read it with `with` rather than `get` to avoid cloning the list.
     pub fn keys(&self) -> ReadSignal<Vec<K>> {
         self.inner.with(|inner| inner.keys.read_only())
     }
@@ -124,6 +129,8 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
         self.inner.with(|inner| inner.entries.borrow().len())
     }
 
+    /// Writes only items whose value differs (cloning only those), the order only when it
+    /// differs, and forgets keys that are gone.
     pub fn reconcile<'a>(&self, items: impl IntoIterator<Item = (K, &'a V)>)
     where
         V: 'a,
@@ -200,6 +207,8 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
     }
 }
 
+/// Pairs each key with its occurrence, so a repeated key gets a row per appearance,
+/// matched in order.
 pub fn numbered<K: Clone + Hash + Eq>(keys: Vec<K>) -> Vec<(K, usize)> {
     let mut seen: HashMap<K, usize> = HashMap::default();
     keys.into_iter()
@@ -212,6 +221,8 @@ pub fn numbered<K: Clone + Hash + Eq>(keys: Vec<K>) -> Vec<(K, usize)> {
         .collect()
 }
 
+/// Per-key values each built in a detached scope of its own, kept across updates of the
+/// list and disposed when `retain` drops the key.
 pub struct KeyedItems<K, V> {
     build: Box<dyn Fn(K) -> V>,
     entries: RefCell<HashMap<(K, usize), (V, Scope)>>,
@@ -245,6 +256,8 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         value
     }
 
+    /// `entry`, then flushes the new entry's own effects at once (`ScopeContext::flush_owned`),
+    /// for building a subtree during layout.
     pub fn entry_owned(&self, key: K) -> V {
         if let Some(value) = self.get(&key) {
             return value;

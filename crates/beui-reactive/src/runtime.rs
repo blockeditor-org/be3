@@ -146,6 +146,8 @@ impl Drop for Context {
     }
 }
 
+/// Runs `f` without subscribing to what it reads, keeping the current cleanup scope. Also
+/// lifts the component-body mark, so it is how a body takes a one-time snapshot.
 pub fn untrack<T>(f: impl FnOnce() -> T) -> T {
     let (owner, pending) = RUNTIME.with(|runtime| {
         (
@@ -158,6 +160,9 @@ pub fn untrack<T>(f: impl FnOnce() -> T) -> T {
     f()
 }
 
+/// Marks `f` as a component body: a body runs once with nothing observing it, so a
+/// tracked read there would never update. In debug builds `check_tracked_read` panics on
+/// one, naming the type. Effects, memos, bindings and `untrack` lift the mark.
 pub fn component_body<T>(f: impl FnOnce() -> T) -> T {
     #[cfg(debug_assertions)]
     let _body = Reset::set(|runtime| &runtime.component_body, true);
@@ -287,6 +292,9 @@ fn nested<T>(f: impl FnOnce() -> T) -> T {
     f()
 }
 
+/// Registers the callback run when effects are queued outside any entry (a write from a
+/// future or a host callback), once until the next flush, so a burst asks for one frame.
+/// beui's `Context::set_waker` registers it.
 pub fn wake_with(wake: impl Fn() + 'static) {
     RUNTIME.with(|runtime| runtime.waker.replace(Some(Rc::new(wake))));
 }
@@ -336,6 +344,10 @@ pub(crate) fn settle() {
     }
 }
 
+/// Runs every queued effect now. Does nothing inside an effect, whose flush is already
+/// running. Most code never calls it: entries flush when they end, and beui runs every
+/// event and frame step inside one. Tests call it after a write to check what an effect
+/// did.
 pub fn flush() {
     if RUNTIME.with(|runtime| runtime.flushing.get()) {
         return;
@@ -470,6 +482,11 @@ impl Drop for ZoneGuard {
     }
 }
 
+/// Enters `zone` until the guard drops; with none entered, zone 0 is. An effect keeps the
+/// zone it was created in (and passes it to effects it creates) and, when woken outside
+/// it, is parked until that zone is entered again. beui gives each `Document` a zone, so a
+/// signal written while another document is installed never runs this document's effects
+/// outside its frame.
 pub fn enter_zone(zone: u64) -> ZoneGuard {
     let previous = RUNTIME.with(|runtime| runtime.zone.replace(zone));
     run_parked(zone);
@@ -495,6 +512,8 @@ pub fn zone_pending(zone: u64) -> bool {
     })
 }
 
+/// Registers a callback run when `zone` parks its first effect, so a burst of writes wakes
+/// it once.
 pub fn wake_zone_with(zone: u64, wake: impl Fn() + 'static) {
     RUNTIME.with(|runtime| {
         let mut wakes = runtime.wakes.borrow_mut();
