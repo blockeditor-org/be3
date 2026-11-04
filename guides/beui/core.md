@@ -1,8 +1,7 @@
 # Beui core
 
 How a beui view is written and how the cores run it: views, the frame, layout
-and measurement, the runner and input, base components, the HTML core and
-`beui-html`, and testing. [The overview](../beui.md) has the crate map.
+and measurement, base components, the HTML core and `beui-html`, and testing.
 
 ## Writing views
 
@@ -25,7 +24,14 @@ accessibility node as AccessKit's `author_id`, so it reaches `drive` and tests
 only where the tree shows the node), `@node_ref` and `@sizing` (only in a list;
 on a `view!` root it builds a `ListChild`). Any `@path=value` expands to
 `path(built, value)` after the component is built, in source order, and may
-change the output type; other trees supply their own modifiers.
+change the output type.
+
+**Other trees.** `beui-tree` knows nothing of documents, so its components and
+control flow build any tree (`beui-html`'s DOM, a chat message): the tree's
+child type implements `ChildValue` and `SlotChild`, what keeps children
+`SlotHost` and `IntoSlotHost`, and the crate re-exports `beui_tree::reactive`
+from a crate it calls `beui`, since the macros expand to `::beui::reactive`.
+It supplies its own modifiers.
 
 **Value components** return a value instead of a node (`unstyled::MenuItem`,
 `ChoiceOption`); they get a scope as long as their builder's, so data items can
@@ -78,11 +84,9 @@ had keeps its measurement, placement and paint.
 
 ## Measurement
 
-`measure(node)` (`ReadSignal<Option<Measured>>`), `measure_text(node)` (a
-`Text`'s `TextGeometry`) and `lay_out_text` (text not in the tree) are in
-`beui-view/src/measure.rs`. Both signals are `None` until the first layout and
-may arrive a frame late: the HTML core measures after the browser lays out.
-Native answers in the same frame, which virtual scrolling and scroll anchoring
+`measure(node)`, `measure_text(node)` and `lay_out_text` are in
+`beui-view/src/measure.rs`. The signals may arrive a frame late: the HTML core
+measures after the browser lays out. Native answers in the same frame, which virtual scrolling and scroll anchoring
 rely on. `delay_measurement(true)` (`BEUI_DELAY_MEASUREMENT=1` for a driven
 program) makes native late too; tests named `..._when_measurement_comes_late`
 run key components both ways. A key handler that measures at event time fails
@@ -97,7 +101,7 @@ settles: give it its room from the parent on that axis. Children whose rects
 are a pure function of the parent's size are placed in the layout pass itself
 with `CanvasArrangement`, without lagging a layout (the dock's tiled panes).
 
-## Coordinates and revealing
+## Coordinates
 
 `pos`, `measure` rects and text geometry are in window coordinates, through
 every space's scale and translation. Pointer callbacks also carry `local` and
@@ -106,33 +110,14 @@ every space's scale and translation. Pointer callbacks also carry `local` and
 ([pan_and_zoom.md](../pan_and_zoom.md)). A length of the node's own compared
 with window positions is multiplied by the space's scale first.
 
-`reveal_node` and `reveal_focus` leave a request on each enclosing `Offset`,
-which resolves it inside its own layout. A `Canvas` cannot move its own view,
-so it answers through its `on_reveal` callback with the pan to make.
-
 ## Platforms, the runner and input
 
-A platform (`beui_runner::Platform`) owns the event loop and only translates
-native input into `Incoming`; everything a frame does is `Runner::frame`,
-shared by every platform. What the window should show is one `WindowState`,
-passed to `Platform::show_window` only when it changes, so a new field needs
-handling in each platform that acts on it. Size and scale come back through
-`Runner::reports()` and apply before the next layout.
-
-The runner's intake is the one place `Input` becomes `Event`s; drive, the
-on-screen keyboard and tests push `Input` there too. It coalesces with
-`be_lib_ui_types::input::enqueue` (the rules an app host uses): each pointer is
-heard once per frame at its latest move unless another event lies between, so
-a click lands where it was made. Input pushed without `Incoming::Time` happens
-at the frame clock's `now`, so tests step time by stepping frames. Traps:
-
-- `every_sample` on an `Interactive` keeps every move while set (the canvas pen
-  during a stroke); `PointerEvent::predicted` (web) is a tail to draw, not to
-  store.
-- The browser reports no trackpad scroll phases, so web wheel scrolls never
-  stretch or fling.
-- `clipboard_keys` (a terminal) takes Ctrl+C/V/X/A as plain keys, which on the
-  web also stops the browser's paste event, so such a node gets no paste there.
+A platform only translates native input into `Incoming`; everything a frame
+does is `Runner::frame`, and the runner's intake is the one place `Input`
+becomes `Event`s (drive, the on-screen keyboard and tests push there too).
+Input pushed without `Incoming::Time` happens at the frame clock's `now`, so
+tests step time by stepping frames. [platforms.md](platforms.md) has the
+runner, coalescing and each platform's input traps.
 
 ## Develop a base component
 
@@ -155,28 +140,23 @@ control crate-private.
 The `Element` methods and arena accessors document their contracts. What spans
 them:
 
-- **Linear layout.** A node measures each child a bounded number of times per
-  pass, and anything computed across children is linear (`layout::share`).
-  Measurements are memoised per offer, so `measure` must be a pure function of
-  the node and its constraint. Reach children through
-  `beui_core::layout::{measure, layout, baseline, min_width}`, never another
-  element's methods.
-- **Setters** pick the accessor by what reads the field: `get_mut_as` (layout),
-  `paint_mut_as` (paint only), `touch_mut_as` (accessibility only), `state_mut`
-  (pointer state). Each marks the node dirty, so call it only on a change.
+- **Linear layout.** Anything computed across children is linear
+  (`layout::share`). Measurements are memoised per offer, so `measure` must be
+  a pure function of the node and its constraint. Reach children through
+  `beui_core::layout`, never another element's methods.
+- **Setters** pick the arena accessor by what reads the field (`get_mut_as`,
+  `paint_mut_as`, `touch_mut_as`, `state_mut`), and call it only on a change.
 - **Spaces.** Each node lays out and paints from its own origin, so a node that
   only moves keeps its layout and shapes, and a scroll or canvas content space
   (`Document::enter_space`) makes scrolling and panning change one translation.
-- **Retained paint and damage.** `paint` runs again only when the node, its
-  rect or painter, or a child it paints changed, so it may read nothing else. A
-  node records a tree (`display.rs`) of shapes, children by id and groups; the
-  new tree is set against the old by identity to find damage, and a scrolled
-  group becomes a copy (`WindowOutput::moved`) instead. Damage is never derived
-  by comparing paint output.
-- **Checking paint.** beui's tests and be-sdk-test (`verify_paint`) repaint
-  every frame from scratch and fail when the retained painting differs or
-  changed outside the damage. `BEUI_OVER_REPAINT=1` reports frames that damage
-  over four times what changed.
+- **Retained paint and damage.** A node records a tree (`display.rs`) of
+  shapes, children by id and groups; the new tree is set against the old by
+  identity to find damage, and a scrolled group becomes a copy
+  (`WindowOutput::moved`) instead.
+- **Checking paint.** Tests repaint every frame from scratch and fail when the
+  retained painting differs or changed outside the damage (`verify_paint`).
+  `BEUI_OVER_REPAINT=1` reports frames that damage over four times what
+  changed.
 
 ## Cores
 
@@ -213,14 +193,13 @@ overlay and `window_of` is always the main window.
 
 ### The HTML core
 
-Each primitive is one element styled with inline CSS (`Frame` a one-cell grid,
-`List` flexbox, `Overlay` a `<dialog>` placed by CSS anchor positioning,
-`Drawing` an inline `<svg>`,
+Each primitive is one element styled with inline CSS (`Overlay` a `<dialog>`
+placed by CSS anchor positioning, `Drawing` an inline `<svg>`,
 [decision](../../decisions/beui_drawing_is_inline_svg_on_html.md)). `Offset`
 scrolls the element itself, so the browser's own scrolls are adopted
 ([decision](../../decisions/beui_html_scroll_uses_the_element_scroll_position.md)).
-The root is fixed to the viewport, so only `Scroll`s scroll, and holds the
-colour variables, which is why every overlay's element stays inside it. Containers with behaviour
+The root is fixed to the viewport and holds the colour variables, so every
+overlay's element stays inside it. Containers with behaviour
 of their own (`scroll`, `rows`, `canvas`, `overlay`, `portal`, `text`) are
 modules of `beui-core-html`, each registering a pass with `frame::on_layout`
 that runs before paint; `ResizeObserver`s call `frame::relayout()` so a resize
@@ -231,14 +210,10 @@ A component's accessibility node becomes ARIA through the one table in
 not the ARIA, so they read the same on both cores.
 
 **Running and server rendering.** `beui::html::run(element_id, build)` starts a
-program. For a page that shows before any script runs, render it on the host
-with `render_to_string` (a program built for `linux_x86_64_html`: at build time
-with `prerendered_page` in buck/program/defs.bzl, or per request as
-crates/be-server-portal-ui does), put `stylesheet(font_base)` in a
-`<style id=STYLES_ID>`, and call `hydrate` with the same view in the browser.
-`run` and `hydrate` read the browser's preferences before building, so the
-first frame matches the page. crates/beui-html-spike is the worked example
-(guides/running/web.md); crates/beui-demo-html runs beui-demo on this core.
+program; `render_to_string` on the host and `hydrate` in the browser serve a
+page that shows before any script runs. crates/beui-html-spike is the worked
+example (guides/running/web.md); crates/beui-demo-html runs beui-demo on this
+core.
 
 ## HTML: strings and live DOM
 

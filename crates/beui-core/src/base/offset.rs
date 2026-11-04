@@ -585,6 +585,9 @@ impl Document {
         })
     }
 
+    /// Leaves a request on each enclosing `Offset`, which resolves it inside its own layout.
+    /// A `Canvas` cannot move its own view, so it answers through its `on_reveal` callback
+    /// with the pan to make.
     pub fn reveal_node(&mut self, node: NodeId) {
         for viewer in self.enclosing_viewers(node) {
             self.reveal_in(viewer, node);
