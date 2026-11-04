@@ -81,7 +81,11 @@ frame's serial (`be-host-runtime/src/sent.rs`).
 Only what draws the frame (texture, layout, placements that move existing
 children) is applied at once; the rest (children coming or going, window
 requests) waits for the next `be_host_runtime::poll`, where the browser takes
-every answer, so host state changes at the same point on both.
+every answer, so host state changes at the same point on both. It also waits
+until the app has sent the `PresentCommit` that follows that layout
+(`Laid::presented_by`), so a child leaves or arrives in the frame whose
+painting fills or punches its space: a closed child never shows its hole in
+the placer's old painting. Answers held after it wait with it, in order.
 
 A child that has taken its parent's frame does not wait on the parent to learn
 where the camera put it: the host moves it with the camera itself and asks

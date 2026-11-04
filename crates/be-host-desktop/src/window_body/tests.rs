@@ -13,6 +13,7 @@ const SIZE: Vec2 = vec2(640.0, 400.0);
 
 mod a_body_too_small_for_its_window_says_so;
 mod a_window_drawn_past_its_body_fades_along_the_clipped_edges;
+mod a_window_drawn_short_of_its_body_leaves_no_part_of_it_unfilled;
 mod a_window_that_is_not_responding_offers_to_wait_or_force_close;
 
 fn status(drawn: Vec2, min_size: Vec2, responding: bool) -> WindowStatus {
@@ -34,6 +35,10 @@ struct Shown {
 }
 
 fn shown(initial: WindowStatus) -> Shown {
+    shown_drawing(initial, Vec2::ZERO)
+}
+
+fn shown_drawing(initial: WindowStatus, buffer: Vec2) -> Shown {
     let closed = Rc::new(Cell::new(0));
     let mut held = None;
     let counted = closed.clone();
@@ -45,7 +50,7 @@ fn shown(initial: WindowStatus) -> Shown {
         view! {
             <Root>
                 <WindowBody status on_force_close>
-                    <Frame fill=ColorRole::Accent />
+                    <Buffer size=buffer />
                 </WindowBody>
             </Root>
         }
@@ -80,5 +85,23 @@ impl Shown {
             .frame(Vec::new())
             .test_id_rect(test_id)
             .is_some()
+    }
+}
+
+#[component]
+fn Buffer(size: Vec2) -> NodeId {
+    match size == Vec2::ZERO {
+        true => view! {
+            <Frame fill=ColorRole::Accent />
+        },
+        false => view! {
+            <Frame align=Align2::START>
+                <Frame
+                    width={Length::Size(Size::Custom(size.x))}
+                    height={Length::Size(Size::Custom(size.y))}
+                    fill=ColorRole::Accent
+                />
+            </Frame>
+        },
     }
 }

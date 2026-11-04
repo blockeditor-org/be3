@@ -250,6 +250,8 @@ pub(super) struct Runtime {
     queued: Vec<Outbound>,
     held: Vec<Answer>,
     taking_in: bool,
+    layouts_heard: u64,
+    presents_heard: u64,
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
@@ -326,6 +328,10 @@ impl From<Heard> for Answer {
 
 struct Laid {
     serial: u64,
+    /// How many presents the app must have sent before this is applied: the one that follows
+    /// the layout commit it came in. Children come and go only with the frame that punches or
+    /// fills their space, so a closed child never leaves its hole in the placer's old frame.
+    presented_by: u64,
     sizes: Vec<ViewSize>,
     windows: Vec<ScreenWindow>,
     children: Vec<ChildPlacements>,
@@ -478,6 +484,8 @@ impl Runtime {
             queued: Vec::new(),
             held: Vec::new(),
             taking_in: false,
+            layouts_heard: 0,
+            presents_heard: 0,
             instances,
             layout: ScreenLayout::default(),
             pass: 0,
@@ -526,6 +534,8 @@ impl Runtime {
         self.session = session();
         self.queued.clear();
         self.held.clear();
+        self.layouts_heard = 0;
+        self.presents_heard = 0;
         self.error = None;
         self.status = PresenterStatus::waiting();
         self.layout = ScreenLayout::default();
@@ -999,45 +1009,60 @@ impl Runtime {
     }
 
     fn hear(&mut self, forwarded: Vec<Heard>) {
-        let forwarded = match self.taking_in {
-            true => {
-                let mut taken = std::mem::take(&mut self.held);
-                taken.extend(forwarded.into_iter().map(Answer::from));
-                taken
-            }
-            false => {
-                let mut drawing = Vec::with_capacity(forwarded.len());
-                let mut held = false;
-                for heard in forwarded {
-                    match heard {
-                        Heard::LaidOut(commit) => {
-                            let (now, later) = self.split(*commit);
-                            drawing.push(Answer::LaidOut(now));
-                            if let Some(later) = later {
-                                held = true;
-                                self.held.push(Answer::Laid(later));
-                            }
-                        }
-                        heard @ (Heard::Paintings(_)
-                        | Heard::Layout(_)
-                        | Heard::FrameNeeded
-                        | Heard::Presented(_)) => {
-                            drawing.push(Answer::from(heard));
-                        }
-                        heard => {
-                            held = true;
-                            self.held.push(Answer::from(heard));
-                        }
+        let presents = forwarded
+            .iter()
+            .filter(|heard| matches!(heard, Heard::Presented(_)))
+            .count() as u64;
+        self.presents_heard += presents;
+        let mut answers = Vec::with_capacity(forwarded.len());
+        if self.taking_in {
+            self.release_presented(&mut answers);
+        }
+        let mut held = false;
+        for heard in forwarded {
+            match heard {
+                Heard::LaidOut(commit) => {
+                    self.layouts_heard += 1;
+                    let (now, later) = self.split(*commit);
+                    answers.push(Answer::LaidOut(now));
+                    if let Some(later) = later {
+                        held = true;
+                        self.held.push(Answer::Laid(later));
                     }
                 }
-                if held {
-                    host::request_repaint();
+                heard @ (Heard::Paintings(_)
+                | Heard::Layout(_)
+                | Heard::FrameNeeded
+                | Heard::Presented(_)) => {
+                    answers.push(Answer::from(heard));
                 }
-                drawing
+                heard if self.taking_in && self.held.is_empty() => {
+                    answers.push(Answer::from(heard));
+                }
+                heard => {
+                    held = true;
+                    self.held.push(Answer::from(heard));
+                }
             }
-        };
-        self.apply(forwarded);
+        }
+        if self.taking_in {
+            self.release_presented(&mut answers);
+        }
+        if (held || presents > 0) && !self.held.is_empty() {
+            host::request_repaint();
+        }
+        self.apply(answers);
         self.answer();
+    }
+
+    /// Moves the held answers into `answers` in order, up to the first children still waiting on
+    /// the frame they came with.
+    fn release_presented(&mut self, answers: &mut Vec<Answer>) {
+        let waiting = self.held.iter().position(
+            |held| matches!(held, Answer::Laid(laid) if laid.presented_by > self.presents_heard),
+        );
+        let rest = self.held.split_off(waiting.unwrap_or(self.held.len()));
+        answers.extend(std::mem::replace(&mut self.held, rest));
     }
 
     fn export_previews(&mut self, frame: &Frame) -> bool {
@@ -1127,6 +1152,7 @@ impl Runtime {
         commit.children = moving;
         let later = Laid {
             serial: commit.serial,
+            presented_by: self.layouts_heard,
             sizes: Vec::new(),
             windows: std::mem::take(&mut commit.windows),
             children: coming,
@@ -1328,6 +1354,7 @@ impl Runtime {
         changed |= self.instances.set_frame_reports(reports);
         changed |= self.lay(Laid {
             serial,
+            presented_by: 0,
             sizes,
             windows,
             children,
