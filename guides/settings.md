@@ -2,6 +2,8 @@
 
 A setting lives in a block of its kind's type, and the blocks of one kind are read as layers.
 Who may change a setting is ordinary block access (`be_block_graph::Access`).
+guides/blocks/workspaces.md covers the account's Settings block and device profiles, writing a
+layered setting from an editor, and the settings the host applies itself.
 
 ## Where settings are kept
 
