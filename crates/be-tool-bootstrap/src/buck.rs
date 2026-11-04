@@ -192,7 +192,10 @@ fn attempt_once(
     let build_id = repository().join(format!("target/buck2-build-id-{}", std::process::id()));
     if let Some(subcommand) = watched {
         let _ = std::fs::remove_file(&build_id);
-        command.arg(subcommand).arg("--write-build-id").arg(&build_id);
+        command
+            .arg(subcommand)
+            .arg("--write-build-id")
+            .arg(&build_id);
         command.args(arguments.iter().skip(1).map(OsString::from));
     } else {
         command.args(arguments.iter().map(OsString::from));

@@ -154,7 +154,9 @@ fn stop_client(pid: u32) {
 fn relay_calls(address: &str) -> Option<String> {
     let address = address.parse().ok()?;
     let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(5)).ok()?;
-    stream.set_read_timeout(Some(Duration::from_secs(10))).ok()?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .ok()?;
     write!(
         stream,
         "GET /__be3-re-relay/calls HTTP/1.0\r\nHost: {address}\r\n\r\n"
