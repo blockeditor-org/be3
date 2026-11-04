@@ -416,7 +416,7 @@ impl DockHostLayout {
             let tabs = state.all_tabs();
             DockHosted {
                 tabs: tabs.clone(),
-                focused: state.focused_tab(),
+                focused: state.focused_or_host(),
                 shown: state.stacked_tab(),
                 visible: tabs
                     .iter()

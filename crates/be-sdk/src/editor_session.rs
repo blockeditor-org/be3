@@ -738,7 +738,7 @@ impl EditorSession {
         self.host.push_child_bar_action(child, action);
     }
 
-    pub(crate) fn child_focused(&self, child: ChildId) {
+    pub fn child_focused(&self, child: ChildId) {
         self.host.push_child_focus(child);
     }
 
