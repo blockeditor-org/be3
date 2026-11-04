@@ -60,8 +60,8 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         ErrorCode::InvalidRequest,
     );
 
-    {
-        let database = store.database().lock().await;
+    store
+        .with_database(move |_, database| {
         let transaction = database.unchecked_transaction().unwrap();
         for index in 0..MAX_CONTACT_LINKS_PER_ACCOUNT {
             transaction
@@ -124,7 +124,10 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 .unwrap();
         }
         transaction.commit().unwrap();
-    }
+        Ok(())
+        })
+        .await
+        .unwrap();
     refused(
         store
             .create_contact_link(account, Uuid::new_v4(), Vec::new(), Vec::new(), None)

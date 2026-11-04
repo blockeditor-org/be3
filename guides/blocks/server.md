@@ -261,10 +261,15 @@ all on a disconnect costs what that client joined, and remembers an empty
 session for its `clean_at` for a day and at most `MAX_EMPTY_SESSIONS`; a peer
 taking over a forgotten one merges rather than fast-forwards.
 
-Uploads are written and synced, and objects read, on tokio's blocking pool,
-outside the database lock (`ServerStore::put_objects` after it reserves the
-quota, `get_object`, `get_objects`). The database work itself still runs on
-the connection's task under the lock. A connection
+Nothing the store does blocks the runtime's threads. Its SQL runs as owned
+jobs on tokio's blocking pool, one at a time under the database lock:
+`ServerStore::with_database(move |store, database| ...)`, and `with_graph`,
+which adds the organization's graph. A job captures what it needs by value
+(the store is a cheap clone) and runs to its end even when its caller is
+dropped. Uploads are written and synced, and objects read, on the blocking
+pool too, outside the lock (`put_objects` after it reserves the quota,
+`get_object`, `get_objects`). In tests, `store::held::hold(organization)`
+keeps an organization's next graph job waiting until released. A connection
 resolves its token again only after `ServerStore::sessions_changed`, not on
 every call and push (`Connection::signed_in`), so every path that deletes or
 changes an app session calls it.

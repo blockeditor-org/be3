@@ -210,8 +210,8 @@ impl ServerStore {
             .collect();
         if !sized.is_empty() {
             let sized = sized.clone();
-            self.with_graph(identity.organization, move |graph, database| {
-                self.reserve_uploads(graph, database, identity, &sized)
+            self.with_graph(identity.organization, move |store, graph, database| {
+                store.reserve_uploads(graph, database, identity, &sized)
             })
             .await?;
         }
@@ -327,54 +327,57 @@ impl ServerStore {
         let cutoff = be_block_commit::now_milliseconds().saturating_sub(grace);
         let mut deleted = 0;
         loop {
-            let database = self.database().lock().await;
-            let transaction = database.unchecked_transaction()?;
-            let expired: Vec<(String, String, String, String)> = {
-                let mut statement = transaction.prepare_cached(
-                    "SELECT organization_id, hash, account_id, payer FROM object_uploads
-                     WHERE pending = 1 AND uploaded <= ?1 LIMIT ?2",
-                )?;
-                let rows = statement.query_map(
-                    params![cutoff, to_sql(UPLOADS_SWEPT_AT_ONCE as u64)],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-                )?;
-                rows.collect::<Result<_, _>>()?
-            };
-            let mut freed = Vec::new();
-            for (organization, hex, account, payer) in &expired {
-                let hash = Hash::from_hex(hex).ok_or(ServerError::Corrupt)?;
-                let bytes = self.object_bytes(&transaction, hash)?;
-                transaction.execute(
-                    "DELETE FROM object_uploads
-                     WHERE organization_id = ?1 AND hash = ?2 AND account_id = ?3",
-                    params![organization, hex, account],
-                )?;
-                let charged_elsewhere: bool = transaction
-                    .prepare_cached(
-                        "SELECT EXISTS(SELECT 1 FROM object_uploads INDEXED BY object_uploads_object
-                                       WHERE hash = ?1 AND account_id = ?2 AND pending = 1)",
-                    )?
-                    .query_row(params![hex, account], |row| row.get(0))?;
-                if !charged_elsewhere && let Ok(payer) = Uuid::parse_str(payer) {
-                    shift_usage(&transaction, payer, Column::Pending, bytes, false)?;
-                    self.usage_changed(payer);
+            let (freed, more) = self.with_database(move |store, database| {
+                let transaction = database.unchecked_transaction()?;
+                let expired: Vec<(String, String, String, String)> = {
+                    let mut statement = transaction.prepare_cached(
+                        "SELECT organization_id, hash, account_id, payer FROM object_uploads
+                         WHERE pending = 1 AND uploaded <= ?1 LIMIT ?2",
+                    )?;
+                    let rows = statement.query_map(
+                        params![cutoff, to_sql(UPLOADS_SWEPT_AT_ONCE as u64)],
+                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                    )?;
+                    rows.collect::<Result<_, _>>()?
+                };
+                let mut freed = Vec::new();
+                for (organization, hex, account, payer) in &expired {
+                    let hash = Hash::from_hex(hex).ok_or(ServerError::Corrupt)?;
+                    let bytes = store.object_bytes(&transaction, hash)?;
+                    transaction.execute(
+                        "DELETE FROM object_uploads
+                         WHERE organization_id = ?1 AND hash = ?2 AND account_id = ?3",
+                        params![organization, hex, account],
+                    )?;
+                    let charged_elsewhere: bool = transaction
+                        .prepare_cached(
+                            "SELECT EXISTS(SELECT 1 FROM object_uploads INDEXED BY object_uploads_object
+                                           WHERE hash = ?1 AND account_id = ?2 AND pending = 1)",
+                        )?
+                        .query_row(params![hex, account], |row| row.get(0))?;
+                    if !charged_elsewhere && let Ok(payer) = Uuid::parse_str(payer) {
+                        shift_usage(&transaction, payer, Column::Pending, bytes, false)?;
+                        store.usage_changed(payer);
+                    }
+                    let still_pending: bool = transaction
+                        .prepare_cached(
+                            "SELECT EXISTS(SELECT 1 FROM object_uploads INDEXED BY object_uploads_object WHERE hash = ?1 AND pending = 1)",
+                        )?
+                        .query_row([hex], |row| row.get(0))?;
+                    if !still_pending && store.object_refs().count(hash) == 0 {
+                        freed.push(hash);
+                    }
                 }
-                let still_pending: bool = transaction
-                    .prepare_cached(
-                        "SELECT EXISTS(SELECT 1 FROM object_uploads INDEXED BY object_uploads_object WHERE hash = ?1 AND pending = 1)",
-                    )?
-                    .query_row([hex], |row| row.get(0))?;
-                if !still_pending && self.object_refs().count(hash) == 0 {
-                    freed.push(hash);
+                forget_objects(&transaction, &freed)?;
+                transaction.commit()?;
+                for hash in &freed {
+                    store.objects().remove(*hash)?;
                 }
-            }
-            forget_objects(&transaction, &freed)?;
-            transaction.commit()?;
-            for hash in &freed {
-                self.objects().remove(*hash)?;
-            }
-            deleted += freed.len();
-            if expired.len() < UPLOADS_SWEPT_AT_ONCE {
+                Ok((freed.len(), expired.len() >= UPLOADS_SWEPT_AT_ONCE))
+            })
+            .await?;
+            deleted += freed;
+            if !more {
                 return Ok(deleted);
             }
         }
@@ -389,17 +392,20 @@ impl ServerStore {
     /// The account whose quota `account`'s uploads count against: its own, or an agent's
     /// creator's.
     pub async fn payer(&self, account: Uuid) -> Result<Uuid, ServerError> {
-        payer_of(&*self.database().lock().await, account)
+        self.with_database(move |_, database| payer_of(database, account))
+            .await
     }
 
     pub async fn storage_usage(&self, identity: Identity) -> Result<AccountStorage, ServerError> {
-        let database = self.database().lock().await;
-        let usage = usage_of(&database, payer_of(&database, identity.account)?)?;
-        Ok(AccountStorage {
-            held: usage.held,
-            pending: usage.pending,
-            quota: self.limits.account_quota,
+        self.with_database(move |store, database| {
+            let usage = usage_of(&database, payer_of(&database, identity.account)?)?;
+            Ok(AccountStorage {
+                held: usage.held,
+                pending: usage.pending,
+                quota: store.limits.account_quota,
+            })
         })
+        .await
     }
 }
 

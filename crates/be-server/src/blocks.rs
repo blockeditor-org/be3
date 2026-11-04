@@ -232,7 +232,7 @@ impl ServerStore {
     ) -> Result<BlockSummary, ServerError> {
         let references = distinct(references);
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             if graph.authored(identity.account) >= MAX_BLOCKS_PER_ACCOUNT {
                 return Err(crate::limits::too_many(
                     "blocks one account makes in an organization",
@@ -242,7 +242,7 @@ impl ServerStore {
             if let BlockParent::Block(target) = parent {
                 require_parent_of(graph, &visibility(identity), content_type, target)?;
             }
-            self.may_create(graph, database, identity, block, content_type, parent)?;
+            store.may_create(graph, database, identity, block, content_type, parent)?;
             if !keys
                 .keys
                 .iter()
@@ -302,7 +302,7 @@ impl ServerStore {
     ) -> Result<(BlockSummary, Vec<Uuid>), ServerError> {
         let references = distinct(references);
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             if let Some(head) = graph.head(block) {
                 return Err(ServerError::Refused(
@@ -338,7 +338,7 @@ impl ServerStore {
         blocks: Vec<Uuid>,
         subtree: bool,
     ) -> Result<Vec<Vec<(crate::watch::Push, bool)>>, ServerError> {
-        self.with_graph(organization, move |graph, _| {
+        self.with_graph(organization, move |_, graph, _| {
             let mut touched = Vec::new();
             for block in blocks {
                 match subtree {
@@ -390,7 +390,7 @@ impl ServerStore {
         organization: Uuid,
         blocks: Vec<Uuid>,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
-        self.with_graph(organization, move |graph, _| {
+        self.with_graph(organization, move |_, graph, _| {
             Ok(blocks
                 .into_iter()
                 .flat_map(|block| graph.audience(block))
@@ -408,7 +408,7 @@ impl ServerStore {
         blocks: Vec<Uuid>,
         level: Access,
     ) -> Result<(), ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             Ok(blocks
                 .into_iter()
@@ -425,7 +425,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<BlockSummary, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let Some(node) = graph.get(block) else {
                 return Err(not_found(block));
             };
@@ -451,7 +451,7 @@ impl ServerStore {
         blocks: Vec<Uuid>,
         held: Vec<CommitId>,
     ) -> Result<(Vec<BlockSummary>, Vec<Hash>), ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
             let held: BTreeSet<CommitId> = held.into_iter().collect();
             let mut statement = database.prepare(
@@ -502,7 +502,7 @@ impl ServerStore {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         let mut held = vec![commit.hash()];
         held.extend(chunks.iter().copied());
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let current = graph.head(block);
             if current != expected {
@@ -530,11 +530,11 @@ impl ServerStore {
                 )
                 .optional()?;
             if existing.is_none() {
-                self.require_holdable(graph, database, identity, &held, "published")?;
-                let holding = self.before_holding(
+                store.require_holdable(graph, database, identity, &held, "published")?;
+                let holding = store.before_holding(
                     &transaction,
                     graph,
-                    &self.object_refs(),
+                    &store.object_refs(),
                     identity.organization,
                     block,
                     &held,
@@ -567,8 +567,8 @@ impl ServerStore {
                         ],
                     )?;
                 }
-                let grew = self.charge_holding(graph, &transaction, &holding)?;
-                let mut refs = self.object_refs();
+                let grew = store.charge_holding(graph, &transaction, &holding)?;
+                let mut refs = store.object_refs();
                 refs.retain(&held);
                 persist_refs(&transaction, &refs, &held)?;
                 graph.add_size(block, grew, true)?;
@@ -607,7 +607,7 @@ impl ServerStore {
         identity: Identity,
         hash: Hash,
     ) -> Result<bool, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             readable(graph, database, identity, hash)
         })
         .await
@@ -620,10 +620,10 @@ impl ServerStore {
         identity: Identity,
         hashes: Vec<Hash>,
     ) -> Result<Vec<Hash>, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             let mut missing = Vec::new();
             for hash in hashes {
-                if !self.holdable(graph, database, identity, hash)? {
+                if !store.holdable(graph, database, identity, hash)? {
                     missing.push(hash);
                 }
             }
@@ -672,14 +672,14 @@ impl ServerStore {
         block: Uuid,
         objects: Vec<Hash>,
     ) -> Result<(), ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
-            self.require_holdable(graph, database, identity, &objects, "held")?;
+            store.require_holdable(graph, database, identity, &objects, "held")?;
             let transaction = database.unchecked_transaction()?;
-            let holding = self.before_holding(
+            let holding = store.before_holding(
                 &transaction,
                 graph,
-                &self.object_refs(),
+                &store.object_refs(),
                 identity.organization,
                 block,
                 &objects,
@@ -696,8 +696,8 @@ impl ServerStore {
                     fresh.push(hash);
                 }
             }
-            let grew = self.charge_holding(graph, &transaction, &holding)?;
-            let mut refs = self.object_refs();
+            let grew = store.charge_holding(graph, &transaction, &holding)?;
+            let mut refs = store.object_refs();
             refs.retain(&fresh);
             persist_refs(&transaction, &refs, &fresh)?;
             graph.add_size(block, grew, true)?;
@@ -720,7 +720,7 @@ impl ServerStore {
         parent: BlockParent,
         keys: KeySet,
     ) -> Result<(BTreeSet<Uuid>, BTreeSet<Uuid>), ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
             require_edit(graph, &seen, block)?;
             if block == crate::organization::settings_of(identity.organization) {
@@ -743,7 +743,7 @@ impl ServerStore {
                     require_parent_of(graph, &seen, node.content_type, target)?;
                 }
                 BlockParent::Root if node.parent != BlockParent::Root => {
-                    self.may_add_workspace(graph, database, identity, block, node.content_type)?;
+                    store.may_add_workspace(graph, database, identity, block, node.content_type)?;
                 }
                 BlockParent::Root | BlockParent::Detached => {}
             }
@@ -798,7 +798,7 @@ impl ServerStore {
     }
 
     pub async fn list_shared(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             if seen.administrator {
                 return Ok(Vec::new());
@@ -818,7 +818,7 @@ impl ServerStore {
         identity: Identity,
         parent: BlockParent,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             let settings = crate::organization::settings_of(identity.organization);
             Ok(graph
@@ -833,7 +833,7 @@ impl ServerStore {
     }
 
     pub async fn list_deleted(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             let deleted = match seen.candidates(graph) {
                 None => graph.deleted_roots(),
@@ -856,7 +856,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             Ok(graph
                 .backrefs(block)
@@ -873,7 +873,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             let mut found: BTreeMap<Uuid, BlockSummary> = BTreeMap::new();
             for owner in graph.ancestors(block) {
@@ -904,7 +904,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             if !seen.can_view(graph, block) {
                 return Ok(Vec::new());
@@ -924,7 +924,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<HistoryEntry>, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             require(
                 graph,
                 &visibility(identity),
@@ -943,10 +943,10 @@ impl ServerStore {
         block: Uuid,
         drop: Vec<CommitId>,
     ) -> Result<usize, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let head = graph.head(block);
-            let kept_for = self
+            let kept_for = store
                 .policies(graph, database, identity.organization)?
                 .history_kept_for();
             let transaction = database.unchecked_transaction()?;
@@ -964,7 +964,7 @@ impl ServerStore {
                 .filter(|entry| entry.pinned)
                 .map(|entry| entry.commit)
                 .collect();
-            let mut refs = self.object_refs();
+            let mut refs = store.object_refs();
             let mut freed = Vec::new();
             let mut released = Vec::new();
             for commit in drop {
@@ -983,7 +983,7 @@ impl ServerStore {
             }
             std::mem::drop(refs);
             let shrank =
-                self.release_charged(&transaction, graph, identity.organization, block, &released)?;
+                store.release_charged(&transaction, graph, identity.organization, block, &released)?;
             forget_objects(&transaction, &freed)?;
             graph.add_size(block, shrank, false)?;
             persist_sizes(
@@ -993,7 +993,7 @@ impl ServerStore {
                 chain(graph, block),
             )?;
             transaction.commit()?;
-            remove_objects(self.objects(), &freed)?;
+            remove_objects(store.objects(), &freed)?;
             Ok(freed.len())
         })
         .await
@@ -1011,9 +1011,9 @@ impl ServerStore {
     }
 
     pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
-            let kept_for = self
+            let kept_for = store
                 .policies(graph, database, identity.organization)?
                 .history_kept_for();
             let since = be_block_commit::now_milliseconds() - kept_for;
@@ -1037,7 +1037,7 @@ impl ServerStore {
                 detached.push(block);
             }
             let transaction = database.unchecked_transaction()?;
-            let mut refs = self.object_refs();
+            let mut refs = store.object_refs();
             let mut freed = Vec::new();
             let mut removed = Vec::new();
             for block in detached {
@@ -1057,7 +1057,7 @@ impl ServerStore {
                     release_held(&transaction, &mut refs, identity.organization, block)?;
                 released.extend(rows);
                 freed.extend(gone);
-                let shrank = self.release_charged(
+                let shrank = store.release_charged(
                     &transaction,
                     graph,
                     identity.organization,
@@ -1095,7 +1095,7 @@ impl ServerStore {
             std::mem::drop(refs);
             forget_objects(&transaction, &freed)?;
             transaction.commit()?;
-            remove_objects(self.objects(), &freed)?;
+            remove_objects(store.objects(), &freed)?;
             Ok(Collected {
                 blocks: removed,
                 objects: freed.len(),
@@ -1112,7 +1112,7 @@ impl ServerStore {
         account: Uuid,
         access: Access,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             let leaving = account == identity.account && access == Access::None;
             match leaving {
                 true if !visibility(identity)
@@ -1185,7 +1185,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<AccessList, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             require_manage(graph, &visibility(identity), block)?;
             let company = crate::keys::organization_kind(database, identity.organization)?
                 == be_block_protocol::OrganizationKind::Company;

@@ -65,40 +65,48 @@ impl ServerStore {
         account: Uuid,
         issuer: &str,
     ) -> Result<String, ServerError> {
-        let database = self.database.lock().await;
-        let transaction = database.unchecked_transaction()?;
-        let valid: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND token_hash = ?2 AND kind = 'browser' AND expires > ?3)", params![account.to_string(), hash_token(issuer), now()], |row| row.get(0))?;
-        if !valid {
-            return Err(refused(
-                "The approving browser session expired or was revoked. Start sign-in again.",
-            ));
-        }
-        let token = issue_token(&transaction, account)?;
-        transaction.commit()?;
-        Ok(token)
+        let issuer = issuer.to_owned();
+        self.with_database(move |_, database| {
+            let transaction = database.unchecked_transaction()?;
+            let valid: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND token_hash = ?2 AND kind = 'browser' AND expires > ?3)", params![account.to_string(), hash_token(&issuer), now()], |row| row.get(0))?;
+            if !valid {
+                return Err(refused(
+                    "The approving browser session expired or was revoked. Start sign-in again.",
+                ));
+            }
+            let token = issue_token(&transaction, account)?;
+            transaction.commit()?;
+            Ok(token)
+        })
+        .await
     }
 
     pub async fn browser_session(&self, account: Uuid) -> Result<String, ServerError> {
-        let database = self.database.lock().await;
-        let token = issue_token(&database, account)?;
-        database.execute(
-            "UPDATE sessions SET kind = 'browser', expires = ?2 WHERE token_hash = ?1",
-            params![hash_token(&token), now() + 30 * 86400],
-        )?;
-        Ok(token)
+        self.with_database(move |_, database| {
+            let token = issue_token(&database, account)?;
+            database.execute(
+                "UPDATE sessions SET kind = 'browser', expires = ?2 WHERE token_hash = ?1",
+                params![hash_token(&token), now() + 30 * 86400],
+            )?;
+            Ok(token)
+        })
+        .await
     }
 
     pub async fn browser_profile(&self, token: &str) -> Result<Profile, ServerError> {
-        let database = self.database.lock().await;
-        let row: Option<(String, String, String)> = database.query_row(
-            "SELECT a.id, a.email, a.display_name FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ?1 AND s.kind = 'browser' AND s.expires > ?2",
-            params![hash_token(token), now()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).optional()?;
-        let (account, email, display_name) = row.ok_or_else(|| refused("Sign in to continue."))?;
-        Ok(Profile {
-            account: parse_uuid(&account)?,
-            email,
-            display_name,
+        let token = token.to_owned();
+        self.with_database(move |_, database| {
+            let row: Option<(String, String, String)> = database.query_row(
+                "SELECT a.id, a.email, a.display_name FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ?1 AND s.kind = 'browser' AND s.expires > ?2",
+                params![hash_token(&token), now()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).optional()?;
+            let (account, email, display_name) = row.ok_or_else(|| refused("Sign in to continue."))?;
+            Ok(Profile {
+                account: parse_uuid(&account)?,
+                email,
+                display_name,
+            })
         })
+        .await
     }
 
     pub async fn account_sessions(
@@ -106,26 +114,34 @@ impl ServerStore {
         account: Uuid,
         current: &str,
     ) -> Result<Vec<AccountSession>, ServerError> {
-        let database = self.database.lock().await;
-        let mut query = database.prepare("SELECT public_id, kind, created, token_hash FROM sessions WHERE account_id = ?1 AND (kind = 'app' OR (kind = 'browser' AND expires > ?2)) ORDER BY created DESC, public_id")?;
-        let sessions = query
-            .query_map(params![account.to_string(), now()], |row| {
-                Ok(AccountSession {
-                    id: row.get(0)?,
-                    kind: row.get(1)?,
-                    created: row.get(2)?,
-                    current: row.get::<_, String>(3)? == hash_token(current),
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(sessions)
+        let current = current.to_owned();
+        self.with_database(move |_, database| {
+            let mut query = database.prepare("SELECT public_id, kind, created, token_hash FROM sessions WHERE account_id = ?1 AND (kind = 'app' OR (kind = 'browser' AND expires > ?2)) ORDER BY created DESC, public_id")?;
+            let sessions = query
+                .query_map(params![account.to_string(), now()], |row| {
+                    Ok(AccountSession {
+                        id: row.get(0)?,
+                        kind: row.get(1)?,
+                        created: row.get(2)?,
+                        current: row.get::<_, String>(3)? == hash_token(&current),
+                    })
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(sessions)
+        })
+        .await
     }
 
     pub async fn revoke_session(&self, account: Uuid, id: &str) -> Result<(), ServerError> {
-        let deleted = self.database.lock().await.execute(
-            "DELETE FROM sessions WHERE account_id = ?1 AND public_id = ?2",
-            params![account.to_string(), id],
-        )?;
+        let id = id.to_owned();
+        let deleted = self
+            .with_database(move |_, database| {
+                Ok(database.execute(
+                    "DELETE FROM sessions WHERE account_id = ?1 AND public_id = ?2",
+                    params![account.to_string(), id],
+                )?)
+            })
+            .await?;
         if deleted > 0 {
             self.sessions_changed();
         }
@@ -137,10 +153,15 @@ impl ServerStore {
         account: Uuid,
         current: &str,
     ) -> Result<(), ServerError> {
-        let deleted = self.database.lock().await.execute(
-            "DELETE FROM sessions WHERE account_id = ?1 AND token_hash != ?2",
-            params![account.to_string(), hash_token(current)],
-        )?;
+        let current = hash_token(current);
+        let deleted = self
+            .with_database(move |_, database| {
+                Ok(database.execute(
+                    "DELETE FROM sessions WHERE account_id = ?1 AND token_hash != ?2",
+                    params![account.to_string(), current],
+                )?)
+            })
+            .await?;
         if deleted > 0 {
             self.sessions_changed();
         }
@@ -149,11 +170,15 @@ impl ServerStore {
 
     pub async fn update_display_name(&self, account: Uuid, name: &str) -> Result<(), ServerError> {
         validate_name(name)?;
-        self.database.lock().await.execute(
-            "UPDATE accounts SET display_name = ?2 WHERE id = ?1",
-            params![account.to_string(), name.trim()],
-        )?;
-        Ok(())
+        let name = name.trim().to_owned();
+        self.with_database(move |_, database| {
+            database.execute(
+                "UPDATE accounts SET display_name = ?2 WHERE id = ?1",
+                params![account.to_string(), name],
+            )?;
+            Ok(())
+        })
+        .await
     }
 
     pub async fn check_password(
@@ -172,11 +197,15 @@ impl ServerStore {
                 wait.as_secs().max(1)
             )));
         }
-        let hash: String = self.database.lock().await.query_row(
-            "SELECT password_hash FROM accounts WHERE id = ?1 AND local_profile = 0",
-            [account.to_string()],
-            |row| row.get(0),
-        )?;
+        let hash: String = self
+            .with_database(move |_, database| {
+                Ok(database.query_row(
+                    "SELECT password_hash FROM accounts WHERE id = ?1 AND local_profile = 0",
+                    [account.to_string()],
+                    |row| row.get(0),
+                )?)
+            })
+            .await?;
         if !self.verify(password.into(), hash.clone(), address).await? {
             self.passwords
                 .failed(&profile.email, address, Instant::now());
@@ -197,32 +226,35 @@ impl ServerStore {
         validate_password(password)?;
         let previous_hash = self.check_password(account, current, address).await?;
         let hash = self.hash(password.into(), address).await?;
-        let database = self.database.lock().await;
-        let transaction = database.unchecked_transaction()?;
-        let valid: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND token_hash = ?2 AND kind = 'browser' AND expires > ?3 AND EXISTS(SELECT 1 FROM accounts WHERE id = ?1 AND password_hash = ?4))", params![account.to_string(), hash_token(browser_token), now(), previous_hash], |row| row.get(0))?;
-        if !valid {
-            return Err(refused("Sign in again to change your password."));
-        }
-        transaction.execute(
-            "UPDATE accounts SET password_hash = ?2 WHERE id = ?1",
-            params![account.to_string(), hash],
-        )?;
-        transaction.execute(
-            "DELETE FROM sessions WHERE account_id = ?1",
-            [account.to_string()],
-        )?;
-        transaction.execute(
-            "DELETE FROM account_mail WHERE account_id = ?1",
-            [account.to_string()],
-        )?;
-        let token = issue_token(&transaction, account)?;
-        transaction.execute(
-            "UPDATE sessions SET kind = 'browser', expires = ?2 WHERE token_hash = ?1",
-            params![hash_token(&token), now() + 30 * 86400],
-        )?;
-        transaction.commit()?;
-        self.sessions_changed();
-        Ok(token)
+        let browser_token = browser_token.to_owned();
+        self.with_database(move |store, database| {
+            let transaction = database.unchecked_transaction()?;
+            let valid: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND token_hash = ?2 AND kind = 'browser' AND expires > ?3 AND EXISTS(SELECT 1 FROM accounts WHERE id = ?1 AND password_hash = ?4))", params![account.to_string(), hash_token(&browser_token), now(), previous_hash], |row| row.get(0))?;
+            if !valid {
+                return Err(refused("Sign in again to change your password."));
+            }
+            transaction.execute(
+                "UPDATE accounts SET password_hash = ?2 WHERE id = ?1",
+                params![account.to_string(), hash],
+            )?;
+            transaction.execute(
+                "DELETE FROM sessions WHERE account_id = ?1",
+                [account.to_string()],
+            )?;
+            transaction.execute(
+                "DELETE FROM account_mail WHERE account_id = ?1",
+                [account.to_string()],
+            )?;
+            let token = issue_token(&transaction, account)?;
+            transaction.execute(
+                "UPDATE sessions SET kind = 'browser', expires = ?2 WHERE token_hash = ?1",
+                params![hash_token(&token), now() + 30 * 86400],
+            )?;
+            transaction.commit()?;
+            store.sessions_changed();
+            Ok(token)
+        })
+        .await
     }
 
     /// Starts registering: every cheap check (the fields, the invite code,
@@ -244,30 +276,37 @@ impl ServerStore {
         let invite = invite_codes::invite_hash(invite);
         let address = passwords::address_key(address);
         {
-            let database = self.database.lock().await;
-            invite_codes::check(&database, &invite)?;
-            may_send(&database, "register", &email, &address)?;
-            unregistered(&database, &email)?;
+            let (invite, email, address) = (invite.clone(), email.clone(), address.clone());
+            self.with_database(move |_, database| {
+                invite_codes::check(database, &invite)?;
+                may_send(database, "register", &email, &address)?;
+                unregistered(database, &email)
+            })
+            .await?;
         }
         let hash = self.hash(password.into(), &address).await?;
-        let database = self.database.lock().await;
-        let transaction = database.unchecked_transaction()?;
-        invite_codes::check(&transaction, &invite)?;
-        let link = mail_link(
-            &transaction,
-            Pending {
-                purpose: "register",
-                account: "",
-                email: &email,
-                name: name.trim(),
-                password_hash: &hash,
-                code,
-                invite: &invite,
-                address: &address,
-            },
-        )?;
-        transaction.commit()?;
-        Ok(link)
+        let name = name.to_owned();
+        let code = code.to_owned();
+        self.with_database(move |_, database| {
+            let transaction = database.unchecked_transaction()?;
+            invite_codes::check(&transaction, &invite)?;
+            let link = mail_link(
+                &transaction,
+                Pending {
+                    purpose: "register",
+                    account: "",
+                    email: &email,
+                    name: name.trim(),
+                    password_hash: &hash,
+                    code: &code,
+                    invite: &invite,
+                    address: &address,
+                },
+            )?;
+            transaction.commit()?;
+            Ok(link)
+        })
+        .await
     }
 
     pub async fn email_change_link(
@@ -279,25 +318,31 @@ impl ServerStore {
     ) -> Result<MailLink, ServerError> {
         let email = normalize_email(email)?;
         let address = passwords::address_key(address);
-        may_send(&*self.database.lock().await, "email", &email, &address)?;
+        {
+            let (email, address) = (email.clone(), address.clone());
+            self.with_database(move |_, database| may_send(database, "email", &email, &address))
+                .await?;
+        }
         let previous_hash = self.check_password(account, password, &address).await?;
-        let database = self.database.lock().await;
-        let transaction = database.unchecked_transaction()?;
-        let link = mail_link(
-            &transaction,
-            Pending {
-                purpose: "email",
-                account: &account.to_string(),
-                email: &email,
-                name: "",
-                password_hash: &previous_hash,
-                code: "",
-                invite: "",
-                address: &address,
-            },
-        )?;
-        transaction.commit()?;
-        Ok(link)
+        self.with_database(move |_, database| {
+            let transaction = database.unchecked_transaction()?;
+            let link = mail_link(
+                &transaction,
+                Pending {
+                    purpose: "email",
+                    account: &account.to_string(),
+                    email: &email,
+                    name: "",
+                    password_hash: &previous_hash,
+                    code: "",
+                    invite: "",
+                    address: &address,
+                },
+            )?;
+            transaction.commit()?;
+            Ok(link)
+        })
+        .await
     }
 
     /// A reset link for `email` if it has an account. The answer and the
@@ -314,36 +359,39 @@ impl ServerStore {
             return Ok(None);
         };
         let address = passwords::address_key(address);
-        let database = self.database.lock().await;
-        let transaction = database.unchecked_transaction()?;
-        may_send_from(&transaction, &address)?;
-        let account: Option<String> = transaction
-            .query_row(
-                "SELECT id FROM accounts WHERE email = ?1 AND local_profile = 0",
-                [&email],
-                |row| row.get(0),
-            )
-            .optional()?;
-        let link = mail_link(
-            &transaction,
-            Pending {
-                purpose: if account.is_some() { "reset" } else { UNSENT },
-                account: account.as_deref().unwrap_or_default(),
-                email: &email,
-                name: "",
-                password_hash: "",
-                code,
-                invite: "",
-                address: &address,
-            },
-        );
-        let link = match link {
-            Ok(link) => link,
-            Err(ServerError::Refused(..)) => return Ok(None),
-            Err(error) => return Err(error),
-        };
-        transaction.commit()?;
-        Ok(account.map(|_| link))
+        let code = code.to_owned();
+        self.with_database(move |_, database| {
+            let transaction = database.unchecked_transaction()?;
+            may_send_from(&transaction, &address)?;
+            let account: Option<String> = transaction
+                .query_row(
+                    "SELECT id FROM accounts WHERE email = ?1 AND local_profile = 0",
+                    [&email],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            let link = mail_link(
+                &transaction,
+                Pending {
+                    purpose: if account.is_some() { "reset" } else { UNSENT },
+                    account: account.as_deref().unwrap_or_default(),
+                    email: &email,
+                    name: "",
+                    password_hash: "",
+                    code: &code,
+                    invite: "",
+                    address: &address,
+                },
+            );
+            let link = match link {
+                Ok(link) => link,
+                Err(ServerError::Refused(..)) => return Ok(None),
+                Err(error) => return Err(error),
+            };
+            transaction.commit()?;
+            Ok(account.map(|_| link))
+        })
+        .await
     }
 
     pub async fn mail_purpose(&self, token: &str) -> Result<String, ServerError> {
@@ -373,85 +421,88 @@ impl ServerStore {
             }
             None => None,
         };
-        let database = self.database.lock().await;
-        let transaction = database.unchecked_transaction()?;
-        let row: Option<(String, String, String, String, String, String, String)> = transaction.query_row("SELECT purpose, account_id, email, display_name, password_hash, device_code, invite_hash FROM account_mail WHERE token_hash = ?1 AND expires > ?2", params![hash_token(token), now()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?))).optional()?;
-        let (purpose, account, email, name, hash, code, invite) = row.ok_or_else(|| {
-            refused("This link is invalid, expired, or already used. Request a new link.")
-        })?;
-        let mut old_email = None;
-        let result = match purpose.as_str() {
-            "register" if new_hash.is_none() => {
-                let used: bool = transaction.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM accounts WHERE email = ?1)",
-                    [&email],
-                    |row| row.get(0),
-                )?;
-                if used {
-                    return Err(refused("Email: that address is already registered."));
+        let token = token.to_owned();
+        self.with_database(move |store, database| {
+            let transaction = database.unchecked_transaction()?;
+            let row: Option<(String, String, String, String, String, String, String)> = transaction.query_row("SELECT purpose, account_id, email, display_name, password_hash, device_code, invite_hash FROM account_mail WHERE token_hash = ?1 AND expires > ?2", params![hash_token(&token), now()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?))).optional()?;
+            let (purpose, account, email, name, hash, code, invite) = row.ok_or_else(|| {
+                refused("This link is invalid, expired, or already used. Request a new link.")
+            })?;
+            let mut old_email = None;
+            let result = match purpose.as_str() {
+                "register" if new_hash.is_none() => {
+                    let used: bool = transaction.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM accounts WHERE email = ?1)",
+                        [&email],
+                        |row| row.get(0),
+                    )?;
+                    if used {
+                        return Err(refused("Email: that address is already registered."));
+                    }
+                    invite_codes::spend(&transaction, &invite)?;
+                    let account = Uuid::new_v4();
+                    transaction.execute("INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, ?4)", params![account.to_string(), email, name, hash])?;
+                    let personal = personal_organization(&transaction)?;
+                    transaction.execute("INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'editor')", params![personal.to_string(), account.to_string()])?;
+                    Some(account)
                 }
-                invite_codes::spend(&transaction, &invite)?;
-                let account = Uuid::new_v4();
-                transaction.execute("INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, ?4)", params![account.to_string(), email, name, hash])?;
-                let personal = personal_organization(&transaction)?;
-                transaction.execute("INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'editor')", params![personal.to_string(), account.to_string()])?;
-                Some(account)
-            }
-            "email" if new_hash.is_none() => {
-                let unchanged: bool = transaction.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM accounts WHERE id = ?1 AND password_hash = ?2)",
-                    params![account, hash],
-                    |row| row.get(0),
-                )?;
-                if !unchanged {
-                    return Err(refused(
-                        "This link is no longer valid. Request a new email change.",
-                    ));
+                "email" if new_hash.is_none() => {
+                    let unchanged: bool = transaction.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM accounts WHERE id = ?1 AND password_hash = ?2)",
+                        params![account, hash],
+                        |row| row.get(0),
+                    )?;
+                    if !unchanged {
+                        return Err(refused(
+                            "This link is no longer valid. Request a new email change.",
+                        ));
+                    }
+                    let used: bool = transaction.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM accounts WHERE email = ?1)",
+                        [&email],
+                        |row| row.get(0),
+                    )?;
+                    if used {
+                        return Err(refused("Email: that address is already registered."));
+                    }
+                    old_email = Some(transaction.query_row(
+                        "SELECT email FROM accounts WHERE id = ?1",
+                        [&account],
+                        |row| row.get(0),
+                    )?);
+                    transaction.execute(
+                        "UPDATE accounts SET email = ?2 WHERE id = ?1",
+                        params![account, email],
+                    )?;
+                    transaction.execute("DELETE FROM account_mail WHERE account_id = ?1 AND purpose IN ('email', 'reset')", [&account])?;
+                    None
                 }
-                let used: bool = transaction.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM accounts WHERE email = ?1)",
-                    [&email],
-                    |row| row.get(0),
-                )?;
-                if used {
-                    return Err(refused("Email: that address is already registered."));
+                "reset" if new_hash.is_some() => {
+                    transaction.execute(
+                        "UPDATE accounts SET password_hash = ?2 WHERE id = ?1",
+                        params![account, new_hash.unwrap()],
+                    )?;
+                    transaction.execute("DELETE FROM sessions WHERE account_id = ?1", [&account])?;
+                    transaction
+                        .execute("DELETE FROM account_mail WHERE account_id = ?1", [&account])?;
+                    None
                 }
-                old_email = Some(transaction.query_row(
-                    "SELECT email FROM accounts WHERE id = ?1",
-                    [&account],
-                    |row| row.get(0),
-                )?);
-                transaction.execute(
-                    "UPDATE accounts SET email = ?2 WHERE id = ?1",
-                    params![account, email],
-                )?;
-                transaction.execute("DELETE FROM account_mail WHERE account_id = ?1 AND purpose IN ('email', 'reset')", [&account])?;
-                None
+                _ => return Err(refused("This link cannot be used for that action.")),
+            };
+            transaction.execute(
+                "DELETE FROM account_mail WHERE token_hash = ?1",
+                [hash_token(&token)],
+            )?;
+            transaction.commit()?;
+            if purpose != "register" {
+                store.sessions_changed();
             }
-            "reset" if new_hash.is_some() => {
-                transaction.execute(
-                    "UPDATE accounts SET password_hash = ?2 WHERE id = ?1",
-                    params![account, new_hash.unwrap()],
-                )?;
-                transaction.execute("DELETE FROM sessions WHERE account_id = ?1", [&account])?;
-                transaction
-                    .execute("DELETE FROM account_mail WHERE account_id = ?1", [&account])?;
-                None
+            if purpose == "reset" {
+                store.passwords.forget_email(&email);
             }
-            _ => return Err(refused("This link cannot be used for that action.")),
-        };
-        transaction.execute(
-            "DELETE FROM account_mail WHERE token_hash = ?1",
-            [hash_token(token)],
-        )?;
-        transaction.commit()?;
-        if purpose != "register" {
-            self.sessions_changed();
-        }
-        if purpose == "reset" {
-            self.passwords.forget_email(&email);
-        }
-        Ok((result, code, old_email))
+            Ok((result, code, old_email))
+        })
+        .await
     }
 }
 

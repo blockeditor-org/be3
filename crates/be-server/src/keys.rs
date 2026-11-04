@@ -745,9 +745,9 @@ impl ServerStore {
         identity: Identity,
         blocks: Option<Vec<Uuid>>,
     ) -> Result<KeySet, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
-            self.server_key().seal_settings_to(
+            store.server_key().seal_settings_to(
                 database,
                 graph,
                 identity.organization,
@@ -780,7 +780,7 @@ impl ServerStore {
     }
 
     pub async fn put_keys(&self, identity: Identity, set: KeySet) -> Result<(), ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
             let transaction = database.unchecked_transaction()?;
             store_keys(
@@ -798,7 +798,7 @@ impl ServerStore {
     }
 
     pub async fn key_work(&self, identity: Identity) -> Result<KeyWork, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             let organization = identity.organization;
             let seen = visibility(identity);
             let escrows = escrow_chain(database, organization)?;
@@ -887,7 +887,7 @@ impl ServerStore {
         roots: Vec<Uuid>,
         set: KeySet,
     ) -> Result<(), ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             let organization = identity.organization;
             let seen = visibility(identity);
             let data: BTreeSet<Uuid> = set
@@ -976,7 +976,7 @@ impl ServerStore {
         escrow: EscrowKey,
         set: KeySet,
     ) -> Result<(), ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             let organization = identity.organization;
             let seen = visibility(identity);
             if !seen.administrator()
@@ -1062,8 +1062,10 @@ impl ServerStore {
     }
 
     pub async fn pin_escrow(&self, identity: Identity, sealed: Vec<u8>) -> Result<(), ServerError> {
-        let database = self.database().lock().await;
-        pin_escrow(&database, identity.account, identity.organization, &sealed)
+        self.with_database(move |_, database| {
+            pin_escrow(&database, identity.account, identity.organization, &sealed)
+        })
+        .await
     }
 
     pub async fn recovery_key(
@@ -1071,28 +1073,30 @@ impl ServerStore {
         account: Uuid,
     ) -> Result<(Option<[u8; 32]>, Vec<SealedKey>, Vec<OwnSealed>), ServerError> {
         let (public, memberships) = {
-            let database = self.database().lock().await;
-            let public = recovery_key_of(&database, account)?;
-            let mut statement = database
-                .prepare("SELECT organization_id, role FROM memberships WHERE account_id = ?1")?;
-            let rows = statement.query_map([account.to_string()], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            })?;
-            let mut memberships = Vec::new();
-            for row in rows {
-                let (organization, role) = row?;
-                memberships.push(Identity {
-                    account,
-                    organization: parse_uuid(&organization)?,
-                    role: decode_role(&role)?,
-                });
-            }
-            (public, memberships)
+            self.with_database(move |_, database| {
+                let public = recovery_key_of(&database, account)?;
+                let mut statement = database
+                    .prepare("SELECT organization_id, role FROM memberships WHERE account_id = ?1")?;
+                let rows = statement.query_map([account.to_string()], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })?;
+                let mut memberships = Vec::new();
+                for row in rows {
+                    let (organization, role) = row?;
+                    memberships.push(Identity {
+                        account,
+                        organization: parse_uuid(&organization)?,
+                        role: decode_role(&role)?,
+                    });
+                }
+                Ok((public, memberships))
+            })
+            .await?
         };
         let mut sealed = Vec::new();
         for identity in memberships {
             let found = self
-                .with_graph(identity.organization, move |graph, database| {
+                .with_graph(identity.organization, move |_, graph, database| {
                     let seen = visibility(identity);
                     let mut statement = database.prepare(
                         "SELECT wrapped_keys.key_id, keys.block_id, wrapped_keys.sender,
@@ -1136,7 +1140,9 @@ impl ServerStore {
                 .await?;
             sealed.extend(found);
         }
-        let own = crate::contacts::own_sealed(&*self.database().lock().await, account)?;
+        let own = self
+            .with_database(move |_, database| crate::contacts::own_sealed(database, account))
+            .await?;
         Ok((public, sealed, own))
     }
 
@@ -1152,95 +1158,97 @@ impl ServerStore {
         if previous.is_none() {
             held_own.clear();
         }
-        let resealed: BTreeMap<(Uuid, Uuid), &SealedKey> = sealed
-            .iter()
-            .map(|key| ((key.organization, key.key), key))
-            .collect();
         let by = encode_wrapped_by(WrappedBy::Account(account));
-        let database = self.database().lock().await;
-        let mut needed = Vec::new();
-        for held in &held {
-            if held.sender == account
-                || crate::contacts::is_verified_contact(&database, account, held.sender)?
+        self.with_database(move |_, database| {
+            let resealed: BTreeMap<(Uuid, Uuid), &SealedKey> = sealed
+                .iter()
+                .map(|key| ((key.organization, key.key), key))
+                .collect();
+            let mut needed = Vec::new();
+            for held in &held {
+                if held.sender == account
+                    || crate::contacts::is_verified_contact(&database, account, held.sender)?
+                {
+                    needed.push(held);
+                }
+            }
+            if let Some(missing) = needed
+                .iter()
+                .find(|held| !resealed.contains_key(&(held.organization, held.key)))
             {
-                needed.push(held);
+                return Err(refused(format!(
+                    "a new recovery key must seal every key the old one did, and {} is missing",
+                    missing.key
+                )));
             }
-        }
-        if let Some(missing) = needed
-            .iter()
-            .find(|held| !resealed.contains_key(&(held.organization, held.key)))
-        {
-            return Err(refused(format!(
-                "a new recovery key must seal every key the old one did, and {} is missing",
-                missing.key
-            )));
-        }
-        let resealed_own: BTreeMap<(OwnKind, Uuid), &OwnSealed> = own
-            .iter()
-            .map(|sealed| ((sealed.kind, sealed.id), sealed))
-            .collect();
-        if let Some(missing) = held_own
-            .iter()
-            .find(|held| !resealed_own.contains_key(&(held.kind, held.id)))
-        {
-            return Err(refused(format!(
-                "a new recovery key must reseal every contact and link the old one did, and {} is missing",
-                missing.id
-            )));
-        }
-        for change in &changes {
-            if !crate::contacts::is_contact(&database, account, change.contact)? {
-                return Err(ServerError::Refused(
-                    ErrorCode::NotAContact,
-                    format!("{} is not one of your contacts", change.contact),
-                ));
+            let resealed_own: BTreeMap<(OwnKind, Uuid), &OwnSealed> = own
+                .iter()
+                .map(|sealed| ((sealed.kind, sealed.id), sealed))
+                .collect();
+            if let Some(missing) = held_own
+                .iter()
+                .find(|held| !resealed_own.contains_key(&(held.kind, held.id)))
+            {
+                return Err(refused(format!(
+                    "a new recovery key must reseal every contact and link the old one did, and {} is missing",
+                    missing.id
+                )));
             }
-        }
-        let transaction = database.unchecked_transaction()?;
-        for change in &changes {
+            for change in &changes {
+                if !crate::contacts::is_contact(&database, account, change.contact)? {
+                    return Err(ServerError::Refused(
+                        ErrorCode::NotAContact,
+                        format!("{} is not one of your contacts", change.contact),
+                    ));
+                }
+            }
+            let transaction = database.unchecked_transaction()?;
+            for change in &changes {
+                transaction.execute(
+                    "INSERT INTO key_changes (account_id, contact_id, position, sealed)
+                     VALUES (?1, ?2,
+                        (SELECT COALESCE(MAX(position), -1) + 1 FROM key_changes
+                         WHERE account_id = ?1 AND contact_id = ?2),
+                        ?3)",
+                    params![
+                        account.to_string(),
+                        change.contact.to_string(),
+                        change.sealed
+                    ],
+                )?;
+            }
+            for held in &held_own {
+                crate::contacts::reseal_own(
+                    &transaction,
+                    account,
+                    resealed_own[&(held.kind, held.id)],
+                )?;
+            }
             transaction.execute(
-                "INSERT INTO key_changes (account_id, contact_id, position, sealed)
-                 VALUES (?1, ?2,
-                    (SELECT COALESCE(MAX(position), -1) + 1 FROM key_changes
-                     WHERE account_id = ?1 AND contact_id = ?2),
-                    ?3)",
-                params![
-                    account.to_string(),
-                    change.contact.to_string(),
-                    change.sealed
-                ],
+                "INSERT OR REPLACE INTO recovery_keys (account_id, public) VALUES (?1, ?2)",
+                params![account.to_string(), public.to_vec()],
             )?;
-        }
-        for held in &held_own {
-            crate::contacts::reseal_own(
-                &transaction,
-                account,
-                resealed_own[&(held.kind, held.id)],
-            )?;
-        }
-        transaction.execute(
-            "INSERT OR REPLACE INTO recovery_keys (account_id, public) VALUES (?1, ?2)",
-            params![account.to_string(), public.to_vec()],
-        )?;
-        transaction.execute("DELETE FROM wrapped_keys WHERE wrapped_by = ?1", [&by])?;
-        for held in &held {
-            let Some(key) = resealed.get(&(held.organization, held.key)) else {
-                continue;
-            };
-            transaction.execute(
-                "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sender, sealed)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![
-                    key.organization.to_string(),
-                    key.key.to_string(),
-                    by,
-                    account.to_string(),
-                    key.sealed
-                ],
-            )?;
-        }
-        transaction.commit()?;
-        Ok(())
+            transaction.execute("DELETE FROM wrapped_keys WHERE wrapped_by = ?1", [&by])?;
+            for held in &held {
+                let Some(key) = resealed.get(&(held.organization, held.key)) else {
+                    continue;
+                };
+                transaction.execute(
+                    "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sender, sealed)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![
+                        key.organization.to_string(),
+                        key.key.to_string(),
+                        by,
+                        account.to_string(),
+                        key.sealed
+                    ],
+                )?;
+            }
+            transaction.commit()?;
+            Ok(())
+        })
+        .await
     }
 
     pub async fn reseal_keys(
@@ -1249,28 +1257,30 @@ impl ServerStore {
         keys: Vec<SealedKey>,
     ) -> Result<(), ServerError> {
         let by = encode_wrapped_by(WrappedBy::Account(account));
-        let database = self.database().lock().await;
-        let transaction = database.unchecked_transaction()?;
-        for key in &keys {
-            let updated = transaction.execute(
-                "UPDATE wrapped_keys SET sealed = ?4, sender = ?5
-                 WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3",
-                params![
-                    key.organization.to_string(),
-                    key.key.to_string(),
-                    by,
-                    key.sealed,
-                    account.to_string()
-                ],
-            )?;
-            if updated == 0 {
-                return Err(refused(format!(
-                    "{} is not sealed to you, so you cannot seal it again",
-                    key.key
-                )));
+        self.with_database(move |_, database| {
+            let transaction = database.unchecked_transaction()?;
+            for key in &keys {
+                let updated = transaction.execute(
+                    "UPDATE wrapped_keys SET sealed = ?4, sender = ?5
+                     WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3",
+                    params![
+                        key.organization.to_string(),
+                        key.key.to_string(),
+                        by,
+                        key.sealed,
+                        account.to_string()
+                    ],
+                )?;
+                if updated == 0 {
+                    return Err(refused(format!(
+                        "{} is not sealed to you, so you cannot seal it again",
+                        key.key
+                    )));
+                }
             }
-        }
-        transaction.commit()?;
-        Ok(())
+            transaction.commit()?;
+            Ok(())
+        })
+        .await
     }
 }
