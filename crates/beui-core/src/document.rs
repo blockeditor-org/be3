@@ -2929,6 +2929,9 @@ const LAYOUTS_PER_FRAME: usize = 8;
 const HOOK_RUNS_PER_FRAME: usize = 64;
 
 impl Document {
+    /// The part of `window` its windows should stay in. A root `Docking` whose windows the
+    /// host opens sets it to its area inside its dock-level bands; the app platform reports
+    /// it to the host as the view's `work-area`.
     pub fn set_work_area(&mut self, window: WindowId, area: Option<Rect>) {
         match area {
             Some(area) => self.work_areas.insert(window, area),

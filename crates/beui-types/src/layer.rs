@@ -3,31 +3,56 @@ use be_lib_geometry::{Pos2, Rect, Vec2, pos2};
 use crate::color::Color32;
 use crate::window::WindowId;
 
+/// How an open layer treats input around it.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum LayerPolicy {
+    /// Takes no input at all (a tooltip, a drag preview).
     Inert,
+    /// Takes the pointer where its content is; everything around stays live (a window, a
+    /// toast, a popover).
     Pass,
+    /// Modal to the node it hangs from alone: a press there asks the layer to close, the
+    /// focus cannot enter it and assistive technology skips it; everything else stays
+    /// live (a modal `DockDialog`).
     BlocksParent,
+    /// A press anywhere outside is shut out and asks the layer to close, and nothing
+    /// beneath is hovered (a menu, a dialog). With a scrim, or at `LayerLevel::Lock`, it is
+    /// modal to assistive technology too: what it covers is hidden and an `Embed` beneath
+    /// hears it is inert.
     #[default]
     BlocksAll,
 }
 
+/// Marks a node that must stay above `Embed`s painted before it (`above_embeds`). The marks
+/// join the overlays' rects the host reads, and the host draws the document over the embed
+/// there, so mark only what paints a few pixels: a mark over a large empty area hides the
+/// embed under it.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AboveEmbeds {
+    /// Keeps its rect for its own input (a dock splitter's reach over a child editor).
     Reaches,
+    /// Also has the host draw the document's pixels there (the splitter's line and focus
+    /// ring), so it counts in `overlay_painted_rects` too.
     Paints,
 }
 
+/// Puts a layer and everything above it over every layer of a lower level.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum LayerLevel {
     #[default]
     Normal,
+    /// Over its window but under menus and dialogs (a dock's floating tool bars).
     Raised,
+    /// Over every window and dialog (a drag preview, toasts, so a toast stays pressable
+    /// while a dialog is open).
     Top,
+    /// The lock screen.
     Lock,
 }
 
 impl LayerLevel {
+    /// The level a layer stacks at: a `Normal` layer that blocks everything counts as
+    /// `Raised`, so a menu or modal still opens over `Raised` bars.
     pub fn stacked(self, policy: LayerPolicy) -> LayerLevel {
         match (self, policy) {
             (LayerLevel::Normal, LayerPolicy::BlocksAll) => LayerLevel::Raised,
@@ -66,6 +91,10 @@ pub enum Placement {
 }
 
 impl Placement {
+    /// Whether an overlay with this placement leaves its window when the window has a
+    /// `LayerSpace`: anchored placements, `Center` and `Edge` sheets do; `At` (windows),
+    /// `Fill` and the `Inside*` placements (toasts, `Floating`) stay. An escaping `Center`
+    /// is laid out in host space and centred on its window.
     pub fn escapes(self) -> bool {
         match self {
             Placement::Above
@@ -142,6 +171,10 @@ impl Default for HostTransform {
     }
 }
 
+/// Lets a window's escaping overlays out of its rectangle. `to_host` maps the window's
+/// points to the host's; `bounds` is where layers may go, in host coordinates. An escaping
+/// overlay is laid out at full size in host units whatever the window's scale, so a menu
+/// from a region shown at half size is as large as any other.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct LayerSpace {
     pub to_host: HostTransform,
@@ -167,6 +200,11 @@ pub struct Scrim {
     pub radius: f32,
 }
 
+/// One escaped layer, painted into a surface of its own. `rect`, `painted`, `floating`
+/// and `scrims` are in host coordinates; `placement` is in window points for a layer of the
+/// window and host coordinates for one nested in another escaped layer (`parent`).
+/// `blocks_owner` is false for a layer that blocks only its parent: the document itself
+/// blocks it there and never asks it to close on a press outside.
 #[derive(Clone, PartialEq, Debug)]
 pub struct EscapedLayer {
     pub id: u64,

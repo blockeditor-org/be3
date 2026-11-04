@@ -1,3 +1,10 @@
+//! Layers that escape their window: with a `LayerSpace`, overlays whose placement
+//! `escapes()` are laid out in host coordinates (a zoomed space of their overlay) and
+//! painted into a paint window of their own, left out of their window's painting,
+//! overlay rects and accessibility tree. Their rects as hit testing and accessibility see
+//! them stay in window coordinates; `to_host` maps them to where they are drawn. Native
+//! be-host, tests and standalone programs never set a layer space.
+
 use std::rc::Rc;
 
 use be_lib_stable_hash::HashMap;
@@ -200,6 +207,7 @@ impl Document {
             })
     }
 
+    /// In layer order, each after its parent.
     pub fn escaped_layers(&self) -> Vec<EscapedLayer> {
         let layers = self.layers();
         let mut escaped = Vec::new();
@@ -311,6 +319,7 @@ impl Document {
         None
     }
 
+    /// The escaped layer `node` is in and that layer's `to_host`.
     pub fn escaped_layer_of(&self, node: NodeId) -> Option<(u64, HostTransform)> {
         let mut current = Some(node);
         for _ in 0..crate::node::ANCESTOR_LIMIT {
@@ -434,6 +443,7 @@ impl Document {
     }
 }
 
+/// Draws a window and its escaped layers as a host would (`Stepped::snapshot_layers`).
 pub fn composite_layers(
     main: &WindowOutput,
     escaped: &[EscapedOutput],

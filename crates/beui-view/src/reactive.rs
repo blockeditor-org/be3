@@ -215,6 +215,7 @@ pub fn keep_clear(node: NodeId, rects: impl IntoProp<Vec<crate::types::Rect>>) {
     core::keep_clear(node, rects.into_prop());
 }
 
+/// Keeps `node` above embeds painted before it: see `AboveEmbeds`.
 pub fn above_embeds(node: NodeId, above: impl IntoProp<Option<crate::types::AboveEmbeds>>) {
     core::above_embeds(node, above.into_prop());
 }
