@@ -3029,12 +3029,12 @@ dependencies = [
  "beui",
  "beui-core",
  "beui-host",
+ "beui-paint-snapshot",
  "beui-runner",
  "beui-types",
  "rustix 1.1.4",
  "smithay",
  "wgpu",
- "xcursor",
 ]
 
 [[package]]

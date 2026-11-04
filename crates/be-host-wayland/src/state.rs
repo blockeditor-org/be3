@@ -754,7 +754,13 @@ impl State {
             return None;
         }
         let size = window.chosen.unwrap_or(window.window.geometry().size);
-        (size.w > 0 && size.h > 0).then(|| beui::vec2(size.w as f32, size.h as f32))
+        if size.w <= 0 || size.h <= 0 {
+            return None;
+        }
+        Some(match picked(size) {
+            true => beui::vec2(size.w as f32, size.h as f32),
+            false => beui::Vec2::ZERO,
+        })
     }
 
     pub fn drawn_size(&self, id: WindowId) -> beui::Vec2 {
@@ -900,7 +906,7 @@ impl State {
         let mut layers = Vec::new();
         let origin = Point::from((0, 0)) - window.window.geometry().loc;
         collect_layers(&surface, origin, false, &mut layers);
-        for (popup, offset) in PopupManager::popups_for_surface(&surface) {
+        for (popup, offset) in bottom_up(PopupManager::popups_for_surface(&surface).collect()) {
             let location = offset - popup.geometry().loc;
             collect_layers(popup.wl_surface(), location, true, &mut layers);
         }
@@ -1217,7 +1223,7 @@ impl State {
             .window
             .toplevel()
             .and_then(|toplevel| toplevel.current_state().size);
-        let chosen = (size.w > 0 && size.h > 0 && asked != Some(size)).then_some(size);
+        let chosen = (picked(size) && asked != Some(size)).then_some(size);
         if let Some(chosen) = chosen
             && window.chosen != Some(chosen)
         {
@@ -1246,6 +1252,14 @@ impl State {
     }
 }
 
+/// A side shorter than this, in points, makes a commit a placeholder rather than a size the
+/// program picked, such as the 1×1 buffer a client commits to map before it is sized.
+const PLACEHOLDER_SIDE: i32 = 8;
+
+fn picked(size: Size<i32, Logical>) -> bool {
+    size.w >= PLACEHOLDER_SIDE && size.h >= PLACEHOLDER_SIDE
+}
+
 fn set_state(
     state: &mut smithay::wayland::shell::xdg::ToplevelState,
     which: xdg_toplevel::State,
@@ -1255,6 +1269,43 @@ fn set_state(
         state.states.set(which);
     } else {
         state.states.unset(which);
+    }
+}
+
+/// Orders a window's popups bottom up, as its layers are drawn. smithay lists them topmost
+/// first, each popup after the ones opened from it, so a context menu opened from a menu would
+/// otherwise be drawn under that menu. Each popup comes before the ones opened from it, and
+/// popups opened from the same parent keep the order they were opened in.
+fn bottom_up(
+    popups: Vec<(PopupKind, Point<i32, Logical>)>,
+) -> Vec<(PopupKind, Point<i32, Logical>)> {
+    fn above(
+        parent: Option<&WlSurface>,
+        popups: &[(PopupKind, Point<i32, Logical>)],
+        ordered: &mut Vec<(PopupKind, Point<i32, Logical>)>,
+    ) {
+        let opened_from = |popup: &PopupKind| match parent {
+            Some(parent) => popup_parent(popup).as_ref() == Some(parent),
+            None => !popup_parent(popup).is_some_and(|parent| {
+                popups
+                    .iter()
+                    .any(|(other, _)| other.wl_surface() == &parent)
+            }),
+        };
+        for (popup, offset) in popups.iter().filter(|(popup, _)| opened_from(popup)) {
+            ordered.push((popup.clone(), *offset));
+            above(Some(popup.wl_surface()), popups, ordered);
+        }
+    }
+    let mut ordered = Vec::with_capacity(popups.len());
+    above(None, &popups, &mut ordered);
+    ordered
+}
+
+fn popup_parent(popup: &PopupKind) -> Option<WlSurface> {
+    match popup {
+        PopupKind::Xdg(popup) => popup.get_parent_surface(),
+        PopupKind::InputMethod(popup) => popup.get_parent().map(|parent| parent.surface.clone()),
     }
 }
 

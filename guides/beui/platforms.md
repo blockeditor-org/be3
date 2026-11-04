@@ -49,8 +49,10 @@ themselves. Fullscreen goes both ways: the program asks with
 `Context::fullscreen`.
 
 **Cursors.** Under touch emulation the cursor is `CursorIcon::Touch`, a finger
-circle defined in `beui_core::touch_cursor`. Hosts that draw their own cursor
-(mouse simulation, space) use `beui_core::drawn_cursor::paint`. A custom
+circle defined in `beui_core::touch_cursor`. A platform with a cursor of its own
+shows the system's; where beui draws the cursor (DRM, mouse simulation, space) it
+draws `beui_core::drawn_cursor::paint`'s icons
+(decisions/our_own_cursors_where_we_draw_them.md). A custom
 `cursor_image` from the hovered `Interactive` wins over its icon; only winit
 shows it, and it is not in the app protocol.
 

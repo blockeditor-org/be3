@@ -17,7 +17,6 @@ use crate::pointing;
 use crate::rotation::Rotation;
 use crate::screen::{FORMAT, Frame, Pointer};
 use crate::screenshot::{self, Shown};
-use crate::theme::Theme;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Look {
@@ -54,7 +53,7 @@ impl Outputs {
             icon: CursorIcon::Default,
             gpu,
             cursor,
-            cursors: Cursors::new(Theme::from_env(), scale),
+            cursors: Cursors::new(scale),
             cursor_scale: scale,
             look: Look::Icon(CursorIcon::Default),
             placed: None,
@@ -75,7 +74,7 @@ impl Outputs {
             .fold(0.0_f32, f32::max);
         if scale > 0.0 && scale != self.cursor_scale {
             self.cursor_scale = scale;
-            self.cursors = Cursors::new(Theme::from_env(), scale);
+            self.cursors = Cursors::new(scale);
             self.replace_pointer();
         }
     }

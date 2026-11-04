@@ -26767,11 +26767,12 @@ crates = {
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -26788,11 +26789,12 @@ crates = {
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -26809,11 +26811,12 @@ crates = {
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                ],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -26830,11 +26833,12 @@ crates = {
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -26851,11 +26855,12 @@ crates = {
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                ],
                 "test_features": [],
             },
             "windows-arm64": {
@@ -26872,11 +26877,12 @@ crates = {
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -26893,11 +26899,12 @@ crates = {
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                ],
                 "test_features": [],
             },
         },
@@ -91880,13 +91887,8 @@ third_party = {
         },
         "name": "xcursor",
         "platforms": {
-            "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
         },
         "profile_flags": [
             "-Cdebuginfo=0",

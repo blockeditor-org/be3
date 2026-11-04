@@ -135,8 +135,5 @@ fn away(painter: &Painter, angle: f32) {
 
 fn glyph(painter: &Painter, glyph: icons::Glyph, centre: Pos2, size: f32) {
     let galley = painter.layout(glyph.as_str(), FontId::icons(size), f32::INFINITY);
-    let origin = centre - drawn_cursor::CENTRE * size;
-    let shadow = Vec2::splat(drawn_cursor::SHADOW_OFFSET);
-    painter.galley(origin + shadow, galley.clone(), drawn_cursor::SHADOW);
-    painter.galley(origin, galley, COLOR);
+    drawn_cursor::outlined(painter, centre - drawn_cursor::CENTRE * size, galley, COLOR);
 }

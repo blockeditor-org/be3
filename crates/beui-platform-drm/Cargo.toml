@@ -16,7 +16,9 @@ smithay = { version = "0.7", default-features = false, features = ["backend_drm"
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 be-lib-ui-types = { path = "../be-lib-ui-types" }
 wgpu = { version = "29", default-features = false, features = ["vulkan"] }
-xcursor = "0.3"
+
+[dev-dependencies]
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 
 [lints]
 workspace = true

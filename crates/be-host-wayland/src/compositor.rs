@@ -532,6 +532,7 @@ impl Compositor {
                     drawn: state.drawn_size(id),
                     min_size,
                     max_size,
+                    maximized: state.maximized(id),
                     title: state.title(id).unwrap_or_default(),
                     program_id: state.program_id(id).unwrap_or_default(),
                     parent: state.parent(id),
@@ -957,6 +958,9 @@ impl Compositor {
         let (cursor, image) = match self.server.state.cursor() {
             CursorImageStatus::Hidden => (CursorIcon::None, None),
             CursorImageStatus::Named(icon) => (cursor_icon(*icon), None),
+            // A cursor surface with no buffer is how GTK clients such as
+            // Firefox hide the pointer, over a playing video for example.
+            CursorImageStatus::Surface(surface) if !has_buffer(surface) => (CursorIcon::None, None),
             CursorImageStatus::Surface(surface) => {
                 (CursorIcon::Default, self.client_cursor(surface))
             }
@@ -1285,3 +1289,9 @@ mod unowned;
 
 #[cfg(test)]
 mod tests;
+
+fn has_buffer(
+    surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+) -> bool {
+    with_renderer_surface_state(surface, |state| state.buffer().is_some()).unwrap_or(false)
+}

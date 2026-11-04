@@ -14,10 +14,14 @@ pub struct WindowInfo {
     pub program_id: String,
     pub parent: Option<WindowId>,
     pub modal: bool,
+    /// The size the window last picked itself, else the size it shows at; zero while that is a
+    /// placeholder commit (`state.rs`, `PLACEHOLDER_SIDE`).
     pub size: Vec2,
     pub drawn: Vec2,
     pub min_size: Vec2,
     pub max_size: Vec2,
+    /// The program asked to be maximized (xdg `set_maximized`, X11 `_NET_WM_STATE_MAXIMIZED_*`).
+    pub maximized: bool,
     pub fullscreen: Option<Rect>,
     pub responding: bool,
     pub icon: Option<Image>,
