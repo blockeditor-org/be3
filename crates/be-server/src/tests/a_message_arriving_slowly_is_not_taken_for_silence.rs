@@ -33,8 +33,10 @@ async fn a_message_arriving_slowly_is_not_taken_for_silence() {
         (message, source, heard)
     });
     let started = tokio::time::Instant::now();
+    let mut last_written = started;
     for chunk in frame.chunks(frame.len() / 4 + 1) {
         client.write_all(chunk).await.unwrap();
+        last_written = tokio::time::Instant::now();
         for _ in 0..8 {
             tokio::task::yield_now().await;
         }
@@ -50,10 +52,9 @@ async fn a_message_arriving_slowly_is_not_taken_for_silence() {
         "a message whose bytes kept coming was read whole"
     );
 
-    let silent = tokio::time::Instant::now();
     assert!(next_heard(&mut source, &heard).await.is_none());
     assert!(
-        silent.elapsed() >= IDLE_TIMEOUT,
+        last_written.elapsed() >= IDLE_TIMEOUT,
         "only a connection that sent nothing for the idle timeout is given up on"
     );
 }
