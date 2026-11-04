@@ -14,7 +14,10 @@ use uuid::Uuid;
 use crate::{
     ServerError,
     keys::{forget_block_keys, store_keys},
-    store::{Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid},
+    store::{
+        Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid,
+        usage::{forget_objects, persist_sizes},
+    },
 };
 
 pub enum PublishOutcome {
@@ -170,10 +173,24 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         held: graph.holds(block),
         opens_inside: node.is_open_inside() && graph.settings_owner(block).is_some(),
         sets_access: node.sets_access(),
+        size: node.size,
+        tree_size: node.tree_size,
     })
 }
 
 impl ServerStore {
+    fn require_uploaded(&self, hashes: &[Hash], verb: &str) -> Result<(), ServerError> {
+        for hash in hashes {
+            if !self.objects().has(*hash)? {
+                return Err(ServerError::Refused(
+                    ErrorCode::ObjectNotFound,
+                    format!("object {hash} must be uploaded before it can be {verb}"),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn create_block(
         &self,
@@ -446,14 +463,6 @@ impl ServerStore {
     ) -> Result<PublishOutcome, ServerError> {
         let mut held = vec![commit.hash()];
         held.extend(chunks.iter().copied());
-        for hash in &held {
-            if !self.objects().has(*hash)? {
-                return Err(ServerError::Refused(
-                    ErrorCode::ObjectNotFound,
-                    format!("object {hash} must be uploaded before it can be published"),
-                ));
-            }
-        }
         self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let current = graph.head(block);
@@ -482,7 +491,15 @@ impl ServerStore {
                 )
                 .optional()?;
             if existing.is_none() {
-                self.within_quota(graph, &transaction, identity.organization, &held)?;
+                self.require_uploaded(&held, "published")?;
+                let holding = self.before_holding(
+                    &transaction,
+                    graph,
+                    &self.object_refs(),
+                    identity.organization,
+                    block,
+                    &held,
+                )?;
                 transaction.execute(
                     "INSERT INTO block_commits
                         (organization_id, block_id, commit_id, parents, time, pinned, received)
@@ -497,7 +514,6 @@ impl ServerStore {
                         be_block_commit::now_milliseconds()
                     ],
                 )?;
-                let mut refs = self.object_refs();
                 for (position, hash) in held.iter().enumerate() {
                     transaction.execute(
                         "INSERT INTO commit_objects
@@ -512,8 +528,12 @@ impl ServerStore {
                         ],
                     )?;
                 }
+                let grew = self.charge_holding(graph, &transaction, &holding)?;
+                let mut refs = self.object_refs();
                 refs.retain(&held);
                 persist_refs(&transaction, &refs, &held)?;
+                graph.add_size(block, grew, true)?;
+                persist_sizes(&transaction, graph, identity.organization, chain(graph, block))?;
             }
             transaction.execute(
                 "UPDATE blocks SET head = ?3, metadata = ?4, version = version + 1
@@ -570,18 +590,18 @@ impl ServerStore {
         block: Uuid,
         objects: Vec<Hash>,
     ) -> Result<(), ServerError> {
-        for hash in &objects {
-            if !self.objects().has(*hash)? {
-                return Err(ServerError::Refused(
-                    ErrorCode::ObjectNotFound,
-                    format!("object {hash} must be uploaded before it can be held"),
-                ));
-            }
-        }
         self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
+            self.require_uploaded(&objects, "held")?;
             let transaction = database.unchecked_transaction()?;
-            self.within_quota(graph, &transaction, identity.organization, &objects)?;
+            let holding = self.before_holding(
+                &transaction,
+                graph,
+                &self.object_refs(),
+                identity.organization,
+                block,
+                &objects,
+            )?;
             let organization = identity.organization.to_string();
             let mut fresh = Vec::new();
             for hash in objects {
@@ -594,9 +614,12 @@ impl ServerStore {
                     fresh.push(hash);
                 }
             }
+            let grew = self.charge_holding(graph, &transaction, &holding)?;
             let mut refs = self.object_refs();
             refs.retain(&fresh);
             persist_refs(&transaction, &refs, &fresh)?;
+            graph.add_size(block, grew, true)?;
+            persist_sizes(&transaction, graph, identity.organization, chain(graph, block))?;
             transaction.commit()?;
             Ok(())
         })
@@ -659,8 +682,11 @@ impl ServerStore {
                         && seen.can_view(graph, owner)
                 },
             )?;
+            let mut resized = chain(graph, block);
             graph.set_parent(block, parent)?;
             graph.touch(block)?;
+            resized.extend(graph.ancestors(block));
+            persist_sizes(&transaction, graph, identity.organization, resized)?;
             let lost = match viewing {
                 Some(viewing) => {
                     crate::keys::lost_below(&transaction, graph, identity.organization, viewing)?
@@ -846,18 +872,32 @@ impl ServerStore {
                 .collect();
             let mut refs = self.object_refs();
             let mut freed = Vec::new();
+            let mut released = Vec::new();
             for commit in drop {
                 if head == Some(commit) || pinned.contains(&commit) {
                     continue;
                 }
-                freed.extend(release_commit(
+                let (rows, gone) = release_commit(
                     &transaction,
                     &mut refs,
                     identity.organization,
                     block,
                     commit,
-                )?);
+                )?;
+                released.extend(rows);
+                freed.extend(gone);
             }
+            std::mem::drop(refs);
+            let shrank = self.release_charged(
+                &transaction,
+                graph,
+                identity.organization,
+                block,
+                &released,
+            )?;
+            forget_objects(&transaction, &freed)?;
+            graph.add_size(block, shrank, false)?;
+            persist_sizes(&transaction, graph, identity.organization, chain(graph, block))?;
             transaction.commit()?;
             remove_objects(self.objects(), &freed)?;
             Ok(freed.len())
@@ -900,21 +940,30 @@ impl ServerStore {
             let mut freed = Vec::new();
             let mut removed = Vec::new();
             for block in detached {
+                let mut released = Vec::new();
                 for commit in read_history(&transaction, identity.organization, block)? {
-                    freed.extend(release_commit(
+                    let (rows, gone) = release_commit(
                         &transaction,
                         &mut refs,
                         identity.organization,
                         block,
                         commit.commit,
-                    )?);
+                    )?;
+                    released.extend(rows);
+                    freed.extend(gone);
                 }
-                freed.extend(release_held(
+                let (rows, gone) =
+                    release_held(&transaction, &mut refs, identity.organization, block)?;
+                released.extend(rows);
+                freed.extend(gone);
+                let shrank = self.release_charged(
                     &transaction,
-                    &mut refs,
+                    graph,
                     identity.organization,
                     block,
-                )?);
+                    &released,
+                )?;
+                graph.add_size(block, shrank, false)?;
                 let organization = identity.organization.to_string();
                 transaction.execute(
                     "DELETE FROM block_edges WHERE organization_id = ?1 AND block_id = ?2",
@@ -937,9 +986,13 @@ impl ServerStore {
                     params![organization, block.to_string()],
                 )?;
                 forget_block_keys(&transaction, identity.organization, block)?;
+                let resized = chain(graph, block);
                 graph.remove(block);
+                persist_sizes(&transaction, graph, identity.organization, resized)?;
                 removed.push(block);
             }
+            std::mem::drop(refs);
+            forget_objects(&transaction, &freed)?;
             transaction.commit()?;
             remove_objects(self.objects(), &freed)?;
             Ok(Collected {
@@ -1306,7 +1359,7 @@ fn release_commit(
     organization: Uuid,
     block: Uuid,
     commit: CommitId,
-) -> Result<Vec<Hash>, ServerError> {
+) -> Result<(Vec<Hash>, Vec<Hash>), ServerError> {
     let mut held = Vec::new();
     {
         let mut statement = connection.prepare(
@@ -1345,7 +1398,7 @@ fn release_commit(
     )?;
     let freed = refs.release(&held);
     persist_refs(connection, refs, &held)?;
-    Ok(freed)
+    Ok((held, freed))
 }
 
 fn release_held(
@@ -1353,7 +1406,7 @@ fn release_held(
     refs: &mut ObjectRefs,
     organization: Uuid,
     block: Uuid,
-) -> Result<Vec<Hash>, ServerError> {
+) -> Result<(Vec<Hash>, Vec<Hash>), ServerError> {
     let mut held = Vec::new();
     {
         let mut statement = connection.prepare(
@@ -1373,7 +1426,12 @@ fn release_held(
     )?;
     let freed = refs.release(&held);
     persist_refs(connection, refs, &held)?;
-    Ok(freed)
+    Ok((held, freed))
+}
+
+/// A block and its ancestors: the blocks whose sizes change with its own.
+fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
+    std::iter::once(block).chain(graph.ancestors(block)).collect()
 }
 
 fn remove_objects(objects: &be_block_store::FileStore, freed: &[Hash]) -> Result<(), ServerError> {

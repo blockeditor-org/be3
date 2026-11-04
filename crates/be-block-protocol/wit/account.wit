@@ -33,6 +33,18 @@ interface account {
         payload: list<u8>,
     }
 
+    /// What this account's storage holds against its quota.
+    record account-storage {
+        /// Bytes of the distinct objects held by the blocks this account pays
+        /// for: the blocks it authored, and those of the agents it created.
+        held: u64,
+        /// Bytes it uploaded that no block holds yet; collected once they
+        /// have waited `ServerConfig::upload_grace`.
+        pending: u64,
+        /// At most `held + pending`; none when there is no limit.
+        quota: option<u64>,
+    }
+
     /// Starts a browser sign-in.
     begin-browser-login: async func() -> result<browser-login, error>;
 
@@ -52,6 +64,9 @@ interface account {
 
     /// Ends the session the token named and signs this connection out.
     logout: async func() -> result<_, error>;
+
+    /// The signed-in account's storage usage and quota.
+    storage-usage: async func() -> result<account-storage, error>;
 
     /// Sends a pairing message to one of the account's other connections, or
     /// to all of them with no `to`. Fails when `to` is no longer connected.

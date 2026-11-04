@@ -29,8 +29,6 @@ using it would. Each item says what "done" looks like.
   (`serve_auth` in `be-server/src/http.rs`), which behind a proxy is the
   proxy's. Done: the client's address from a forwarded header the server
   trusts only from its proxy.
-- Objects uploaded but never published or held are never collected
-  (`put_objects` stores them with no reference).
 - A health endpoint and a config file in place of flags.
 
 ## Web offline

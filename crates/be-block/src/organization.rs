@@ -54,6 +54,7 @@ pub struct OrganizationPolicies {
     pub outside_sharing: Option<Allowance>,
     pub workspace_creation: Option<WhoMay>,
     pub history_days: Option<u32>,
+    /// Bytes of encrypted objects the server keeps for the organization.
     pub storage_quota: Option<u64>,
 }
 

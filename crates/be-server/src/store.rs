@@ -1,6 +1,8 @@
 pub mod invite_codes;
 pub(crate) mod passwords;
 pub(crate) mod portal;
+pub(crate) mod usage;
+pub use usage::{DEFAULT_ACCOUNT_QUOTA, DEFAULT_UPLOAD_GRACE, StorageLimits};
 pub use portal::{AccountSession, MailLink};
 use std::{
     collections::{BTreeMap, HashMap, hash_map::Entry},
@@ -58,6 +60,7 @@ pub struct ServerStore {
     pub(crate) passwords: passwords::Passwords,
     server: crate::organization::ServerKey,
     policies: std::sync::Mutex<HashMap<Uuid, crate::organization::HeldPolicies>>,
+    limits: StorageLimits,
 }
 
 /// Agents one account may have created and not yet removed.
@@ -65,6 +68,10 @@ pub const MAX_AGENTS_PER_CREATOR: i64 = 16;
 
 impl ServerStore {
     pub fn open(root: impl AsRef<Path>) -> Result<Self, ServerError> {
+        Self::open_with(root, StorageLimits::DEFAULT)
+    }
+
+    pub fn open_with(root: impl AsRef<Path>, limits: StorageLimits) -> Result<Self, ServerError> {
         let root: PathBuf = root.as_ref().to_path_buf();
         std::fs::create_dir_all(&root)?;
         let connection = Connection::open(root.join("metadata.sqlite"))?;
@@ -73,16 +80,19 @@ impl ServerStore {
         connection.execute("UPDATE sessions SET kind = 'app', public_id = lower(hex(randomblob(16))), created = ?1 WHERE kind = 'legacy' AND (account_id IN (SELECT account_id FROM agents) OR account_id IN (SELECT id FROM accounts WHERE local_profile = 1))", [portal::now()])?;
         let object_refs = load_object_refs(&connection)?;
         let server = crate::organization::ServerKey::load_or_create(&connection)?;
+        let objects = FileStore::open(root.join("objects"))?;
+        usage::backfill(&connection, &objects)?;
         Ok(Self {
             database: Mutex::new(connection),
             session_changes: tokio::sync::watch::channel(0).0,
-            objects: FileStore::open(root.join("objects"))?,
+            objects,
             graphs: Mutex::new(HashMap::new()),
             revision: std::sync::atomic::AtomicU64::new(0),
             object_refs: std::sync::Mutex::new(object_refs),
             passwords: passwords::Passwords::default(),
             server,
             policies: std::sync::Mutex::new(HashMap::new()),
+            limits,
         })
     }
 
@@ -857,24 +867,6 @@ impl ServerStore {
         Ok(())
     }
 
-    pub fn put_objects(&self, objects: &[impl AsRef<[u8]>]) -> Result<Vec<Hash>, ServerError> {
-        if objects
-            .iter()
-            .any(|bytes| bytes.as_ref().len() > MAX_OBJECT_BYTES)
-        {
-            return Err(ServerError::Refused(
-                ErrorCode::ObjectTooLarge,
-                format!("an object may not exceed {MAX_OBJECT_BYTES} bytes"),
-            ));
-        }
-        let hashes = objects
-            .iter()
-            .map(|bytes| self.objects.put(bytes.as_ref()))
-            .collect::<Result<Vec<Hash>, _>>()?;
-        self.objects.sync()?;
-        Ok(hashes)
-    }
-
     pub fn get_object(&self, hash: Hash) -> Result<Option<Vec<u8>>, ServerError> {
         Ok(self.objects.get(hash)?)
     }
@@ -1373,5 +1365,6 @@ pub(crate) fn load_graph(
             )?;
         }
     }
+    usage::load_sizes(connection, &mut graph, organization)?;
     Ok(graph)
 }

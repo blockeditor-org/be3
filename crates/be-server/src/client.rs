@@ -9,7 +9,6 @@ use be_block_protocol::{
     SessionEvent, SessionState, embed,
 };
 use be_block_session::Claim;
-use be_block_store::Hash;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -480,6 +479,18 @@ impl Client {
                 .await;
                 self.reply(reply, logged_out);
             }
+            Call::StorageUsage { reply } => {
+                let connection = &self.connection;
+                let usage = async {
+                    prelude?;
+                    connection
+                        .store
+                        .storage_usage(connection.identity()?)
+                        .await
+                }
+                .await;
+                self.reply(reply, usage);
+            }
             Call::Pair { reply, to, payload } => {
                 let connection = &self.connection;
                 let paired = async {
@@ -918,14 +929,7 @@ impl Client {
                 let stored = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    connection
-                        .store
-                        .may_store(
-                            identity,
-                            objects.iter().map(|bytes| Hash::of(bytes)).collect(),
-                        )
-                        .await?;
-                    connection.store.put_objects(&objects)
+                    connection.store.put_objects(identity, &objects).await
                 }
                 .await;
                 self.reply(reply, stored);
@@ -1048,7 +1052,7 @@ impl Client {
                 let published = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    connection.store.put_objects(&objects)?;
+                    connection.store.put_objects(identity, &objects).await?;
                     let outcome = connection
                         .store
                         .publish(

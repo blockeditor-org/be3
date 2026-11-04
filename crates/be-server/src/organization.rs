@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use be_block::{
     BlockContent, OrganizationPolicies, OrganizationPoliciesContent, Root, SettingsContent,
     WORKSPACE_TYPE, WhoMay,
@@ -10,7 +8,7 @@ use be_block_keys::{Party, RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
     ErrorCode, KeyKind, OrganizationKind, OrganizationRole, ServerAccount, WrappedBy,
 };
-use be_block_store::{ContentKey, FileStore, Hash, Keyring, Vault};
+use be_block_store::{ContentKey, FileStore, Keyring, Vault};
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
@@ -414,63 +412,6 @@ impl ServerStore {
                 "only administrators make workspaces in this organization; each member has My files",
             )),
             WhoMay::Everyone => Ok(()),
-        }
-    }
-
-    pub async fn may_store(
-        &self,
-        identity: Identity,
-        hashes: Vec<Hash>,
-    ) -> Result<(), ServerError> {
-        self.with_graph(identity.organization, move |graph, connection| {
-            self.within_quota(graph, connection, identity.organization, &hashes)
-        })
-        .await
-    }
-
-    pub(crate) fn within_quota(
-        &self,
-        graph: &BlockGraph,
-        connection: &Connection,
-        organization: Uuid,
-        hashes: &[Hash],
-    ) -> Result<(), ServerError> {
-        let Some(quota) = self.policies(graph, connection, organization)?.quota() else {
-            return Ok(());
-        };
-        let organization = organization.to_string();
-        let mut fresh = BTreeSet::new();
-        for hash in hashes {
-            let hex = hash.to_hex();
-            let known: bool = connection
-                .prepare_cached(
-                    "SELECT EXISTS(SELECT 1 FROM commit_objects WHERE organization_id = ?1 AND hash = ?2)
-                     OR EXISTS(SELECT 1 FROM block_objects WHERE organization_id = ?1 AND hash = ?2)",
-                )?
-                .query_row(params![organization, hex], |row| row.get(0))?;
-            if !known {
-                fresh.insert(hex);
-            }
-        }
-        if fresh.is_empty() {
-            return Ok(());
-        }
-        let held: i64 = connection.query_row(
-            "SELECT COUNT(*) FROM (
-                SELECT hash FROM commit_objects WHERE organization_id = ?1
-                UNION SELECT hash FROM block_objects WHERE organization_id = ?1)",
-            [&organization],
-            |row| row.get(0),
-        )?;
-        let total = u64::try_from(held).unwrap_or(0) + fresh.len() as u64;
-        match total <= quota {
-            true => Ok(()),
-            false => Err(ServerError::Refused(
-                ErrorCode::OverQuota,
-                format!(
-                    "this organization stores at most {quota} objects, and this would make {total}"
-                ),
-            )),
         }
     }
 }

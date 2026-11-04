@@ -131,6 +131,11 @@ pub struct ServerConfig {
     pub auth_origin: Option<String>,
     pub lease: Duration,
     pub portal: Option<be_server_portal::Portal>,
+    /// The bytes each account may store (`--account-quota`): the distinct objects of the blocks
+    /// it pays for, and its uploads no block holds yet. None for no limit.
+    pub account_quota: Option<u64>,
+    /// How long an upload no block holds is kept before it is collected.
+    pub upload_grace: Duration,
 }
 
 impl ServerConfig {
@@ -141,6 +146,8 @@ impl ServerConfig {
         auth_origin: None,
         lease: Duration::from_millis(be_block_session::LEASE_MILLISECONDS.unsigned_abs()),
         portal: None,
+        account_quota: Some(store::DEFAULT_ACCOUNT_QUOTA),
+        upload_grace: store::DEFAULT_UPLOAD_GRACE,
     };
 
     pub const OPEN: Self = Self {
@@ -232,7 +239,13 @@ pub async fn serve_with_mail(
         portal: config
             .portal
             .map(|portal| Arc::new(portal::Served::new(portal))),
-        store: Arc::new(ServerStore::open(data_dir.into())?),
+        store: Arc::new(ServerStore::open_with(
+            data_dir.into(),
+            store::StorageLimits {
+                account_quota: config.account_quota,
+                upload_grace: config.upload_grace,
+            },
+        )?),
         hub: Arc::new(WatchHub::new()),
         registry: Arc::new(SessionRegistry::new(config.lease)),
         config,
@@ -242,9 +255,15 @@ pub async fn serve_with_mail(
     };
     let slots = Arc::new(Semaphore::new(MAX_CONNECTIONS));
     let mut session_changes = services.store.session_changes.subscribe();
+    let mut sweeps = tokio::time::interval(store::usage::UPLOAD_SWEEP_INTERVAL);
     tokio::pin!(shutdown);
     loop {
         tokio::select! {
+            _ = sweeps.tick() => {
+                if let Err(error) = services.store.collect_uploads().await {
+                    tracing::warn!(%error, "collecting abandoned uploads failed");
+                }
+            }
             _ = &mut shutdown => {
                 services.http.close_all().await;
                 services.store.checkpoint().await?;

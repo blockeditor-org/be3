@@ -63,6 +63,10 @@ be-host holds a private secret apart from the shown code and waits on one
 only that secret redeems the approval, once. The portal authenticates the account; unlocking
 encryption and pairing stay in be-host.
 
+Each account may store 10 GiB by default, counting every version its blocks keep and uploads
+no block has taken yet; `--account-quota BYTES` changes it and `--account-quota none` lifts it.
+Uploads no block takes are deleted after a day.
+
 Browser sessions last 30 days in an HttpOnly cookie scoped to `/auth` and can't be used as
 be-host credentials. Email goes through `mail::Delivery`, which is `LogDelivery`: the server log
 contains every verification and reset link, so the log gives access to those accounts. A

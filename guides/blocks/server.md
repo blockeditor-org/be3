@@ -94,6 +94,25 @@ the next post.
 - **Publishing** is a compare-and-swap on the head: a stale publish comes back
   `Rejected` with the head to merge against. It writes the head, the edges the
   commit declares and refcounts for its new chunks.
+- **Storage** is charged to each block's author (an agent's creator), counting
+  each distinct object once per account and every version a block keeps
+  (`decisions/storage_is_charged_to_the_author.md`; `store/usage.rs`). An
+  account may store `ServerConfig::account_quota` bytes, and an organization
+  its settings' `storage_quota` bytes; an upload, publish or hold that would
+  pass either is refused with `OverQuota` before anything is written, and
+  nothing that frees space is ever refused. `PutObjects` charges objects no
+  block holds to the uploader (`object_uploads`, `pending`) until a block takes
+  them; `collect_uploads` deletes them after `upload_grace`, when the server
+  starts and every `UPLOAD_SWEEP_INTERVAL`. Counters are kept incrementally:
+  `object_sizes`, `account_objects` (per payer and object, how many of its
+  blocks hold it), `account_usage`, `organization_usage`, and `block_sizes`,
+  which the cached `BlockGraph` mirrors as `BlockNode::size` and `tree_size`
+  (`add_size`, `set_parent` and `remove` carry a subtree's bytes up its
+  ancestors). `BlockSummary` reports both; `account.storage-usage` reports the
+  account's `held`, `pending` and `quota`. The first time a server opens data
+  kept before these tables, `usage::backfill` fills them once
+  (`server_backfills`), and counts objects on disk that nothing holds as
+  uploads by nobody.
 - **Objects** are served only to a member who can view a block that holds them
   (by a commit, `commit_objects`, or by `HoldObjects`); anything else reads as
   missing. A merge commit holds its extra parents' objects, so a stash that was

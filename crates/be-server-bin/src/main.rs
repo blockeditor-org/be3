@@ -6,7 +6,7 @@ use tokio::net::TcpListener;
 const USAGE: &str = "\
 Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
-            [--build-info-file FILE] [--auth-origin URL]
+            [--build-info-file FILE] [--auth-origin URL] [--account-quota BYTES]
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
@@ -24,6 +24,8 @@ Usage:
                             default the build-info.json file beside the executable, and with
                             neither it does not start
   --auth-origin URL         Public origin of the account portal (required outside localhost)
+  --account-quota BYTES     Bytes each account may store, or none for no limit
+                            (default: 10737418240, 10 GiB)
 
 A backup uploads every object the database references that the target does not
 have yet, never deleting one, and then the database, sealed with the backup
@@ -135,6 +137,13 @@ async fn run() -> Result<(), Box<dyn Error>> {
                 let origin = arguments.next().ok_or("--auth-origin needs a URL")?;
                 be_server::mail::validate_origin(&origin)?;
                 config.auth_origin = Some(origin);
+            }
+            "--account-quota" => {
+                let quota = arguments.next().ok_or("--account-quota needs a byte count")?;
+                config.account_quota = match quota.as_str() {
+                    "none" => None,
+                    bytes => Some(bytes.parse()?),
+                };
             }
             "--help" => {
                 println!("{USAGE}");

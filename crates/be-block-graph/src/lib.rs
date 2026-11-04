@@ -61,6 +61,13 @@ pub struct BlockNode {
     pub version: u64,
     #[serde(default)]
     pub key: Option<Uuid>,
+    /// Bytes of the distinct objects the block holds, history included.
+    #[serde(default)]
+    pub size: u64,
+    /// `size` plus each child's `tree_size`. `set_parent` and `remove` carry it between
+    /// ancestors, and `add_size` adds to every ancestor, so it is kept in O(depth).
+    #[serde(default)]
+    pub tree_size: u64,
 }
 
 impl BlockNode {
@@ -75,6 +82,8 @@ impl BlockNode {
             metadata: Vec::new(),
             version: 0,
             key: None,
+            size: 0,
+            tree_size: 0,
         }
     }
 }
@@ -355,7 +364,10 @@ impl BlockGraph {
                 return Err(GraphError::ParentCycle);
             }
         }
+        let tree = self.node_mut(id)?.tree_size;
+        self.add_to_ancestors(id, tree, false);
         let previous = std::mem::replace(&mut self.node_mut(id)?.parent, parent);
+        self.add_to_ancestors(id, tree, true);
         unindex(&mut self.children, previous, id);
         self.children.entry(parent).or_default().insert(id);
         if self
@@ -485,6 +497,8 @@ impl BlockGraph {
     }
 
     pub fn remove(&mut self, id: Uuid) -> Option<BlockNode> {
+        let tree = self.blocks.get(&id)?.tree_size;
+        self.add_to_ancestors(id, tree, false);
         let node = self.blocks.remove(&id)?;
         for reference in &node.references {
             if let Some(backrefs) = self.backrefs.get_mut(reference) {
@@ -966,8 +980,45 @@ impl BlockGraph {
         audience
     }
 
+    /// Changes a block's own size by `bytes` (adding or taking away), and the tree size of it
+    /// and every ancestor with it.
+    pub fn add_size(&mut self, id: Uuid, bytes: u64, adding: bool) -> Result<(), GraphError> {
+        let node = self.node_mut(id)?;
+        node.size = shifted(node.size, bytes, adding);
+        node.tree_size = shifted(node.tree_size, bytes, adding);
+        self.add_to_ancestors(id, bytes, adding);
+        Ok(())
+    }
+
+    /// Sets a block's sizes as they were stored, without touching its ancestors.
+    pub fn set_sizes(&mut self, id: Uuid, size: u64, tree_size: u64) -> Result<(), GraphError> {
+        let node = self.node_mut(id)?;
+        node.size = size;
+        node.tree_size = tree_size;
+        Ok(())
+    }
+
+    fn add_to_ancestors(&mut self, id: Uuid, bytes: u64, adding: bool) {
+        if bytes == 0 {
+            return;
+        }
+        let above: Vec<Uuid> = self.ancestors(id).collect();
+        for ancestor in above {
+            if let Some(node) = self.blocks.get_mut(&ancestor) {
+                node.tree_size = shifted(node.tree_size, bytes, adding);
+            }
+        }
+    }
+
     fn node_mut(&mut self, id: Uuid) -> Result<&mut BlockNode, GraphError> {
         self.blocks.get_mut(&id).ok_or(GraphError::NotFound(id))
+    }
+}
+
+fn shifted(value: u64, bytes: u64, adding: bool) -> u64 {
+    match adding {
+        true => value.saturating_add(bytes),
+        false => value.saturating_sub(bytes),
     }
 }
 

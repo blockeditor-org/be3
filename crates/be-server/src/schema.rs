@@ -247,4 +247,60 @@ const SCHEMA: &str = "
     );
 
     CREATE INDEX agents_created_by ON agents (created_by);
+
+    CREATE TABLE object_sizes (
+        hash            TEXT PRIMARY KEY,
+        bytes           INTEGER NOT NULL
+    );
+
+    CREATE TABLE object_uploads (
+        organization_id TEXT NOT NULL,
+        account_id      TEXT NOT NULL,
+        hash            TEXT NOT NULL,
+        size            INTEGER NOT NULL,
+        uploaded        INTEGER NOT NULL,
+        payer           TEXT NOT NULL DEFAULT '',
+        pending         INTEGER NOT NULL DEFAULT 0 CHECK (pending IN (0, 1)),
+        PRIMARY KEY (organization_id, account_id, hash)
+    );
+
+    CREATE INDEX object_uploads_hash
+        ON object_uploads (organization_id, hash);
+
+    CREATE INDEX object_uploads_object
+        ON object_uploads (hash);
+
+    CREATE INDEX object_uploads_pending
+        ON object_uploads (pending, uploaded);
+
+    CREATE TABLE block_sizes (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        payer           TEXT NOT NULL,
+        size            INTEGER NOT NULL DEFAULT 0,
+        tree_size       INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (organization_id, block_id)
+    );
+
+    CREATE TABLE account_objects (
+        account_id      TEXT NOT NULL,
+        hash            TEXT NOT NULL,
+        count           INTEGER NOT NULL CHECK (count > 0),
+        PRIMARY KEY (account_id, hash)
+    );
+
+    CREATE TABLE account_usage (
+        account_id      TEXT PRIMARY KEY,
+        held            INTEGER NOT NULL DEFAULT 0,
+        pending         INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE organization_usage (
+        organization_id TEXT PRIMARY KEY,
+        bytes           INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE server_backfills (
+        name            TEXT PRIMARY KEY
+    );
 ";
