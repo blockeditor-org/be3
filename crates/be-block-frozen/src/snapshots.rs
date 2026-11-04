@@ -1,6 +1,9 @@
 mod s2026_10_16;
 mod s2026_10_25;
 
+/// What opens one zipped server snapshot: the tokens, recovery phrases, link and invite codes and
+/// keys the `freeze` example printed into `sNAME.rs`. A new snapshot is listed in `SNAPSHOTS`;
+/// the test checks each part of the scene only in the snapshots that hold it.
 pub struct Snapshot {
     pub name: &'static str,
     pub organization: &'static str,

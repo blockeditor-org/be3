@@ -1,3 +1,14 @@
+//! What the `freeze` example writes into a real server before it zips the data directory and a
+//! backup into `src/snapshots/NAME.zip`: a company organization (My files with notes, a Team
+//! workspace holding a tracker database shared with an agent, an administrator demoted so the
+//! escrow key rotated, a grant revoked so Team's scope key rotated, a pending invitation, and
+//! from 2026_10_25 the organization's settings shared with the server, holding a policy it
+//! enforces) and the personal organization (a folder shared with a contact made by link, a
+//! pending link carrying a grant, and that contact's change of recovery phrase).
+//!
+//! These values are what old data looks like: changing one stops the snapshots' test guarding
+//! that data. Add to the scene, with a `*_SINCE` snapshot name, rather than edit it.
+
 pub const ORGANIZATION: &str = "Frozen";
 pub const POLICIES_SINCE: &str = "2026_10_25";
 pub const SESSIONS_KEPT_SINCE: &str = "2026_10_25";
