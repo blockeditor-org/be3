@@ -1,6 +1,6 @@
 use be_sdk_api::{
-    DroppedFile, Input, InputBatch, Pasted, ScreenId, ScreenPlacement, Size, TimedInput,
-    ViewportMetrics, shell_types::Dragged,
+    DroppedFile, Input, InputBatch, ScreenId, ScreenPlacement, Size, TimedInput, ViewportMetrics,
+    shell_types::Dragged,
 };
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use uuid::Uuid;
@@ -89,8 +89,8 @@ impl InputForwarder {
         };
         for Replayed { input, time, over } in self.replay.replay(&input, zoom, aim) {
             match input {
-                Input::Paste(Pasted::Text(text)) => {
-                    for piece in be_sdk_api::paste_events(&text) {
+                Input::Paste(item) => {
+                    for piece in be_sdk_api::paste_events(item) {
                         batch.push(piece);
                     }
                 }

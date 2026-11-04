@@ -78,11 +78,13 @@ mod a_window_whose_parent_is_not_shown_is_a_window_of_its_own;
 mod a_window_whose_text_field_is_enabled_asks_for_the_keyboard_and_takes_typed_text;
 mod a_windows_surfaces_are_drawn_back_to_front;
 mod activating_a_window_with_a_modal_dialog_raises_the_dialog;
+mod an_image_a_program_copies_reaches_the_host;
 mod an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake;
 mod an_output_lists_only_its_current_mode_in_pixels;
 mod closing_a_window_frees_its_texture;
 mod closing_a_window_that_is_not_responding_disconnects_its_client;
 mod each_monitor_is_an_output_and_a_window_enters_the_one_it_is_on;
+mod every_format_the_host_copies_is_offered_to_programs;
 mod fingers_lifted_off_a_trackpad_stop_the_windows_scroll;
 mod hiding_the_tab_of_the_window_with_the_keyboard_takes_the_keyboard_from_it;
 mod idle_notifications_tell_clients_when_the_user_idles_and_resumes;
@@ -171,15 +173,15 @@ const SHOWN: Vec2 = Vec2::new(400.0, 300.0);
 struct Shell {
     compositor: Compositor,
     document: Document,
-    copy: Option<String>,
+    copy: Option<beui::Clip>,
 }
 
 impl beui::native::Program for Shell {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.compositor.before(context, rect);
         self.document.show(context, rect);
-        if let Some(text) = self.copy.take() {
-            context.copy_text(text);
+        if let Some(clip) = self.copy.take() {
+            context.copy(clip);
         }
         self.compositor.after(context, &mut self.document);
     }
@@ -666,7 +668,7 @@ fn monitors(rects: &[Rect]) -> Vec<Monitor> {
 }
 
 fn copy_in_the_host(harness: &mut Harness, text: &str) {
-    harness.stepped.program_mut().copy = Some(text.to_owned());
+    harness.stepped.program_mut().copy = Some(beui::Clip::text(text));
     harness.frame(Vec::new());
 }
 

@@ -29,12 +29,8 @@ impl HostServices {
         }
     }
 
-    pub fn copy_text(&mut self, text: String) {
-        self.host.copy_text(text);
-    }
-
-    pub fn copy_image(&mut self, png: Vec<u8>) {
-        self.host.copy_image(png);
+    pub fn copy(&mut self, items: Vec<be_sdk_api::OfferedClipItem>, render: crate::ClipRender) {
+        self.host.copy(items, render);
     }
 
     pub fn request_paste(&mut self) {

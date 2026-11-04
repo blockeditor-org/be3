@@ -26,7 +26,7 @@ use ndk::asset::AssetManager;
 use ndk::native_window::NativeWindow;
 use raw_window_handle as rwh;
 
-use beui_core::clipboard::PasteAnswer;
+use beui_core::clipboard::{Clip, PasteAnswer};
 use beui_core::file_picker::{FilePickAnswer, FilePickId, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveId, FileSaveRequest};
 use beui_core::program::{Lifecycle, SafeArea, Setup, Waker};
@@ -41,7 +41,6 @@ use beui_types::{
 };
 use beui_types::{FilePick, PickedFile};
 use beui_types::{Motion, PreferenceLayer, ThemeKind};
-use beui_types::{PasteKind, Pasted};
 use beui_types::{Vec2, pos2, vec2};
 use clipboard::Clipboard;
 
@@ -240,16 +239,12 @@ struct AndroidPlatform {
 }
 
 impl PlatformServices for AndroidPlatform {
-    fn copy(&mut self, text: String) {
-        self.clipboard.set(text);
+    fn copy(&mut self, clip: Clip) {
+        self.clipboard.copy(clip);
     }
 
-    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
-        let text = kinds
-            .contains(&PasteKind::Text)
-            .then(|| self.clipboard.get())
-            .flatten();
-        answer.send(text.map(Pasted::Text));
+    fn paste(&mut self, formats: &[String], answer: PasteAnswer) {
+        self.clipboard.paste(formats, answer);
     }
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {

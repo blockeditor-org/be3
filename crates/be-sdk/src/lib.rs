@@ -86,7 +86,7 @@ pub use editor_state::{
 };
 pub use graph::{BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, GraphCommand};
 pub use host::{
-    Artifact, ArtifactState, BlockDrag, BlockHistory, EditorHost, FileDrop, FileFilter,
+    Artifact, ArtifactState, BlockDrag, BlockHistory, ClipRender, EditorHost, FileDrop, FileFilter,
     FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage, PeerPresence,
     PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest, Pushed,
     RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead,

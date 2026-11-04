@@ -41,10 +41,10 @@ use beui_view::types::TextLayout;
 use beui_view::types::{Area, Claim, SoftKeyboard};
 use beui_view::types::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
 use beui_view::types::{HANDLE_RADIUS, handle_center, toolbar_anchor};
-use beui_view::types::{PasteKind, Pasted};
 use beui_view::types::{Pos2, Rect, Vec2};
 
 use beui_text_editor_core::ListMarker;
+use beui_text_editor_core::TextFragment;
 use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
 use rows::{BODY_SIZE, Composition, Inline, InlineItem, Row, line_of};
@@ -1065,6 +1065,32 @@ fn release(cx: &Context, active: bool) {
     cx.autoscroll.set(false);
 }
 
+/// A paste: an image to `on_image_paste`; text as a fragment, whose shape the
+/// core places, and of which a single line keeps the first line.
+fn paste(cx: &Context, pasted: ClipItem, on_image_paste: Callback<PickedFile>) {
+    if cx.locked.get_untracked() {
+        return;
+    }
+    if pasted.format == formats::PNG {
+        return on_image_paste.call(PickedFile {
+            name: PASTED_IMAGE.to_owned(),
+            data: pasted.data,
+        });
+    }
+    let Some(fragment) = TextFragment::of(&pasted) else {
+        return;
+    };
+    if cx.single_line {
+        let text = fragment.plain_text();
+        return insert_text(cx, text.lines().next().unwrap_or_default());
+    }
+    cx.state.set_caret_handle(false);
+    cx.state.execute(EditorCommand::Paste(&fragment));
+    cx.state.reveal_cursor();
+}
+
+const PASTED_IMAGE: &str = "Pasted Image.png";
+
 fn insert_text(cx: &Context, text: &str) {
     if cx.locked.get_untracked() {
         return;
@@ -1626,10 +1652,12 @@ fn Editing(field: Field) -> NodeId {
         pastes_images,
         on_image_paste,
     } = field;
-    let pastes = match pastes_images {
-        true => vec![PasteKind::Image, PasteKind::Text],
-        false => vec![PasteKind::Text],
-    };
+    let pastes = [formats::PNG]
+        .into_iter()
+        .filter(|_| pastes_images)
+        .chain([formats::TEXT_FRAGMENT, formats::TEXT])
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
     let focused = cx.focused;
     component_accessibility(described);
     let single_line = cx.single_line;
@@ -1656,11 +1684,7 @@ fn Editing(field: Field) -> NodeId {
             }}
             on_text={move |typed: String| insert_text(&cx, &typed)}
             pastes
-            on_paste={move |pasted: Pasted| match pasted {
-                Pasted::Text(typed) => insert_text(&cx, &typed),
-                Pasted::Image(image) if !cx.locked.get_untracked() => on_image_paste.call(image),
-                Pasted::Image(_) => {}
-            }}
+            on_paste={move |pasted: ClipItem| paste(&cx, pasted, on_image_paste)}
             on_ime={move |event: ImeEvent| {
                 ime(&cx, event, |press| field_key(&cx, press))
             }}

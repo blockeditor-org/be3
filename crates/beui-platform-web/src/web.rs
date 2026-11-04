@@ -11,21 +11,21 @@ use std::time::{Duration, Instant};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
-use beui_core::clipboard::PasteAnswer;
+use beui_core::clipboard::{Clip, HeldClip, PasteAnswer};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
 use beui_core::program::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::window::{Appearance, WindowReports, WindowState};
 use beui_runner::renderer::Loaded;
 use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
-use beui_types::PickedFile;
+use beui_types::ClipItem;
+use beui_types::clipboard::{ClipFormat as _, formats};
 use beui_types::{
     CursorIcon, ImeArea, ImeEvent, Input, Modifiers, Pen, PenPhase, PointerButton, TouchId,
     TouchPhase,
 };
-use beui_types::{DroppedFile, FileDrag};
+use beui_types::{DroppedFile, FileDrag, Key};
 use beui_types::{Motion, PreferenceLayer, ThemeKind};
-use beui_types::{PasteKind, Pasted};
 use beui_types::{Pos2, Rect, pos2, vec2};
 
 use crate::lock::Lock;
@@ -87,51 +87,169 @@ thread_local! {
     static IME_SHOWN: Cell<bool> = const { Cell::new(false) };
     static LEAVING: Cell<bool> = const { Cell::new(false) };
     static CLIPBOARD_KEYS: Cell<bool> = const { Cell::new(false) };
-    static PASTE_KINDS: RefCell<Vec<PasteKind>> = const { RefCell::new(Vec::new()) };
+    static PASTE_FORMATS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static PLAIN_PASTE: Cell<bool> = const { Cell::new(false) };
+    static HELD: RefCell<HeldClip> = RefCell::new(HeldClip::default());
     static PINCH: RefCell<Pinch> = RefCell::new(Pinch::default());
     static LOCK: RefCell<Lock> = RefCell::new(Lock::default());
     static TOUCHES: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) };
 }
 
-const PASTED_NAME: &str = "Pasted Image.png";
+/// What a paste event's `DataTransfer` held, read while the event lasts.
+struct Transferred {
+    text: Option<String>,
+    html: Option<String>,
+    files: Vec<web_sys::File>,
+}
 
+/// A paste: the clip this page copied while its text is still the
+/// clipboard's; otherwise the first of the focus's formats the browser has. be3
+/// formats come from the async clipboard, as `web ` types, where the browser
+/// carries them (Chromium).
 fn paste_from(data: &web_sys::DataTransfer) {
-    let kinds = PASTE_KINDS.with(|pastes| pastes.borrow().clone());
-    for kind in kinds {
-        match kind {
-            PasteKind::Text => {
-                if let Some(text) = data.get_data("text").ok().filter(|text| !text.is_empty()) {
-                    push(Input::Paste(Pasted::Text(text)));
-                    return;
-                }
+    let mut wanted = PASTE_FORMATS.with(|pastes| pastes.borrow().clone());
+    if PLAIN_PASTE.replace(false) {
+        wanted.retain(|format| format == formats::TEXT);
+    }
+    let get = |kind: &str| data.get_data(kind).ok().filter(|text| !text.is_empty());
+    let transferred = Transferred {
+        text: get("text"),
+        html: get("text/html"),
+        files: data
+            .files()
+            .map(|files| {
+                (0..files.length())
+                    .filter_map(|index| files.get(index))
+                    .collect()
+            })
+            .unwrap_or_default(),
+    };
+    let held = HELD.with(|held| {
+        let mut held = held.borrow_mut();
+        let ours = held.wrote(transferred.text.as_deref());
+        held.current(ours).cloned()
+    });
+    if let Some(clip) = held {
+        return clip.resolve(&wanted, |item| {
+            if let Some(item) = item {
+                push(Input::Paste(item));
             }
-            PasteKind::Image => {
-                let files = data.files();
-                let image = files.and_then(|files| {
-                    (0..files.length())
-                        .filter_map(|index| files.get(index))
-                        .find(|file| file.type_().starts_with("image/"))
-                });
-                if let Some(file) = image {
-                    wasm_bindgen_futures::spawn_local(async move {
-                        let Ok(buffer) =
-                            wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await
-                        else {
-                            return;
-                        };
-                        let name = Some(file.name())
-                            .filter(|name| !name.is_empty())
-                            .unwrap_or_else(|| PASTED_NAME.to_owned());
-                        push(Input::Paste(Pasted::Image(PickedFile {
-                            name,
-                            data: js_sys::Uint8Array::new(&buffer).to_vec(),
-                        })));
+        });
+    }
+    wasm_bindgen_futures::spawn_local(async move {
+        if let Some(item) = transferred_item(&wanted, transferred).await {
+            push(Input::Paste(item));
+        }
+    });
+}
+
+async fn transferred_item(wanted: &[String], transferred: Transferred) -> Option<ClipItem> {
+    for format in wanted {
+        let item = match format.as_str() {
+            formats::TEXT => transferred.text.clone().map(ClipItem::text),
+            formats::HTML => transferred
+                .html
+                .clone()
+                .map(|html| ClipItem::new(formats::HTML, html.into_bytes())),
+            formats::PNG => match transferred
+                .files
+                .iter()
+                .find(|file| file.type_() == "image/png")
+            {
+                Some(file) => file_bytes(file).await.map(ClipItem::png),
+                None => None,
+            },
+            formats::FILES if !transferred.files.is_empty() => {
+                let mut files = Vec::new();
+                for file in &transferred.files {
+                    files.push(beui_types::clipboard::ClipFile {
+                        name: file.name(),
+                        data: file_bytes(file).await?,
                     });
-                    return;
                 }
+                Some(beui_types::clipboard::Files { files }.encode())
             }
+            format if formats::is_be3(format) => read_custom(format).await,
+            _ => None,
+        };
+        if item.is_some() {
+            return item;
         }
     }
+    None
+}
+
+async fn file_bytes(file: &web_sys::File) -> Option<Vec<u8>> {
+    let buffer = wasm_bindgen_futures::JsFuture::from(file.array_buffer())
+        .await
+        .ok()?;
+    Some(js_sys::Uint8Array::new(&buffer).to_vec())
+}
+
+/// `format` as the browser's `web ` custom type on the async clipboard.
+async fn read_custom(format: &str) -> Option<ClipItem> {
+    use js_sys::{Array, Function, Reflect};
+    let web = format!("web {format}");
+    if !supports(&web) {
+        return None;
+    }
+    let clipboard = web_sys::window()?.navigator().clipboard();
+    let read: Function = Reflect::get(&clipboard, &"read".into())
+        .ok()?
+        .dyn_into()
+        .ok()?;
+    let items = read.call0(&clipboard).ok()?;
+    let items = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(items))
+        .await
+        .ok()?;
+    for item in Array::from(&items).iter() {
+        let types = Array::from(&Reflect::get(&item, &"types".into()).ok()?);
+        if !types
+            .iter()
+            .any(|kind| kind.as_string().as_deref() == Some(&web))
+        {
+            continue;
+        }
+        let get: Function = Reflect::get(&item, &"getType".into())
+            .ok()?
+            .dyn_into()
+            .ok()?;
+        let blob = get.call1(&item, &web.as_str().into()).ok()?;
+        let blob = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(blob))
+            .await
+            .ok()?;
+        let buffer: Function = Reflect::get(&blob, &"arrayBuffer".into())
+            .ok()?
+            .dyn_into()
+            .ok()?;
+        let buffer = buffer.call0(&blob).ok()?;
+        let buffer = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(buffer))
+            .await
+            .ok()?;
+        return Some(ClipItem::new(
+            format,
+            js_sys::Uint8Array::new(&buffer).to_vec(),
+        ));
+    }
+    None
+}
+
+/// Whether the browser's `ClipboardItem` takes the type `kind`.
+fn supports(kind: &str) -> bool {
+    use js_sys::{Function, Reflect};
+    let Some(window) = web_sys::window() else {
+        return false;
+    };
+    Reflect::get(&window, &"ClipboardItem".into())
+        .ok()
+        .and_then(|item| {
+            let supports: Function = Reflect::get(&item, &"supports".into())
+                .ok()?
+                .dyn_into()
+                .ok()?;
+            supports.call1(&item, &kind.into()).ok()?.as_bool()
+        })
+        .unwrap_or(false)
 }
 
 fn push(input: impl Into<Incoming>) {
@@ -215,17 +333,34 @@ struct Runner {
     ratio: f32,
 }
 
-fn copy_png(png: &[u8]) -> Result<(), wasm_bindgen::JsValue> {
+/// Writes the clip's ready representations the browser carries: plain text,
+/// HTML and PNG everywhere, be3 formats as `web ` types where supported.
+fn write_clip(clip: &Clip) -> Result<(), wasm_bindgen::JsValue> {
     use js_sys::{Array, Function, Object, Reflect, Uint8Array};
     let window = web_sys::window().ok_or("no window")?;
-    let options = Object::new();
-    Reflect::set(&options, &"type".into(), &"image/png".into())?;
+    let Ok(item) = Reflect::get(&window, &"ClipboardItem".into())?.dyn_into::<Function>() else {
+        let _ = window
+            .navigator()
+            .clipboard()
+            .write_text(&clip.plain_text().unwrap_or_default());
+        return Ok(());
+    };
     let blob: Function = Reflect::get(&window, &"Blob".into())?.dyn_into()?;
-    let parts = Array::of1(&Uint8Array::from(png));
-    let blob = Reflect::construct(&blob, &Array::of2(&parts, &options))?;
     let record = Object::new();
-    Reflect::set(&record, &"image/png".into(), &blob)?;
-    let item: Function = Reflect::get(&window, &"ClipboardItem".into())?.dyn_into()?;
+    for ready in clip.ready_items() {
+        let kind = match ready.format.as_str() {
+            formats::TEXT | formats::HTML | formats::PNG => ready.format.clone(),
+            format if formats::is_be3(format) && supports(&format!("web {format}")) => {
+                format!("web {format}")
+            }
+            _ => continue,
+        };
+        let options = Object::new();
+        Reflect::set(&options, &"type".into(), &kind.as_str().into())?;
+        let parts = Array::of1(&Uint8Array::from(&ready.data[..]));
+        let data = Reflect::construct(&blob, &Array::of2(&parts, &options))?;
+        Reflect::set(&record, &kind.as_str().into(), &data)?;
+    }
     let item = Reflect::construct(&item, &Array::of1(&record))?;
     let clipboard = window.navigator().clipboard();
     let write: Function = Reflect::get(&clipboard, &"write".into())?.dyn_into()?;
@@ -239,30 +374,41 @@ struct WebPlatform {
 }
 
 impl PlatformServices for WebPlatform {
-    fn copy(&mut self, text: String) {
-        if let Some(window) = web_sys::window() {
-            let _ = window.navigator().clipboard().write_text(&text);
-        }
-    }
-
-    fn copy_image(&mut self, png: Vec<u8>) {
-        if let Err(error) = copy_png(&png) {
+    fn copy(&mut self, clip: Clip) {
+        if let Err(error) = write_clip(&clip) {
             web_sys::console::warn_1(&error);
         }
+        HELD.with(|held| held.borrow_mut().copy(clip));
     }
 
-    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
-        let Some(window) = web_sys::window().filter(|_| kinds.contains(&PasteKind::Text)) else {
+    fn paste(&mut self, wanted: &[String], answer: PasteAnswer) {
+        let Some(window) = web_sys::window() else {
             return answer.send(None);
         };
         let read = window.navigator().clipboard().read_text();
+        let wanted = wanted.to_vec();
         wasm_bindgen_futures::spawn_local(async move {
             let text = wasm_bindgen_futures::JsFuture::from(read)
                 .await
                 .ok()
                 .and_then(|text| text.as_string())
                 .filter(|text| !text.is_empty());
-            answer.send(text.map(Pasted::Text));
+            let held = HELD.with(|held| {
+                let mut held = held.borrow_mut();
+                let ours = held.wrote(text.as_deref());
+                held.current(ours).cloned()
+            });
+            match held {
+                Some(clip) => clip.resolve(&wanted, move |item| answer.send(item)),
+                None => {
+                    let transferred = Transferred {
+                        text,
+                        html: None,
+                        files: Vec::new(),
+                    };
+                    answer.send(transferred_item(&wanted, transferred).await);
+                }
+            }
         });
     }
 
@@ -285,7 +431,7 @@ impl PlatformServices for WebPlatform {
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
         CLIPBOARD_KEYS.set(window.requests.clipboard_keys);
         if window.requests.pastes != shown.requests.pastes {
-            PASTE_KINDS.with(|pastes| pastes.borrow_mut().clone_from(&window.requests.pastes));
+            PASTE_FORMATS.with(|pastes| pastes.borrow_mut().clone_from(&window.requests.pastes));
         }
         if window.requests.cursor != shown.requests.cursor {
             let cursor = match window.requests.cursor {
@@ -917,6 +1063,7 @@ fn listen(
         );
         let stroke = keystroke(&event, true);
         let key = stroke.key;
+        PLAIN_PASTE.set(key == Some(Key::V) && modifiers.shift && modifiers.ctrl);
         push(Input::Key(stroke));
         if beui_web_input::keys::prevents_default(
             key,

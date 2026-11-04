@@ -1,20 +1,17 @@
-use beui_core::clipboard::PasteAnswer;
+use beui_core::clipboard::{Clip, PasteAnswer};
 use beui_core::window::{MAX_PIXELS, Resize, WindowReports, WindowSize};
 use beui_runner::PlatformServices;
-use beui_types::PickedFile;
 use beui_types::Vec2;
-use beui_types::{PasteKind, Pasted};
 
-/// The headless platform's window: keeps a clipboard (an image copy pastes back
-/// as `Pasted::Image`), grows to `screen` for fullscreen, and reports its size,
+/// The headless platform's window: keeps the clip last copied, which pastes
+/// back every representation it holds, grows to `screen` for fullscreen, and reports its size,
 /// scale and fullscreen through `WindowReports` like a real window. It is the
 /// only window `PlatformServices::resize` works on.
 pub struct Simulation {
     pub window: WindowSize,
     pub screen: Vec2,
     pub fullscreen: bool,
-    pub clipboard: Option<String>,
-    pub copied_image: Option<Vec<u8>>,
+    pub clipboard: Option<Clip>,
     reports: WindowReports,
 }
 
@@ -25,7 +22,6 @@ impl Simulation {
             screen: screen.unwrap_or(window.size),
             fullscreen: false,
             clipboard: None,
-            copied_image: None,
             reports,
         };
         simulation.report_size();
@@ -55,34 +51,15 @@ impl Simulation {
 }
 
 impl PlatformServices for Simulation {
-    fn copy(&mut self, text: String) {
-        self.copied_image = None;
-        self.clipboard = Some(text);
+    fn copy(&mut self, clip: Clip) {
+        self.clipboard = Some(clip);
     }
 
-    fn copy_image(&mut self, png: Vec<u8>) {
-        self.clipboard = None;
-        self.copied_image = Some(png);
-    }
-
-    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
-        let text = self
-            .clipboard
-            .clone()
-            .filter(|_| kinds.contains(&PasteKind::Text))
-            .map(Pasted::Text);
-        let image = || {
-            self.copied_image
-                .clone()
-                .filter(|_| kinds.contains(&PasteKind::Image))
-                .map(|data| {
-                    Pasted::Image(PickedFile {
-                        name: "Pasted Image.png".to_owned(),
-                        data,
-                    })
-                })
-        };
-        answer.send(text.or_else(image));
+    fn paste(&mut self, formats: &[String], answer: PasteAnswer) {
+        match &self.clipboard {
+            Some(clip) => clip.resolve(formats, move |item| answer.send(item)),
+            None => answer.send(None),
+        }
     }
 
     fn set_fullscreen(&mut self, fullscreen: bool) {

@@ -1,6 +1,7 @@
 use std::{cmp::Ordering, ops::Range, sync::Arc};
 
 use be_lib_graphemes::{WordClass, is_grapheme_boundary, word_around, word_classes};
+pub use be_lib_ui_types::clipboard::{TextFragment, TextShape};
 use serde::{Deserialize, Serialize};
 use similar::{Algorithm, DiffTag, capture_diff_slices};
 
@@ -223,7 +224,7 @@ pub enum EditorCommand<'a> {
     },
     SelectAll,
     InsertText(&'a [u8]),
-    Paste(&'a [u8]),
+    Paste(&'a TextFragment),
     Newline,
     InsertLine(UDDirection),
     IndentSelection(LRDirection),
@@ -345,13 +346,6 @@ enum UndoClassification {
     DeleteGraphemeCluster,
 }
 
-#[derive(Clone)]
-struct ClipboardCache {
-    contents: Vec<Vec<u8>>,
-    rendered: Vec<u8>,
-    paste_in_new_line: bool,
-}
-
 #[derive(Clone, Copy)]
 struct ResolvedSelection {
     left: usize,
@@ -363,7 +357,6 @@ pub struct Core {
     document: Arc<dyn Document>,
     cursor_positions: Vec<CursorPosition>,
     pub config: EditorConfig,
-    clipboard_cache: Option<ClipboardCache>,
     last_undo_classification: UndoClassification,
     highlighter: Option<Highlighter>,
 
@@ -389,7 +382,6 @@ impl Core {
             document,
             cursor_positions: Vec::new(),
             config: EditorConfig::default(),
-            clipboard_cache: None,
             last_undo_classification: UndoClassification::AlwaysSplit,
             highlighter: None,
             highlighter_language: None,
@@ -1897,17 +1889,18 @@ impl Core {
         };
     }
 
-    pub fn copy_utf8(&mut self, mode: CopyMode) -> String {
+    /// The selection as a text fragment: one chunk per cursor, the raw bytes
+    /// selected, or the whole line of a cursor without a selection. When no
+    /// cursor has a selection the fragment is `Lines`. A cut also removes them.
+    pub fn copy(&mut self, mode: CopyMode) -> TextFragment {
         self.normalize_cursors();
         let history_cursors = self.cursor_positions.clone();
         let Some(read) = self.document.read() else {
-            return String::new();
+            return TextFragment::default();
         };
         let document = DocumentView::new(&*read);
-        let mut stored = Vec::new();
-        let mut rendered = Vec::new();
-        let mut paste_in_new_line = true;
-        let mut previous_needs_newline = false;
+        let mut chunks = Vec::new();
+        let mut lines = true;
         let mut replacements = Vec::new();
         for cursor in &self.cursor_positions {
             let selection = resolve_selection(&document, cursor.pos);
@@ -1916,19 +1909,14 @@ impl Core {
                 let right = next_line_start(document.bytes(), left);
                 (left, right, true)
             } else {
-                paste_in_new_line = false;
+                lines = false;
                 (selection.left, selection.right, false)
             };
             let mut bytes = document.bytes()[left..right].to_vec();
             if selected_line && right == document.len() && bytes.last() != Some(&b'\n') {
                 bytes.push(b'\n');
             }
-            if previous_needs_newline {
-                rendered.push(b'\n');
-            }
-            rendered.extend_from_slice(&bytes);
-            previous_needs_newline = !selected_line;
-            stored.push(bytes);
+            chunks.push(bytes);
             if mode == CopyMode::Cut {
                 replacements.push((Position::at(&document, left), right - left, Vec::new()));
             }
@@ -1946,62 +1934,43 @@ impl Core {
             }
             self.normalize_cursors();
         }
-        let valid = String::from_utf8_lossy(&rendered).into_owned();
-        self.clipboard_cache = Some(ClipboardCache {
-            contents: stored,
-            rendered: valid.as_bytes().to_vec(),
-            paste_in_new_line,
-        });
-        valid
+        TextFragment {
+            chunks,
+            shape: match lines {
+                true => TextShape::Lines,
+                false => TextShape::Chars,
+            },
+        }
     }
 
-    fn paste(&mut self, clipboard: &[u8]) {
-        let cached = self
-            .clipboard_cache
-            .as_ref()
-            .filter(|cache| cache.rendered == clipboard)
-            .cloned();
-        if cached.is_none() {
-            self.clipboard_cache = None;
-        }
+    /// Pastes a fragment: one chunk per cursor when the counts match, the
+    /// whole fragment at every cursor otherwise. `Lines` go at the start of a
+    /// cursor's line, above it, and leave a cursor without a selection where
+    /// it was.
+    fn paste(&mut self, fragment: &TextFragment) {
         let history_cursors = self.cursor_positions.clone();
         let Some(read) = self.document.read() else {
             return;
         };
         let document = DocumentView::new(&*read);
-        let chunks = cached
-            .as_ref()
-            .map(|cache| cache.contents.clone())
-            .unwrap_or_else(|| vec![clipboard.to_vec()]);
-        let paste_in_new_line = cached.as_ref().is_some_and(|cache| cache.paste_in_new_line);
+        let lines = fragment.shape == TextShape::Lines;
+        let whole = || fragment.plain_bytes();
+        let chunks = match fragment.chunks.len() == self.cursor_positions.len() {
+            true => fragment.chunks.clone(),
+            false => vec![whole(); self.cursor_positions.len()],
+        };
         let mut replacements = Vec::new();
         let mut move_to_result = Vec::new();
-        if chunks.len() == self.cursor_positions.len() {
-            for (cursor, bytes) in self.cursor_positions.iter().zip(chunks) {
-                let range = resolve_selection(&document, cursor.pos);
-                let left = if range.left == range.right && paste_in_new_line {
-                    line_start(document.bytes(), range.left)
-                } else {
-                    range.left
-                };
-                let position = Position::at(&document, left);
-                replacements.push((position, range.right - range.left, bytes));
-                move_to_result.push(!(range.left == range.right && paste_in_new_line));
-            }
-        } else {
-            for bytes in chunks {
-                for cursor in &self.cursor_positions {
-                    let range = resolve_selection(&document, cursor.pos);
-                    let left = if range.left == range.right && paste_in_new_line {
-                        line_start(document.bytes(), range.left)
-                    } else {
-                        range.left
-                    };
-                    let position = Position::at(&document, left);
-                    replacements.push((position, range.right - range.left, bytes.clone()));
-                    move_to_result.push(!(range.left == range.right && paste_in_new_line));
-                }
-            }
+        for (cursor, bytes) in self.cursor_positions.iter().zip(chunks) {
+            let range = resolve_selection(&document, cursor.pos);
+            let above = range.left == range.right && lines;
+            let left = match above {
+                true => line_start(document.bytes(), range.left),
+                false => range.left,
+            };
+            let position = Position::at(&document, left);
+            replacements.push((position, range.right - range.left, bytes));
+            move_to_result.push(!above);
         }
         drop(document);
         drop(read);

@@ -23,7 +23,8 @@ use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::{CanvasState, Gesture};
 use super::text::{EntityText, path_label_reach, text_region, writes};
 use crate::freehand::LiveStroke;
-use beui::{PasteKind, Pasted, Sides};
+use beui::clipboard::formats;
+use beui::{ClipItem, Sides};
 
 const ITEM_MARGIN: f32 = 2.0;
 
@@ -179,8 +180,8 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
             focusable=true
             tab_stop={interactive}
             on_key={move |press: KeyPress| state.key(press)}
-            pastes={vec![PasteKind::Image, PasteKind::Text]}
-            on_paste={move |pasted: Pasted| state.take_paste(pasted)}
+            pastes={vec![formats::CANVAS_ITEMS.to_owned(), formats::PNG.to_owned()]}
+            on_paste={move |pasted: ClipItem| state.take_paste(pasted)}
             cursor={cursor}
             touch_drags={interactive}
             drawing={interactive}

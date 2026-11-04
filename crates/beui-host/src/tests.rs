@@ -2642,7 +2642,7 @@ struct DrivenPlatform {
 }
 
 impl beui_runner::PlatformServices for DrivenPlatform {
-    fn paste(&mut self, _kinds: &[crate::PasteKind], answer: crate::native::PasteAnswer) {
+    fn paste(&mut self, _formats: &[String], answer: crate::native::PasteAnswer) {
         self.unanswered.push(answer);
     }
 }
@@ -2792,8 +2792,7 @@ fn FocusPanel(
     }
 }
 
-pub(crate) type PasteAsk =
-    Rc<RefCell<Option<(crate::native::PasteRequest, Vec<crate::PasteKind>)>>>;
+pub(crate) type PasteAsk = Rc<RefCell<Option<(crate::native::PasteRequest, Vec<String>)>>>;
 
 struct Seeing(Rc<RefCell<Vec<Event>>>, PasteAsk);
 
@@ -2804,7 +2803,7 @@ impl Program for Seeing {
             context.accept_pastes(&kinds);
             match request {
                 crate::native::PasteRequest::Asked => context.request_paste(),
-                crate::native::PasteRequest::Shortcut => context.paste_shortcut(),
+                crate::native::PasteRequest::Shortcut { plain } => context.paste_shortcut(plain),
                 crate::native::PasteRequest::Typed => context.request_typed_paste(),
             }
         }
@@ -2813,20 +2812,19 @@ impl Program for Seeing {
 
 #[derive(Default)]
 pub(crate) struct IntakePlatform {
-    pub(crate) clipboard: Option<String>,
-    pub(crate) clipboard_image: Option<crate::PickedFile>,
+    pub(crate) clipboard: Option<crate::Clip>,
     pub(crate) delivers_paste: bool,
     pub(crate) shows_keyboard: bool,
-    pub(crate) pastes: Vec<Vec<crate::PasteKind>>,
+    pub(crate) pastes: Vec<Vec<String>>,
 }
 
 impl beui_runner::PlatformServices for IntakePlatform {
-    fn paste(&mut self, kinds: &[crate::PasteKind], answer: crate::native::PasteAnswer) {
-        self.pastes.push(kinds.to_vec());
-        answer.send(kinds.iter().find_map(|kind| match kind {
-            crate::PasteKind::Text => self.clipboard.clone().map(crate::Pasted::Text),
-            crate::PasteKind::Image => self.clipboard_image.clone().map(crate::Pasted::Image),
-        }));
+    fn paste(&mut self, formats: &[String], answer: crate::native::PasteAnswer) {
+        self.pastes.push(formats.to_vec());
+        match &self.clipboard {
+            Some(clip) => clip.resolve(formats, move |item| answer.send(item)),
+            None => answer.send(None),
+        }
     }
 
     fn delivers_paste_shortcut(&self) -> bool {

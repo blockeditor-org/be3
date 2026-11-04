@@ -38,7 +38,7 @@ fn ctrl_v_taken_by_a_listener_asks_for_no_paste_unless_it_asks_itself() {
     let output = harness.frame(ctrl_v());
     assert_eq!(
         output.paste,
-        Some(PasteRequest::Shortcut),
+        Some(PasteRequest::Shortcut { plain: false }),
         "an action that takes Ctrl+V to paste pastes as the shortcut does"
     );
 }

@@ -424,7 +424,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
                             size=ButtonSize::Small
                             capture_presses=true
                             press_focus=false
-                            on_click={move || copy_text(line.code_text())}
+                            on_click={move || copy(Clip::text(line.code_text()))}
                         />
                     </List>
                 </Frame>

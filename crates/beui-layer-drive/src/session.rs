@@ -15,14 +15,16 @@ use beui_core::window::{Resize, WindowSize, WindowState};
 use beui_runner::renderer::Capture;
 use beui_runner::{Above, Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown, Units};
 use beui_types::ActionGroup;
+use beui_types::ClipItem;
 use beui_types::FileSave;
 use beui_types::Keyboard;
 use beui_types::PickedFile;
 use beui_types::WindowId;
+use beui_types::clip::Clip;
+use beui_types::clipboard::formats;
 use beui_types::drive;
 use beui_types::{DroppedFile, FileDrag};
 use beui_types::{Input, PointerButton};
-use beui_types::{PasteKind, Pasted};
 use beui_types::{Pos2, Rect, Vec2, pos2};
 
 use crate::gestures::{Frames, Gestures};
@@ -408,7 +410,7 @@ enum Phase {
         overflows: bool,
     },
     Reading {
-        pasted: std::sync::mpsc::Receiver<Pasted>,
+        pasted: std::sync::mpsc::Receiver<ClipItem>,
         until: Instant,
     },
     Revealing {
@@ -1417,13 +1419,13 @@ impl Session {
             }
             "clipboard" => {
                 if !arguments.is_empty() {
-                    frame.below.copy(arguments.join(" "));
+                    frame.below.copy(Clip::text(arguments.join(" ")));
                     return Ok(Started::Done(Reply::Text(String::new())));
                 }
                 let (sender, pasted) = std::sync::mpsc::channel();
                 frame
                     .below
-                    .paste(&[PasteKind::Text], PasteAnswer::new(sender, None));
+                    .paste(&[formats::TEXT.to_owned()], PasteAnswer::new(sender, None));
                 match clipboard_text(&pasted) {
                     Some(text) => Ok(Started::Done(Reply::Text(text))),
                     None => Ok(Started::Phase(Phase::Reading {
@@ -1824,10 +1826,10 @@ fn action_name(action: accesskit::Action) -> &'static str {
     }
 }
 
-fn clipboard_text(pasted: &std::sync::mpsc::Receiver<Pasted>) -> Option<String> {
+fn clipboard_text(pasted: &std::sync::mpsc::Receiver<ClipItem>) -> Option<String> {
     match pasted.try_recv() {
-        Ok(Pasted::Text(text)) => Some(format!("{text}\n")),
-        Ok(_) | Err(std::sync::mpsc::TryRecvError::Disconnected) => Some(String::new()),
+        Ok(item) => Some(format!("{}\n", item.as_text().unwrap_or_default())),
+        Err(std::sync::mpsc::TryRecvError::Disconnected) => Some(String::new()),
         Err(std::sync::mpsc::TryRecvError::Empty) => None,
     }
 }

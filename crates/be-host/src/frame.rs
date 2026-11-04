@@ -11,11 +11,60 @@ thread_local! {
 struct Waiting {
     picks: Vec<(FilePickId, PickSlot)>,
     saves: Vec<(FileSaveId, SaveSlot)>,
+    renders: Vec<Render>,
+}
+
+/// A representation of an app's copy that a paste asked the app to render.
+struct Render {
+    app_id: String,
+    instance: be_sdk_api::EditorInstanceId,
+    request: u64,
+    answer: Box<dyn FnOnce(Option<Vec<u8>>)>,
+}
+
+/// The clip an app copied: its ready items, and the rest rendered by the
+/// instance when a paste asks, which answer nothing once it stopped.
+fn app_clip(copied: host::CopiedClip) -> beui::Clip {
+    let host::CopiedClip {
+        app_id,
+        instance,
+        serial,
+        items,
+    } = copied;
+    items
+        .into_iter()
+        .fold(beui::Clip::new(), |clip, item| match item.data {
+            Some(data) => clip.with(beui::ClipItem::new(item.format, data)),
+            None => {
+                let app_id = app_id.clone();
+                let format = item.format.clone();
+                clip.with_lazy(
+                    item.format,
+                    move |answer| match be_host_runtime::render_clip(
+                        &app_id,
+                        instance,
+                        serial,
+                        format.clone(),
+                    ) {
+                        Some(request) => WAITING.with(|waiting| {
+                            waiting.borrow_mut().renders.push(Render {
+                                app_id: app_id.clone(),
+                                instance,
+                                request,
+                                answer,
+                            })
+                        }),
+                        None => answer(None),
+                    },
+                )
+            }
+        })
 }
 
 pub(crate) fn begin(context: &beui::native::Context) {
     let mut picked = Vec::new();
     let mut saved = Vec::new();
+    let mut rendered = Vec::new();
     WAITING.with(|waiting| {
         let mut waiting = waiting.borrow_mut();
         waiting
@@ -33,7 +82,16 @@ pub(crate) fn begin(context: &beui::native::Context) {
                 None => waiting.saves.push((id, deliver)),
             }
         }
+        for render in std::mem::take(&mut waiting.renders) {
+            match be_host_runtime::take_rendered(&render.app_id, render.instance, render.request) {
+                Some(data) => rendered.push((render.answer, data)),
+                None => waiting.renders.push(render),
+            }
+        }
     });
+    for (answer, data) in rendered {
+        answer(data);
+    }
     for (deliver, pick) in picked {
         deliver(pick);
     }
@@ -67,11 +125,8 @@ pub(crate) fn end(context: &beui::native::Context) {
     if let Some(fullscreen) = output.fullscreen {
         context.set_fullscreen(fullscreen);
     }
-    if let Some(text) = output.copied {
-        context.copy_text(text);
-    }
-    if let Some(png) = output.copied_image {
-        context.copy_image(png);
+    if let Some(copied) = output.copied {
+        context.copy(app_clip(copied));
     }
     for (filter, slot) in output.file_picks {
         let id = context.pick_file(filter);

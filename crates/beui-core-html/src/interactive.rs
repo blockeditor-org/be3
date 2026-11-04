@@ -4,7 +4,7 @@ use std::rc::Rc;
 use beui_tree::reactive::{Callback, ClickCallback};
 use beui_types::input::{ImeEvent, KeyPress, PointerInput, PointerPress, WheelInput};
 use beui_types::region::{Area, Claim};
-use beui_types::{Pasted, Pos2, SoftKeyboard, Vec2};
+use beui_types::{ClipItem, Pos2, SoftKeyboard, Vec2};
 
 use crate::node::NodeId;
 
@@ -17,7 +17,7 @@ pub struct Handlers {
     pub on_key: Callback<KeyPress, bool>,
     pub on_text: Callback<String>,
     pub on_ime: Callback<ImeEvent>,
-    pub on_paste: Callback<Pasted>,
+    pub on_paste: Callback<ClipItem>,
     pub on_click: ClickCallback,
     pub on_click_at: Callback<PointerPress>,
     pub on_hover_change: Callback<bool>,
@@ -83,7 +83,7 @@ mod web {
         ImeEvent, Input, KeyPress, PointerButton, PointerId, PointerInput, PointerPhase,
         PointerPress, PointerStage, ScrollGesture, TouchId, WheelInput, ZoomGesture, scrolled,
     };
-    use beui_types::{Pasted, Pos2, Rect, Vec2, WindowId, pos2, vec2};
+    use beui_types::{ClipItem, Pos2, Rect, Vec2, WindowId, pos2, vec2};
     use wasm_bindgen::JsCast;
 
     use super::{Handlers, Switches};
@@ -943,7 +943,7 @@ mod web {
                     .and_then(web_sys::ClipboardEvent::clipboard_data)
                     .and_then(|data| data.get_data("text/plain").ok());
                 if let Some(text) = text {
-                    held.handlers.on_paste.call(Pasted::Text(text));
+                    held.handlers.on_paste.call(ClipItem::text(text));
                     handled(&event, true);
                 }
             }),

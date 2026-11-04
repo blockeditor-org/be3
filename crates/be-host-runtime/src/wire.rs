@@ -70,6 +70,7 @@ enum Answering {
     Created(Ticket<Result<[u8; 16], Failure>>),
     Regenerated(Ticket<Result<(), Failure>>),
     Replaced(u64, Ticket<bool>),
+    Rendered(u64, Ticket<Option<Vec<u8>>, wire::Optional<wire::Bytes>>),
 }
 
 impl Answering {
@@ -87,6 +88,10 @@ impl Answering {
             Self::Replaced(request_id, ticket) => EditorAnswer::Replaced {
                 request_id,
                 replaced: ticket.decode(outcome).unwrap_or(false),
+            },
+            Self::Rendered(request_id, ticket) => EditorAnswer::Rendered {
+                request_id,
+                data: ticket.decode(outcome).unwrap_or(None),
             },
         }
     }
@@ -331,6 +336,17 @@ impl Wire {
                 self.answering.insert(
                     ticket.op(),
                     (instance, Answering::Replaced(request_id, ticket)),
+                );
+            }
+            EditorCall::RenderClip {
+                request_id,
+                serial,
+                format,
+            } => {
+                let ticket = editor.render_clip(connection, serial, format);
+                self.answering.insert(
+                    ticket.op(),
+                    (instance, Answering::Rendered(request_id, ticket)),
                 );
             }
             EditorCall::ShowDialog { block, dialog } => {

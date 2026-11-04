@@ -409,6 +409,18 @@ impl GuestEditor for OpenEditor {
         }
     }
 
+    fn render_clip(
+        &self,
+        serial: u64,
+        format: String,
+    ) -> impl Future<Output = Option<Vec<u8>>> + 'static {
+        let (sender, rendered) = oneshot();
+        self.wire.call(self.instance, move |session| {
+            session.render_clip(serial, &format, sender)
+        });
+        async move { rendered.await.flatten() }
+    }
+
     fn replace_child(&self, old: [u8; 16], new: [u8; 16]) -> impl Future<Output = bool> + 'static {
         let (sender, replaced) = oneshot();
         self.wire.call(self.instance, move |session| {

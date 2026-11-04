@@ -9,8 +9,8 @@ use crate::types::CursorImage;
 use crate::types::ImeEvent;
 use crate::types::ImeText;
 use crate::types::KeyPress;
-use crate::types::PasteKind;
-use crate::types::Pasted;
+
+use crate::types::ClipItem;
 use crate::types::PointerPress;
 use crate::types::Pos2;
 use crate::types::SoftKeyboard;
@@ -38,8 +38,8 @@ pub fn Interactive(
     on_activate: ClickCallback,
     on_step: Callback<f32>,
     on_text: Callback<String>,
-    #[prop(default = Vec::new())] pastes: Prop<Vec<PasteKind>>,
-    on_paste: Callback<Pasted>,
+    #[prop(default = Vec::new())] pastes: Prop<Vec<String>>,
+    on_paste: Callback<ClipItem>,
     on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,

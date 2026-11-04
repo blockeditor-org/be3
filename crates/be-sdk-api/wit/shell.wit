@@ -13,6 +13,13 @@ interface shell-types {
         details,
     }
 
+    /// A representation an editor copies: its data, or none when it renders
+    /// it on request.
+    record offered-clip-item {
+        format: string,
+        data: option<list<u8>>,
+    }
+
     record dropped-file {
         name: string,
         data: list<u8>,
@@ -241,8 +248,8 @@ interface shell {
     use be3:ui/types@0.1.0.{rect};
     use shell-types.{
         artifact-description, audio-command, audio-status, bar-action, catalog,
-        child-status, dialog-answer, focus, menu-item, shell-command, stopped, view-change,
-        web-view-event,
+        child-status, dialog-answer, focus, menu-item, offered-clip-item, shell-command, stopped,
+        view-change, web-view-event,
     };
 
     /// The status of the audio the editor plays, watched like preferences once
@@ -294,10 +301,11 @@ interface shell {
     /// child), which the host passes on as the child's `menu-pick` anchor.
     child-menu-pick: async func(instance: editor-instance-id, child: child-id, id: string, anchor: option<rect>);
 
-    copy-text: async func(instance: editor-instance-id, text: string);
-
-    /// A PNG for the clipboard.
-    copy-image: async func(instance: editor-instance-id, png: list<u8>);
+    /// The editor copied: representations of the same content, richest
+    /// first. One without data the editor renders only when a paste asks for
+    /// it (`editor.render-clip` with this `serial`); those end with the
+    /// instance, while the host keeps the rest as long as the clip.
+    copy: async func(instance: editor-instance-id, serial: u64, items: list<offered-clip-item>);
 
     /// The editor asks for the clipboard; it arrives as input.
     paste: async func(instance: editor-instance-id);

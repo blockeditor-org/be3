@@ -88,6 +88,11 @@ pub(super) enum EditorCall {
         old: [u8; 16],
         new: [u8; 16],
     },
+    RenderClip {
+        request_id: u64,
+        serial: u64,
+        format: String,
+    },
     ShowDialog {
         block: [u8; 16],
         dialog: be_sdk_api::ShellDialog,
@@ -99,7 +104,14 @@ pub(super) enum EditorCall {
 pub(super) enum EditorAnswer {
     Created(Result<[u8; 16], Failure>),
     Regenerated(Result<(), Failure>),
-    Replaced { request_id: u64, replaced: bool },
+    Replaced {
+        request_id: u64,
+        replaced: bool,
+    },
+    Rendered {
+        request_id: u64,
+        data: Option<Vec<u8>>,
+    },
 }
 
 impl From<AppCall> for Outbound {
@@ -150,8 +162,7 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         ShellCall::Menu { instance, .. }
         | ShellCall::RunBarAction { instance, .. }
         | ShellCall::ChildMenuPick { instance, .. }
-        | ShellCall::CopyText { instance, .. }
-        | ShellCall::CopyImage { instance, .. }
+        | ShellCall::Copy { instance, .. }
         | ShellCall::Paste { instance, .. }
         | ShellCall::DragBlock { instance, .. }
         | ShellCall::DragAccepted { instance, .. }

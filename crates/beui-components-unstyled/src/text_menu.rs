@@ -116,10 +116,7 @@ fn run(state: &TextAreaState, action: MenuAction) {
                 MenuAction::Cut => CopyMode::Cut,
                 _ => CopyMode::Copy,
             };
-            let text = state.copy(mode);
-            if !text.is_empty() {
-                copy_text(text);
-            }
+            state.copy_to_clipboard(mode);
         }
         MenuAction::Paste => request_paste(),
         MenuAction::SelectAll => state.execute(EditorCommand::SelectAll),

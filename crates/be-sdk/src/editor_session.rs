@@ -308,6 +308,11 @@ impl EditorSession {
         self.editor.presence_visible(visible);
     }
 
+    pub(crate) fn render_clip(&self, serial: u64, format: &str, rendered: Sender<Option<Vec<u8>>>) {
+        self.host
+            .render_clip(serial, format, Box::new(move |data| rendered.send(data)));
+    }
+
     pub(crate) fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
         self.editor.replace_child(old, new)
     }
@@ -515,11 +520,8 @@ impl EditorSession {
             let anchor = self.child_anchor(child);
             shell::child_menu_pick(instance, child, id, anchor).detach();
         }
-        for text in self.host.take_copied_text() {
-            shell::copy_text(instance, text).detach();
-        }
-        for png in self.host.take_copied_images() {
-            shell::copy_image(instance, png).detach();
+        for (serial, items) in self.host.take_copies() {
+            shell::copy(instance, serial, items).detach();
         }
         if self.host.take_paste_request() {
             shell::paste(instance).detach();

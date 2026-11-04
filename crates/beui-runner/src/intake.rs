@@ -137,6 +137,7 @@ pub(crate) struct Intake {
     held: u8,
     left: bool,
     emulated_touch: bool,
+    paste_pieces: Vec<u8>,
 }
 
 impl Default for Intake {
@@ -151,6 +152,7 @@ impl Default for Intake {
             held: 0,
             left: false,
             emulated_touch: false,
+            paste_pieces: Vec::new(),
         }
     }
 }
@@ -373,7 +375,15 @@ impl Intake {
             })),
             Input::InterceptedTap(key) => events.push(Event::InterceptedTap(key)),
             Input::Text(text) => events.push(Event::Text(text)),
-            Input::Paste(pasted) => events.push(Event::Paste(pasted)),
+            Input::PastePiece(piece) => self.paste_pieces.extend(piece.data),
+            Input::Paste(mut pasted) => {
+                if !self.paste_pieces.is_empty() {
+                    let mut joined = std::mem::take(&mut self.paste_pieces);
+                    joined.append(&mut pasted.data);
+                    pasted.data = joined;
+                }
+                events.push(Event::Paste(pasted));
+            }
             Input::Ime(ime) => events.push(Event::Ime(ime)),
             Input::ScrollStarted => events.push(Event::ScrollStarted),
             Input::ScrollEnded => events.push(Event::ScrollEnded),

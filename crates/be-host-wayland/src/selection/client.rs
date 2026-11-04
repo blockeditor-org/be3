@@ -138,6 +138,14 @@ impl TestClient {
         control.device.set_selection(Some(&source));
     }
 
+    /// Copies only an image, whose data the test gives as text.
+    pub(crate) fn copy_image_with_control(&self, control: &DataControl, data: &str) {
+        let source = control.manager.create_data_source(&self.handle, ());
+        source.offer("image/png".to_owned());
+        CLIPBOARD.with(|clipboard| clipboard.borrow_mut().copied = data.to_owned());
+        control.device.set_selection(Some(&source));
+    }
+
     pub(crate) fn copy_with_device(&self, device: &DataDevice, text: &str, serial: u32) {
         let source = device.manager.create_data_source(&self.handle, ());
         source.offer(TEXT.to_owned());

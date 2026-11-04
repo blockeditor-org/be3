@@ -27,10 +27,12 @@ pub use crate::measure::{
 };
 pub use crate::nodes::{Inspect, TreeNode};
 pub use crate::painter::{Draw, Painter, TextBlock};
+pub use crate::types::clipboard::formats;
 pub use crate::types::keys::{KeyAt, KeyEvent, KeyInput};
 pub use crate::types::layer::OverlayAnchor;
 pub use crate::types::node::{BuildsNode, ImeCursor, NodeId, NodeRef};
 pub use crate::types::tree::{BareChild, FromPlaced, ParentKind, Placed};
+pub use crate::types::{Clip, ClipItem};
 
 pub type Child = NodeId;
 
@@ -127,12 +129,10 @@ pub fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
     core::tree_local(make)
 }
 
-pub fn copy_text(text: impl Into<String>) {
-    core::copy_text(text.into());
-}
-
-pub fn copy_image(png: Vec<u8>) {
-    core::copy_image(png);
+/// Puts `clip` on the clipboard: `Clip::text` for plain text, or several
+/// representations of the same content, richest first.
+pub fn copy(clip: crate::types::Clip) {
+    core::copy(clip);
 }
 
 pub fn request_paste() {

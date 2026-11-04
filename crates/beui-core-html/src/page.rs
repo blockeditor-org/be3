@@ -134,13 +134,15 @@ pub fn use_font_revision() -> ReadSignal<u64> {
     signals().font_revision.read_only()
 }
 
-pub fn copy_text(text: String) {
+/// Writes the clip's plain text: a page holds no clip of its own, so its
+/// other representations stay with the program.
+pub fn copy(clip: &beui_types::Clip) {
     #[cfg(target_arch = "wasm32")]
-    if let Some(window) = crate::dom::window() {
+    if let (Some(window), Some(text)) = (crate::dom::window(), clip.plain_text()) {
         let _ = window.navigator().clipboard().write_text(&text);
     }
     #[cfg(not(target_arch = "wasm32"))]
-    let _ = text;
+    let _ = clip;
 }
 
 #[cfg(target_arch = "wasm32")]

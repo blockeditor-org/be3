@@ -28,7 +28,7 @@ fn dragging_across_an_icon_and_its_label_copies_only_the_label() {
     );
     let copied = harness
         .frame(pressed_with(Key::C, Modifiers::CTRL))
-        .copied_text;
+        .copied_text();
     assert_eq!(
         copied.as_deref(),
         Some("Save"),

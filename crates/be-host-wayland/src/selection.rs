@@ -26,6 +26,9 @@ use smithay::wayland::selection::wlr_data_control::{
 };
 use smithay::wayland::selection::{SelectionHandler, SelectionSource, SelectionTarget};
 
+use beui::ClipItem;
+use beui::clipboard::formats;
+
 use crate::server::Waiter;
 use crate::state::State;
 
@@ -36,7 +39,10 @@ const TEXT_TYPES: [&str; 5] = [
     "STRING",
     "TEXT",
 ];
-const MAX_TEXT: usize = 64 << 20;
+/// The image type the compositor reads from a program's selection beside its
+/// text, so a copied image outlives the program.
+const PNG: &str = "image/png";
+const MAX_DATA: usize = 64 << 20;
 const CHUNK: usize = 64 << 10;
 
 #[derive(Clone)]
@@ -52,15 +58,17 @@ pub(crate) struct Selection {
     ext: ExtDataControlState,
     wlr: WlrDataControlState,
     offered: Option<Vec<String>>,
-    reading: Option<Reading>,
-    read: Option<String>,
+    reading: Vec<Reading>,
+    read: Vec<ClipItem>,
+    done: bool,
     dragging: bool,
     program_copied: bool,
-    asked: Vec<OwnedFd>,
+    asked: Vec<(String, OwnedFd)>,
     files: files::FileDrag,
 }
 
 struct Reading {
+    format: &'static str,
     fd: OwnedFd,
     bytes: Vec<u8>,
     watched: Option<Arc<AtomicBool>>,
@@ -68,7 +76,7 @@ struct Reading {
 
 enum Progress {
     Waiting,
-    Done(Option<String>),
+    Done(Option<Vec<u8>>),
 }
 
 impl Selection {
@@ -83,8 +91,9 @@ impl Selection {
             ext,
             wlr,
             offered: None,
-            reading: None,
-            read: None,
+            reading: Vec::new(),
+            read: Vec::new(),
+            done: false,
             dragging: false,
             program_copied: false,
             asked: Vec::new(),
@@ -97,39 +106,67 @@ impl Selection {
     }
 
     fn offered(&mut self, mime_types: Option<Vec<String>>) {
-        self.reading = None;
-        self.read = None;
+        self.reading.clear();
+        self.read.clear();
+        self.done = false;
         self.offered = mime_types;
         self.program_copied = true;
     }
 
-    pub(crate) fn take_read(&mut self) -> Option<String> {
-        self.read.take()
+    /// What a program's selection held, once read: its text and image.
+    pub(crate) fn take_read(&mut self) -> Option<Vec<ClipItem>> {
+        std::mem::take(&mut self.done).then(|| std::mem::take(&mut self.read))
     }
 
     fn progress(&mut self, waiter: &Waiter) {
-        let Some(reading) = &mut self.reading else {
+        if self.reading.is_empty() {
             return;
-        };
-        match reading.progress(waiter) {
-            Progress::Waiting => {}
-            Progress::Done(text) => {
-                self.reading = None;
-                self.read = text;
+        }
+        for mut reading in std::mem::take(&mut self.reading) {
+            match reading.progress(waiter) {
+                Progress::Waiting => self.reading.push(reading),
+                Progress::Done(Some(data)) => self.read.push(match reading.format {
+                    formats::TEXT => ClipItem::text(String::from_utf8_lossy(&data).into_owned()),
+                    format => ClipItem::new(format, data),
+                }),
+                Progress::Done(None) => {}
             }
+        }
+        if self.reading.is_empty() {
+            let order = |item: &ClipItem| item.format != formats::TEXT;
+            self.read.sort_by_key(order);
+            self.done = true;
         }
     }
 
-    pub(crate) fn offer(&mut self, handle: &DisplayHandle, seat: &Seat<State>) {
+    pub(crate) fn offer(&mut self, handle: &DisplayHandle, seat: &Seat<State>, types: Vec<String>) {
         self.offered = None;
-        self.reading = None;
-        self.read = None;
-        set_data_device_selection(handle, seat, text_types(), Owner::Host);
+        self.reading.clear();
+        self.read.clear();
+        self.done = false;
+        set_data_device_selection(handle, seat, types, Owner::Host);
     }
 }
 
-fn text_types() -> Vec<String> {
-    TEXT_TYPES.iter().map(|mime| (*mime).to_owned()).collect()
+/// The MIME types a clip's formats are offered as: plain text under every
+/// name programs ask for it by, the rest under their own.
+pub fn mime_types(formats: &[String]) -> Vec<String> {
+    let mut types = Vec::new();
+    for format in formats {
+        match format.as_str() {
+            formats::TEXT => types.extend(TEXT_TYPES.iter().map(|mime| (*mime).to_owned())),
+            format => types.push(format.to_owned()),
+        }
+    }
+    types
+}
+
+/// The clip format a program asks for by `mime`.
+fn format_of(mime: &str) -> String {
+    match TEXT_TYPES.contains(&mime) {
+        true => formats::TEXT.to_owned(),
+        false => mime.to_owned(),
+    }
 }
 
 fn owned_by_x11(owner: Option<impl std::ops::Deref<Target = Owner>>) -> bool {
@@ -141,13 +178,10 @@ impl Reading {
         let mut chunk = vec![0; CHUNK];
         loop {
             match rustix::io::read(&self.fd, &mut chunk) {
-                Ok(0) => {
-                    let text = String::from_utf8_lossy(&self.bytes).into_owned();
-                    return Progress::Done(Some(text));
-                }
+                Ok(0) => return Progress::Done(Some(std::mem::take(&mut self.bytes))),
                 Ok(count) => {
                     self.bytes.extend_from_slice(&chunk[..count]);
-                    if self.bytes.len() > MAX_TEXT {
+                    if self.bytes.len() > MAX_DATA {
                         return Progress::Done(None);
                     }
                 }
@@ -178,14 +212,14 @@ impl Reading {
     }
 }
 
-pub(crate) fn send_text(fd: OwnedFd, text: Arc<str>) {
+pub(crate) fn send_data(fd: OwnedFd, data: Arc<[u8]>) {
     if let Ok(flags) = rustix::fs::fcntl_getfl(&fd) {
         let _ = rustix::fs::fcntl_setfl(&fd, flags - OFlags::NONBLOCK);
     }
     let _ = std::thread::Builder::new()
         .name("wayland selection".to_owned())
         .spawn(move || {
-            let _ = std::fs::File::from(fd).write_all(text.as_bytes());
+            let _ = std::fs::File::from(fd).write_all(&data);
         });
 }
 
@@ -202,16 +236,29 @@ impl State {
     pub(crate) fn fetch_selection(&mut self) {
         if let Some(mime_types) = self.selection.offered.take() {
             self.selection.reading = self.start_reading(&mime_types);
+            self.selection.done = self.selection.reading.is_empty();
         }
         let waiter = self.waiter().clone();
         self.selection.progress(&waiter);
     }
 
-    fn start_reading(&mut self, mime_types: &[String]) -> Option<Reading> {
-        let mime = TEXT_TYPES
+    /// Starts reading a program's selection: its text, and its PNG.
+    fn start_reading(&mut self, mime_types: &[String]) -> Vec<Reading> {
+        let offers = |mime: &&str| mime_types.iter().any(|offered| offered == *mime);
+        let text = TEXT_TYPES
             .iter()
-            .find(|text| mime_types.iter().any(|offered| offered == *text))?;
-        let mime = (*mime).to_owned();
+            .find(offers)
+            .map(|mime| (formats::TEXT, *mime));
+        let png = Some(PNG)
+            .filter(|mime| offers(&mime))
+            .map(|mime| (formats::PNG, mime));
+        text.into_iter()
+            .chain(png)
+            .filter_map(|(format, mime)| self.start_reading_one(format, mime.to_owned()))
+            .collect()
+    }
+
+    fn start_reading_one(&mut self, format: &'static str, mime: String) -> Option<Reading> {
         let (read, write) = rustix::pipe::pipe_with(rustix::pipe::PipeFlags::CLOEXEC).ok()?;
         let flags = rustix::fs::fcntl_getfl(&read).ok()?;
         rustix::fs::fcntl_setfl(&read, flags | OFlags::NONBLOCK).ok()?;
@@ -223,6 +270,7 @@ impl State {
             request_data_device_client_selection(&self.seat, mime, write).ok()?;
         }
         Some(Reading {
+            format,
             fd: read,
             bytes: Vec::new(),
             watched: None,
@@ -273,11 +321,7 @@ impl State {
             }
         };
         match owner {
-            Some(Owner::Host) => {
-                if TEXT_TYPES.contains(&mime_type.as_str()) {
-                    self.selection.asked.push(fd);
-                }
-            }
+            Some(Owner::Host) => self.selection.asked.push((format_of(&mime_type), fd)),
             Some(Owner::X11) => {}
             None => {
                 let _ = match target {
@@ -296,7 +340,8 @@ impl State {
         self.selection.dragging
     }
 
-    pub fn take_selection_text(&mut self) -> Option<String> {
+    /// What a program copied, once read: its text, then its image.
+    pub fn take_selection_items(&mut self) -> Option<Vec<ClipItem>> {
         self.selection.take_read()
     }
 
@@ -304,13 +349,16 @@ impl State {
         std::mem::take(&mut self.selection.program_copied)
     }
 
-    pub fn offer_host_clipboard(&mut self) {
+    /// Offers the host's clip to programs, as the MIME types of `formats`.
+    pub fn offer_host_clipboard(&mut self, formats: &[String]) {
         let handle = self.display_handle();
-        self.selection.offer(&handle, &self.seat);
-        self.announce_x11_selection(SelectionTarget::Clipboard, Some(text_types()));
+        let types = mime_types(formats);
+        self.selection.offer(&handle, &self.seat, types.clone());
+        self.announce_x11_selection(SelectionTarget::Clipboard, Some(types));
     }
 
-    pub fn take_asked_for_host_clipboard(&mut self) -> Vec<OwnedFd> {
+    /// The pipes programs asked the host's clip on, with the format each wants.
+    pub fn take_asked_for_host_clipboard(&mut self) -> Vec<(String, OwnedFd)> {
         std::mem::take(&mut self.selection.asked)
     }
 }
@@ -340,11 +388,7 @@ impl SelectionHandler for State {
         owner: &Owner,
     ) {
         match owner {
-            Owner::Host => {
-                if TEXT_TYPES.contains(&mime_type.as_str()) {
-                    self.selection.asked.push(fd);
-                }
-            }
+            Owner::Host => self.selection.asked.push((format_of(&mime_type), fd)),
             Owner::X11 => {
                 self.read_x11_selection(target, mime_type, fd);
             }

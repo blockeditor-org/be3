@@ -642,7 +642,7 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
                     if key == COPY_REPORT
                         && let Some(report) = be_host_base::notices::report_of(id)
                     {
-                        copy_text(report);
+                        copy(Clip::text(report));
                     }
                 }}
             />
