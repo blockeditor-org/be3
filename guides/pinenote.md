@@ -1,7 +1,7 @@
 # The PineNote
 
 be-host runs as the desktop in a login session (`BEUI_PLATFORM=drm be-host --desktop`,
-guides/desktop/linux.md) on a Pine64 PineNote with hrdl's Arch Linux
+guides/desktop/login_session.md) on a Pine64 PineNote with hrdl's Arch Linux
 (https://git.sr.ht/~hrdl/pinenote-dist): hrdl's kernel with its `rockchip_ebc` e-paper driver
 (guides/pinenote_ebc.md), greetd with gtkgreet as the login screen.
 
@@ -15,7 +15,8 @@ beui-platform-drm handles any such pair: when its Vulkan device's render node is
 device (`buffers` in `runner.rs`), it allocates buffers with GBM on the render node and imports
 them into the display device by PRIME (`swapchain.rs`, `Imported`). simpledrm and evdi displays
 take the same path. Every frame carries `FB_DAMAGE_CLIPS`, so the driver reads only what changed;
-a rotated screen is turned on the GPU, clips included, so the driver always sees the panel's own
+a rotated screen (guides/desktop/login_session.md, Rotation and pointing devices) is turned on the
+GPU, clips included, so the driver always sees the panel's own
 orientation.
 
 ## E-paper
