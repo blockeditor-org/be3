@@ -7,6 +7,10 @@ use crate::reactive::{Get, Stored, create_effect, on_cleanup, store};
 
 pub use crate::types::{Easing, Fling, Motion, Spring, Velocity, tween};
 
+/// The motion preference. `Motion::Instant` finishes running animations and completes
+/// new ones without scheduling frames, and turns off inertia and rubber-banding; timers
+/// that do work (expiry, key repeat, media, clocks) still run, so a delay kept separate
+/// from the fade after it still waits.
 pub fn motion() -> Motion {
     crate::core::animation::motion()
 }
@@ -29,6 +33,9 @@ struct State {
     finish: Box<dyn Fn()>,
 }
 
+/// Owned by the scope that created it, which cancels it (without finishing) when
+/// disposed. Starting a running animation keeps its clock; `stop` cancels without
+/// completion; `finish` applies the terminal state exactly once.
 #[derive(Clone, Copy)]
 pub struct Animation(Stored<State>);
 
@@ -79,6 +86,10 @@ impl Animation {
     }
 }
 
+/// The tool for UI motion: `step` runs each frame with an `AnimationFrame` and returns
+/// whether another frame is needed; returning false finishes it. It asks for the very next
+/// frame, so never use it for motion that never ends (see `create_timer`). Publish
+/// animated values through signals.
 pub fn create_animation(
     step: impl Fn(AnimationFrame) -> bool + 'static,
     finish: impl Fn() + 'static,

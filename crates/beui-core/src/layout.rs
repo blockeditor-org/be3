@@ -67,6 +67,9 @@ pub fn min_width(doc: &mut Document, painter: &Painter, id: NodeId) -> f32 {
     width
 }
 
+/// `Element::least_length`, memoised per node, direction and cross length
+/// (`FrameWork::least_lengths` counts nodes asked afresh, `reused_least_lengths`
+/// answers reused). A node that does not say counts its natural length.
 pub fn least_length(
     doc: &mut Document,
     painter: &Painter,
