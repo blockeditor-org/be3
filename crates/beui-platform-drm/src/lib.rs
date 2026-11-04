@@ -1,4 +1,3 @@
-mod arrow;
 mod cursors;
 mod density;
 mod display;
@@ -23,7 +22,6 @@ mod rotation;
 mod runner;
 mod screen;
 mod swapchain;
-mod theme;
 mod wake;
 
 pub use display::{DisplayConfig, DisplayControl, DisplayMode, DisplayUse, Monitor};

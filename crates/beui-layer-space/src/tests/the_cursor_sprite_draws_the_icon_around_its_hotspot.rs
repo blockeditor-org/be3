@@ -49,7 +49,7 @@ fn the_cursor_sprite_draws_the_icon_around_its_hotspot() {
         .filter(|shape| matches!(shape, Shape::Text { .. }))
         .count();
     assert_eq!(
-        glyphs, 4,
-        "away, it draws a mouse and an arrow, each over its shadow"
+        glyphs, 20,
+        "away, it draws a mouse and an arrow, each over its shadow and in its outline"
     );
 }
