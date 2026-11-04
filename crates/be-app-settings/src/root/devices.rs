@@ -19,6 +19,7 @@ const SAME: &str = "same";
 const NOT_SET: &str = "not set";
 const KEPT_SINCE_SETUP: &str = "kept since setup";
 const KEPT_ON_DEVICE: &str = "kept on device";
+const SAME_PADDING: Space = Space::Xl;
 const NOTHING_DIFFERS: &str = "Every profile follows the settings for all devices.";
 
 #[derive(Clone, Default, PartialEq)]
@@ -269,7 +270,7 @@ fn values(editor: Editor, kinds: impl Fn(uuid::Uuid) -> Option<Uuid>) -> Values 
 }
 
 #[component]
-pub(super) fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsContent>) -> NodeId {
+fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsContent>) -> NodeId {
     let children = editor.watch_blocks(BlockQuery::Children(editor.block_id()));
     let model = create_memo(move || {
         let Ok(root) = settings.read(|settings| settings.root()) else {
@@ -319,16 +320,18 @@ pub(super) fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsC
     view! {
         <List spacing=Space::None>
             <Show condition={same}>
-                <Text style=TextStyle::CAPTION @test_id={"devices.same"}>{NOTHING_DIFFERS}</Text>
+                <Frame padding=SAME_PADDING>
+                    <Text style=TextStyle::CAPTION @test_id={"devices.same"}>
+                        {NOTHING_DIFFERS}
+                    </Text>
+                </Frame>
             </Show>
             <Show condition={differs}>
-                <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius=Radius::Lg>
-                    <Table label="Devices and profiles" heading="Setting" columns={columns}>
-                        <ForEach keys={keys}>|key: String|
-                            <DevicesRow model={model} key={key} />
-                        </ForEach>
-                    </Table>
-                </Frame>
+                <Table label="Devices and profiles" heading="Setting" columns={columns}>
+                    <ForEach keys={keys}>|key: String|
+                        <DevicesRow model={model} key={key} />
+                    </ForEach>
+                </Table>
             </Show>
         </List>
     }
@@ -385,5 +388,20 @@ fn DevicesRow(model: Memo<Model>, key: String) -> NodeId {
                 }
             }</ForEach>
         </TableRow>
+    }
+}
+
+#[component]
+pub(super) fn DevicesPage(editor: Editor) -> NodeId {
+    let settings = editor.block_content::<SettingsContent>();
+    view! {
+        <SettingsPage>
+            <SettingsSection
+                title="Compare devices"
+                description="What each profile keeps for itself, beside what applies on all devices. Each profile is listed under Devices in Settings."
+            >
+                <DevicesTable editor={editor} settings={settings} />
+            </SettingsSection>
+        </SettingsPage>
     }
 }

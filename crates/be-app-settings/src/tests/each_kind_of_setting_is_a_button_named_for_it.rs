@@ -7,7 +7,9 @@ fn each_kind_of_setting_is_a_button_named_for_it() {
         ("settings.display", "Display"),
         ("settings.input", "Input"),
         ("settings.default-editors", "Default editors"),
-        ("settings.devices", "Devices and profiles"),
+        ("settings.offline", "Offline"),
+        ("settings.devices", "Compare devices"),
+        ("settings.new-profile", "New settings profile"),
     ] {
         assert_eq!(editor.accessible_label(row).as_deref(), Some(name));
     }

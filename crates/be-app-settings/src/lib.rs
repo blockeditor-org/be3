@@ -10,6 +10,9 @@ pub mod tags;
 be_sdk_beui::beui_app!("../manifest.json", {
     settings => root::SettingsRoot,
     profile => root::SettingsProfileRoot,
+    devices => root::DevicesRoot,
+    organization => root::OrganizationRoot,
+    offline => root::OfflineRoot,
     display => display::DisplaySettingsRoot,
     input => input::InputSettingsRoot,
     remaps => input_remaps::InputRemapsRoot,
