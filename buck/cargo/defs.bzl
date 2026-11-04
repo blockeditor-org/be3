@@ -54,6 +54,11 @@ def cargo_manifest_sources(resources = [], foreign_resources = {}):
     sources.update(foreign_resources)
     return sources
 
+# A library's sources, non-Rust files read at compile time included. Tests take
+# all of src/** but src/bin/**, so an asset under a tests/ directory reaches the
+# tests and not the library. Sources sit at their path in the package, not under
+# CARGO_MANIFEST_DIR, so a file a proc macro reads from there is passed as
+# `resources` (be-sdk-type-api's WIT is).
 def cargo_library_sources():
     return native.glob(
         ["src/**"],
@@ -69,6 +74,8 @@ def cargo_library_sources():
 def cargo_test_sources():
     return native.glob(["src/**"], exclude = ["src/bin/**"])
 
+# A binary or example in a crate with a library takes only its root file, or the
+# root's directory when it is a main.rs below src/ or examples/.
 def _target_sources(crate, root):
     if crate["library"] == None:
         return cargo_library_sources()
