@@ -79,6 +79,10 @@ use smithay::xwayland::XWaylandClientData;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WindowId(pub u64);
 
+/// The axis value of one wheel notch: libinput's 15 degrees, which clients
+/// read from every compositor that passes libinput's values on.
+const WHEEL_NOTCH: f64 = 15.0;
+
 pub const PING_TIMEOUT: Duration = Duration::from_secs(3);
 
 struct Ping {
@@ -1029,15 +1033,38 @@ impl State {
         }
     }
 
-    pub fn pointer_axis(&mut self, delta: (f64, f64)) {
+    /// Scrolls the pointer's window by `delta` in surface coordinates, the
+    /// way Wayland signs them (positive is down and right). `notches` is set
+    /// when a mouse wheel turned, so the client scrolls its own wheel step
+    /// rather than reading a turn as a touchpad sliding `delta`.
+    pub fn pointer_axis(&mut self, delta: (f64, f64), notches: Option<(f64, f64)>) {
+        use smithay::backend::input::{Axis, AxisSource};
         let pointer = self.pointer();
-        let mut frame =
-            AxisFrame::new(self.time()).source(smithay::backend::input::AxisSource::Continuous);
-        if delta.0 != 0.0 {
-            frame = frame.value(smithay::backend::input::Axis::Horizontal, delta.0);
-        }
-        if delta.1 != 0.0 {
-            frame = frame.value(smithay::backend::input::Axis::Vertical, delta.1);
+        let mut frame = AxisFrame::new(self.time());
+        let axes = [
+            (Axis::Horizontal, delta.0, notches.map(|n| n.0)),
+            (Axis::Vertical, delta.1, notches.map(|n| n.1)),
+        ];
+        match notches {
+            Some(_) => {
+                frame = frame.source(AxisSource::Wheel);
+                for (axis, _, notches) in axes {
+                    let notches = notches.unwrap_or(0.0);
+                    if notches != 0.0 {
+                        frame = frame
+                            .value(axis, notches * WHEEL_NOTCH)
+                            .v120(axis, (notches * 120.0).round() as i32);
+                    }
+                }
+            }
+            None => {
+                frame = frame.source(AxisSource::Continuous);
+                for (axis, delta, _) in axes {
+                    if delta != 0.0 {
+                        frame = frame.value(axis, delta);
+                    }
+                }
+            }
         }
         pointer.axis(self, frame);
         pointer.frame(self);

@@ -224,7 +224,7 @@ impl Replay {
                         pressed,
                     }));
                 }
-                PointerPhase::Scroll(delta) => {
+                PointerPhase::Scroll { delta, .. } => {
                     self.modifiers(event.modifiers, out);
                     out.push(Input::Scroll(ScrollDelta::Pixels(delta / zoom)).into());
                 }

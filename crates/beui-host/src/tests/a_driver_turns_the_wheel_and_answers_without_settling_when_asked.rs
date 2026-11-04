@@ -16,7 +16,7 @@ impl Program for Busy {
         }
         context.input(|input| {
             for event in &input.events {
-                if let Event::Scroll(delta) = event {
+                if let Event::Scroll { delta, .. } = event {
                     self.scrolled.update(|scrolled| scrolled.push(*delta));
                 }
             }
