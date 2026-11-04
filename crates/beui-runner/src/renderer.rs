@@ -49,9 +49,9 @@ pub trait Renderer {
 
     fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool;
 
-/// Takes an unseen frame (`Runner::set_occluded`). The wgpu target keeps only
-/// what the frame damaged and draws the union of every noted frame's damage the
-/// next time it draws; the default prepares as usual.
+    /// Takes an unseen frame (`Runner::set_occluded`). The wgpu target keeps only
+    /// what the frame damaged and draws the union of every noted frame's damage the
+    /// next time it draws; the default prepares as usual.
     fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
         self.prepare(output, scale, background);
     }

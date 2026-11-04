@@ -54,9 +54,9 @@ pub trait Layer {
 
     fn setup(&mut self, _setup: &Setup) {}
 
-/// A layer that paces frames (an XR headset) blocks for the next one and returns
-/// its predicted display time. While any layer paces, the runner turns vsync off
-/// and keeps framing a window with no size (minimised), unseen at its last size.
+    /// A layer that paces frames (an XR headset) blocks for the next one and returns
+    /// its predicted display time. While any layer paces, the runner turns vsync off
+    /// and keeps framing a window with no size (minimised), unseen at its last size.
     fn pace(&mut self) -> Option<Instant> {
         None
     }
@@ -71,13 +71,13 @@ pub trait Layer {
 
     fn framed(&mut self, _frame: &mut Frame, _output: &FrameOutput, _layer: &mut LayerFrame<'_>) {}
 
-/// Keeps an occluded window's frames drawn (a driver taking a shot).
+    /// Keeps an occluded window's frames drawn (a driver taking a shot).
     fn wants_sight(&self) -> bool {
         false
     }
 
-/// Asked top first after `input`; the first `Some` overrides whether the
-/// platform reports a keyboard attached.
+    /// Asked top first after `input`; the first `Some` overrides whether the
+    /// platform reports a keyboard attached.
     fn keyboard_attached(&self) -> Option<bool> {
         None
     }

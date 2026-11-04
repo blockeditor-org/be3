@@ -30,9 +30,9 @@ pub enum Incoming {
         input: Input,
     },
     FileDrag(FileDrag),
-/// Pushed just after the event it stamps; becomes `PointerEvent::time` and
-/// drives fling velocity. An event pushed without one happens at the frame
-/// clock's `now`, so tests step time by stepping frames.
+    /// Pushed just after the event it stamps; becomes `PointerEvent::time` and
+    /// drives fling velocity. An event pushed without one happens at the frame
+    /// clock's `now`, so tests step time by stepping frames.
     Time(Instant),
     Window(WindowReport),
     Controller(super::Controller),

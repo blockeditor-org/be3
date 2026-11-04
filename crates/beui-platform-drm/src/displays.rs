@@ -54,8 +54,8 @@ impl Displays {
             .cloned()
     }
 
-/// Hears every change (plugged, unplugged, a new mode, rotation or scale) before
-/// the frame it reaches lays out.
+    /// Hears every change (plugged, unplugged, a new mode, rotation or scale) before
+    /// the frame it reaches lays out.
     pub fn watch(&self, watcher: impl Fn() + 'static) {
         self.0.watchers.borrow_mut().push(Rc::new(watcher));
     }
