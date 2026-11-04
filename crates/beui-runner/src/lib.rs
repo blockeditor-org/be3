@@ -93,12 +93,19 @@ pub struct Launch {
 
 pub type Running = Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>>;
 
+/// Owns the event loop and only translates native input into `Incoming`s for
+/// `Runner::push`; everything a frame does is `Runner::frame`, shared by every
+/// platform. A new platform implements this and `PlatformServices`, and hands its
+/// window or element to the renderer loader beui-host gives it.
 pub trait Platform {
     fn name(&self) -> &'static str;
 
     fn run(self: Box<Self>, launch: Launch) -> Running;
 }
 
+/// What the program asks of the window. Every method has a default, so a
+/// platform implements only what it has; layers receive the services below them
+/// and forward to them by default.
 pub trait PlatformServices {
     fn copy(&mut self, _text: String) {}
 
@@ -121,6 +128,8 @@ pub trait PlatformServices {
         ));
     }
 
+/// True where Ctrl+V already arrives as a paste (the browser's paste event, an
+/// app's host), so the runner does not also ask `paste` for it.
     fn delivers_paste_shortcut(&self) -> bool {
         false
     }
@@ -129,8 +138,12 @@ pub trait PlatformServices {
         false
     }
 
+/// Called with the new and previously shown state only when they differ, so a
+/// platform compares only the fields it acts on. A new `WindowState` field means
+/// changes here and in every platform that uses it.
     fn show_window(&mut self, _window: &WindowState, _shown: &WindowState) {}
 
+/// Only a headless window can be resized by the program or a driver.
     fn resize(&mut self, _resize: Resize) -> Result<(), String> {
         Err("this window cannot be resized from here; run the program headless".to_owned())
     }
@@ -315,6 +328,9 @@ impl Runner {
         !self.events.is_empty() || !self.intake.incoming.is_empty() || self.reports.pending()
     }
 
+/// An occluded window still runs every frame (layout, paint, accessibility, a
+/// driver), but each frame's output goes to `Renderer::note` instead of
+/// `prepare`, and nothing is presented. The headless platform is always occluded.
     pub fn set_occluded(&mut self, occluded: bool) {
         self.occluded = occluded;
     }
@@ -342,6 +358,8 @@ impl Runner {
         self.context.keep_accessibility(true);
     }
 
+/// Trees are published only between this and `accessibility_deactivated`, so a
+/// host asks what it embeds to describe itself only while something listens.
     pub fn accessibility_requested(&mut self) {
         self.publishing_accessibility = true;
         self.context.set_accessibility_requested(true);
@@ -370,6 +388,8 @@ impl Runner {
             .map(|dump| dump.rendered().text().to_owned())
     }
 
+/// For a window closed from outside: asks the program's `close_requested`, and
+/// exits only if it agrees.
     pub fn os_close(&mut self) -> bool {
         let accepted = self
             .contain(|runner| runner.program.close_requested())
@@ -386,6 +406,9 @@ impl Runner {
         }
     }
 
+/// Runs `Program::exiting` and drops the program while the GPU and displays still
+/// exist. A panic in the program (here or in `update`) is caught and kept as
+/// `failure` rather than unwinding through the platform's event loop.
     pub fn exit(&mut self) {
         if !self.exited {
             self.exited = true;

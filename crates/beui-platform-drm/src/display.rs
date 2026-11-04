@@ -22,6 +22,9 @@ pub struct Monitor {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// A display mirroring one that is not on the desktop is on the desktop itself;
+/// with none left on the desktop the main one is, so a session always has one.
+/// `Off` darkens the display but keeps its connector and CRTC.
 pub enum DisplayUse {
     #[default]
     Desktop,
@@ -30,6 +33,11 @@ pub enum DisplayUse {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
+/// How the displays are arranged (`plan.rs`, then `layout::arrange`). A display's
+/// scale comes from `scales`, else `BEUI_SCALE`, else `density.rs`'s guess from
+/// its physical size. `places` are kept while a display shares an edge with one
+/// placed before it and overlaps none, else moved to the nearest place that does;
+/// an unplaced display goes right of the rest.
 pub struct DisplayConfig {
     pub modes: Vec<(String, DisplayMode)>,
     pub rotations: Vec<(String, Rotation)>,
