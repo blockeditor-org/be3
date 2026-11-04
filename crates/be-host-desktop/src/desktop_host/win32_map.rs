@@ -316,6 +316,7 @@ pub fn known_window(
         modal: entry.modal,
         size: Vec2::new(width as f32 / scale, height as f32 / scale),
         min_size: Vec2::ZERO,
+        maximized: false,
         fullscreen,
         responding: entry.responding,
         icon: entry.icon.as_ref().map(|icon| Picture {

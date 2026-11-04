@@ -21,6 +21,7 @@ mod recovery;
 mod rotation;
 mod runner;
 mod screen;
+mod screenshot;
 mod swapchain;
 mod wake;
 

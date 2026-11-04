@@ -7,6 +7,7 @@ mod a_sequence_plays_its_steps_on_the_clock;
 mod a_wheel_notch_taps_a_key_for_as_long_as_the_rule_holds_it;
 mod an_autohotkey_script_reads_as_remaps;
 mod editing_a_rule_keeps_the_rest_of_the_text_as_it_was;
+mod editing_a_trigger_keeps_what_is_held_with_it;
 mod held_conditions_pick_the_rule;
 mod kept_input_still_reaches_the_window;
 mod key_names_read_back_as_they_are_written;

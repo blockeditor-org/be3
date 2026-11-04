@@ -20,6 +20,10 @@ use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
 use crate::windows::{Command, Launch, Popups, WindowInfo, Windows};
 
+/// The desktop's name in `XDG_CURRENT_DESKTOP`, as the login session's entry
+/// names it, given to programs when be-host started without one; under it
+/// xdg-desktop-portal reads `be-host-portals.conf`.
+const DESKTOP: &str = "be-host";
 const BUTTON_LEFT: u32 = 0x110;
 const BUTTON_RIGHT: u32 = 0x111;
 const BUTTON_MIDDLE: u32 = 0x112;
@@ -280,6 +284,8 @@ impl Compositor {
             .map(|display| format!(":{display}"))
     }
 
+    /// What programs need to reach this compositor, given to every program it
+    /// starts and, in a login session, to D-Bus and systemd for what they start.
     pub fn environment(&self) -> Vec<(&'static str, String)> {
         let runtime = self
             .server
@@ -291,11 +297,15 @@ impl Compositor {
             .gtk_profile
             .as_ref()
             .map(|profile| ("DCONF_PROFILE", profile.to_string_lossy().into_owned()));
+        let desktop = std::env::var_os("XDG_CURRENT_DESKTOP")
+            .is_none_or(|desktop| desktop.is_empty())
+            .then(|| ("XDG_CURRENT_DESKTOP", DESKTOP.to_owned()));
         runtime
             .into_iter()
             .chain(wayland)
             .chain(x11)
             .chain(gtk)
+            .chain(desktop)
             .collect()
     }
 
@@ -522,6 +532,7 @@ impl Compositor {
                     drawn: state.drawn_size(id),
                     min_size,
                     max_size,
+                    maximized: state.maximized(id),
                     title: state.title(id).unwrap_or_default(),
                     program_id: state.program_id(id).unwrap_or_default(),
                     parent: state.parent(id),

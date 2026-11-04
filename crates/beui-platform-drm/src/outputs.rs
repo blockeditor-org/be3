@@ -16,6 +16,7 @@ use crate::output::Output;
 use crate::pointing;
 use crate::rotation::Rotation;
 use crate::screen::{FORMAT, Frame, Pointer};
+use crate::screenshot::{self, Shown};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Look {
@@ -80,6 +81,21 @@ impl Outputs {
 
     pub fn rects(&self) -> Vec<Rect> {
         self.desktops().map(|output| output.screen.rect).collect()
+    }
+
+    /// The desktop as one picture, as its displays last drew it.
+    pub fn screenshot(&self) -> Option<beui_types::Image> {
+        let shown: Vec<Shown> = self
+            .desktops()
+            .filter_map(|output| {
+                Some(Shown {
+                    rect: output.screen.rect,
+                    scale: output.screen.scale,
+                    picture: output.screen.capture(&self.gpu)?,
+                })
+            })
+            .collect();
+        screenshot::compose(&shown)
     }
 
     pub fn desktops(&self) -> impl Iterator<Item = &Output> {

@@ -19,8 +19,9 @@ fn acts_on_the_focused_window() {
     }
     let layout = DockHostLayout::new();
     layout.restore(state);
-    let area = Rect::from_min_size(Pos2::ZERO, Vec2::new(1200.0, 800.0));
-    layout.set_areas(vec![area]);
+    let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(1200.0, 800.0));
+    let area = Rect::from_min_size(Pos2::ZERO, Vec2::new(1200.0, 760.0));
+    layout.set_areas(vec![DockArea { screen, work: area }]);
     let locked = create_signal(false);
     let actions = layout.window_actions(create_memo(move || locked.get()));
     let maximize = actions.maximize.detached();
@@ -53,6 +54,13 @@ fn acts_on_the_focused_window() {
         layout.fullscreen(),
         Some(tab(3)),
         "full screen shows the focused window's tab full screen"
+    );
+    assert_eq!(
+        layout
+            .state()
+            .with_untracked(|state| state.fullscreen().and_then(|shown| shown.area)),
+        Some(screen),
+        "over its whole display, the bars kept clear of windows included"
     );
     assert!(fullscreen.run());
     assert_eq!(layout.fullscreen(), None, "and again takes it out");

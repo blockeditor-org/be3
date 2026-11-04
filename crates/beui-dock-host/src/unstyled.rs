@@ -59,13 +59,14 @@ pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
 use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
-pub use hosting::{DockHost, DockHostLayout, DockSnap, DockWindowActions, holding_area};
+pub use hosting::{DockArea, DockHost, DockHostLayout, DockSnap, DockWindowActions, holding_area};
 use modifier_drag::{Resized, modifier_resize};
 use switch::DockSwitchView;
 pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 
 use beui_dock::{
-    DockMenus, DockRequest, DockTabControl, DockTabDriver, DockTabMenu, dock_menu_items,
+    DockMenus, DockPaneControl, DockRequest, DockTabControl, DockTabDriver, DockTabMenu,
+    dock_menu_items,
 };
 use beui_dock_state::*;
 
@@ -1977,6 +1978,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
                 size={window_size}
                 placement={window_placement}
                 open={windowed}
+                fullscreen=true
                 keep_alive=true
                 on_report={move |report: WindowReport| {
                     if let WindowReport::Focused { focused: true, .. } = report
@@ -2055,7 +2057,6 @@ fn DockStack(dock: State) -> NodeId {
     let left = create_memo(move || gone.get().is_some() && staged.get().is_none());
     let here =
         create_memo(move || occupied.get() && gone.get().is_none() && staged.get().is_none());
-    let empty = dock.empty;
     view! {
         <BackSlide
             enabled={backward}
@@ -2073,7 +2074,11 @@ fn DockStack(dock: State) -> NodeId {
                     <Portal node={bar} />
                 </Show>
                 <Show condition={vacant}>
-                    {empty.call(state.with_untracked(vacant_leaf))} @sizing=ItemSize::Percent(100.0)
+                    <EmptyPane
+                        dock
+                        leaf={state.with_untracked(vacant_leaf)}
+                        @sizing=ItemSize::Percent(100.0)
+                    />
                 </Show>
                 <Show condition={here}>
                     <DockBarred
@@ -2782,15 +2787,30 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
     let shown = create_memo(move || state.with(|state| state.active_tab(leaf)));
     let vacant = create_memo(move || shown.get().is_none());
     let occupied = create_memo(move || shown.get().is_some());
-    let empty = dock.empty;
     view! {
         <List spacing=0.0>
-            <Show condition={vacant}>{empty.call(leaf)} @sizing=ItemSize::Percent(100.0)</Show>
+            <Show condition={vacant}>
+                <EmptyPane dock leaf @sizing=ItemSize::Percent(100.0) />
+            </Show>
             <Show condition={occupied}>
                 <DockShownBody dock leaf={Some(leaf)} shown @sizing=ItemSize::Percent(100.0) />
             </Show>
         </List>
     }
+}
+
+/// What an empty pane shows, told which pane it is (`use_dock_pane`).
+#[component]
+fn EmptyPane(dock: State, leaf: LeafId) -> NodeId {
+    provide_context(DockPaneControl::new(
+        leaf,
+        Callback::new(move |leaf: LeafId| {
+            if dock.state.with_untracked(|state| state.focused_leaf()) != Some(leaf) {
+                dock.edit(|state| state.focus(leaf));
+            }
+        }),
+    ));
+    dock.empty.call(leaf)
 }
 
 #[component]

@@ -103,6 +103,7 @@ pub fn Window(
     #[prop(default = None)] fit: Prop<Option<Vec2>>,
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
+    #[prop(default = false)] fullscreen: Prop<bool>,
     #[prop(default = false)] keep_alive: bool,
     on_report: Callback<WindowReport>,
     #[prop(children)] content: RenderFn<WindowHandle>,
@@ -156,9 +157,12 @@ pub fn Window(
             title: title.get(),
             notice: notice.get(),
             role: role.get(),
-            level: match leveled.get() {
-                LayerLevel::Normal => WindowLevel::Normal,
-                LayerLevel::Raised | LayerLevel::Top | LayerLevel::Lock => WindowLevel::Above,
+            level: match (fullscreen.get(), leveled.get()) {
+                (true, _) => WindowLevel::Fullscreen,
+                (false, LayerLevel::Normal) => WindowLevel::Normal,
+                (false, LayerLevel::Raised | LayerLevel::Top | LayerLevel::Lock) => {
+                    WindowLevel::Above
+                }
             },
             fit: fit.get(),
             on_report: heard,

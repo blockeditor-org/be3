@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use be_host_remap::names::{BUTTON_FIRST, LEFT_SUPER, Modifier, RIGHT_SUPER};
+use be_host_remap::names::{BUTTON_FIRST, CODE_LIMIT, Modifier};
 use be_host_remap::protocol::{decode, encode};
 use be_host_remap::{Input, Output, Reply, Request, Source, Window};
 use wasmi::{
@@ -10,6 +10,8 @@ use wasmi::{
 
 pub use be_host_remap;
 
+pub mod capture;
+
 pub const START_FUEL: u64 = 50_000_000;
 pub const CALL_FUEL: u64 = 5_000_000;
 pub const MEMORY_BYTES: usize = 16 << 20;
@@ -18,7 +20,6 @@ pub const FAILURE_WINDOW: u64 = 60_000_000;
 const SOONEST: u64 = 1000;
 const MOST_REPLY_BYTES: usize = 1 << 20;
 const MOST_OUTPUTS: usize = 1024;
-const CODE_LIMIT: u16 = 0x300;
 const BACKSPACE: u16 = 14;
 const ESCAPE: u16 = 1;
 const KEY_L: u16 = 38;
@@ -121,7 +122,7 @@ impl Remapper {
             return self.deliver(vec![input]);
         }
         if let Input::Press(source) = input
-            && self.reserved(source)
+            && reserved(&self.physical, source)
         {
             self.bypassed.insert(source);
             let mut outputs: Vec<Output> = Modifier::ALL
@@ -193,24 +194,6 @@ impl Remapper {
 
     fn active(&self) -> bool {
         self.config.is_some() && !self.locked && !self.stopped
-    }
-
-    fn reserved(&self, source: Source) -> bool {
-        let held = |modifier: Modifier| {
-            modifier
-                .keys()
-                .iter()
-                .any(|key| self.physical.contains(key))
-        };
-        let Source::Key(code) = source else {
-            return false;
-        };
-        let held_super = self.physical.contains(&Source::Key(LEFT_SUPER))
-            || self.physical.contains(&Source::Key(RIGHT_SUPER));
-        (held(Modifier::Ctrl)
-            && held(Modifier::Alt)
-            && (code == BACKSPACE || TERMINAL_KEYS.contains(&code)))
-            || (held_super && (code == KEY_L || code == ESCAPE))
     }
 
     fn call(&mut self, request: &Request, now: u64) -> Result<Vec<Output>, String> {
@@ -310,6 +293,19 @@ impl Remapper {
             .map(Input::Release)
             .collect()
     }
+}
+
+/// The session's own keys, which neither a remapper nor a capture may keep from it:
+/// Ctrl+Alt+Backspace, Ctrl+Alt+F<n>, Super+L and Super+Escape.
+fn reserved(physical: &BTreeSet<Source>, source: Source) -> bool {
+    let held = |modifier: Modifier| modifier.keys().iter().any(|key| physical.contains(key));
+    let Source::Key(code) = source else {
+        return false;
+    };
+    (held(Modifier::Ctrl)
+        && held(Modifier::Alt)
+        && (code == BACKSPACE || TERMINAL_KEYS.contains(&code)))
+        || (held(Modifier::Super) && (code == KEY_L || code == ESCAPE))
 }
 
 fn valid(source: Source) -> bool {

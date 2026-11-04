@@ -738,7 +738,7 @@ impl EditorSession {
         self.host.push_child_bar_action(child, action);
     }
 
-    pub(crate) fn child_focused(&self, child: ChildId) {
+    pub fn child_focused(&self, child: ChildId) {
         self.host.push_child_focus(child);
     }
 
@@ -1009,6 +1009,7 @@ impl EditorSession {
                 work_area: frame
                     .work_area
                     .map(|area| be_sdk_api::Insets::between(host, area)),
+                backdrop: frame.backdrop,
             });
         }
         frame

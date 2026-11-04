@@ -61,6 +61,7 @@ pub(super) fn placed(children: Vec<HostChild>) -> PlacedView {
         every_sample: false,
         work_area: None,
         used: None,
+        backdrop: None,
     }
 }
 

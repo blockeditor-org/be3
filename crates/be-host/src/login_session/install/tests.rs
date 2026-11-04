@@ -37,6 +37,7 @@ fn layout(root: &Path) -> Layout {
         ],
         pam: root.join("etc/pam.d"),
         greetd: root.join("etc/greetd/environments"),
+        portals: root.join("usr/share/xdg-desktop-portal"),
     }
 }
 

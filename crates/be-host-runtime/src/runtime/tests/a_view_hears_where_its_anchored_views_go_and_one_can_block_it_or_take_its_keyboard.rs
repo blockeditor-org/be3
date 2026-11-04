@@ -70,6 +70,7 @@ fn commit(serial: u64, sheet: AnchoredPlacement) {
                 description: None,
                 anchored: Some(sheet),
                 work_area: None,
+                backdrop: None,
             }],
             windows: Vec::new(),
             children: Vec::new(),

@@ -387,6 +387,7 @@ fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
                 description: None,
                 anchored: Some(layer.placement),
                 work_area: None,
+                backdrop: None,
             }
         })
         .collect();
@@ -437,6 +438,7 @@ mod an_app_reaches_only_the_hosts_its_manifest_names;
 mod an_app_seeds_only_blocks_it_holds;
 mod an_editor_can_read_and_edit_a_block_it_watches;
 mod an_editor_is_only_sent_messages_its_app_session_accepts;
+mod an_input_capture_opened_again_is_not_told_the_earlier_chord;
 mod an_instance_inside_a_checkout_speaks_in_its_local_ids;
 mod an_instance_the_app_never_opened_is_not_closed;
 mod an_instance_watching_a_blocks_head_is_sent_its_stored_bytes;
