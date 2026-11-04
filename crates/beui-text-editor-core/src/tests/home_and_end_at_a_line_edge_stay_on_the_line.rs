@@ -20,4 +20,11 @@ fn home_and_end_at_a_line_edge_stay_on_the_line() {
     tester.expect_content(b"one\ntwo|\nthree");
     tester.execute(line_edge(LRDirection::Right));
     tester.expect_content(b"one\ntwo|\nthree");
+
+    tester.set_cursor(tester.pos(0));
+    tester.execute(line_edge(LRDirection::Right));
+    tester.expect_content(b"one|\ntwo\nthree");
+    tester.set_cursor(tester.pos(13));
+    tester.execute(line_edge(LRDirection::Left));
+    tester.expect_content(b"one\ntwo\n|three");
 }

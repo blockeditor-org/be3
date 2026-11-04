@@ -924,15 +924,20 @@ impl Core {
                 opened.push(section.line_start);
                 continue;
             }
-            let moved = to_boundary(
-                document.bytes(),
-                focus,
-                direction,
-                stop,
-                BoundaryMode::Direction,
-                stop == CursorLeftRightStop::Line,
-                stops,
-            );
+            let moved = match stop == CursorLeftRightStop::Line
+                && at_line_edge(document.bytes(), focus, direction)
+            {
+                true => focus,
+                false => to_boundary(
+                    document.bytes(),
+                    focus,
+                    direction,
+                    stop,
+                    BoundaryMode::Direction,
+                    false,
+                    stops,
+                ),
+            };
             *cursor = match mode {
                 MoveMode::Move => CursorPosition::at(Position::at(&document, moved)),
                 MoveMode::Select => CursorPosition {
@@ -2228,6 +2233,16 @@ fn surrounding_inline_code_markers(
         Some((before.len(), after.len()))
     } else {
         None
+    }
+}
+
+/// Whether `index` is already where Home (`Left`) or End (`Right`) would take it.
+fn at_line_edge(bytes: &[u8], index: usize, direction: LRDirection) -> bool {
+    match direction {
+        LRDirection::Left => line_start(bytes, index) == index,
+        LRDirection::Right => {
+            line_end(bytes, index) == index || bytes[index..].starts_with(b"\r\n")
+        }
     }
 }
 
