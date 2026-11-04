@@ -16,7 +16,8 @@ A Rust app links two libraries, or one (`buck/wasm/defs.bzl`):
 - **base**, `crates/be-sdk-library-base`, the root: std, wasi-libc, libc++,
   setjmp, wgpu with its custom backend, be-wasm-ops, be-sdk-api, be-sdk,
   serde, postcard, uuid and what they need. Nothing in it depends on beui;
-  be-sdk's state announces changes through callbacks any UI framework adapts.
+  be-sdk's state announces changes through callbacks any UI framework adapts
+  (guides/blocks/apps.md, State and change callbacks).
 - **beui**, `crates/be-sdk-library-beui`, above base: beui-reactive, beui,
   be-sdk-beui and be-sdk-beui-platform (renderer, fonts), with FreeType and
   HarfBuzz.
