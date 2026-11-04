@@ -111,7 +111,10 @@ pub struct Shared {
     database: Arc<Mutex<Connection>>,
     pub(crate) session_changes: tokio::sync::watch::Sender<u64>,
     objects: FileStore,
-    graphs: std::sync::Mutex<HashMap<Uuid, BlockGraph>>,
+    graphs: std::sync::Mutex<HashMap<Uuid, Arc<std::sync::RwLock<Cached>>>>,
+    /// A read-only connection beside the writer (the database is in WAL mode), for reads that
+    /// must not wait behind writes: whether a reader may download an object.
+    reader: std::sync::Mutex<Connection>,
     revision: std::sync::atomic::AtomicU64,
     graph_loads: std::sync::atomic::AtomicU64,
     object_refs: std::sync::Mutex<ObjectRefs>,
@@ -145,12 +148,18 @@ impl ServerStore {
         let object_refs = load_object_refs(&connection)?;
         let server = crate::organization::ServerKey::load_or_create(&connection)?;
         let objects = FileStore::open(root.join("objects"))?;
+        let reader = Connection::open_with_flags(
+            root.join("metadata.sqlite"),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        reader.busy_timeout(Duration::from_secs(5))?;
         usage::backfill(&connection, &objects)?;
         Ok(Self(Arc::new(Shared {
             database: Arc::new(Mutex::new(connection)),
             session_changes: tokio::sync::watch::channel(0).0,
             objects,
             graphs: std::sync::Mutex::new(HashMap::new()),
+            reader: std::sync::Mutex::new(reader),
             revision: std::sync::atomic::AtomicU64::new(0),
             graph_loads: std::sync::atomic::AtomicU64::new(0),
             object_refs: std::sync::Mutex::new(object_refs),
@@ -673,10 +682,8 @@ impl ServerStore {
     }
 
     pub async fn personal_organization(&self) -> Result<Uuid, ServerError> {
-        self.with_database(move |_, database| {
-            personal_organization(&database)
-        })
-        .await
+        self.with_database(move |_, database| personal_organization(&database))
+            .await
     }
 
     pub async fn join_personal_organization(&self, account: Uuid) -> Result<Uuid, ServerError> {
@@ -901,8 +908,8 @@ impl ServerStore {
         require_administrator(identity)?;
         let organization = identity.organization;
         self.with_database(move |_, database| {
-            let current =
-                crate::contacts::role_in(&database, account, organization)?.ok_or_else(not_a_member)?;
+            let current = crate::contacts::role_in(&database, account, organization)?
+                .ok_or_else(not_a_member)?;
             if current == role {
                 return Ok(());
             }
@@ -964,10 +971,8 @@ impl ServerStore {
     }
 
     pub async fn issue_session(&self, account: Uuid) -> Result<String, ServerError> {
-        self.with_database(move |_, database| {
-            issue_token(&database, account)
-        })
-        .await
+        self.with_database(move |_, database| issue_token(&database, account))
+            .await
     }
 
     pub async fn membership(
@@ -1253,6 +1258,14 @@ impl From<GraphError> for ServerError {
     }
 }
 
+/// An organization's graph as the store caches it. A graph job that may have left it apart from
+/// the database marks it invalid before letting go of it, so a reader that already holds it
+/// does not trust it either.
+struct Cached {
+    graph: BlockGraph,
+    valid: bool,
+}
+
 pub struct Collected {
     pub blocks: Vec<Uuid>,
     pub objects: usize,
@@ -1272,7 +1285,9 @@ impl ServerStore {
         + 'static,
     ) -> Result<R, ServerError> {
         self.with_database(move |store, database| {
-            store.in_graph(organization, database, |graph| action(store, graph, database))
+            store.in_graph(organization, database, |graph| {
+                action(store, graph, database)
+            })
         })
         .await
     }
@@ -1296,15 +1311,26 @@ impl ServerStore {
     ) -> Result<R, ServerError> {
         #[cfg(test)]
         held::wait(organization);
-        let mut graphs = self.graphs.lock().expect("the graph cache is never poisoned");
-        let graph = match graphs.entry(organization) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => {
-                self.graph_loads
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                entry.insert(load_graph(database, organization)?)
+        let cached = {
+            let mut graphs = self
+                .graphs
+                .lock()
+                .expect("the graph cache is never poisoned");
+            match graphs.entry(organization) {
+                Entry::Occupied(entry) => Arc::clone(entry.get()),
+                Entry::Vacant(entry) => {
+                    self.graph_loads
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let graph = load_graph(database, organization)?;
+                    Arc::clone(entry.insert(Arc::new(std::sync::RwLock::new(Cached {
+                        graph,
+                        valid: true,
+                    }))))
+                }
             }
         };
+        let mut held = cached.write().expect("a cached graph is never poisoned");
+        let graph = &mut held.graph;
         let revision = self
             .revision
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
@@ -1316,15 +1342,53 @@ impl ServerStore {
         // calls costs no reloads; anything else may have left the graph and the database apart.
         let kept = match &outcome {
             Ok(_) => true,
-            Err(ServerError::Refused(..)) => {
-                changes == (graph.changes(), total_changes(database)?)
-            }
+            Err(ServerError::Refused(..)) => changes == (graph.changes(), total_changes(database)?),
             Err(_) => false,
         };
         if !kept {
-            graphs.remove(&organization);
+            held.valid = false;
+            let mut graphs = self
+                .graphs
+                .lock()
+                .expect("the graph cache is never poisoned");
+            if graphs
+                .get(&organization)
+                .is_some_and(|current| Arc::ptr_eq(current, &cached))
+            {
+                graphs.remove(&organization);
+            }
         }
         outcome
+    }
+
+    /// Reads `organization`'s cached graph without the database lock, waiting only for a graph
+    /// job of the same organization; `None` when it is not cached.
+    pub(crate) fn read_graph<R>(
+        &self,
+        organization: Uuid,
+        read: impl FnOnce(&BlockGraph) -> R,
+    ) -> Option<R> {
+        let cached = self
+            .graphs
+            .lock()
+            .expect("the graph cache is never poisoned")
+            .get(&organization)
+            .cloned()?;
+        let held = cached.read().expect("a cached graph is never poisoned");
+        held.valid.then(|| read(&held.graph))
+    }
+
+    /// Runs `read` with the read-only connection on tokio's blocking pool.
+    pub(crate) async fn with_reader<R: Send + 'static>(
+        &self,
+        read: impl FnOnce(&ServerStore, &Connection) -> Result<R, ServerError> + Send + 'static,
+    ) -> Result<R, ServerError> {
+        let store = self.clone();
+        blocking(move || {
+            let reader = store.reader.lock().expect("the reader is never poisoned");
+            read(&store, &reader)
+        })
+        .await
     }
 
     /// How many times an organization's graph was loaded from the database.

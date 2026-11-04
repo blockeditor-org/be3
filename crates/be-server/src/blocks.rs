@@ -607,7 +607,23 @@ impl ServerStore {
         identity: Identity,
         hash: Hash,
     ) -> Result<bool, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, database| {
+        // Downloads take neither the database lock nor the graph job's: the holders come from the
+        // read-only connection and access from the cached graph, which a revocation changes
+        // before its call returns. Only a graph not cached yet costs a graph job.
+        let organization = identity.organization;
+        let cached = self
+            .with_reader(move |store, reader| {
+                let holders = holders_of(reader, organization, hash)?;
+                let seen = visibility(identity);
+                Ok(store.read_graph(organization, |graph| {
+                    holders.iter().any(|block| seen.can_view(graph, *block))
+                }))
+            })
+            .await?;
+        if let Some(readable) = cached {
+            return Ok(readable);
+        }
+        self.with_graph(organization, move |_, graph, database| {
             readable(graph, database, identity, hash)
         })
         .await
@@ -982,8 +998,13 @@ impl ServerStore {
                 freed.extend(gone);
             }
             std::mem::drop(refs);
-            let shrank =
-                store.release_charged(&transaction, graph, identity.organization, block, &released)?;
+            let shrank = store.release_charged(
+                &transaction,
+                graph,
+                identity.organization,
+                block,
+                &released,
+            )?;
             forget_objects(&transaction, &freed)?;
             graph.add_size(block, shrank, false)?;
             persist_sizes(
@@ -1299,22 +1320,27 @@ fn readable(
     identity: Identity,
     hash: Hash,
 ) -> Result<bool, ServerError> {
+    let seen = visibility(identity);
+    Ok(holders_of(database, identity.organization, hash)?
+        .into_iter()
+        .any(|block| seen.can_view(graph, block)))
+}
+
+/// The blocks of `organization` that hold `hash`, by a commit or by `HoldObjects`.
+fn holders_of(
+    database: &Connection,
+    organization: Uuid,
+    hash: Hash,
+) -> Result<Vec<Uuid>, ServerError> {
     let mut statement = database.prepare_cached(
         "SELECT block_id FROM commit_objects WHERE organization_id = ?1 AND hash = ?2
          UNION
          SELECT block_id FROM block_objects WHERE organization_id = ?1 AND hash = ?2",
     )?;
-    let rows = statement.query_map(
-        params![identity.organization.to_string(), hash.to_hex()],
-        |row| row.get::<_, String>(0),
-    )?;
-    let seen = visibility(identity);
-    for row in rows {
-        if seen.can_view(graph, parse_uuid(&row?)?) {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+    let rows = statement.query_map(params![organization.to_string(), hash.to_hex()], |row| {
+        row.get::<_, String>(0)
+    })?;
+    rows.map(|row| parse_uuid(&row?)).collect()
 }
 
 pub(crate) fn revoke_or_grant(

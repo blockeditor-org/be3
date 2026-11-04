@@ -268,7 +268,12 @@ which adds the organization's graph. A job captures what it needs by value
 (the store is a cheap clone) and runs to its end even when its caller is
 dropped. Uploads are written and synced, and objects read, on the blocking
 pool too, outside the lock (`put_objects` after it reserves the quota,
-`get_object`, `get_objects`). In tests, `store::held::hold(organization)`
+`get_object`, `get_objects`). Whether a reader may download an object
+(`may_read_object`) is answered from a read-only connection beside the writer
+and the organization's cached graph, read under its own lock, so downloads
+wait neither for the database lock nor for other organizations' calls; a
+graph job that may have left its graph apart from the database marks it
+invalid. In tests, `store::held::hold(organization)`
 keeps an organization's next graph job waiting until released. A connection
 resolves its token again only after `ServerStore::sessions_changed`, not on
 every call and push (`Connection::signed_in`), so every path that deletes or

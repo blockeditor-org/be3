@@ -1075,8 +1075,9 @@ impl ServerStore {
         let (public, memberships) = {
             self.with_database(move |_, database| {
                 let public = recovery_key_of(&database, account)?;
-                let mut statement = database
-                    .prepare("SELECT organization_id, role FROM memberships WHERE account_id = ?1")?;
+                let mut statement = database.prepare(
+                    "SELECT organization_id, role FROM memberships WHERE account_id = ?1",
+                )?;
                 let rows = statement.query_map([account.to_string()], |row| {
                     Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
                 })?;

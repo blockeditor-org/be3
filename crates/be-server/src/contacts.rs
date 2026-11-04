@@ -455,17 +455,18 @@ impl ServerStore {
         let found = self.contact_link(caller, link).await?;
         let owner = found.owner;
         let Some(grant) = found.grant else {
-            return self.with_database(move |_, database| {
-                let transaction = database.unchecked_transaction()?;
-                mark_accepted(&transaction, link, caller, &card)?;
-                befriend(&transaction, owner, &[], caller, &contact)?;
-                transaction.commit()?;
-                Ok(Accepted {
-                    owner,
-                    granted: None,
+            return self
+                .with_database(move |_, database| {
+                    let transaction = database.unchecked_transaction()?;
+                    mark_accepted(&transaction, link, caller, &card)?;
+                    befriend(&transaction, owner, &[], caller, &contact)?;
+                    transaction.commit()?;
+                    Ok(Accepted {
+                        owner,
+                        granted: None,
+                    })
                 })
-            })
-            .await;
+                .await;
         };
         let granted = self
             .with_graph(grant.organization, move |store, graph, database| {
@@ -530,7 +531,8 @@ impl ServerStore {
             {
                 let mut statement =
                     database.prepare("SELECT id FROM contact_links WHERE owner_id = ?1")?;
-                let rows = statement.query_map([caller.to_string()], |row| row.get::<_, String>(0))?;
+                let rows =
+                    statement.query_map([caller.to_string()], |row| row.get::<_, String>(0))?;
                 for row in rows {
                     ids.push(parse_uuid(&row?)?);
                 }
@@ -655,14 +657,16 @@ impl ServerStore {
                             ON theirs.organization_id = mine.organization_id
                          WHERE mine.account_id = ?1 AND theirs.account_id = ?2",
                     )?;
-                    let rows =
-                        statement.query_map(params![caller.to_string(), other.to_string()], |row| {
+                    let rows = statement.query_map(
+                        params![caller.to_string(), other.to_string()],
+                        |row| {
                             Ok((
                                 row.get::<_, String>(0)?,
                                 row.get::<_, String>(1)?,
                                 row.get::<_, String>(2)?,
                             ))
-                        })?;
+                        },
+                    )?;
                     for row in rows {
                         let (organization, mine, theirs) = row?;
                         shared.push((
