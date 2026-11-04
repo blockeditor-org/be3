@@ -95,7 +95,10 @@ resource named `*-watch` with `constructor()` and `next`), its `Default` until
 the host answers; `editor.offered::<W>()` says whether the host has answered
 at all. A watch is opened on first read and answered at once, on every change
 and after an app restart. Each watch has its own revision, so one changing
-wakes no other.
+wakes no other. `editor.watch_while::<W>(open)` opens a watch of its own only
+while `open` reads true, starting from `Default` at each opening, for a watch
+whose opening starts something on the host (`be_sdk_api::starts_anew`, whose
+new watches are not told earlier values).
 
 The core watches are in `wit/account.wit`; some (contacts, program windows)
 are answered only to the shell (`be-host-runtime/src/published.rs`,
@@ -108,8 +111,8 @@ A host call is a function of the same interface made inside `editor.act`:
 `editor.act(move || desktop::power::request(action).detach())`.
 
 On the host, `be_host_base::watches::publish::<W>(&value)` sets a value,
-`watched::<W>()` says whether anyone watches (the host starts PulseAudio only
-then) and `take_calls(be_sdk_api::requested::power)` takes what instances
+`watched::<W>()` says whether any watch is open (the host starts PulseAudio
+only then), `openings::<W>()` counts openings and `take_calls(be_sdk_api::requested::power)` takes what instances
 asked. `be-host-runtime/src/wire.rs` refuses an extension the manifest does
 not grant or the platform cannot back. Adding one is a WIT resource or
 function, a `publish` or `take_calls` on the host, and `watch` or `act` in the

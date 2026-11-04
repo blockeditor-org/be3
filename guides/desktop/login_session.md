@@ -130,7 +130,11 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   or per profile. Any app can offer a remapper by declaring an editor for that type.
 - **The shipped one** is the settings app's Input Remaps editor (`be-app-settings`, `input_remaps`):
   TOML config stored exactly as written, edited in place through `be_host_remap::edit`
-  (`toml_edit`). Its module is `crates/be-host-remap-module` (staged as `remapper.wasm`), which
+  (`toml_edit`). Its editor shows rules as key caps and never needs a key name typed: keys come
+  from a picker (Press it, through `InputCaptureWatch`; Mouse; All keys, listed from
+  `be_host_remap::names`), with a typed name or code, read as the TOML reads it, as the fallback.
+  A program group is picked from `OpenProgramsWatch` and `ProgramsWatch`; the TOML itself is
+  behind an "Edit as TOML" switch. Its module is `crates/be-host-remap-module` (staged as `remapper.wasm`), which
   runs `be-host-remap`'s engine and text reader (`be_host_remap::text`, key names in
   `be_host_remap::names`). Rules can be scoped to a window by executable, program id or title.
 - **The protocol.** A module exports `memory`, `be_remap_buffer` and `be_remap_handle` and trades
@@ -148,4 +152,10 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   libinput had sent it, and `InputControl::inject` carries changes made outside input (releases on
   focus or lock). `Compositor::keyboard_window` names the focused window; its executable is the last
   part of its process's first argument (a Windows path for a Proton game). `RemapsWatch` reports the
-  state to Settings.
+  state to Settings, and is answered only where the filter runs.
+- **Catching a chord.** A remap editor learns which key, button or wheel turn to remap by opening
+  an `InputCaptureWatch` (with `Editor::watch_while`): the session catches input ahead of the
+  remapper, by Linux input code, until the first chord, and keeps it from programs. The rules are
+  `be_host_remap_host::capture`'s, and the WIT doc comment; `remap/linux.rs` starts a capture at
+  each opening (`watches::openings`) and stops it once no watch is open. A new watch is never told
+  the chord an earlier one caught (`be_sdk_api::starts_anew`).

@@ -289,6 +289,7 @@ enum Answer {
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, be_sdk_api::embed::blocks::Call),
     Watch(EditorInstanceId, be_sdk_api::ops::MethodId),
+    Unwatch(EditorInstanceId, be_sdk_api::ops::MethodId),
     Published(EditorInstanceId, be_sdk_api::ops::Started),
     Debug(EditorInstanceId, be_sdk_api::embed::debug::debug::Call),
     Ended(be_sdk_api::ops::OpId),
@@ -315,6 +316,7 @@ impl From<Heard> for Answer {
             Heard::Paintings(payload) => Self::Paintings(payload),
             Heard::Blocks(instance, call) => Self::Blocks(instance, call),
             Heard::Watch(instance, open) => Self::Watch(instance, open),
+            Heard::Unwatch(instance, open) => Self::Unwatch(instance, open),
             Heard::Published(instance, started) => Self::Published(instance, started),
             Heard::Debug(instance, call) => Self::Debug(instance, call),
             Heard::Ended(op) => Self::Ended(op),
@@ -1147,6 +1149,7 @@ impl Runtime {
                 | Answer::Paintings(_)
                 | Answer::Blocks(..)
                 | Answer::Watch(..)
+                | Answer::Unwatch(..)
                 | Answer::Published(..)
                 | Answer::Debug(..)
                 | Answer::Ended(_)
@@ -1240,6 +1243,10 @@ impl Runtime {
                 }
                 Answer::Blocks(instance, call) => self.instances.blocks_call(instance, call),
                 Answer::Watch(instance, open) => self.instances.watch_published(instance, open),
+                Answer::Unwatch(instance, open) => {
+                    self.instances.unwatch_published(instance, open);
+                    false
+                }
                 Answer::Published(instance, started) => {
                     self.instances.published_call(instance, started)
                 }

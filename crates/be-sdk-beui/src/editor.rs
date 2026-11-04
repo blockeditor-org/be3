@@ -643,6 +643,38 @@ impl Editor {
         })
     }
 
+    /// A watch of `W` of its own, open while `open` reads true. Each time it turns true a new
+    /// watch opens and the value starts again from its `Default`; it closes when `open` turns
+    /// false or the scope ends. For a watch whose opening starts something on the host, as an
+    /// input capture's does; `watch` keeps one open for the editor's life.
+    pub fn watch_while<W: Watched>(&self, open: impl Fn() -> bool + 'static) -> ReadSignal<W::Value>
+    where
+        W::Value: Default,
+    {
+        let host = self.host();
+        let value = create_signal(W::Value::default());
+        let following: Rc<RefCell<Option<Task>>> = Rc::default();
+        let held = Rc::clone(&following);
+        create_effect(move || {
+            let open = open();
+            untrack(|| {
+                let mut following = held.borrow_mut();
+                if open && following.is_none() {
+                    value.set(W::Value::default());
+                    *following = Some(host.follow_watch::<W>(move |answer| value.set(answer)));
+                } else if !open && let Some(task) = following.take() {
+                    task.cancel();
+                }
+            });
+        });
+        on_cleanup(move || {
+            if let Some(task) = following.borrow_mut().take() {
+                task.cancel();
+            }
+        });
+        value.read_only()
+    }
+
     fn watch_revision<W: Watched>(&self) -> ReadSignal<u64> {
         self.state().pushed.watched(std::any::TypeId::of::<W>())
     }

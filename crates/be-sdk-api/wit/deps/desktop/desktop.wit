@@ -61,6 +61,19 @@ interface windows {
         next: async func() -> list<host-window>;
     }
 
+    /// A program with a window open, without the window, which only the shell
+    /// sees: what an app that names programs (the input remaps) offers to pick.
+    record open-program {
+        program-id: string,
+        command: list<string>,
+    }
+
+    /// The programs with windows open, each once, for any app.
+    resource open-programs-watch {
+        constructor();
+        next: async func() -> list<open-program>;
+    }
+
     /// Whether the system keeps Super's chords for itself, as Windows does, so the
     /// shell's window keys use Ctrl+Alt in their place; answered only where it does.
     resource super-kept-watch {
@@ -99,9 +112,59 @@ interface input {
         next: async func() -> list<host-input-device>;
     }
 
+    /// Answered only where the session filters input before programs see it: the Linux login
+    /// session. Elsewhere it is never offered.
     resource remaps-watch {
         constructor();
         next: async func() -> remap-state;
+    }
+
+    /// A wheel notch, by the way it turned.
+    enum wheel-turn {
+        up,
+        down,
+        left,
+        right,
+    }
+
+    variant captured-trigger {
+        /// A key or button, by Linux input code (buttons from 0x100).
+        source(u16),
+        wheel(wheel-turn),
+    }
+
+    /// A chord the session caught for a remap editor.
+    record captured-chord {
+        /// Keys and buttons held when it was caught, by Linux input code, in the order pressed.
+        held: list<u16>,
+        trigger: captured-trigger,
+    }
+
+    /// What an input capture has seen so far.
+    record input-capture {
+        /// Keys and buttons held now, in the order pressed, for the editor to show while it waits.
+        held: list<u16>,
+        /// The chord caught, once there is one; the capture then ends.
+        chord: option<captured-chord>,
+    }
+
+    /// While an editor watches this, the session catches key, button and wheel input before
+    /// remapping and gives it to the editor instead of to the remapper and programs. Answered
+    /// where `remaps-watch` is; open it with `Editor::watch_while`, since a watch's opening
+    /// starts a capture.
+    ///
+    /// Capturing starts when the watch opens and ends at the first chord; a watch opened later
+    /// starts a new one and never hears an earlier one's chord. Pointer motion and the primary
+    /// button pass through, so the editor can still be clicked, and so do keys held when it
+    /// starts, until released. A chord is caught at the press of a key or button that is not
+    /// Shift, Ctrl, Alt or Super while others are held; at a wheel notch; or else at the first
+    /// release, as the last key pressed with the ones pressed before it held, so Ctrl alone gives
+    /// Ctrl. Keys still held after it stay away from programs until released. The session's own
+    /// keys (Ctrl+Alt+Backspace, Ctrl+Alt+F<n>, Super+L, Super+Escape) keep working, and nothing
+    /// is caught while the screen is locked.
+    resource input-capture-watch {
+        constructor();
+        next: async func() -> input-capture;
     }
 
     /// Which of the input settings that are not a device's own take effect in the session.

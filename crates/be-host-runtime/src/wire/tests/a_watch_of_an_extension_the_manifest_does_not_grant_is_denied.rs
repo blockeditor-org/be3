@@ -27,7 +27,7 @@ fn open() -> Opening {
     })
 }
 
-fn exchange(wire: &mut Wire, guest: &Executor, heard: &mut Vec<Heard>) {
+pub(super) fn exchange(wire: &mut Wire, guest: &Executor, heard: &mut Vec<Heard>) {
     loop {
         let mut items = Vec::new();
         guest
@@ -57,7 +57,7 @@ fn watched<W: Watched>(guest: &Executor, editor: OpId) -> Answer {
     answer
 }
 
-fn opened(wire: &mut Wire) -> (Executor, OpId, Vec<Heard>) {
+pub(super) fn opened(wire: &mut Wire) -> (Executor, OpId, Vec<Heard>) {
     let editor = Rc::new(std::cell::Cell::new(None));
     let served = Rc::clone(&editor);
     let guest = Executor::new(Box::new(move |_, started| {
