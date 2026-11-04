@@ -17,6 +17,8 @@ impl DockState {
             .collect()
     }
 
+    /// Keeps the window's place but places none of its tabs (`is_shown` is false), so its dialogs hide
+    /// too; the switcher skips it and it is not saved. Showing or focusing any of its tabs shows it.
     pub fn hide_window(&mut self, surface: SurfaceId) {
         if self.window_rect(surface).is_none() || self.is_hidden(surface) {
             return;

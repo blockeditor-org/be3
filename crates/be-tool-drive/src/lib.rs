@@ -15,6 +15,8 @@ use std::time::Duration;
 use beui_layer_drive::socket::{read_reply, write_request};
 use beui_layer_drive::{Reply, USAGE};
 
+/// How long a command waits for the program to settle before it gives up and names what kept
+/// it busy; `drive --timeout=SECONDS` overrides it.
 pub const TIMEOUT: Duration = Duration::from_secs(30);
 const ANSWER_GRACE: Duration = Duration::from_secs(5);
 
@@ -225,7 +227,7 @@ fn exec(socket: &Path, arguments: &[String], timeout: Duration) -> Result<(), St
     let environment = environment(socket, timeout)?;
     if environment.is_empty() {
         return Err(
-            "the app hosts no programs; be-host does with --desktop (guides/desktop/linux.md)"
+            "the app hosts no programs; be-host does with --desktop (guides/desktop/wayland.md)"
                 .to_owned(),
         );
     }
@@ -245,6 +247,10 @@ fn quoted(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
+/// Reads a `drive -` script: one command a line, quoted as a shell would. A line whose first
+/// non-space character is `#` is a comment, skipped before quotes are read, so an apostrophe in
+/// it is fine. buck/program/drive-words.mjs reads scripts the same way for the browser; keep
+/// the two in step.
 pub fn commands(script: &str) -> Result<Vec<(&str, Vec<String>)>, String> {
     let mut found = Vec::new();
     for line in script.lines().map(str::trim) {

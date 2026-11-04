@@ -1,3 +1,6 @@
+/// An icon: its codepoint in the Lucide font. Only the generated list makes one,
+/// so an icon prop cannot be handed text. Save icons by name ([`named`]), never by
+/// codepoint: Lucide renumbers icons between releases.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Glyph(&'static str);
 
@@ -37,6 +40,7 @@ mod list;
 
 pub use list::*;
 
+/// Looks an icon up by its Lucide name, as saved data holds it.
 pub fn named(name: &str) -> Option<Glyph> {
     ALL.binary_search_by(|icon| icon.name.cmp(name))
         .ok()

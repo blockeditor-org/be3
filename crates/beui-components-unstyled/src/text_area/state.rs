@@ -239,12 +239,17 @@ impl TextAreaState {
         text
     }
 
+    /// Like [`Self::sync`], and also breaks the undo group, for an edit that
+    /// arrived from elsewhere.
     pub fn external_edit(&self) {
         let inner = self.0.value();
         inner.core.borrow_mut().external_edit();
         self.sync();
     }
 
+    /// Republishes what the area shows from the `Core`. The area does this after its
+    /// own commands; nothing polls the document, so code that changes it from
+    /// behind (adopting a remote edit) calls this.
     pub fn sync(&self) {
         self.sync_document();
         self.sync_cursors();

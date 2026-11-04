@@ -87,18 +87,39 @@ pub struct Outlined {
 }
 
 pub trait Element: Any {
+    /// Measurements are memoised per offer and dropped when the node or anything
+    /// under it changes layout, so this must be a pure function of the node and its
+    /// constraint. A size `s` measured at a bounded offer `a` also answers any bounded
+    /// offer between `s` and `a`, and one measured unbounded answers an offer of
+    /// exactly `s`: offering more room than the size may change it only when that room
+    /// is unbounded. Measure each child a bounded number of times, through
+    /// `layout::measure`, to keep a full layout linear.
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2;
 
+    /// `rect` is at the origin of the node's own space; the rects given to children
+    /// are in that space too. May build the node's own subtree through
+    /// `Document::build_within` (as `VirtualList` builds its rows). Reach children
+    /// through `layout::layout`, which takes the element out of the arena while it runs.
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects);
 
+    /// Where the first line of text sits below the top, for `Align::Baseline` rows.
+    /// A node wrapping one child forwards `layout::baseline`, adding its own shift.
     fn baseline(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Option<f32> {
         None
     }
 
+    /// The least width the node can be laid out at without breaking what must not
+    /// break (a `Text`'s longest unbreakable run). Read by a row only for its percent
+    /// and shrinking children; memoised beside the measurements.
     fn min_width(&self, _doc: &mut Document, _painter: &Painter) -> f32 {
         0.0
     }
 
+    /// How short the node can be along `direction` without overflowing, for content
+    /// longer than its scroll (like a flex box in `overflow: auto`). `None` counts
+    /// its natural length. Unlike `min_width` it never undercounts. Walk the subtree
+    /// once through `layout::least_length`, stopping at scrolls along the same axis,
+    /// so a full layout stays linear.
     fn least_length(
         &self,
         _doc: &mut Document,
@@ -109,8 +130,17 @@ pub trait Element: Any {
         None
     }
 
+    /// Runs again only when the node changed, its rect or painter changed, a child it
+    /// paints moved, was culled or uncovered, or a repaint it asked for fell due;
+    /// otherwise its last recorded shapes stand. So it may read only the node, `rect`,
+    /// the painter and the rects its own layout gave its children. Open groups with
+    /// the painter (`with_clip_rect`, `shifted`, `faded`) rather than clipping each
+    /// shape, so damage can match children by id.
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect);
 
+    /// Called in the same pass on every node placed last layout and not this one, so
+    /// a node can release state for what is off screen (a `VirtualList` its rows). It
+    /// may remove its own children; `layout` runs again if it is placed again.
     fn unplaced(&mut self, _doc: &mut Document) {}
 
     fn detached(&mut self) {}
@@ -119,14 +149,25 @@ pub trait Element: Any {
         true
     }
 
+    /// True when the node's size cannot depend on its children (a fixed-size
+    /// `Frame`, a `Canvas`): a change under it is laid out from its last rect and
+    /// stops there. A node whose `measure` reads its children must return false, or
+    /// its ancestors miss the change.
     fn relayout_boundary(&self) -> bool {
         false
     }
 
+    /// Whether `paint` reads something `layout` works out, so being laid out again is
+    /// a reason to repaint. Return false when it is not, to keep relayouts from
+    /// repainting.
     fn paints_from_layout(&self) -> bool {
         true
     }
 
+    /// Whether a scroll looking for its anchor (the node at the top of its viewport,
+    /// held in place when rows above it change size) may walk through this node to
+    /// its children: true for nodes that lay children out in place (`List`, an
+    /// unmoved `Frame`).
     fn passes_scroll_anchor(&self) -> bool {
         false
     }
@@ -151,8 +192,14 @@ pub trait Element: Any {
         None
     }
 
+    /// Lets go of a child whose scope ended while this node still held it, so a node
+    /// holding one child keeps it in an `Option`.
     fn remove_child(&mut self, child: NodeId);
 
+    /// Lets Tab order run over children not built yet (a `VirtualList`'s unbuilt
+    /// rows). Tab reaching them builds them one at a time with `build_for_focus`,
+    /// from the end it comes in at, releasing each with `release_for_focus` until one
+    /// has a tab stop, and gives up after 4096 (`TAB_BUILD_LIMIT`).
     fn focus_children(&self) -> Option<Vec<FocusChild>> {
         None
     }
@@ -791,15 +838,21 @@ impl Arena {
         self.element_mut(id)
     }
 
+    /// For state the pointer dispatcher keeps (hovered, armed, panning) that nothing
+    /// laid out, painted or published reads: marks nothing.
     pub fn state_mut(&mut self, id: impl Into<NodeId>) -> &mut dyn Element {
         self.element_mut(id.into())
     }
 
+    /// For fields only `paint` reads: the node alone paints again, nothing is laid
+    /// out. Marks the node, so call it only when the value changes.
     pub fn paint_mut_as<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
         self.repaint_node(node.id);
         self.downcast_mut(node)
     }
 
+    /// For fields neither layout nor paint reads (handlers, a cursor, a tab stop):
+    /// only the accessibility tree hears of the change.
     pub fn touch_mut_as<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
         self.changed.push(node.id);
         self.downcast_mut(node)
@@ -828,6 +881,9 @@ impl Arena {
             .expect("a node keeps the kind it was made as")
     }
 
+    /// For anything `measure` or `layout` reads, including what `paint` reads through
+    /// something layout computed: the node and its ancestors are laid out again.
+    /// Marks the node, so call it only when the value changes.
     pub fn get_mut_as<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
         self.get_mut(node.id)
             .as_any_mut()
@@ -847,6 +903,8 @@ impl Arena {
         self.slot(id).is_some_and(|slot| self.nodes[slot].is_none())
     }
 
+    /// `None` for a node of another kind, for code holding only a `NodeId` (from a
+    /// `NodeRef` or a tree walk).
     pub fn kind_of<T: Element>(&self, id: NodeId) -> Option<NodeOf<T>> {
         self.element(id)?.as_any().is::<T>().then_some(NodeOf {
             id,

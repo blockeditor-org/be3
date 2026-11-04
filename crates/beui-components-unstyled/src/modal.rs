@@ -21,8 +21,11 @@ pub enum ModalPlacement {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModalMotion {
+    /// The content sits in a [`BackSlide`], which carries it away on back.
     Slides,
     Still,
+    /// The content reports its own presence through [`ModalHandle::presence`]
+    /// (as `ModalSheet`'s sheet does), and the scrim fades with it.
     Reported,
 }
 
@@ -31,6 +34,13 @@ pub struct ModalHandle {
     pub presence: Callback<f32>,
 }
 
+/// Every modal's outer part: an overlay over a scrim that fades with the
+/// modal's presence.
+///
+/// Escape, back and a press on the scrim reach `on_dismiss` at once, but the
+/// modal only leaves when its owner writes `open` false, so an owner that asks
+/// first ("discard changes?") or an app that answers later keeps it in place.
+/// While leaving it lingers, inert.
 #[component]
 pub fn Modal(
     open: Prop<bool>,

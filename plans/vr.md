@@ -1,39 +1,21 @@
 # VR
 
 What remains of the plan that took the space layer (`crates/beui-layer-space`,
-`BEUI_LAYERS=space`; guides/beui.md, "Space: the VR simulator layer") from a
+`BEUI_LAYERS=space`; guides/beui/space.md covers it) from a
 simulator on a flat screen to OpenXR headsets. The first headset is the
 Bigscreen Beyond on Windows through SteamVR, driven with a mouse and keyboard
 (no tracked controllers), then SteamVR and Monado on Linux. Items marked
 **(ask)** need a decision from the user during the work.
 
-## Where it stands
-
-Space already shows every window as a panel the viewer can carry, face, roll,
-scale, bend and resize through host chrome, with a drawn 3D cursor, a held
-pointer, per-window rasters that change without relayout, and placements
-(scale and bend included) that reopen a window where it was within a run
-(PR #691); nothing keeps them across restarts yet. Every Wayland toplevel is a
-panel of its own, shown as a
-floating dock window with its dialogs as windows over it, and each of its
-popups, a window over it (guides/desktop.md, "Program windows"). It draws through any
-number of views, each a pose with an off-axis field of view (`head::View`,
-`head::Fov`): the simulator's one, or tracked views an XR layer hands
-`Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views"), and
-`BEUI_LAYERS=xr` shows it on an OpenXR headset (`crates/beui-layer-xr`; guides/beui.md, "Headsets"), waiting for one to appear, with panels as composition layers where their order is plain.
-Input is a mouse pointer, a keyboard, and a laser per controller that acts as
-a finger, with grips that carry, scale and turn panels (guides/beui.md,
-"Lasers"), fed from OpenXR's controller actions or `drive xr`. While a
-laser is active, tapping a field opens the on-screen keyboard as a panel under
-it that never takes the focus (`WindowRole::Keyboard`).
-
-The simulator stays a first-class backend throughout: every space test keeps
-running without a headset.
+guides/beui/space.md (the space layer, headsets and controller lasers) and
+guides/desktop.md (program windows) describe what is built. The simulator
+stays a first-class backend throughout: every space test keeps running without
+a headset.
 
 ## OpenXR follow-ups
 
 `BEUI_LAYERS=xr` shows space on a headset through `crates/beui-layer-xr` on Linux
-and Windows (guides/beui.md, "Headsets"), checked in CI against Monado's null
+and Windows (guides/beui/space.md covers headsets), checked in CI against Monado's null
 compositor and compiled for Windows by `./scripts/verify`. What remains:
 
 - **Hardware.** Untried on a real headset: SteamVR on Windows with the

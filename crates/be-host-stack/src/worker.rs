@@ -33,6 +33,8 @@ const RECONNECT_FIRST: Duration = Duration::from_millis(500);
 const RECONNECT_MOST: Duration = Duration::from_secs(30);
 pub(super) const OUTBOX_RETRY: Duration = Duration::from_secs(30);
 
+/// Doubles from `RECONNECT_FIRST` to `RECONNECT_MOST`, randomly shortened by up to half so
+/// clients a server dropped together do not come back together.
 pub(super) fn reconnect_delay(failures: u32, jitter: f64) -> Duration {
     let ceiling = RECONNECT_FIRST
         .saturating_mul(1 << failures.min(16))

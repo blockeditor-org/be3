@@ -286,6 +286,10 @@ fn inherited() -> Option<Memo<TextStyle>> {
     use_context::<Inherited>().map(|inherited| inherited.0)
 }
 
+/// Gives styled text created within it a style its own props override. It is
+/// context, so it reaches what is created inside it, not what is laid out there:
+/// text a render callback builds for an overlay takes the provider around where
+/// the callback was written. A heading level is not inherited from it.
 #[component]
 pub fn TextStyleProvider(style: Prop<TextStyle>, #[prop(children)] content: Render) -> NodeId {
     let outer = inherited();

@@ -11,6 +11,10 @@ pub const SHOWN_FOR: Duration = Duration::from_secs(3);
 pub const BLEND_FROM: f32 = 40.0 * std::f32::consts::PI / 180.0;
 pub const BLEND_TO: f32 = 70.0 * std::f32::consts::PI / 180.0;
 
+/// Which up the cursor swings about. A temporary setting while the right rule is
+/// found: the sky degenerates looking straight down, the view's up rolls with the
+/// head, and the blend moves from the sky to the view's up as the head pitches
+/// between its two angles.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Up {
     Sky,
@@ -76,6 +80,10 @@ impl Up {
     }
 }
 
+/// One `Up` rule for the simulator and one for a headset. Ctrl+Alt+M cycles the
+/// rule for where space runs; Ctrl+Alt+Left/Right move the blend's start and
+/// Ctrl+Alt+Down/Up its end by `STEP`. None of these keys reach the program, and
+/// each change shows the rule beside the cursor for `SHOWN_FOR`.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Tuning {
     pub simulator: Up,

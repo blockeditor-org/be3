@@ -70,6 +70,13 @@ struct State<'a> {
     own_process: u32,
 }
 
+/// The thread that watches Windows' windows and monitors and carries out requests on them.
+///
+/// be-host's UI thread answers its windows' messages only between frames, and may wait on this
+/// thread, so this thread never sends a message to one of be-host's own windows: it reads no
+/// title, icon or AppUserModelID of its own process's windows, and moves windows only with
+/// `SWP_ASYNCWINDOWPOS` and `ShowWindowAsync`. Requests are queued, and answers come back as
+/// focus events with the wake. `spawn` waits only for the thread to set up.
 pub struct Watcher {
     shared: Arc<Shared>,
     thread_id: u32,

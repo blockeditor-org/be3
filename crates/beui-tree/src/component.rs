@@ -181,6 +181,9 @@ fn in_component<R>(owner: Option<Rc<ComponentContext>>, f: impl FnOnce() -> R) -
     f()
 }
 
+/// A render prop the component calls at most once (`RenderFn` when it may call it again).
+/// It runs with the component that wrote it installed, not the one calling it, so
+/// component-scoped state and accessibility inside it belong to the writer.
 pub struct Render<H, C> {
     owner: Option<Rc<ComponentContext>>,
     render: Box<dyn FnOnce(H) -> C>,

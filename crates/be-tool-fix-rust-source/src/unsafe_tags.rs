@@ -78,10 +78,6 @@ pub(crate) fn unsafe_violations(tree: &SourceFile, source: &str, relative: &str)
     violations
 }
 
-pub(crate) fn kept_tag(token: &SyntaxToken) -> bool {
-    token.text().starts_with(TAG_PREFIX) && starts_line(token) && ends_line(token)
-}
-
 fn sites(root: &SyntaxNode) -> Vec<SyntaxToken> {
     root.descendants_with_tokens()
         .filter_map(|element| element.into_token())

@@ -201,6 +201,8 @@ pub struct KeyboardConfig {
     pub repeat_rate: i32,
 }
 
+/// Window ids start from the compositor's start time in microseconds, so an id never names
+/// two windows across runs and a saved placeholder's window id is only adopted by that window.
 fn first_window() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1403,6 +1405,11 @@ impl XdgShellHandler for State {
         let _ = surface.send_configure();
     }
 
+    /// Qt and GTK switch between menubar menus by destroying the first popup and grabbing again
+    /// with the serial of the click that opened it, and Qt closes every menu if a `wl_display.sync`
+    /// returns while none of its surfaces has the keyboard. smithay's popup pointer grab, when
+    /// replaced, lets go of a keyboard grab with its serial, so this lets go of the keyboard grab
+    /// itself before it replaces the pointer grab.
     fn grab(&mut self, surface: PopupSurface, _seat: WlSeat, serial: Serial) {
         let popup = PopupKind::Xdg(surface);
         let Ok(root) = find_popup_root_surface(&popup) else {

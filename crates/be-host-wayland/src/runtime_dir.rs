@@ -1,3 +1,9 @@
+//! The directory the Wayland socket lives in.
+//!
+//! With `XDG_RUNTIME_DIR` unset (as under `:dev`) the compositor makes a private
+//! `/tmp/be-wayland-<pid>`, hands it to the programs it starts as their `XDG_RUNTIME_DIR`, removes
+//! it on drop, and at start sweeps those left by processes that have ended (by name and owner).
+
 use std::io::{Error, ErrorKind, Result};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};

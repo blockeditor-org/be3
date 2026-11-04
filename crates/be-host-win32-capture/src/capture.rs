@@ -1,4 +1,4 @@
-// @yeskeepfile: the comments below are the invariants the FFI relies on, which
+// The comments below are the invariants the FFI relies on, which
 // nothing here can test (no Windows machine runs these crates' tests).
 
 use std::ffi::c_void;

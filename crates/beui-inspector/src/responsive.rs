@@ -1,3 +1,8 @@
+//! Responsive design mode's toolbar and room. The simulated screen itself is
+//! `beui_core::screen_simulation`, kept in the `Context`, so it stays simulated
+//! after the inspector closes. Every mapping is a pure scale, which a program that
+//! places surfaces outside `Document::show` relies on (`Context::screen_scale`).
+
 use beui_components_styled::*;
 use beui_components_unstyled::ChoiceOption;
 use beui_core::current::enter;

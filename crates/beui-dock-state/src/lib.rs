@@ -28,6 +28,10 @@ pub use spec::{
 };
 pub use switch::DockSwitch;
 
+/// Picked by the host from the dock's own size. `Stacked` draws only the focused tab, with no bars
+/// or windows, but keeps the whole state (locks included, though ignored) so widening tiles it
+/// again. `Compact` is a compact tree with a stage pane (`DockState::stage_of`): the stage keeps its
+/// pane and every other pane's tabs gather into one.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum DockMode {
     #[default]
@@ -228,7 +232,11 @@ impl SplitSize {
         .clamped()
     }
 }
+/// Each side of a split keeps at least this where there is room, so a layout made on a wide screen
+/// stays usable on a phone.
 pub const MIN_PANE_LENGTH: f32 = 120.0;
+/// A floating window is framed at least this wide whatever its tab asks for, so a tiny program's
+/// window is wide enough for its bar.
 pub const MIN_WINDOW_SIZE: Vec2 = Vec2::new(200.0, 140.0);
 pub(crate) fn framed(rect: Rect) -> Rect {
     let width = rect.width().max(MIN_WINDOW_SIZE.x);
@@ -603,12 +611,17 @@ impl fmt::Debug for Lookup {
     }
 }
 
+/// `area` is a rect in document coordinates, or `None` for the screen the tab opens on.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DockFullscreen {
     pub tab: TabId,
     pub area: Option<Rect>,
 }
 
+/// Everything about a dock's layout as plain data, with no reactivity: surfaces (the main one, then
+/// floating windows bottom to top, the focused one topmost), their trees, groups, homes and locks,
+/// history, bars and compact sizes. The tree tidies itself after every change: a group left with
+/// one tab becomes that tab, and a tab bar holding only a group takes the group's contents.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockState {
     surfaces: Vec<Surface>,
@@ -1126,6 +1139,7 @@ impl DockState {
         self.focus.and_then(|leaf| self.active_tab(leaf))
     }
 
+    /// Tabs from the one shown last: the switcher's order, and saved with the layout.
     pub fn recent_tabs(&self) -> Vec<TabId> {
         let all = self.all_tabs();
         let mut recent: Vec<TabId> = self
@@ -1138,6 +1152,7 @@ impl DockState {
         recent
     }
 
+    /// The focused tab, or the one shown last when the focused pane is empty.
     pub fn stacked_tab(&self) -> Option<TabId> {
         self.focused_tab()
             .or_else(|| self.recent_tabs().first().copied())
@@ -1197,6 +1212,8 @@ impl DockState {
         }
     }
 
+    /// Looks through groups, selecting the group in every bar above the tab, shows a hidden window and
+    /// unfolds a gathered pane, so a host can bring back a tab something covered.
     pub fn show(&mut self, tab: TabId) {
         let Some(position) = self.find(tab) else {
             return;
@@ -1822,6 +1839,9 @@ impl DockState {
         self.group(group).is_some_and(|group| group.pinned)
     }
 
+    /// The locked area or pinned group a tab was declared in. While that place is locked, the tab at
+    /// home is held (`is_tab_locked`): it moves and splits inside but cannot leave or float. A tab away
+    /// from home is free, so locking again holds only the tabs in the place.
     pub fn home(&self, tab: TabId) -> Option<DockHome> {
         self.homes
             .iter()
@@ -1942,6 +1962,8 @@ impl DockState {
         }
     }
 
+    /// Whether a drop is allowed under the locks and pinned groups. A refused drop shows no marker and
+    /// does nothing, so a drag test that changes nothing has usually been refused here.
     pub fn admits(&self, entry: Entry, target: DockDrop) -> bool {
         if let DockDrop::Tab { leaf, .. } | DockDrop::Group { leaf, .. } | DockDrop::Pane { leaf } =
             target
@@ -2077,6 +2099,8 @@ impl DockState {
             .is_some_and(|leaf| self.contains_leaf(Entry::Group(group), leaf))
     }
 
+    /// A pinned group is never tidied away, cannot be ungrouped or closed from its menu, and admits only
+    /// the tabs whose home it is. While locked its tabs are held in it.
     pub fn insert_pinned_group(
         &mut self,
         leaf: LeafId,
@@ -2125,6 +2149,7 @@ impl DockState {
         state
     }
 
+    /// Names tabs but no leaf, split or group ids, so it can be compared, sent and rebuilt.
     pub fn tree(&self, tree: Tree) -> Option<DockTree> {
         self.root(tree).map(|root| self.export(root))
     }
@@ -2157,6 +2182,7 @@ impl DockState {
         }
     }
 
+    /// Moves in any of the layout's tabs that were elsewhere and keeps the focused tab focused.
     pub fn set_tree(&mut self, tree: Tree, layout: &DockTree) {
         if self.tree(tree).as_ref() == Some(layout) || self.root(tree).is_none() {
             return;
@@ -2367,6 +2393,8 @@ impl DockLayout {
     }
 }
 
+/// The rectangles a surface's panes and splitters are drawn at; drop targets and tests resolve
+/// against it.
 pub fn layout_surface(
     state: &DockState,
     surface: SurfaceId,

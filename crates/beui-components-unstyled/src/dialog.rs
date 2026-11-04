@@ -15,13 +15,19 @@ use beui_view::types::{Dismiss, OverlayAnchor, Placement, Pos2, Rect};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DialogKind {
+    /// A decision: its actions are its only way out, and focus starts on the
+    /// primary action, or on Cancel when that action is destructive.
     Alert,
+    /// Content: a title row with a close button, and a footer only when it has
+    /// actions.
     Dialog,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ActionRole {
+    /// Runs on an Enter nothing in the dialog takes, unless disabled or busy.
     Primary,
+    /// Never runs on Enter.
     Destructive,
     Secondary,
     Cancel,
@@ -135,6 +141,9 @@ fn main_action(shown: &[(usize, ActionRole)]) -> Option<usize> {
     of(ActionRole::Primary).or_else(|| of(ActionRole::Destructive))
 }
 
+/// Wide: secondary actions start the footer, then Cancel, then the main one at
+/// the end (the macOS and GNOME order). Narrow: one full-width column, main
+/// first.
 pub fn footer_order(actions: &[DialogAction], narrow: bool) -> FooterOrder {
     let shown = shown(actions);
     let main = main_action(&shown);
@@ -178,6 +187,9 @@ impl DialogBodyHandle {
     }
 }
 
+/// Enter (without modifiers) that the focused control leaves unused runs the
+/// primary action, unless it is disabled or the main action is destructive; a
+/// focused button still answers Enter itself.
 #[component]
 pub fn DialogBody(
     kind: DialogKind,
@@ -280,6 +292,9 @@ pub struct DialogLayout {
     pub bottom_inset: Memo<f32>,
 }
 
+/// Lets an outer part in another document (an app dialog's host) dismiss the
+/// [`DialogBody`] inside, which claims it while it lives, so a form with
+/// unsaved changes can ask before closing.
 #[derive(Clone, Copy)]
 pub struct DialogDismissal {
     claimed: Signal<Option<u64>>,
@@ -381,6 +396,10 @@ pub fn provide_frame_anchor(rect: Memo<Option<Rect>>) {
     provide_context(FrameAnchor(rect));
 }
 
+/// Where this window's frame shows to the user, in the window's points: in an
+/// app, the editor's tab (or where its parent placed it), and `None` when none
+/// of it is visible. A dialog run from an action anchors to it to point at its
+/// tab.
 pub fn use_frame_anchor() -> Memo<Option<Rect>> {
     match use_context::<FrameAnchor>() {
         Some(FrameAnchor(rect)) => rect,
@@ -388,6 +407,10 @@ pub fn use_frame_anchor() -> Memo<Option<Rect>> {
     }
 }
 
+/// The one rule for how a dialog shows. A narrow `Dialog` (or one a finger
+/// opened, which the caller folds into `narrow`) is a sheet. An anchored one
+/// with a lost control falls back to `frame`, and with nothing visible to
+/// point at opens at the top centre with no beak.
 pub fn dialog_presentation(
     kind: DialogKind,
     size: DialogSize,

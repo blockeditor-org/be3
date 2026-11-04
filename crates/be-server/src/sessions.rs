@@ -117,6 +117,9 @@ impl SessionRegistry {
     }
 }
 
+/// An empty session is remembered while it carries a `clean_at`, so the registry grows with the
+/// number of blocks ever edited live. If that matters, evict by age: dropping the marker would
+/// lose what it is for.
 fn forgettable(lease: &Lease) -> bool {
     lease.is_empty() && lease.clean_at().is_none()
 }

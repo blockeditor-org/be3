@@ -146,7 +146,14 @@ pub(crate) struct Value<T> {
     pub(crate) value: RefCell<T>,
 }
 
+/// Reading a reactive value. Implemented by signals, memos, stores, `Prop` and `Binding`,
+/// so a helper that only reads can take `impl Get<T>`.
+///
+/// The tracked reads (`get`, `with`) panic in debug builds inside a component body, which
+/// runs once and would never rerun on the change (`component_body`).
 pub trait Get<T> {
+    /// Holds a shared borrow for the closure, so writing the same signal inside it is a
+    /// borrow conflict.
     #[track_caller]
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R;
 
@@ -170,28 +177,43 @@ pub trait Get<T> {
     }
 }
 
+/// Writing a reactive value. A write is visible to reads at once; the effects it wakes
+/// are queued, not run.
 pub trait Set<T> {
+    /// Mutates in place and always notifies, with no `PartialEq` needed. Holds a mutable
+    /// borrow, so reading the same signal inside the closure is a borrow conflict. A panic
+    /// inside it still notifies, since the value may already have changed.
     fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R;
 
+    /// Notifies only when the value differs. Does nothing on a freed signal, since nothing
+    /// can read the value.
     fn set(&self, value: T)
     where
         T: PartialEq;
 }
 
+/// A readable and writable source, owned by the scope it was created in. `Copy` whatever
+/// `T` is. Reading it after that scope is disposed panics; writing it does nothing.
 pub struct Signal<T> {
     key: Key,
     ty: PhantomData<*const T>,
 }
 
+/// The same signal without the writes, for a field or published state the receiver must
+/// not write.
 pub struct ReadSignal<T> {
     key: Key,
     ty: PhantomData<*const T>,
 }
 
+/// Panics with no current scope; outside one use `OwnedSignal` or `RootScope`.
 pub fn create_signal<T: 'static>(value: T) -> Signal<T> {
     Signal::from_key(arena::insert_owned_tracked(Rc::new(Value::new(value))))
 }
 
+/// A signal freed when this value drops rather than with a scope: for a signal per entry
+/// of a map that outlives its readers, or a struct field made where no scope is current.
+/// Derefs to its `Signal`.
 pub struct OwnedSignal<T: 'static> {
     handle: Signal<T>,
 }

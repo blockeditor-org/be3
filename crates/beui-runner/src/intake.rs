@@ -10,6 +10,8 @@ use beui_types::{WindowId, WindowReport};
 pub use beui_types::input::{PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, scrolled};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The units an `Incoming` input is in. Logical input is converted with the scale
+/// the frame lays out at, so no platform reads its scale at event time.
 pub enum Units {
     Physical,
     Logical,
@@ -28,6 +30,9 @@ pub enum Incoming {
         input: Input,
     },
     FileDrag(FileDrag),
+    /// Pushed just after the event it stamps; becomes `PointerEvent::time` and
+    /// drives fling velocity. An event pushed without one happens at the frame
+    /// clock's `now`, so tests step time by stepping frames.
     Time(Instant),
     Window(WindowReport),
     Controller(super::Controller),

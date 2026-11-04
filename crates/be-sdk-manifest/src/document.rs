@@ -14,6 +14,9 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
+/// `manifest.json` as written: the app's single source of truth, read by the app for its
+/// identity and by the host for everything else. Untrusted input: a bad one is skipped and
+/// shown in the Apps debug window.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ManifestDocument {
@@ -24,9 +27,14 @@ pub struct ManifestDocument {
     pub editors: InOrder<EditorDocument>,
     #[serde(default)]
     pub block_types: InOrder<BlockTypeDocument>,
+    /// The app's wasm module, the same bytes on every platform; the BUCK file's `app()`
+    /// names the module that builds it.
     pub entry_point: String,
+    /// Host names `fetch` may reach, matched whole against an https URL's host.
     #[serde(default)]
     pub network: Vec<String>,
+    /// Protocol packages beyond the core the app uses, of `be_sdk_api::EXTENSIONS`. The
+    /// host denies calls into any other, and refuses a manifest naming one it does not know.
     #[serde(default)]
     pub extensions: Vec<String>,
 }
@@ -34,41 +42,67 @@ pub struct ManifestDocument {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EditorDocument {
+    /// A fresh uuid for this editor. View blocks (`VIEW_EDITOR`), default-editor settings
+    /// and templates name the editor by it, so changing it, or sharing it with another
+    /// editor or a block type, breaks them.
     pub id: String,
+    /// The `CONTENT_TYPE` of a type some manifest or the host declares, or `"any"` for every
+    /// type. None makes a shell editor: opened only on its own view block, never offered by
+    /// Open with or the add menu, and refused if it declares templates.
     #[serde(default)]
     pub edits: Option<String>,
     pub display_name: String,
+    /// A codepoint of the Lucide icon font, not a name.
     pub icon: String,
+    /// The add menu's entries, in the order written. An editor with none is never offered.
     #[serde(default)]
     pub templates: InOrder<TemplateDocument>,
+    /// Whether an embedded instance runs live or shows a preview until focused.
     #[serde(default)]
     pub interaction: InteractionMode,
     #[serde(default)]
     pub capabilities: EditorCapabilities,
     #[serde(default)]
     pub resize: ResizeMode,
+    /// The screens the host may give an instance: `Main`, `Preview`, `ArtifactSettings`.
     pub views: Vec<ParentView>,
+    /// For a shell editor: the requests it takes from editors inside it. The host hands a
+    /// request to the nearest enclosing editor that accepts it, and its own requests to the
+    /// outermost shell. `pick` and `rename` mark the editor the host runs picker or rename
+    /// children in.
     #[serde(default)]
     pub accepts: Vec<ShellRequest>,
+    /// Ids of editors a shell places as soon as it opens; the host starts their apps as
+    /// early as the shell's.
     #[serde(default)]
     pub opens: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// A block type the app brings. It belongs to the type, not to any editor of it.
 pub struct BlockTypeDocument {
+    /// The type's `CONTENT_TYPE`.
     pub id: String,
     pub display_name: String,
     pub icon: String,
     #[serde(default)]
     pub color: Option<[u8; 3]>,
+    /// Which structural edits from the file tree the type takes (`Root::child_edit`).
     #[serde(default)]
     pub children: ChildOperations,
+    /// What the file tree does on a press: open the block, or `Zoom` into it (a folder).
     #[serde(default)]
     pub press: Press,
+    /// The app's type module. Every type of an app names the same one, which the host runs
+    /// once per app.
     pub module: String,
+    /// Exporting a child of a block of this type exports the whole block (a database view,
+    /// so its database never leaves without it).
     #[serde(default)]
     pub exported_whole: bool,
+    /// The type has a plain-file form, so the file tree offers export before the module has
+    /// run. A be-tool-cli test holds every manifest to its module.
     #[serde(default)]
     pub plain_file: bool,
 }
@@ -76,20 +110,27 @@ pub struct BlockTypeDocument {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TemplateDocument {
+    /// Defaults to the editor's display name.
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
     pub icon: Option<String>,
     #[serde(default)]
     pub category: CategoryDocument,
+    /// The block cannot exist until the user chooses something, so the editor draws a
+    /// creation dialog (`BeuiRoot::Creation`) before the block is made.
     #[serde(default)]
     pub dialog: bool,
+    /// The type the template makes, if not the editor's (a slide template making a canvas).
+    /// Required for an editor of `"any"` or of nothing.
     #[serde(default)]
     pub block_type: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+/// Where the add menu offers a template: the main tab under Common, More blocks or Debug,
+/// or the Templates tab, grouped under the declaring editor.
 pub enum CategoryDocument {
     Important,
     #[default]

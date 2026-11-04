@@ -1,0 +1,7 @@
+# A modal's buttons are actions with roles, placed by the modal
+
+An action has a label, a role (`Primary`, `Cancel`, `Destructive`, `Secondary`), `disabled`, `busy` and `on_click`; `unstyled::Dialog`/`DialogBody` decide placement, order, style, focus and keys, and styled paints them. There are two kinds, as in GNOME's libadwaita: an alert is a decision (footer actions, AlertDialog role, Enter does the primary unless it is destructive, a destructive primary is red and focus starts on Cancel), and a dialog is content (a title row with a close X, a footer only when there is something to confirm). Wide, the footer is right-aligned: secondary actions, then Cancel, then Primary. Narrow (under `SHEET_BELOW`) or opened by touch, a dialog becomes a sheet and an alert stays a centred card, with a pinned full-width footer, primary first, above the on-screen keyboard. Confirmations inside a dialog are nested alerts; row and control actions stay in the content. `busy` replaces hand-placed spinners.
+
+## Why
+
+A modal's buttons used to end up in one of four places depending on who wrote it: `Dialog`'s footer, inside the content (members' Remove was a blue Primary though destructive, and the dialog had no visible close), sheets with no convention, and dock dialogs drawing their own X. Every modal now has a visible way out. The footer order is the macOS and GNOME order. The sheet switch replaces the picker's hand-written width switch.

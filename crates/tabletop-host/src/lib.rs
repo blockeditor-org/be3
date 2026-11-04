@@ -133,6 +133,11 @@ impl Game {
     }
 }
 
+/// A game paused inside its one long `play` call (a wasmi resumable call), waiting for the
+/// next move. `play` and `show` each get a fuel budget of their own, so a move that never
+/// finishes fails alone however long the game has run. wasmi cannot copy a paused
+/// instance, so looking back at a move or reopening a game replays the log into a fresh
+/// session.
 pub struct Session {
     store: Store<Presented>,
     memory: Memory,

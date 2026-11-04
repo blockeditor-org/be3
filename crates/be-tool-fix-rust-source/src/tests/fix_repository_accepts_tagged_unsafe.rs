@@ -12,7 +12,7 @@ unsafe extern "C" {
     fn abs(value: i32) -> i32;
 }
 pub fn call() -> i32 {
-    // keep this @yeskeep
+    // a comment the fixes keep
     // unsafe(ffi)
     unsafe { abs(-1) }
 }

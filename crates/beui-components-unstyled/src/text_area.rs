@@ -1124,6 +1124,21 @@ struct Field {
     on_image_paste: Callback<PickedFile>,
 }
 
+/// Beyond the usual editing keys: Ctrl or Alt with Left/Right and
+/// Backspace/Delete go by a word; Alt+Up/Down grow and shrink the selection by
+/// syntax node; Ctrl+Alt+Up/Down add a cursor above or below; Ctrl+Enter and
+/// Ctrl+Shift+Enter insert a line below or above; Ctrl+Shift+Z and Ctrl+Y redo.
+/// Tab and Shift+Tab indent and outdent; Escape then Tab or Shift+Tab moves the
+/// focus out instead. Find (Ctrl+F), Find and replace (Ctrl+H), the next and
+/// previous match (Ctrl+G, Ctrl+Shift+G), Duplicate the line (Ctrl+Shift+D),
+/// Select the next occurrence (Ctrl+D) and folding (Ctrl+Shift+[) are actions
+/// that answer while the focus is in it; Escape closes Find. Ctrl with a letter
+/// runs the schema tool with that shortcut on the selected node.
+///
+/// Single-line (as `TextInput`), Up/Down move to the start and end, Enter calls
+/// `on_submit` or, without one, is left to what is around it (a dialog's
+/// confirm), and Tab, Escape, Alt+Up/Down and the Ctrl chords above are left
+/// alone. Space always inserts text.
 #[component]
 pub fn TextArea(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TextAreaApi>,

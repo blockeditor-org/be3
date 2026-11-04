@@ -8,8 +8,13 @@ use crate::scroll::Scroll;
 use crate::tokens::Space;
 use beui_view::types::{Align, Direction, ItemSize};
 
+/// The fill of a toolbar band, which beui-dock-host's band is drawn with too.
 pub const BAND_FILL: ColorRole = ColorRole::Surface;
 
+/// The raised, rounded bar a floating set of tools sits in, or with `band` a flat
+/// toolbar band. Arrow keys move focus along it. Offered less than it needs, it
+/// lets `.shrink(..)` children narrow (through `least_length`) before it scrolls.
+/// Placing it is the caller's.
 #[component]
 pub fn ToolPill(
     #[prop(default = Direction::Horizontal)] direction: Prop<Direction>,

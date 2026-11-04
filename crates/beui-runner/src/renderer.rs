@@ -20,6 +20,9 @@ pub trait WindowHandle: HasWindowHandle + HasDisplayHandle + Send + Sync {}
 
 impl<T: HasWindowHandle + HasDisplayHandle + Send + Sync> WindowHandle for T {}
 
+/// Platforms draw through this and name no renderer crate. beui-host hands the
+/// runner a loader returning `Loaded`; the platform attaches and detaches the
+/// renderer through `Runner::rendering`.
 pub trait Renderer {
     fn info(&self) -> RendererInfo;
 
@@ -46,6 +49,9 @@ pub trait Renderer {
 
     fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool;
 
+    /// Takes an unseen frame (`Runner::set_occluded`). The wgpu target keeps only
+    /// what the frame damaged and draws the union of every noted frame's damage the
+    /// next time it draws; the default prepares as usual.
     fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
         self.prepare(output, scale, background);
     }

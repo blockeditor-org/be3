@@ -4,8 +4,8 @@ mod hash_order;
 mod unsafe_tags;
 mod views;
 
-use ra_ap_syntax::ast::{self, AstNode, AstToken, HasAttrs, HasModuleItem, HasName, HasVisibility};
-use ra_ap_syntax::{Edition, NodeOrToken, SourceFile, SyntaxNode};
+use ra_ap_syntax::ast::{self, AstNode, HasAttrs, HasModuleItem, HasName, HasVisibility};
+use ra_ap_syntax::{Edition, SourceFile, SyntaxNode};
 use std::collections::HashSet;
 use std::error::Error;
 use std::fs;
@@ -29,7 +29,6 @@ pub fn fix_repository(root: &Path, check: bool) -> Result<(), Box<dyn Error>> {
     }
 
     rename_module_files(root)?;
-    strip_repository_comments(root)?;
     fix_test_layout(root)?;
     format_repository_views(root)?;
 
@@ -44,82 +43,6 @@ pub fn fix_repository(root: &Path, check: bool) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn strip_comments(source: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
-    let tree = parse(source)?;
-    if keeps_its_comments(tree.syntax()) {
-        return Ok(source.to_vec());
-    }
-    let mut comments = tree
-        .syntax()
-        .descendants_with_tokens()
-        .filter_map(NodeOrToken::into_token)
-        .filter(|token| ast::AnyComment::can_cast(token.kind()) && !kept_comment(token))
-        .filter_map(ast::AnyComment::cast)
-        .map(|comment| Comment {
-            range: syntax_range(comment.syntax().text_range()),
-            block: comment.shape().is_block(),
-        })
-        .collect::<Vec<_>>();
-    comments.sort_unstable_by_key(|comment| comment.range.start);
-
-    let mut stripped = Vec::with_capacity(source.len());
-    let mut cursor = 0;
-    for comment in comments {
-        let line_start = source[..comment.range.start]
-            .iter()
-            .rposition(|byte| *byte == b'\n')
-            .map_or(0, |index| index + 1);
-        let line_end = source[comment.range.end..]
-            .iter()
-            .position(|byte| *byte == b'\n')
-            .map_or(source.len(), |index| comment.range.end + index + 1);
-        let starts_line = source[line_start..comment.range.start]
-            .iter()
-            .all(|byte| byte.is_ascii_whitespace());
-        let ends_line = source[comment.range.end..line_end]
-            .iter()
-            .all(|byte| byte.is_ascii_whitespace());
-
-        let (start, end) = if starts_line && ends_line {
-            (line_start, line_end)
-        } else {
-            let start = source[cursor..comment.range.start]
-                .iter()
-                .rposition(|byte| !matches!(*byte, b' ' | b'\t'))
-                .map_or(cursor, |index| cursor + index + 1);
-            (start, comment.range.end)
-        };
-        stripped.extend_from_slice(&source[cursor..start]);
-        if comment.block && !(starts_line && ends_line) {
-            let line_breaks = source[comment.range.clone()]
-                .iter()
-                .copied()
-                .filter(|byte| matches!(byte, b'\n' | b'\r'))
-                .collect::<Vec<_>>();
-            if line_breaks.is_empty() {
-                stripped.push(b' ');
-            } else {
-                stripped.extend(line_breaks);
-            }
-        }
-        cursor = end;
-    }
-    stripped.extend_from_slice(&source[cursor..]);
-    Ok(stripped)
-}
-
-fn keeps_its_comments(file: &SyntaxNode) -> bool {
-    file.descendants_with_tokens()
-        .filter_map(NodeOrToken::into_token)
-        .any(|token| {
-            ast::AnyComment::can_cast(token.kind()) && token.text().contains("@yeskeepfile")
-        })
-}
-
-fn kept_comment(token: &ra_ap_syntax::SyntaxToken) -> bool {
-    token.text().contains("@yeskeep") || unsafe_tags::kept_tag(token)
-}
-
 pub(crate) fn parse(source: &[u8]) -> Result<SourceFile, Box<dyn Error>> {
     let source = std::str::from_utf8(source)?;
     SourceFile::parse(source, Edition::Edition2024)
@@ -132,11 +55,6 @@ pub(crate) fn parse(source: &[u8]) -> Result<SourceFile, Box<dyn Error>> {
                 .join("\n");
             format!("Rust parser found invalid syntax:\n{errors}").into()
         })
-}
-
-struct Comment {
-    range: Range<usize>,
-    block: bool,
 }
 
 pub(crate) fn syntax_range(range: ra_ap_syntax::TextRange) -> Range<usize> {
@@ -257,19 +175,6 @@ fn format_repository_views(root: &Path) -> Result<(), Box<dyn Error>> {
         let formatted = format_views(&source)?;
         if formatted != source {
             fs::write(path, formatted)?;
-        }
-    }
-    Ok(())
-}
-
-fn strip_repository_comments(root: &Path) -> Result<(), Box<dyn Error>> {
-    let mut paths = Vec::new();
-    collect_crate_files(root, &mut paths)?;
-    for path in paths {
-        let source = fs::read(&path)?;
-        let stripped = strip_comments(&source)?;
-        if stripped != source {
-            fs::write(path, stripped)?;
         }
     }
     Ok(())
@@ -404,15 +309,6 @@ fn inspect_file_queue(
                     .is_some_and(|stem| stem == functions[0].name.as_str()))
         {
             violations.push(format!("test functions: {relative}"));
-        }
-        if !keeps_its_comments(tree.syntax())
-            && tree
-                .syntax()
-                .descendants_with_tokens()
-                .filter_map(NodeOrToken::into_token)
-                .any(|token| ast::AnyComment::can_cast(token.kind()) && !kept_comment(&token))
-        {
-            violations.push(format!("comments: {relative}"));
         }
         if format_views(&source).map_err(|error| error.to_string())? != source {
             violations.push(format!("view formatting: {relative}"));

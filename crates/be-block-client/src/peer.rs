@@ -177,6 +177,9 @@ impl<'a> Write<'a> {
     }
 }
 
+/// `Diverged` stays in the outbox for the replica host to merge. `Refused` drops a move or
+/// define, and keeps a create or publish with the rest of that block waiting for the next
+/// drain; `Failed` is kept likewise.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Drained {
     Created {
@@ -943,6 +946,8 @@ impl<S: ObjectStore> Peer<S> {
         self.remote_head(block).await
     }
 
+    /// Checks that every object the server returns hashes to the hash asked for: the server is
+    /// not trusted with content, and this is what stops it substituting any.
     pub async fn fetch(&self, hashes: &[Hash]) -> Result<(), ClientError> {
         use futures_util::StreamExt;
         let store = self.commits.vault().store();
@@ -1001,6 +1006,8 @@ impl<S: ObjectStore> Peer<S> {
         Ok(true)
     }
 
+    /// Anything that asks history a question (`resume`, `common_ancestor`) needs this first, or
+    /// an unfetched ancestor looks like a divergence.
     pub async fn fetch_history(&self, head: CommitId) -> Result<(), ClientError> {
         let mut frontier = vec![head];
         let mut seen = std::collections::HashSet::new();
@@ -1148,6 +1155,8 @@ impl<S: ObjectStore> Peer<S> {
         )
     }
 
+    /// `seal` then `publish_sealed`. On `Rejected` it drops the commit from the outbox, since
+    /// the caller retries or merges.
     pub async fn write(&self, block: Uuid, write: Write<'_>) -> Result<Saved, ClientError> {
         let before = self.local_head(block);
         let commit = match self.seal(block, write).await? {

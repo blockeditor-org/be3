@@ -2,6 +2,9 @@ use beui_reactive::{
     Get, Memo, ReadSignal, Ready, Signal, Stored, check_tracked_read, hold, store, untrack,
 };
 
+/// A value or a getter of one. Reads through `Get` like a signal, so a component reading
+/// its own prop does it inside a memo or effect, not in its body. Pass a memo as it is
+/// rather than `move || memo.get()`, which boxes a closure and wakes on every read.
 pub enum Prop<T> {
     Static(T),
     Dynamic(Getter<T>),

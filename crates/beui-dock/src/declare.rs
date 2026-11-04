@@ -27,6 +27,8 @@ impl DialogParts {
     }
 }
 
+/// A tab's key. `key()` names it as a stable string: saved layouts and a dock declared to a host
+/// across apps use it, so it must not change between runs.
 pub trait DockKey: Clone + Eq + Hash + 'static {
     fn key(&self) -> String;
 }
@@ -122,6 +124,7 @@ pub(crate) enum EntryKind<K: 'static> {
 beui_view::value_child_type!(<K> DockNode<K>);
 beui_view::value_child_type!(<K> DockEntry<K>);
 
+/// Two children; `fraction` is the first one's share, followed until the user moves the splitter.
 #[component]
 pub fn DockSplit<K>(
     id: String,
@@ -142,6 +145,10 @@ where
     }
 }
 
+/// `id` is saved with the layout so a saved layout finds this pane after the code changes.
+/// `bare` hides the tab bar: the pane holds one tab and takes no tab dropped onto it, only a split
+/// at its edge (a joined dock's single pane uses it). A pane with an `empty` view is never closed:
+/// emptied, it shows that view. `locked` makes it an area that keeps its tabs (`DockState::home`).
 #[component]
 pub fn DockPane<K>(
     id: String,
@@ -186,6 +193,11 @@ where
     }
 }
 
+/// A dialog hung from the tab (or dialog) `parent`, shown exactly while that tab is shown. It is
+/// not part of the `DockState`, is never dragged and never saved; a key declared both as a dialog
+/// and as a tab is only a dialog. `modal` blocks only the parent's panel: a press there flashes the
+/// innermost modal dialog, unless `dismiss_on_outside_press` closes it, and the parent's tab label
+/// shows a waiting dot.
 #[component]
 pub fn DockDialog<K>(
     id: K,
@@ -218,6 +230,10 @@ where
     }
 }
 
+/// A tool bar its owner draws entirely, grip included. With a `parent` it shows only while that tab
+/// is shown, wherever the tab goes; without one it belongs to the dock and wraps it. `placement` is
+/// only where it starts: the user's placement is saved with the layout. A hidden bar keeps its body
+/// built, and the dock offers no way to show it again, so an owner that lets it be hidden offers that.
 #[component]
 pub fn DockBar<K>(
     id: K,
@@ -239,6 +255,14 @@ where
     }
 }
 
+/// A tab is closed when it stops being declared, even for a moment (a `Show` that flips, a
+/// `ForEach` rebuilt from new keys), losing its place, history and panel. `on_close` only gives it a
+/// close button and asks the caller to stop declaring it.
+///
+/// `back_closes=false` keeps back from closing a tab it opened (a program's window, whose close ends
+/// the program). `see_through` shows what is drawn under the dock, so nothing fills behind it and it
+/// never floats into a window. `group` names which tabs are one app's, for `next_of_group`.
+/// `picture` is not carried across apps.
 #[component]
 pub fn DockTab<K>(
     id: K,

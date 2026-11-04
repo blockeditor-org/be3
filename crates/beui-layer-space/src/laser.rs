@@ -11,13 +11,16 @@ use crate::panel::Pose;
 use crate::space::Held;
 
 pub const DEVICE: u64 = beui_types::input::CONTROLLER_TOUCH_DEVICE;
+/// Trigger and squeeze press at `PRESS` and release at `LET_GO`, so a half-held trigger does not chatter.
 pub const PRESS: f32 = 0.6;
 pub const LET_GO: f32 = 0.4;
+/// A trigger press freezes the ray until the aim turns this far from it, so the jolt of pulling the trigger moves nothing.
 pub const FREEZE: f32 = 0.02;
 pub const REACH: f32 = 5.0;
 pub const MIN_CUTOFF: f32 = 1.0;
 pub const BETA: f32 = 8.0;
 pub const DERIVATIVE_CUTOFF: f32 = 1.0;
+/// A change larger than this (radians or metres) skips the filter and is taken at once.
 pub const JUMP: f32 = 0.15;
 const SETTLED: f32 = 1e-5;
 
@@ -69,6 +72,11 @@ pub enum Ending {
     Squeeze,
 }
 
+/// A controller's ray, from its aim pose smoothed by a One-Euro filter. It acts
+/// as a finger, not a hovering mouse: nothing reaches the program until the
+/// trigger presses, and then the program gets `Input::Touch` (`touch_id`), so
+/// beui's touch handling applies: a drag scrolls, a long press opens the context
+/// menu, two lasers on one panel pinch.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Laser {
     pub hand: Hand,
@@ -115,6 +123,7 @@ impl Laser {
         self.grip.or(self.aim).map(|pose| pose.position)
     }
 
+    /// Where a hand rests beside the head before it has a pose; a driver's `Controller::Toward` aims from here.
     pub fn resting(hand: Hand, head: &Head) -> Vec3 {
         let side = match hand {
             Hand::Left => -0.2,
@@ -128,6 +137,8 @@ impl Laser {
         self.grip = Some(grip);
     }
 
+    /// Feeds the last pose to the filter again each frame until a still hand settles;
+    /// the caller asks for frames while `settling` is true.
     pub fn smooth(&mut self, now: Option<Instant>) -> bool {
         let Some(aim) = self.aim else {
             return false;

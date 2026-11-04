@@ -1,3 +1,13 @@
+//! The dconf profile that hides GTK's own window buttons.
+//!
+//! The xdg shell offers no maximize, but GTK before 4.20 ignores `wm_capabilities` and later
+//! only greys the buttons out; its header bar lays them out from
+//! `org.gnome.desktop.wm.preferences button-layout`. This writes a profile into the runtime
+//! directory: the profile dconf would otherwise use, plus a locked database of its own setting
+//! that key to `appmenu:`, so it wins over the user's value without changing it. Programs the
+//! compositor starts get it as `DCONF_PROFILE`. Flatpak programs read the setting through the
+//! portal, which sees it only if it started after the login session exported the variable.
+
 use std::ffi::OsStr;
 use std::io::{Error, ErrorKind, Result};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt};

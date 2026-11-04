@@ -31,8 +31,17 @@ const EVENT_CAPACITY: usize = 4096;
 
 const PING_FRAME_BYTES: usize = 32;
 
+/// The socket plus the greeting. Once connected no request has a deadline of its own: each is
+/// answered or fails with `Disconnected` when the connection closes.
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+/// Silence after which the connection calls `connection.ping` ahead of anything queued. It is a
+/// protocol call because a browser cannot send websocket pings; any frame from the server
+/// proves it alive.
 pub const PING_INTERVAL: Duration = Duration::from_secs(15);
+/// How long after a ping is actually written, with nothing heard, before the connection closes
+/// itself; a write still stuck this long after the ping fell due closes it too. Only an
+/// unanswered ping closes it, so a process suspended for longer keeps a live connection when it
+/// wakes.
 pub const PONG_WAIT: Duration = Duration::from_secs(20);
 
 pub type Answer<T> = Pin<Box<dyn Future<Output = Result<T, ClientError>> + Send>>;

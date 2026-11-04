@@ -11,6 +11,13 @@ pub type Frames = Vec<Vec<Input>>;
 const GESTURE_STEPS: usize = 4;
 const PINCH_SPAN: f32 = 100.0;
 
+/// Turns drive's gestures into frames of [`Input`]. be-sdk-test's `BeuiTest` builds its gestures
+/// here too, so an editor test presses, types and touches as drive and the host tests do.
+///
+/// A pointer gesture that starts where the pointer is not first moves it there in a frame of
+/// its own, so what shows only on hover (a scrollbar) is there to be pressed. `type` presses
+/// the US-layout key that makes each character, with Shift where needed and no physical place,
+/// as the on-screen keyboard does; a character no US key makes is sent as text.
 #[derive(Default)]
 pub struct Gestures {
     pub(crate) held: Modifiers,

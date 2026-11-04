@@ -1,3 +1,8 @@
+//! Where the keyboard goes when a pane's chrome is pressed or a tab is picked: back to the node the
+//! tab last had focused, else its first focusable (`Document::focus_into`, which waits a layout for a
+//! panel still being built). When a pane stops showing a tab whose panel has the focus, the focus
+//! is remembered and the tab shown in its place gets the keyboard.
+
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Pos2;

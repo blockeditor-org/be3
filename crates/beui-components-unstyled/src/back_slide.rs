@@ -222,6 +222,17 @@ impl Slide {
     }
 }
 
+/// The motion for [`on_back`](beui_view::reactive::on_back), which only routes.
+///
+/// Held, the page follows the finger; let go, it carries on off the edge
+/// before `on_back` runs; a cancelled gesture eases it back; a back with no
+/// gesture carries it off from where it rests. `behind` builds the page back
+/// goes to under the moving one for the gesture's length, so `on_back` swaps
+/// in what was already showing; the moving page needs an opaque background,
+/// and a page that must keep its state is built once and handed to a `Portal`
+/// in both places. Given `open`, a back only asks: `on_back` runs at once, a
+/// held page eases back, and the page slides away when `open` falls, calling
+/// `on_gone` once it's off.
 #[component]
 pub fn BackSlide(
     #[prop(default = true)] enabled: Prop<bool>,

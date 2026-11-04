@@ -1,3 +1,9 @@
+//! A simulated screen reader. It never reads the beui tree: it walks the
+//! AccessKit tree the document publishes, in reading order, and acts only through
+//! `Context::accessibility_action`, the path a platform screen reader takes, so it
+//! finds what a real one would miss. A control announced as a bare role ("button")
+//! has no name.
+
 pub mod readout;
 pub mod speech;
 

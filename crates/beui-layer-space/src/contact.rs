@@ -10,10 +10,14 @@ const RAMP: f32 = 1.0;
 const SAMPLES: usize = 7;
 const REACH: f32 = 50.0;
 
+/// Popup and overlay windows take no part in contact.
 pub fn collides(panel: &Panel) -> bool {
     panel.framed()
 }
 
+/// The distances along `along` at which `moving` (and its chrome) comes within
+/// `CLEARANCE` of `other`. It changes continuously as one panel slides off
+/// another, so a settled carry does not jump.
 pub fn span(moving: &Panel, other: &Panel, along: Vec3) -> Option<(f32, f32)> {
     let along = along.normalize_or(Vec3::NEG_Z);
     let line = |point: Vec3| Ray {
@@ -44,6 +48,8 @@ pub fn touching(moving: &Panel, other: &Panel, eye: Vec3) -> bool {
         .is_some_and(|(lo, hi)| lo + give < 0.0 && hi - give > 0.0)
 }
 
+/// Resizes and chrome drags (scale, turn, roll, bend) stop where the panel would
+/// touch a panel it was clear of.
 pub fn newly_touching(before: &Panel, after: &Panel, others: &[Panel], eye: Vec3) -> bool {
     others
         .iter()

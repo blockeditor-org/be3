@@ -22,6 +22,11 @@ pub struct Hit {
     pub point: Vec3,
 }
 
+/// A window shown as a surface in the world, `size * metres_per_point` metres.
+/// `bend` is the angle its width wraps round a vertical cylinder whose axis is in
+/// front of it, so its sides come toward the viewer (0 is flat, `MOST_BEND` half a
+/// cylinder). Window points outside the rectangle map onto the surface's
+/// extension, which chrome and drags that leave the panel use.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Panel {
     pub window: WindowId,
@@ -50,6 +55,9 @@ impl Panel {
         matches!(self.role, WindowRole::Normal | WindowRole::Keyboard)
     }
 
+    /// The `WindowReport::Placed` placement: `space X Y Z QX QY QZ QW S B` (position,
+    /// rotation, `metres_per_point`, `bend`). Programs keep it in memory and hand it
+    /// back as `WindowPlacement::Host`; it is not kept across restarts.
     pub fn placement(&self) -> HostPlacement {
         let Vec3 { x, y, z } = self.pose.position;
         let [qx, qy, qz, qw] = self.pose.rotation.to_array();
@@ -59,6 +67,8 @@ impl Panel {
         ))
     }
 
+    /// False for a placement another host wrote or one this cannot read; the caller
+    /// then opens the window at the pointer.
     pub fn placed(&mut self, placement: &HostPlacement) -> bool {
         let Some(numbers) = placement.0.strip_prefix("space ").and_then(|rest| {
             rest.split(' ')
@@ -131,6 +141,9 @@ impl Panel {
         (self.world(pos), self.pose.rotation * self.surface_turn(pos))
     }
 
+    /// Places a reshaped panel so window point `pos` lands on `frame` (taken with
+    /// `frame_at` before the change), which keeps a resized or scaled bent panel's
+    /// fixed corner in place.
     pub fn anchor(&mut self, pos: Pos2, (point, rotation): (Vec3, Quat)) {
         self.pose.rotation = (rotation * self.surface_turn(pos).inverse()).normalize();
         self.pose.position = point - self.pose.rotation * self.offset(pos);

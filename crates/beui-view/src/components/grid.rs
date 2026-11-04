@@ -6,6 +6,9 @@ use crate::types::Track;
 pub use crate::types::tree::GridCell;
 use beui_macros::component;
 
+/// Cells in shared columns, filled row by row; each row is as tall as its tallest cell.
+/// For forms and property panels whose labels share a width: a list of rows is a `List`
+/// or a `VirtualList`.
 #[component]
 pub fn Grid(
     columns: Prop<Vec<Track>>,

@@ -1,5 +1,7 @@
 pub(crate) mod hosted;
 
+/// What a window with `WindowSpec::fit` is sized to (`Document::fit_window_to`): its frame's
+/// content, another node (an overlay's content, such as an app's menu), or a given size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum WindowFit {
     Content,
@@ -12,11 +14,18 @@ use beui_types::Vec2;
 
 use beui_types::window::WindowRequests;
 
+/// Which `Window`s the host opens as real windows; the rest show as overlays inside the
+/// window they were opened in. A platform may move between these, and a `Window` follows,
+/// reopening as a window or an overlay from the frame the hosting changes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum WindowHosting {
+    /// Every `Window` is shown inside the main one.
     #[default]
     None,
+    /// Only windows opened with a `WindowPlacement::Host` the platform handed out, so an
+    /// app's docked windows stay inside its region.
     Placed,
+    /// Every window, as the space layer does. `Context::opens_windows` is true only here.
     Any,
 }
 
@@ -60,6 +69,9 @@ pub enum Resize {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
+/// What the window shows for the program, filled by the `Context` during a frame.
+/// The runner calls `Platform::show_window` only when it differs from the last
+/// one shown, so a new field needs handling in every platform that acts on it.
 pub struct WindowState {
     pub requests: WindowRequests,
     pub cursor_image: Option<beui_types::CursorImage>,

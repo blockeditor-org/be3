@@ -1,3 +1,9 @@
+//! Tool bars (`DockBar`): bands, floating runs and popped-out windows, and carrying a bar the user
+//! drags. A dragged bar is lifted into its own `LayerPolicy::Inert` layer at the bars' level and a
+//! preview `DockState` shows where it would land; every point is read in the dock's own window, so a
+//! press begun in another layer still steers. Each run of floating dock bars is its own layer at
+//! `LayerLevel::Raised`: floating dock windows pass under it, menus and modals over it.
+
 use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -32,7 +38,10 @@ const BAND_MAX: f32 = 56.0;
 const WINDOW_ROOM: f32 = 4096.0;
 const WINDOW_SIZE: Vec2 = Vec2::new(240.0, 40.0);
 const POP_OFFSET: Vec2 = Vec2::new(16.0, 16.0);
+/// How long a gap takes to open under a dragged bar while the layout previews where it would land.
 const GAP_SECONDS: f32 = 0.2;
+/// A bar let go at this pointer speed or more is thrown: it floats over the edge its path runs
+/// into and never docks.
 const THROW_SPEED: f32 = 300.0;
 const SETTLE: Spring = Spring {
     stiffness: 420.0,

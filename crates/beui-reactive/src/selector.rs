@@ -17,6 +17,10 @@ struct Watched {
 
 type Keys<K> = Rc<RefCell<HashMap<K, Watched>>>;
 
+/// One subscriber list per key asked about, so when the source moves only the key that lost
+/// it and the key that gained it rerun, rather than every row. Reads are current at once,
+/// before effects run. A key is forgotten once nothing reads it. Its notifications stop
+/// when its scope is disposed.
 pub struct Selector<K> {
     value: Memo<K>,
     keys: Key,
@@ -63,6 +67,7 @@ impl<K> Clone for Selector<K> {
 impl<K> Copy for Selector<K> {}
 
 impl<K: Clone + Eq + Hash + 'static> Selector<K> {
+    /// Subscribes to `key` alone, never to the source.
     #[track_caller]
     pub fn is_selected(&self, key: &K) -> bool {
         check_tracked_read::<Self>();

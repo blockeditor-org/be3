@@ -2,6 +2,8 @@ use super::{DockState, TabId};
 
 const HISTORY_LENGTH: usize = 64;
 
+/// One change of the focused tab. `opened` is whether `to` was first shown by it, which makes back
+/// close `to` (through its `on_close`, unless the tab says `back_closes=false`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DockVisit {
     pub from: TabId,
@@ -34,6 +36,8 @@ impl DockState {
         self.history.iter().rposition(|visit| visit.to == current)
     }
 
+    /// Drops the last visit to the shown tab and every visit after it. A tab that leaves the dock hands
+    /// its visits to the tab it was reached from.
     pub fn go_back(&mut self) -> Option<DockVisit> {
         let index = self.back_index()?;
         let visit = self.history[index];

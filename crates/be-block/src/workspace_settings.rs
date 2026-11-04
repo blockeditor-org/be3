@@ -31,6 +31,10 @@ pub fn normal_prefix(prefix: &str) -> String {
     prefix.trim().to_ascii_uppercase()
 }
 
+/// Database to row-id prefix, the only way a row id alone resolves. A prefix
+/// is only a label: two databases may share one, and a copy keeps it. Moving a
+/// block (`Peer::set_parent`) moves the databases inside it to the registry
+/// above its new place.
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct PrefixRegistry {
     pub databases: Map<Uuid, String>,

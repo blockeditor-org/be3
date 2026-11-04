@@ -1096,6 +1096,10 @@ pub struct Collected {
 }
 
 impl ServerStore {
+    /// Advances the revision counter on every call, under the lock every graph read and change
+    /// takes, so a larger revision is always a later view. Clients order out-of-order replies
+    /// and announcements by it. It restarts with the server, which clients see as a reconnect
+    /// and reload.
     pub(crate) async fn with_graph<R>(
         &self,
         organization: Uuid,

@@ -258,6 +258,10 @@ pub fn installed_for(account: Uuid, organization: Uuid) -> bool {
         .is_some_and(|stack| stack.account == account && stack.organization == organization)
 }
 
+/// Does not wait on the server: closes the connection so whatever the worker waits on fails at
+/// once, and the worker keeps what open replicas hold as local commits. Returns without waiting
+/// for the worker; the next stack's worker waits for it (use `stop_and_wait` where the process
+/// ends or its files go).
 pub fn stop() {
     let stack = stack()
         .lock()
@@ -293,6 +297,8 @@ pub fn abandon() {
     }
 }
 
+/// Cuts the reconnect wait short. The host calls it when its window gains focus; it is the hook
+/// for network-change and foreground events.
 pub fn retry_now() {
     if let Some(stack) = stack()
         .lock()
@@ -343,6 +349,9 @@ pub fn close(block: Uuid) {
     }
 }
 
+/// Keeps a block open for the host itself when its last editor closes (`close` leaves it
+/// alone). Nothing releases it before the stack stops. A held block that is stale is reset
+/// without asking, since the host needs it.
 pub fn hold(block: Uuid, content_type: Uuid) {
     let fresh = stack()
         .lock()

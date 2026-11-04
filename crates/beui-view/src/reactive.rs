@@ -50,10 +50,13 @@ pub fn node_ref<T: BuildsNode>(built: T, reference: &NodeRef) -> T {
     built
 }
 
+/// Owned by the reactive scope that created it; calling it after that scope is gone does
+/// nothing.
 #[derive(Clone, Copy)]
 pub struct Timer(core::Timer);
 
 impl Timer {
+    /// Keeps an earlier deadline if one is set; `restart` replaces it.
     pub fn start(&self, delay: Duration) {
         self.0.start(delay);
     }
@@ -71,10 +74,17 @@ impl Timer {
     }
 }
 
+/// beui has no per-frame hook: anything that depends on time asks for it here. Due timers
+/// run at the top of a frame and the document asks for a repaint at the next deadline, so
+/// nothing is drawn while none is due. `work` returns `Some(delay)` to run again and
+/// `None` once settled. A program settles for `drive` only once no frame is asked for
+/// immediately, so endless motion (an indeterminate progress bar) should ask for its next
+/// step a frame's time later (`Some(Duration::from_millis(16))`), not `Duration::ZERO`.
 pub fn create_timer(work: impl Fn() -> Option<Duration> + 'static) -> Timer {
     Timer(core::create_timer(work))
 }
 
+/// The frame clock: tests stop and step it, so read time here, never `Instant::now()`.
 pub fn now() -> Instant {
     core::now()
 }
@@ -205,6 +215,7 @@ pub fn keep_clear(node: NodeId, rects: impl IntoProp<Vec<crate::types::Rect>>) {
     core::keep_clear(node, rects.into_prop());
 }
 
+/// Keeps `node` above embeds painted before it: see `AboveEmbeds`.
 pub fn above_embeds(node: NodeId, above: impl IntoProp<Option<crate::types::AboveEmbeds>>) {
     core::above_embeds(node, above.into_prop());
 }

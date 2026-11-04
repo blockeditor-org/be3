@@ -60,6 +60,9 @@ impl DockAlign {
     }
 }
 
+/// `Over` floats over the body, which keeps its full size; `Beside` docks in a band along the whole
+/// edge that the body gives up room for; `Window` pops out into a dock window (`origin` relative to
+/// the dock), which floats over the body's edge in a stacked dock.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DockBarPlacement {
     Over(DockEdge, DockAlign),
@@ -303,6 +306,8 @@ impl DockState {
         windows
     }
 
+    /// The bar a key's shared window shows: the one whose tab was focused last and is shown. The other
+    /// bars stay laid out in the window, clipped to nothing, so their bodies keep running.
     pub fn followed_bar(&self, bars: &[TabId]) -> Option<TabId> {
         let recent = self.recent_tabs();
         bars.iter()
@@ -315,6 +320,8 @@ impl DockState {
             })
     }
 
+    /// Places every bar of this bar's key the same way, so every instance's bar of one kind moves
+    /// together.
     pub fn share_bar_placement(&mut self, bar: TabId, key: &dyn Fn(TabId) -> String) {
         let Some((placement, hidden)) = self.bar(bar).map(|bar| (bar.placement, bar.hidden)) else {
             return;

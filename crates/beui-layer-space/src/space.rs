@@ -138,6 +138,11 @@ struct Shown {
     label: Option<String>,
 }
 
+/// The VR simulator, and the scene a headset shows: every window of the program
+/// is a `Panel` in a first-person 3D scene. Space opens every window itself
+/// (`WindowHosting::Any`), rewrites the platform's input onto the panels, and
+/// composites them into the one main window it leaves shown, which mirrors the
+/// centre eye. No platform knows about it.
 pub struct Space {
     pub head: Head,
     pub body: Body,
@@ -402,6 +407,9 @@ impl Space {
         &self.keyboards
     }
 
+    /// No keyboard counts as attached while any laser has a ray, so a tapped field
+    /// opens beui's on-screen keyboard as a panel; with mouse and keyboard this says
+    /// nothing.
     pub fn keyboard_attached(&self) -> Option<bool> {
         self.lasers
             .iter()
@@ -409,6 +417,12 @@ impl Space {
             .then_some(false)
     }
 
+    /// Focus follows clicks, not the cursor, and opening or carrying a panel focuses
+    /// it; a press on nothing focuses none. A change reaches the program as
+    /// `WindowReport::Focused`, so its document lets go of, and later restores, the
+    /// keyboard focus inside that window. Keyboard and popup windows never take the
+    /// focus: the keyboard's keys type into the field, and a Wayland popup's grab ends
+    /// when its toplevel loses the keyboard.
     fn focus(&mut self, window: Option<WindowId>) {
         if self.focused == window
             || window
@@ -429,6 +443,9 @@ impl Space {
         self.popups.iter().any(|(popup, _)| *popup == window)
     }
 
+    /// A mouse press or trigger pull anywhere but on a popup or a popup placed `Over`
+    /// it (chrome included) closes it, reporting `Closed`; the press goes no further,
+    /// nor does its release.
     fn dismiss_popups(&mut self, ray: Ray, out: &mut Vec<Incoming>) -> bool {
         let pressed = self
             .chrome_hit(ray)
@@ -464,6 +481,10 @@ impl Space {
             .or_else(|| self.pick(ray).map(|hit| hit.window))
     }
 
+    /// While the main window has focus space holds the pointer locked, so the mouse
+    /// sends only motion. Losing focus, the platform dropping the lock (a browser on
+    /// Escape) or holding Escape (`hold`) lets it go, and the next press into the
+    /// window grabs it again and reaches nothing, nor does its release.
     pub fn grabbed(&self) -> bool {
         self.grabbed
     }
@@ -560,6 +581,10 @@ impl Space {
             .or_else(|| self.cursor_away().map(|(at, _)| at))
     }
 
+    /// The cursor is a point in the world, `CURSOR_LIFT` of the distance in front of
+    /// what the ray hits, or on a miss at the last hit's distance. Turning and walking
+    /// leave it where it is, and nothing holds it inside the view; `cursor_away` draws
+    /// a marker at the screen's edge pointing to it.
     fn place_cursor(&mut self, ray: Ray) {
         let distance = match self.hit_along(ray) {
             Some(hit) => {
@@ -884,6 +909,10 @@ impl Space {
         }
     }
 
+    /// Off every panel with a button held, moves and the release go to the window the
+    /// press began in, at the point the ray meets that panel's surface outside its
+    /// rectangle. That is how a program tells a drop on nothing (the dock floats a tab
+    /// dropped there).
     fn beyond(&mut self, pointer: Pointer, window: WindowId, ray: Ray) -> Pos2 {
         let hit = self.panel(window).and_then(|panel| panel.intersect(ray));
         let Some(held) = self.held_mut(pointer) else {
@@ -998,6 +1027,10 @@ impl Space {
             .map_or(Pos2::ZERO, |hit| hit.pos)
     }
 
+    /// Ctrl and Shift held together steer. Either alone reaches the program; when the
+    /// other joins, the program sees both released and its modifiers cleared. No key
+    /// pressed while steering reaches the program, nor its release, so a program in
+    /// space never sees a Ctrl+Shift chord.
     fn modifiers(&mut self, units: Units, modifiers: Modifiers, out: &mut Vec<Incoming>) {
         let was = self.steering();
         self.modifiers = modifiers;
@@ -1093,6 +1126,12 @@ impl Space {
         out.push(Incoming::new(units, Input::Key(keystroke)));
     }
 
+    /// Starts a carry with no program request (chrome's move). A program's
+    /// `BeginMove` or `BeginResize` starts one only while a press it was given is held
+    /// (any window's, or for a laser while its trigger holds that window), as Wayland
+    /// ties a move to its press; see decisions/beui_space_move_needs_a_held_press.md.
+    /// Releasing the button that was down ends it; begun with none, the next click
+    /// does.
     pub fn begin_carry(&mut self, pointer: Pointer, window: WindowId) {
         if self.holders().any(|held| held.gripped() == Some(window))
             || self.both.is_some_and(|both| both.window == window)
@@ -1305,6 +1344,9 @@ impl Space {
         }
     }
 
+    /// Panels have no stacking order, only depth, and only a carry moves one, so
+    /// raising an unfocused panel that another hides flashes its outline through
+    /// everything instead.
     fn raise(&mut self, window: WindowId) {
         let Some(now) = self.clock else {
             return;
@@ -1490,6 +1532,9 @@ impl Space {
             .push(Incoming::Window(WindowReport::Resized { window, size }));
     }
 
+    /// `AtPointer` puts window point `OPEN_GRAB` on the cursor's ray, `OPEN_NEARER` in
+    /// front of the panel it hits or `OPEN_DISTANCE` away on a miss, facing the
+    /// viewer.
     fn at_pointer(&self, size: Vec2) -> Pose {
         let ray = self.ray(self.active_pointer()).unwrap_or(Ray {
             origin: self.head.position,
@@ -1513,6 +1558,9 @@ impl Space {
         panel.pose
     }
 
+    /// A `Keyboard` window ignores its placement and opens over the panel holding the
+    /// focused field, centred `KEYBOARD_GAP` below the field, or over the bottom of
+    /// the focused panel when there is none.
     fn beside_typing(&self, size: Vec2) -> Option<(Pose, f32)> {
         let typing = self
             .typing
@@ -1536,6 +1584,9 @@ impl Space {
         self.over(None, window, at, size)
     }
 
+    /// `Over` puts the window's top-left corner on the other panel's point, at its
+    /// scale and facing the same way, `OVER_NEARER` in front of it plus another
+    /// `OVER_NEARER` for each panel already there.
     fn over(
         &self,
         own: Option<WindowId>,
@@ -1611,6 +1662,9 @@ impl Space {
         self.titles.retain(|(on, _)| *on != window);
     }
 
+    /// The program gets the release in the window that took the press, the turn
+    /// finishes at once, and the panel's placement is reported as
+    /// `WindowReport::Placed`.
     pub fn end_carry(&mut self, pointer: Pointer, out: &mut Vec<Incoming>) {
         let Some(held) = self.held_mut(pointer) else {
             return;
@@ -1668,6 +1722,10 @@ impl Space {
         self.place_both();
     }
 
+    /// Both grips on one panel: it moves and turns with the line between the grips
+    /// and scales about its centre with their distance, between `chrome::SMALLEST_SCALE`
+    /// and `LARGEST_SCALE` of where it began. Either grip letting go reports `Placed`
+    /// and leaves neither hand holding it.
     fn place_both(&mut self) {
         let Some(both) = self.both else {
             return;

@@ -1251,6 +1251,8 @@ impl Document {
         ctx.show_mouse_simulation(rect);
     }
 
+    /// Runs once the frame's input has been dispatched and before anything is laid
+    /// out, to start work that input caused while the document lays out.
     pub fn on_interacted(&mut self, interacted: impl Fn() + 'static) {
         self.interaction_done = Some(Rc::new(interacted));
     }
@@ -2000,10 +2002,19 @@ impl Document {
             .unwrap_or_else(|| panic!("component has no {} state", std::any::type_name::<T>()))
     }
 
+    /// Runs `report` after the layout walk. Reports run together, and whatever they
+    /// change is laid out again (only the changed nodes and their ancestors) until
+    /// nothing changes, at most eight layouts a frame. Prefer reporting what drives
+    /// paint rather than layout: each extra layout costs the frame.
     pub fn report_after_layout(&mut self, report: impl FnOnce() + 'static) {
         self.reports.push(Box::new(report));
     }
 
+    /// Builds `node`'s own subtree while it is being laid out: lends this
+    /// `&mut Document` to `with_document` calls inside `build`, and keeps what the
+    /// build invalidates from marking `node` or its ancestors, which are mid-layout.
+    /// Flush the build with `ScopeContext::flush_owned`; writes to signals outside the
+    /// subtree wake their effects once the walk ends.
     pub fn build_within<R>(&mut self, node: NodeId, build: impl FnOnce() -> R) -> R {
         let outer = self.arena.fence(Some(node));
         let built = crate::current::lend(self, build);
@@ -2011,6 +2022,9 @@ impl Document {
         built
     }
 
+    /// For a node whose own size changed while it was laid out (a `VirtualList` whose
+    /// rows measured differently): it is measured again in the next layout of this
+    /// frame.
     pub fn invalidate_after_layout(&mut self, id: NodeId) {
         self.invalidated.push(id);
     }
@@ -2283,6 +2297,10 @@ impl Document {
         self.layout_parent
     }
 
+    /// Called during layout by content that moved what lies above the scroll's anchor
+    /// (a `VirtualList` whose rows above the view measured other than their estimate).
+    /// The nearest enclosing `Offset` adds it to the anchor's drift and any reveal,
+    /// and moves by the sum in the frame's next layout.
     pub fn report_anchor_shift(&mut self, shift: f32) {
         self.anchor_shift += shift;
     }
@@ -2847,6 +2865,9 @@ thread_local! {
         Cell::new(std::env::var_os("BEUI_OVER_REPAINT").is_some());
 }
 
+/// On the painting thread (or `BEUI_OVER_REPAINT=1`): reports every frame whose
+/// damage is over four times the area of the shapes that changed, to stderr and
+/// `take_over_repaints`.
 pub fn detect_over_repaint(enabled: bool) {
     DETECT_OVER_REPAINT.set(enabled);
 }
@@ -2861,6 +2882,11 @@ pub fn take_over_repaints() -> Vec<OverRepaint> {
 
 static VERIFY_PAINT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// Paints every frame again from scratch and panics when the retained painting
+/// differs, or changed outside the damage (`paint/verify.rs`, matched node by node,
+/// whole pixels). Only windows still open are checked. Paints made while
+/// `Context::is_verifying_paint` is set are this check's; a test counting paints
+/// skips them. Always on in beui-core's tests; be-sdk-test turns it on.
 pub fn verify_paint(enabled: bool) {
     VERIFY_PAINT.store(enabled, std::sync::atomic::Ordering::Relaxed);
 }
@@ -2872,6 +2898,9 @@ fn verifying_paint() -> bool {
 static FAIL_UNSETTLED_LAYOUT: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
+/// Panics when a frame's layout has not settled after eight layouts, instead of
+/// painting the last one and asking for another frame (debug builds log what kept
+/// changing). Always on in beui-core's tests; be-sdk-test turns it on.
 pub fn fail_unsettled_layout(enabled: bool) {
     FAIL_UNSETTLED_LAYOUT.store(enabled, std::sync::atomic::Ordering::Relaxed);
 }
@@ -2881,6 +2910,9 @@ thread_local! {
         Cell::new(std::env::var_os("BEUI_DELAY_MEASUREMENT").is_some_and(|value| value == "1"));
 }
 
+/// Publishes `measure` and `measure_text` at the start of the next frame, as the
+/// HTML core does, instead of after each layout of this one (also
+/// `BEUI_DELAY_MEASUREMENT=1`), so native tests take the late path.
 pub fn delay_measurement(enabled: bool) {
     DELAY_MEASUREMENT.set(enabled);
 }
@@ -2897,6 +2929,9 @@ const LAYOUTS_PER_FRAME: usize = 8;
 const HOOK_RUNS_PER_FRAME: usize = 64;
 
 impl Document {
+    /// The part of `window` its windows should stay in. A root `Docking` whose windows the
+    /// host opens sets it to its area inside its dock-level bands; the app platform reports
+    /// it to the host as the view's `work-area`.
     pub fn set_work_area(&mut self, window: WindowId, area: Option<Rect>) {
         match area {
             Some(area) => self.work_areas.insert(window, area),

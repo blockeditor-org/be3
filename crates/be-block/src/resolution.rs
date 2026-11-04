@@ -54,6 +54,10 @@ impl<R> Default for Resolution<R> {
 }
 
 impl<R: Layered> Resolution<R> {
+    /// Stacks, later winning: organization defaults, the nearest block's kind
+    /// (`Follows::Block` kinds only), the user's every-device layer, this
+    /// device's layer, then the locks: the block layer for a `Policy` kind and
+    /// the organization's policy for every kind.
     pub fn resolve(layers: ResolutionLayers<R>) -> Self {
         let ResolutionLayers {
             organization_policy,

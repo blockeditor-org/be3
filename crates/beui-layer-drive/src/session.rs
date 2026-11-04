@@ -166,6 +166,20 @@ fn kind(command: &str) -> Option<Kind> {
     })
 }
 
+/// The drive layer: a [`Layer`] in the stack every platform's runner carries, so its input
+/// lands among the platform's own events and everything above it runs as it does in a window.
+///
+/// [`Drive::taps`] makes one tap under each layer `under` names, all sharing one [`Session`].
+/// The session takes each command in the lowest tap's `input`, starts it in the `input` of the
+/// tap it goes to (`--into=LAYER`), steps its clock in the lowest tap's `now`, and answers from
+/// the lowest tap's hooks. A tap under a layer carries a named target down through the layers
+/// above it (`Above::from_program`) and sends physical pixels, as a platform does. The lowest
+/// tap also stands in for the file and save dialogs and reaches the clipboard and resizing
+/// through the services below it.
+///
+/// The accessibility tree is kept as in a window but written out as text only when a command
+/// reads it, and then only the nodes that changed or moved are described again
+/// (`AccessibilityDump`), so a driven frame costs what it costs in a window.
 pub struct Drive {
     session: Rc<RefCell<Session>>,
     tap: usize,
@@ -427,6 +441,13 @@ enum Started {
     Phase(Phase),
 }
 
+/// One drive session, shared by every tap of a stack.
+///
+/// While the clock is stopped (`clock stop`), a frame drive asks for (a `pause`, a gesture's
+/// steps, waiting input) runs at once instead of at the next 60 Hz tick, as does a frame the
+/// program asks for while a command waits on it and the program says it is busy; any other
+/// frame the program asks for on its own is still paced, so a program that animates forever
+/// does not spin.
 struct Session {
     inbox: Inbox,
     taps: Vec<Option<String>>,

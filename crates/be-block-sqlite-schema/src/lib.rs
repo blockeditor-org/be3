@@ -54,6 +54,9 @@ pub fn open(path: impl AsRef<std::path::Path>) -> rusqlite::Result<Connection> {
     }
 }
 
+/// Adds a missing table, index, or a missing column that has a default, and refuses anything
+/// else (a column gone, retyped or unknown), so a schema only grows. Keep `CHECK` off values
+/// that may grow (roles, access levels): SQLite rebuilds a table to change one.
 pub fn ensure(connection: &Connection, declared: &str) -> Result<(), SchemaError> {
     let wanted = Connection::open_in_memory()?;
     wanted.execute_batch(declared)?;

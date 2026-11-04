@@ -11,10 +11,23 @@ use be_block::presence::{ChannelKind, PresenceKind};
 
 pub const HISTORY_LINES: usize = 10_000;
 
+/// A terminal block's document, and the only way a shell's output reaches
+/// viewers: the host writes what its emulator shows as ordinary edits. Not a
+/// frozen format.
+///
+/// Rows are list items, so a changed row is one small edit; a row that
+/// scrolls off moves, keeping its object id, from `screen` into `history`.
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct Terminal {
+    /// The client id of the host writing this document. Viewers send input
+    /// only to this client, and only while it shows `TerminalHost`.
     pub host: Option<u64>,
+    /// The shell the host runs. A host whose own shell this is carries on
+    /// after reconnecting; any other host restores (moves the screen into
+    /// history behind a `Restored session` line) and starts a new shell.
     pub shell: Option<TerminalShell>,
+    /// Logical lines that scrolled off the main screen, oldest first, at most
+    /// `HISTORY_LINES`.
     pub history: List<TerminalLine>,
     pub screen: List<TerminalLine>,
     pub alternate: List<TerminalLine>,
@@ -45,9 +58,14 @@ impl Root for Terminal {
 pub type TerminalContent = Document<Terminal>;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
+/// A row, or a logical line in history. Rows drop trailing blanks unless they
+/// wrap.
 pub struct TerminalLine {
     pub text: String,
+    /// Style runs by byte length; bytes past the last run have the default
+    /// style.
     pub runs: Vec<TerminalRun>,
+    /// The row continues on the next one (a soft wrap).
     pub wrapped: bool,
 }
 
@@ -225,6 +243,8 @@ pub enum TerminalCursorStyle {
 pub struct TerminalCursor {
     pub row: u16,
     pub column: u16,
+    /// Where the caret goes in the row's text. It may be past the text's end,
+    /// meaning the row is padded with spaces up to it.
     pub byte: u32,
     pub visible: bool,
     pub style: TerminalCursorStyle,
@@ -248,6 +268,9 @@ pub struct TerminalSize {
     pub rows: u16,
 }
 
+/// A key as a viewer pressed it. Typed text arrives as `Key::Unidentified`
+/// with `text`. The host encodes it with its own emulator's modes, so
+/// application cursor keys and Kitty keyboard flags apply.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct TerminalKey {
     pub key: Key,
@@ -263,11 +286,16 @@ pub struct TerminalWheel {
     pub row: u16,
 }
 
+/// What viewers send the host, as peer messages on the block's live session,
+/// so the server relays them sealed. Only the host's emulator answers a
+/// program's queries, so a program gets one answer however many watch.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum TerminalMessage {
     Resize(TerminalSize),
     Key(TerminalKey),
     Paste(String),
+    /// For the alternate screen: mouse reports when the program tracks the
+    /// mouse, arrow keys in alternate scroll mode, otherwise nothing.
     Wheel(TerminalWheel),
 }
 

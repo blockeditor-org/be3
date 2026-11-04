@@ -1,3 +1,7 @@
+//! "Simulate mouse with touch": the shown rectangle becomes a trackpad with a
+//! button strip along the bottom. `Document::show` trims the strip's height off the
+//! rectangle it lays out in, as a phone keyboard pushes a page up.
+
 use std::array;
 use std::time::{Duration, Instant};
 

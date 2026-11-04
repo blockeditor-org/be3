@@ -18,6 +18,10 @@ pub trait ObjectStore: Send + Sync {
 
     fn remove(&self, hash: Hash) -> Result<(), StoreError>;
 
+    /// Makes every object put so far durable at once (one `syncfs` on Linux and Android for a
+    /// `FileStore`). An object has to be synced before anyone else is told it exists, or a
+    /// crash can lose an object others already name: `Peer::push` syncs before it uploads, and
+    /// the server syncs a `PutObjects` before it answers.
     fn sync(&self) -> Result<(), StoreError> {
         Ok(())
     }
@@ -82,6 +86,9 @@ impl ObjectStore for MemoryStore {
     }
 }
 
+/// `put` writes atomically (a temporary file renamed into place) but does not wait for the
+/// disk; see `ObjectStore::sync`. A torn object left by a crash fails its hash on reading and
+/// is dropped.
 #[derive(Clone)]
 pub struct FileStore {
     root: PathBuf,

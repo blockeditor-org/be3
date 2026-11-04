@@ -121,6 +121,19 @@ struct State {
     on_open: Callback<DateSegment>,
 }
 
+/// A date, time or both typed as segments (year, month, day, hour, minute,
+/// AM/PM).
+///
+/// Each segment is a Tab stop and a spin button. Up/Down step it by one and
+/// wrap; Page Up/Down step by a larger amount (ten years, three months, seven
+/// days, six hours or three on a 12-hour clock, fifteen minutes); Home/End set
+/// its first and last value. Left/Right move between segments and stop at the
+/// ends. Alt+Down calls `on_open` (the picker's calendar) with the focus kept in
+/// the segment. Digits fill a segment and move on once it is full or no further
+/// digit could fit; `-`, `/`, `:`, `.`, `,` and space move on from a typed or
+/// filled segment; `a` and `p` set AM/PM. Backspace removes the last typed
+/// digit, else clears the segment, and on an empty segment goes back one;
+/// Delete clears it.
 #[component]
 pub fn DateTimeField(
     #[prop(default = ComponentRef::new())] api: ComponentRef<DateTimeFieldApi>,

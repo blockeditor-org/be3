@@ -366,6 +366,8 @@ impl Painter {
         self.grouped(Group::Transform { offset, scale })
     }
 
+    /// For a drawing that paints in document coordinates (through a camera, as the
+    /// infinite canvas does) rather than relative to the rect it was handed.
     pub fn in_document(&self) -> Self {
         self.context.note_space_read();
         let scale = self.state.scale.recip();
@@ -379,11 +381,15 @@ impl Painter {
         &self.context
     }
 
+    /// What of the node's space is visible, in that space. Asking marks the node as
+    /// depending on its place, so it is laid out or painted again when that changes.
     pub fn clip_rect(&self) -> Rect {
         self.context.note_space_read();
         self.state.clip.intersect(self.state.space_clip)
     }
 
+    /// Where the node's space starts in document coordinates. Asking marks the node
+    /// as depending on its place, as `clip_rect` does.
     pub fn origin(&self) -> Vec2 {
         self.context.note_space_read();
         self.state.origin

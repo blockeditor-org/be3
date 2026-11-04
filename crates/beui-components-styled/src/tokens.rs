@@ -5,6 +5,9 @@ use beui_view::types::{Extent, Sides};
 
 use crate::theme::{Density, density_context};
 
+/// A spacing step. Resolves through the density: under `Density::Comfortable`
+/// each step from `Xs` up is one step larger. `Custom` is for lengths that come
+/// from content (a measured indent, a canvas), not for a gap the scale already has.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Space {
     None,
@@ -156,6 +159,9 @@ impl Default for Padding {
     }
 }
 
+/// A size step, resolved through the density: under `Density::Comfortable` a
+/// `Row` is tall enough to tap and a `Field` grows as a regular button does, so a
+/// field and a button in one row stay level. `Custom` is for sizes from content.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Size {
     Track,

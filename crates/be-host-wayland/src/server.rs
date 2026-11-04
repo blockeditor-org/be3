@@ -67,6 +67,12 @@ impl Server {
         self.runtime.as_ref().map(RuntimeDir::path)
     }
 
+    /// Starts Xwayland if it is not running and has not given up; otherwise does nothing.
+    ///
+    /// be-host calls this before every launch and whenever it hands out its programs' environment,
+    /// so a missing `Xwayland` or unwritable `/tmp/.X11-unix`, once fixed, comes up on the next
+    /// program with no restart. Each distinct failure is logged once. A crashed Xwayland is started
+    /// again on the same display up to three times.
     pub fn start_xwayland(&mut self) -> Option<u32> {
         self.state.start_xwayland()
     }

@@ -9,6 +9,7 @@ use be_type_terminal::{
 
 use be_lib_terminal_emulator::Shown;
 
+/// Edits are split under this size.
 const LARGEST_EDIT: usize = 256 * 1024;
 
 type Rows = FieldRef<Terminal, List<TerminalLine>>;

@@ -224,6 +224,13 @@ impl Document {
         None
     }
 
+    /// Every open layer as a tree flattened bottom to top, the document root first. A
+    /// layer's parent holds the node it hangs from. Among siblings, those that block
+    /// everything sit above those that don't, then by when opened or raised
+    /// (`raise_overlay`), so raising a window never lifts it over a dialog; a higher
+    /// `LayerLevel::stacked` lifts a layer and everything above it. Paint, hit testing,
+    /// focus, Escape, back and key dispatch all walk it. Cached until the tree or the layers
+    /// change.
     pub fn layers(&self) -> Layers {
         let key = (self.arena.revision, self.layer_state.generation, self.root);
         if let Some((cached, layers)) = &*self.layer_state.cache.borrow()
@@ -397,6 +404,9 @@ impl Document {
         self.redirect_blocked_focus();
     }
 
+    /// Raises the layer and every layer it hangs in (an inert layer rises alone, so a
+    /// tooltip leaves a covered window where it was), and asks the host to `Raise` a hosted
+    /// window, so the host stacks windows as the document does.
     pub fn raise_overlay(&mut self, overlay: NodeId) {
         if let Some(overlay) = self.arena.kind_of::<OverlayNode>(overlay)
             && self.is_overlay_open(overlay.id())
@@ -851,6 +861,9 @@ impl Document {
             .collect()
     }
 
+    /// Only what the window's overlays paint (their content, and a scrim that dims unless
+    /// the host draws scrims), plus nodes marked `AboveEmbeds::Paints`. `overlay_rects` is
+    /// where they take input. Escaped layers are in neither.
     pub fn overlay_painted_rects(&self, window: WindowId) -> Vec<Rect> {
         self.window_overlays(window)
             .iter()
@@ -921,6 +934,8 @@ impl Document {
             .collect()
     }
 
+    /// What covers embeds in `window`, by paint order: the overlays, and nodes marked
+    /// `above_embeds`, so a mark covers only embeds painted before it.
     pub fn overlay_layers(&self, window: WindowId) -> Vec<(Vec<usize>, Rect)> {
         let mut layers: Vec<(Vec<usize>, Rect)> = self
             .window_overlays(window)

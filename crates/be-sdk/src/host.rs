@@ -1605,6 +1605,9 @@ impl EditorHost {
         Asked::of(self.ask(|| host_services::list_revisions(block.into_bytes())))
     }
 
+    /// A temporary block id showing `commit`, for a separate read-only editor. The host
+    /// isolates it from live updates and rejects edits from it and its nested editors (which
+    /// show their blocks' current content). Release it with `release_revision`.
     pub fn preview_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<Uuid, Failure>> {
         Asked::of(self.ask(|| host_services::preview_revision(block.into_bytes(), commit)))
             .map(|previewed| previewed.map(Uuid::from_bytes))
@@ -1716,6 +1719,9 @@ impl EditorHost {
         self.push(Pushed::Audio);
     }
 
+    /// A GET the host makes for the app, its only network on any platform. The host refuses
+    /// a URL whose host name the manifest's `network` does not list. Canceling aborts the
+    /// request in the browser and drops the answer natively.
     pub fn fetch(&self, url: impl Into<String>) -> Asked<Result<Vec<u8>, Failure>> {
         let url = url.into();
         Asked::of(self.ask(|| host_services::fetch(url)))
@@ -1725,11 +1731,15 @@ impl EditorHost {
         Asked::of(self.ask(host_services::list_data))
     }
 
+    /// A file the app was staged with (its `app()`'s `data`, under `data/<app id>/`); an
+    /// app has no file system of its own.
     pub fn read_data(&self, path: impl Into<String>) -> Asked<Result<Vec<u8>, Failure>> {
         let path = path.into();
         Asked::of(self.ask(|| host_services::read_data(path)))
     }
 
+    /// No host shows web views yet: be-host answers every open with a failure, which the
+    /// editor shows in the view's place.
     pub fn open_web_view(&self, web_view: WebViewId, url: impl Into<String>) {
         self.command_web_view(web_view, WebViewCommand::Open(url.into()));
     }
@@ -2076,11 +2086,16 @@ impl EditorHost {
         self.changed();
     }
 
+    /// The person asked to close this child, as closing its tab. The host closes a program
+    /// window and does nothing yet for any other child.
     pub fn close_child(&self, child: ChildId) {
         self.child_closes.borrow_mut().push(child);
         self.changed();
     }
 
+    /// Gives a child the keyboard once it shows, but only while the keyboard is already in
+    /// this editor's views or their children and no keyboard-taking popover is open, so it
+    /// never takes the keyboard from elsewhere.
     pub fn focus_child(&self, child: ChildId) {
         self.keyboard_gifts.borrow_mut().push(child);
         self.changed();

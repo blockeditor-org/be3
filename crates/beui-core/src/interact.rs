@@ -259,6 +259,14 @@ fn answer(placed: Vec<Placed>, event: KeyEvent) -> Option<Placed> {
     placed.into_iter().find(|placed| placed.handler.call(event))
 }
 
+/// The listeners around the focus path, in a fixed order. Capture: `builtin::grab` (any
+/// key ends a pointer grab such as an autoscroll, and Escape is spent doing it), then
+/// `KeyAt::Host` and `KeyAt::Window` listeners, then `builtin::cycle` (F6 cycles focus
+/// between regions). Bubble: `builtin::dismiss` (Escape closes the top layer), the
+/// `Window` then `Host` listeners, then `builtin::defaults` (Tab and Shift+Tab, Escape
+/// cancelling focus activation, the browser's Back key). So a component's own listener
+/// always gets Escape and Tab before the document's defaults, and an open layer's Escape
+/// before any window listener.
 fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
     let own = |handler: fn(KeyEvent) -> bool| Placed {
         handler: Handler::Own(Rc::new(handler)),

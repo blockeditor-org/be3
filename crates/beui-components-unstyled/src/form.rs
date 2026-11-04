@@ -22,6 +22,10 @@ pub(crate) fn fill_cell(escape: &Escape) {
     );
 }
 
+/// On the HTML core a `<form method="post" novalidate>` with the `hidden` inputs,
+/// so a server-rendered page posts before wasm loads, and `on_submit` once it
+/// runs. Natively it is no node: Enter in a field inside it and its submit buttons
+/// call `on_submit`.
 #[component]
 pub fn Form(
     #[prop(default = String::new())] action: Prop<String>,

@@ -387,6 +387,10 @@ impl Editor {
         create_memo(move || list.read())
     }
 
+    /// Whether this viewer may change the block. The host cannot grey out an app's surface,
+    /// so this is the only thing keeping a reader from editing: guard every gesture that
+    /// would write the block with it, and don't write back derived values (a decoded size)
+    /// on a reader's behalf.
     pub fn editable(&self) -> ReadSignal<bool> {
         self.state().shown.editable.read_only()
     }
@@ -549,6 +553,9 @@ impl Editor {
         (waker, woken.read_only())
     }
 
+    /// Changes only when playback starts, pauses, seeks, ends or fails, so its position is
+    /// where playback was then; advance it on the editor's own clock. The host decodes by
+    /// media type only, so load the bytes again after the content changes.
     pub fn audio(&self) -> Memo<AudioStatus> {
         let host = self.host();
         let revision = self.pushed(Pushed::Audio);
@@ -664,10 +671,16 @@ impl Editor {
         self.state().shown.scale.read_only()
     }
 
+    /// Whether the host shows this instance's chrome this frame. It is false for a block
+    /// edited inside a canvas, a slide in a deck, or while a child has taken the frame; hide
+    /// sidebars and bars when it reads false.
     pub fn chrome_shown(&self) -> ReadSignal<bool> {
         self.state().shown.chrome.read_only()
     }
 
+    /// For a child that took its parent's frame: the rect it was placed at. Content outside
+    /// it is where the parent's world shows, and a press there gives the frame back, so a
+    /// child drawing a world of its own clips it here.
     pub fn placed_content(&self) -> ReadSignal<Option<Rect>> {
         self.state().shown.placed_content.read_only()
     }
@@ -680,6 +693,9 @@ impl Editor {
         self.state().shown.presenting.read_only()
     }
 
+    /// Asks for the whole window with no chrome. The host decides and may take it away
+    /// (Escape, another instance on screen), so read `presenting()` instead of remembering
+    /// the request.
     pub fn present(&self, presenting: bool) {
         self.state().core.host().present(presenting);
     }
@@ -956,6 +972,9 @@ impl Editor {
             .collect()
     }
 
+    /// Names the node the editor's content is in. The framework reports its rect every
+    /// layout, and the host pans, zooms and reads wheel gestures against it, so a wheel over
+    /// a sidebar is not a wheel over the content.
     pub fn content(&self, node: &NodeRef) {
         *self.state().content.borrow_mut() = Some((*node, document_zone()));
     }
@@ -1073,6 +1092,9 @@ impl Editor {
         self.state().core.keep_fitted(area);
     }
 
+    /// With `capabilities.pan: OneFinger`, call this when a press landed on nothing of the
+    /// editor's own: the host cancels the pointer in the editor and pans the view with it
+    /// until it lifts, with no round trip per move.
     pub fn pan_drag(&self) {
         self.state().core.pan_drag();
     }

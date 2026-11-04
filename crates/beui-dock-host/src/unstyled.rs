@@ -70,7 +70,10 @@ use beui_dock::{
 use beui_dock_state::*;
 
 const EDGE_ZONE: f32 = 0.22;
+/// A floating window's resize grips lie wholly outside its rect in a ring this wide, so neither the
+/// grips nor the splitters (which take presses only in the gap they draw) reach over content.
 pub const HANDLE_REACH: f32 = 8.0;
+/// How far each corner's grip runs along both edges.
 const GRIP_CORNER: f32 = 24.0;
 const SPLIT_STEP: f32 = 0.02;
 const SIDEBAR_STEP: f32 = 16.0;
@@ -1028,6 +1031,10 @@ impl State {
         }
     }
 
+    /// The host focused this window with nothing in it to give the focus back to: focus its pane and,
+    /// unless the keyboard is already inside, hand it to the shown tab. So a tab floated into a window the
+    /// host focuses on opening takes the keyboard with it, while the main window keeps its own focus for
+    /// when it is focused again.
     fn window_focused(&self, surface: SurfaceId) {
         let frame = self
             .windows
