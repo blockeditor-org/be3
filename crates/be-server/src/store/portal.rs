@@ -1,6 +1,19 @@
 use super::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Mail links outstanding at once, over every address and purpose.
+pub const MAX_MAIL_LINKS: i64 = 1024;
+/// Mail links one address (an IPv6 /64) may have outstanding, so that no one
+/// address fills `MAX_MAIL_LINKS` by itself.
+pub const MAX_MAIL_LINKS_PER_ADDRESS: i64 = 8;
+/// Mail links one email may have outstanding for one purpose.
+pub const MAX_MAIL_LINKS_PER_EMAIL: i64 = 3;
+const REGISTRATION_LINK_LIFETIME: i64 = 3600;
+const RESET_LINK_LIFETIME: i64 = 1800;
+/// The purpose of a row a reset request for an unknown email leaves: it costs
+/// the requester what a real reset would and is never sent.
+const UNSENT: &str = "unsent";
+
 pub struct AccountSession {
     pub id: String,
     pub kind: String,
@@ -109,11 +122,13 @@ impl ServerStore {
     }
 
     pub async fn revoke_session(&self, account: Uuid, id: &str) -> Result<(), ServerError> {
-        self.database.lock().await.execute(
+        let deleted = self.database.lock().await.execute(
             "DELETE FROM sessions WHERE account_id = ?1 AND public_id = ?2",
             params![account.to_string(), id],
         )?;
-        self.sessions_changed();
+        if deleted > 0 {
+            self.sessions_changed();
+        }
         Ok(())
     }
 
@@ -122,11 +137,13 @@ impl ServerStore {
         account: Uuid,
         current: &str,
     ) -> Result<(), ServerError> {
-        self.database.lock().await.execute(
+        let deleted = self.database.lock().await.execute(
             "DELETE FROM sessions WHERE account_id = ?1 AND token_hash != ?2",
             params![account.to_string(), hash_token(current)],
         )?;
-        self.sessions_changed();
+        if deleted > 0 {
+            self.sessions_changed();
+        }
         Ok(())
     }
 
@@ -143,9 +160,13 @@ impl ServerStore {
         &self,
         account: Uuid,
         password: &str,
+        address: &str,
     ) -> Result<String, ServerError> {
         let profile = self.profile(account).await?;
-        if let Some(wait) = self.locked_out(&profile.email) {
+        if let Some(wait) = self
+            .passwords
+            .locked_out(&profile.email, address, Instant::now())
+        {
             return Err(refused(&format!(
                 "Too many failed attempts. Try again in {} seconds.",
                 wait.as_secs().max(1)
@@ -156,11 +177,12 @@ impl ServerStore {
             [account.to_string()],
             |row| row.get(0),
         )?;
-        if !self.verify(password.into(), hash.clone()).await? {
-            self.failed(&profile.email);
+        if !self.verify(password.into(), hash.clone(), address).await? {
+            self.passwords
+                .failed(&profile.email, address, Instant::now());
             return Err(refused("Current password: incorrect password."));
         }
-        self.failures.lock().unwrap().remove(&profile.email);
+        self.passwords.succeeded(&profile.email, address);
         Ok(hash)
     }
 
@@ -170,10 +192,11 @@ impl ServerStore {
         current: &str,
         password: &str,
         browser_token: &str,
+        address: &str,
     ) -> Result<String, ServerError> {
-        let previous_hash = self.check_password(account, current).await?;
         validate_password(password)?;
-        let hash = self.hash(password.into()).await?;
+        let previous_hash = self.check_password(account, current, address).await?;
+        let hash = self.hash(password.into(), address).await?;
         let database = self.database.lock().await;
         let transaction = database.unchecked_transaction()?;
         let valid: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND token_hash = ?2 AND kind = 'browser' AND expires > ?3 AND EXISTS(SELECT 1 FROM accounts WHERE id = ?1 AND password_hash = ?4))", params![account.to_string(), hash_token(browser_token), now(), previous_hash], |row| row.get(0))?;
@@ -202,19 +225,49 @@ impl ServerStore {
         Ok(token)
     }
 
+    /// Starts registering: every cheap check (the fields, the invite code,
+    /// the mail-link limits, whether the email is taken) comes before the
+    /// password is hashed.
+    #[allow(clippy::too_many_arguments)]
     pub async fn registration_link(
         &self,
         email: &str,
         name: &str,
         password: &str,
+        invite: &str,
         code: &str,
+        address: &str,
     ) -> Result<MailLink, ServerError> {
         let email = normalize_email(email)?;
         validate_name(name)?;
         validate_password(password)?;
-        let hash = self.hash(password.into()).await?;
-        self.mail_link("register", "", &email, name.trim(), &hash, code)
-            .await
+        let invite = invite_codes::invite_hash(invite);
+        let address = passwords::address_key(address);
+        {
+            let database = self.database.lock().await;
+            invite_codes::check(&database, &invite)?;
+            may_send(&database, "register", &email, &address)?;
+            unregistered(&database, &email)?;
+        }
+        let hash = self.hash(password.into(), &address).await?;
+        let database = self.database.lock().await;
+        let transaction = database.unchecked_transaction()?;
+        invite_codes::check(&transaction, &invite)?;
+        let link = mail_link(
+            &transaction,
+            Pending {
+                purpose: "register",
+                account: "",
+                email: &email,
+                name: name.trim(),
+                password_hash: &hash,
+                code,
+                invite: &invite,
+                address: &address,
+            },
+        )?;
+        transaction.commit()?;
+        Ok(link)
     }
 
     pub async fn email_change_link(
@@ -222,93 +275,75 @@ impl ServerStore {
         account: Uuid,
         email: &str,
         password: &str,
+        address: &str,
     ) -> Result<MailLink, ServerError> {
-        let previous_hash = self.check_password(account, password).await?;
         let email = normalize_email(email)?;
-        self.mail_link(
-            "email",
-            &account.to_string(),
-            &email,
-            "",
-            &previous_hash,
-            "",
-        )
-        .await
+        let address = passwords::address_key(address);
+        may_send(&*self.database.lock().await, "email", &email, &address)?;
+        let previous_hash = self.check_password(account, password, &address).await?;
+        let database = self.database.lock().await;
+        let transaction = database.unchecked_transaction()?;
+        let link = mail_link(
+            &transaction,
+            Pending {
+                purpose: "email",
+                account: &account.to_string(),
+                email: &email,
+                name: "",
+                password_hash: &previous_hash,
+                code: "",
+                invite: "",
+                address: &address,
+            },
+        )?;
+        transaction.commit()?;
+        Ok(link)
     }
 
+    /// A reset link for `email` if it has an account. The answer and the
+    /// work are the same whether it has one or not: an unknown email leaves
+    /// an unsent row that counts against the address like a real link, and
+    /// only the limits that don't depend on the email are shown.
     pub async fn password_reset_link(
         &self,
         email: &str,
         code: &str,
+        address: &str,
     ) -> Result<Option<MailLink>, ServerError> {
         let Ok(email) = normalize_email(email) else {
             return Ok(None);
         };
-        let account: Option<String> = self
-            .database
-            .lock()
-            .await
+        let address = passwords::address_key(address);
+        let database = self.database.lock().await;
+        let transaction = database.unchecked_transaction()?;
+        may_send_from(&transaction, &address)?;
+        let account: Option<String> = transaction
             .query_row(
                 "SELECT id FROM accounts WHERE email = ?1 AND local_profile = 0",
                 [&email],
                 |row| row.get(0),
             )
             .optional()?;
-        let Some(account) = account else {
-            return Ok(None);
+        let link = mail_link(
+            &transaction,
+            Pending {
+                purpose: if account.is_some() { "reset" } else { UNSENT },
+                account: account.as_deref().unwrap_or_default(),
+                email: &email,
+                name: "",
+                password_hash: "",
+                code,
+                invite: "",
+                address: &address,
+            },
+        );
+        let link = match link {
+            Ok(link) => link,
+            Err(ServerError::Refused(..)) => return Ok(None),
+            Err(error) => return Err(error),
         };
-        match self
-            .mail_link("reset", &account, &email, "", "", code)
-            .await
-        {
-            Ok(link) => Ok(Some(link)),
-            Err(ServerError::Refused(..)) => Ok(None),
-            Err(error) => Err(error),
-        }
-    }
-
-    async fn mail_link(
-        &self,
-        purpose: &str,
-        account: &str,
-        email: &str,
-        name: &str,
-        password_hash: &str,
-        code: &str,
-    ) -> Result<MailLink, ServerError> {
-        let database = self.database.lock().await;
-        let transaction = database.unchecked_transaction()?;
-        transaction.execute("DELETE FROM account_mail WHERE expires <= ?1", [now()])?;
-        let count: i64 =
-            transaction.query_row("SELECT count(*) FROM account_mail", [], |row| row.get(0))?;
-        let recent: i64 = transaction.query_row(
-            "SELECT count(*) FROM account_mail WHERE email = ?1 AND purpose = ?2",
-            params![email, purpose],
-            |row| row.get(0),
-        )?;
-        if count >= 1024 || recent >= 3 {
-            return Err(refused(
-                "Too many email requests. Try again after the existing links expire.",
-            ));
-        }
-        if purpose != "reset" {
-            let used: bool = transaction.query_row(
-                "SELECT EXISTS(SELECT 1 FROM accounts WHERE email = ?1)",
-                [email],
-                |row| row.get(0),
-            )?;
-            if used {
-                return Err(refused("Email: that address is already registered."));
-            }
-        }
-        let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-        transaction.execute("INSERT INTO account_mail (token_hash, purpose, account_id, email, display_name, password_hash, device_code, expires) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)", params![hash_token(&token), purpose, account, email, name, password_hash, code, now() + if purpose == "reset" { 1800 } else { 3600 }])?;
         transaction.commit()?;
-        Ok(MailLink {
-            email: email.into(),
-            purpose: purpose.into(),
-            token,
-        })
+        Ok(account.map(|_| link))
     }
 
     pub async fn mail_purpose(&self, token: &str) -> Result<String, ServerError> {
@@ -316,8 +351,8 @@ impl ServerStore {
             .lock()
             .await
             .query_row(
-                "SELECT purpose FROM account_mail WHERE token_hash = ?1 AND expires > ?2",
-                params![hash_token(token), now()],
+                "SELECT purpose FROM account_mail WHERE token_hash = ?1 AND expires > ?2 AND purpose != ?3",
+                params![hash_token(token), now(), UNSENT],
                 |row| row.get(0),
             )
             .optional()?
@@ -328,18 +363,20 @@ impl ServerStore {
         &self,
         token: &str,
         password: Option<&str>,
+        address: &str,
     ) -> Result<(Option<Uuid>, String, Option<String>), ServerError> {
         let new_hash = match password {
             Some(password) => {
                 validate_password(password)?;
-                Some(self.hash(password.into()).await?)
+                self.mail_purpose(token).await?;
+                Some(self.hash(password.into(), address).await?)
             }
             None => None,
         };
         let database = self.database.lock().await;
         let transaction = database.unchecked_transaction()?;
-        let row: Option<(String, String, String, String, String, String)> = transaction.query_row("SELECT purpose, account_id, email, display_name, password_hash, device_code FROM account_mail WHERE token_hash = ?1 AND expires > ?2", params![hash_token(token), now()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))).optional()?;
-        let (purpose, account, email, name, hash, code) = row.ok_or_else(|| {
+        let row: Option<(String, String, String, String, String, String, String)> = transaction.query_row("SELECT purpose, account_id, email, display_name, password_hash, device_code, invite_hash FROM account_mail WHERE token_hash = ?1 AND expires > ?2", params![hash_token(token), now()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?))).optional()?;
+        let (purpose, account, email, name, hash, code, invite) = row.ok_or_else(|| {
             refused("This link is invalid, expired, or already used. Request a new link.")
         })?;
         let mut old_email = None;
@@ -353,6 +390,7 @@ impl ServerStore {
                 if used {
                     return Err(refused("Email: that address is already registered."));
                 }
+                invite_codes::spend(&transaction, &invite)?;
                 let account = Uuid::new_v4();
                 transaction.execute("INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, ?4)", params![account.to_string(), email, name, hash])?;
                 let personal = personal_organization(&transaction)?;
@@ -407,10 +445,106 @@ impl ServerStore {
             [hash_token(token)],
         )?;
         transaction.commit()?;
-        self.sessions_changed();
+        if purpose != "register" {
+            self.sessions_changed();
+        }
         if purpose == "reset" {
-            self.failures.lock().unwrap().remove(&email);
+            self.passwords.forget_email(&email);
         }
         Ok((result, code, old_email))
     }
+}
+
+/// A mail link about to be made.
+struct Pending<'a> {
+    purpose: &'a str,
+    account: &'a str,
+    email: &'a str,
+    name: &'a str,
+    password_hash: &'a str,
+    code: &'a str,
+    invite: &'a str,
+    address: &'a str,
+}
+
+fn too_many() -> ServerError {
+    refused("Too many email requests. Try again after the existing links expire.")
+}
+
+/// The mail-link limits that don't depend on the email: the global cap and
+/// the address's share. Also forgets expired links.
+fn may_send_from(database: &Connection, address: &str) -> Result<(), ServerError> {
+    database.execute("DELETE FROM account_mail WHERE expires <= ?1", [now()])?;
+    let (count, from_address): (i64, i64) = database.query_row(
+        "SELECT count(*), coalesce(sum(address = ?1), 0) FROM account_mail",
+        [address],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    if count >= MAX_MAIL_LINKS || from_address >= MAX_MAIL_LINKS_PER_ADDRESS {
+        return Err(too_many());
+    }
+    Ok(())
+}
+
+fn may_send(
+    database: &Connection,
+    purpose: &str,
+    email: &str,
+    address: &str,
+) -> Result<(), ServerError> {
+    may_send_from(database, address)?;
+    let recent: i64 = database.query_row(
+        "SELECT count(*) FROM account_mail WHERE email = ?1 AND purpose = ?2",
+        params![email, purpose],
+        |row| row.get(0),
+    )?;
+    if recent >= MAX_MAIL_LINKS_PER_EMAIL {
+        return Err(too_many());
+    }
+    Ok(())
+}
+
+fn unregistered(database: &Connection, email: &str) -> Result<(), ServerError> {
+    let used: bool = database.query_row(
+        "SELECT EXISTS(SELECT 1 FROM accounts WHERE email = ?1)",
+        [email],
+        |row| row.get(0),
+    )?;
+    if used {
+        return Err(refused("Email: that address is already registered."));
+    }
+    Ok(())
+}
+
+fn mail_link(database: &Connection, pending: Pending) -> Result<MailLink, ServerError> {
+    may_send(database, pending.purpose, pending.email, pending.address)?;
+    if matches!(pending.purpose, "register" | "email") {
+        unregistered(database, pending.email)?;
+    }
+    let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+    let lifetime = if pending.purpose == "register" || pending.purpose == "email" {
+        REGISTRATION_LINK_LIFETIME
+    } else {
+        RESET_LINK_LIFETIME
+    };
+    database.execute(
+        "INSERT INTO account_mail (token_hash, purpose, account_id, email, display_name, password_hash, device_code, expires, address, invite_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![
+            hash_token(&token),
+            pending.purpose,
+            pending.account,
+            pending.email,
+            pending.name,
+            pending.password_hash,
+            pending.code,
+            now() + lifetime,
+            pending.address,
+            pending.invite
+        ],
+    )?;
+    Ok(MailLink {
+        email: pending.email.into(),
+        purpose: pending.purpose.into(),
+        token,
+    })
 }

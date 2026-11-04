@@ -15,6 +15,7 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
             "/auth/register",
             &[
                 ("code", &code),
+                ("invite", &harness.invite()),
                 ("email", "ada@example.com"),
                 ("display_name", "Ada"),
                 ("password", "correct horse battery"),

@@ -24,8 +24,11 @@ using it would. Each item says what "done" looks like.
 
 - App tokens (sessions of kind `app`) never expire; only browser sessions
   do. Done: an expiry with sliding renewal.
-- Sign-in lockout is per email (`locked_out` in `be-server/src/store.rs`).
-  Done: per-IP limits too, from the forwarded address be-server already reads.
+- The portal counts its per-address limits (password hashing, sign-in
+  lockouts, mail links) by the connection's peer address
+  (`serve_auth` in `be-server/src/http.rs`), which behind a proxy is the
+  proxy's. Done: the client's address from a forwarded header the server
+  trusts only from its proxy.
 - Objects uploaded but never published or held are never collected
   (`put_objects` stores them with no reference).
 - A health endpoint and a config file in place of flags.

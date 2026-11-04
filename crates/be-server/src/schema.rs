@@ -35,9 +35,12 @@ const SCHEMA: &str = "
         display_name TEXT NOT NULL DEFAULT '',
         password_hash TEXT NOT NULL DEFAULT '',
         device_code TEXT NOT NULL DEFAULT '',
-        expires INTEGER NOT NULL
+        expires INTEGER NOT NULL,
+        address TEXT NOT NULL DEFAULT '',
+        invite_hash TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX account_mail_email ON account_mail(email, purpose);
+    CREATE INDEX account_mail_address ON account_mail(address);
 
     CREATE TABLE organizations (
         id              TEXT PRIMARY KEY,
@@ -233,4 +236,15 @@ const SCHEMA: &str = "
         account_id      TEXT NOT NULL REFERENCES accounts(id),
         secret          BLOB NOT NULL
     );
+
+    CREATE TABLE invite_codes (
+        id              TEXT PRIMARY KEY,
+        code_hash       TEXT NOT NULL UNIQUE,
+        created         INTEGER NOT NULL,
+        expires         INTEGER NOT NULL DEFAULT 0,
+        uses            INTEGER,
+        used            INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE INDEX agents_created_by ON agents (created_by);
 ";

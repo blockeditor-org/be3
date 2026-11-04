@@ -10,27 +10,27 @@ async fn expired_mail_and_browser_sessions_fail_and_mail_issuance_is_bounded() {
         .unwrap();
     let browser = store.browser_session(profile.account).await.unwrap();
     let link = store
-        .password_reset_link("expire@example.com", "")
+        .password_reset_link("expire@example.com", "", "")
         .await
         .unwrap()
         .unwrap();
     assert!(
         store
-            .password_reset_link("expire@example.com", "")
+            .password_reset_link("expire@example.com", "", "")
             .await
             .unwrap()
             .is_some()
     );
     assert!(
         store
-            .password_reset_link("expire@example.com", "")
+            .password_reset_link("expire@example.com", "", "")
             .await
             .unwrap()
             .is_some()
     );
     assert!(
         store
-            .password_reset_link("expire@example.com", "")
+            .password_reset_link("expire@example.com", "", "")
             .await
             .unwrap()
             .is_none()
@@ -45,7 +45,7 @@ async fn expired_mail_and_browser_sessions_fail_and_mail_issuance_is_bounded() {
     assert!(store.browser_profile(&browser).await.is_err());
     assert!(
         store
-            .confirm_mail(&link.token, Some("another password"))
+            .confirm_mail(&link.token, Some("another password"), "")
             .await
             .is_err()
     );

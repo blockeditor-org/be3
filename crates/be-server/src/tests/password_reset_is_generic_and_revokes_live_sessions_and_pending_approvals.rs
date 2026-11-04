@@ -56,13 +56,13 @@ async fn password_reset_is_generic_and_revokes_live_sessions_and_pending_approva
     assert!(store.resolve_token(&app.token).await.is_err());
     assert!(
         store
-            .login_browser("reset@example.com", "correct horse battery")
+            .login_browser("reset@example.com", "correct horse battery", "")
             .await
             .is_err()
     );
     assert!(
         store
-            .login_browser("reset@example.com", "a new password")
+            .login_browser("reset@example.com", "a new password", "")
             .await
             .is_ok()
     );

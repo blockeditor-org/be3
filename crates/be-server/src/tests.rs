@@ -44,6 +44,7 @@ mod a_settings_block_changes_only_with_manage_on_its_parent;
 mod a_settings_kind_opens_to_anyone_who_views_a_block_inside;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
+mod an_account_creates_a_bounded_number_of_agents;
 mod an_agent_signs_in_with_its_token_until_it_is_removed;
 mod an_editor_changes_the_prefixes_and_tags_but_no_other_kind;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
@@ -65,6 +66,7 @@ mod key_rows_are_served_only_to_who_may_see_their_block;
 mod legacy_local_profile_sessions_remain_usable;
 mod local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers;
 mod losing_every_block_inside_rotates_a_kind_open_inside;
+mod mail_links_are_bounded_per_address_and_unknown_resets_cost_the_same;
 mod members_manage_only_the_agents_they_created;
 mod metadata_travels_with_the_content_once_a_block_has_any;
 mod moving_a_block_drops_the_wraps_of_its_old_scope;
@@ -76,20 +78,25 @@ mod only_a_manager_lets_go_of_a_blocks_settings;
 mod only_a_manager_shares_and_a_lower_grant_reduces_nothing;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod password_changes_rotate_the_browser_and_revoke_other_sessions;
+mod password_hashing_refuses_past_its_queue_and_each_addresss_share;
 mod password_reset_is_generic_and_revokes_live_sessions_and_pending_approvals;
 mod passwords_are_validated_on_the_server_without_truncation_or_echoing;
 mod proxy_account_authentication_never_discloses_the_token;
 mod pruning_history_keeps_pinned_commits;
 mod references_keep_the_order_their_block_lists_them_in;
 mod registering_joins_the_one_personal_organization_as_an_editor;
+mod registration_checks_its_invite_code_before_hashing_the_password;
+mod registration_needs_an_invite_code_spent_when_the_account_is_made;
 mod registration_requires_verification_and_links_are_purpose_bound_and_single_use;
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod removing_a_contact_revokes_what_the_two_shared;
 mod repeated_failed_sign_ins_lock_the_account_out;
 mod requests_sent_before_a_close_are_still_carried_out;
+mod revoking_a_session_announces_only_a_change;
 mod revoking_an_http_session_removes_its_access;
 mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
+mod sign_in_failures_lock_a_pair_before_an_address_or_an_email_and_decay;
 mod the_access_list_leaves_administrators_to_the_organization_line;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
 mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
@@ -921,6 +928,13 @@ impl mail::Delivery for CapturedMail {
     }
 }
 impl Harness {
+    /// A fresh invite code with no limits, as `be-server invite-code create` makes.
+    fn invite(&self) -> String {
+        crate::store::invite_codes::create(&self.directory, None, None)
+            .unwrap()
+            .0
+    }
+
     fn mail_token(&self, email: &str) -> String {
         let messages = self.mail.0.lock().unwrap();
         let body = &messages

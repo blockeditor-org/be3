@@ -1,3 +1,5 @@
+pub mod invite_codes;
+pub(crate) mod passwords;
 pub(crate) mod portal;
 pub use portal::{AccountSession, MailLink};
 use std::{
@@ -53,21 +55,13 @@ pub struct ServerStore {
     graphs: Mutex<HashMap<Uuid, BlockGraph>>,
     revision: std::sync::atomic::AtomicU64,
     object_refs: std::sync::Mutex<ObjectRefs>,
-    hashing: tokio::sync::Semaphore,
-    failures: std::sync::Mutex<HashMap<String, Failures>>,
+    pub(crate) passwords: passwords::Passwords,
     server: crate::organization::ServerKey,
     policies: std::sync::Mutex<HashMap<Uuid, crate::organization::HeldPolicies>>,
 }
 
-struct Failures {
-    count: u32,
-    until: Option<Instant>,
-}
-
-const PASSWORD_CHECKS_AT_ONCE: usize = 4;
-const FREE_FAILURES: u32 = 5;
-const FIRST_LOCKOUT: Duration = Duration::from_secs(30);
-const LONGEST_LOCKOUT: Duration = Duration::from_secs(60 * 60);
+/// Agents one account may have created and not yet removed.
+pub const MAX_AGENTS_PER_CREATOR: i64 = 16;
 
 impl ServerStore {
     pub fn open(root: impl AsRef<Path>) -> Result<Self, ServerError> {
@@ -86,8 +80,7 @@ impl ServerStore {
             graphs: Mutex::new(HashMap::new()),
             revision: std::sync::atomic::AtomicU64::new(0),
             object_refs: std::sync::Mutex::new(object_refs),
-            hashing: tokio::sync::Semaphore::new(PASSWORD_CHECKS_AT_ONCE),
-            failures: std::sync::Mutex::new(HashMap::new()),
+            passwords: passwords::Passwords::default(),
             server,
             policies: std::sync::Mutex::new(HashMap::new()),
         })
@@ -152,7 +145,7 @@ impl ServerStore {
                 "a password must be at least eight characters".into(),
             ));
         }
-        let hash = self.hash(password.to_owned()).await?;
+        let hash = self.hash(password.to_owned(), "").await?;
         let account = Uuid::new_v4();
         let database = self.database.lock().await;
         let existing: Option<String> = database
@@ -195,13 +188,14 @@ impl ServerStore {
         &self,
         email: &str,
         password: &str,
+        address: &str,
     ) -> Result<(Profile, String), ServerError> {
         let email = normalize_email(email)?;
-        if let Some(wait) = self.locked_out(&email) {
+        if let Some(wait) = self.passwords.locked_out(&email, address, Instant::now()) {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidCredentials,
                 format!(
-                    "too many failed sign-ins for this account; try again in {} seconds",
+                    "too many failed sign-ins; try again in {} seconds",
                     wait.as_secs().max(1)
                 ),
             ));
@@ -219,15 +213,15 @@ impl ServerStore {
         let hash = row
             .as_ref()
             .map_or_else(|| dummy_hash().to_owned(), |(_, _, hash)| hash.clone());
-        let matches = self.verify(password.to_owned(), hash).await?;
+        let matches = self.verify(password.to_owned(), hash, address).await?;
         let Some((id, display_name, previous_hash)) = row.filter(|_| matches) else {
-            self.failed(&email);
+            self.passwords.failed(&email, address, Instant::now());
             return Err(ServerError::Refused(
                 ErrorCode::InvalidCredentials,
                 "no account matches those credentials".into(),
             ));
         };
-        self.failures.lock().unwrap().remove(&email);
+        self.passwords.succeeded(&email, address);
         let account = parse_uuid(&id)?;
         let database = self.database.lock().await;
         let transaction = database.unchecked_transaction()?;
@@ -258,49 +252,21 @@ impl ServerStore {
         ))
     }
 
-    fn locked_out(&self, email: &str) -> Option<Duration> {
-        let failures = self.failures.lock().unwrap();
-        let until = failures.get(email)?.until?;
-        until.checked_duration_since(Instant::now())
+    async fn hash(&self, password: String, address: &str) -> Result<String, ServerError> {
+        self.passwords
+            .run(address, move || hash_password(&password))
+            .await?
     }
 
-    fn failed(&self, email: &str) {
-        let mut failures = self.failures.lock().unwrap();
-        let entry = failures.entry(email.to_owned()).or_insert(Failures {
-            count: 0,
-            until: None,
-        });
-        entry.count += 1;
-        if entry.count >= FREE_FAILURES {
-            let doublings = (entry.count - FREE_FAILURES).min(16);
-            let wait = FIRST_LOCKOUT
-                .saturating_mul(1 << doublings)
-                .min(LONGEST_LOCKOUT);
-            entry.until = Some(Instant::now() + wait);
-            tracing::warn!(email, failures = entry.count, ?wait, "sign-ins locked out");
-        }
-    }
-
-    async fn hash(&self, password: String) -> Result<String, ServerError> {
-        let _permit = self
-            .hashing
-            .acquire()
+    async fn verify(
+        &self,
+        password: String,
+        hash: String,
+        address: &str,
+    ) -> Result<bool, ServerError> {
+        self.passwords
+            .run(address, move || verify_password(&password, &hash))
             .await
-            .map_err(|_| ServerError::Corrupt)?;
-        tokio::task::spawn_blocking(move || hash_password(&password))
-            .await
-            .map_err(|_| ServerError::Corrupt)?
-    }
-
-    async fn verify(&self, password: String, hash: String) -> Result<bool, ServerError> {
-        let _permit = self
-            .hashing
-            .acquire()
-            .await
-            .map_err(|_| ServerError::Corrupt)?;
-        tokio::task::spawn_blocking(move || verify_password(&password, &hash))
-            .await
-            .map_err(|_| ServerError::Corrupt)
     }
 
     pub async fn checkpoint(&self) -> Result<(), ServerError> {
@@ -611,6 +577,19 @@ impl ServerStore {
         let email = format!("agent-{}@agents.invalid", account.simple());
         let database = self.database.lock().await;
         let transaction = database.unchecked_transaction()?;
+        let created: i64 = transaction.query_row(
+            "SELECT count(*) FROM agents WHERE created_by = ?1",
+            [caller.to_string()],
+            |row| row.get(0),
+        )?;
+        if created >= MAX_AGENTS_PER_CREATOR {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                format!(
+                    "an account may have at most {MAX_AGENTS_PER_CREATOR} agents; remove one first"
+                ),
+            ));
+        }
         transaction.execute(
             "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, '!')",
             params![account.to_string(), email, name],

@@ -161,15 +161,25 @@ client puts them back in order.
 Remote accounts register and sign in through the `/auth` portal, which
 verifies the email before creating the account; the protocol has browser
 sign-in handoff (`finish-browser-login`, called again after a reconnect),
-token `Authenticate`, header authentication and `Logout`. Password checks run
-off the database lock, a few at a time, with lockouts that double after five
-failures. `Be3-Gateway-Authorization` is left to a gateway in front.
+token `Authenticate`, header authentication and `Logout`. Registering needs an
+invite code the operator made (`store/invite_codes.rs`), checked with every
+other cheap check before the password is hashed and spent when the verified
+account is made. Password hashing and checks (`store/passwords.rs`) run off the
+database lock, a few at a time, behind a bounded queue with a small share per
+address (an IPv6 address counts by its /64); past it the portal answers busy.
+Failed checks lock out an (email, address) pair after five, an address after
+more, and an email from every address only after many more, doubling up to an
+hour and forgetting one failure per quiet `FAILURE_DECAY`; the records are
+bounded. Mail links are capped per email and purpose, per address and overall
+(`store/portal.rs`); a reset for an email with no account does the same work
+and sends nothing. `Be3-Gateway-Authorization` is left to a gateway in front.
 
 An administrator `Invite`s an email under an id the inviting client picks;
 only an account with that email can read or accept it, once, and the id
 reaches the invitee only in the link (guides/blocks/keys.md, "Identity, new phrases and devices").
 `CreateAgent` makes a passwordless editor account with a token
-(guides/tracker.md); only its creator lists or removes it. Accepting an
+(guides/tracker.md), at most `MAX_AGENTS_PER_CREATOR` per creator; only its
+creator lists or removes it. Accepting an
 invitation, or creating an agent, makes the two accounts contacts.
 
 ## Running it
@@ -178,7 +188,9 @@ invitation, or creating an agent, makes the two accounts contacts.
 ./scripts/buck run //crates/be-server-bin:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data --allow-login --allow-registration
 ```
 
-Register at `http://127.0.0.1:9090/auth`; until email delivery is connected,
+Make an invite code with `be-server invite-code create --data-dir
+be-server-data` (through the same `:bin -- `), then register at
+`http://127.0.0.1:9090/auth` with it; until email delivery is connected,
 verification messages are printed in the server log. Deployments also set
 `--auth-origin` (guides/hosting.md). The native host embeds be-server for a
 local account (`be-host-stack/src/embedded_server.rs`, ephemeral port, data

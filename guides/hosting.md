@@ -40,8 +40,19 @@ phrase kept for decryption).
 ## Accounts and the portal
 
 Remote accounts are made only through the server's `/auth` portal: password sign-in needs
-`--allow-login`, registration also `--allow-registration`. To bootstrap a server, enable
-registration, register and verify through the portal, then disable it. A deployed server needs
+`--allow-login`, registration also `--allow-registration` and an invite code. Codes are made on
+the VPS against the data directory, which works while the server runs:
+
+```
+be-server invite-code create --data-dir DATA [--uses N] [--expires DAYS]   # prints the code once
+be-server invite-code list --data-dir DATA
+be-server invite-code revoke --data-dir DATA ID
+```
+
+The server stores only a code's hash; a registration spends one use when its email is verified,
+and revoking a code also stops registrations still waiting on their email. To bootstrap a
+server, make a code with `--uses 1`, start it with `--allow-registration`, register and verify
+through the portal with the code, then restart it without `--allow-registration`. A deployed server needs
 `--auth-origin https://api.be3.pfg.pw`, the exact origin used for Origin checks, Secure cookies
 and email links; request headers can't override it.
 
@@ -74,8 +85,8 @@ pages send COOP/COEP. A server with no `Portal` (every server embedded in a nati
 test) answers each page with its `Page` as JSON, with the same routes and checks.
 
 To see it locally: `./scripts/buck build //crates/be-server-bin:dist --show-output`, run the
-staged `be-server --allow-login --allow-registration` and open http://127.0.0.1:9090/auth;
-links are in its log.
+staged `be-server --allow-login --allow-registration` and open http://127.0.0.1:9090/auth,
+registering with a code from `be-server invite-code create`; links are in its log.
 
 ### Local profiles and the default server
 

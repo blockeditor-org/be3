@@ -246,6 +246,10 @@ async fn serve_auth(
         .find(|(key, _)| *key == "be3-account")
         .map(|(_, value)| value)
         .unwrap_or_default();
+    let address = stream
+        .peer_addr()
+        .map(|peer| peer.ip().to_string())
+        .unwrap_or_default();
     let result = crate::portal::handle(
         services,
         &head.method,
@@ -254,6 +258,7 @@ async fn serve_auth(
         &fields,
         token,
         &origin,
+        &address,
     )
     .await?;
     let mut extras = String::new();
