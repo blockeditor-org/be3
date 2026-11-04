@@ -14,7 +14,7 @@ guide is for what that does not cover.
   without `--desktop` runs the workspace shell on the displays instead.
   `./scripts/buck run //crates/be-host:dev -- --desktop` drives the desktop shell headless.
 - `--install-login-session [PREFIX]` and `--uninstall-login-session [PREFIX]` (Linux): install
-  be-host as a login session, or remove it again (guides/desktop/linux.md).
+  be-host as a login session, or remove it again (guides/desktop/login_session.md, Installing it).
 
 ## Data directories
 
@@ -75,7 +75,7 @@ of the headless copy, then stop that copy).
 
 Profile a release build: `./scripts/buck run //crates/beui-demo:dev -m release` (or be-host's
 `:dev`) runs it headless with debug info, ready for `drive`. The inspector's Perf tab
-(guides/beui/programs.md, the inspector) times each frame: `drive key ctrl+shift+i`,
+(guides/beui/programs.md, The inspector and the simulation tools) times each frame: `drive key ctrl+shift+i`,
 `drive click '"Perf"'`, act, then read the Peak column from `drive tree`. Interaction covers
 whatever the input ran, so a component built in response to a click counts there, not in
 Layout. Take the median of several runs: the headless renderer draws on the CPU and competes

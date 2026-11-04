@@ -42,7 +42,7 @@ BEUI_PLATFORM=drm ./scripts/buck run //crates/be-host:native -- --desktop
 second space under it. With no headset it waits, with a notice over the simulator, and finds one
 started or plugged in later. `drm` cannot show space on a headset, and Android reads no `BEUI_*`
 variables. guides/beui/space.md has both layers; the login session and its install are
-guides/desktop/linux.md.
+guides/desktop/login_session.md, Installing it.
 
 ## For an agent
 
