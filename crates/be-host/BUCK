@@ -259,13 +259,13 @@ command_alias(
 
 # The host headless for an agent to drive, signed in with a workspace open:
 # guides/running/drive.md. Each app is its precompiled module alone, half
-# of what :native downloads, and `-c be3.apps=checklist,file-tree` stages
-# only the editors it names, each crates/be-app-NAME by its NAME, and
-# workspace, which draws the workspace itself.
+# of what :native downloads, and `-c be3.apps=checklist,text` stages
+# only the editors it names, each crates/be-app-NAME by its NAME, plus
+# workspace, which draws the workspace itself, and file-tree, its files pane.
 dev_apps = [
     package
     for package in app_packages()
-    if read_config("be3", "apps", "") == "" or package.removeprefix("crates/be-app-") in ["workspace"] + read_config("be3", "apps", "").split(",")
+    if read_config("be3", "apps", "") == "" or package.removeprefix("crates/be-app-") in ["workspace", "file-tree"] + read_config("be3", "apps", "").split(",")
 ]
 
 program(
