@@ -47,6 +47,9 @@ impl DockDeclaration {
     }
 }
 
+/// `owner` is `None` for a dock bar: the root gives it to the hosting tab. `kind` is what the root
+/// places bars by: the declaring dock's `key()` in-process, `{block type}/{key}` across apps, so the
+/// same bar of every instance of an editor shares one placement.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockDeclaredBar {
     pub tab: TabId,
@@ -142,6 +145,12 @@ pub struct DockBodies {
     pub hosts: Memo<Vec<TabId>>,
 }
 
+/// The seam every `Docking` declares through, plain data both ways. A host only ever sees one
+/// declaration: nested docks are spliced in by the client.
+///
+/// `withdraw` takes back only the declaration; the bodies `place` gave and the `listen` callback stay
+/// until the claiming scope ends, so a dock torn down and rebuilt is hosted again with the same
+/// bodies.
 pub trait DockHostLink {
     fn declare(&self, declaration: DockDeclaration);
     fn hosted(&self) -> Memo<Option<DockHosted>>;
@@ -154,6 +163,9 @@ pub trait DockHostLink {
     }
 }
 
+/// The context a `Docking` not inside another dock's tab declares through; a `Docking` with neither
+/// a slot nor a `DockJoin` panics. `local` is a `DockHost`'s slot, which draws the dock in place of
+/// the `Docking`; `new` is a platform's, which draws nothing there and hosts the dock elsewhere.
 #[derive(Clone)]
 pub struct DockHostSlot {
     link: Rc<dyn DockHostLink>,
@@ -209,6 +221,10 @@ pub struct DockKept {
     pub restore: Callback<DockState>,
 }
 
+/// Saves the layout of the dock a `DockHost` hosts below it, as it would a joined one: the first
+/// locally hosted `Docking` claims it (a dock nested in that one joins it and claims none).
+/// be-sdk-beui provides one in every editor's frame; an owner that saves its dock itself provides
+/// `DockKeeper::none()` above it.
 #[derive(Clone)]
 pub struct DockKeeper {
     keep: Option<Rc<dyn Fn(DockKept)>>,
@@ -404,6 +420,9 @@ impl Registry {
     }
 }
 
+/// Provided in each tab body: the first `Docking` built in it joins the outer dock as a pinned group
+/// keyed `joined:<tab>`. A `DockHost` hides any `DockJoin` around it, so a dock under it stands
+/// alone.
 #[derive(Clone)]
 pub struct DockJoin {
     pub(crate) host: TabId,

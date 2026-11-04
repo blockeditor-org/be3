@@ -41,6 +41,9 @@ struct DocumentsInner<K, T, I> {
     next: Cell<u64>,
 }
 
+/// Tabs that show documents from a list. A slot's key names the tab, not the document, so a slot
+/// that shows another document keeps its place, focus and history. `identity` tells documents apart;
+/// new content for the same identity updates the slot in place.
 pub struct DockDocuments<K: 'static, T: 'static, I: 'static> {
     layout: DockingLayout<K>,
     contents: KeyedStore<DockSlot, T>,
@@ -115,6 +118,8 @@ where
         })
     }
 
+    /// Shows the document if it is open; otherwise replaces the slot shown last, unless `beside`
+    /// (Ctrl or Cmd held) asks for a new slot.
     pub fn open(&self, content: T, beside: bool) -> DockOpened<T> {
         let identity = self.identity(&content);
         let opened = match untrack(|| self.find(&identity)) {
@@ -222,6 +227,8 @@ where
     }
 }
 
+/// Rebuilds its body only when the slot's document changes, so new content for the same document
+/// keeps the body's state.
 #[component]
 pub fn DockDocumentBody<K, T, I>(
     document: DockDocument<K, T, I>,

@@ -70,6 +70,7 @@ impl DockTabControl {
         matches!(self.backing, Backing::Hosted { .. })
     }
 
+    /// Lets one child in a hosted body claim the tab; later callers get false.
     pub fn claim_body(&self) -> bool {
         let Backing::Hosted { claimed, .. } = self.backing else {
             return false;
@@ -142,6 +143,8 @@ impl DockTabControl {
         }
     }
 
+    /// Adds Full screen / Leave full screen to the tab's right-click menu. The dock binds no key to
+    /// leave fullscreen, so content that enters it some other way offers its own way out.
     pub fn offer_fullscreen(&self) {
         if let Some(driver) = self.driver() {
             driver.offer_fullscreen(self.tab);
@@ -155,6 +158,8 @@ impl DockTabControl {
         self.driver().is_some_and(|driver| driver.focused(self.tab))
     }
 
+    /// Changes each time a press on the parent's panel flashes this modal dialog, so content whose
+    /// keyboard lives in another document can take it there.
     pub fn attention(&self) -> Option<u64> {
         self.driver()?.attention(self.tab)
     }
@@ -166,6 +171,8 @@ impl DockTabControl {
         }
     }
 
+    /// While `Some`, the tab, the dialog's header and the stacked bar show the notice in place of the
+    /// title. Kept until the calling scope ends.
     pub fn show_notice(&self, notice: Memo<Option<String>>) {
         if let Some(driver) = self.driver() {
             driver.show_notice(self.tab, notice);
@@ -176,16 +183,22 @@ impl DockTabControl {
         self.driver()?.window_size(self.tab)
     }
 
+    /// Sizes the floating window showing this tab, never below `MIN_WINDOW_SIZE.x` wide. Where a host
+    /// opens windows this becomes a `WindowRequest::Resize`.
     pub fn resize_window(&self, size: Vec2) {
         if let Some(driver) = self.driver() {
             driver.resize_window(self.tab, size);
         }
     }
 
+    /// Changes each time this tab's floating window comes to the front (opened, shown, switched to, or
+    /// left in front by a close; not while the dock is built or restored), without moving the focus.
     pub fn brought_forward(&self) -> Option<u64> {
         self.driver()?.brought_forward(self.tab)
     }
 
+    /// Changes each time the dock gives this tab the keyboard, so content whose keyboard lives in
+    /// another document (a program's window, a child block) can ask for it there.
     pub fn keyboard(&self) -> Option<u64> {
         self.driver()?.keyboard(self.tab)
     }
@@ -198,6 +211,9 @@ pub fn use_dock_tab() -> Option<DockTabControl> {
 #[derive(Clone, Copy)]
 struct ShowsThrough(Memo<bool>);
 
+/// Makes every dock built below show through like a `see_through` tab while `shows` is true, except
+/// in floating windows; be-sdk-beui's frame uses it for an editor kept to its card on its parent's
+/// stage.
 pub fn provide_dock_shows_through(shows: Memo<bool>) {
     provide_context(ShowsThrough(shows));
 }
@@ -221,6 +237,8 @@ thread_local! {
     static NEXT_MENU: Cell<u64> = const { Cell::new(1) };
 }
 
+/// Hands the enclosing tab's menu to the dock: shown behind More, with `.pin(..)` actions moved into
+/// the bar (`Pin::Title` becomes the stacked bar's title button).
 pub fn dock_menu(items: Memo<Vec<MenuNode>>) {
     let Some(DockTabMenu { tab, menu }) = use_context::<DockTabMenu>() else {
         return;
@@ -424,6 +442,9 @@ impl DockBarControl {
         }
     }
 
+    /// Called from a handle's `on_drag` once past the drag threshold, with the press that went down, then
+    /// with each move. A hosted control turns it into `DockRequest::MoveBar`, mapping the press back
+    /// into the body's window with `window_point` when the pointer is over another window of the program.
     pub fn begin_move(&self, press: PointerPress) {
         let BarBacking::Hosted { request, last, .. } = self.backing else {
             if let Some(driver) = self.driver() {
@@ -451,6 +472,7 @@ impl DockBarControl {
         ));
     }
 
+    /// Drops a bar a hosted control is carrying; a local control ignores it.
     pub fn end_move(&self) {
         let BarBacking::Hosted { request, last, .. } = self.backing else {
             return;
