@@ -126,7 +126,7 @@ whatever the zoom, so it wraps the same at every zoom. During a zoom the
 glyphs are stretched (`Document::set_canvas_raster`, `Zoom::raster`;
 `Galley::pixels_per_point` records the density they were rasterised at), and
 once the scale has held for 150ms they are rasterised again at the new scale,
-repainting without relayout. Hit testing goes through each space's scale
+repainting without relayout (guides/beui/text.md, Layout scale and raster). Hit testing goes through each space's scale
 (`Rects::get`), so pointer events, `TextGeometry`, selection handles, the IME
 area and anchored menus all work inside one, in its own units with `pos` in
 the window's. Only an `Interactive` takes a press; an item that only draws is
