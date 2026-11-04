@@ -9,6 +9,10 @@ const WINDOW: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(1100.0, 720.0));
 const WORK: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(1100.0, 679.0));
 
 fn open(window: u64, at: Pos2, size: Vec2) {
+    open_at(window, at, size, be_sdk_api::WindowLevel::Normal);
+}
+
+fn open_at(window: u64, at: Pos2, size: Vec2, level: be_sdk_api::WindowLevel) {
     let main = ViewRef {
         instance: INSTANCE,
         view: ViewId::MAIN,
@@ -24,7 +28,7 @@ fn open(window: u64, at: Pos2, size: Vec2) {
                 width: size.x,
                 height: size.y,
             },
-            level: be_sdk_api::WindowLevel::Normal,
+            level,
         })],
     );
     apply();
@@ -71,6 +75,17 @@ fn a_desktop_window_is_kept_in_the_work_area_in_a_window_and_off_an_unplugged_di
         rect(2),
         Rect::from_min_size(pos2(80.0, 0.0), vec2(800.0, 679.0)),
         "one taller than the work area shrinks to it"
+    );
+    open_at(
+        4,
+        Pos2::ZERO,
+        WINDOW.size(),
+        be_sdk_api::WindowLevel::Fullscreen,
+    );
+    assert_eq!(
+        rect(4),
+        WINDOW,
+        "a fullscreen window covers the whole display, the band at its foot included"
     );
 
     let second = Rect::from_min_size(pos2(1100.0, 0.0), vec2(1100.0, 720.0));

@@ -145,8 +145,9 @@ follows. Drop targets are resolved in the window the `DragPoint` names, in that 
 coordinates, and never in a window a non-dock layer covers at the pointer.
 
 The window manager (`beui-dock-host/src/unstyled/hosting/manager.rs`, `snap.rs`,
-`beui-dock-state/src/hidden.rs`) is on `DockHostLayout` for any shell: areas (`set_areas`, one per
-display; a window belongs to the area it overlaps most), snapping, hiding and show-desktop,
+`beui-dock-state/src/hidden.rs`) is on `DockHostLayout` for any shell: areas (`set_areas`, one `DockArea`
+per display: the whole screen, where a window goes fullscreen, and the work area it is kept, snapped
+and maximized in; a window belongs to the area it overlaps most), snapping, hiding and show-desktop,
 cycling a `DockTab`'s `group`, and `window_actions(disabled)`, which returns `dock.window.*` and
 `dock.switch.*` actions with no keys, acting on the focused window. The desktop binds them
 (guides/desktop.md); the demo's Window manager page puts them in a menu.

@@ -147,7 +147,8 @@ side along their bottom edges. `DisplaysWatch` gives each `HostDisplay` its `rec
   `BeginMove`/`BeginResize` hand the press to the host.
 - A display's work area is the display less its bars' bands (`DockHostLayout::area`). The shell
   reports it per view (`frame-report.work-area`), and windows are kept wholly inside it on edges a
-  band insets; a window on no display (unplugged) moves to the nearest.
+  band insets, except a `WindowLevel::Fullscreen` window (the dock's fullscreen), which covers the
+  whole display; a window on no display (unplugged) moves to the nearest.
 - A window is drawn on the display holding most of it, at that display's raster scale; while it is
   moved, on every display it overlaps.
 - A raised dock bar (`bar_level` `Raised`) is a floating layer above windows; a bar popped into its
