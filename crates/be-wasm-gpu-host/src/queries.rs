@@ -5,6 +5,10 @@ pub(crate) struct QuerySet {
     pub(crate) timestamps: bool,
 }
 
+/// Resolved timestamps are converted from device ticks to nanoseconds and rounded down to
+/// this quantum by a compute pass after each resolve, as Chrome coarsens them, so a guest's
+/// timestamp period is 1 on every host. A `QUERY_RESOLVE` buffer is given `STORAGE` usage
+/// for that pass.
 pub(crate) const QUANTUM_NANOSECONDS: u32 = 100_000;
 
 const WORKGROUP: u32 = 64;

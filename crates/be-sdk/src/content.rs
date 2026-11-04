@@ -152,6 +152,8 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         self.gesture(Gesture::Commit);
     }
 
+    /// Puts back what the open gesture wrote and leaves no history. The host cancels a
+    /// gesture still open when the instance closes.
     pub fn cancel_gesture(&self) {
         self.gesture(Gesture::Cancel);
     }

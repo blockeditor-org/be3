@@ -114,6 +114,26 @@ mod local;
 #[cfg(test)]
 mod tests;
 
+/// Generates Rust for a WIT world: `generate!({ path, world, ... })`, expanded at the
+/// crate root. `path` is read at `CARGO_MANIFEST_DIR`, so the WIT files must be buck
+/// `resources`; `deps` lists other packages' folders, each after the ones it uses.
+///
+/// Options, each a list of WIT type names unless said:
+/// - `with` (map): an existing Rust type in place of a WIT type with the same serde data
+///   model. Nothing checks that the two agree, so use it only for byte arrays (uuids,
+///   hashes, colours) and newtype ids; generate anything with fields of its own.
+///   Network worlds may map onto the very types their client and server share.
+/// - `uses` (map): take a whole interface of another package from its generated crate.
+///   A type another interface `use`s needs a `uses` entry for its defining interface.
+/// - `copy`: mapped types that are `Copy`. `default`: types that derive `Default` (a
+///   variant's first case is the default). `inline`: records that become a variant
+///   case's struct fields. `lenient`: records taking `#[serde(default)]`. `ordered`:
+///   non-`Copy` types that derive `Ord` and `Hash`. `own_debug`: types whose crate writes
+///   `Debug` itself.
+/// - `encodings` (map): the `be_wasm_ops::wire` encoding of a `with` type holding bytes.
+/// - `local`: interfaces answered synchronously on the guest's own thread (the GPU);
+///   only these may have plain `func`s.
+/// - `network: true`: a client and server over a socket instead of a guest and host.
 #[proc_macro]
 pub fn generate(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let options = syn::parse_macro_input!(input as Options);
