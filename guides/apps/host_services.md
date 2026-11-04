@@ -39,7 +39,7 @@ Notes on particular calls:
 - `drag()` is a block the host drags over the screen; the editor draws the
   feedback and answers `accept_drag`. A drag inside the editor's own document
   never reaches the host: that is beui's `Draggable` and `DropTarget`
-  (guides/beui/components.md).
+  (guides/beui/components.md, Drag and drop).
 - `present(on)` asks for the whole window; the host may take it away (Escape,
   another instance on screen), so read `presenting()` rather than remembering
   what you asked.

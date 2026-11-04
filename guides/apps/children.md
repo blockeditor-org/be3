@@ -99,7 +99,7 @@ dock gives that tab the keyboard.
 
 An editor whose layout is a beui `Docking` placed inside a tab of another
 app's dock joins that dock, as nested docks do in-process
-(guides/beui/docking.md). The protocol is in `crates/be-sdk-api/PROTOCOL.md`
+(guides/beui/docking.md, Nested docks and the host seam). The protocol is in `crates/be-sdk-api/PROTOCOL.md`
 ("Docks cross apps"); be-sdk-beui does the app's part and the editor writes
 nothing but its `Docking`.
 
