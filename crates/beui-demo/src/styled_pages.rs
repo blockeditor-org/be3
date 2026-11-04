@@ -519,6 +519,9 @@ pub(crate) fn TextPage() -> NodeId {
             <Sample title="Shortcuts" code={vec![Shortcuts::SOURCE]}>
                 <Shortcuts />
             </Sample>
+            <Sample title="Key caps" code={vec![KeyCaps::SOURCE]}>
+                <KeyCaps />
+            </Sample>
             <Sample title="Links" code={vec![Links::SOURCE]}>
                 <Links />
             </Sample>
@@ -661,6 +664,22 @@ fn Shortcuts() -> NodeId {
             <Shortcut keys="Ctrl+Z" description="undo an edit in a text field" />
             <Shortcut keys="Ctrl+Shift+I" description="open the inspector" />
             <Shortcut keys="Ctrl+Shift+C" description="pick a node to inspect" />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn KeyCaps() -> NodeId {
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm wrap=true>
+            <KeyCap label="F20" />
+            <Text color=TextColor::Muted>"+"</Text>
+            <KeyCap label="Wheel up" />
+            <Text color=TextColor::Muted>"then"</Text>
+            <KeyCap label="X" />
+            <KeyCap label="wait 80 ms" muted=true />
+            <KeyCap label="Left Ctrl" />
         </List>
     }
 }
@@ -3855,6 +3874,18 @@ fn Accordions() -> NodeId {
                     <Text style=TextStyle::PARAGRAPH>
                         "Layout is linear in the number of nodes, and only the \
                          parts of the tree whose inputs changed are laid out again."
+                    </Text>
+                </Accordion>
+                <Separator />
+                <Accordion
+                    title="More options"
+                    detail="Repeats, ends at midnight"
+                    size=TextSize::Base
+                    open=false
+                >
+                    <Text style=TextStyle::PARAGRAPH>
+                        "A smaller one tucks options away inside a form, and says \
+                         what is set while it is closed."
                     </Text>
                 </Accordion>
             </List>

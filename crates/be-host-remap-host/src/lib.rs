@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use be_host_remap::names::{BUTTON_FIRST, Modifier};
+use be_host_remap::names::{BUTTON_FIRST, CODE_LIMIT, Modifier};
 use be_host_remap::protocol::{decode, encode};
 use be_host_remap::{Input, Output, Reply, Request, Source, Window};
 use wasmi::{
@@ -20,7 +20,6 @@ pub const FAILURE_WINDOW: u64 = 60_000_000;
 const SOONEST: u64 = 1000;
 const MOST_REPLY_BYTES: usize = 1 << 20;
 const MOST_OUTPUTS: usize = 1024;
-const CODE_LIMIT: u16 = 0x300;
 const BACKSPACE: u16 = 14;
 const ESCAPE: u16 = 1;
 const KEY_L: u16 = 38;

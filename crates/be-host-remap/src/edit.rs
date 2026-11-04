@@ -1,3 +1,4 @@
+use crate::names::{Modifier, Source};
 use toml_edit::{
     Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, TableLike, Value, value,
 };
@@ -14,10 +15,12 @@ pub struct GroupOutline {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RuleOutline {
     pub on: String,
+    /// What the `held` list names, which must be held as well as what `on` names.
+    pub held: Vec<String>,
     pub does: Does,
     pub key: String,
     pub hold_ms: Option<i64>,
-    pub not_held: String,
+    pub not_held: Vec<String>,
     pub keep: bool,
     pub blind: bool,
     pub steps: Vec<StepOutline>,
@@ -48,10 +51,16 @@ pub enum GroupField {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RuleEdit {
     On(String),
+    /// Changes the key of `on`, keeping what is held with it.
+    Trigger(String),
+    /// Adds what must be held as well, or stops requiring it wherever it is
+    /// written; a modifier's name stands for either of its keys.
+    Held(String, bool),
     Does(Does),
     Key(String),
     HoldMs(Option<i64>),
-    NotHeld(String),
+    /// Adds or removes one of what keeps the rule from applying.
+    NotHeld(String, bool),
     Keep(bool),
     Blind(bool),
     AddStep { wait: bool },
@@ -189,13 +198,76 @@ impl Editing {
         }
     }
 
+    /// Copies a rule to just after it.
+    pub fn duplicate_rule(&mut self, group: usize, rule: usize) {
+        let Some(table) = self.group_mut(group) else {
+            return;
+        };
+        match table.get_mut("rules") {
+            Some(Item::Value(Value::Array(rules))) if rule < rules.len() => {
+                let mut copy = rules.get(rule).cloned().unwrap_or(Value::from(false));
+                let prefix = copy.decor().prefix().and_then(|prefix| prefix.as_str()).map(plain);
+                copy.decor_mut().set_suffix("");
+                if let Some(prefix) = prefix {
+                    copy.decor_mut().set_prefix(prefix);
+                }
+                rules.insert_formatted(rule + 1, copy);
+            }
+            Some(Item::ArrayOfTables(rules)) if rule < rules.len() => {
+                if let Some(copy) = rules.get(rule).cloned() {
+                    rules.push(copy);
+                }
+            }
+            _ => {}
+        }
+    }
+
     pub fn edit_rule(&mut self, group: usize, rule: usize, edit: RuleEdit) {
+        self.change_rule(group, rule, edit);
+        if let Some(Item::Value(Value::Array(rules))) =
+            self.group_mut(group).and_then(|group| group.get_mut("rules"))
+            && let Some(table) = rules.get_mut(rule).and_then(Value::as_inline_table_mut)
+        {
+            table.fmt();
+        }
+    }
+
+    fn change_rule(&mut self, group: usize, rule: usize, edit: RuleEdit) {
         let Some(table) = self.rule_mut(group, rule) else {
             return;
         };
         match edit {
             RuleEdit::On(on) => {
                 table.insert("on", value(on));
+            }
+            RuleEdit::Trigger(key) => {
+                let mut on = Combo::parse(&text(table.get("on")));
+                on.key = key;
+                table.insert("on", value(on.text()));
+            }
+            RuleEdit::Held(name, true) => {
+                let mut on = Combo::parse(&text(table.get("on")));
+                let listed = table
+                    .get("held")
+                    .and_then(Item::as_array)
+                    .is_some_and(|held| held.iter().filter_map(Value::as_str).any(|held| same(held, &name)));
+                if !on.holds(&name) && !listed {
+                    on.hold(&name);
+                    table.insert("on", value(on.text()));
+                }
+            }
+            RuleEdit::Held(name, false) => {
+                let mut on = Combo::parse(&text(table.get("on")));
+                if on.holds(&name) {
+                    on.release(&name);
+                    table.insert("on", value(on.text()));
+                }
+                if let Some(held) = table.get_mut("held").and_then(Item::as_array_mut) {
+                    held.retain(|held| !held.as_str().is_some_and(|held| same(held, &name)));
+                    if held.is_empty() {
+                        table.remove("held");
+                    }
+                }
             }
             RuleEdit::Does(does) => {
                 let key = action_key(table);
@@ -227,18 +299,24 @@ impl Editing {
                 table.insert(field, value(key));
             }
             RuleEdit::HoldMs(ms) => set_ms(table, "hold_ms", ms),
-            RuleEdit::NotHeld(names) => {
-                let names: Array = names
-                    .split(',')
-                    .map(str::trim)
-                    .filter(|name| !name.is_empty())
-                    .collect();
-                match names.is_empty() {
-                    true => {
-                        table.remove("not_held");
+            RuleEdit::NotHeld(name, on) => {
+                if table.get("not_held").and_then(Item::as_array).is_none() {
+                    table.insert("not_held", value(Array::new()));
+                }
+                if let Some(names) = table.get_mut("not_held").and_then(Item::as_array_mut) {
+                    let listed = names
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .any(|listed| same(listed, &name));
+                    match on {
+                        true if !listed => names.push(name.as_str()),
+                        true => {}
+                        false => names.retain(|listed| {
+                            !listed.as_str().is_some_and(|listed| same(listed, &name))
+                        }),
                     }
-                    false => {
-                        table.insert("not_held", value(names));
+                    if names.is_empty() {
+                        table.remove("not_held");
                     }
                 }
             }
@@ -258,7 +336,13 @@ impl Editing {
                 if let Some(steps) = table.get_mut("steps").and_then(Item::as_array_mut)
                     && step < steps.len()
                 {
-                    steps.remove(step);
+                    let removed = steps.remove(step);
+                    if step == 0
+                        && let Some(first) = steps.get_mut(0)
+                    {
+                        let prefix = removed.decor().prefix().cloned().unwrap_or_default();
+                        first.decor_mut().set_prefix(prefix);
+                    }
                 }
             }
             RuleEdit::StepKey(step, key) => {
@@ -367,22 +451,20 @@ fn rule(table: &dyn TableLike) -> RuleOutline {
                 .collect()
         })
         .unwrap_or_default();
+    let names = |key: &str| {
+        table
+            .get(key)
+            .and_then(Item::as_array)
+            .map(|names| names.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+            .unwrap_or_default()
+    };
     RuleOutline {
         on: text(table.get("on")),
+        held: names("held"),
         does,
         key: action_key(table),
         hold_ms: table.get("hold_ms").and_then(Item::as_integer),
-        not_held: table
-            .get("not_held")
-            .and_then(Item::as_array)
-            .map(|names| {
-                names
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            })
-            .unwrap_or_default(),
+        not_held: names("not_held"),
         keep: table.get("keep").and_then(Item::as_bool).unwrap_or(false),
         blind: table.get("blind").and_then(Item::as_bool).unwrap_or(false),
         steps,
@@ -440,9 +522,105 @@ fn push(array: &mut Array, mut item: Value) {
     let prefix = array
         .iter()
         .last()
-        .and_then(|last| last.decor().prefix().cloned());
-    if let Some(prefix) = prefix {
-        item.decor_mut().set_prefix(prefix);
+        .and_then(|last| last.decor().prefix()?.as_str().map(plain));
+    match prefix {
+        Some(prefix) if !prefix.is_empty() => item.decor_mut().set_prefix(prefix),
+        Some(_) => item.decor_mut().set_prefix(" "),
+        None => {}
     }
     array.push_formatted(item);
+}
+
+/// A prefix without the comments it carries, which belong to the line before.
+fn plain(prefix: &str) -> String {
+    match prefix.rfind('\n') {
+        Some(line) => prefix[line..].to_owned(),
+        None if prefix.contains('#') => " ".to_owned(),
+        None => prefix.to_owned(),
+    }
+}
+
+/// A key written with what is held with it, `Ctrl+Shift+W` or `F20+WheelUp`,
+/// as its parts.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Combo {
+    pub held: Vec<String>,
+    pub key: String,
+}
+
+impl Combo {
+    pub fn parse(text: &str) -> Self {
+        let mut held: Vec<String> = text
+            .split('+')
+            .map(str::trim)
+            .filter(|part| !part.is_empty())
+            .map(str::to_owned)
+            .collect();
+        let key = held.pop().unwrap_or_default();
+        Self { held, key }
+    }
+
+    pub fn text(&self) -> String {
+        self.held
+            .iter()
+            .chain(std::iter::once(&self.key))
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("+")
+    }
+
+    pub fn holds(&self, name: &str) -> bool {
+        self.held.iter().any(|held| same(held, name))
+    }
+
+    /// Holds a name too, modifiers first in the order Shift, Ctrl, Alt, Super.
+    pub fn hold(&mut self, name: &str) {
+        if self.holds(name) {
+            return;
+        }
+        let at = match Modifier::named(name) {
+            Some(modifier) => self
+                .held
+                .iter()
+                .position(|held| modifier_of(held).is_none_or(|held| held > modifier))
+                .unwrap_or(self.held.len()),
+            None => self.held.len(),
+        };
+        self.held.insert(at, name.to_owned());
+    }
+
+    pub fn release(&mut self, name: &str) {
+        self.held.retain(|held| !same(held, name));
+    }
+
+    /// The modifiers held, whichever side's key names them.
+    pub fn modifiers(&self) -> Vec<Modifier> {
+        self.held.iter().filter_map(|held| modifier_of(held)).collect()
+    }
+
+    /// What is held that is no modifier, like the F20 of `F20+WheelUp`.
+    pub fn others(&self) -> Vec<String> {
+        self.held
+            .iter()
+            .filter(|held| modifier_of(held).is_none())
+            .cloned()
+            .collect()
+    }
+}
+
+/// The modifier a name stands for: `Shift`, or either of its keys.
+pub fn modifier_of(name: &str) -> Option<Modifier> {
+    Modifier::named(name.trim()).or_else(|| Source::named(name).and_then(Modifier::of))
+}
+
+/// Whether two names mean the same: a modifier's name matches either of its
+/// keys, and aliases match what they stand for.
+fn same(written: &str, name: &str) -> bool {
+    if let Some(modifier) = Modifier::named(name.trim()) {
+        return modifier_of(written) == Some(modifier);
+    }
+    match (Source::named(written), Source::named(name)) {
+        (Some(written), Some(name)) => written == name,
+        _ => written.trim().eq_ignore_ascii_case(name.trim()),
+    }
 }

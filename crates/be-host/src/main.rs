@@ -2374,7 +2374,11 @@ impl HostCore {
         }
         let hidden = be_host_desktop::programs::bound_windows();
         if Some((Host::revision(), hidden.clone())) != self.windows_sent {
-            be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&Host::listed(&hidden));
+            let listed = Host::listed(&hidden);
+            be_host_base::watches::publish::<be_sdk_api::OpenProgramsWatch>(&open_programs(
+                &listed,
+            ));
+            be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&listed);
             self.windows_sent = Some((Host::revision(), hidden));
         }
         let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
@@ -3634,3 +3638,21 @@ fn drag_source(location: BlockLocation) -> SidebarDragSource {
 
 #[cfg(test)]
 mod tests;
+
+/// The programs of the listed windows, each once, for apps other than the shell.
+fn open_programs(listed: &[be_sdk_api::HostWindow]) -> Vec<be_sdk_api::OpenProgram> {
+    let mut programs: Vec<be_sdk_api::OpenProgram> = Vec::new();
+    for window in listed {
+        if window.kind != be_sdk_api::WindowKind::Window {
+            continue;
+        }
+        let program = be_sdk_api::OpenProgram {
+            program_id: window.program_id.clone(),
+            command: window.origin.command.clone(),
+        };
+        if !programs.contains(&program) {
+            programs.push(program);
+        }
+    }
+    programs
+}

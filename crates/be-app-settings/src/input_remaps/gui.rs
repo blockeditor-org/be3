@@ -1,43 +1,55 @@
 use be_host_remap::edit::{
-    Does, Editing, GroupField, GroupOutline, RuleEdit, RuleOutline, StepOutline,
+    Combo, Editing, GroupField, GroupOutline, RuleEdit, RuleOutline, StepOutline,
 };
 use be_host_remap::text;
+use be_sdk_beui::Editor;
+use be_sdk_beui::beui::NodeId;
+use be_sdk_beui::beui::icons::{ICON_PENCIL, ICON_PLUS, ICON_TRASH};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{ItemSize, NodeId};
 
+use super::picker::{KeyPicker, Picked, Picking, Target};
+use super::programs::{ProgramDialog, Scope, Scoping};
+use super::rule::RuleItem;
 use super::ui::Shared;
-use beui::Extent;
 
-const ROW_SPACING: Space = Space::Md;
-const MS_WIDTH: f32 = 96.0;
+const SECTION_SPACING: Space = Space::Xl3;
+const EVERYWHERE: &str = "Everywhere";
 
 #[derive(Clone, Debug)]
-enum Change {
-    AddGroup,
+pub(super) enum Change {
+    /// Adds a rule to a group, or with none, to a new group for every program.
+    AddRule(Option<usize>),
+    AddGroup(Scope),
+    Scope(usize, Scope),
     RemoveGroup(usize),
-    Group(usize, GroupField, String),
-    AddRule(usize),
     RemoveRule(usize, usize),
+    DuplicateRule(usize, usize),
     Rule(usize, usize, RuleEdit),
 }
 
+/// What every part of the editor shares: the rules as written, the way to
+/// change them, and what is open.
 #[derive(Clone, Copy)]
-struct Edits {
-    outline: Memo<Vec<GroupOutline>>,
-    change: Callback<Change>,
-    read_only: Memo<bool>,
+pub(super) struct Edits {
+    pub(super) outline: Memo<Vec<GroupOutline>>,
+    pub(super) change: Callback<Change>,
+    pub(super) read_only: Memo<bool>,
+    /// The rule shown with its editor, by group and rule.
+    pub(super) open: Signal<Option<(usize, usize)>>,
+    pub(super) picking: Signal<Option<Picking>>,
+    pub(super) scoping: Signal<Option<Scoping>>,
 }
 
 impl Edits {
-    fn group(self, group: usize) -> Memo<GroupOutline> {
+    pub(super) fn group(self, group: usize) -> Memo<GroupOutline> {
         create_memo(move || {
             self.outline
                 .with(|outline| outline.get(group).cloned().unwrap_or_default())
         })
     }
 
-    fn rule(self, group: usize, rule: usize) -> Memo<RuleOutline> {
+    pub(super) fn rule(self, group: usize, rule: usize) -> Memo<RuleOutline> {
         create_memo(move || {
             self.outline.with(|outline| {
                 outline
@@ -49,13 +61,70 @@ impl Edits {
         })
     }
 
-    fn edit_rule(self, group: usize, rule: usize, edit: RuleEdit) {
+    pub(super) fn edit_rule(self, group: usize, rule: usize, edit: RuleEdit) {
         self.change.call(Change::Rule(group, rule, edit));
+    }
+
+    pub(super) fn pick(self, group: usize, rule: usize, target: Target) {
+        self.picking.set(Some(Picking {
+            group,
+            rule,
+            target,
+        }));
+    }
+
+    /// Writes a picked key where it was picked for.
+    fn picked(self, picking: Picking, picked: Picked) {
+        let Picking {
+            group,
+            rule,
+            target,
+        } = picking;
+        let outline = self.outline.with_untracked(|outline| {
+            outline
+                .get(group)
+                .and_then(|group| group.rules.get(rule))
+                .cloned()
+                .unwrap_or_default()
+        });
+        let combo = |written: &str| {
+            let mut combo = Combo::parse(written);
+            combo.key = picked.key.clone();
+            if let Some(with) = &picked.with {
+                combo.held = with.clone();
+            }
+            combo.text()
+        };
+        let edit = match target {
+            Target::On if picked.with.is_some() => RuleEdit::On(combo(&outline.on)),
+            Target::On => RuleEdit::Trigger(picked.key.clone()),
+            Target::Held => RuleEdit::Held(picked.key.clone(), true),
+            Target::Key => RuleEdit::Key(combo(&outline.key)),
+            Target::Step(step) => {
+                let written = match outline.steps.get(step) {
+                    Some(StepOutline::Tap { key, .. }) => key.clone(),
+                    _ => String::new(),
+                };
+                RuleEdit::StepKey(step, combo(&written))
+            }
+        };
+        self.edit_rule(group, rule, edit);
     }
 }
 
+fn set_scope(editing: &mut Editing, group: usize, scope: &Scope) {
+    editing.set_group(group, GroupField::Name, &scope.name);
+    editing.set_group(group, GroupField::Exe, &scope.exe);
+    editing.set_group(group, GroupField::ProgramId, &scope.program_id);
+    editing.set_group(group, GroupField::Title, &scope.title);
+}
+
+fn everywhere(group: &GroupOutline) -> bool {
+    group.exe.is_empty() && group.program_id.is_empty() && group.title.is_empty()
+}
+
 #[component]
-pub(super) fn EditorTab(shared: Shared) -> NodeId {
+pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
     let stored = shared.stored;
     let draft = create_signal(stored.get_untracked());
     let followed = store(std::cell::RefCell::new(stored.get_untracked()));
@@ -74,19 +143,50 @@ pub(super) fn EditorTab(shared: Shared) -> NodeId {
     let outline = create_memo(move || parsed.get().unwrap_or_default());
     let unreadable = create_memo(move || parsed.get().err());
     let problem = create_signal(None::<String>);
+    let open = create_signal(None::<(usize, usize)>);
+    let picking = create_signal(None::<Picking>);
+    let scoping = create_signal(None::<Scoping>);
     let change = Callback::new(move |change: Change| {
         let Ok(mut editing) = Editing::parse(&draft.get_untracked()) else {
             return;
         };
+        let mut then = None;
         match change {
-            Change::AddGroup => {
-                let count = editing.outline().len();
-                editing.add_group(&format!("Group {}", count + 1));
+            Change::AddRule(group) => {
+                let group = group.unwrap_or_else(|| {
+                    editing.add_group(EVERYWHERE);
+                    editing.outline().len().saturating_sub(1)
+                });
+                editing.add_rule(group);
+                let rule = editing
+                    .outline()
+                    .get(group)
+                    .map_or(0, |group| group.rules.len().saturating_sub(1));
+                open.set(Some((group, rule)));
+                then = Some(Picking {
+                    group,
+                    rule,
+                    target: Target::On,
+                });
             }
-            Change::RemoveGroup(group) => editing.remove_group(group),
-            Change::Group(group, field, text) => editing.set_group(group, field, &text),
-            Change::AddRule(group) => editing.add_rule(group),
-            Change::RemoveRule(group, rule) => editing.remove_rule(group, rule),
+            Change::AddGroup(scope) => {
+                editing.add_group(&scope.name);
+                let group = editing.outline().len().saturating_sub(1);
+                set_scope(&mut editing, group, &scope);
+            }
+            Change::Scope(group, scope) => set_scope(&mut editing, group, &scope),
+            Change::RemoveGroup(group) => {
+                editing.remove_group(group);
+                open.set(None);
+            }
+            Change::RemoveRule(group, rule) => {
+                editing.remove_rule(group, rule);
+                open.set(None);
+            }
+            Change::DuplicateRule(group, rule) => {
+                editing.duplicate_rule(group, rule);
+                open.set(Some((group, rule + 1)));
+            }
             Change::Rule(group, rule, edit) => editing.edit_rule(group, rule, edit),
         }
         let text = editing.text();
@@ -99,15 +199,22 @@ pub(super) fn EditorTab(shared: Shared) -> NodeId {
             }
             Err(error) => problem.set(Some(error)),
         }
+        if then.is_some() {
+            picking.set(then);
+        }
     });
     let edits = Edits {
         outline,
         change,
         read_only: shared.read_only,
+        open,
+        picking,
+        scoping,
     };
     let groups = create_memo(move || (0..outline.with(Vec::len)).collect::<Vec<usize>>());
-    let empty = create_memo(move || groups.with(Vec::is_empty) && unreadable.get().is_none());
     let blocked = create_memo(move || unreadable.get().is_some());
+    let no_everywhere =
+        create_memo(move || !blocked.get() && outline.with(|outline| !outline.iter().any(everywhere)));
     let message = create_memo(move || {
         unreadable
             .get()
@@ -123,8 +230,22 @@ pub(super) fn EditorTab(shared: Shared) -> NodeId {
     });
     let warned = create_memo(move || !message.get().is_empty());
     let adding_off = create_memo(move || shared.read_only.get() || blocked.get());
+    let current = Callback::new(move |group: usize| {
+        let outline = outline.with_untracked(|outline| outline.get(group).cloned().unwrap_or_default());
+        Scope {
+            name: outline.name,
+            exe: outline.exe,
+            program_id: outline.program_id,
+            title: outline.title,
+        }
+    });
+    let apply = Callback::new(move |(scoping, scope): (Scoping, Scope)| match scoping {
+        Scoping::Add => change.call(Change::AddGroup(scope)),
+        Scoping::Group(group) => change.call(Change::Scope(group, scope)),
+    });
+    let choose = Callback::new(move |(picking, picked): (Picking, Picked)| edits.picked(picking, picked));
     view! {
-        <List spacing=ROW_SPACING>
+        <List spacing=SECTION_SPACING>
             <Show condition={warned}>
                 <SettingsSection>
                     <SettingsRow label="Problem">
@@ -132,36 +253,49 @@ pub(super) fn EditorTab(shared: Shared) -> NodeId {
                     </SettingsRow>
                 </SettingsSection>
             </Show>
-            <ForEach keys={groups}>|group: usize|
-                <GroupCard edits={edits} group={group} />
-            </ForEach>
-            <SettingsSection>
-                <Show condition={empty}>
+            <Show condition={no_everywhere}>
+                <SettingsSection title=EVERYWHERE description="In every program.">
                     <SettingsRow
                         label="No remaps yet"
-                        description="A group holds rules for every program, or only for the programs it names."
-                    />
-                </Show>
+                        description="Add one, then pick the key you want to change."
+                        compact=true
+                    >
+                        <Button
+                            label="Add remap"
+                            glyph={Some(ICON_PLUS)}
+                            disabled={adding_off}
+                            @test_id={"input-remaps.add-rule"}
+                            on_click={move || change.call(Change::AddRule(None))}
+                        />
+                    </SettingsRow>
+                </SettingsSection>
+            </Show>
+            <ForEach keys={groups}>|group: usize|
+                <GroupSection edits={edits} group={group} />
+            </ForEach>
+            <SettingsSection>
                 <SettingsRow
-                    label="Groups"
-                    separated={create_memo(move || empty.get())}
+                    label="Programs"
+                    description="Remaps that apply only while a program's window has the keyboard."
                     compact=true
                 >
                     <Button
-                        label="Add group"
-                        variant=ButtonVariant::Secondary
+                        label="Add a program"
+                        glyph={Some(ICON_PLUS)}
                         disabled={adding_off}
-                        @test_id={"input-remaps.add-group"}
-                        on_click={move || change.call(Change::AddGroup)}
+                        @test_id={"input-remaps.add-program"}
+                        on_click={move || scoping.set(Some(Scoping::Add))}
                     />
                 </SettingsRow>
             </SettingsSection>
+            <KeyPicker picking={picking} choose={choose} />
+            <ProgramDialog editor={editor} scoping={scoping} current={current} apply={apply} />
         </List>
     }
 }
 
 #[component]
-fn GroupCard(edits: Edits, group: usize) -> NodeId {
+fn GroupSection(edits: Edits, group: usize) -> NodeId {
     let outline = edits.group(group);
     let title = create_memo(move || {
         let name = outline.get().name;
@@ -173,13 +307,13 @@ fn GroupCard(edits: Edits, group: usize) -> NodeId {
     let scope = create_memo(move || {
         let outline = outline.get();
         let named: Vec<String> = [
-            ("program", outline.exe),
-            ("program id", outline.program_id),
-            ("title", outline.title),
+            ("", outline.exe),
+            ("program id ", outline.program_id),
+            ("the title ", outline.title),
         ]
         .into_iter()
         .filter(|(_, value)| !value.is_empty())
-        .map(|(what, value)| format!("{what} {value}"))
+        .map(|(what, value)| format!("{what}{value}"))
         .collect();
         match named.is_empty() {
             true => "In every program.".to_owned(),
@@ -192,72 +326,38 @@ fn GroupCard(edits: Edits, group: usize) -> NodeId {
     let rules = create_memo(move || {
         (0..outline.with(|outline| outline.rules.len())).collect::<Vec<usize>>()
     });
-    let field = move |field: GroupField| {
-        create_memo(move || {
-            let outline = outline.get();
-            match field {
-                GroupField::Name => outline.name,
-                GroupField::Exe => outline.exe,
-                GroupField::ProgramId => outline.program_id,
-                GroupField::Title => outline.title,
-            }
-        })
-    };
-    let set = move |field: GroupField| {
-        Callback::new(move |text: String| edits.change.call(Change::Group(group, field, text)))
-    };
+    let empty = create_memo(move || rules.with(Vec::is_empty));
     view! {
         <SettingsSection title={title} description={scope}>
-            <TextRow
-                label="Name"
-                description=""
-                value={field(GroupField::Name)}
-                placeholder=""
-                read_only={edits.read_only}
-                id={format!("input-remaps.group.{group}.name")}
-                separated=false
-                on_change={set(GroupField::Name)}
-            />
-            <TextRow
-                label="Program"
-                description="The window's executable, like Celeste.exe; * matches anything."
-                value={field(GroupField::Exe)}
-                placeholder="Any"
-                read_only={edits.read_only}
-                id={format!("input-remaps.group.{group}.exe")}
-                on_change={set(GroupField::Exe)}
-            />
-            <TextRow
-                label="Program id"
-                description=""
-                value={field(GroupField::ProgramId)}
-                placeholder="Any"
-                read_only={edits.read_only}
-                id={format!("input-remaps.group.{group}.program-id")}
-                on_change={set(GroupField::ProgramId)}
-            />
-            <TextRow
-                label="Window title"
-                description=""
-                value={field(GroupField::Title)}
-                placeholder="Any"
-                read_only={edits.read_only}
-                id={format!("input-remaps.group.{group}.title")}
-                on_change={set(GroupField::Title)}
-            />
+            <Show condition={empty}>
+                <SettingsRow
+                    label="No remaps here yet"
+                    description="Add one, then pick the key you want to change."
+                />
+            </Show>
             <ForEach keys={rules}>|rule: usize|
-                <RuleRows edits={edits} group={group} rule={rule} />
+                <RuleItem edits={edits} group={group} rule={rule} />
             </ForEach>
             <SettingsRow label="" separated=true compact=true>
                 <Button
-                    label="Add rule"
-                    variant=ButtonVariant::Secondary
+                    label="Add remap"
+                    glyph={Some(ICON_PLUS)}
                     disabled={edits.read_only}
                     @test_id={format!("input-remaps.group.{group}.add-rule")}
-                    on_click={move || edits.change.call(Change::AddRule(group))}
+                    on_click={move || edits.change.call(Change::AddRule(Some(group)))}
+                />
+                <Button
+                    label="Where it applies"
+                    glyph={Some(ICON_PENCIL)}
+                    variant=ButtonVariant::Ghost
+                    disabled={edits.read_only}
+                    @test_id={format!("input-remaps.group.{group}.scope")}
+                    on_click={move || edits.scoping.set(Some(Scoping::Group(group)))}
                 />
                 <Button
                     label="Remove group"
+                    glyph={Some(ICON_TRASH)}
+                    icon_only=true
                     variant=ButtonVariant::Ghost
                     disabled={edits.read_only}
                     @test_id={format!("input-remaps.group.{group}.remove")}
@@ -265,266 +365,5 @@ fn GroupCard(edits: Edits, group: usize) -> NodeId {
                 />
             </SettingsRow>
         </SettingsSection>
-    }
-}
-
-#[component]
-fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
-    let outline = edits.rule(group, rule);
-    let id = move |part: &str| format!("input-remaps.group.{group}.rule.{rule}.{part}");
-    let summary = create_memo(move || {
-        let outline = outline.get();
-        let does = match outline.does {
-            Does::Send => format!("holds {}", outline.key),
-            Does::Tap => format!("taps {}", outline.key),
-            Does::Steps => format!("plays {} steps", outline.steps.len()),
-        };
-        format!("{} {does}", outline.on)
-    });
-    let on = create_memo(move || outline.get().on);
-    let key = create_memo(move || outline.get().key);
-    let not_held = create_memo(move || outline.get().not_held);
-    let does = create_memo(move || {
-        Some(match outline.get().does {
-            Does::Send => 0,
-            Does::Tap => 1,
-            Does::Steps => 2,
-        })
-    });
-    let keyed = create_memo(move || outline.get().does != Does::Steps);
-    let tapping = create_memo(move || outline.get().does == Does::Tap);
-    let stepping = create_memo(move || outline.get().does == Does::Steps);
-    let sends = create_memo(move || outline.get().does != Does::Send);
-    let hold = create_memo(move || outline.get().hold_ms.unwrap_or(0) as f64);
-    let keep = create_memo(move || outline.get().keep);
-    let blind = create_memo(move || outline.get().blind);
-    let steps = create_memo(move || {
-        (0..outline.with(|outline| outline.steps.len())).collect::<Vec<usize>>()
-    });
-    let edit = move |change: fn(String) -> RuleEdit| {
-        Callback::new(move |text: String| edits.edit_rule(group, rule, change(text)))
-    };
-    view! {
-        <List spacing=Space::None>
-            <SettingsRow
-                label={format!("Rule {}", rule + 1)}
-                description={summary}
-                separated=true
-                compact=true
-            >
-                <Button
-                    label="Remove"
-                    variant=ButtonVariant::Ghost
-                    disabled={edits.read_only}
-                    @test_id={id("remove")}
-                    on_click={move || edits.change.call(Change::RemoveRule(group, rule))}
-                />
-            </SettingsRow>
-            <TextRow
-                label="When"
-                description="A key, button or wheel turn, after any held with it: F20+WheelUp."
-                value={on}
-                placeholder=""
-                read_only={edits.read_only}
-                id={id("on")}
-                on_change={edit(RuleEdit::On)}
-            />
-            <SettingsRow label="Does" separated=true>
-                <Select
-                    @sizing=ItemSize::Percent(100.0)
-                    width={Extent::fraction(1.0)}
-                    options={view! {
-                        <ChoiceOption label="Holds a key while it is held" />
-                        <ChoiceOption label="Taps a key" />
-                        <ChoiceOption label="Plays steps" />
-                    }}
-                    selected={Binding::new(does, move |index: Option<usize>| {
-                        let chosen = match index {
-                            Some(1) => Does::Tap,
-                            Some(2) => Does::Steps,
-                            _ => Does::Send,
-                        };
-                        edits.edit_rule(group, rule, RuleEdit::Does(chosen));
-                    })}
-                    label="Does"
-                    disabled={edits.read_only}
-                    @test_id={id("does")}
-                />
-            </SettingsRow>
-            <Show condition={keyed}>
-                <TextRow
-                    label="Key"
-                    description="With any held with it: Shift+W."
-                    value={key}
-                    placeholder=""
-                    read_only={edits.read_only}
-                    id={id("key")}
-                    on_change={edit(RuleEdit::Key)}
-                />
-            </Show>
-            <Show condition={tapping}>
-                <SettingsRow
-                    label="Hold for"
-                    description="Milliseconds, for games that miss short taps."
-                    separated=true
-                >
-                    <NumberInput
-                        @sizing=ItemSize::Fixed(MS_WIDTH)
-                        value={Binding::new(hold, move |ms: f64| edits.edit_rule(group, rule, RuleEdit::HoldMs(Some(ms.round() as i64))))}
-                        min=0.0
-                        decimals={Some(0)}
-                        label="Hold for"
-                        disabled={edits.read_only}
-                        @test_id={id("hold")}
-                    />
-                </SettingsRow>
-            </Show>
-            <Show condition={stepping}>
-                <List spacing=Space::None>
-                    <ForEach keys={steps}>|step: usize|
-                        <StepRow edits={edits} group={group} rule={rule} step={step} />
-                    </ForEach>
-                    <SettingsRow label="" separated=true compact=true>
-                        <Button
-                            label="Add tap"
-                            variant=ButtonVariant::Secondary
-                            disabled={edits.read_only}
-                            @test_id={id("add-tap")}
-                            on_click={move || edits.edit_rule(group, rule, RuleEdit::AddStep { wait: false })}
-                        />
-                        <Button
-                            label="Add wait"
-                            variant=ButtonVariant::Secondary
-                            disabled={edits.read_only}
-                            @test_id={id("add-wait")}
-                            on_click={move || edits.edit_rule(group, rule, RuleEdit::AddStep { wait: true })}
-                        />
-                    </SettingsRow>
-                </List>
-            </Show>
-            <TextRow
-                label="Unless held"
-                description="Keys that keep the rule from applying, like Shift."
-                value={not_held}
-                placeholder="Nothing"
-                read_only={edits.read_only}
-                id={id("not-held")}
-                on_change={edit(RuleEdit::NotHeld)}
-            />
-            <SettingsRow
-                label="Passes it on too"
-                description="The program still gets what was pressed."
-                separated=true
-                compact=true
-            >
-                <Switch
-                    on={Binding::new(keep, move |on: bool| edits.edit_rule(group, rule, RuleEdit::Keep(on)))}
-                    label="Passes it on too"
-                    disabled={edits.read_only}
-                    @test_id={id("keep")}
-                />
-            </SettingsRow>
-            <Show condition={sends}>
-                <SettingsRow
-                    label="Keeps held modifiers"
-                    description="Otherwise held Shift, Ctrl, Alt and Super are let go during the taps."
-                    separated=true
-                    compact=true
-                >
-                    <Switch
-                        on={Binding::new(blind, move |on: bool| edits.edit_rule(group, rule, RuleEdit::Blind(on)))}
-                        label="Keeps held modifiers"
-                        disabled={edits.read_only}
-                        @test_id={id("blind")}
-                    />
-                </SettingsRow>
-            </Show>
-        </List>
-    }
-}
-
-#[component]
-fn StepRow(edits: Edits, group: usize, rule: usize, step: usize) -> NodeId {
-    let outline = create_memo(move || {
-        edits.outline.with(|outline| {
-            outline
-                .get(group)
-                .and_then(|group| group.rules.get(rule))
-                .and_then(|rule| rule.steps.get(step))
-                .cloned()
-                .unwrap_or(StepOutline::Wait { ms: 0 })
-        })
-    });
-    let id = move |part: &str| format!("input-remaps.group.{group}.rule.{rule}.step.{step}.{part}");
-    let tap = create_memo(move || matches!(outline.get(), StepOutline::Tap { .. }));
-    let key = create_memo(move || match outline.get() {
-        StepOutline::Tap { key, .. } => key,
-        StepOutline::Wait { .. } => String::new(),
-    });
-    let ms = create_memo(move || match outline.get() {
-        StepOutline::Tap { hold_ms, .. } => hold_ms.unwrap_or(0) as f64,
-        StepOutline::Wait { ms } => ms as f64,
-    });
-    let label = create_memo(move || match tap.get() {
-        true => format!("Step {}: tap", step + 1),
-        false => format!("Step {}: wait", step + 1),
-    });
-    view! {
-        <SettingsRow label={label} separated=true>
-            <Show condition={tap}>
-                <TextInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={Binding::new(key, move |text: String| edits.edit_rule(group, rule, RuleEdit::StepKey(step, text)))}
-                    label="Key"
-                    disabled={edits.read_only}
-                    @test_id={id("key")}
-                />
-            </Show>
-            <NumberInput
-                @sizing=ItemSize::Fixed(MS_WIDTH)
-                value={Binding::new(ms, move |ms: f64| edits.edit_rule(group, rule, RuleEdit::StepMs(step, Some(ms.round() as i64))))}
-                min=0.0
-                decimals={Some(0)}
-                label="Milliseconds"
-                disabled={edits.read_only}
-                @test_id={id("ms")}
-            />
-            <Button
-                label="Remove"
-                variant=ButtonVariant::Ghost
-                disabled={edits.read_only}
-                @test_id={id("remove")}
-                on_click={move || edits.edit_rule(group, rule, RuleEdit::RemoveStep(step))}
-            />
-        </SettingsRow>
-    }
-}
-
-#[component]
-fn TextRow(
-    label: &'static str,
-    description: &'static str,
-    value: Memo<String>,
-    placeholder: &'static str,
-    read_only: Memo<bool>,
-    id: String,
-    #[prop(default = true)] separated: bool,
-    on_change: Callback<String>,
-) -> NodeId {
-    view! {
-        <SettingsRow label={label} description={description} separated={separated}>
-            <TextInput
-                @sizing=ItemSize::Percent(100.0)
-                value={Binding::new(value, move |text: String| {
-                    if text != value.get_untracked() {
-                        on_change.call(text);
-                    }
-                })}
-                label={label}
-                placeholder={placeholder}
-                disabled={read_only}
-                @test_id={id}
-            />
-        </SettingsRow>
     }
 }

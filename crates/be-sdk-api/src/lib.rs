@@ -114,7 +114,7 @@ pub use desktop::{
     tray::{HostTrayItem, TrayClick, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle},
     types::HostImage,
     wifi::{WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus},
-    windows::{HostWindow, WindowKind, WindowOrigin},
+    windows::{HostWindow, OpenProgram, WindowKind, WindowOrigin},
 };
 pub use desktop_types::TrayMenuEntry;
 pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};
@@ -132,7 +132,7 @@ pub use guest::desktop::{
     screen_lock::ScreenLockedWatch,
     tray::TrayWatch,
     wifi::WifiWatch,
-    windows::{SuperKeptWatch, WindowsWatch},
+    windows::{OpenProgramsWatch, SuperKeptWatch, WindowsWatch},
 };
 
 mod accesskit_mirror;

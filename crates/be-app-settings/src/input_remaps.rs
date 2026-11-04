@@ -5,7 +5,11 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::Root;
 
 mod gui;
+mod keys;
+mod picker;
+mod programs;
 mod raw;
+mod rule;
 mod ui;
 
 use ui::InputRemapsView;

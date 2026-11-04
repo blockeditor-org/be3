@@ -23,6 +23,8 @@ pub const RIGHT_ALT: u16 = 100;
 pub const LEFT_SUPER: u16 = 125;
 pub const RIGHT_SUPER: u16 = 126;
 pub const BUTTON_FIRST: u16 = 0x100;
+/// Past the last code Linux gives a key or button.
+pub const CODE_LIMIT: u16 = 0x300;
 
 impl Modifier {
     pub const ALL: [Self; 4] = [Self::Shift, Self::Ctrl, Self::Alt, Self::Super];
@@ -248,11 +250,13 @@ const ALIASES: &[(&str, &str)] = &[
 impl Source {
     pub fn named(name: &str) -> Option<Self> {
         let name = name.trim();
-        if let Some(code) = raw(name, "key:") {
-            return (code < BUTTON_FIRST).then_some(Self::Key(code));
+        if let Some(code) = raw(name, "key") {
+            return (code < CODE_LIMIT).then_some(Self::from_code(code));
         }
-        if let Some(code) = raw(name, "button:") {
-            return (code >= BUTTON_FIRST).then_some(Self::Button(code));
+        if let Some(code) = raw(name, "button") {
+            return (BUTTON_FIRST..CODE_LIMIT)
+                .contains(&code)
+                .then_some(Self::Button(code));
         }
         let name = ALIASES
             .iter()
@@ -294,12 +298,119 @@ impl Source {
     }
 }
 
+/// Where a key belongs among the keys a picker lists.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum KeyKind {
+    ExtraFunction,
+    Function,
+    Editing,
+    Modifier,
+    Media,
+    Mouse,
+    Typing,
+    Numpad,
+}
+
+impl KeyKind {
+    pub const ALL: [Self; 8] = [
+        Self::ExtraFunction,
+        Self::Function,
+        Self::Editing,
+        Self::Modifier,
+        Self::Media,
+        Self::Mouse,
+        Self::Typing,
+        Self::Numpad,
+    ];
+
+    pub const fn title(self) -> &'static str {
+        match self {
+            Self::ExtraFunction => "Extra function keys",
+            Self::Function => "Function keys",
+            Self::Editing => "Editing and navigation",
+            Self::Modifier => "Modifiers",
+            Self::Media => "Media and hardware",
+            Self::Mouse => "Mouse",
+            Self::Typing => "Letters, digits and symbols",
+            Self::Numpad => "Numpad",
+        }
+    }
+}
+
+const EDITING: &[u16] = &[
+    1, 14, 15, 28, 57, 58, 70, 99, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 119, 127,
+];
+
+impl Source {
+    /// Every key and button with a name, in the order of the Linux codes.
+    pub fn all() -> impl Iterator<Item = Self> {
+        KEYS.iter()
+            .map(|(_, code)| Self::Key(*code))
+            .chain(BUTTONS.iter().map(|(_, code)| Self::Button(*code)))
+    }
+
+    /// The name a person reads: `Left Ctrl`, `Page Up`, `Mouse Back`, `Key 0x2a8`.
+    pub fn label(self) -> String {
+        let name = self.name();
+        if name.contains(':') {
+            return name.replacen(':', " ", 1);
+        }
+        match name.as_str() {
+            "PlayPause" => "Play/Pause".to_owned(),
+            "StopMedia" => "Stop".to_owned(),
+            "MicMute" => "Mic Mute".to_owned(),
+            name => words(name),
+        }
+    }
+
+    pub fn kind(self) -> KeyKind {
+        let code = self.code();
+        match self {
+            Self::Button(_) => KeyKind::Mouse,
+            _ if Modifier::of(self).is_some() => KeyKind::Modifier,
+            _ if (183..=194).contains(&code) => KeyKind::ExtraFunction,
+            _ if (59..=68).contains(&code) || code == 87 || code == 88 => KeyKind::Function,
+            _ if self.name().starts_with("Num") => KeyKind::Numpad,
+            _ if EDITING.contains(&code) => KeyKind::Editing,
+            _ if (113..=115).contains(&code)
+                || (163..=166).contains(&code)
+                || [224, 225, 248].contains(&code) =>
+            {
+                KeyKind::Media
+            }
+            _ => KeyKind::Typing,
+        }
+    }
+}
+
+fn words(name: &str) -> String {
+    let mut words = String::new();
+    let mut last: Option<char> = None;
+    for c in name.chars() {
+        if let Some(last) = last
+            && last.is_ascii_lowercase()
+            && (c.is_ascii_uppercase() || c.is_ascii_digit())
+        {
+            words.push(' ');
+        }
+        words.push(c);
+        last = Some(c);
+    }
+    words
+}
+
+/// A code written as `Key:0x2a8`, `key 680` or `Button 0x118`.
 fn raw(name: &str, prefix: &str) -> Option<u16> {
     let head = name.get(..prefix.len())?;
     if !head.eq_ignore_ascii_case(prefix) {
         return None;
     }
-    let code = name[prefix.len()..].trim();
+    let code = name[prefix.len()..].trim_start();
+    let code = match code.strip_prefix(':') {
+        Some(code) => code.trim(),
+        None if code.len() < name.len() - prefix.len() => code.trim(),
+        None => return None,
+    };
     match code.strip_prefix("0x").or_else(|| code.strip_prefix("0X")) {
         Some(hex) => u16::from_str_radix(hex, 16).ok(),
         None => code.parse().ok(),

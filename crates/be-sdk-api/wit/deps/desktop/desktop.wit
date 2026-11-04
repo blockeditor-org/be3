@@ -61,6 +61,19 @@ interface windows {
         next: async func() -> list<host-window>;
     }
 
+    /// A program with a window open, without the window, which only the shell
+    /// sees: what an app that names programs (the input remaps) offers to pick.
+    record open-program {
+        program-id: string,
+        command: list<string>,
+    }
+
+    /// The programs with windows open, each once, for any app.
+    resource open-programs-watch {
+        constructor();
+        next: async func() -> list<open-program>;
+    }
+
     /// Whether the system keeps Super's chords for itself, as Windows does, so the
     /// shell's window keys use Ctrl+Alt in their place; answered only where it does.
     resource super-kept-watch {
