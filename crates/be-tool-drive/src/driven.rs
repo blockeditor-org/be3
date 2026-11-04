@@ -11,6 +11,12 @@ const CLOSING: Duration = Duration::from_secs(60);
 const LOG_TAIL: usize = 40;
 const PANIC_LINES: usize = 12;
 
+/// A program started headless for a test, with fresh data in a directory of its own and its
+/// clock pinned, as `be-drive run` starts one: crates/be-host-tests drives be-host through it.
+///
+/// Unless `render` is set it runs with `BEUI_RENDERER=none`: frames are painted but no GPU draws
+/// them, so `paint` works and `shot` does not, and neither does anything that is a texture
+/// (space's 3D view, block previews).
 pub struct Driven {
     child: Option<Child>,
     dir: PathBuf,
@@ -73,6 +79,7 @@ impl Driven {
         request(&self.socket, &words, self.timeout).map_err(|error| error.to_string())
     }
 
+    /// Asks the program to close and fails unless it exits cleanly within [`CLOSING`].
     pub fn close(mut self) -> Result<(), String> {
         let Some(child) = self.child.take() else {
             return Ok(());

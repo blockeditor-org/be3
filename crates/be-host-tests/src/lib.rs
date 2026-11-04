@@ -9,6 +9,13 @@ const SIZE: &str = "1100x720";
 const MISSING_EDITOR: [&str; 2] = ["Unsupported block type", "No block types match."];
 const SLOW_WAIT: Duration = Duration::from_secs(5);
 
+/// be-host started headless with the dev workspace open, driven as `drive` drives it, for a test
+/// of what happens between editors (guides/testing_a_gui.md, 6).
+///
+/// The clock is stopped as the host starts, so time passes only with [`HostTest::pause`], which
+/// costs only the frames it runs; a closing menu or sheet stays until a pause as long as its
+/// animation. The wall clock is the headless platform's fixed moment plus the frame clock.
+/// A test that does not end with [`HostTest::close`] fails.
 pub struct HostTest {
     host: Option<Driven>,
     steps: Vec<String>,
@@ -30,10 +37,16 @@ impl HostTest {
         Self::start_with(&["--desktop"], "Pane \"Desktop\"")
     }
 
+    /// Starts the host in the VR simulator (`BEUI_LAYERS=space`): the painting is the 3D view,
+    /// targets and points are the main panel's. It draws through lavapipe, since the 3D view is
+    /// a texture.
     pub fn start_in_space() -> Self {
         Self::launch(&[], "Pane \"Files\"", true, true)
     }
 
+    /// Starts the host with a GPU renderer (lavapipe), which block previews need since they
+    /// are textures. Every other start runs with `BEUI_RENDERER=none`, and apps then draw
+    /// nothing on the GPU either.
     pub fn start_drawing_previews() -> Self {
         Self::launch(&[], "Pane \"Files\"", false, true)
     }
@@ -142,6 +155,8 @@ impl HostTest {
         self.run(&["gone", target]);
     }
 
+    /// Clicks at once when the target is on screen, and otherwise waits for it first. A gesture
+    /// that needs a point takes it from [`HostTest::place`] and sends it with [`HostTest::run`].
     pub fn click(&mut self, target: &str) -> String {
         self.when_shown(target, &["click", target])
     }
@@ -201,10 +216,17 @@ impl HostTest {
         self.tree().contains(text)
     }
 
+    /// Paints only that target's area from here on. Block ids are random, so a painting that
+    /// shows one, or the file tree's order by id, differs every run: crop to `#workspace.block`.
     pub fn crop(&mut self, target: &str) {
         self.crop = Some(target.to_owned());
     }
 
+    /// Keeps the frame for the next [`HostTest::snapshot`], once every editor's loading state
+    /// (`#editor.loading`) has gone. It is `drive paint`: each app's painting where the host
+    /// composites it, and each preview replaced by the preview's own painting. A preview waits
+    /// out its cooldown before it paints a second change, so pause for `PREVIEW_COOLDOWN` after
+    /// changing a block whose preview the test looks at.
     pub fn record(&mut self) {
         let painted = self.paint();
         let found = self.run(&["overflows"]);

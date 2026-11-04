@@ -36,6 +36,9 @@ struct Inner {
     running: bool,
 }
 
+/// One build at a time, in the order asked. Asking again for a queued or running build returns
+/// it, a published manifest answers `succeeded` without building, and asking again for a failed
+/// one builds it again.
 pub struct Builds {
     backend: Arc<dyn Backend>,
     logs: PathBuf,
@@ -63,6 +66,8 @@ struct Finished {
     error: Option<String>,
 }
 
+/// How long a log read with nothing past its offset waits for more while the build is queued
+/// or running.
 pub const LONG_POLL: Duration = Duration::from_secs(25);
 
 impl Builds {

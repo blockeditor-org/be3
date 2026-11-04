@@ -16,6 +16,8 @@ use crate::{
 
 pub const STORAGE: &str = "https://storage.bunnycdn.com/be3-ci";
 
+/// What `git clean -ffdx` keeps at the checkout's root between builds: the caches and the
+/// credentials `./scripts/buck` reads.
 const KEPT: [&str; 5] = [
     "buck-out",
     "target",
@@ -24,6 +26,12 @@ const KEPT: [&str; 5] = [
     ".namespace-token.json",
 ];
 
+/// Builds a product of a commit in the helper's own checkout and uploads it to the be3-ci zone:
+/// each file once as `files/SHA256`, then the manifest `builds/PRODUCT/COMMIT.json` last, so a
+/// manifest that exists names only files that do. Nothing deletes them. Only commits on a
+/// branch of `origin` are built, so a fork's code never runs on workers that see credentials.
+/// APKs are signed afterwards with `be-tool-local apk-sign --keystore`, so the key never becomes
+/// an action input.
 pub struct Host {
     pub checkout: PathBuf,
     pub state: PathBuf,

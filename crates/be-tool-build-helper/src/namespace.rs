@@ -9,14 +9,24 @@ use std::{
 
 use tokio::sync::Mutex;
 
+/// Every setup must use the same `--key`, the same pinned `nsc` and the same arguments:
+/// Namespace starts a new cluster beside the old one when any of them differ, or when two
+/// setups race, and the stale one's workers count against the workspace's vCPU limit.
 pub const CLUSTER_KEY: &str = "buildserver";
 
+/// How long a setup's answer is handed out before `nsc` runs again, unless the executor stops
+/// answering first.
 pub const LIFETIME: Duration = Duration::from_secs(12600);
 
+/// Callers within this long of a setup get its answer without checking the executor, so a crowd
+/// that finds the cluster asleep wakes it once.
 const FRESH: Duration = Duration::from_secs(60);
 
 pub(crate) type Probe = Arc<dyn Fn(&Path, &str) -> bool + Send + Sync>;
 
+/// `GET /build/namespace`: runs `nsc reapi setup buck2`, which starts the cluster if it is down,
+/// and answers with the buck2 configuration it writes (executor, storage, ingress header).
+/// `./scripts/buck` asks it on every run, since a sleeping cluster's hosts answer 404.
 pub struct Waker {
     nsc: PathBuf,
     token: PathBuf,
