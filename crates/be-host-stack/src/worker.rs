@@ -1346,7 +1346,7 @@ struct Ran<'a> {
 }
 
 const NEEDS_CONNECTION: &str =
-    "This needs a connection to the server. Try again once Block is back online.";
+    "This needs a connection to the server. Try again once be-host is back online.";
 
 fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Command> {
     match command {

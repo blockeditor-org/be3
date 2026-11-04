@@ -81,7 +81,7 @@ succeeds and the program exits cleanly. crates/be-host-tests uses it (guides/tes
 
 `drive tree` is the accessibility tree, one node per line, indented under its parent:
 
-    Window "Block" at 0,0 size 1100x720
+    Window "be-host" at 0,0 size 1100x720
       Dialog "Invite member" at 360,180 size 380x300
         TextInput "Email address" focused at 380,260 size 340x36
         Button "Send invitation" at 380,420 size 116x36 #invite.send

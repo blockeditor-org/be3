@@ -45,12 +45,12 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                     resolve(lock !== null);
                     return lock === null ? undefined : new Promise(() => {});
                 };
-                const name = "block-files";
+                const name = "be-host-files";
                 const owned = await new Promise((resolve) =>
                     navigator.locks.request(name, { ifAvailable: true }, held(resolve)),
                 );
                 if (!owned) {
-                    show("Block is open in another tab. It opens here once that tab is closed.");
+                    show("be-host is open in another tab. It opens here once that tab is closed.");
                     await new Promise((resolve) => navigator.locks.request(name, held(resolve)));
                 }
             }
@@ -106,13 +106,13 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 started.resolve();
 
                 status.hidden = true;
-                await run_web("block");
+                await run_web("host");
             } catch (error) {
                 console.error(error);
                 started.reject(error);
                 fail(
-                    "Block could not start.",
-                    `${error}\n\nBlock draws with WebGPU or WebGL through a canvas. ` +
+                    "be-host could not start.",
+                    `${error}\n\nbe-host draws with WebGPU or WebGL through a canvas. ` +
                         "Check the browser console for details.",
                 );
             }

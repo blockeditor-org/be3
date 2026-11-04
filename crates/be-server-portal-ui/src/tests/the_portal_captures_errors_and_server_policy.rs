@@ -11,7 +11,7 @@ fn the_portal_captures_errors_and_server_policy() {
     painting(registration, [390, 1100]).snapshot("portal_registration_error.browser");
     let code = Page {
         code: "expired-code".into(),
-        code_problem: "This sign-in expired. Start sign-in again in Block.".into(),
+        code_problem: "This sign-in expired. Start sign-in again in be-host.".into(),
         ..page(Screen::SignIn)
     };
     painting(code, [390, 1100]).snapshot("portal_expired_code.browser");

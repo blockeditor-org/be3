@@ -3,8 +3,8 @@ use std::process::ExitCode;
 use crate::{Result, buck, repository};
 
 pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
-    let mut android_id = "com.be3.block".to_owned();
-    let mut android_label = "Block".to_owned();
+    let mut android_id = "com.be3.host".to_owned();
+    let mut android_label = "be-host".to_owned();
     let mut downloads = true;
     let mut android = true;
     let mut passed = Vec::new();
@@ -33,12 +33,12 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
     }
     if !is_application_id(&android_id) {
         return Err(format!(
-            "deploy: --android-id takes an Android application id such as com.be3.block, not '{android_id}'"
+            "deploy: --android-id takes an Android application id such as com.be3.host, not '{android_id}'"
         ));
     }
     // unsafe(env)
     unsafe {
-        std::env::set_var("BE3_PROGRAM_ID", "Block");
+        std::env::set_var("BE3_PROGRAM_ID", "be-host");
         std::env::set_var("BE3_DEPLOY_DEFAULT_SERVER", "true");
     }
     let mut command = vec![

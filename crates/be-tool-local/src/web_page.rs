@@ -3,17 +3,17 @@ use beui_html::{Children, Node, Script, Stylesheet, render, view};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Page {
-    Block,
+    Host,
     Demo,
     PaintReview,
 }
 
 pub fn main(args: Vec<String>) -> std::process::ExitCode {
     let kind = match args.first().map(String::as_str) {
-        Some("block") => Page::Block,
+        Some("host") => Page::Host,
         Some("demo") => Page::Demo,
         Some("paint-review") => Page::PaintReview,
-        _ => panic!("usage: web-page block|demo|paint-review OUTPUT"),
+        _ => panic!("usage: web-page host|demo|paint-review OUTPUT"),
     };
     let html = page(kind, None);
     std::fs::write(args.get(1).expect("output path"), html).expect("write HTML");
@@ -110,18 +110,18 @@ pub(crate) fn page(kind: Page, base: Option<String>) -> String {
                     <html::Div id="review" />
                 }),
             ),
-            Page::Block => (
-                "Block",
-                include_str!("web_page/block.json"),
-                include_str!("web_page/block.js"),
+            Page::Host => (
+                "be-host",
+                include_str!("web_page/host.json"),
+                include_str!("web_page/host.js"),
                 view! {
                     <html::Div id="apps" />
-                    <html::Canvas id="block" />
+                    <html::Canvas id="host" />
                     <html::Div id="layers" />
                 },
             ),
         };
-        let status = if kind != Page::Block {
+        let status = if kind != Page::Host {
             view! {
                 <html::Div id="status" style="white-space: pre-wrap">"Loading…"</html::Div>
             }
@@ -131,7 +131,7 @@ pub(crate) fn page(kind: Page, base: Option<String>) -> String {
                     id="status"
                     style="flex-direction: column; gap: .75rem; text-align: center"
                 >
-                    <html::Div class="detail">"Loading Block…"</html::Div>
+                    <html::Div class="detail">"Loading be-host…"</html::Div>
                 </html::Div>
             }
         };

@@ -2,7 +2,7 @@ use super::*;
 use crate::focus::{Under, display_point, display_target};
 
 #[test]
-fn a_display_click_goes_to_what_is_under_it_and_not_to_block() {
+fn a_display_click_goes_to_what_is_under_it_and_not_to_the_host() {
     let display = entry(2, EntryKind::Display, Rect::new(1920, 0, 3840, 1080));
     assert_eq!(
         display_point(&display, Some(Point::new(10, 20))),
@@ -18,5 +18,5 @@ fn a_display_click_goes_to_what_is_under_it_and_not_to_block() {
         Ok(Some(Handle(40)))
     );
     assert_eq!(display_target(Under::Nothing), Ok(None));
-    assert_eq!(display_target(Under::Own), Err(FocusError::OnBlock));
+    assert_eq!(display_target(Under::Own), Err(FocusError::OnHost));
 }

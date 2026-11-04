@@ -7,7 +7,7 @@
 // loaded before. A kept answer carries its headers, so the page is still
 // cross-origin isolated when it comes from here.
 //
-// The page registers this at the root of its address (block.js), which is
+// The page registers this at the root of its address (host.js), which is
 // where it has to be to answer for the page itself: the bundle's root here,
 // and /sw.js beside the entry point when deployed (crates/be-tool-local deploy).
 

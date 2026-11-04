@@ -10,7 +10,7 @@ use be_sdk_api::{
 
 use crate::known_window::KnownWindow;
 
-pub const ELEVATED: &str = "This window runs as administrator, so Block can't control it. Run Block as administrator to use it.";
+pub const ELEVATED: &str = "This window runs as administrator, so be-host can't control it. Run be-host as administrator to use it.";
 pub const SECURE_DESKTOP: &str =
     "Windows is asking for permission on the secure desktop. Take off the headset to answer it.";
 
@@ -72,10 +72,10 @@ impl Notes {
 
 pub fn focused_note(hotkey: &HotkeyState) -> String {
     let unclipped = |why: String| {
-        format!("{FALLBACK_BACK} comes back to Block. The mouse is free, since {why}")
+        format!("{FALLBACK_BACK} comes back to be-host. The mouse is free, since {why}")
     };
     match hotkey {
-        HotkeyState::Registered(hotkey) => format!("{hotkey} comes back to Block"),
+        HotkeyState::Registered(hotkey) => format!("{hotkey} comes back to be-host"),
         HotkeyState::Waiting => unclipped("the shortcut back isn't ready yet".to_owned()),
         HotkeyState::Refused(HotkeyError::Taken(hotkey)) => {
             unclipped(format!("{hotkey} is taken by another program"))
@@ -91,7 +91,10 @@ pub fn hover_note(kind: EntryKind, hotkey: &HotkeyState) -> String {
         EntryKind::Window => "this window",
         EntryKind::Display => "the window under the pointer",
     };
-    format!("Click to use {what}. {} comes back to Block", hotkey.back())
+    format!(
+        "Click to use {what}. {} comes back to be-host",
+        hotkey.back()
+    )
 }
 
 fn subtract(rect: Rect, cut: Rect) -> Vec<Rect> {
@@ -211,7 +214,7 @@ pub fn ended_refusal(reason: be_host_win32::EndReason) -> Option<Refusal> {
 
 pub fn focus_refusal(error: &FocusError) -> Option<Refusal> {
     match error {
-        FocusError::Returned | FocusError::OnBlock => None,
+        FocusError::Returned | FocusError::OnHost => None,
         error => Some(Refusal::Focus(error.clone())),
     }
 }

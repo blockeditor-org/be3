@@ -63,7 +63,7 @@ use uuid::Uuid;
 fn program_id() -> &'static str {
     be_lib_build_id::metadata()
         .map(|info| info.program_id.as_str())
-        .unwrap_or("BlockDev")
+        .unwrap_or("be-host-dev")
 }
 
 pub(crate) fn build() -> &'static str {
@@ -80,7 +80,7 @@ fn run_options() -> beui_host::native::RunOptions {
 }
 
 #[cfg(target_arch = "wasm32")]
-const WEB_DATA_DIR: &str = "/block";
+const WEB_DATA_DIR: &str = "/be-host";
 
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_dir() -> Option<PathBuf> {
@@ -297,7 +297,7 @@ fn android_main(android: beui_host::native::AndroidApp) {
         }) {
         Ok(()) => 0,
         Err(error) => {
-            eprintln!("Block stopped: {error}");
+            eprintln!("be-host stopped: {error}");
             1
         }
     };
@@ -325,7 +325,7 @@ impl Shell {
             let store = HostUiStore::new(HostUi::default());
             view = Some(store);
             beui::reactive::view! {
-                <beui::styled::Root title="Block">
+                <beui::styled::Root title="be-host">
                     <ui::Displays view={store} />
                 </beui::styled::Root>
             }
@@ -2832,7 +2832,7 @@ impl HostCore {
             return;
         }
         self.crashed(format!(
-            "Block closed after this error the last time it ran.\n\n{report}"
+            "be-host closed after this error the last time it ran.\n\n{report}"
         ));
     }
 
@@ -3617,7 +3617,7 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
             "Discard and switch",
         ),
         PendingDestructiveAction::Close => (
-            "Closing Block Editor will discard changes that are not saved on this device yet. Changes waiting to sync are kept."
+            "Closing be-host will discard changes that are not saved on this device yet. Changes waiting to sync are kept."
                 .to_owned(),
             "Discard and close",
         ),

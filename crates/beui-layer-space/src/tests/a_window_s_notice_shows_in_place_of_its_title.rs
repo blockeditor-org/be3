@@ -20,7 +20,7 @@ fn a_window_s_notice_shows_in_place_of_its_title() {
     space.compose(&[main.clone(), noted.clone()], &[], &view(now));
     let titled = space.panel(popped).unwrap().chrome.title;
 
-    let notice = "Runs as administrator, so Block can't control it";
+    let notice = "Runs as administrator, so be-host can't control it";
     noted.window.appearance.notice = Some(notice.to_owned());
     let windows = [main, noted];
     space.compose(&windows, &[], &view(now));

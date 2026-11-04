@@ -313,7 +313,7 @@ export function sched_yield() {
 }
 
 export function proc_exit(code) {
-    throw new Error(`Block exited with status ${code}`);
+    throw new Error(`be-host exited with status ${code}`);
 }
 
 

@@ -40,7 +40,7 @@ fn painting_sized(
                 <AddAccountDialog
                     view
                     default_server={Some(be_lib_build_id::DefaultServer {
-                        name: "Block".into(), api_url: "https://api.example.com".into(), auth_url: "https://api.example.com/auth".into(), gateway_required: true,
+                        name: "be3".into(), api_url: "https://api.example.com".into(), auth_url: "https://api.example.com/auth".into(), gateway_required: true,
                     })}
                 />
             </beui::styled::Root>

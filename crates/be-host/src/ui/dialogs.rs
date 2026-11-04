@@ -720,7 +720,7 @@ fn AboutPanel() -> NodeId {
     view! {
         <Frame>
             <List spacing=Space::Md>
-                <Text style=TextStyle::PARAGRAPH>"Block"</Text>
+                <Text style=TextStyle::PARAGRAPH>"be-host"</Text>
                 <Text style=TextStyle::CAPTION>"Version"</Text>
                 <Text style=TextStyle::CODE>{env!("CARGO_PKG_VERSION").to_owned()}</Text>
                 <Text style=TextStyle::CAPTION>"Build"</Text>

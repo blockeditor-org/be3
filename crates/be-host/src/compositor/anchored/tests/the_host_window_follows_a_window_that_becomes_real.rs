@@ -20,7 +20,7 @@ fn the_host_window_follows_a_window_that_becomes_real() {
     let id = WindowId::next();
     let document = build(move || {
         view! {
-            <Root title="Block">
+            <Root title="be-host">
                 <Window id={Some(id)} size={vec2(160.0, 120.0)}>|_: WindowHandle|
                     <Probe held />
                 </Window>

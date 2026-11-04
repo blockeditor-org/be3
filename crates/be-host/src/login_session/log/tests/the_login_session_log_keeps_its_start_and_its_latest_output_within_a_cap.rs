@@ -17,7 +17,7 @@ fn the_login_session_log_keeps_its_start_and_its_latest_output_within_a_cap() {
         .unwrap();
     let read = |part: usize| std::fs::read_to_string(log_path(&directory, LOG, part)).unwrap();
 
-    write!(log, "Block started.\nthe start\n").unwrap();
+    write!(log, "be-host started.\nthe start\n").unwrap();
     assert!(
         !cap.check(&mut log, &directory).unwrap(),
         "under the cap it stays"
@@ -26,7 +26,7 @@ fn the_login_session_log_keeps_its_start_and_its_latest_output_within_a_cap() {
     log.write_all(first.as_bytes()).unwrap();
     assert!(cap.check(&mut log, &directory).unwrap());
     assert!(
-        read(0).starts_with("Block started.\nthe start\n"),
+        read(0).starts_with("be-host started.\nthe start\n"),
         "the start is kept, cut at a line: {}",
         read(0)
     );
@@ -56,7 +56,7 @@ fn the_login_session_log_keeps_its_start_and_its_latest_output_within_a_cap() {
     );
     write!(log, "a panic\n").unwrap();
     assert!(
-        read(0).starts_with("Block started.\nthe start\n") && read(0).ends_with("a panic\n"),
+        read(0).starts_with("be-host started.\nthe start\n") && read(0).ends_with("a panic\n"),
         "output after a cut lands at the end of the log: {}",
         read(0)
     );

@@ -28,7 +28,7 @@ BE3BROWSER 1
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); width: 100%; max-width: 460px; padding: 24px 16px 24px 16px; justify-items: stretch; align-items: stretch; flex: 0 0 auto;\">",
     "<div style=\"display: flex; flex-direction: column; align-items: stretch; gap: 12px;\">",
     "<div style=\"font: 20px Inter, NotoEmoji, system-ui, sans-serif; line-height: 23px; color: var(--v-248e1604); white-space: pre-wrap; overflow-wrap: break-word; flex: 0 0 auto;\" role=\"heading\" aria-level=\"1\">",
-    "Block Editor</div>",
+    "be-host</div>",
     "<div style=\"font: 12px Inter, NotoEmoji, system-ui, sans-serif; line-height: 14px; color: var(--v-d2dd52bc); white-space: pre-wrap; overflow-wrap: break-word; flex: 0 0 auto;\">",
     "Choose an account to continue.</div>",
     "<!--[-->",

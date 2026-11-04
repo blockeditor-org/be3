@@ -31,8 +31,8 @@ one is there, and the screenshot portal's `be-host.portal` and `be-host-portals.
 ## The log and problems
 
 In a login session stdout and stderr (every `eprintln!`, panic backtrace and the output of programs
-be-host starts) go to `$XDG_STATE_HOME/block/login-session.log` (the directory is the app id in
-lower case; `blockdev` without bundle metadata). `login_session/log.rs` (`Cap`) keeps it under
+be-host starts) go to `$XDG_STATE_HOME/be-host/login-session.log` (the directory is the app id in
+lower case; `be-host-dev` without bundle metadata). `login_session/log.rs` (`Cap`) keeps it under
 4 MiB while keeping the session's start and latest output in it, and keeps the previous session's
 log as `login-session.previous.log`. The error that ends a session is also written to the original
 stderr, for the journal under systemd or greetd.
