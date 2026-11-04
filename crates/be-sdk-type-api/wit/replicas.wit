@@ -34,11 +34,16 @@ interface replicas {
         /// reads the message at even when the clock's stream has yet to say so.
         message: async func(%from: endpoint, bytes: list<u8>, at: u64);
 
+        /// An editor instance starts following the block, or its `editable`
+        /// changed. The replica drops edits from an editor attached read-only.
         attach: async func(editor: editor-id, editable: bool);
 
         detach: async func(editor: editor-id);
 
-        /// A head landed after the one the replica opened at.
+        /// A head landed after the one the replica opened at. The host calls it
+        /// for every such head, including the remote head when the replica
+        /// opened at a local head that differs: the replica does not reconcile
+        /// on opening.
         head-moved: async func(head: commit-id, from-this-device: bool);
 
         /// The session's state changed, or the host fell behind the broadcast.
