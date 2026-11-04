@@ -791,6 +791,13 @@ impl Compositor {
                             let flip = |v: beui::Vec2| (-f64::from(v.x), -f64::from(v.y));
                             state.pointer_axis(flip(delta), notches.map(flip));
                         }
+                        PointerPhase::ScrollStarted | PointerPhase::ScrollEnded { .. } => {
+                            if state.pointer_window() != Some(id) {
+                                state.pointer_motion(at(over, event.pos));
+                            }
+                            let started = matches!(event.phase, PointerPhase::ScrollStarted);
+                            state.pointer_fingers_scrolling(started);
+                        }
                         PointerPhase::Touchpad(gesture) => {
                             if state.pointer_window() != Some(id) {
                                 state.pointer_motion(at(over, event.pos));
