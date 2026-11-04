@@ -27,9 +27,19 @@ pub const PASSWORD_CHECKS_PER_ADDRESS: usize = 2;
 pub const FREE_FAILURES: u32 = 5;
 /// Failures one address makes, over every email, before it is locked out.
 pub const FREE_FAILURES_PER_ADDRESS: u32 = 20;
-/// Failures one email collects, from every address, before it is locked out
-/// everywhere: far above what one stranger's address reaches by itself.
+/// Failures one email collects, from every address, before sign-ins to it
+/// slow down. Past this each failure holds back the email for
+/// `EMAIL_SLOWDOWN`, without doubling, and never from an address that has
+/// signed in to it before or from a signed-in browser: strangers together
+/// can slow guessing at one email to one guess per `EMAIL_SLOWDOWN` but
+/// can't stop its owner signing in.
 pub const FREE_FAILURES_PER_EMAIL: u32 = 100;
+pub const EMAIL_SLOWDOWN: Duration = Duration::from_secs(30);
+/// Addresses remembered per email as having signed in to it.
+pub const KNOWN_ADDRESSES_PER_EMAIL: usize = 8;
+/// Emails whose known addresses are remembered; past this the one used
+/// longest ago is forgotten.
+pub const MAX_KNOWN_EMAILS: usize = 10_000;
 pub const FIRST_LOCKOUT: Duration = Duration::from_secs(30);
 pub const LONGEST_LOCKOUT: Duration = Duration::from_secs(60 * 60);
 /// One failure is forgotten for each of these that passes without another.
@@ -105,6 +115,7 @@ pub(crate) struct Passwords {
     hashing: Arc<Semaphore>,
     load: Arc<Mutex<Load>>,
     failures: Mutex<HashMap<FailureKey, Failures>>,
+    known: Mutex<HashMap<String, Vec<(String, Instant)>>>,
 }
 
 /// A place in the hashing queue, given back when dropped.
@@ -132,6 +143,7 @@ impl Default for Passwords {
             hashing: Arc::new(Semaphore::new(PASSWORD_CHECKS_AT_ONCE)),
             load: Arc::default(),
             failures: Mutex::default(),
+            known: Mutex::default(),
         }
     }
 }
@@ -187,11 +199,21 @@ impl Passwords {
         ]
     }
 
-    /// How long sign-ins for `email` from `address` stay refused.
-    pub(crate) fn locked_out(&self, email: &str, address: &str, now: Instant) -> Option<Duration> {
+    /// How long sign-ins for `email` from `address` stay refused. The
+    /// email's own limit doesn't apply to a `signed_in` browser or to an
+    /// address that has signed in to the email before.
+    pub(crate) fn locked_out(
+        &self,
+        email: &str,
+        address: &str,
+        signed_in: bool,
+        now: Instant,
+    ) -> Option<Duration> {
+        let trusted = signed_in || self.known(email, address);
         let failures = self.failures.lock().unwrap();
         Self::keys(email, address)
             .iter()
+            .filter(|key| !(trusted && matches!(key, FailureKey::Email(_))))
             .filter_map(|key| failures.get(key)?.until?.checked_duration_since(now))
             .filter(|wait| !wait.is_zero())
             .max()
@@ -204,6 +226,7 @@ impl Passwords {
                 make_room(&mut failures, now);
             }
             let free = key.free();
+            let key_is_email = matches!(key, FailureKey::Email(_));
             let entry = failures.entry(key).or_insert(Failures {
                 count: 0,
                 last: now,
@@ -213,9 +236,12 @@ impl Passwords {
             entry.last = now;
             if entry.count >= free {
                 let doublings = (entry.count - free).min(16);
-                let wait = FIRST_LOCKOUT
-                    .saturating_mul(1 << doublings)
-                    .min(LONGEST_LOCKOUT);
+                let wait = match key_is_email {
+                    true => EMAIL_SLOWDOWN,
+                    false => FIRST_LOCKOUT
+                        .saturating_mul(1 << doublings)
+                        .min(LONGEST_LOCKOUT),
+                };
                 entry.until = Some(now + wait);
                 tracing::warn!(
                     email,
@@ -228,13 +254,51 @@ impl Passwords {
         }
     }
 
-    /// The right password from `address`: forgets that pair's and the
-    /// email's failures, but not the address's, which may be shared.
-    pub(crate) fn succeeded(&self, email: &str, address: &str) {
-        let [pair, _, email] = Self::keys(email, address);
-        let mut failures = self.failures.lock().unwrap();
-        failures.remove(&pair);
-        failures.remove(&email);
+    /// The right password from `address`: forgets that pair's failures,
+    /// but not the address's, which may be shared, nor the email's, which
+    /// strangers elsewhere may still be guessing at; and remembers the
+    /// address as one that signs in to the email.
+    pub(crate) fn succeeded(&self, email: &str, address: &str, now: Instant) {
+        let [pair, ..] = Self::keys(email, address);
+        self.failures.lock().unwrap().remove(&pair);
+        self.remember(email, address, now);
+    }
+
+    /// Remembers `address` as one the owner of `email` uses: it signed in,
+    /// or finished a registration or reset from the email's own mail.
+    pub(crate) fn remember(&self, email: &str, address: &str, now: Instant) {
+        let address = address_key(address);
+        let mut known = self.known.lock().unwrap();
+        if !known.contains_key(email)
+            && known.len() >= MAX_KNOWN_EMAILS
+            && let Some(oldest) = known
+                .iter()
+                .min_by_key(|(_, addresses)| addresses.iter().map(|(_, at)| *at).max())
+                .map(|(email, _)| email.clone())
+        {
+            known.remove(&oldest);
+        }
+        let addresses = known.entry(email.to_owned()).or_default();
+        addresses.retain(|(found, _)| *found != address);
+        if addresses.len() >= KNOWN_ADDRESSES_PER_EMAIL {
+            let oldest = addresses
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, (_, at))| *at)
+                .map(|(index, _)| index)
+                .unwrap_or_default();
+            addresses.remove(oldest);
+        }
+        addresses.push((address, now));
+    }
+
+    fn known(&self, email: &str, address: &str) -> bool {
+        let address = address_key(address);
+        self.known
+            .lock()
+            .unwrap()
+            .get(email)
+            .is_some_and(|addresses| addresses.iter().any(|(found, _)| *found == address))
     }
 
     /// A reset through the account's own mail forgets every failure for it.
@@ -248,6 +312,11 @@ impl Passwords {
     #[cfg(test)]
     pub(crate) fn records(&self) -> usize {
         self.failures.lock().unwrap().len()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn known_emails(&self) -> usize {
+        self.known.lock().unwrap().len()
     }
 }
 

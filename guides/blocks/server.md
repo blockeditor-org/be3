@@ -290,12 +290,20 @@ other cheap check before the password is hashed and spent when the verified
 account is made. Password hashing and checks (`store/passwords.rs`) run off the
 database lock, a few at a time, behind a bounded queue with a small share per
 address (an IPv6 address counts by its /64); past it the portal answers busy.
-Failed checks lock out an (email, address) pair after five, an address after
-more, and an email from every address only after many more, doubling up to an
-hour and forgetting one failure per quiet `FAILURE_DECAY`; the records are
-bounded. Mail links are capped per email and purpose, per address and overall
-(`store/portal.rs`); a reset for an email with no account does the same work
-and sends nothing. `Be3-Gateway-Authorization` is left to a gateway in front.
+Failed checks lock out an (email, address) pair after five and an address
+after twenty, doubling up to an hour; one failure is forgotten per quiet
+`FAILURE_DECAY`. An email's own count, from every address, only slows it: past
+`FREE_FAILURES_PER_EMAIL` each failure holds it for `EMAIL_SLOWDOWN`, so strangers
+together get one guess per slowdown, and never applies to a signed-in browser
+or to an address remembered for that email (one that signed in, or finished a
+registration or reset from its mail), so strangers can't stop the owner
+signing in. Failure records and remembered addresses are bounded. Mail links
+are capped per email and purpose, per address, and per invite code for
+registrations; the global cap covers only registration and email-change links,
+which need an invite code or a signed-in account, so anonymous traffic can't
+reach it (`store/portal.rs`). Resets need no global cap: at most three per
+account. A reset for an email with no account does the same work, counts
+against the address and a separate cap of its own, and sends nothing. `Be3-Gateway-Authorization` is left to a gateway in front.
 
 An administrator `Invite`s an email under an id the inviting client picks;
 only an account with that email can read or accept it, once, and the id

@@ -1,13 +1,20 @@
 use super::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Mail links outstanding at once, over every address and purpose.
+/// Registration and email-change links outstanding at once. Only those who
+/// hold an invite code or are signed in can take one, so anonymous traffic
+/// can't fill it; resets have no global cap, being at most
+/// `MAX_MAIL_LINKS_PER_EMAIL` for each account.
 pub const MAX_MAIL_LINKS: i64 = 1024;
-/// Mail links one address (an IPv6 /64) may have outstanding, so that no one
-/// address fills `MAX_MAIL_LINKS` by itself.
+/// Mail requests one address (an IPv6 /64) may have outstanding, sent or not.
 pub const MAX_MAIL_LINKS_PER_ADDRESS: i64 = 8;
 /// Mail links one email may have outstanding for one purpose.
 pub const MAX_MAIL_LINKS_PER_EMAIL: i64 = 3;
+/// Registration links one invite code may have waiting on their email.
+pub const MAX_MAIL_LINKS_PER_INVITE: i64 = 8;
+/// Rows reset requests for unknown emails may leave, apart from every
+/// other cap; once full, such requests leave none.
+pub const MAX_UNSENT_RESETS: i64 = 1024;
 const REGISTRATION_LINK_LIFETIME: i64 = 3600;
 const RESET_LINK_LIFETIME: i64 = 1800;
 /// The purpose of a row a reset request for an unknown email leaves: it costs
@@ -190,7 +197,7 @@ impl ServerStore {
         let profile = self.profile(account).await?;
         if let Some(wait) = self
             .passwords
-            .locked_out(&profile.email, address, Instant::now())
+            .locked_out(&profile.email, address, true, Instant::now())
         {
             return Err(refused(&format!(
                 "Too many failed attempts. Try again in {} seconds.",
@@ -211,7 +218,8 @@ impl ServerStore {
                 .failed(&profile.email, address, Instant::now());
             return Err(refused("Current password: incorrect password."));
         }
-        self.passwords.succeeded(&profile.email, address);
+        self.passwords
+            .succeeded(&profile.email, address, Instant::now());
         Ok(hash)
     }
 
@@ -280,6 +288,7 @@ impl ServerStore {
             self.with_database(move |_, database| {
                 invite_codes::check(database, &invite)?;
                 may_send(database, "register", &email, &address)?;
+                may_send_with(database, &invite)?;
                 unregistered(database, &email)
             })
             .await?;
@@ -347,8 +356,9 @@ impl ServerStore {
 
     /// A reset link for `email` if it has an account. The answer and the
     /// work are the same whether it has one or not: an unknown email leaves
-    /// an unsent row that counts against the address like a real link, and
-    /// only the limits that don't depend on the email are shown.
+    /// an unsent row that counts against the address like a real link (but
+    /// against no global cap), and only the limit that doesn't depend on the
+    /// email, the address's, is shown.
     pub async fn password_reset_link(
         &self,
         email: &str,
@@ -362,7 +372,7 @@ impl ServerStore {
         let code = code.to_owned();
         self.with_database(move |_, database| {
             let transaction = database.unchecked_transaction()?;
-            may_send_from(&transaction, &address)?;
+            may_send_from(&transaction, "reset", &address)?;
             let account: Option<String> = transaction
                 .query_row(
                     "SELECT id FROM accounts WHERE email = ?1 AND local_profile = 0",
@@ -395,16 +405,18 @@ impl ServerStore {
     }
 
     pub async fn mail_purpose(&self, token: &str) -> Result<String, ServerError> {
-        self.database
-            .lock()
-            .await
-            .query_row(
-                "SELECT purpose FROM account_mail WHERE token_hash = ?1 AND expires > ?2 AND purpose != ?3",
-                params![hash_token(token), now(), UNSENT],
-                |row| row.get(0),
-            )
-            .optional()?
-            .ok_or_else(|| refused("This link is invalid, expired, or already used."))
+        let token = token.to_owned();
+        self.with_database(move |_, database| {
+            database
+                .query_row(
+                    "SELECT purpose FROM account_mail WHERE token_hash = ?1 AND expires > ?2 AND purpose != ?3",
+                    params![hash_token(&token), now(), UNSENT],
+                    |row| row.get(0),
+                )
+                .optional()?
+                .ok_or_else(|| refused("This link is invalid, expired, or already used."))
+        })
+        .await
     }
 
     pub async fn confirm_mail(
@@ -422,6 +434,7 @@ impl ServerStore {
             None => None,
         };
         let token = token.to_owned();
+        let address = address.to_owned();
         self.with_database(move |store, database| {
             let transaction = database.unchecked_transaction()?;
             let row: Option<(String, String, String, String, String, String, String)> = transaction.query_row("SELECT purpose, account_id, email, display_name, password_hash, device_code, invite_hash FROM account_mail WHERE token_hash = ?1 AND expires > ?2", params![hash_token(&token), now()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?))).optional()?;
@@ -500,6 +513,9 @@ impl ServerStore {
             if purpose == "reset" {
                 store.passwords.forget_email(&email);
             }
+            if purpose != "email" {
+                store.passwords.remember(&email, &address, Instant::now());
+            }
             Ok((result, code, old_email))
         })
         .await
@@ -522,16 +538,40 @@ fn too_many() -> ServerError {
     refused("Too many email requests. Try again after the existing links expire.")
 }
 
-/// The mail-link limits that don't depend on the email: the global cap and
-/// the address's share. Also forgets expired links.
-fn may_send_from(database: &Connection, address: &str) -> Result<(), ServerError> {
+fn count(database: &Connection, query: &str, value: &str) -> Result<i64, ServerError> {
+    Ok(database.query_row(query, [value], |row| row.get(0))?)
+}
+
+/// The mail limits that don't depend on the email: the address's share and,
+/// for the purposes that hold one, the global cap. Also forgets expired links.
+fn may_send_from(database: &Connection, purpose: &str, address: &str) -> Result<(), ServerError> {
     database.execute("DELETE FROM account_mail WHERE expires <= ?1", [now()])?;
-    let (count, from_address): (i64, i64) = database.query_row(
-        "SELECT count(*), coalesce(sum(address = ?1), 0) FROM account_mail",
-        [address],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+    let from_address = count(
+        database,
+        "SELECT count(*) FROM account_mail WHERE address = ?1",
+        address,
     )?;
-    if count >= MAX_MAIL_LINKS || from_address >= MAX_MAIL_LINKS_PER_ADDRESS {
+    if from_address >= MAX_MAIL_LINKS_PER_ADDRESS {
+        return Err(too_many());
+    }
+    let capped = match purpose {
+        "register" | "email" => {
+            database.query_row(
+                "SELECT count(*) FROM account_mail WHERE purpose IN ('register', 'email')",
+                [],
+                |row| row.get::<_, i64>(0),
+            )? >= MAX_MAIL_LINKS
+        }
+        UNSENT => {
+            count(
+                database,
+                "SELECT count(*) FROM account_mail WHERE purpose = ?1",
+                UNSENT,
+            )? >= MAX_UNSENT_RESETS
+        }
+        _ => false,
+    };
+    if capped {
         return Err(too_many());
     }
     Ok(())
@@ -543,7 +583,7 @@ fn may_send(
     email: &str,
     address: &str,
 ) -> Result<(), ServerError> {
-    may_send_from(database, address)?;
+    may_send_from(database, purpose, address)?;
     let recent: i64 = database.query_row(
         "SELECT count(*) FROM account_mail WHERE email = ?1 AND purpose = ?2",
         params![email, purpose],
@@ -567,8 +607,25 @@ fn unregistered(database: &Connection, email: &str) -> Result<(), ServerError> {
     Ok(())
 }
 
+fn may_send_with(database: &Connection, invite: &str) -> Result<(), ServerError> {
+    let waiting = count(
+        database,
+        "SELECT count(*) FROM account_mail WHERE purpose = 'register' AND invite_hash = ?1",
+        invite,
+    )?;
+    if waiting >= MAX_MAIL_LINKS_PER_INVITE {
+        return Err(refused(
+            "Invite code: too many registrations with this code are waiting on their email. Try again after they expire.",
+        ));
+    }
+    Ok(())
+}
+
 fn mail_link(database: &Connection, pending: Pending) -> Result<MailLink, ServerError> {
     may_send(database, pending.purpose, pending.email, pending.address)?;
+    if pending.purpose == "register" {
+        may_send_with(database, pending.invite)?;
+    }
     if matches!(pending.purpose, "register" | "email") {
         unregistered(database, pending.email)?;
     }
