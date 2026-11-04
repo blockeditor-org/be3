@@ -66,6 +66,12 @@ pub struct TreeRowFace<K> {
     pub hovered: ReadSignal<bool>,
 }
 
+/// The tree face program code uses. Everything left of a row's highlight
+/// (indent and chevron) is one button, so a finger there expands the row
+/// without opening it. It owns its `Scroll` (`padding` goes inside) and follows
+/// `selected`; given `ancestors`, it marks the chevron above a hidden
+/// selection and floats a button that reports `on_reveal`, then scrolls the
+/// row into view once the caller has expanded its ancestors.
 #[component]
 pub fn Tree<K>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<unstyled::TreeApi<K>>,

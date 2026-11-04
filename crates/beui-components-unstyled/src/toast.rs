@@ -66,6 +66,13 @@ pub struct ToastHandle {
     pub act: Callback<String>,
 }
 
+/// The toast stack: a `Pass` overlay at `LayerLevel::Top`, so toasts stay
+/// pressable over a dialog, with a live region (an error is an assertive
+/// alert).
+///
+/// Only the newest `limit` show, with `more` drawing the count of the rest; a
+/// hidden toast's timer, on the frame clock, starts once it shows. A toast that
+/// is `sticky` or `danger` stays until dismissed.
 #[component]
 pub fn Toasts(
     anchor: Prop<OverlayAnchor>,
