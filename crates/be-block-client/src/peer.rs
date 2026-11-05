@@ -812,11 +812,6 @@ impl<S: ObjectStore> Peer<S> {
         self.connection.lock().unwrap().clone()
     }
 
-    /// The time a commit made now records, from the connection's clock.
-    fn now(&self) -> i64 {
-        self.connection.lock().unwrap().clock().wall_milliseconds()
-    }
-
     pub fn local_head(&self, block: Uuid) -> Option<CommitId> {
         self.refs.head(block)
     }
@@ -1363,7 +1358,7 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn stash(&self, block: Uuid, mut write: Write<'_>) -> Result<CommitId, ClientError> {
         let (manifest, _, metadata) = self.prepare_write(block, &mut write).await?;
         let key = self.sealing_key(block).await?;
-        let commit = Commit::new(manifest, self.account, self.now())
+        let commit = Commit::new(manifest, self.account, now_milliseconds())
             .with_parent(write.expected)
             .with_references(write.references)
             .with_metadata(metadata.encode());
@@ -1389,7 +1384,7 @@ impl<S: ObjectStore> Peer<S> {
             Some(head) => Some(self.load_commit(head).await?),
             None => None,
         };
-        let time = self.now();
+        let time = now_milliseconds();
         let encoded = metadata.encode();
         if extra_parents.is_empty()
             && let Some(previous) = &previous

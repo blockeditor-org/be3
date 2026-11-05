@@ -222,7 +222,7 @@ impl<S: ObjectStore> Peer<S> {
         references.extend(block.metadata.references());
         let references = deduplicated(references);
         let encoded = block.metadata.encode();
-        let commit = Commit::new(manifest.clone(), self.account, self.now())
+        let commit = Commit::new(manifest.clone(), self.account, now_milliseconds())
             .with_parents(Vec::new())
             .with_kind(CommitKind::Autosave)
             .with_references(references.clone())

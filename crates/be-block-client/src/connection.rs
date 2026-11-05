@@ -7,11 +7,11 @@ use std::{
 };
 
 use be_block_commit::CommitId;
+use be_block_store::Hash;
 use be_block_protocol::{
     BlockEvent, ClientId, Journal, JournalBase, JournalEntry, PairingMessage, SessionEvent,
     SessionState, client, hello, read_hello,
 };
-use be_block_store::Hash;
 use be_wasm_ops::{
     MethodId, OpId, Side,
     net::{Arrival, Caller, Peer},
@@ -105,7 +105,6 @@ pub struct Connection {
     closed: watch::Receiver<bool>,
     due: watch::Receiver<Duration>,
     registry: Mutex<Registry>,
-    clock: Clock,
 }
 
 impl Caller for Connection {
@@ -163,7 +162,6 @@ impl Connection {
             closed,
             due: watched,
             registry: Mutex::new(Registry::default()),
-            clock: clock.clone(),
         });
         spawn(worker(
             Carried {
@@ -198,13 +196,7 @@ impl Connection {
             closed,
             due,
             registry: Mutex::new(Registry::default()),
-            clock: Clock::real(),
         })
-    }
-
-    /// The clock this connection was opened on.
-    pub fn clock(&self) -> &Clock {
-        &self.clock
     }
 
     fn registry(&self) -> std::sync::MutexGuard<'_, Registry> {
