@@ -1,7 +1,9 @@
 use rusty_s3::S3Action;
 
 use super::{
-    an_object_uploads_and_downloads_with_presigned_s3_urls::{EXPIRES, endpoint, refused_with, send},
+    an_object_uploads_and_downloads_with_presigned_s3_urls::{
+        EXPIRES, endpoint, refused_with, send,
+    },
     *,
 };
 use crate::s3::{checksum, presign_put};
@@ -32,7 +34,9 @@ async fn an_s3_upload_that_is_not_its_key_stores_nothing() {
     let length = named.len().to_string();
     let wrong_checksum = checksum(Hash::of(&other));
     let mut action = bucket.put_object(Some(&credentials), &key);
-    action.headers_mut().insert("content-length", length.as_str());
+    action
+        .headers_mut()
+        .insert("content-length", length.as_str());
     action
         .headers_mut()
         .insert("x-amz-checksum-sha256", wrong_checksum.as_str());

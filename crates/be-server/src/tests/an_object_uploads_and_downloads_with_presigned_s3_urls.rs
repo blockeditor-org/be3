@@ -10,9 +10,7 @@ pub(super) const EXPIRES: Duration = Duration::from_secs(600);
 /// The bucket of `harness`'s S3 endpoint as a client reaches it through a proxy that serves
 /// the server under `/api/be/`, and the credentials that sign for it.
 pub(super) fn endpoint(harness: &Harness) -> (Bucket, Credentials) {
-    let endpoint = ServerStore::open(&harness.directory)
-        .unwrap()
-        .s3_endpoint();
+    let endpoint = ServerStore::open(&harness.directory).unwrap().s3_endpoint();
     let server = format!("{}/api/be/", harness.url).parse().unwrap();
     (endpoint.bucket(&server), endpoint.credentials())
 }
@@ -114,9 +112,7 @@ async fn an_object_uploads_and_downloads_with_presigned_s3_urls() {
     let head = {
         use rusty_s3::S3Action;
         let key = hash.to_hex();
-        let url = bucket
-            .head_object(Some(&credentials), &key)
-            .sign(EXPIRES);
+        let url = bucket.head_object(Some(&credentials), &key).sign(EXPIRES);
         send("HEAD", url, Vec::new(), None).await
     };
     assert_eq!(head.status, 200);

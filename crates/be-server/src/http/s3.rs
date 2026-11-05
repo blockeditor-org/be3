@@ -36,7 +36,13 @@ pub(super) async fn serve(
         };
         let path = head.request.uri().path();
         if !is_s3(path) {
-            return answer(&mut stream, 404, "only S3 requests on this connection", true).await;
+            return answer(
+                &mut stream,
+                404,
+                "only S3 requests on this connection",
+                true,
+            )
+            .await;
         }
         if head.chunked {
             return answer(&mut stream, 411, "send a Content-Length", true).await;

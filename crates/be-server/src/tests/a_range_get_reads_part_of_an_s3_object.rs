@@ -12,12 +12,24 @@ async fn a_range_get_reads_part_of_an_s3_object() {
     assert_eq!(upload(&bucket, &credentials, &bytes).await.status, 200);
     let url = presign_get(&bucket, &credentials, Hash::of(&bytes), EXPIRES);
 
-    let part = send("GET", url.clone(), vec![("range", "bytes=10-19".to_owned())], None).await;
+    let part = send(
+        "GET",
+        url.clone(),
+        vec![("range", "bytes=10-19".to_owned())],
+        None,
+    )
+    .await;
     assert_eq!(part.status, 206);
     assert_eq!(part.body, bytes[10..20]);
     assert_eq!(part.headers["content-range"], "bytes 10-19/256");
 
-    let tail = send("GET", url.clone(), vec![("range", "bytes=-6".to_owned())], None).await;
+    let tail = send(
+        "GET",
+        url.clone(),
+        vec![("range", "bytes=-6".to_owned())],
+        None,
+    )
+    .await;
     assert_eq!(tail.status, 206);
     assert_eq!(tail.body, bytes[250..]);
 

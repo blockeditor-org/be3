@@ -1,7 +1,9 @@
 use rusty_s3::{Credentials, S3Action};
 
 use super::{
-    an_object_uploads_and_downloads_with_presigned_s3_urls::{EXPIRES, endpoint, refused_with, send, upload},
+    an_object_uploads_and_downloads_with_presigned_s3_urls::{
+        EXPIRES, endpoint, refused_with, send, upload,
+    },
     *,
 };
 use crate::s3::presign_get;

@@ -272,9 +272,8 @@ impl S3 for Objects {
 impl crate::ServerStore {
     /// The credentials that sign requests to this server's S3 endpoint.
     pub fn s3_endpoint(&self) -> S3Endpoint {
-        let hex = |bytes: &[u8]| -> String {
-            bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-        };
+        let hex =
+            |bytes: &[u8]| -> String { bytes.iter().map(|byte| format!("{byte:02x}")).collect() };
         let key = self.server_key();
         S3Endpoint {
             access_key: hex(&key.derived("s3 access key")[..10]).to_ascii_uppercase(),

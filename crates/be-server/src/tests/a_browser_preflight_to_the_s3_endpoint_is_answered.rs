@@ -27,9 +27,7 @@ async fn a_browser_preflight_to_the_s3_endpoint_is_answered() {
     assert_eq!(preflight.status, 204);
     assert_eq!(preflight.headers["access-control-allow-origin"], "*");
     assert!(preflight.headers["access-control-allow-methods"].contains("PUT"));
-    assert!(
-        preflight.headers["access-control-allow-headers"].contains("x-amz-checksum-sha256")
-    );
+    assert!(preflight.headers["access-control-allow-headers"].contains("x-amz-checksum-sha256"));
     assert_eq!(
         preflight.headers["cross-origin-resource-policy"],
         "cross-origin"
