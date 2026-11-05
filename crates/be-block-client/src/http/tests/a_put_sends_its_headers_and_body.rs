@@ -4,7 +4,10 @@ use super::*;
 async fn a_put_sends_its_headers_and_body() {
     let (url, served) = serve_once("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").await;
     let headers = [
-        ("x-amz-checksum-sha256", "LCa0a2j/xo/5m0U8HTBBNBNCLXBkg7+g+YpeiGJm564="),
+        (
+            "x-amz-checksum-sha256",
+            "LCa0a2j/xo/5m0U8HTBBNBNCLXBkg7+g+YpeiGJm564=",
+        ),
         ("Content-Type", "application/octet-stream"),
         // The request's own length is the body's, whatever the caller says.
         ("Content-Length", "99"),
@@ -20,8 +23,9 @@ async fn a_put_sends_its_headers_and_body() {
         sent.head
     );
     assert!(
-        sent.head
-            .contains("\r\nx-amz-checksum-sha256: LCa0a2j/xo/5m0U8HTBBNBNCLXBkg7+g+YpeiGJm564=\r\n")
+        sent.head.contains(
+            "\r\nx-amz-checksum-sha256: LCa0a2j/xo/5m0U8HTBBNBNCLXBkg7+g+YpeiGJm564=\r\n"
+        )
     );
     assert!(
         sent.head

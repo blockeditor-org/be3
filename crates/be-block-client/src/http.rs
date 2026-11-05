@@ -48,7 +48,10 @@ impl fmt::Display for Error {
                 write!(formatter, "the server refused the request ({status})")
             }
             Self::Refused { status, message } => {
-                write!(formatter, "the server refused the request ({status}): {message}")
+                write!(
+                    formatter,
+                    "the server refused the request ({status}): {message}"
+                )
             }
             Self::TooLarge { limit } => {
                 write!(formatter, "the answer is longer than {limit} bytes")

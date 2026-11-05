@@ -543,7 +543,9 @@ async fn dechunk(
         };
         let line = String::from_utf8_lossy(&pending[..line_end]).to_string();
         let size = usize::from_str_radix(line.split(';').next().unwrap_or_default().trim(), 16)
-            .map_err(|_| BodyError::Failed("the server's answer has a malformed chunk".to_owned()))?;
+            .map_err(|_| {
+                BodyError::Failed("the server's answer has a malformed chunk".to_owned())
+            })?;
         if size > limit.saturating_sub(body.len()) {
             return Err(BodyError::TooLarge);
         }
@@ -601,7 +603,11 @@ pub(crate) async fn request(
             && name
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte));
-        if !token || value.bytes().any(|byte| byte == b'\r' || byte == b'\n' || byte == 0) {
+        if !token
+            || value
+                .bytes()
+                .any(|byte| byte == b'\r' || byte == b'\n' || byte == 0)
+        {
             return Err(Error::Invalid(format!("the header {name:?} is not valid")));
         }
         head.push_str(&format!("{name}: {value}\r\n"));
@@ -627,11 +633,13 @@ pub(crate) async fn request(
             .unwrap_or_else(|Stale| Err("the server closed the connection".to_owned()))?;
         let status = head.status;
         if (200..300).contains(&status) {
-            return Ok(match read_body(&mut stream, head.framing, head.rest, limit).await {
-                Ok(body) => Ok(body),
-                Err(BodyError::TooLarge) => Err(Error::TooLarge { limit }),
-                Err(BodyError::Failed(error)) => Err(Error::Failed(error)),
-            });
+            return Ok(
+                match read_body(&mut stream, head.framing, head.rest, limit).await {
+                    Ok(body) => Ok(body),
+                    Err(BodyError::TooLarge) => Err(Error::TooLarge { limit }),
+                    Err(BodyError::Failed(error)) => Err(Error::Failed(error)),
+                },
+            );
         }
         let message = match read_body(&mut stream, head.framing, head.rest, REFUSAL_BYTES).await {
             Ok(body) => String::from_utf8_lossy(&body).trim().to_owned(),

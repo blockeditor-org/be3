@@ -7,10 +7,9 @@ async fn missing_refused_and_failing_answers_are_told_apart() {
     assert_eq!(get(&url, 1024).await, Err(Error::NotFound));
     served.await.unwrap();
 
-    let (url, served) = serve_once(
-        "HTTP/1.1 403 Forbidden\r\nContent-Length: 21\r\n\r\nSignatureDoesNotMatch",
-    )
-    .await;
+    let (url, served) =
+        serve_once("HTTP/1.1 403 Forbidden\r\nContent-Length: 21\r\n\r\nSignatureDoesNotMatch")
+            .await;
     assert_eq!(
         put(&url, &[], b"bytes".to_vec()).await,
         Err(Error::Refused {

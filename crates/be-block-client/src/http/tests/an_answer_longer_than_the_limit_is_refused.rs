@@ -5,8 +5,8 @@ async fn an_answer_longer_than_the_limit_is_refused() {
     let large = vec![7u8; 64 * 1024];
 
     // A length over the limit is refused before the body is read.
-    let mut answer = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", large.len())
-        .into_bytes();
+    let mut answer =
+        format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", large.len()).into_bytes();
     answer.extend_from_slice(&large);
     let (url, served) = serve_once(answer.clone()).await;
     assert_eq!(
