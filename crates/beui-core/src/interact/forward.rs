@@ -144,6 +144,12 @@ pub(super) fn route(
             );
         }
         if !keep.get(index).copied().unwrap_or(true) {
+            if let Event::Key { press, .. } = event
+                && press.pressed
+                && !press.repeat
+            {
+                deliver(focused, Forwarded::KeyTaken);
+            }
             continue;
         }
         match event {
