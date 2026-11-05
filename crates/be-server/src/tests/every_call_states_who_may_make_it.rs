@@ -409,6 +409,39 @@ impl TestClient {
             "session-relay",
             answered(session.relay(None, sealed()).await),
         ));
+        answers.push((
+            "session-append",
+            answered(
+                session
+                    .append(
+                        1,
+                        be_block_store::Hash::from_bytes([0; 32]),
+                        vec![be_block_protocol::JournalEntry {
+                            generation: 1,
+                            sequence: 1,
+                            payload: sealed(),
+                        }],
+                        true,
+                    )
+                    .await,
+            ),
+        ));
+        answers.push((
+            "session-rebase-journal",
+            answered(
+                session
+                    .rebase_journal(
+                        1,
+                        be_block_store::Hash::from_bytes([0; 32]),
+                        be_block_protocol::JournalBase {
+                            commit: None,
+                            sequence: 0,
+                            state: Vec::new(),
+                        },
+                    )
+                    .await,
+            ),
+        ));
         answers.push(("logout", answered(client::account::logout(peer).await)));
         answers
     }
@@ -506,6 +539,8 @@ async fn every_call_states_who_may_make_it() {
         "session-claim-ownership",
         "session-heartbeat",
         "session-relay",
+        "session-append",
+        "session-rebase-journal",
     ];
     for (name, answer) in &answers {
         if viewing.contains(name) {

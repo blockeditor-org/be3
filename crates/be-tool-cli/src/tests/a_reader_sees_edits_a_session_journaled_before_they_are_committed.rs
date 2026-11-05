@@ -7,6 +7,10 @@ use crate::replica::Session;
 
 #[tokio::test]
 async fn a_reader_sees_edits_a_session_journaled_before_they_are_committed() {
+    tokio::task::LocalSet::new().run_until(read()).await;
+}
+
+async fn read() {
     let harness = Harness::start().await;
     let tracker = Tracker::new(harness.owner().await, sources());
     let block = Uuid::now_v7();

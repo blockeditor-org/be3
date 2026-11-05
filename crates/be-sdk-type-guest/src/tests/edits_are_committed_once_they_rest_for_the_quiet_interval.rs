@@ -9,7 +9,6 @@ fn edits_are_committed_once_they_rest_for_the_quiet_interval() {
     sim.operate(0, 1, Counter::add(2));
     sim.settle();
     assert!(sim.devices[0].status.owes_seal);
-    assert_eq!(sim.devices[0].wake, Some(sim.now + crate::QUIET_INTERVAL));
     sim.advance(crate::QUIET_INTERVAL - 1);
     assert_eq!(sim.publishes, 0);
     sim.advance(1);

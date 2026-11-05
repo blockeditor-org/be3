@@ -43,7 +43,7 @@ async fn contents_read_together_match_what_each_block_saved() {
         .unwrap()
         .into_iter()
         .map(|read| {
-            assert!(read.bytes.is_some() || read.summary.id == workspace);
+            assert!(read.stored.is_some() || read.summary.id == workspace);
             (read.summary.id, read.summary.head)
         })
         .collect();
