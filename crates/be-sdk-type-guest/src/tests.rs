@@ -133,7 +133,6 @@ impl crate::BlobFile for Bytes {
 
 type FileContent = Blob<Bytes>;
 
-
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 struct Counter {
     count: Count,
