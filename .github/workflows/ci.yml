@@ -23,10 +23,15 @@ permissions:
   contents: read
 
 env:
-  # The API gateway's header, behind which blocks.pfg.pw's build server
-  # (guides/build_server.md) runs every buck2 action. A pull request from a
-  # fork sees an empty value, and ./scripts/buck says so rather than building.
-  BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
+  # The Be3-Gateway-Authorization header for blocks.pfg.pw's gateway, behind
+  # which its build server (guides/build_server.md) runs every buck2 action.
+  # It is not api.be3.pfg.pw's key. A pull request from a fork sees an empty
+  # value, and ./scripts/buck says so rather than building.
+  BE3_BUILD_SERVER_KEY: ${{ secrets.BE3_BUILD_SERVER_AUTHORIZATION }}
+  # The same key again for commits whose pinned bootstrap still sends
+  # BE3_AUTHORIZATION to blocks.pfg.pw. Nothing in this workflow reaches
+  # api.be3.pfg.pw. Remove it once every open pull request pins a newer one.
+  BE3_AUTHORIZATION: ${{ secrets.BE3_BUILD_SERVER_AUTHORIZATION }}
   # Named here as well as being the default, so that a commit whose pinned
   # bootstrap still defaults to Namespace builds there too.
   BE3_BUILD_SERVER: blocks.pfg.pw
