@@ -5,7 +5,10 @@ fn revision_history_previews_and_restores_a_text_file() {
     let mut host = HostTest::start();
     add_to_my_files(&mut host, "Text");
     host.click("#text.surface");
-    host.type_text("Original revision");
+    // One input-method commit is one edit, so no saved revision holds half of it: typed text
+    // saves key by key, and the revision taken below could otherwise stop mid-word.
+    host.run(&["ime", "commit", "Original revision"]);
+    host.wait("Original revision");
     host.run(&["scroll", "Tab \"Settings\"", "0", "200"]);
     host.click("Tab \"History\"");
     host.wait("UTC\" #workspace.revision.");
