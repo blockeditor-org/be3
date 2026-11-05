@@ -1,11 +1,20 @@
 use super::*;
 
 #[test]
-fn dropping_a_tab_onto_another_tab_groups_them() {
+fn dropping_a_tab_on_a_pane_groups_it_with_the_tab_the_pane_shows() {
     let mut state = DockState::new((1..=4).map(TabId::new));
     let leaf = state.leaves(state.main())[0];
+    state.set_active_index(leaf, 1);
+    let shown = DockDrop::Group {
+        leaf,
+        index: state.active_index(leaf),
+    };
+    assert!(
+        !state.admits(Entry::Tab(TabId::new(2)), shown),
+        "the tab a pane shows cannot be grouped with itself"
+    );
 
-    state.drop_tab(TabId::new(3), DockDrop::Group { leaf, index: 1 });
+    state.drop_tab(TabId::new(3), shown);
 
     let entries = state.entries(leaf);
     let Some(Entry::Group(group)) = entries.get(1).copied() else {

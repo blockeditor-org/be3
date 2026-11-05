@@ -476,9 +476,9 @@ fn copy_paste_undo_tail(tester: &mut EditorTester) {
         stop: CursorLeftRightStop::Byte,
     });
     tester.expect_content(b"pub fn demo() !u8 {\n    |\n    |return 5;\n}\n");
-    let copied = tester.editor.copy_utf8(CopyMode::Cut);
+    let copied = tester.editor.copy(CopyMode::Cut);
     tester.expect_content(b"pub fn demo() !u8 {\n|}\n");
-    tester.execute(EditorCommand::Paste(copied.as_bytes()));
+    tester.execute(EditorCommand::Paste(&copied));
     tester.expect_content(b"pub fn demo() !u8 {\n    \n    return 5;\n|}\n");
 
     tester.execute(EditorCommand::Click {
@@ -488,7 +488,7 @@ fn copy_paste_undo_tail(tester: &mut EditorTester) {
         select_syntax_node: false,
     });
     tester.expect_content(b"pub |fn demo() !u8 {\n    \n    return 5;\n}\n");
-    let copied = tester.editor.copy_utf8(CopyMode::Cut);
+    let copied = tester.editor.copy(CopyMode::Cut);
     tester.expect_content(b"|    \n    return 5;\n}\n");
     tester.execute(EditorCommand::Click {
         position: tester.pos(10),
@@ -497,7 +497,7 @@ fn copy_paste_undo_tail(tester: &mut EditorTester) {
         select_syntax_node: false,
     });
     tester.expect_content(b"    \n    r|eturn 5;\n}\n");
-    tester.execute(EditorCommand::Paste(copied.as_bytes()));
+    tester.execute(EditorCommand::Paste(&copied));
     tester.expect_content(b"    \npub fn demo() !u8 {\n    r|eturn 5;\n}\n");
     tester.execute(EditorCommand::Click {
         position: tester.pos(6),
@@ -512,7 +512,7 @@ fn copy_paste_undo_tail(tester: &mut EditorTester) {
         select_syntax_node: false,
     });
     tester.expect_content(b"    \n[pub| fn demo() !u8 {\n    return 5;\n}\n");
-    let copied = tester.editor.copy_utf8(CopyMode::Cut);
+    let copied = tester.editor.copy(CopyMode::Cut);
     tester.expect_content(b"    \n| fn demo() !u8 {\n    return 5;\n}\n");
     tester.execute(EditorCommand::Click {
         position: tester.pos(14),
@@ -520,16 +520,20 @@ fn copy_paste_undo_tail(tester: &mut EditorTester) {
         extend: false,
         select_syntax_node: false,
     });
-    tester.execute(EditorCommand::Paste(copied.as_bytes()));
+    tester.execute(EditorCommand::Paste(&copied));
     tester.expect_content(b"    \n fn demo(pub|) !u8 {\n    return 5;\n}\n");
-    tester.execute(EditorCommand::Paste(b", const"));
+    tester.execute(EditorCommand::Paste(&TextFragment::chars(
+        b", const".to_vec(),
+    )));
     tester.expect_content(b"    \n fn demo(pub, const|) !u8 {\n    return 5;\n}\n");
 
-    let copied = tester.editor.copy_utf8(CopyMode::Cut);
+    let copied = tester.editor.copy(CopyMode::Cut);
     tester.expect_content(b"    \n|    return 5;\n}\n");
-    tester.execute(EditorCommand::Paste(b"abc"));
+    tester.execute(EditorCommand::Paste(&TextFragment::chars(b"abc".to_vec())));
     tester.expect_content(b"    \nabc|    return 5;\n}\n");
-    tester.execute(EditorCommand::Paste(copied.as_bytes()));
+    tester.execute(EditorCommand::Paste(&TextFragment::chars(
+        copied.plain_bytes(),
+    )));
     tester.expect_content(b"    \nabc fn demo(pub, const) !u8 {\n|    return 5;\n}\n");
 
     tester.execute(EditorCommand::MoveCursorLeftRight {

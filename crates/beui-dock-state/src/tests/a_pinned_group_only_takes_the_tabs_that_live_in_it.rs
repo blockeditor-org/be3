@@ -15,7 +15,13 @@ fn a_pinned_group_only_takes_the_tabs_that_live_in_it() {
     let group = state.insert_pinned_group(leaf, 1, &layout);
     let inner = state.tree_leaves(Tree::Group(group))[0];
 
-    state.drop_tab(TabId::new(1), DockDrop::Pane { leaf: inner });
+    state.drop_tab(
+        TabId::new(1),
+        DockDrop::Tab {
+            leaf: inner,
+            index: 1,
+        },
+    );
 
     assert_eq!(
         state.group_tabs(group),
@@ -23,7 +29,13 @@ fn a_pinned_group_only_takes_the_tabs_that_live_in_it() {
         "a tab from outside is refused"
     );
     state.set_locked(DockHome::Group(group), false);
-    state.drop_tab(TabId::new(1), DockDrop::Pane { leaf: inner });
+    state.drop_tab(
+        TabId::new(1),
+        DockDrop::Tab {
+            leaf: inner,
+            index: usize::MAX,
+        },
+    );
     assert_eq!(
         state.group_tabs(group),
         vec![TabId::new(10)],
@@ -44,7 +56,13 @@ fn a_pinned_group_only_takes_the_tabs_that_live_in_it() {
     assert_eq!(state.windows().len(), 1);
 
     let inner = state.tree_leaves(Tree::Group(group))[0];
-    state.drop_tab(TabId::new(10), DockDrop::Pane { leaf: inner });
+    state.drop_tab(
+        TabId::new(10),
+        DockDrop::Tab {
+            leaf: inner,
+            index: 0,
+        },
+    );
 
     assert_eq!(
         state.group_tabs(group),

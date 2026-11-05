@@ -34,7 +34,8 @@ In a login session stdout and stderr (every `eprintln!`, panic backtrace and the
 be-host starts) go to `$XDG_STATE_HOME/be-host/login-session.log` (the directory is the app id in
 lower case; `be-host-dev` without bundle metadata). `login_session/log.rs` (`Cap`) keeps it under
 4 MiB while keeping the session's start and latest output in it, and keeps the previous session's
-log as `login-session.previous.log`. The error that ends a session is also written to the original
+log as `login-session.previous.log`. Memory statistics go beside it in `memory.tsv`
+(guides/performance.md, Memory). The error that ends a session is also written to the original
 stderr, for the journal under systemd or greetd.
 
 Problems a person should see show as error toasts the host draws itself, top right, before and over

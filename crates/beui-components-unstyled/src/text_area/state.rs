@@ -6,8 +6,8 @@ use std::sync::Arc;
 use beui_text_editor_core::{
     CollapsibleSection, CopyMode, Core, CursorHorizontalPositionMetric, CursorLeftRightStop,
     CursorPosition, EditorCommand, FindDirection, FindStatus, Formats, MarkdownCommand, Position,
-    RowStep, Schema, Selected, SyntaxHighlight, TextChange, TextIndentation, TextLanguage, TextRun,
-    UDDirection, VerticalMoveMode, VisualRows,
+    RowStep, Schema, Selected, SyntaxHighlight, TextChange, TextFragment, TextIndentation,
+    TextLanguage, TextRun, UDDirection, VerticalMoveMode, VisualRows,
 };
 
 use beui_view::reactive::*;
@@ -262,11 +262,21 @@ impl TextAreaState {
         });
     }
 
-    pub fn copy(&self, mode: CopyMode) -> String {
+    /// The selection as a text fragment; a cut also removes it.
+    pub fn copy(&self, mode: CopyMode) -> TextFragment {
         let inner = self.0.value();
-        let text = inner.core.borrow_mut().copy_utf8(mode);
+        let fragment = inner.core.borrow_mut().copy(mode);
         self.sync();
-        text
+        fragment
+    }
+
+    /// Puts the selection on the clipboard as a text fragment and its plain
+    /// text; a cut also removes it. Nothing happens without one.
+    pub fn copy_to_clipboard(&self, mode: CopyMode) {
+        let fragment = self.copy(mode);
+        if !fragment.is_empty() {
+            copy(Clip::items(fragment.items()));
+        }
     }
 
     /// Like [`Self::sync`], and also breaks the undo group, for an edit that
@@ -681,7 +691,7 @@ impl TextAreaState {
     pub fn open_find(&self, show_replace: bool) {
         let inner = self.0.value();
         if !inner.find.open.get_untracked() {
-            let selected = self.copy(CopyMode::Copy);
+            let selected = self.copy(CopyMode::Copy).plain_text();
             let query = match !selected.is_empty() && !selected.contains('\n') {
                 true => selected,
                 false => String::new(),

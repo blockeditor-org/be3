@@ -44,6 +44,7 @@ fn an_app_declares_its_block_types_and_their_module() {
             add: true,
             delete: false,
             replace: false,
+            reorder: false,
         }
     );
     assert_eq!(checklist.descriptor.press, Press::Zoom);

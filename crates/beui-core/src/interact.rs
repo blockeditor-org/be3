@@ -149,7 +149,7 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
             let asks =
                 matches!(fate, Fate::Program | Fate::Unheard) || doc.paste_requested() && !asked;
             if asks && pastes(*press) {
-                ctx.paste_shortcut();
+                ctx.paste_shortcut(press.modifiers.shift);
             }
             return Err(fate);
         }
@@ -281,6 +281,7 @@ fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
     let mut placed = Vec::new();
     match phase {
         KeyPhase::Capture => {
+            placed.push(own(builtin::cancel_drag));
             placed.push(own(builtin::grab));
             placed.extend(listening(Stop::Host));
             placed.extend(listening(Stop::Window));
@@ -313,6 +314,15 @@ mod builtin {
                     && !press.key.is_modifier()
                     && with_document(grab::end)
                     && press.key == Key::Escape
+            })
+    }
+
+    pub(super) fn cancel_drag(event: KeyEvent) -> bool {
+        event.phase != KeyPhase::Held
+            && event.press().is_some_and(|press| {
+                press.pressed
+                    && press.key == Key::Escape
+                    && with_document(|doc| doc.drags.clone()).is_some_and(|drags| drags.cancel())
             })
     }
 

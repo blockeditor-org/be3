@@ -18,7 +18,7 @@ use be_sdk_beui::beui::native::with_document;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
 use be_sdk_beui::{BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode};
-use be_sdk_beui::{BlockParent, BlockQuery, PickAnchor};
+use be_sdk_beui::{BlockParent, BlockQuery, DropAction, PickAnchor};
 use be_sdk_database::DatabaseBlockPickRequest;
 use be_sdk_text::SharedCaret;
 use be_type_database::database::DatabaseValue;
@@ -28,29 +28,30 @@ use be_type_infinite_canvas::{
     CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle,
     CanvasTransform, InfiniteCanvasOperation,
 };
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::geometry::*;
 
 use super::entities::Entities;
-use super::export::{decode_raster, encode_raster};
+use super::export::Exporter;
 use super::raster::{RasterTools, Stroke};
 use super::text::labels;
 use crate::images::{image_filter, imported_image};
 use crate::raster::PixelTool;
 use be_type_image::{ImageContent, ImageFile};
-use beui::Pasted;
+use beui::clipboard::{Blocks, CanvasItems, ClipBlock, ClipFormat as _, formats};
 
 pub(crate) const ZOOM_STEP: f32 = 1.25;
-const CANVAS_CLIPBOARD_PREFIX: &str = "be3-infinite-canvas:";
 
-#[derive(Deserialize, Serialize)]
-struct CanvasClipboardPayload {
+/// Canvas items a paste waits to place until the canvas they came from has
+/// loaded, for the pixels of their raster layers.
+#[derive(Clone, PartialEq)]
+struct Pasting {
+    canvas: Uuid,
     entities: Vec<CanvasEntity>,
-    #[serde(default)]
-    rasters: BTreeMap<Uuid, String>,
 }
+
+type RenderAnswer = Box<dyn FnOnce(Option<Vec<u8>>)>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum CommonValue<T> {
@@ -481,6 +482,9 @@ struct Placeholder {
 
 struct CanvasCells {
     content: ContentProjection<CanvasContent>,
+    exporter: Cell<Option<Exporter>>,
+    render_answers: RefCell<Vec<RenderAnswer>>,
+    pasting: Signal<Option<Pasting>>,
     pending_image_center: Cell<Option<CanvasPoint>>,
     pending_file_drop: Cell<Option<CanvasPoint>>,
     context_position: Cell<Option<CanvasPoint>>,
@@ -619,6 +623,9 @@ impl CanvasState {
         let caret = create_signal(None);
         let cells = store(CanvasCells {
             content,
+            exporter: Cell::new(None),
+            render_answers: RefCell::new(Vec::new()),
+            pasting: create_signal(None),
             pending_image_center: Cell::new(None),
             pending_file_drop: Cell::new(None),
             context_position: Cell::new(None),
@@ -1826,8 +1833,8 @@ impl CanvasState {
         self.record_update(vec![held], vec![updated]);
     }
 
-    pub(crate) fn move_layer(&self, moved: Uuid, onto: Uuid, in_front: bool) {
-        if moved == onto {
+    pub(crate) fn move_layer(&self, moved: Uuid, behind: Option<Uuid>) {
+        if behind == Some(moved) {
             return;
         }
         let mut order: Vec<Uuid> = self
@@ -1836,12 +1843,19 @@ impl CanvasState {
             .iter()
             .map(|entity| entity.id)
             .collect();
+        let before = order.clone();
         order.retain(|id| *id != moved);
-        let Some(at) = order.iter().position(|id| *id == onto) else {
-            return;
+        let at = match behind {
+            None => order.len(),
+            Some(behind) => match order.iter().position(|id| *id == behind) {
+                Some(at) => at,
+                None => return,
+            },
         };
-        order.insert(at + usize::from(in_front), moved);
-        self.record(InfiniteCanvasOperation::ExactOrder { ids: order });
+        order.insert(at, moved);
+        if order != before {
+            self.record(InfiniteCanvasOperation::ExactOrder { ids: order });
+        }
     }
 
     pub(crate) fn selection_can_group(&self) -> bool {
@@ -2074,6 +2088,14 @@ impl CanvasState {
             }
             CanvasCommand::Cut => {
                 if self.copy_selection() {
+                    let blocks = self
+                        .selected_entities()
+                        .iter()
+                        .filter_map(|entity| entity.block)
+                        .collect::<Vec<_>>();
+                    if !blocks.is_empty() {
+                        self.editor.host().cut_blocks(&blocks, self.block_id());
+                    }
                     self.run(CanvasCommand::Delete);
                 }
             }
@@ -2081,27 +2103,83 @@ impl CanvasState {
         }
     }
 
+    /// References to the blocks `entities` show, for `be3/blocks`.
+    fn blocks_of(&self, entities: &[CanvasEntity]) -> Blocks {
+        let organization = self.editor.host().organization_id();
+        Blocks {
+            blocks: entities
+                .iter()
+                .filter_map(|entity| entity.block)
+                .map(|block| ClipBlock {
+                    id: block,
+                    organization: (!organization.is_nil()).then_some(organization),
+                    block_type: untrack(|| self.block_type_of(block)).unwrap_or_default(),
+                    title: self
+                        .label_of(block)
+                        .map(|label| label.name)
+                        .unwrap_or_default(),
+                })
+                .collect(),
+        }
+    }
+
+    pub(crate) fn set_exporter(&self, exporter: Exporter) {
+        self.cells.value().exporter.set(Some(exporter));
+    }
+
+    pub(crate) fn take_render_answers(&self) -> Vec<RenderAnswer> {
+        std::mem::take(&mut self.cells.value().render_answers.borrow_mut())
+    }
+
+    /// Copies the selection as canvas items, which name this canvas for the
+    /// pixels of their raster layers, and as a PNG rendered only when a paste
+    /// asks for it.
     fn copy_selection(&self) -> bool {
         let entities = self.selected_entities();
         if entities.is_empty() {
             return false;
         }
-        let rasters = self
-            .rasters_of(&entities)
-            .into_iter()
-            .filter_map(|(id, raster)| Some((id, encode_raster(&raster)?)))
-            .collect();
-        match serde_json::to_string(&CanvasClipboardPayload { entities, rasters }) {
-            Ok(json) => {
-                be_sdk_beui::beui::reactive::copy_text(format!("{CANVAS_CLIPBOARD_PREFIX}{json}"));
-                true
-            }
+        let encoded = match serde_json::to_vec(&entities) {
+            Ok(encoded) => encoded,
             Err(error) => {
                 self.import_error
                     .set(Some(format!("Could not copy canvas objects: {error}")));
-                false
+                return false;
             }
+        };
+        let items = CanvasItems {
+            canvas: self.block_id(),
+            entities: encoded,
+        };
+        let mut clip = Clip::new().with(items.encode());
+        let blocks = self.blocks_of(&entities);
+        if !blocks.blocks.is_empty() {
+            clip = clip.with(blocks.encode());
         }
+        let exporter = self.cells.value().exporter.get();
+        if let Some((exporter, scene)) =
+            exporter.and_then(|exporter| Some((exporter, exporter.selection_scene()?)))
+        {
+            let state = *self;
+            clip = clip.with_lazy(formats::PNG, move |answer| {
+                if !state.is_alive() {
+                    return answer(None);
+                }
+                state.cells.value().render_answers.borrow_mut().push(answer);
+                exporter.render(scene.clone());
+            });
+        }
+        let text = entities
+            .iter()
+            .filter(|entity| entity.shape == CanvasShape::Text)
+            .map(|entity| entity.text.to_str_lossy().into_owned())
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>();
+        if !text.is_empty() {
+            clip = clip.with(ClipItem::text(text.join("\n")));
+        }
+        copy(clip);
+        true
     }
 
     fn paste_center(&self) -> CanvasPoint {
@@ -2116,41 +2194,113 @@ impl CanvasState {
         be_sdk_beui::beui::reactive::request_paste();
     }
 
-    pub(crate) fn paste_text(&self, text: &str) -> bool {
-        let Some(json) = text.strip_prefix(CANVAS_CLIPBOARD_PREFIX) else {
-            return false;
-        };
-        let payload = match serde_json::from_str::<CanvasClipboardPayload>(json) {
-            Ok(payload) => payload,
-            Err(error) => {
-                self.import_error
-                    .set(Some(format!("Could not paste canvas objects: {error}")));
-                return true;
+    /// Pastes canvas items under the pointer, once the canvas they came from
+    /// has loaded the pixels of their raster layers.
+    /// Entities that show blocks wait for the host to say which of those
+    /// blocks may be pasted here; the rest are left out.
+    fn paste_items(&self, items: CanvasItems) {
+        match serde_json::from_slice::<Vec<CanvasEntity>>(&items.entities) {
+            Ok(entities) if !entities.is_empty() => {
+                let canvas = items.canvas;
+                let pasting = self.cells.value().pasting;
+                let blocks = entities
+                    .iter()
+                    .filter_map(|entity| entity.block)
+                    .collect::<Vec<_>>();
+                if blocks.is_empty() {
+                    return pasting.set(Some(Pasting { canvas, entities }));
+                }
+                let state = *self;
+                let asked = self
+                    .editor
+                    .host()
+                    .paste_blocks(&blocks, BlockParent::Block(self.block_id()));
+                self.editor.then(asked, move |pasted| {
+                    if !state.is_alive() {
+                        return;
+                    }
+                    let allowed = pasted.iter().map(|(id, ..)| *id).collect::<HashSet<_>>();
+                    let entities = entities
+                        .into_iter()
+                        .filter(|entity| entity.block.is_none_or(|block| allowed.contains(&block)))
+                        .collect::<Vec<_>>();
+                    if !entities.is_empty() {
+                        pasting.set(Some(Pasting { canvas, entities }));
+                    }
+                });
             }
-        };
-        let Some(bounds) = payload
-            .entities
+            Ok(_) => {}
+            Err(error) => self
+                .import_error
+                .set(Some(format!("Could not paste canvas objects: {error}"))),
+        }
+    }
+
+    /// Pastes references to blocks as editors under the pointer, those the
+    /// host lets this canvas show.
+    fn paste_blocks(&self, blocks: Blocks) {
+        let ids = blocks
+            .blocks
             .iter()
-            .map(entity_bounds)
-            .reduce(WorldRect::union)
-        else {
-            return true;
+            .map(|block| block.id)
+            .collect::<Vec<_>>();
+        let state = *self;
+        let center = self.paste_center();
+        let asked = self
+            .editor
+            .host()
+            .paste_blocks(&ids, BlockParent::Block(self.block_id()));
+        self.editor.then(asked, move |pasted| {
+            if !state.is_alive() {
+                return;
+            }
+            for (index, (block, ..)) in pasted.into_iter().enumerate() {
+                let offset = IMPORT_CASCADE_OFFSET * index as f32;
+                state.add_direct_editor(
+                    block,
+                    CanvasPoint::new(center.x + offset, center.y + offset),
+                );
+            }
+            state.put_down_tool();
+        });
+    }
+
+    /// The pixels of the raster layers among `entities`, read from `canvas`,
+    /// this one or another.
+    fn rasters_from(&self, canvas: Uuid, entities: &[CanvasEntity]) -> Result<Rasters, Pending> {
+        let layered = entities
+            .iter()
+            .any(|entity| entity.shape == CanvasShape::Raster);
+        if !layered {
+            return Ok(Rasters::new());
+        }
+        if canvas == self.block_id() {
+            return Ok(self.rasters_of(entities));
+        }
+        self.editor
+            .content_of::<CanvasContent>(canvas)
+            .read(|content| {
+                entities
+                    .iter()
+                    .filter(|entity| entity.shape == CanvasShape::Raster)
+                    .filter_map(|entity| Some((entity.id, Canvas::raster(content, entity.id)?)))
+                    .collect()
+            })
+    }
+
+    fn place_pasted(&self, entities: Vec<CanvasEntity>, rasters: &Rasters) {
+        let Some(bounds) = entities.iter().map(entity_bounds).reduce(WorldRect::union) else {
+            return;
         };
         let from = bounds.center();
         let to = self.paste_center();
-        let rasters = payload
-            .rasters
-            .iter()
-            .filter_map(|(id, png)| Some((*id, decode_raster(png)?)))
-            .collect();
         let (duplicates, rasters) = duplicate_entities(
-            payload.entities,
+            entities,
             CanvasPoint::new(to.x - from.x, to.y - from.y),
-            &rasters,
+            rasters,
         );
         self.add_selected(duplicates, &rasters);
         self.put_down_tool();
-        true
     }
 
     pub(crate) fn open_block_picker(self, center: Option<CanvasPoint>) {
@@ -2778,6 +2928,22 @@ impl CanvasState {
 impl CanvasState {
     pub(crate) fn watch(self) {
         let state = self;
+        let pasting = self.cells.value().pasting;
+        create_effect(move || {
+            let Some(paste) = pasting.get() else {
+                return;
+            };
+            let rasters = match state.rasters_from(paste.canvas, &paste.entities) {
+                Ok(rasters) => rasters,
+                Err(Pending::Loading) => return,
+                Err(Pending::Failed(_)) => Rasters::new(),
+            };
+            untrack(|| {
+                pasting.set(None);
+                state.place_pasted(paste.entities, &rasters);
+            });
+        });
+        let state = self;
         let drag = self.editor.drag();
         create_effect(move || {
             let drag = drag.get();
@@ -2886,10 +3052,25 @@ impl CanvasState {
             return;
         }
         let center = self.world_at(drag.position);
-        self.editor
-            .blocks()
-            .set_parent(drag.block_id, BlockParent::Block(self.block_id()));
-        self.add_direct_editor(drag.block_id, center);
+        let here = BlockParent::Block(self.block_id());
+        match drag.action {
+            DropAction::Move => {
+                self.editor.blocks().set_parent(drag.block_id, here);
+                self.add_direct_editor(drag.block_id, center);
+            }
+            DropAction::Reference => self.add_direct_editor(drag.block_id, center),
+            DropAction::Copy => {
+                let state = *self;
+                let asked = self.editor.host().copy_blocks(drag.block_id, here);
+                self.editor.then(asked, move |copied| {
+                    if let Ok(Some((copy, _))) = copied
+                        && state.is_alive()
+                    {
+                        state.add_direct_editor(copy, center);
+                    }
+                });
+            }
+        }
     }
 
     fn take_files(&self, drop: Option<FileDrop>) {
@@ -2916,16 +3097,20 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn take_paste(&self, pasted: Pasted) {
-        match pasted {
-            Pasted::Text(text) => {
-                self.paste_text(&text);
-            }
-            Pasted::Image(file) => {
-                self.import_error.set(None);
-                let center = self.paste_center();
-                self.add_imported_image(ImageFile::from_file(file.name, file.data), center);
-            }
+    pub(crate) fn take_paste(&self, pasted: ClipItem) {
+        if let Some(items) = pasted.decode::<CanvasItems>() {
+            return self.paste_items(items);
+        }
+        if let Some(blocks) = pasted.decode::<Blocks>() {
+            return self.paste_blocks(blocks);
+        }
+        if pasted.format == formats::PNG {
+            self.import_error.set(None);
+            let center = self.paste_center();
+            self.add_imported_image(
+                ImageFile::from_file("Pasted Image.png".to_owned(), pasted.data),
+                center,
+            );
         }
     }
 

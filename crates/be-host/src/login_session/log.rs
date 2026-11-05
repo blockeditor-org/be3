@@ -88,7 +88,7 @@ impl Cap {
 }
 
 pub(crate) fn start_log() -> Option<File> {
-    let Some(directory) = log_directory() else {
+    let Some(directory) = state_directory() else {
         eprintln!("be-host: no directory for the login session's log; set XDG_STATE_HOME or HOME");
         return None;
     };
@@ -165,7 +165,9 @@ fn watch(mut log: File, directory: PathBuf, path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn log_directory() -> Option<PathBuf> {
+/// Where be-host keeps what it writes about a run: `$XDG_STATE_HOME` (or `~/.local/state`) under the
+/// app id in lower case.
+pub(crate) fn state_directory() -> Option<PathBuf> {
     let state = std::env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())

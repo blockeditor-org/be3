@@ -95,7 +95,7 @@ impl ServerDndGrabHandler for State {
                 .join("\n"),
             _ => return,
         };
-        super::send_text(fd, text.into());
+        super::send_data(fd, String::into_bytes(text).into());
     }
 
     fn cancelled(&mut self, _seat: Seat<Self>) {

@@ -29,7 +29,7 @@ fn dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection() {
     let copy = |harness: &mut Harness| {
         harness
             .frame(pressed_with(Key::C, Modifiers::CTRL))
-            .copied_text
+            .copied_text()
     };
 
     harness.drag(

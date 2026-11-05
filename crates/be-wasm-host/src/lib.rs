@@ -1,4 +1,5 @@
 mod dylink;
+mod gauge;
 mod gpu;
 mod harness;
 mod interrupt;
@@ -41,6 +42,7 @@ use wake::Wake;
 
 pub use be_wasm_dylink::library_file_name;
 pub use be_wasm_gpu_host::Imports;
+pub use gauge::memories;
 pub use interrupt::Interrupter;
 pub use precompile::{precompile, precompile_to};
 pub use state::{Connect, State};
@@ -70,6 +72,7 @@ pub struct Host {
     interrupt: Arc<Interrupt>,
     flavor: Flavor,
     memory_limit: Option<usize>,
+    name: Option<String>,
 }
 
 #[derive(Clone)]
@@ -136,6 +139,7 @@ impl Host {
             imports: Imports::default(),
             flavor,
             memory_limit: (flavor == Flavor::Pure).then_some(MEMORY_LIMIT),
+            name: None,
         })
     }
 
@@ -153,7 +157,7 @@ impl Host {
     }
 
     pub fn spawn<R: Runnable + 'static>(
-        self,
+        mut self,
         name: String,
         load: impl FnOnce(&Host) -> Result<R, String> + Send + 'static,
         wake: HostWake,
@@ -161,6 +165,7 @@ impl Host {
         contain: Contain,
     ) -> Result<Threaded<R::Presented>, String> {
         let interrupter = self.interrupter();
+        self.name = Some(name.clone());
         thread::spawn(
             Spawn {
                 name,
@@ -258,6 +263,7 @@ pub struct App {
     shutdown: TypedFunc<(), ()>,
     wake: Arc<Wake>,
     stopped: bool,
+    gauge: Arc<gauge::Gauge>,
 }
 
 impl App {
@@ -371,7 +377,9 @@ impl App {
             store,
             wake,
             stopped: false,
+            gauge: gauge::Gauge::register(host.name.clone().unwrap_or_else(|| "wasm".to_owned())),
         };
+        app.measure();
         Ok(app)
     }
 
@@ -403,7 +411,9 @@ impl App {
             self.stopped = true;
             return Err(failure);
         }
-        let outcome = function.call(&mut self.store, ()).map_err(|error| {
+        let outcome = function.call(&mut self.store, ());
+        self.measure();
+        let outcome = outcome.map_err(|error| {
             if self.store.data().threads.halts(true) {
                 return INTERRUPTED.to_owned();
             }
@@ -479,6 +489,15 @@ impl App {
         if !self.interrupted() {
             let _ = self.shutdown.call(&mut self.store, ());
         }
+    }
+
+    fn measure(&self) {
+        let bytes = match &self.store.data().memory {
+            Memory::Shared(memory) => memory.data_size(),
+            Memory::Own(Some(memory)) => memory.data_size(&self.store),
+            Memory::Own(None) => 0,
+        };
+        self.gauge.set(bytes as u64);
     }
 
     fn interrupted(&self) -> bool {

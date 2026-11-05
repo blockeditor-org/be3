@@ -69,6 +69,22 @@ against the account's access, and hands to its peer. Because the peer is the
 host's, a block an instance just created still reaches the server after the
 instance closes.
 
+## Copying and cutting blocks
+
+A copy of blocks is a reference: `editor.copy_blocks` writes `be3/blocks` and,
+as plain text, each title and its link; the host adds the blocks' exported
+files, read through their types only when a paste asks. Ids inside a
+`be3/blocks` item are translated like any other crossing the protocol.
+
+A cut is recorded by the host, not the clip: `host().cut_blocks(blocks, holder)`
+before the editor removes its references as a delete does. A paste of
+`be3/blocks` goes through `host().paste_blocks(blocks, parent)`, which answers
+with the blocks the editor may view; a block cut from its parent moves to
+`parent` (`moved`), and every paste uses up the record, so later ones add
+references. A drag over an editor carries the same clip with a `DropAction`
+the host picked from the modifiers (`DropAction::of`): a move, Ctrl or Alt for a
+copy (`copy_blocks`), Ctrl+Shift for a reference.
+
 ## Picking a block
 
 `editor.pick_block(filter, anchor, picked)` acquires a child without waiting

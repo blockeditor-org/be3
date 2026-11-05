@@ -1,3 +1,4 @@
+use be_sdk_api::DropAction;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -964,7 +965,7 @@ pub(crate) fn AppView(
     let over = move |over: Option<(BlockDrag, DragPoint)>| {
         let over = over
             .filter(|(_, point)| taken(*point))
-            .map(|(drag, point)| (drag, point.pos));
+            .map(|(drag, point)| (drag, point.pos, DropAction::of(point.modifiers)));
         be_host_runtime::drag_over_view(&app_id.value(), instance, region.id, over, false);
     };
     let dropped = move |(drag, point): (BlockDrag, DragPoint)| {
@@ -973,7 +974,7 @@ pub(crate) fn AppView(
                 &app_id.value(),
                 instance,
                 region.id,
-                Some((drag, point.pos)),
+                Some((drag, point.pos, DropAction::of(point.modifiers))),
                 true,
             );
         }
@@ -1523,7 +1524,7 @@ fn carry(drag: BlockDrag) {
         return;
     };
     let point = DragPoint::at(pointer.pos, Modifiers::NONE);
-    board.begin(Rc::new(drag), point, Rc::new(|_| {}), Rc::new(|_| {}));
+    board.begin(beui::unstyled::DragSource::new(Rc::new(drag)), point);
 }
 
 fn focus_when_asked(

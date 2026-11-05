@@ -40,7 +40,7 @@ be_wasm_ops_bindgen::generate!({
     ],
     inline: [
         "artifact-command", "unlink-command",
-        "delete-command", "move-command", "place-command", "adopt-command",
+        "delete-command", "move-command", "reorder-command", "place-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
         "block-child", "creation-child", "artifact-settings-child", "picker-child",
@@ -61,13 +61,16 @@ pub use blocks::{
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
 pub use guest::dock::DockWatch;
-pub use host_services::{AccessGrant, AccessListing, ImportedBlock, Revision, ShellDialog};
+pub use host_services::{
+    AccessGrant, AccessListing, ImportedBlock, PastedBlock, Revision, ShellDialog,
+};
 pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
-    CreationProgress, DialogAnswer, DialogStatus, DroppedFile, EditorDescriptor, FitArea,
-    PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
+    CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, FitArea,
+    OfferedClipItem, PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange,
+    WebViewEvent,
 };
 pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
@@ -147,11 +150,12 @@ mod nesting;
 mod opening;
 pub mod requested;
 mod watch;
+pub use be_lib_ui_types::clipboard;
 pub use be_lib_ui_types::geometry::{Pos2, Rect, Vec2};
 pub use be_lib_ui_types::{
-    BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, FileSave, ImeEvent, ImeText, Input,
-    Key, KeyChord, Keyboard, Keystroke, Modifiers, PasteKind, Pasted, Pen, PenPhase, PickedFile,
-    PointerButton, SavedFile, ScrollDelta, TouchId, TouchPhase,
+    BackEdge, BackGesture, ClipItem, CursorIcon, FileFilter, FilePick, FileSave, ImeEvent, ImeText,
+    Input, Key, KeyChord, Keyboard, Keystroke, Modifiers, Pen, PenPhase, PickedFile, PointerButton,
+    SavedFile, ScrollDelta, TouchId, TouchPhase,
 };
 pub use be_lib_ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
@@ -763,26 +767,39 @@ fn string(value: &str) -> Result<(), DecodeError> {
     }
 }
 
-pub fn paste_events(text: &str) -> Vec<Input> {
-    text_pieces(text, MAX_TEXT_BYTES)
-        .into_iter()
-        .map(|piece| Input::Paste(Pasted::Text(piece)))
-        .collect()
+/// A paste as input: one `Paste`, after as many `PastePiece`s as its data
+/// needs to stay within `MAX_TEXT_BYTES` a message; the receiver joins them.
+impl DropAction {
+    /// The action of a drop of blocks with `modifiers` held, as file managers
+    /// pick it: a move, Ctrl or Alt (Option) for a copy, Ctrl+Shift for a
+    /// reference.
+    pub fn of(modifiers: Modifiers) -> Self {
+        match (modifiers.ctrl, modifiers.shift, modifiers.alt) {
+            (true, true, _) => Self::Reference,
+            (true, false, _) | (false, _, true) => Self::Copy,
+            (false, _, false) => Self::Move,
+        }
+    }
 }
 
-fn text_pieces(text: &str, limit: usize) -> Vec<String> {
-    let mut pieces = Vec::new();
-    let mut rest = text;
-    while !rest.is_empty() {
-        let mut end = rest.len().min(limit);
-        while !rest.is_char_boundary(end) {
-            end -= 1;
-        }
-        let (piece, after) = rest.split_at(end);
-        pieces.push(piece.to_owned());
-        rest = after;
-    }
+pub fn paste_events(item: ClipItem) -> Vec<Input> {
+    paste_pieces(item, MAX_TEXT_BYTES)
+}
+
+fn paste_pieces(item: ClipItem, limit: usize) -> Vec<Input> {
+    let ClipItem { format, data } = item;
+    let mut pieces = data
+        .chunks(limit)
+        .map(|piece| ClipItem::new(format.clone(), piece.to_vec()))
+        .collect::<Vec<_>>();
+    let last = pieces
+        .pop()
+        .unwrap_or_else(|| ClipItem::new(format, Vec::new()));
     pieces
+        .into_iter()
+        .map(Input::PastePiece)
+        .chain([Input::Paste(last)])
+        .collect()
 }
 
 fn strings<'a>(values: impl IntoIterator<Item = &'a String>) -> Result<(), DecodeError> {

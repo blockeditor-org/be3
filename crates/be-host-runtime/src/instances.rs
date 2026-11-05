@@ -31,6 +31,7 @@ use super::{
 };
 use be_host_base::{host, performance};
 
+mod cuts;
 mod services;
 
 thread_local! {
@@ -147,6 +148,10 @@ struct Instance {
     presence_visible: Option<bool>,
     replacements: HashMap<(Uuid, Uuid), Replacement>,
     next_replacement: u64,
+    /// Renders of copied representations asked of the instance, by request:
+    /// `None` until it answers.
+    renders: HashMap<u64, Option<Option<Vec<u8>>>>,
+    next_render: u64,
     leaving: bool,
     content: Option<ContentLink>,
     watched: HashMap<Uuid, ContentLink>,
@@ -301,6 +306,8 @@ impl Instance {
             presence_visible: None,
             replacements: HashMap::default(),
             next_replacement: 0,
+            renders: HashMap::default(),
+            next_render: 0,
             leaving: false,
             watched: HashMap::default(),
             shown: be_lib_stable_hash::HashSet::default(),
@@ -2319,7 +2326,8 @@ impl Instances {
                     EditorCall::DragOver(be_sdk_api::shell_types::DragOver {
                         view: region,
                         pos: event.position,
-                        dragged: event.dragged,
+                        items: event.items,
+                        action: event.action,
                         dropped: event.dropped,
                     }),
                 )]
@@ -3143,6 +3151,50 @@ impl Instances {
             .collect()
     }
 
+    /// Asks the instance to render representation `format` of its copy
+    /// `serial`; `take_rendered` with the request answers.
+    pub(super) fn render_clip(
+        &mut self,
+        instance: EditorInstanceId,
+        serial: u64,
+        format: String,
+    ) -> (Vec<Outbound>, Option<u64>) {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return (Vec::new(), None);
+        };
+        entry.next_render += 1;
+        let request_id = entry.next_render;
+        entry.renders.insert(request_id, None);
+        (
+            vec![Outbound::Editor(
+                instance,
+                EditorCall::RenderClip {
+                    request_id,
+                    serial,
+                    format,
+                },
+            )],
+            Some(request_id),
+        )
+    }
+
+    /// The render of `request_id` once answered: `Some(None)` when the
+    /// instance rendered nothing or is gone.
+    pub(super) fn take_rendered(
+        &mut self,
+        instance: EditorInstanceId,
+        request_id: u64,
+    ) -> Option<Option<Vec<u8>>> {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return Some(None);
+        };
+        match entry.renders.get(&request_id) {
+            Some(None) => None,
+            Some(Some(_)) => entry.renders.remove(&request_id).flatten(),
+            None => Some(None),
+        }
+    }
+
     pub(super) fn replace_child(
         &mut self,
         instance: EditorInstanceId,
@@ -3376,8 +3428,7 @@ impl Instances {
                     | ShellCall::Focused { .. }
                     | ShellCall::ChangeView { .. }
                     | ShellCall::ViewStopped { .. }
-                    | ShellCall::CopyText { .. }
-                    | ShellCall::CopyImage { .. }
+                    | ShellCall::Copy { .. }
             )
         {
             self.services.answers.push(call.refuse(OpError::Denied));
@@ -3428,14 +3479,19 @@ impl Instances {
                 ack(reply);
                 entry.child_menu_picks.push((child, id, anchor));
             }
-            ShellCall::CopyText { reply, text, .. } => {
+            ShellCall::Copy {
+                reply,
+                serial,
+                items,
+                ..
+            } => {
                 ack(reply);
-                host::copy_text(text);
-                return false;
-            }
-            ShellCall::CopyImage { reply, png, .. } => {
-                ack(reply);
-                host::copy_image(png);
+                host::copy(host::CopiedClip {
+                    app_id: self.app_id.clone(),
+                    instance,
+                    serial,
+                    items,
+                });
                 return false;
             }
             ShellCall::Paste { reply, .. } => {
@@ -3636,6 +3692,11 @@ impl Instances {
             }
             EditorAnswer::Regenerated(outcome) => {
                 entry.artifact.outcome = Some(outcome.map_err(|failure| failure.to_string()))
+            }
+            EditorAnswer::Rendered { request_id, data } => {
+                if let Some(pending) = entry.renders.get_mut(&request_id) {
+                    *pending = Some(data);
+                }
             }
             EditorAnswer::Replaced {
                 request_id,

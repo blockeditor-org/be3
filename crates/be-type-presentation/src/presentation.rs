@@ -76,6 +76,7 @@ impl Root for Presentation {
                 .filter(move |slide| slide.block == Some(block))
         };
         Some(match change {
+            ChildChange::Reorder { .. } => return None,
             ChildChange::Add(block) => self.insert(ObjectId::new(), self.slides.len(), block),
             ChildChange::Delete(block) => showing(block)
                 .map(|slide| Change::remove(slide.id))

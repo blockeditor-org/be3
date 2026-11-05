@@ -265,6 +265,7 @@ pub struct Stepped<A: Program = Showing> {
     steps: Vec<String>,
     closed: bool,
     latest: Option<Latest>,
+    recording: Option<beui_paint_snapshot::Snapshot>,
 }
 
 struct Latest {
@@ -385,6 +386,7 @@ impl<A: Program + 'static> Stepped<A> {
             steps: Vec::new(),
             closed: false,
             latest: None,
+            recording: None,
         }
     }
 
@@ -804,7 +806,28 @@ impl Stepped<Showing> {
         &mut self.program_mut().0
     }
 
+    pub fn record(&mut self) {
+        let frame = self.painted_snapshot();
+        match &mut self.recording {
+            Some(recording) => recording.append(frame),
+            None => self.recording = Some(frame),
+        }
+    }
+
     pub fn snapshot(&mut self, name: &str) {
+        self.record();
+        let recording = self.recording.take().expect("a frame was just recorded");
+        beui_paint_snapshot::assert_accepted(name, &recording, beui_paint_snapshot::HOW_TO_ACCEPT);
+        let found = self
+            .document()
+            .overflows()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_fits(name, found);
+    }
+
+    fn painted_snapshot(&mut self) -> beui_paint_snapshot::Snapshot {
         let size = self.size();
         let latest = self.latest();
         let painting = painting(
@@ -813,14 +836,8 @@ impl Stepped<Showing> {
             latest.pixels_per_point,
             latest.main.window.appearance.clear_color,
         );
-        beui_paint_snapshot::assert_painting(name, painting);
-        let found = self
-            .document()
-            .overflows()
-            .iter()
-            .map(ToString::to_string)
-            .collect();
-        assert_fits(name, found);
+        beui_paint_snapshot::Snapshot::of_painting(painting)
+            .expect("the painting could not be encoded")
     }
 
     pub fn snapshot_layers(&mut self, name: &str) {

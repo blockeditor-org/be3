@@ -57,7 +57,13 @@ fn a_locked_groups_tabs_stay_in_it_until_it_is_unlocked() {
     assert!(state.admits(Entry::Tab(TabId::new(10)), outside));
 
     let inner = state.tree_leaves(Tree::Group(group))[0];
-    state.drop_tab(TabId::new(10), DockDrop::Pane { leaf: inner });
+    state.drop_tab(
+        TabId::new(10),
+        DockDrop::Tab {
+            leaf: inner,
+            index: usize::MAX,
+        },
+    );
     assert!(
         state.is_tab_locked(TabId::new(10)),
         "back home, it is locked again"

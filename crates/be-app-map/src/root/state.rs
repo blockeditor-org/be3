@@ -16,7 +16,8 @@ use crate::geo::MapView;
 use crate::raster::{TILE_PIXELS, TileLabel};
 use crate::tiles::{TileId, TileWorker};
 use be_type_image::{ImageContent, ImageFile};
-use beui::Pasted;
+use beui::ClipItem;
+use beui::clipboard::formats;
 
 pub(crate) const WORLD_POINTS: f32 = 1024.0;
 pub(crate) const MAX_SCALE: f32 = 32768.0;
@@ -505,12 +506,15 @@ impl MapState {
         }
     }
 
-    pub(crate) fn take_paste(&self, pasted: Pasted) {
+    pub(crate) fn take_paste(&self, pasted: ClipItem) {
         let inner = self.inner.value();
-        if let Pasted::Image(file) = pasted {
+        if pasted.format == formats::PNG {
             self.import_error.set(None);
             let position = inner.view_center.get();
-            self.import(ImageFile::from_file(file.name, file.data), position);
+            self.import(
+                ImageFile::from_file("Pasted Image.png".to_owned(), pasted.data),
+                position,
+            );
         }
     }
 

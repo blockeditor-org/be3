@@ -72,6 +72,8 @@ impl ExportFormat {
 pub(crate) enum ExportTo {
     Clipboard,
     File,
+    /// To the answers a paste of a copy waits on (`CanvasState::copy_selection`).
+    Render,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -304,9 +306,15 @@ impl Exporter {
                         Ok(svg(&wanted.scene, wanted.options, &images).into_bytes())
                     }
                 };
-                let data = match made {
-                    Ok(data) => data,
-                    Err(error) => {
+                let data = match (made, wanted.to) {
+                    (made, ExportTo::Render) => {
+                        for answer in state.take_render_answers() {
+                            answer(made.as_ref().ok().cloned());
+                        }
+                        return;
+                    }
+                    (Ok(data), _) => data,
+                    (Err(error), _) => {
                         state
                             .import_error
                             .set(Some(format!("Could not export: {error}")));
@@ -314,10 +322,16 @@ impl Exporter {
                     }
                 };
                 match (wanted.to, wanted.format) {
-                    (ExportTo::Clipboard, ExportFormat::Png) => copy_image(data),
+                    (ExportTo::Clipboard, ExportFormat::Png) => copy(Clip::png(data)),
                     (ExportTo::Clipboard, ExportFormat::Svg) => {
-                        copy_text(String::from_utf8_lossy(&data).into_owned())
+                        let text = String::from_utf8_lossy(&data).into_owned();
+                        copy(
+                            Clip::new()
+                                .with(ClipItem::new(ExportFormat::Svg.mime_type(), data))
+                                .with(ClipItem::text(text)),
+                        )
                     }
+                    (ExportTo::Render, _) => {}
                     (ExportTo::File, format) => {
                         let asked = editor.host().save_file(SavedFile {
                             name: wanted.scene.file_name(format),
@@ -353,6 +367,26 @@ impl Exporter {
             format,
             to,
             options: self.options.get_untracked(),
+        }));
+    }
+
+    /// The scene a PNG of the selection would show now, kept by a copy to
+    /// render when a paste asks for it.
+    pub(crate) fn selection_scene(&self) -> Option<Scene> {
+        Scene::of(
+            &self.state,
+            self.palette.get_untracked(),
+            self.background.get_untracked(),
+        )
+    }
+
+    /// Renders `scene` as a PNG for the answers waiting on it.
+    pub(crate) fn render(&self, scene: Scene) {
+        self.job.set(Some(Job {
+            scene,
+            format: ExportFormat::Png,
+            to: ExportTo::Render,
+            options: ExportOptions::default(),
         }));
     }
 
@@ -1021,18 +1055,6 @@ pub(crate) fn encode_raster(raster: &CanvasRaster) -> Option<String> {
     )
     .ok()
     .map(|png| BASE64.encode(png))
-}
-
-pub(crate) fn decode_raster(encoded: &str) -> Option<CanvasRaster> {
-    let png = BASE64.decode(encoded).ok()?;
-    let image = image::load_from_memory_with_format(&png, image::ImageFormat::Png)
-        .ok()?
-        .into_rgba8();
-    CanvasRaster::from_rgba(
-        u16::try_from(image.width()).ok()?,
-        u16::try_from(image.height()).ok()?,
-        image.as_raw(),
-    )
 }
 
 pub(crate) const DIALOG_SPACING: Space = Space::Lg;

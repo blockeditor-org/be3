@@ -8,10 +8,20 @@ fn a_copy_in_a_view_reaches_the_host() {
         &host,
         Windowed::empty().hooked(move |context| {
             if let Some(text) = copy.take() {
-                context.copy_text(text);
+                context.copy(beui_core::clipboard::Clip::text(text));
             }
         }),
     );
     one(&mut surface, &whole(40.0, 30.0));
-    assert_eq!(host.take_copied_text(), vec!["copied".to_owned()]);
+    let copies = host.take_copies();
+    let [(_, items)] = &copies[..] else {
+        panic!("one copy, not {copies:?}");
+    };
+    assert_eq!(
+        items,
+        &vec![be_sdk_api::OfferedClipItem {
+            format: "text/plain".to_owned(),
+            data: Some(b"copied".to_vec()),
+        }]
+    );
 }

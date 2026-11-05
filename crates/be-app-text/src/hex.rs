@@ -1,11 +1,12 @@
 use std::ops::Range;
 
+use beui::clipboard::ClipFormat as _;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
     Color32, CursorIcon, FontId, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, TextLayout, Vec2,
 };
-use beui_text_editor_core::{CursorLeftRightStop, EditorCommand, LRDirection};
+use beui_text_editor_core::{CursorLeftRightStop, EditorCommand, LRDirection, TextFragment};
 use std::rc::Rc;
 
 use crate::root::state::State;
@@ -162,6 +163,21 @@ fn type_nibble(state: State, digit: u8) {
     }
 }
 
+/// A paste: a text fragment's bytes go in as they are, replacing the
+/// selection; plain text is read as hex digits, as typing is.
+fn paste(state: State, pasted: ClipItem) {
+    match pasted.decode::<TextFragment>() {
+        Some(fragment) => {
+            state.inner().hex_pending_nibble.set(None);
+            let bytes = TextFragment::chars(fragment.plain_bytes());
+            state.text.execute(EditorCommand::Paste(&bytes));
+            let index = cursor_range(state).start;
+            state.inner().hex_selection_anchor.set(Some(index));
+        }
+        None => type_text(state, &pasted.as_text().unwrap_or_default()),
+    }
+}
+
 pub(crate) fn type_text(state: State, text: &str) {
     for character in text.chars() {
         if let Some(digit) = character.to_digit(16) {
@@ -183,7 +199,7 @@ fn delete(state: State, direction: LRDirection) {
     }
 }
 
-fn copy(state: State, cut: bool) {
+fn copy_bytes(state: State, cut: bool) {
     let range = cursor_range(state);
     if range.is_empty() {
         return;
@@ -202,7 +218,12 @@ fn copy(state: State, cut: bool) {
         .map(|byte| format!("{byte:02x}"))
         .collect::<Vec<_>>()
         .join(" ");
-    copy_text(hex);
+    let fragment = TextFragment::chars(bytes);
+    beui::reactive::copy(
+        Clip::new()
+            .with(fragment.encode())
+            .with(ClipItem::text(hex)),
+    );
     if cut {
         delete(state, LRDirection::Left);
     }
@@ -243,8 +264,8 @@ fn key(state: State, press: KeyPress) -> bool {
     }
     let modifiers = press.modifiers;
     match press.key {
-        Key::C if modifiers.ctrl => copy(state, false),
-        Key::X if modifiers.ctrl => copy(state, true),
+        Key::C if modifiers.ctrl => copy_bytes(state, false),
+        Key::X if modifiers.ctrl => copy_bytes(state, true),
         Key::Backspace => delete(state, LRDirection::Left),
         Key::Delete => delete(state, LRDirection::Right),
         Key::A if modifiers.ctrl => {
@@ -459,6 +480,8 @@ pub(crate) fn HexView(state: State) -> NodeId {
                     focusable=true
                     on_key={move |press: KeyPress| key(state, press)}
                     on_text={move |typed: String| type_text(state, &typed)}
+                    pastes={vec![formats::TEXT_FRAGMENT.to_owned(), formats::TEXT.to_owned()]}
+                    on_paste={move |pasted: ClipItem| paste(state, pasted)}
                     cursor=CursorIcon::Text
                     on_press={move |event: PointerPress| hex_press(cx, event)}
                     on_drag={move |event: PointerPress| hex_drag(cx, event)}

@@ -11,6 +11,7 @@ use crate::asked::{Asked, Task, asking};
 use crate::graph::BlockParent;
 use crate::state::Subscription;
 use be_lib_geometry::{Pos2, Rect, Vec2};
+use be_sdk_api::OfferedClipItem;
 use be_sdk_api::TopBar;
 use be_sdk_api::guest::host_services;
 use be_sdk_api::{
@@ -32,6 +33,8 @@ pub struct BlockDrag {
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub dropped: bool,
+    /// Whether the drop moves the block here, copies it, or adds a reference.
+    pub action: be_sdk_api::DropAction,
 }
 
 #[derive(Clone)]
@@ -469,6 +472,9 @@ struct Watches {
     calls: Vec<Box<dyn FnOnce()>>,
 }
 
+/// Renders a representation of a copy on request (`EditorHost::copy`).
+pub type ClipRender = Rc<dyn Fn(&str, Box<dyn FnOnce(Option<Vec<u8>>)>)>;
+
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
@@ -544,8 +550,9 @@ pub struct EditorHost {
     placed_content: Rc<Cell<Option<Rect>>>,
     frame_anchor: Rc<Cell<Option<Rect>>>,
     spec_anchor: Rc<Cell<Option<Option<Rect>>>>,
-    copied: Rc<RefCell<Vec<String>>>,
-    copied_images: Rc<RefCell<Vec<Vec<u8>>>>,
+    copies: Rc<RefCell<Vec<(u64, Vec<OfferedClipItem>)>>>,
+    held_clip: Rc<RefCell<Option<(u64, ClipRender)>>>,
+    next_copy: Rc<Cell<u64>>,
     paste_requested: Rc<Cell<bool>>,
     leaving: Rc<Cell<bool>>,
     next_frame: Rc<RefCell<HashMap<Option<ViewId>, Duration>>>,
@@ -1090,6 +1097,16 @@ impl EditorHost {
                 source: source.encode(),
                 destination: destination.into_bytes(),
                 is_reference,
+            },
+        ));
+    }
+
+    pub fn reorder_block(&self, block_id: Uuid, parent: Uuid, after: Option<Uuid>) {
+        self.block_commands.borrow_mut().push((
+            block_id,
+            BlockCommand::Reorder {
+                parent: parent.into_bytes(),
+                after: after.map(Uuid::into_bytes),
             },
         ));
     }
@@ -1686,6 +1703,38 @@ impl EditorHost {
         })
     }
 
+    /// Records a cut of references to `blocks` held in `holder`, before the
+    /// editor removes them from its content: the first paste of a block
+    /// whose parent `holder` was moves it.
+    pub fn cut_blocks(&self, blocks: &[Uuid], holder: Uuid) {
+        let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
+        self.ask(|| host_services::cut_blocks(blocks, holder.into_bytes()).detach());
+    }
+
+    /// Pastes `be3/blocks` into `parent`: the blocks the editor may view,
+    /// each `(id, type, moved)`, `moved` when the paste moved a cut block
+    /// here rather than adding a reference. None when the host refused.
+    pub fn paste_blocks(
+        &self,
+        blocks: &[Uuid],
+        parent: BlockParent,
+    ) -> Asked<Vec<(Uuid, Uuid, bool)>> {
+        let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
+        Asked::of(self.ask(|| host_services::paste_blocks(blocks, parent.encode()))).map(|pasted| {
+            pasted
+                .unwrap_or_default()
+                .into_iter()
+                .map(|pasted| {
+                    (
+                        Uuid::from_bytes(pasted.block_id),
+                        Uuid::from_bytes(pasted.block_type),
+                        pasted.moved,
+                    )
+                })
+                .collect()
+        })
+    }
+
     pub fn copy_blocks(
         &self,
         source: Uuid,
@@ -1850,20 +1899,27 @@ impl EditorHost {
         }
     }
 
-    pub fn copy_text(&self, text: impl Into<String>) {
-        self.copied.borrow_mut().push(text.into());
+    /// Copies `items`, richest first. An item without data is rendered by
+    /// `render` when a paste asks for it, until the editor copies again.
+    pub fn copy(&self, items: Vec<OfferedClipItem>, render: ClipRender) {
+        let serial = self.next_copy.get() + 1;
+        self.next_copy.set(serial);
+        *self.held_clip.borrow_mut() = Some((serial, render));
+        self.copies.borrow_mut().push((serial, items));
     }
 
-    pub fn take_copied_text(&self) -> Vec<String> {
-        std::mem::take(&mut self.copied.borrow_mut())
+    pub fn take_copies(&self) -> Vec<(u64, Vec<OfferedClipItem>)> {
+        std::mem::take(&mut self.copies.borrow_mut())
     }
 
-    pub fn copy_image(&self, png: Vec<u8>) {
-        self.copied_images.borrow_mut().push(png);
-    }
-
-    pub fn take_copied_images(&self) -> Vec<Vec<u8>> {
-        std::mem::take(&mut self.copied_images.borrow_mut())
+    /// Renders representation `format` of copy `serial`, answering `None`
+    /// once the editor copied again.
+    pub fn render_clip(&self, serial: u64, format: &str, answer: Box<dyn FnOnce(Option<Vec<u8>>)>) {
+        let render = match &*self.held_clip.borrow() {
+            Some((held, render)) if *held == serial => render.clone(),
+            _ => return answer(None),
+        };
+        render(format, answer);
     }
 
     pub fn request_paste(&self) {

@@ -52,7 +52,7 @@ fn select_all_in_a_selectable_virtual_list_copies_every_row_without_building_the
     harness.frame(pressed_with(Key::A, Modifiers::CTRL));
     let copied = harness
         .frame(pressed_with(Key::C, Modifiers::CTRL))
-        .copied_text
+        .copied_text()
         .expect("Ctrl+C copies the selection");
     let expected = (0..ROWS).map(label).collect::<Vec<_>>().join("\n");
     assert_eq!(copied, expected, "the copy holds every row, one per line");

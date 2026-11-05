@@ -240,10 +240,14 @@ block in it.
 
 ## Children, duplication and holding
 
-Moving a block into a container, deleting a child or replacing it asks the
-container's content to change: `be_host_stack::change_child` sends the
+Moving a block into a container, deleting a child, replacing it or moving it
+among its siblings asks the container's content to change: `be_host_stack::change_child` sends the
 container's replica `Change::Child`, and the type's `Root::child_edit` turns a
-`be_block::ChildChange` into an ordinary edit. `be_host_stack::duplicate`
+`be_block::ChildChange` into an ordinary edit. An editor asks for a reorder with
+`EditorHost::reorder_block(block, parent, after)` (`BlockCommand::Reorder`);
+be-host queues it behind any move of the same block still under way
+(`queue_reorder` in its main.rs) and sends it only to a type whose manifest
+says `children.reorder`. `be_host_stack::duplicate`
 copies what the source's replica shows (or its head) into a new id before
 anything opens the copy. `be_host_stack::hold` keeps a block open for the host
 (settings, the shell's session).

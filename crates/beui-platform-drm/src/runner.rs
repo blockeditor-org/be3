@@ -12,7 +12,7 @@ use beui::{
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, Pos2, ScrollDelta, TouchId, TouchPhase,
     TouchpadGesture, native::Setup, native::Waker, vec2,
 };
-use beui_core::clipboard::PasteAnswer;
+use beui_core::clipboard::{Clip, PasteAnswer};
 use beui_core::program::SafeArea;
 use beui_core::window::{WindowHosting, WindowState};
 use beui_runner::Incoming;
@@ -20,7 +20,6 @@ use beui_runner::renderer::Loaded;
 use beui_runner::{Launch, PlatformServices};
 use beui_runner::{Runner, panic_message};
 use beui_types::{Motion, PreferenceLayer, ThemeKind};
-use beui_types::{PasteKind, Pasted};
 use beui_types::{WindowId, WindowPlacement, WindowReport, WindowRequest};
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{
@@ -152,23 +151,22 @@ impl Windows {
 }
 
 struct Seat {
-    clipboard: Option<String>,
+    clipboard: Option<Clip>,
     locked: bool,
     hosted: bool,
     outputs: Rc<RefCell<Outputs>>,
 }
 
 impl PlatformServices for Seat {
-    fn copy(&mut self, text: String) {
-        self.clipboard = Some(text);
+    fn copy(&mut self, clip: Clip) {
+        self.clipboard = Some(clip);
     }
 
-    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
-        let text = kinds
-            .contains(&PasteKind::Text)
-            .then(|| self.clipboard.clone())
-            .flatten();
-        answer.send(text.map(Pasted::Text));
+    fn paste(&mut self, formats: &[String], answer: PasteAnswer) {
+        match &self.clipboard {
+            Some(clip) => clip.resolve(formats, move |item| answer.send(item)),
+            None => answer.send(None),
+        }
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {

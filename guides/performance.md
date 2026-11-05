@@ -194,6 +194,24 @@ can overlap running at once (decisions/host_startup_overlaps_app_loading.md):
 - On the web, app manifests are fetched together before the first frame. workspace-ui keeps
   tab titles in the view state, so a restored tab is named before its block loads.
 
+## Memory
+
+On Linux under `--desktop`, be-host samples its own memory every 10 s (`crates/be-host/src/memory.rs`)
+and keeps a point a minute, the peak of each measurement through it, for 48 hours. The
+Performance host panel draws them above its timings; `$XDG_STATE_HOME/be-host/memory.tsv` (beside
+the login session's log, and kept as `memory.previous.tsv` by the next run) has the same minutes
+as lines of KiB, each wasm guest's memory too, for plotting elsewhere.
+
+- Resident is `RssAnon + RssFile + RssShmem` from `/proc/self/status`. File-backed includes the
+  `.cwasm` pages apps have run, which are mapped from their files. Shared is mostly the `wl_shm`
+  buffers of Wayland programs' windows, which their own processes count too.
+- An app's wasm memory never shrinks, so it is that app's peak heap
+  (`be_host_runtime::wasm_memories`, kept by be-wasm-host after each call into the guest).
+- `malloc heap, free` is what glibc holds and has not given back (`mallinfo2`). If it grows
+  while nothing leaks, the allocator is fragmenting, not leaking.
+- A leak shows as a line that keeps rising while the computer is idle, or that steps up at each
+  screen lock or terminal switch and never comes back down.
+
 ## Size
 
 What ships is `./scripts/deploy`'s `-m release -c be3.lto=true //crates/be-host:native`. In

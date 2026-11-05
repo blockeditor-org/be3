@@ -755,7 +755,7 @@ fn key(
         if text.is_empty() {
             return false;
         }
-        copy_text(text);
+        copy(Clip::text(text));
         return true;
     }
     if select_all_key.is_some_and(|chord| chord.matches(press)) {
@@ -768,7 +768,7 @@ fn key(
 pub(crate) fn copy_selection(state: State) {
     let text = state.selected_text();
     if !text.is_empty() {
-        copy_text(text);
+        copy(Clip::text(text));
     }
 }
 

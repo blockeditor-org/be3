@@ -61,7 +61,7 @@ pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
                 <Button
                     label="Copy"
                     variant=ButtonVariant::Secondary
-                    on_click={move || copy_text(message.get_untracked())}
+                    on_click={move || copy(Clip::text(message.get_untracked()))}
                 />
                 <Button
                     label="Delete client database..."
@@ -402,7 +402,7 @@ pub(super) fn AddAccountDialog(
                                             glyph=ICON_COPY
                                             variant=ButtonVariant::Ghost
                                             @test_id="account.copy-code"
-                                            on_click={move || copy_text(browser_code.get_untracked())}
+                                            on_click={move || copy(Clip::text(browser_code.get_untracked()))}
                                         />
                                     </List>
                                 </List>
@@ -430,7 +430,7 @@ pub(super) fn AddAccountDialog(
                                             glyph=ICON_COPY
                                             variant=ButtonVariant::Ghost
                                             @test_id="account.copy-link"
-                                            on_click={move || copy_text(browser_url.get_untracked())}
+                                            on_click={move || copy(Clip::text(browser_url.get_untracked()))}
                                         />
                                     </List>
                                 </List>

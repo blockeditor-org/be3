@@ -32,14 +32,12 @@ interface types {
         end: size,
     }
 
-    enum paste-kind {
-        text,
-        image,
-    }
-
-    variant pasted {
-        text(string),
-        image(picked-file),
+    /// One representation of content on the clipboard or dragged: a format
+    /// id (`clipboard::formats`) and the data in that format. A clip lists
+    /// several, richest first; a paste brings the one the receiver chose.
+    record clip-item {
+        format: string,
+        data: list<u8>,
     }
 
     record file-filter {
@@ -269,7 +267,12 @@ interface types {
         modifiers(modifiers),
         key(keystroke),
         text(string),
-        paste(pasted),
+        /// The representation of the clipboard the focus chose
+        /// (`window-requests.pastes`).
+        paste(clip-item),
+        /// A leading piece of a paste too large for one message: the pieces
+        /// and the `paste` after them join, in order, into one.
+        paste-piece(clip-item),
         ime(ime-event),
         pointer-moved(pos2),
         pointer-left,
@@ -305,7 +308,8 @@ interface types {
         handles-back: bool,
         wants-keyboard: bool,
         intercepted-keys: list<key-chord>,
-        pastes: list<paste-kind>,
+        /// The formats the focus takes from the clipboard, preferred first.
+        pastes: list<string>,
         clipboard-keys: bool,
         keyboard-toggles: u32,
         /// Whether the window hears every pointer sample the device reports.

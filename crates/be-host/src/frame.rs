@@ -11,11 +11,122 @@ thread_local! {
 struct Waiting {
     picks: Vec<(FilePickId, PickSlot)>,
     saves: Vec<(FileSaveId, SaveSlot)>,
+    renders: Vec<Render>,
+    exports: Vec<Export>,
+}
+
+/// The files of copied blocks a paste asked for, read by the blocks' types.
+struct Export {
+    read: std::sync::mpsc::Receiver<Option<beui::clipboard::ClipFile>>,
+    left: usize,
+    files: Vec<beui::clipboard::ClipFile>,
+    answer: Box<dyn FnOnce(Option<Vec<u8>>)>,
+}
+
+/// A representation of an app's copy that a paste asked the app to render.
+struct Render {
+    app_id: String,
+    instance: be_sdk_api::EditorInstanceId,
+    request: u64,
+    answer: Box<dyn FnOnce(Option<Vec<u8>>)>,
+}
+
+/// The clip an app copied: its ready items, and the rest rendered by the
+/// instance when a paste asks, which answer nothing once it stopped.
+fn app_clip(copied: host::CopiedClip) -> beui::Clip {
+    let host::CopiedClip {
+        app_id,
+        instance,
+        serial,
+        items,
+    } = copied;
+    let blocks = items
+        .iter()
+        .filter(|item| item.format == beui::clipboard::formats::BLOCKS)
+        .find_map(|item| {
+            let item = beui::ClipItem::new(item.format.clone(), item.data.clone()?);
+            item.decode::<beui::clipboard::Blocks>()
+        });
+    let clip = items
+        .into_iter()
+        .fold(beui::Clip::new(), |clip, item| match item.data {
+            Some(data) => clip.with(beui::ClipItem::new(item.format, data)),
+            None => {
+                let app_id = app_id.clone();
+                let format = item.format.clone();
+                clip.with_lazy(
+                    item.format,
+                    move |answer| match be_host_runtime::render_clip(
+                        &app_id,
+                        instance,
+                        serial,
+                        format.clone(),
+                    ) {
+                        Some(request) => WAITING.with(|waiting| {
+                            waiting.borrow_mut().renders.push(Render {
+                                app_id: app_id.clone(),
+                                instance,
+                                request,
+                                answer,
+                            })
+                        }),
+                        None => answer(None),
+                    },
+                )
+            }
+        });
+    match blocks {
+        Some(blocks) if !clip.holds(beui::clipboard::formats::FILES) => {
+            let ids = blocks
+                .blocks
+                .iter()
+                .map(|block| block.id)
+                .collect::<Vec<_>>();
+            clip.with_lazy(beui::clipboard::formats::FILES, move |answer| {
+                export_files(&ids, answer)
+            })
+        }
+        _ => clip,
+    }
+}
+
+/// Reads the plain file each block's type writes it as, for a paste of the
+/// blocks' files; a block the person cannot view, or without a file form, is
+/// left out.
+fn export_files(blocks: &[uuid::Uuid], answer: Box<dyn FnOnce(Option<Vec<u8>>)>) {
+    let (send, read) = std::sync::mpsc::channel();
+    let mut left = 0;
+    for block in blocks {
+        if !be_host_stack::access(*block).can_view() {
+            continue;
+        }
+        left += 1;
+        let send = send.clone();
+        be_host_stack::plain_file(*block, move |file| {
+            let file = file.ok().map(|file| beui::clipboard::ClipFile {
+                name: file.name.unwrap_or_default(),
+                data: file.bytes,
+            });
+            let _ = send.send(file);
+        });
+    }
+    if left == 0 {
+        return answer(None);
+    }
+    WAITING.with(|waiting| {
+        waiting.borrow_mut().exports.push(Export {
+            read,
+            left,
+            files: Vec::new(),
+            answer,
+        })
+    });
 }
 
 pub(crate) fn begin(context: &beui::native::Context) {
     let mut picked = Vec::new();
     let mut saved = Vec::new();
+    let mut rendered = Vec::new();
     WAITING.with(|waiting| {
         let mut waiting = waiting.borrow_mut();
         waiting
@@ -33,7 +144,38 @@ pub(crate) fn begin(context: &beui::native::Context) {
                 None => waiting.saves.push((id, deliver)),
             }
         }
+        for render in std::mem::take(&mut waiting.renders) {
+            match be_host_runtime::take_rendered(&render.app_id, render.instance, render.request) {
+                Some(data) => rendered.push((render.answer, data)),
+                None => waiting.renders.push(render),
+            }
+        }
     });
+    for (answer, data) in rendered {
+        answer(data);
+    }
+    let exported = WAITING.with(|waiting| {
+        let mut waiting = waiting.borrow_mut();
+        for export in &mut waiting.exports {
+            while let Ok(file) = export.read.try_recv() {
+                export.left -= 1;
+                export.files.extend(file);
+            }
+        }
+        let (done, left) = std::mem::take(&mut waiting.exports)
+            .into_iter()
+            .partition::<Vec<_>, _>(|export| export.left == 0);
+        waiting.exports = left;
+        done
+    });
+    for export in exported {
+        let files = beui::clipboard::Files {
+            files: export.files,
+        };
+        (export.answer)(
+            (!files.files.is_empty()).then(|| beui::clipboard::ClipFormat::encode(&files).data),
+        );
+    }
     for (deliver, pick) in picked {
         deliver(pick);
     }
@@ -67,11 +209,8 @@ pub(crate) fn end(context: &beui::native::Context) {
     if let Some(fullscreen) = output.fullscreen {
         context.set_fullscreen(fullscreen);
     }
-    if let Some(text) = output.copied {
-        context.copy_text(text);
-    }
-    if let Some(png) = output.copied_image {
-        context.copy_image(png);
+    if let Some(copied) = output.copied {
+        context.copy(app_clip(copied));
     }
     for (filter, slot) in output.file_picks {
         let id = context.pick_file(filter);

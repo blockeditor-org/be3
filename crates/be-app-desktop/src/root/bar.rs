@@ -200,7 +200,7 @@ pub(crate) fn UnreadableBarsDialog(editor: Editor) -> NodeId {
             actions={vec![
                 DialogAction::secondary("Copy report", move || {
                     if let Some(report) = report.get_untracked() {
-                        copy_text(report);
+                        copy(Clip::text(report));
                     }
                 })
                 .named("copy-report"),

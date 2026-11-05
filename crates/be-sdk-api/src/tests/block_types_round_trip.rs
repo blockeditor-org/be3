@@ -12,6 +12,7 @@ fn block_types_round_trip() {
                 add: true,
                 delete: true,
                 replace: false,
+                reorder: true,
             },
             press: Press::Zoom,
             plain_file: true,

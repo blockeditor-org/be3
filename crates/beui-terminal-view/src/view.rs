@@ -8,8 +8,7 @@ use beui::TextCaret;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Key, KeyPress, NodeId, Overflow, PasteKind, Pasted, PointerPress, ScrollGesture, TextLayout,
-    Vec2,
+    ClipItem, Key, KeyPress, NodeId, Overflow, PointerPress, ScrollGesture, TextLayout, Vec2,
 };
 
 use crate::keys::{TerminalInput, key_event, text_event};
@@ -116,7 +115,7 @@ pub fn TerminalView(
         on_input.call(typed);
     };
     let pastes = create_memo(move || match input.get() {
-        true => vec![PasteKind::Text],
+        true => vec![beui::clipboard::formats::TEXT.to_owned()],
         false => Vec::new(),
     });
     let spill = Rc::new(Cell::new(0.0_f32));
@@ -180,8 +179,8 @@ pub fn TerminalView(
                                 true
                             }}
                             pastes
-                            on_paste={move |pasted: Pasted| {
-                                if let Pasted::Text(text) = pasted {
+                            on_paste={move |pasted: ClipItem| {
+                                if let Some(text) = pasted.as_text() {
                                     typed(TerminalInput::Paste(text));
                                 }
                             }}

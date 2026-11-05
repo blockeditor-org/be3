@@ -259,7 +259,8 @@ fn events(data: Data) -> Memo<Vec<Event>> {
                 let mut events: Vec<Event> = groups
                     .iter()
                     .flat_map(|group| group.rows.iter().copied())
-                    .filter_map(|index| {
+                    .filter_map(|id| {
+                        let index = data.row_index.with(|indices| indices.get(&id).copied())?;
                         let row = rows.get(index)?;
                         let starts = datetime(row, start)?;
                         let ends = end

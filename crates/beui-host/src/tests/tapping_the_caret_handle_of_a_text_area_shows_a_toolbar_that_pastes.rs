@@ -50,9 +50,12 @@ fn tapping_the_caret_handle_of_a_text_area_shows_a_toolbar_that_pastes() {
     assert_eq!(output.paste, Some(crate::native::PasteRequest::Asked));
     assert_eq!(
         output.main().window.requests.pastes,
-        [crate::PasteKind::Text]
+        [
+            crate::clipboard::formats::TEXT_FRAGMENT,
+            crate::clipboard::formats::TEXT
+        ]
     );
 
-    harness.frame(vec![Input::Paste(crate::Pasted::Text("Say ".to_owned()))]);
+    harness.frame(vec![Input::Paste(crate::ClipItem::text("Say "))]);
     assert_eq!(String::from_utf8_lossy(&state.bytes()), "Say Hello");
 }

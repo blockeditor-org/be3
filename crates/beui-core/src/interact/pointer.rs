@@ -1048,6 +1048,15 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
         Role::Press => {
             let focused = doc.focused_node();
             let owners = std::mem::take(&mut session.owners);
+            if !cancelled
+                && doc.dragging()
+                && let Some(drags) = doc.drags.clone()
+            {
+                let modifiers = frame.ctx.input(|input| input.modifiers);
+                let point =
+                    beui_types::drag::DragPoint::at(pos, modifiers).in_window(session.window);
+                drags.track(point, &|node| drag_order(doc, node));
+            }
             if !cancelled {
                 for owner in owners.iter().rev() {
                     let Some(rect) = rect_of(doc, frame.rects, *owner) else {
@@ -1160,6 +1169,10 @@ fn long_presses(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
         session.cancelled = true;
         fired.push(index);
     }
+    let fired = fired
+        .into_iter()
+        .filter(|index| !lift_long_press(doc, frame, *index))
+        .collect::<Vec<_>>();
     let mut pressed = Vec::new();
     for index in fired {
         let owners = std::mem::take(&mut doc.pointers.sessions[index].owners);
@@ -1180,6 +1193,37 @@ fn long_presses(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
         });
     }
     pressed
+}
+
+fn lift_long_press(doc: &mut Document, frame: &Frame, index: usize) -> bool {
+    let session = &doc.pointers.sessions[index];
+    let Some(lifter) = session.owners.iter().copied().find(|owner| {
+        interactive(doc, *owner).is_some_and(|node| !node.on_long_press_drag.is_empty())
+    }) else {
+        return false;
+    };
+    let pos = session.pos;
+    let others: Vec<NodeId> = session
+        .owners
+        .iter()
+        .copied()
+        .filter(|owner| *owner != lifter)
+        .collect();
+    {
+        let session = &mut doc.pointers.sessions[index];
+        session.cancelled = false;
+        session.claimed = true;
+        session.owners = vec![lifter];
+    }
+    for owner in others.into_iter().rev() {
+        cancel_owner(doc, owner);
+    }
+    let pressed = rect_of(doc, frame.rects, lifter).zip(interactive(doc, lifter));
+    if let Some((placed, node)) = pressed {
+        let press = doc.pointers.sessions[index].press(placed, pos);
+        node.on_long_press_drag.clone().call(press);
+    }
+    true
 }
 
 pub(crate) fn long_pressed(doc: &mut Document, frame: &Frame, pressed: Vec<LongPressed>) {
@@ -1658,6 +1702,9 @@ fn track(doc: &mut Document, frame: &Frame) {
         )
     });
     let Some(pos) = pointer.map(|pos| pos + shift) else {
+        if let Some(drags) = &doc.drags {
+            drags.stop_edge();
+        }
         return;
     };
     doc.last_pointer = Some(PointerSample { pos, window, touch });

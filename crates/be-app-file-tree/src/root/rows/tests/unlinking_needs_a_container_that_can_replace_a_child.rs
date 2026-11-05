@@ -20,6 +20,7 @@ fn unlinking_needs_a_container_that_can_replace_a_child() {
         add: false,
         delete: false,
         replace: true,
+        reorder: false,
     });
     assert_eq!(
         unlink_permission(&client, &replacing, &block_types, Some(CONTAINER)),

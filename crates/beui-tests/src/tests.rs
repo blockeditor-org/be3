@@ -76,6 +76,7 @@ mod pointer_lock;
 mod popups;
 mod portal;
 mod progress;
+mod reorder;
 mod rows;
 mod scroll;
 mod scroll_chain;

@@ -2,7 +2,7 @@ use std::cell::OnceCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::unstyled::{Board, DragPoint, DropHandle, DropTarget, drag_board};
+use crate::unstyled::{Board, DragPoint, DragSource, DropHandle, DropTarget, drag_board};
 
 #[test]
 fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
@@ -35,10 +35,8 @@ fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
         .get()
         .expect("the board was made with the view")
         .begin(
-            Rc::new(7_u32),
+            DragSource::new(Rc::new(7_u32)),
             DragPoint::at(from, Modifiers::NONE),
-            Rc::new(|_| {}),
-            Rc::new(|_| {}),
         );
     harness.touch(TouchPhase::Move, to);
     harness.touch(TouchPhase::Cancel, to);

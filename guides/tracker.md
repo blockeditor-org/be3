@@ -85,6 +85,11 @@ rows.
   key (`DatabaseRow::links`) so concurrent additions both stay; an inverse column is computed
   (`inverses`), not stored. `Database`, `DatabaseSchema` and `DatabaseView` are frozen
   (`tests/frozen_database*.rs` in be-block).
+- **Order.** Rows keep a manual order, the order of `Database::rows`: dragging a card or a list
+  row (or Alt with an arrow key) moves it there with `ViewData::move_row`, and into another
+  group sets its group value, in one edit. A sort decides the order instead, so a sorted list
+  does not drag and a sorted board only carries cards between columns, opening the gap where
+  the sort will put the card (`ViewData::slot_in`). Schema fields reorder the same way.
 - **Writes.** `be` links the database app's types crate (`database_types`) and applies the same
   `Edit`s the editor does, publishing through `Tracker::edit`. Every other block type goes
   through its type module as bytes (`ToFile`, `Apply` of `FromFile`, `Change::Child`).

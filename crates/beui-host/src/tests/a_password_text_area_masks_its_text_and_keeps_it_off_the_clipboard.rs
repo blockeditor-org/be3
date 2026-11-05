@@ -34,8 +34,8 @@ fn a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard() {
     let copied = harness.frame(pressed_with(Key::C, Modifiers::CTRL));
     let cut = harness.frame(pressed_with(Key::X, Modifiers::CTRL));
 
-    assert_eq!(copied.copied_text, None);
-    assert_eq!(cut.copied_text, None);
+    assert_eq!(copied.copied_text(), None);
+    assert_eq!(cut.copied_text(), None);
     assert_eq!(
         harness.document().api::<TextAreaApi>(surface).shown(),
         "******"

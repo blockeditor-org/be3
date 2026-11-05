@@ -32,7 +32,13 @@ fn a_dock_bar_shows_only_while_its_tab_does_and_moves_with_it() {
         .expect("the side tab is open")
         .leaf;
     let mut moved = state.clone();
-    moved.drop_tab(TabId::new(1), DockDrop::Pane { leaf });
+    moved.drop_tab(
+        TabId::new(1),
+        DockDrop::Tab {
+            leaf,
+            index: usize::MAX,
+        },
+    );
     let keys = [
         (1u64, TabId::new(1)),
         (2, TabId::new(2)),

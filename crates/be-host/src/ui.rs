@@ -20,9 +20,13 @@ use crate::compositor::{AnchoredViews, ShellDisplay};
 use be_host_base::host_state::{SavedAccount, ServerLocation};
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) use debug::PerformancePanel;
 pub(crate) use debug::{
     AppsView, DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, RuntimeView,
 };
+#[cfg(target_os = "linux")]
+pub(crate) use debug::{MemoryLine, MemoryPoint, MemoryRow, MemoryUsage, MemoryView};
 
 thread_local! {
     static COMMANDS: RefCell<Vec<UiCommand>> = const { RefCell::new(Vec::new()) };
@@ -644,7 +648,7 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
                     if key == COPY_REPORT
                         && let Some(report) = be_host_base::notices::report_of(id)
                     {
-                        copy_text(report);
+                        copy(Clip::text(report));
                     }
                 }}
             />

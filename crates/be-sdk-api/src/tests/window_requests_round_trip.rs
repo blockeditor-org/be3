@@ -17,7 +17,7 @@ fn window_requests_round_trip() {
                         modifiers: Modifiers::default(),
                         tap: true,
                     }],
-                    pastes: vec![PasteKind::Image, PasteKind::Text],
+                    pastes: vec!["image/png".to_owned(), "text/plain".to_owned()],
                     clipboard_keys: true,
                     keyboard_toggles: 3,
                     every_sample: true,

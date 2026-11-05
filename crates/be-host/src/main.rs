@@ -14,6 +14,8 @@ mod local_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
 mod members;
+#[cfg(target_os = "linux")]
+mod memory;
 mod root_settings;
 mod shell_route;
 mod surfaces;
@@ -601,6 +603,7 @@ struct HostCore {
     dynamic_artifact_settings_open: Option<Uuid>,
 
     pending_transfers: Vec<PendingTransfer>,
+    pending_reorders: Vec<PendingReorder>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
     unsent_open: bool,
@@ -717,6 +720,13 @@ struct PendingTransfer {
     destination: Option<Uuid>,
     parent_after: Option<BlockParent>,
     stage: TransferStage,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct PendingReorder {
+    child: Uuid,
+    parent: Uuid,
+    after: Option<Uuid>,
 }
 
 #[derive(Clone, Copy)]
@@ -886,6 +896,7 @@ impl HostCore {
             dynamic_artifact_settings: HashMap::new(),
             dynamic_artifact_settings_open: None,
             pending_transfers: Vec::new(),
+            pending_reorders: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
             unsent_open: false,
@@ -937,6 +948,7 @@ impl HostCore {
         be_host_base::watches::publish::<be_sdk_api::SuperKeptWatch>(&true);
         #[cfg(target_os = "linux")]
         {
+            memory::start();
             self.start_screen_lock();
             if self.notifications.is_none() {
                 self.notifications = Some(notifications::Notifications::start());
@@ -1133,6 +1145,7 @@ impl HostCore {
                 "an organization request is pending",
             ),
             (!self.pending_transfers.is_empty(), "a transfer is pending"),
+            (!self.pending_reorders.is_empty(), "a reorder is pending"),
             (!self.pending_copies.is_empty(), "a copy is pending"),
             (
                 self.dev_workspace && self.organization.is_none(),
@@ -1850,6 +1863,7 @@ impl HostCore {
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
+        self.pending_reorders.clear();
         self.about_open = false;
         self.unsent_open = false;
         self.discarding_unsent = None;
@@ -2008,6 +2022,41 @@ impl HostCore {
             parent_after: (!is_reference).then_some(BlockParent::Block(destination)),
             stage: TransferStage::DeleteSource,
         });
+    }
+
+    fn queue_reorder(&mut self, child: Uuid, parent: Uuid, after: Option<Uuid>) {
+        if child == parent || after == Some(child) {
+            return;
+        }
+        let reorder = PendingReorder {
+            child,
+            parent,
+            after,
+        };
+        if self.pending_reorders.contains(&reorder) || !self.ensure_editor(parent) {
+            return;
+        }
+        self.pending_reorders.push(reorder);
+    }
+
+    fn process_pending_reorders(&mut self) {
+        let pending = std::mem::take(&mut self.pending_reorders);
+        for reorder in pending {
+            let moving = self
+                .pending_transfers
+                .iter()
+                .any(|transfer| transfer.child == reorder.child);
+            let done = !moving
+                && self
+                    .with_editor(reorder.parent, |editor| {
+                        editor.reorder_child(reorder.child, reorder.after)
+                    })
+                    .flatten()
+                    .is_some();
+            if !done {
+                self.pending_reorders.push(reorder);
+            }
+        }
     }
 
     fn restore(&mut self, id: Uuid) {
@@ -2741,6 +2790,9 @@ impl HostCore {
                 Uuid::from_bytes(destination),
                 is_reference,
             ),
+            BlockCommand::Reorder { parent, after } => {
+                self.queue_reorder(id, Uuid::from_bytes(parent), after.map(Uuid::from_bytes))
+            }
             BlockCommand::Restore => self.restore(id),
             BlockCommand::Place {
                 block_type,
@@ -2895,6 +2947,7 @@ impl HostCore {
             return;
         }
         self.process_pending_transfers();
+        self.process_pending_reorders();
         self.process_pending_copies();
         self.show_shell();
         Host::frame();

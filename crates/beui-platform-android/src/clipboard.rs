@@ -1,17 +1,34 @@
+use beui_core::clipboard::{Clip, HeldClip, PasteAnswer};
+use beui_types::ClipItem;
+use beui_types::clipboard::formats;
+
+/// The system clipboard carries plain text; the clip a copy wrote stays held
+/// for its other representations while that text is still on the clipboard.
 #[derive(Default)]
-pub struct Clipboard;
+pub struct Clipboard {
+    held: HeldClip,
+}
 
 impl Clipboard {
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 
-    pub fn get(&mut self) -> Option<String> {
-        android::get().ok().flatten()
+    pub fn copy(&mut self, clip: Clip) {
+        let _ = android::set(&clip.plain_text().unwrap_or_default());
+        self.held.copy(clip);
     }
 
-    pub fn set(&mut self, text: String) {
-        let _ = android::set(&text);
+    pub fn paste(&mut self, wanted: &[String], answer: PasteAnswer) {
+        let now = android::get().ok().flatten();
+        let ours = self.held.wrote(now.as_deref());
+        if let Some(clip) = self.held.current(ours) {
+            return clip.resolve(wanted, move |item| answer.send(item));
+        }
+        let text = now
+            .filter(|text| !text.is_empty())
+            .filter(|_| wanted.iter().any(|format| format == formats::TEXT));
+        answer.send(text.map(ClipItem::text));
     }
 }
 

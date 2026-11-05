@@ -1,5 +1,6 @@
 use super::*;
-use be_sdk_beui::beui::{Input, Pasted};
+use be_sdk_beui::beui::Input;
+use be_sdk_beui::beui::clipboard::{CanvasItems, ClipFormat as _};
 
 #[test]
 fn pasting_puts_the_objects_under_the_pointer() {
@@ -10,14 +11,15 @@ fn pasting_puts_the_objects_under_the_pointer() {
     second.transform.center = CanvasPoint::new(500.0, 300.0);
     let mut editor = editor(&[card()]);
     let pointer = editor.point_of(&format!("infinite-canvas.entity.{}", card().id));
-    let payload = serde_json::json!({ "entities": [first, second] });
+    let items = CanvasItems {
+        canvas: Uuid::new_v4(),
+        entities: serde_json::to_vec(&[first, second]).expect("entities encode"),
+    };
 
     editor.click(pointer);
     editor.run();
     let applied = editor.applied(None);
-    editor.step(vec![Input::Paste(Pasted::Text(format!(
-        "be3-infinite-canvas:{payload}"
-    )))]);
+    editor.step(vec![Input::Paste(items.encode())]);
     editor.run();
 
     assert_eq!(

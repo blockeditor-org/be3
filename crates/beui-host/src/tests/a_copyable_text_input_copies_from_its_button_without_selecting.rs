@@ -30,7 +30,7 @@ fn a_copyable_text_input_copies_from_its_button_without_selecting() {
         pressed: false,
     }]);
 
-    assert_eq!(clicked.copied_text.as_deref(), Some(text.as_str()));
+    assert_eq!(clicked.copied_text().as_deref(), Some(text.as_str()));
     let api: crate::styled::TextInputApi = api.get();
     assert!(api.selection().is_empty(), "the press stops at the button");
     assert!(!api.focused().get_untracked());

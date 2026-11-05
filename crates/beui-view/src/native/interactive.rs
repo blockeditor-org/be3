@@ -15,8 +15,8 @@ use beui_types::ImeEvent;
 use beui_types::ImeText;
 use beui_types::KeyPress;
 use beui_types::NodeId;
-use beui_types::PasteKind;
-use beui_types::Pasted;
+
+use beui_types::ClipItem;
 use beui_types::PointerInput;
 use beui_types::PointerPress;
 use beui_types::Pos2;
@@ -43,8 +43,8 @@ pub(crate) fn interactive(
     on_activate: ClickCallback,
     on_step: Callback<f32>,
     on_text: Callback<String>,
-    pastes: Prop<Vec<PasteKind>>,
-    on_paste: Callback<Pasted>,
+    pastes: Prop<Vec<String>>,
+    on_paste: Callback<ClipItem>,
     on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
@@ -69,6 +69,7 @@ pub(crate) fn interactive(
     on_middle_click: ClickCallback,
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
+    on_long_press_drag: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
     on_pointer: Callback<PointerInput, bool>,
     on_wheel: Callback<WheelInput, bool>,
@@ -137,6 +138,7 @@ pub(crate) fn interactive(
         node.on_middle_click = on_middle_click;
         node.on_press = on_press;
         node.on_secondary_press = on_secondary_press;
+        node.on_long_press_drag = on_long_press_drag;
         node.on_drag = on_drag;
         node.on_pointer = on_pointer;
         node.on_wheel = on_wheel;

@@ -21,7 +21,13 @@ fn a_locked_tab_split_off_inside_its_area_takes_the_area_with_it() {
         "a pane split off a pane of the area is part of it"
     );
 
-    state.drop_tab(TabId::new(12), DockDrop::Pane { leaf: split });
+    state.drop_tab(
+        TabId::new(12),
+        DockDrop::Tab {
+            leaf: split,
+            index: usize::MAX,
+        },
+    );
     assert_eq!(
         leaf_of(&state, 12),
         split,
@@ -42,12 +48,42 @@ fn a_locked_tab_split_off_inside_its_area_takes_the_area_with_it() {
         state.at_home(TabId::new(10)),
         "a group in the area is in it"
     );
-    assert!(!state.admits(Entry::Tab(TabId::new(1)), DockDrop::Pane { leaf: split }));
+    assert!(!state.admits(
+        Entry::Tab(TabId::new(1)),
+        DockDrop::Tab {
+            leaf: split,
+            index: usize::MAX
+        }
+    ));
 
-    state.drop_tab(TabId::new(10), DockDrop::Pane { leaf: split });
-    state.drop_tab(TabId::new(11), DockDrop::Pane { leaf: editors });
-    state.drop_tab(TabId::new(12), DockDrop::Pane { leaf: editors });
-    state.drop_tab(TabId::new(10), DockDrop::Pane { leaf: editors });
+    state.drop_tab(
+        TabId::new(10),
+        DockDrop::Tab {
+            leaf: split,
+            index: usize::MAX,
+        },
+    );
+    state.drop_tab(
+        TabId::new(11),
+        DockDrop::Tab {
+            leaf: editors,
+            index: usize::MAX,
+        },
+    );
+    state.drop_tab(
+        TabId::new(12),
+        DockDrop::Tab {
+            leaf: editors,
+            index: usize::MAX,
+        },
+    );
+    state.drop_tab(
+        TabId::new(10),
+        DockDrop::Tab {
+            leaf: editors,
+            index: usize::MAX,
+        },
+    );
     assert_eq!(
         state.leaves(state.main()).len(),
         2,

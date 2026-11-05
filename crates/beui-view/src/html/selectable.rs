@@ -30,7 +30,7 @@ impl State {
 pub(crate) fn copy_selection(state: State) {
     let text = state.selected_text();
     if !text.is_empty() {
-        copy_text(text);
+        copy(Clip::text(text));
     }
 }
 

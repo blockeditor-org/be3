@@ -740,6 +740,7 @@ impl Space {
             Input::Text(_)
             | Input::Ime(_)
             | Input::Paste(_)
+            | Input::PastePiece(_)
             | Input::InterceptedKey { .. }
             | Input::InterceptedTap(_)
                 if self.focused.is_none() => {}

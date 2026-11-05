@@ -1,7 +1,8 @@
 use super::*;
+use crate::clipboard::formats;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::{ForwardedInput, PasteKind, Pasted, PickedFile, native::PasteRequest};
+use crate::{ClipItem, ForwardedInput, native::PasteRequest};
 
 #[test]
 fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
@@ -14,8 +15,8 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
                 <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
                     <Interactive
                         focusable=true
-                        pastes={vec![PasteKind::Image]}
-                        on_paste={move |paste: Pasted| heard.update(|heard| heard.push(format!("{:?}", paste.kind())))}
+                        pastes={vec![formats::PNG.to_owned()]}
+                        on_paste={move |paste: ClipItem| heard.update(|heard| heard.push(paste.format))}
                         on_text={move |text: String| heard.update(|heard| heard.push(text))}
                     >
                         <Frame />
@@ -24,7 +25,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
                 <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
                     <Interactive
                         focusable=true
-                        pastes={vec![PasteKind::Text, PasteKind::Image]}
+                        pastes={vec![formats::TEXT.to_owned(), formats::PNG.to_owned()]}
                         on_forward={move |input: ForwardedInput| forwarded.update(|forwarded| forwarded.extend(flattened(input)))}
                     >
                         <Frame />
@@ -44,20 +45,17 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
 
     harness.click(pos2(50.0, 50.0));
     let output = harness.frame(ctrl_v());
-    assert_eq!(output.paste, Some(PasteRequest::Shortcut));
-    assert_eq!(output.main().window.requests.pastes, [PasteKind::Image]);
+    assert_eq!(output.paste, Some(PasteRequest::Shortcut { plain: false }));
+    assert_eq!(output.main().window.requests.pastes, [formats::PNG]);
 
-    let image = PickedFile {
-        name: "Pasted Image.png".to_owned(),
-        data: vec![1, 2, 3],
-    };
+    let image = ClipItem::png(vec![1, 2, 3]);
     harness.frame(vec![
-        Input::Paste(Pasted::Image(image.clone())),
-        Input::Paste(Pasted::Text("typed".to_owned())),
+        Input::Paste(image.clone()),
+        Input::Paste(ClipItem::text("typed")),
     ]);
     assert_eq!(
         heard.get_untracked(),
-        ["Image", "typed"],
+        ["image/png", "typed"],
         "a kind the focus did not ask for still reaches its text handler"
     );
 
@@ -65,17 +63,14 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
     let output = harness.frame(ctrl_v());
     assert_eq!(
         output.paste,
-        Some(PasteRequest::Shortcut),
+        Some(PasteRequest::Shortcut { plain: false }),
         "a forwarding focus pastes through its host"
     );
     assert_eq!(
         output.main().window.requests.pastes,
-        [PasteKind::Text, PasteKind::Image]
+        [formats::TEXT, formats::PNG]
     );
     forwarded.update(|forwarded| forwarded.clear());
-    harness.frame(vec![Input::Paste(Pasted::Image(image.clone()))]);
-    assert_eq!(
-        forwarded.get_untracked(),
-        [Event::Paste(Pasted::Image(image))]
-    );
+    harness.frame(vec![Input::Paste(image.clone())]);
+    assert_eq!(forwarded.get_untracked(), [Event::Paste(image)]);
 }

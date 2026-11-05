@@ -227,11 +227,12 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         create_memo(move || super::canvas::palette(&theme)),
         create_memo(move || beui::reactive::resolve_color(theme.background.get())),
     );
+    state.set_exporter(exporter);
     let drawn = when(|state| state.entities.ids().with(|ids| !ids.is_empty()));
     let export =
         |id: &str, label: &'static str, glyph: Glyph, format: ExportFormat, to: ExportTo| {
             Action::new(id, label, move || match to {
-                ExportTo::Clipboard => exporter.run(format, to),
+                ExportTo::Clipboard | ExportTo::Render => exporter.run(format, to),
                 ExportTo::File => exporter.ask(format),
             })
             .glyph(glyph)

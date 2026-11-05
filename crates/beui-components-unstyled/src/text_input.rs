@@ -171,7 +171,7 @@ pub fn TextInput(
     let clear = ClickCallback::new(move || {
         state.execute(EditorCommand::ReplaceWholeFile(b""));
     });
-    let copy = ClickCallback::new(move || copy_text(text_of(state)));
+    let copy = ClickCallback::new(move || beui_view::reactive::copy(Clip::text(text_of(state))));
     let content_changed = state.content();
     create_effect(move || {
         content_changed.get();
@@ -234,7 +234,9 @@ pub fn TextInput(
             />
         };
         let clear = ClickCallback::new(move || value.set(String::new()));
-        let copy = ClickCallback::new(move || copy_text(value.get_untracked()));
+        let copy = ClickCallback::new(move || {
+            beui_view::reactive::copy(Clip::text(value.get_untracked()))
+        });
         return match content {
             Some(build) => build.call(TextInputHandle {
                 field,

@@ -66,7 +66,7 @@ pub(crate) fn SetupSteps(editor: Editor) -> NodeId {
                         glyph={ICON_COPY.to_owned()}
                         variant=ButtonVariant::Ghost
                         @test_id={"terminal.copy-command"}
-                        on_click={move || copy_text(copied.clone())}
+                        on_click={move || copy(Clip::text(copied.clone()))}
                     />
                 </List>
             </Card>
