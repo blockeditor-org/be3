@@ -711,6 +711,7 @@ impl Refs {
             tag: journal.head.tag,
             base: journal.head.base.clone(),
             entries: journal.entries.values().cloned().collect(),
+            lost: false,
         })
     }
 

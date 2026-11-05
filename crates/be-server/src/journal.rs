@@ -21,6 +21,7 @@ struct Head {
     tag: Hash,
     generation: u64,
     base: JournalBase,
+    lost: bool,
 }
 
 fn head(
@@ -30,7 +31,7 @@ fn head(
 ) -> Result<Option<Head>, ServerError> {
     database
         .query_row(
-            "SELECT tag, generation, base_commit, base_sequence, base_state FROM block_journals
+            "SELECT tag, generation, base_commit, base_sequence, base_state, lost FROM block_journals
              WHERE organization_id = ?1 AND block_id = ?2",
             params![organization.to_string(), block.to_string()],
             |row| {
@@ -40,11 +41,12 @@ fn head(
                     row.get::<_, Option<String>>(2)?,
                     row.get::<_, i64>(3)?,
                     row.get::<_, Vec<u8>>(4)?,
+                    row.get::<_, bool>(5)?,
                 ))
             },
         )
         .optional()?
-        .map(|(tag, generation, commit, sequence, state)| {
+        .map(|(tag, generation, commit, sequence, state, lost)| {
             Ok(Head {
                 tag: Hash::from_bytes(tag.try_into().map_err(|_| ServerError::Corrupt)?),
                 generation: generation as u64,
@@ -53,6 +55,7 @@ fn head(
                     sequence: sequence as u64,
                     state,
                 },
+                lost,
             })
         })
         .transpose()
@@ -102,6 +105,7 @@ pub fn read(
         tag: head.tag,
         base: head.base,
         entries,
+        lost: head.lost,
     }))
 }
 
@@ -195,17 +199,28 @@ pub fn rebase(
     crate::limits::at_most("a journal's base", base.state.len(), MAX_BASE_STATE_BYTES)?;
     let transaction = database.unchecked_transaction()?;
     let (org, id) = (organization.to_string(), block.to_string());
-    if head(&transaction, organization, block)?.is_some_and(|head| head.generation > generation) {
+    let before = head(&transaction, organization, block)?;
+    if before
+        .as_ref()
+        .is_some_and(|head| head.generation > generation)
+    {
         return Err(refuse("the session has a newer owner"));
     }
+    let dropped = last_sequence(&transaction, organization, block)?.is_some();
+    // Another build's entries are lost here; every device opening the block is told so until
+    // the journal moves to another commit.
+    let lost = before.as_ref().is_some_and(|head| {
+        (head.tag != tag && dropped) || (head.lost && head.base.commit == base.commit)
+    });
     transaction.execute(
         "DELETE FROM journal_entries WHERE organization_id = ?1 AND block_id = ?2",
         params![org, id],
     )?;
     transaction.execute(
         "INSERT OR REPLACE INTO block_journals
-             (organization_id, block_id, tag, generation, base_commit, base_sequence, base_state)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+             (organization_id, block_id, tag, generation, base_commit, base_sequence, base_state,
+              lost)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             org,
             id,
@@ -213,7 +228,8 @@ pub fn rebase(
             generation as i64,
             base.commit.map(|commit| commit.hash().to_hex()),
             base.sequence as i64,
-            base.state
+            base.state,
+            lost
         ],
     )?;
     transaction.commit()?;
@@ -264,7 +280,7 @@ impl crate::store::ServerStore {
                 .into_iter()
                 .map(|block| {
                     let journal = read(database, organization, block)?
-                        .filter(|journal| !journal.entries.is_empty());
+                        .filter(|journal| !journal.entries.is_empty() || journal.lost);
                     let size = journal.as_ref().map_or(0, |journal| {
                         journal.base.state.len()
                             + journal

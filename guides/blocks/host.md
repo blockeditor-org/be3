@@ -277,5 +277,6 @@ drops every step, since none applies to the reloaded content: `block-history`
 says `restarted-at`, and the frame answers an undo with nothing left by saying
 "Can't undo past here" with a button that sends `block-command::history` to
 show version history at that commit (the shell gets `show-request::history`).
-`lost-edits` says this device opened the block on another build's journal,
-which it cannot replay; the frame says those edits were lost.
+`lost-edits` says edits of the block made with another build were lost (its
+journal held some this build cannot replay, or the server marked them lost since
+the last commit); the frame says so.

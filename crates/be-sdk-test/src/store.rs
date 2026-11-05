@@ -359,7 +359,7 @@ impl Inner {
                 head,
                 session: session(),
                 journal: None,
-                unreplayable: false,
+                lost_edits: false,
             },
         );
         if let Some(held) = self.blocks.get_mut(&block) {

@@ -134,7 +134,9 @@ with the block key; the server keeps it beside history, never in it
   disk must be that head.
 - A journal is its module tag's: an append of another tag is refused until the
   owner rebases, and a replica of another build opens on the head alone and
-  reports the edits lost (guides/blocks/host.md, Undo).
+  reports the edits lost (guides/blocks/host.md, Undo). A rebase of another tag
+  that drops entries marks the journal `lost` until it moves to another commit,
+  so every device opening the block meanwhile is told too.
 
 ## The refs database
 

@@ -232,5 +232,9 @@ interface types {
         tag: hash,
         base: journal-base,
         entries: list<journal-entry>,
+        /// A rebase by another build dropped entries since the base's commit:
+        /// edits made with the build before were lost, which every device
+        /// opening the block is told until the next commit.
+        lost: bool,
     }
 }

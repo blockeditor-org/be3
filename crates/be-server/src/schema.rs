@@ -310,6 +310,7 @@ const SCHEMA: &str = "
         base_commit     TEXT,
         base_sequence   INTEGER NOT NULL,
         base_state      BLOB NOT NULL,
+        lost            INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, block_id)
     );
 

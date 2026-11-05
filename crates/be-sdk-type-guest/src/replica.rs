@@ -37,8 +37,13 @@ pub const APPEND_INTERVAL: u64 = 250;
 
 /// An owner restarts its session at a commit once the session state passes this and outgrows
 /// the visible content: tombstones and positions kept for concurrent edits, which a reload from
-/// the commit drops.
+/// the commit drops. It waits for a commit it makes alone, so nobody's edits need carrying over,
+/// until the state passes `RESTART_CEILING` times this.
 pub const RESTART_STATE_BYTES: usize = 1024 * 1024;
+
+/// How far past `RESTART_STATE_BYTES` session state grows before an owner with others in the
+/// session restarts anyway.
+pub const RESTART_CEILING: usize = 4;
 
 pub const HEARTBEAT_INTERVAL: u64 = be_block_session::LEASE_MILLISECONDS as u64 / 2;
 
@@ -57,7 +62,7 @@ pub(crate) struct Opened {
     pub(crate) head: Option<CommitId>,
     pub(crate) session: SessionState,
     pub(crate) journal: Option<Journal>,
-    pub(crate) unreplayable: bool,
+    pub(crate) lost_edits: bool,
     pub(crate) from_file: Option<FromFileFn>,
     pub(crate) now: u64,
 }
@@ -523,7 +528,7 @@ where
             applied_ops: Vec::new(),
             restarting: false,
             restarted_at: None,
-            lost_edits: opened.unreplayable,
+            lost_edits: opened.lost_edits,
             beaten: None,
             active: false,
             sealing: false,
@@ -3064,13 +3069,16 @@ where
 
     /// Whether this commit should restart the session: the session state, which only
     /// concurrent edits need, has grown past `RESTART_STATE_BYTES` and past the content it
-    /// describes, and no gesture is open.
+    /// describes, no gesture is open, and the owner is alone or the state passed the ceiling.
     fn restart_due(&self) -> bool {
         if self.history.gesture_open() {
             return false;
         }
         let state = self.confirmed.session_state().len();
-        state > restart_limit() && state > self.confirmed.encode().len()
+        let limit = restart_limit();
+        state > limit
+            && state > self.confirmed.encode().len()
+            && (self.alone() || state > limit.saturating_mul(RESTART_CEILING))
     }
 
     /// The owner restarted the session at `head`: it reloads from the commit, so every replica
@@ -3083,7 +3091,7 @@ where
         let mut after = fresh.clone();
         let mut carried = Vec::new();
         for held in std::mem::take(&mut self.held) {
-            let moved = C::carry_over(&held, &before, &after);
+            let moved = C::carry_over(&held, &before, &after, self.client);
             before.apply(&held);
             if let Some(moved) = moved {
                 after.apply(&moved);
@@ -3116,7 +3124,7 @@ where
                 let Ok(operation) = C::decode_operation(&payload) else {
                     continue;
                 };
-                let moved = C::carry_over(&operation, &before, &after);
+                let moved = C::carry_over(&operation, &before, &after, self.client);
                 before.apply(&operation);
                 if let Some(moved) = moved {
                     after.apply(&moved);
@@ -3127,7 +3135,7 @@ where
         }
         let unsent = std::mem::take(&mut self.unsent);
         for (operation, bound, weight) in unsent {
-            let moved = C::carry_over(&operation, &before, &after);
+            let moved = C::carry_over(&operation, &before, &after, self.client);
             before.apply(&operation);
             if let Some(moved) = moved {
                 after.apply(&moved);

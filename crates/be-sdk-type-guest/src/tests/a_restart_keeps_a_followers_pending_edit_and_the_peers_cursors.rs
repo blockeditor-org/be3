@@ -4,7 +4,7 @@ const CURSOR: Uuid = Uuid::from_u128(0xc0);
 
 #[test]
 fn a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors() {
-    crate::replica::RESTART_LIMIT.with(|limit| limit.set(64));
+    crate::replica::RESTART_LIMIT.with(|limit| limit.set(8));
     let mut sim = Sim::<ProseContent>::new(2, prose_with_undo_module);
     sim.publish_elsewhere(&prose_of("start\n"));
     sim.open(0);
@@ -38,7 +38,9 @@ fn a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors() {
     let restarted = sim.head;
     assert!(restarted.is_some());
     assert!(
-        sim.content(0).session_state().len() < 64,
+        sim.journal
+            .as_ref()
+            .is_some_and(|journal| journal.base.commit == restarted && journal.base.state.len() < 8),
         "the owner reloaded from the commit and dropped its tombstones"
     );
     for device in 0..2 {

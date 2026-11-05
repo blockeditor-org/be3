@@ -726,7 +726,7 @@ impl<H: Host> Replicas<H> {
             tag,
             head,
             session: session.clone(),
-            unreplayable: unreplayable(journal.as_ref(), tag),
+            lost_edits: lost_edits(journal.as_ref(), tag),
             journal: journal.and_then(|journal| replayable(journal, tag)),
         };
         let handle = self
@@ -873,7 +873,7 @@ impl<H: Host> Replicas<H> {
             tag: self.modules.tag(module),
             head,
             session,
-            unreplayable: unreplayable(journal.as_ref(), self.modules.tag(module)),
+            lost_edits: lost_edits(journal.as_ref(), self.modules.tag(module)),
             journal: journal.and_then(|journal| replayable(journal, self.modules.tag(module))),
         };
         let editors: Vec<(EditorId, bool)> = open
@@ -1914,7 +1914,7 @@ impl<H: Host> Replicas<H> {
                 head: open.status.head,
                 session: open.session.clone(),
                 journal: None,
-                unreplayable: false,
+                lost_edits: false,
             };
             let editors: Vec<(EditorId, bool)> = open
                 .editors
@@ -2554,12 +2554,15 @@ fn journal_for<S: be_block_store::ObjectStore>(
     }
 }
 
-/// Whether `journal` holds edits another build wrote, which this module cannot replay.
-fn unreplayable(
+/// Whether edits of the block made with another build were lost: `journal` holds some this
+/// module cannot replay, or the server marked them lost since the last commit.
+fn lost_edits(
     journal: Option<&be_block_protocol::Journal>,
     tag: be_sdk_type_api::SessionTag,
 ) -> bool {
-    journal.is_some_and(|journal| journal.tag.as_bytes() != &tag.0 && !journal.entries.is_empty())
+    journal.is_some_and(|journal| {
+        journal.lost || (journal.tag.as_bytes() != &tag.0 && !journal.entries.is_empty())
+    })
 }
 
 /// An opened journal as a replica of this module takes it, when the module wrote it.

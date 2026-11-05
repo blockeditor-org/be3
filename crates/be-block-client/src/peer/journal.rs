@@ -82,6 +82,7 @@ impl<S: ObjectStore> Peer<S> {
         };
         Ok(Journal {
             tag: journal.tag,
+            lost: journal.lost,
             base: JournalBase {
                 state: open(&journal.base.state)?,
                 ..journal.base

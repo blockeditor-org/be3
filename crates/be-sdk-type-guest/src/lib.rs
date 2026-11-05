@@ -297,7 +297,7 @@ impl Module {
                 head: opening.head,
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),
-                unreplayable: opening.unreplayable,
+                lost_edits: opening.lost_edits,
                 from_file: kind.from_file,
                 now,
             })
