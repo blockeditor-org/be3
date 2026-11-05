@@ -85,10 +85,17 @@ interface types {
     }
 
     /// One part of `written.bytes`, in pre-order: a part of the next
-    /// this-many bytes, or a node holding the next this-many parts.
+    /// this-many bytes, or a node.
     variant written-part {
         bytes(u32),
-        node(u32),
+        node(written-node),
+    }
+
+    /// A node holding the next this-many parts, and the blocks it references
+    /// itself (not its parts').
+    record written-node {
+        parts: u32,
+        references: list<block-id>,
     }
 
     /// A publish that merges: `ours` becomes the second parent.

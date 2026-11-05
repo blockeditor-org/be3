@@ -20,6 +20,7 @@
 use std::{borrow::Cow, collections::HashMap};
 
 use be_block_store::{ChunkerConfig, Hash, LoadedPart, PartRef, split};
+use uuid::Uuid;
 
 use crate::{
     Malformed,
@@ -51,6 +52,7 @@ const REFERENCE: usize = 2 + Hash::LEN;
 pub struct DocumentPart {
     hash: Hash,
     bytes: Vec<u8>,
+    references: Vec<Uuid>,
     children: Vec<DocumentPart>,
 }
 
@@ -59,9 +61,12 @@ impl DocumentPart {
         let mut seen = std::collections::BTreeSet::new();
         children.retain(|child| seen.insert(child.hash));
         let bytes = encode(value);
+        let mut references = Vec::new();
+        crate::references::walk(value, &mut references);
         Self {
             hash: Hash::of(&bytes),
             bytes,
+            references: crate::references::distinct(references),
             children,
         }
     }
@@ -73,6 +78,11 @@ impl DocumentPart {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    /// The blocks this part's own bytes reference, not its children's.
+    pub fn references(&self) -> &[Uuid] {
+        &self.references
     }
 
     /// The parts this one names, each once, in the order it names them.
@@ -90,20 +100,24 @@ impl DocumentPart {
     }
 
     /// The part as the vault saves it, whose leaves in order are `write`'s
-    /// bytes: a part with children is a node of its own bytes and then theirs.
-    /// A part in `saved` is handed back as it was saved.
+    /// bytes: a part with children or references is a node of its own bytes
+    /// and then its children, listing its references. A part in `saved` is
+    /// handed back as it was saved, references and all.
     pub(crate) fn store(self, saved: &HashMap<Hash, PartRef>) -> be_block_store::Part<'static> {
         if let Some(reference) = saved.get(&self.hash) {
             return be_block_store::Part::Reused(*reference);
         }
         let own = be_block_store::Part::Bytes(Cow::Owned(self.bytes));
-        if self.children.is_empty() {
+        if self.children.is_empty() && self.references.is_empty() {
             return own;
         }
         let mut parts = Vec::with_capacity(self.children.len() + 1);
         parts.push(own);
         parts.extend(self.children.into_iter().map(|child| child.store(saved)));
-        be_block_store::Part::Node(parts)
+        be_block_store::Part::Node {
+            parts,
+            references: self.references,
+        }
     }
 
     /// This part and every part below it, depth first, parents before
@@ -434,15 +448,15 @@ pub(crate) fn saved(stored: &be_block_store::Stored) -> HashMap<Hash, PartRef> {
     saved
 }
 
-/// A part with children was saved as a node of its own bytes then each child;
-/// one without, as its bytes.
+/// A part with children or references was saved as a node of its own bytes
+/// then each child; one without, as its bytes.
 fn learn(stored: &be_block_store::Stored, loaded: &LoadedPart, saved: &mut HashMap<Hash, PartRef>) {
     match loaded.reference {
         PartRef::Node(_) => {
             let Some((own, children)) = loaded.children.split_first() else {
                 return;
             };
-            if !own.children.is_empty() || children.is_empty() {
+            if !own.children.is_empty() {
                 return;
             }
             saved.insert(Hash::of(stored.bytes_of(own)), loaded.reference);

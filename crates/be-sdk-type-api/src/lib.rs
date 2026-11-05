@@ -60,8 +60,11 @@ fn shape_into(
             bytes.extend_from_slice(held);
         }
         be_block_store::Part::Reused(_) => return None,
-        be_block_store::Part::Node(parts) => {
-            shape.push(WrittenPart::Node(u32::try_from(parts.len()).ok()?));
+        be_block_store::Part::Node { parts, references } => {
+            shape.push(WrittenPart::Node(WrittenNode {
+                parts: u32::try_from(parts.len()).ok()?,
+                references: references.clone(),
+            }));
             for part in parts {
                 shape_into(part, bytes, shape)?;
             }
@@ -94,12 +97,15 @@ fn take_part<'a>(
             *at = end;
             Some(be_block_store::Part::from(part))
         }
-        WrittenPart::Node(count) if depth < 64 => {
+        WrittenPart::Node(node) if depth < 64 => {
             let mut parts = Vec::new();
-            for _ in 0..*count {
+            for _ in 0..node.parts {
                 parts.push(take_part(bytes, at, shape, depth + 1)?);
             }
-            Some(be_block_store::Part::Node(parts))
+            Some(be_block_store::Part::Node {
+                parts,
+                references: node.references.clone(),
+            })
         }
         WrittenPart::Node(_) => None,
     }
