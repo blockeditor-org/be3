@@ -164,8 +164,9 @@ rebase. The rules an agent most needs:
   sequence until the answer.
 - A replica opening on the journal's base (`opening.journal`) loads its session
   state and replays it: as owner it continues the journal's numbering, as a
-  follower it greets with that base and is sent no session state, and one
-  that takes over from a crashed owner commits what it replayed at once.
+  follower it greets with that base and is sent no session state. A follower
+  that takes over appends again what it applied since its last sealed head
+  (`applied_ops`), or commits at once when it cannot number it.
   `replay` does the same for a reader outside the session.
 - An edit too large to relay (over 1 MiB) is never relayed: an owner
   publishes it, and a follower stashes it and hands the owner a `Kept`. A

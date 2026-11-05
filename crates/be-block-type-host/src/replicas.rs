@@ -1754,7 +1754,11 @@ impl<H: Host> Replicas<H> {
             let joining = std::mem::replace(&mut open.joining, false);
             open.rejoining = None;
             open.early.clear();
+            let block = open.block;
             self.make_up_session(replica);
+            // Reconnecting reopens the replica from its head, so what it owns is committed here
+            // first, rather than at its next pause.
+            self.seal_later(block, false);
             if joining {
                 self.close_if_asked(replica);
             }

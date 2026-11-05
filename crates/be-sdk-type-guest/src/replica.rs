@@ -369,6 +369,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     unappended: Vec<SessionOp>,
     append_at: Option<u64>,
     appended_bytes: usize,
+    applied_ops: Vec<SessionOp>,
     beaten: Option<u64>,
     active: bool,
     sealing: bool,
@@ -505,6 +506,7 @@ where
             unappended: Vec::new(),
             append_at: None,
             appended_bytes: 0,
+            applied_ops: Vec::new(),
             beaten: None,
             active: false,
             sealing: false,
@@ -941,6 +943,7 @@ where
                 if let Role::Follower(follower) = &mut self.role {
                     follower.set_applied(sealed);
                 }
+                self.applied_ops.clear();
                 self.rebuild_visible();
                 self.snapshot_ops(sealed, sequence, ops, applied);
                 self.flush();
@@ -958,6 +961,7 @@ where
                 if let Role::Follower(follower) = &mut self.role {
                     follower.set_applied(sequence);
                 }
+                self.applied_ops.clear();
                 self.rebuild_visible();
                 self.base = Some(head);
                 self.sealed = sequence;
@@ -1509,6 +1513,7 @@ where
             false => {
                 let mut follower = Follower::new(self.client);
                 follower.set_applied(last);
+                self.applied_ops = replayed;
                 Role::Follower(follower)
             }
         };
@@ -2374,6 +2379,7 @@ where
                 }
                 self.base = Some(head);
                 self.sealed = sequence;
+                self.applied_ops.retain(|op| op.sequence > sequence);
             }
         }
     }
@@ -2493,6 +2499,7 @@ where
         let Ok(operation) = C::decode_operation(&op.payload) else {
             return self.unreadable_message();
         };
+        self.applied_ops.push(op.clone());
         let Role::Follower(follower) = &mut self.role else {
             return;
         };
@@ -2590,6 +2597,7 @@ where
             Role::Owner(sequencer) => {
                 let sequence = sequencer.sequence();
                 self.role = Role::Follower(Follower::continuing(self.client, sequence));
+                self.applied_ops.clear();
                 self.reload = false;
                 return;
             }
@@ -2619,8 +2627,24 @@ where
         }
         let applied = follower.applied();
         let pending = follower.take_pending();
-        let mut sequencer =
-            Sequencer::continuing(self.base, applied, applied.saturating_sub(self.sealed));
+        let kept = std::mem::take(&mut self.applied_ops);
+        let complete = kept.iter().all(|op| op.sequence > self.sealed)
+            && kept
+                .last()
+                .map_or(applied == self.sealed, |op| op.sequence == applied);
+        let (mut sequencer, kept) = match complete {
+            true => {
+                let mut sequencer = Sequencer::continuing(self.base, self.sealed, 0);
+                for op in &kept {
+                    sequencer.replayed(op.clone());
+                }
+                (sequencer, kept)
+            }
+            false => (
+                Sequencer::continuing(self.base, applied, applied.saturating_sub(self.sealed)),
+                Vec::new(),
+            ),
+        };
         if std::mem::take(&mut self.catching_up) {
             sequencer.carry_unsealed();
             self.reload = true;
@@ -2660,9 +2684,11 @@ where
             true => vec![self.base],
             false => Vec::new(),
         };
+        let inherited = sequencer.inherited() > 0;
         self.role = Role::Owner(sequencer);
         self.rebased = false;
         self.appended_bytes = 0;
+        self.append(kept, false);
         self.replace_visible(self.confirmed.clone());
         for handed in self.handed.clone() {
             self.jobs.push_back(Job::Keep(Keeping {
@@ -2684,9 +2710,11 @@ where
                 }
             }
         }
-        // The journal starts over at this owner's first append, so what it took over is
+        // The journal started over without what this owner holds but could not number: it is
         // durable once committed.
-        self.commit_now();
+        if inherited {
+            self.commit_now();
+        }
     }
 
     fn claim(&mut self) {

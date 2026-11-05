@@ -287,7 +287,7 @@ struct State {
 
 /// A block's journal on this device, sealed as on the server: what this device's replica
 /// sequenced as its owner since the base, kept until a commit holds it.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct JournalHead {
     tag: Hash,
     generation: u64,

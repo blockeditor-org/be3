@@ -25,7 +25,7 @@ impl<S: ObjectStore> Peer<S> {
         let key = self.sealing_key(block).await?;
         let sealed = entries
             .into_iter()
-            .map(|entry| {
+            .map(|entry| -> Result<JournalEntry, ClientError> {
                 Ok(JournalEntry {
                     payload: self.commits.vault().seal(key, &entry.payload)?,
                     ..entry
@@ -68,9 +68,11 @@ impl<S: ObjectStore> Peer<S> {
     /// Opens a sealed journal: its base state and each entry's payload.
     pub fn open_journal(&self, journal: Journal) -> Result<Journal, ClientError> {
         let vault = self.commits.vault();
-        let open = |sealed: &[u8]| match sealed.is_empty() {
+        let open = |sealed: &[u8]| -> Result<Vec<u8>, ClientError> {
+            match sealed.is_empty() {
             true => Ok(Vec::new()),
-            false => vault.open(sealed).map_err(locked),
+                false => vault.open(sealed).map_err(locked),
+            }
         };
         Ok(Journal {
             tag: journal.tag,
@@ -81,7 +83,7 @@ impl<S: ObjectStore> Peer<S> {
             entries: journal
                 .entries
                 .into_iter()
-                .map(|entry| {
+                .map(|entry| -> Result<JournalEntry, ClientError> {
                     Ok(JournalEntry {
                         payload: open(&entry.payload)?,
                         ..entry

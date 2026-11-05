@@ -98,8 +98,9 @@ the socket) leaves content on screen; the worker backs off (`reconnect_delay`,
 cut short by `retry_now`), reconnects, reloads the graph and rejoins every open
 block. Meanwhile it keeps serving from the same `Peer` (the loop's `Line`:
 `Up` or `Down`), and every open replica is handed a session it owns
-(`Replicas::disconnected`), so a follower takes over what it had not confirmed
-and seals it locally.
+(`Replicas::disconnected`), so a follower takes over what it had not confirmed,
+and each is asked to seal at once, locally, since reconnecting reopens it from
+its head.
 
 - **Opening early.** A block this device knows opens from its local head as a
   follower of a placeholder owner (`JOINING_OWNER`) if joining takes longer

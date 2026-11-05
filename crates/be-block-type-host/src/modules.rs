@@ -768,7 +768,9 @@ impl Modules {
             return bytes;
         };
         let content_type = summary.content_type;
-        let module = self.module_of(content_type)?;
+        let Some(module) = self.module_of(content_type) else {
+            return bytes;
+        };
         let journal = match journal.tag.as_bytes() == &self.tag(module).0 {
             true => be_sdk_type_api::Journal {
                 base: be_sdk_type_api::JournalBase {
