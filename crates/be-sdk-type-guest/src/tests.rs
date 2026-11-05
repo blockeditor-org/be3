@@ -47,6 +47,7 @@ mod a_module_answers_stateless_requests;
 mod a_peer_running_another_build_is_refused;
 mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod a_replaced_file_takes_none_of_the_old_files_header;
+mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_replacement_keeps_a_followers_unconfirmed_edits_in_history;
 mod a_replacement_made_while_the_owner_is_gone_reaches_every_peer;
 mod a_replacement_made_while_the_owner_is_gone_reaches_the_owner_that_takes_over;
@@ -131,6 +132,23 @@ impl crate::BlobFile for Bytes {
 }
 
 type FileContent = Blob<Bytes>;
+
+/// A blob whose replicas load only its header.
+struct Recording;
+
+impl BlobKind for Recording {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7265_636f_7264_696e_672d_626c_6f63_6b31);
+
+    const LOADS: be_block::Loads = be_block::Loads::FirstPart;
+
+    type Header = String;
+
+    fn name(header: &String) -> &str {
+        header
+    }
+}
+
+type RecordingContent = Blob<Recording>;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 struct Counter {
@@ -240,6 +258,10 @@ fn prose_module() -> Module {
 
 fn file_module() -> Module {
     Module::new(vec![Registration::of::<FileContent>()])
+}
+
+fn recording_module() -> Module {
+    Module::new(vec![Registration::of::<RecordingContent>()])
 }
 
 fn folder_module() -> Module {
@@ -605,8 +627,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn write_parts(&mut self, parts: be_block::Part<'_>, parents: Vec<CommitId>) -> CommitId {
-        self.written += 1;
         let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
+        self.commit(manifest, parents)
+    }
+
+    fn commit(&mut self, manifest: be_block_store::Manifest, parents: Vec<CommitId>) -> CommitId {
+        self.written += 1;
         let bytes = self.vault.read(&manifest).unwrap();
         let id = CommitId::from_hash(Hash::of_parts(&[&bytes, &self.written.to_be_bytes()]));
         self.commits.insert(
@@ -824,9 +850,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         reply.send(host, &Ok(PublishOutcome::Rejected(head)))
                     });
                 }
+                let parts = be_sdk_type_api::written_parts(&content.bytes, &content.parts);
+                let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
                 if let Some(head) = expected
                     && merging.is_none()
-                    && self.commits[&head].bytes == content.bytes
+                    && self.commits[&head].manifest == manifest
                 {
                     return self.to(device, |host| {
                         reply.send(host, &Ok(PublishOutcome::Published(head)))
@@ -836,7 +864,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .into_iter()
                     .chain(merging.map(|merging| merging.ours))
                     .collect();
-                let head = self.write(content.bytes, parents);
+                let head = self.commit(manifest, parents);
                 self.head = Some(head);
                 self.publishes += 1;
                 self.to(device, |host| {
@@ -852,7 +880,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 parent,
                 content,
             } => {
-                let commit = self.write(content.bytes, parent.into_iter().collect());
+                let parts = be_sdk_type_api::written_parts(&content.bytes, &content.parts);
+                let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
+                let commit = self.commit(manifest, parent.into_iter().collect());
                 self.to(device, |host| reply.send(host, &Ok(commit)));
             }
             Call::Load {

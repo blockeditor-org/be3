@@ -20,15 +20,19 @@ and per-part references (formerly 1–4) are done; 1a's wiring and 5 are left.
   are shared between commits, and a manifest may mix data key epochs. A
   be-block-client test (`a_large_block_saved_after_a_small_change_uploads_only_what_changed`)
   shows an 8 KiB edit to a 4 MiB block saving one chunk and two nodes.
-- **Replicas.** A type module's replica sends its parts' shape with the bytes
-  (`written.parts` on the type protocol), so its saves are parts too. It holds
-  no `PartRef`s, so nothing it saves is `Reused`: unchanged parts are sealed
-  again, to the same chunks (deterministic nonces), and are not uploaded.
-- **Range reads.** `Streamed` content is `[u32 header length][header][payload]`;
-  `Peer::stream_header`, `stream_range` and `read_span` fetch only the nodes
-  and chunks a range touches. Only a be-block-client test uses them
-  (`a_large_image_streams_without_downloading_all_of_it`). The replica and apps
-  always load content whole, and `Blob` holds its payload in memory.
+- **Replicas.** A type module's replica loads a commit with its parts (the
+  `load` host call answers a `Stored`) and saves parts, `reused` ones included
+  (`written.parts` on the type protocol).
+- **Loading part of a block.** A type whose `BlockContent::LOADS` is
+  `Loads::FirstPart` loads only the root's first part; its replica, its
+  followers and its editors hold only that, an editor reads the rest by range
+  (`LiveContent::read_range`, answered through the replica and the `read-part`
+  host call), and a save reuses what it never loaded
+  (guides/blocks/apps.md, "Reading a range";
+  `a_replica_that_loads_only_the_header_reads_the_payload_on_demand`). `Blob`
+  supports it per kind (`BlobKind::LOADS`), but no kind uses it yet.
+- **Range reads on the peer.** `Peer::stream_header`, `stream_range`,
+  `read_span` and `read_part` fetch only the nodes and chunks a range touches.
 - **Publishing** sends what changed since the expected head: an
   `ObjectChange` and an order-keeping `ReferenceChange`
   (`crates/be-block-protocol`); the server rebuilds the commit's object list
@@ -39,7 +43,8 @@ and per-part references (formerly 1–4) are done; 1a's wiring and 5 are left.
   own (`Part::Node { references }`), so a reused part keeps its references
   without being loaded (guides/blocks/content_types.md, "Parts").
   `Peer::references_of` lists a commit's.
-- **Sessions.** A joining follower gets the owner's whole state in `Snapshot`.
+- **Sessions.** A joining follower loads the head from the store itself, so
+  for a type that loads its first part it gets no more than that.
 - **Documents** save as parts chosen by their structure: list objects by id,
   large objects as parts of their own, text and other bytes by content-defined
   chunking (guides/blocks/content_types.md, "The stored form"). Typing in a
@@ -62,23 +67,24 @@ but still load whole. Left:
   loaded when first read. Chat's segments don't need that, since they are its
   own layout.
 
-### 5. Replicas and apps that load part of a block
+### 5. What is left of loading part of a block
 
-- A type can load only part of its content: for example the `Streamed` header
-  as a `Document`, with the payload fetched on demand.
-- Apps and type modules get a host call that reads a byte range of the block as
-  the replica loaded it, including parts not saved yet. It is a call on the
-  app protocol, with no framework types.
-- `Snapshot` sends only the loaded part; followers fetch the rest from the
-  store.
-- An operation that adds a part (closing a chat segment) carries the part's
-  hash. Every replica encodes the same bytes and checks the hash.
+- **Blob kinds load only their header.** Image, audio, PDF, game module and
+  workspace file editors read `Blob::data()` (`be-app-image/src/root/picture.rs`,
+  `be-app-audio/src/root/ui.rs`, `be-app-pdf/src/root/pages.rs`,
+  `be-app-deterministic-game`, the canvas's `export.rs`). Give
+  `ContentProjection<Blob<K>>` a payload signal that holds `data()` when it is
+  loaded and otherwise reads `[header length, stored_length)` with
+  `read_range` once per snapshot, move those editors onto it, then set each
+  kind's `BlobKind::LOADS` to `Loads::FirstPart`.
+- **An operation that adds a part** (closing a chat segment) carries the
+  part's hash. Every replica encodes the same bytes and checks the hash. Chat
+  is its first user.
 
 ## Order of work
 
-5 is left. Chat needs 1a and 5; the canvas and text need 1a.
+Chat needs what is left of 1a and 5; blobs need 5's first item.
 
 ## Tests
 
-- A replica that loads only the header reads a payload range on demand, and a
-  follower joining it gets a snapshot without the payload.
+- An image editor shows an image whose replica loaded only its header.

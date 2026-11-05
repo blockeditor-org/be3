@@ -52,6 +52,13 @@ references }`, read back as `LoadedPart::references`). A commit references
 that keeps references per part reports only the rest from `references_in`,
 and a part it reuses keeps its references without being read or encoded.
 
+A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads only the root's
+first part (a file's header): `from_stored` gets a `Stored` whose `bytes` hold
+that part (`Stored::holds` says which parts it has), `parts` hands the others
+back as `Reused`, and `encode` gives only the loaded bytes, which is what its
+replica's followers and editors are sent. Its editors read the rest by range
+(guides/blocks/apps.md, "Reading a range").
+
 ## Documents: `be_block_model`
 
 Almost every type is a `Document<R>`: structs deriving `be_block_model::Model`
@@ -212,7 +219,11 @@ A block saved by another schema is offered for reset (guides/blocks/host.md,
 A small header plus a payload that can be megabytes: `Blob<K>` for any
 `BlobKind` (`ImageContent`, `AudioContent`, `PdfContent`,
 `GameModuleContent`). It saves its header and payload as two parts and keeps
-the payload's ref when loaded, so a rename uploads only the header. It is
+the payload's ref when loaded, so a rename uploads only the header. A kind
+whose `BlobKind::LOADS` is `Loads::FirstPart` loads only the header, and its
+payload stays in the store (`Blob::is_loaded`, `payload_length`) until an
+editor reads it by range; no kind does yet, since their editors read `data()`.
+It is
 `Streamed`, its only live edit is
 `BlobOp::SetHeader`, and an offline merge takes whichever side changed. The
 payload never travels as an operation (session frames are at most 8 MB): it

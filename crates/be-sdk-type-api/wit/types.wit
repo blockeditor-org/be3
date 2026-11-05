@@ -85,10 +85,12 @@ interface types {
     }
 
     /// One part of `written.bytes`, in pre-order: a part of the next
-    /// this-many bytes, or a node.
+    /// this-many bytes, a node, or a saved part kept as it is, whose bytes
+    /// `written.bytes` leaves out (`be_block::Loads::FirstPart`).
     variant written-part {
         bytes(u32),
         node(written-node),
+        reused(part-ref),
     }
 
     /// A node holding the next this-many parts, and the blocks it references

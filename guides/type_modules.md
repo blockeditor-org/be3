@@ -129,9 +129,15 @@ host owes a replica (the WIT documents each call):
   one in `opening`; the replica does not reconcile on opening. After a
   reconnect, `reopen` starts the replica over and the host replays what it
   kept and re-asks what was unanswered.
-- **IO.** `read`, `publish` (a compare-and-swap on `expected`), `stash` and
+- **IO.** `load`, `publish` (a compare-and-swap on `expected`), `stash` and
   `resume-session` are async imports the host completes. A replica waits on
-  one answer at a time.
+  one answer at a time. `load` answers a commit's stored form with the parts it
+  was saved in (`loaded`, which becomes a `be_block_store::Stored`), only the
+  first part's bytes for a type that loads only that (`be_block::Loads`).
+  `read-part` reads a range of a saved part, which a replica answering an
+  editor's `Read` uses outside that one-answer rule (guides/blocks/apps.md,
+  "Reading a range"). `written` carries the parts a save keeps as they were as
+  `reused`, so such a replica saves without the bytes it never loaded.
 - **The lease, relaying and reports.** The host passes on the session's lease
   state, relays `send`s to peers or editors, and stores what the replica
   reports (status, description, history, conflicts, errors).

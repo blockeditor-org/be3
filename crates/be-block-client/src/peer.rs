@@ -666,6 +666,33 @@ impl<S: ObjectStore> Peer<S> {
             .await
     }
 
+    /// The stored form's first part, without the rest (`be_block::Loads::FirstPart`).
+    pub async fn load_first_part(&self, manifest: &Manifest) -> Result<Stored, ClientError> {
+        self.fetch_nodes(manifest).await?;
+        let end = self
+            .commits
+            .vault()
+            .outline(manifest)?
+            .map_or(0, |root| root.first_end());
+        self.fetch_range(manifest, 0, end).await?;
+        self.retrying(|| Ok(self.commits.vault().load_first(manifest)?))
+            .await
+    }
+
+    /// A range of a saved part's bytes, fetching only the objects under it.
+    pub async fn read_part(
+        &self,
+        part: be_block_store::PartRef,
+        offset: u64,
+        length: u64,
+    ) -> Result<Vec<u8>, ClientError> {
+        let manifest = Manifest {
+            content_type: Uuid::nil(),
+            root: Some(part),
+        };
+        self.read_span(&manifest, offset, length).await
+    }
+
     /// Fetches the objects of the manifest tree under a range of the stored form, a level of
     /// nodes at a time.
     async fn fetch_range(

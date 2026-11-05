@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 use crate::{
-    BlockContent, BlockMetadata, ContentError, LiveEdit, Merge, Part, PartRef, Stored,
+    BlockContent, BlockMetadata, ContentError, LiveEdit, Loads, Merge, Part, PartRef, Stored,
     streamed::{Streamed, decode_streamed, encode_streamed},
 };
 
@@ -15,6 +15,10 @@ pub trait BlobKind: Send + Sync + 'static {
     const FROZEN: bool = false;
 
     const SCHEMA: u32 = 0;
+
+    /// `Loads::FirstPart` leaves the payload in the store for editors to read by range
+    /// (`Blob::is_loaded`); a kind switches once its editors read it that way.
+    const LOADS: Loads = Loads::Whole;
 
     type Header: Clone
         + Debug
@@ -40,6 +44,7 @@ pub struct Blob<K: BlobKind> {
     header: K::Header,
     data: Vec<u8>,
     saved: Option<PartRef>,
+    unloaded: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -53,6 +58,7 @@ impl<K: BlobKind> Blob<K> {
             header,
             data,
             saved: None,
+            unloaded: false,
         }
     }
 
@@ -60,8 +66,22 @@ impl<K: BlobKind> Blob<K> {
         &self.header
     }
 
+    /// The payload, empty while it is not loaded (`is_loaded`).
     pub fn data(&self) -> &[u8] {
         &self.data
+    }
+
+    /// False for a blob of a kind that loads only its header (`BlobKind::LOADS`), whose
+    /// payload stays in the store.
+    pub const fn is_loaded(&self) -> bool {
+        !self.unloaded
+    }
+
+    pub fn payload_length(&self) -> u64 {
+        match self.unloaded {
+            true => self.saved.map_or(0, PartRef::length),
+            false => self.data.len() as u64,
+        }
     }
 
     pub fn set_header(&mut self, header: K::Header) {
@@ -75,6 +95,7 @@ impl<K: BlobKind> Clone for Blob<K> {
             header: self.header.clone(),
             data: self.data.clone(),
             saved: self.saved,
+            unloaded: self.unloaded,
         }
     }
 }
@@ -85,13 +106,19 @@ impl<K: BlobKind> Default for Blob<K> {
             header: K::Header::default(),
             data: Vec::new(),
             saved: None,
+            unloaded: false,
         }
     }
 }
 
 impl<K: BlobKind> PartialEq for Blob<K> {
     fn eq(&self, other: &Self) -> bool {
-        self.header == other.header && self.data == other.data
+        let payload = match (self.unloaded, other.unloaded) {
+            (false, false) => self.data == other.data,
+            (true, true) => self.saved == other.saved,
+            _ => false,
+        };
+        self.header == other.header && payload
     }
 }
 
@@ -111,6 +138,8 @@ impl<K: BlobKind> BlockContent for Blob<K> {
     const CONTENT_TYPE: Uuid = K::CONTENT_TYPE;
 
     const FROZEN: bool = K::FROZEN;
+
+    const LOADS: Loads = K::LOADS;
 
     fn schema() -> String {
         format!("blob {}", K::SCHEMA)
@@ -136,15 +165,18 @@ impl<K: BlobKind> BlockContent for Blob<K> {
 
     fn from_stored(stored: &Stored) -> Result<Self, ContentError> {
         let mut blob = Self::decode(&stored.bytes)?;
-        let payload = stored.bytes.len() - blob.data.len();
-        blob.saved = stored
+        let header = (stored.bytes.len() - blob.data.len()) as u64;
+        let Some(payload) = stored
             .root
             .as_ref()
-            .and_then(|root| root.children.get(1))
-            .filter(|part| {
-                part.range() == (payload as u64..stored.bytes.len() as u64) && !blob.data.is_empty()
-            })
-            .map(|part| part.reference);
+            .filter(|root| root.children.len() == 2)
+            .map(|root| &root.children[1])
+            .filter(|payload| payload.range().start == header)
+        else {
+            return Ok(blob);
+        };
+        blob.saved = Some(payload.reference);
+        blob.unloaded = !stored.holds(payload);
         Ok(blob)
     }
 

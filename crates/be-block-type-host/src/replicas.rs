@@ -13,7 +13,7 @@ use be_block_graph::BlockParent;
 use be_block_protocol::{ClientId, ErrorCode, SessionState};
 use be_sdk_type_api::ops::wire::{self, Decode};
 use be_sdk_type_api::{
-    ByteRange, Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome,
+    Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome,
     Recipients, ReplicaId, Resume, Status,
     embed::{
         exports::replicas::{self, Replica},
@@ -125,7 +125,11 @@ struct Unanswered {
 }
 
 pub enum Answered {
-    Read(
+    Load(
+        Reply<Result<be_sdk_type_api::Loaded, String>>,
+        Result<be_sdk_type_api::Loaded, String>,
+    ),
+    ReadPart(
         Reply<Result<Vec<u8>, String>, wire::Fallible<wire::Bytes, wire::Plain>>,
         Result<Vec<u8>, String>,
     ),
@@ -140,7 +144,8 @@ impl Answered {
 
     fn send(self, connection: &mut Connection) {
         match self {
-            Answered::Read(reply, result) => reply.send(connection, &result),
+            Answered::Load(reply, result) => reply.send(connection, &result),
+            Answered::ReadPart(reply, result) => reply.send(connection, &result),
             Answered::Stash(reply, result) => reply.send(connection, &result),
             Answered::Resume(reply, result) => reply.send(connection, &result),
         }
@@ -2026,26 +2031,44 @@ impl<H: Host> Replicas<H> {
                     }
                 }
             }
-            Call::Read {
+            Call::Load {
                 reply,
                 commit,
-                range,
+                first_part,
             } => {
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
                     let read = async {
                         let commit = peer.load_commit(commit).await?;
-                        peer.read_manifest(&commit.manifest).await
+                        match first_part {
+                            true => peer.load_first_part(&commit.manifest).await,
+                            false => peer.load_manifest(&commit.manifest).await,
+                        }
                     }
                     .await;
                     if let Err(ClientError::Locked(_)) = &read {
                         let _ = io.send(Io::Locked { replica });
                     }
                     let result = read
-                        .map(|bytes| slice(bytes, range))
+                        .map(be_sdk_type_api::Loaded::of)
                         .map_err(|error| error.to_string());
-                    (Answered::Read(reply, result), None)
+                    (Answered::Load(reply, result), None)
+                });
+                false
+            }
+            Call::ReadPart { reply, part, range } => {
+                let peer = Arc::clone(peer);
+                let io = self.io.clone();
+                self.answer_later(replica, module, async move {
+                    let read = peer
+                        .read_part(part.into(), range.offset, range.length)
+                        .await;
+                    if let Err(ClientError::Locked(_)) = &read {
+                        let _ = io.send(Io::Locked { replica });
+                    }
+                    let result = read.map_err(|error| error.to_string());
+                    (Answered::ReadPart(reply, result), None)
                 });
                 false
             }
@@ -2364,15 +2387,6 @@ fn ahead<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Option<
         true => None,
         false => peer.local_head(block),
     }
-}
-
-fn slice(bytes: Vec<u8>, range: Option<ByteRange>) -> Vec<u8> {
-    let Some(range) = range else {
-        return bytes;
-    };
-    let start = (range.offset as usize).min(bytes.len());
-    let end = start.saturating_add(range.length as usize).min(bytes.len());
-    bytes[start..end].to_vec()
 }
 
 async fn reset<H: Host>(

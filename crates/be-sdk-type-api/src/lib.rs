@@ -140,8 +140,9 @@ pub type Entries = BTreeMap<Uuid, Vec<u8>>;
 )]
 pub struct SessionTag(pub [u8; 32]);
 
-/// Content's parts as `Written` carries them: their bytes, and their shape in
-/// pre-order. None when a part is `Reused`, whose bytes a replica doesn't hold.
+/// Content's parts as `Written` carries them: the bytes of its new parts, and its
+/// shape in pre-order, a `Reused` part kept by its ref. None only for a part
+/// too long to describe.
 pub fn written_shape(part: &be_block_store::Part<'_>) -> Option<(Vec<u8>, Vec<WrittenPart>)> {
     let mut bytes = Vec::new();
     let mut shape = Vec::new();
@@ -159,7 +160,7 @@ fn shape_into(
             shape.push(WrittenPart::Bytes(u32::try_from(held.len()).ok()?));
             bytes.extend_from_slice(held);
         }
-        be_block_store::Part::Reused(_) => return None,
+        be_block_store::Part::Reused(part) => shape.push(WrittenPart::Reused((*part).into())),
         be_block_store::Part::Node { parts, references } => {
             shape.push(WrittenPart::Node(WrittenNode {
                 parts: u32::try_from(parts.len()).ok()?,
@@ -208,5 +209,6 @@ fn take_part<'a>(
             })
         }
         WrittenPart::Node(_) => None,
+        WrittenPart::Reused(part) => Some(be_block_store::Part::Reused((*part).into())),
     }
 }

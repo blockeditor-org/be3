@@ -176,11 +176,16 @@ struct Keeping {
     attempts: u8,
 }
 
-/// An editor's range read, answered once every piece is.
+/// A range read, answered once every piece is.
 struct RangeRead {
-    editor: EditorId,
-    token: u64,
+    reader: Reader,
     pieces: Vec<Piece>,
+}
+
+#[derive(Clone, Copy)]
+enum Reader {
+    Editor { editor: EditorId, token: u64 },
+    Content(RequestId),
 }
 
 enum Piece {
@@ -668,10 +673,13 @@ where
                 });
             }
             Input::Change { id, change } => self.change(id, change),
-            Input::Content { id } => {
-                let bytes = self.visible.encode();
-                self.reply(id, Answer::Content(bytes));
-            }
+            Input::Content { id } => match C::LOADS {
+                be_block::Loads::Whole => {
+                    let bytes = self.visible.encode();
+                    self.reply(id, Answer::Content(bytes));
+                }
+                be_block::Loads::FirstPart => self.read_range(Reader::Content(id), 0, u64::MAX),
+            },
             Input::Seal { id, force } => self.jobs.push_front(Job::Seal {
                 sealing: match force {
                     true => Sealing::Rekey,
@@ -1588,7 +1596,7 @@ where
                 token,
                 offset,
                 length,
-            } => self.read_range(editor, token, offset, length),
+            } => self.read_range(Reader::Editor { editor, token }, offset, length),
             FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_) => {}
         }
     }
@@ -1596,7 +1604,7 @@ where
     /// Reads `length` bytes of the visible content's stored form from `offset`: the bytes it
     /// holds, and the parts it left in the store through `read-part`. An editor of a type that
     /// loads only its first part reads the rest this way.
-    fn read_range(&mut self, editor: EditorId, token: u64, offset: u64, length: u64) {
+    fn read_range(&mut self, reader: Reader, offset: u64, length: u64) {
         let end = offset.saturating_add(length);
         let mut planned = Vec::new();
         let parts = self.visible.parts();
@@ -1647,11 +1655,7 @@ where
                 }
             }
         }
-        self.ranges.push(RangeRead {
-            editor,
-            token,
-            pieces,
-        });
+        self.ranges.push(RangeRead { reader, pieces });
         self.finish_ranges();
     }
 
@@ -1693,13 +1697,16 @@ where
                 Some(error) => Err(error),
                 None => Ok(bytes),
             };
-            self.tell_editor(
-                range.editor,
-                &ToEditor::Range {
-                    token: range.token,
-                    result,
-                },
-            );
+            match (range.reader, result) {
+                (Reader::Editor { editor, token }, result) => {
+                    self.tell_editor(editor, &ToEditor::Range { token, result });
+                }
+                (Reader::Content(id), Ok(bytes)) => self.reply(id, Answer::Content(bytes)),
+                (Reader::Content(id), Err(error)) => {
+                    self.error(error);
+                    self.reply(id, Answer::Unknown);
+                }
+            }
         }
     }
 
