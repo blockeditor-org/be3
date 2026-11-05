@@ -2559,9 +2559,7 @@ fn unreplayable(
     journal: Option<&be_block_protocol::Journal>,
     tag: be_sdk_type_api::SessionTag,
 ) -> bool {
-    journal.is_some_and(|journal| {
-        journal.tag.as_bytes() != &tag.0 && !journal.entries.is_empty()
-    })
+    journal.is_some_and(|journal| journal.tag.as_bytes() != &tag.0 && !journal.entries.is_empty())
 }
 
 /// An opened journal as a replica of this module takes it, when the module wrote it.

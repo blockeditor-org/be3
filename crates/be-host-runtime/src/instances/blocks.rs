@@ -474,7 +474,12 @@ impl Instances {
     }
 
     /// Asks a shell to show a block's version history, at `commit` when named.
-    pub fn show_history(&mut self, instance: EditorInstanceId, block: Uuid, commit: Option<[u8; 32]>) {
+    pub fn show_history(
+        &mut self,
+        instance: EditorInstanceId,
+        block: Uuid,
+        commit: Option<[u8; 32]>,
+    ) {
         if let Some(entry) = self.entries.get_mut(&instance) {
             ShowRequest::queue(
                 &mut entry.shows,

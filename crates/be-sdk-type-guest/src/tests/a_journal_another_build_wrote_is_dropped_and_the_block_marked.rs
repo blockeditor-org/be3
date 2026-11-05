@@ -7,7 +7,11 @@ fn a_journal_another_build_wrote_is_dropped_and_the_block_marked() {
     sim.attach(0, 1, true);
     sim.operate(0, 1, add("written by the old build"));
     sim.advance(crate::APPEND_INTERVAL);
-    assert!(sim.journal.as_ref().is_some_and(|journal| !journal.entries.is_empty()));
+    assert!(
+        sim.journal
+            .as_ref()
+            .is_some_and(|journal| !journal.entries.is_empty())
+    );
     sim.crash(0);
 
     sim.devices[1].tag = SessionTag([9; 32]);
@@ -17,7 +21,10 @@ fn a_journal_another_build_wrote_is_dropped_and_the_block_marked() {
         texts(&sim.content(1)).is_empty(),
         "a build cannot replay another build's journal"
     );
-    assert!(sim.devices[1].undo.lost_edits, "the block says edits were lost");
+    assert!(
+        sim.devices[1].undo.lost_edits,
+        "the block says edits were lost"
+    );
 
     sim.operate(1, 1, add("written by the new build"));
     sim.advance(crate::APPEND_INTERVAL);

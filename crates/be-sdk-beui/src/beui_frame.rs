@@ -317,7 +317,10 @@ impl Watched {
 
     fn lost_edits(&self) -> bool {
         self.editor.histories().get();
-        self.editor.host().history(self.editor.block_id()).lost_edits
+        self.editor
+            .host()
+            .history(self.editor.block_id())
+            .lost_edits
     }
 
     fn tell(&self, toast: Toast) {

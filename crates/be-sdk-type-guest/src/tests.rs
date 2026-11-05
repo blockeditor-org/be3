@@ -40,9 +40,9 @@ mod a_followers_kept_edits_reach_the_owner_that_takes_over;
 mod a_followers_kept_edits_survive_the_owner_leaving_before_saving_them;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
+mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
 mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
 mod a_late_joiner_types_where_it_sees_the_caret;
-mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
 mod a_message_no_build_can_read_stops_a_follower_saving;
 mod a_module_answers_stateless_requests;
 mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
@@ -491,8 +491,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             .clone()
             .filter(|journal| journal.base.commit == local);
         let foreign = self.journal_tag != self.devices[device].tag;
-        let unreplayable =
-            foreign && journal.as_ref().is_some_and(|journal| !journal.entries.is_empty());
+        let unreplayable = foreign
+            && journal
+                .as_ref()
+                .is_some_and(|journal| !journal.entries.is_empty());
         let opening = Opening {
             content_type: C::CONTENT_TYPE,
             tag: self.devices[device].tag,
