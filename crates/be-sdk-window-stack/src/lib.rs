@@ -13,8 +13,16 @@ const PLACEMENT: &str = "desktop";
 
 pub trait Stacked {
     fn view(&self) -> ViewId;
+    /// Where the window shows.
     fn rect(&self) -> Rect;
+    /// Puts the window at `rect`, as the user or its app asked: it shows there and is wanted
+    /// there.
     fn set_rect(&mut self, rect: Rect);
+    /// Where the window was last put (`set_rect`), which keeping it in the work areas leaves
+    /// alone, so it goes back there once the displays have room for it again.
+    fn wanted(&self) -> Rect;
+    /// Shows the window at `rect` without changing where it is wanted.
+    fn show_at(&mut self, rect: Rect);
     fn opened_over(&self, other: &Self) -> bool;
     fn pinned(&self) -> bool {
         false
@@ -184,8 +192,9 @@ pub fn drag<W: Stacked>(
     }
 }
 
-/// Keeps each window but the `moving` one off the bands of the display it is mostly on and its
-/// bar on a work area. `areas` gives, for a window, every display with its work area.
+/// Shows each window but the `moving` one where it is wanted, kept off the bands of the display
+/// it is mostly on and with its bar on a work area. `areas` gives, for a window, every display
+/// with its work area.
 pub fn keep_in_work_areas<W: Stacked>(
     windows: &mut [W],
     moving: Option<usize>,
@@ -197,16 +206,16 @@ pub fn keep_in_work_areas<W: Stacked>(
             continue;
         }
         let areas = areas(window);
-        let rect = window.rect();
+        let wanted = window.wanted();
         let displays: Vec<Rect> = areas.iter().map(|(display, _)| *display).collect();
-        let Some((display, work)) = home(&displays, rect).map(|home| areas[home]) else {
+        let Some((display, work)) = home(&displays, wanted).map(|home| areas[home]) else {
             continue;
         };
-        let to = fitted(rect, display, work);
+        let to = fitted(wanted, display, work);
         let works: Vec<Rect> = areas.iter().map(|(_, work)| *work).collect();
         let to = Rect::from_min_size(grabbable(to, &works, work), to.size());
-        if to != rect {
-            window.set_rect(to);
+        if to != window.rect() {
+            window.show_at(to);
             moved = true;
         }
     }

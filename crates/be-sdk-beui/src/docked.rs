@@ -1110,6 +1110,7 @@ fn spec_nodes(spec: &DockSpec, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::Doc
                 window: api::DockWindow {
                     key: window.key.clone(),
                     rect: window.rect,
+                    placed: window.placed.clone(),
                 },
                 root: window
                     .root
@@ -1248,6 +1249,7 @@ fn nodes_spec(nodes: &api::DockNodes, tab: TabOf<'_>) -> DockSpec {
             .map(|window| DockSpecWindow {
                 key: window.window.key.clone(),
                 rect: window.window.rect,
+                placed: window.window.placed.clone(),
                 root: window.root.as_ref().map(|root| api_node(root, tab)),
             })
             .collect(),

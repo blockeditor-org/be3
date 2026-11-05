@@ -104,4 +104,21 @@ fn a_desktop_window_is_kept_in_the_work_area_in_a_window_and_off_an_unplugged_di
         Rect::from_min_size(pos2(700.0, 200.0), vec2(400.0, 300.0)),
         "unplugging its display brings it wholly onto the one left"
     );
+    let key = FloatedKey {
+        app: APP.to_owned(),
+        instance: INSTANCE,
+        window: ViewId(3),
+    };
+    assert_eq!(
+        placement_of(&key),
+        Some(be_sdk_window_stack::placement(pos2(1500.0, 200.0))),
+        "but it is still placed where it was put, which the app saves"
+    );
+    crate::display::shown().set(vec![display("one", WINDOW), display("two", second)]);
+    beui::reactive::flush();
+    assert_eq!(
+        rect(3).min,
+        pos2(1500.0, 200.0),
+        "plugging the display back in returns the window to where it was put"
+    );
 }

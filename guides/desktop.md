@@ -157,6 +157,11 @@ side along their bottom edges. `DisplaysWatch` gives each `HostDisplay` its `rec
   whole display; a window on no display (unplugged) moves to the nearest. Once let go, a window
   also keeps the top of its bar (`be_sdk_window_stack::KEPT`) on some display's work area
   (`grabbable`), so it can always be grabbed again; the rest of it may hang off any edge.
+  Keeping only changes where a window shows (`Stacked::show_at`), never where it is wanted
+  (`Stacked::wanted`, set by the user's and the app's moves): a window pushed in by a smaller or
+  unplugged display goes back once there is room. Its `host-place` is the wanted place, which
+  the dock saves with the window (`dock-window.placed`) and reopens it at, so a layout saved
+  meanwhile keeps it too.
 - A window is drawn on the display holding most of it, at that display's raster scale; while it is
   moved, on every display it overlaps.
 - The shell's view draws its surface, every child it places (the tabs docked in its own dock)

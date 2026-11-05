@@ -46,7 +46,9 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::Image;
 use beui_view::types::Placement;
-use beui_view::types::window::{WindowEdge, WindowId, WindowPlacement, WindowReport};
+use beui_view::types::window::{
+    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport,
+};
 use beui_view::types::{Area, Claim, HitRegion, TouchDrags};
 use beui_view::types::{CanvasArrangement, Direction};
 use beui_view::types::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
@@ -1013,6 +1015,12 @@ impl State {
         {
             return placement;
         }
+        let placed = self
+            .state
+            .with(|state| state.window_placed(surface).map(str::to_owned));
+        if let Some(placed) = placed {
+            return WindowPlacement::Host(HostPlacement(placed));
+        }
         let rect = self
             .state
             .with(|state| state.window_rect(surface))
@@ -1031,9 +1039,12 @@ impl State {
                     state.set_window_rect(surface, Rect::from_min_size(rect.min, inner));
                 }
             }),
-            WindowReport::Placed { placement, .. } => self.placements.update(|placements| {
-                placements.insert(surface, WindowPlacement::Host(placement));
-            }),
+            WindowReport::Placed { placement, .. } => {
+                self.placements.update(|placements| {
+                    placements.remove(&surface);
+                });
+                self.edit(|state| state.set_window_placed(surface, placement.0));
+            }
             WindowReport::Focused { focused: true, .. } => self.window_focused(surface),
             WindowReport::Rastered { .. }
             | WindowReport::Moved { .. }

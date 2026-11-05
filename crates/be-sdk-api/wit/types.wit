@@ -915,10 +915,14 @@ interface types {
     }
 
     /// A floating window of the dock, in the points of the view that
-    /// declares it; its root, if any, follows it one level deeper.
+    /// declares it; its root, if any, follows it one level deeper. `placed`
+    /// is, for a window the host shows on its own, the `host-place` it last
+    /// reported: where it was put, which `rect` may not be while the host
+    /// keeps the window on smaller displays, and where it opens again.
     record dock-window {
         key: string,
         rect: rect,
+        placed: option<string>,
     }
 
     variant dock-item-kind {

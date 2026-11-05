@@ -17,6 +17,7 @@ fn a_spec_seeds_the_layout_it_describes() {
     spec.windows.push(DockSpecWindow {
         key: "float".to_owned(),
         rect: Rect::from_min_size(Pos2::new(10.0, 20.0), Vec2::new(300.0, 200.0)),
+        placed: Some("desktop 10 20".to_owned()),
         root: Some(pane("floating", &[4])),
     });
     state.reconcile(&spec);
@@ -51,5 +52,17 @@ fn a_spec_seeds_the_layout_it_describes() {
         state.window_rect(windows[0]).map(|rect| rect.min),
         Some(Pos2::new(10.0, 20.0)),
         "the window opens where the code put it"
+    );
+    assert_eq!(
+        state.window_placed(windows[0]),
+        Some("desktop 10 20"),
+        "and keeps where its host last put it"
+    );
+    assert_eq!(
+        DockState::from_spec(&state.spec()).spec().windows[0]
+            .placed
+            .as_deref(),
+        Some("desktop 10 20"),
+        "which is saved with the window"
     );
 }
