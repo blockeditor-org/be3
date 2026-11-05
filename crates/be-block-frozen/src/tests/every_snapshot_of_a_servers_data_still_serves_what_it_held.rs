@@ -107,9 +107,12 @@ async fn sign_in(server: &Running, email: &str, password: &str) -> (Arc<Connecti
     let connection = Connection::connect(&socket(server), &be_block_client::Clock::real())
         .await
         .unwrap();
-    ask(client::account::authenticate(&connection, Some(token.clone())))
-        .await
-        .expect("the token signs in");
+    ask(client::account::authenticate(
+        &connection,
+        Some(token.clone()),
+    ))
+    .await
+    .expect("the token signs in");
     (connection, token)
 }
 

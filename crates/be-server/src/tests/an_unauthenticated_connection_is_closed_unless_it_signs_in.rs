@@ -17,9 +17,7 @@ async fn an_unauthenticated_connection_is_closed_unless_it_signs_in() {
         .await;
     assert!(response.is_ok(), "{response:?}");
     let mut wrong = harness.client().await;
-    let first = wrong
-        .peer
-        .clone();
+    let first = wrong.peer.clone();
     let listed = client::organizations::list_organizations(&first).await;
     assert!(
         !matches!(listed, Ok(Ok(_))),
@@ -33,9 +31,7 @@ async fn an_unauthenticated_connection_is_closed_unless_it_signs_in() {
         .call(|peer| client::account::authenticate(peer, Some(token)))
         .await;
     assert!(response.is_ok(), "{response:?}");
-    let response = logging_out
-        .call(|peer| client::account::logout(peer))
-        .await;
+    let response = logging_out.call(|peer| client::account::logout(peer)).await;
     assert!(matches!(response, Ok(())), "{response:?}");
     logging_out.ended().await;
 

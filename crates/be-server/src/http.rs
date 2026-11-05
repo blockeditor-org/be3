@@ -738,7 +738,12 @@ async fn one_shot(
         return refuse(&mut stream, 413, "a one-shot call is short").await;
     }
     if !services.calls.allow(address) {
-        return refuse(&mut stream, 429, "too many calls from this address; wait a minute").await;
+        return refuse(
+            &mut stream,
+            429,
+            "too many calls from this address; wait a minute",
+        )
+        .await;
     }
     let mut body = buffer.split_off(head.size);
     let read = tokio::time::timeout(
@@ -750,8 +755,8 @@ async fn one_shot(
     if !read {
         return Ok(());
     }
-    let Some([greeting_frame, call]) = unframed(&body[..head.length])
-        .and_then(|frames| <[&[u8]; 2]>::try_from(frames).ok())
+    let Some([greeting_frame, call]) =
+        unframed(&body[..head.length]).and_then(|frames| <[&[u8]; 2]>::try_from(frames).ok())
     else {
         return refuse(&mut stream, 400, "post a greeting and one call").await;
     };

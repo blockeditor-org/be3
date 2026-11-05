@@ -86367,6 +86367,7 @@ third_party = {
                     "Performance",
                     "PointerEvent",
                     "Request",
+                    "RequestCredentials",
                     "RequestInit",
                     "ResizeObserver",
                     "ResizeObserverEntry",

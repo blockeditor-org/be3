@@ -117,8 +117,8 @@ pub async fn browser_login(
         let begun = be_block_client::call_once(&server_url, |peer| {
             client::account::begin_browser_login(peer)
         })
-            .await
-            .map_err(|error| error.to_string())?;
+        .await
+        .map_err(|error| error.to_string())?;
         notify(BrowserLogin {
             code: begun.code.clone(),
             url: format!("{auth_url}?code={}", begun.code),

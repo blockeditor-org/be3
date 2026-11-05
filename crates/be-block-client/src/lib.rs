@@ -55,7 +55,9 @@ pub fn call_url(server_url: &str) -> String {
 /// holds no connection open while a person approves it in their browser.
 pub async fn call_once<T, E: be_wasm_ops::wire::Decode<Result<T, be_block_protocol::Error>>>(
     server_url: &str,
-    start: impl FnOnce(&be_wasm_ops::net::Peer) -> be_wasm_ops::net::Pending<Result<T, be_block_protocol::Error>, E>,
+    start: impl FnOnce(
+        &be_wasm_ops::net::Peer,
+    ) -> be_wasm_ops::net::Pending<Result<T, be_block_protocol::Error>, E>,
 ) -> Result<T, ClientError> {
     let ours = be_lib_build_id::current().map_err(ClientError::NoBuild)?;
     let (sending, sent) = std::sync::mpsc::channel();

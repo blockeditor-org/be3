@@ -69,7 +69,10 @@ async fn password_reset_is_generic_and_revokes_live_sessions_and_pending_approva
     app.ended().await;
     let claimed = poll_login(&harness, &code, &secret).await;
     assert!(
-        !matches!(claimed, Ok(be_block_protocol::BrowserLoginState::Approved(_))),
+        !matches!(
+            claimed,
+            Ok(be_block_protocol::BrowserLoginState::Approved(_))
+        ),
         "an approval made before a password reset still signed in: {claimed:?}"
     );
     assert_eq!(

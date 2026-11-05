@@ -258,10 +258,7 @@ impl Rate {
             held.counts.retain(|_, (start, _)| *start + window > now);
             held.pruned = held.counts.len();
         }
-        let (start, count) = held
-            .counts
-            .entry(unsigned_key(address))
-            .or_insert((now, 0));
+        let (start, count) = held.counts.entry(unsigned_key(address)).or_insert((now, 0));
         if *start + self.window <= now {
             *start = now;
             *count = 0;

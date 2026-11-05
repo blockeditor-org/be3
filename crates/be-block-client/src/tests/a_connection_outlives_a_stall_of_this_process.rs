@@ -16,7 +16,7 @@ async fn a_connection_outlives_a_stall_of_this_process() {
     let mut pings = relay.count(|method| method == be_block_protocol::__args::CONNECTION_PING);
 
     clock.advance(PING_INTERVAL + PONG_WAIT + PONG_WAIT);
-    let answered = crate::ask(client::organizations::list_organizations(&connection)).await;
+    let answered = crate::ask(client::account::authenticate(&connection, Some("no token".into()))).await;
     assert!(
         !answered.is_err_and(|error| error.is_unreachable()),
         "the request was answered after the stall"
@@ -24,7 +24,7 @@ async fn a_connection_outlives_a_stall_of_this_process() {
     pings.wait_for(|pings| *pings > 0).await.unwrap();
 
     clock.advance(PONG_WAIT);
-    let answered = crate::ask(client::organizations::list_organizations(&connection)).await;
+    let answered = crate::ask(client::account::authenticate(&connection, Some("no token".into()))).await;
     assert!(
         !answered.is_err_and(|error| error.is_unreachable()),
         "the connection kept going after the server answered its ping"

@@ -1029,7 +1029,8 @@ impl Harness {
         let mut pending = start(&peer);
         let _ = poll(&mut pending);
         let call = sent.try_recv().expect("the call was started");
-        let (status, answer) = post_bytes(self, "/api/be/call", &framed(&[hello(BUILD), call])).await;
+        let (status, answer) =
+            post_bytes(self, "/api/be/call", &framed(&[hello(BUILD), call])).await;
         assert_eq!(status, 200, "{}", String::from_utf8_lossy(&answer));
         let frames = unframed(&answer);
         assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));

@@ -5,7 +5,6 @@ use be_block_protocol::embed::METHODS;
 
 use super::*;
 
-
 #[derive(Debug, PartialEq)]
 enum Answered {
     Allowed,
@@ -71,8 +70,7 @@ impl TestClient {
             (
                 "poll-browser-login",
                 answered(
-                    client::account::poll_browser_login(peer, "code".into(), "secret".into())
-                        .await,
+                    client::account::poll_browser_login(peer, "code".into(), "secret".into()).await,
                 ),
             ),
             (

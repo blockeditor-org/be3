@@ -202,10 +202,7 @@ impl Sessions {
     pub(crate) fn poll(&self, code: &str, secret: &str) -> Result<Polled, ServerError> {
         let mut pending = self.pending.lock().unwrap();
         let now = Instant::now();
-        let Some(entry) = pending
-            .get_mut(code)
-            .filter(|entry| entry.secret == secret)
-        else {
+        let Some(entry) = pending.get_mut(code).filter(|entry| entry.secret == secret) else {
             return Ok(Polled::Expired);
         };
         if entry.expires <= now {

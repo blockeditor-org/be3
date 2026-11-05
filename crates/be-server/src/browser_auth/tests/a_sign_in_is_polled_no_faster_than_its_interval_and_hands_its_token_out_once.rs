@@ -42,8 +42,17 @@ async fn a_sign_in_is_polled_no_faster_than_its_interval_and_hands_its_token_out
     );
 
     let (denied, denied_secret, _, _) = sessions.begin(address);
-    sessions.pending.lock().unwrap().get_mut(&denied).unwrap().denied = true;
-    assert!(matches!(sessions.poll(&denied, &denied_secret), Ok(Polled::Denied)));
+    sessions
+        .pending
+        .lock()
+        .unwrap()
+        .get_mut(&denied)
+        .unwrap()
+        .denied = true;
+    assert!(matches!(
+        sessions.poll(&denied, &denied_secret),
+        Ok(Polled::Denied)
+    ));
     tokio::time::advance(POLL_INTERVAL).await;
     assert!(matches!(
         sessions.poll(&denied, &denied_secret),
