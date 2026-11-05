@@ -13,10 +13,7 @@ async fn a_large_image_streams_without_downloading_all_of_it() {
     author.save(block, &original, None).await.unwrap();
     let manifest = author.manifest(block).await.unwrap().unwrap();
     let objects = author.commits().vault().objects(&manifest).unwrap().len();
-    assert!(
-        objects > 100,
-        "the payload was stored as {objects} objects"
-    );
+    assert!(objects > 100, "the payload was stored as {objects} objects");
 
     let reader = harness.second(&author).await;
     let header = reader

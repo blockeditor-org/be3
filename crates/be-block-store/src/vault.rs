@@ -257,9 +257,10 @@ impl<S: ObjectStore> Vault<S> {
             let mut group = Vec::new();
             for part in parts {
                 group.push(part);
-                let boundary = u16::from_le_bytes([part.hash().as_bytes()[0], part.hash().as_bytes()[1]])
-                    % GROUP_AVERAGE
-                    == 0;
+                let boundary =
+                    u16::from_le_bytes([part.hash().as_bytes()[0], part.hash().as_bytes()[1]])
+                        % GROUP_AVERAGE
+                        == 0;
                 if (boundary && group.len() >= GROUP_MINIMUM) || group.len() >= GROUP_MAXIMUM {
                     grouped.push(std::mem::take(&mut group));
                 }
@@ -288,12 +289,7 @@ impl<S: ObjectStore> Vault<S> {
         }
     }
 
-    fn put_node(
-        &self,
-        key: Uuid,
-        sealing: &ContentKey,
-        node: Node,
-    ) -> Result<NodeRef, StoreError> {
+    fn put_node(&self, key: Uuid, sealing: &ContentKey, node: Node) -> Result<NodeRef, StoreError> {
         let length = node.parts.iter().map(|part| part.length()).sum();
         let hash = self.store.put(&sealing.seal(key, &encode_value(&node)?))?;
         Ok(NodeRef { hash, length })
@@ -301,7 +297,13 @@ impl<S: ObjectStore> Vault<S> {
 
     fn node(&self, node: NodeRef) -> Result<Node, StoreError> {
         let node_value: Node = self.get_value(node.hash)?;
-        if node_value.parts.iter().map(|part| part.length()).sum::<u64>() != node.length {
+        if node_value
+            .parts
+            .iter()
+            .map(|part| part.length())
+            .sum::<u64>()
+            != node.length
+        {
             return Err(StoreError::Corrupt);
         }
         Ok(node_value)
@@ -369,10 +371,7 @@ impl<S: ObjectStore> Vault<S> {
 
     /// The parts of the stored form, without its bytes. Fails on a node this store lacks.
     pub fn outline(&self, manifest: &Manifest) -> Result<Option<LoadedPart>, StoreError> {
-        manifest
-            .root
-            .map(|root| self.loaded(root, 0))
-            .transpose()
+        manifest.root.map(|root| self.loaded(root, 0)).transpose()
     }
 
     /// Like `load`, but `Stored::bytes` holds only the root's first part (all of a stored
@@ -389,7 +388,12 @@ impl<S: ObjectStore> Vault<S> {
     }
 
     /// `length` bytes of a saved part from `offset`, as `read_range` reads a manifest's.
-    pub fn read_part(&self, part: PartRef, offset: u64, length: u64) -> Result<Vec<u8>, StoreError> {
+    pub fn read_part(
+        &self,
+        part: PartRef,
+        offset: u64,
+        length: u64,
+    ) -> Result<Vec<u8>, StoreError> {
         let manifest = Manifest {
             content_type: Uuid::nil(),
             root: Some(part),

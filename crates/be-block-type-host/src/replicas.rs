@@ -13,8 +13,8 @@ use be_block_graph::BlockParent;
 use be_block_protocol::{ClientId, ErrorCode, SessionState};
 use be_sdk_type_api::ops::wire::{self, Decode};
 use be_sdk_type_api::{
-    Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome,
-    Recipients, ReplicaId, Resume, Status,
+    Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome, Recipients,
+    ReplicaId, Resume, Status,
     embed::{
         exports::replicas::{self, Replica},
         host::Call,
@@ -2102,8 +2102,12 @@ impl<H: Host> Replicas<H> {
                 let io = self.io.clone();
                 H::spawn(async move {
                     let sealed = io.clone();
-                    let mut write = Write::encoded(content_type, be_sdk_type_api::written_parts(&content.bytes, &content.parts), expected)
-                        .described(content.references, content.derived);
+                    let mut write = Write::encoded(
+                        content_type,
+                        be_sdk_type_api::written_parts(&content.bytes, &content.parts),
+                        expected,
+                    )
+                    .described(content.references, content.derived);
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);
                     }
@@ -2142,8 +2146,12 @@ impl<H: Host> Replicas<H> {
                 }
                 let peer = Arc::clone(peer);
                 self.answer_later(replica, module, async move {
-                    let write = Write::encoded(content_type, be_sdk_type_api::written_parts(&content.bytes, &content.parts), parent)
-                        .described(content.references, content.derived);
+                    let write = Write::encoded(
+                        content_type,
+                        be_sdk_type_api::written_parts(&content.bytes, &content.parts),
+                        parent,
+                    )
+                    .described(content.references, content.derived);
                     let stashed = peer
                         .stash(block, write)
                         .await
@@ -2413,4 +2421,3 @@ async fn reset<H: Host>(
     H::reset_notice();
     Ok(())
 }
-

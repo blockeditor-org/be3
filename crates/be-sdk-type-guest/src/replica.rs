@@ -707,8 +707,8 @@ where
     }
 
     fn written(&self, content: &C) -> Written {
-        let (bytes, parts) =
-            be_sdk_type_api::written_shape(&content.parts()).unwrap_or_else(|| (content.encode(), Vec::new()));
+        let (bytes, parts) = be_sdk_type_api::written_shape(&content.parts())
+            .unwrap_or_else(|| (content.encode(), Vec::new()));
         Written {
             bytes,
             parts,
@@ -748,8 +748,8 @@ where
         else {
             return;
         };
-        let decoded = result
-            .and_then(|stored| C::from_stored(&stored).map_err(|error| error.to_string()));
+        let decoded =
+            result.and_then(|stored| C::from_stored(&stored).map_err(|error| error.to_string()));
         match decoded {
             Ok(content) => {
                 *slot = Slot::Ready(content);
@@ -1674,14 +1674,15 @@ where
     }
 
     fn finish_ranges(&mut self) {
-        let (done, waiting) = std::mem::take(&mut self.ranges)
-            .into_iter()
-            .partition(|range: &RangeRead| {
-                !range
-                    .pieces
-                    .iter()
-                    .any(|piece| matches!(piece, Piece::Waiting(_)))
-            });
+        let (done, waiting) =
+            std::mem::take(&mut self.ranges)
+                .into_iter()
+                .partition(|range: &RangeRead| {
+                    !range
+                        .pieces
+                        .iter()
+                        .any(|piece| matches!(piece, Piece::Waiting(_)))
+                });
         self.ranges = waiting;
         for range in done {
             let mut bytes = Vec::new();
@@ -2746,4 +2747,3 @@ where
         });
     }
 }
-

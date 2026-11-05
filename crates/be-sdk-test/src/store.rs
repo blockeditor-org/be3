@@ -286,7 +286,10 @@ impl Inner {
                 reply.send(&mut self.host, &result);
             }
             Call::ReadPart { reply, .. } => {
-                reply.send(&mut self.host, &Err("commits here have no parts".to_owned()));
+                reply.send(
+                    &mut self.host,
+                    &Err("commits here have no parts".to_owned()),
+                );
             }
             Call::ResumeSession { reply, local } => {
                 let head = block

@@ -3,8 +3,8 @@ use be_block_graph::{
     ANYONE_INSIDE, Access, BlockGraph, BlockNode, BlockParent, ObjectRefs, SETTINGS_TYPE,
 };
 use be_block_protocol::{
-    AccessEntry, AccessList, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet,
-    ObjectChange, OrganizationRole, ReferenceChange,
+    AccessEntry, AccessList, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet, ObjectChange,
+    OrganizationRole, ReferenceChange,
 };
 use be_block_store::{Hash, ObjectStore};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -714,7 +714,9 @@ impl ServerStore {
         // judged by when the server received it: a backdated commit is not dropped early.
         let kept = |entry: &HistoryEntry| {
             policy.keep_all_within > 0
-                && received.get(&entry.commit).is_some_and(|at| *at > now - policy.keep_all_within)
+                && received
+                    .get(&entry.commit)
+                    .is_some_and(|at| *at > now - policy.keep_all_within)
         };
         let summaries: Vec<_> = history
             .iter()
@@ -1076,9 +1078,7 @@ impl ServerStore {
                 if !seen.inherited(graph, block).can_edit() {
                     continue;
                 }
-                if kept_for > 0
-                    && newest_version(database, identity.organization, block)? > since
-                {
+                if kept_for > 0 && newest_version(database, identity.organization, block)? > since {
                     continue;
                 }
                 detached.push(block);

@@ -103,7 +103,6 @@ pub fn message_of(commit: &Commit) -> Option<&str> {
     }
 }
 
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum Change {
     Added,

@@ -1223,9 +1223,8 @@ impl EditorHost {
                     })
                     .collect(),
             ),
-            content @ (ToEditor::Snapshot(_)
-            | ToEditor::Operations(_)
-            | ToEditor::Range { .. }) => {
+            content
+            @ (ToEditor::Snapshot(_) | ToEditor::Operations(_) | ToEditor::Range { .. }) => {
                 if self.followed.borrow().contains_key(&block) {
                     self.update_content(block, content);
                 }

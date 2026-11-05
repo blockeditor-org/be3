@@ -15,7 +15,14 @@ async fn history_records_each_commits_parents() {
         .publish(&author, block, first, first_chunks, None, minutes_ago(2))
         .await;
     let _ = client
-        .publish(&author, block, second, second_chunks, Some(first), minutes_ago(1))
+        .publish(
+            &author,
+            block,
+            second,
+            second_chunks,
+            Some(first),
+            minutes_ago(1),
+        )
         .await;
 
     let history: Vec<_> = client

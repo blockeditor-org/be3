@@ -25,15 +25,11 @@ fn a_replaced_file_takes_none_of_the_old_files_header() {
         );
     }
     assert!(sim.kept(|content| content.header() == "old.png 800x600"));
-    assert!(
-        sim.take_received(0, 1)
-            .iter()
-            .any(|message| matches!(
-                message,
-                ToEditor::Snapshot(snapshot)
-                    if snapshot.length == replacement.encode().len() as u64
-                        && FileContent::decode(&snapshot.bytes)
-                            .is_ok_and(|shown| shown.header() == replacement.header())
-            ))
-    );
+    assert!(sim.take_received(0, 1).iter().any(|message| matches!(
+        message,
+        ToEditor::Snapshot(snapshot)
+            if snapshot.length == replacement.encode().len() as u64
+                && FileContent::decode(&snapshot.bytes)
+                    .is_ok_and(|shown| shown.header() == replacement.header())
+    )));
 }

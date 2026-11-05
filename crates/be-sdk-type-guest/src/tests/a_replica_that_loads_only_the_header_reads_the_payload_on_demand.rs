@@ -67,5 +67,9 @@ fn a_replica_that_loads_only_the_header_reads_the_payload_on_demand() {
     assert_eq!(sim.head_content(), renamed);
     assert_eq!(sim.part_reads, 1, "saving a rename read the payload");
 
-    assert_eq!(sim.content(0), renamed, "content reads what it left in the store");
+    assert_eq!(
+        sim.content(0),
+        renamed,
+        "content reads what it left in the store"
+    );
 }
