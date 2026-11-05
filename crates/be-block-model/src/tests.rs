@@ -502,10 +502,7 @@ fn changed_parts(before: &crate::Part, after: &crate::Part) -> usize {
 }
 
 fn from_parts<R: Model>(root: &crate::Part) -> Document<R> {
-    let held: std::collections::BTreeMap<_, _> = root
-        .all()
-        .into_iter()
-        .map(|part| (part.hash(), part.bytes().to_vec()))
-        .collect();
-    Document::from_parts(root.bytes(), |hash| held.get(&hash).cloned()).expect("the parts load")
+    let mut bytes = Vec::new();
+    root.write(&mut bytes);
+    Document::from_bytes(&bytes).expect("the parts load")
 }

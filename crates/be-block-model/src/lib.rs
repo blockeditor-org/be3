@@ -320,6 +320,7 @@ impl std::error::Error for Malformed {}
 pub struct Document<R> {
     tree: Tree,
     references: OnceLock<references::Index>,
+    saved: std::sync::Arc<std::collections::HashMap<be_block_store::Hash, be_block_store::PartRef>>,
     root: PhantomData<fn() -> R>,
 }
 
@@ -334,6 +335,7 @@ impl<R: Model> Document<R> {
         Self {
             tree,
             references: OnceLock::new(),
+            saved: std::sync::Arc::default(),
             root: PhantomData,
         }
     }
@@ -495,13 +497,16 @@ impl<R: Model> Document<R> {
         history::step(&self.tree, R::kind, edit)
     }
 
+    /// The stored form: the parts of `to_parts`, the root first, each
+    /// followed by the parts it names.
     pub fn to_bytes(&self) -> Vec<u8> {
-        stored::save(&self.tree, &R::kind())
+        let mut bytes = Vec::new();
+        self.to_parts().write(&mut bytes);
+        bytes
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Malformed> {
-        let stored = stored::decode(bytes).ok_or(Malformed)?;
-        stored::load(stored, &R::kind()).map(Self::from_tree)
+        stored::load(parts::read(bytes)?, &R::kind()).map(Self::from_tree)
     }
 
     /// The stored form split into parts: the root part, naming the parts below
@@ -511,16 +516,18 @@ impl<R: Model> Document<R> {
         parts::split_document(self.to_stored())
     }
 
-    /// Loads the document from its root part, fetching each part it names by
-    /// hash with `fetch`. A fetched part whose bytes don't match its hash is
-    /// malformed.
-    pub fn from_parts(
-        root: &[u8],
-        mut fetch: impl FnMut(be_block_store::Hash) -> Option<Vec<u8>>,
-    ) -> Result<Self, Malformed> {
-        let stored = stored::decode(root).ok_or(Malformed)?;
-        let stored = parts::join(stored, &mut fetch)?;
-        stored::load(stored, &R::kind()).map(Self::from_tree)
+    /// `to_parts` as the vault saves them, handing back every part unchanged
+    /// since `from_stored` as it was saved.
+    pub fn vault_parts(&self) -> be_block_store::Part<'static> {
+        self.to_parts().store(&self.saved)
+    }
+
+    /// Loads a saved document, keeping what its parts were saved as for
+    /// `vault_parts`.
+    pub fn from_stored(stored: &be_block_store::Stored) -> Result<Self, Malformed> {
+        let mut document = Self::from_bytes(&stored.bytes)?;
+        document.saved = std::sync::Arc::new(parts::saved(stored));
+        Ok(document)
     }
 
     pub fn to_stored(&self) -> Stored {
@@ -605,6 +612,7 @@ impl<R> Clone for Document<R> {
         Self {
             tree: self.tree.clone(),
             references: self.references.clone(),
+            saved: std::sync::Arc::clone(&self.saved),
             root: PhantomData,
         }
     }
