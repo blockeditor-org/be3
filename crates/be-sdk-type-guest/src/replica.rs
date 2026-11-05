@@ -2983,7 +2983,10 @@ where
             }
             return;
         }
-        if outright && self.has_unsaved() {
+        // An outright replace keeps what it replaces as its merge's second parent, which history
+        // never prunes: unsaved edits, and on a follower also the saved head, which only the
+        // owner can seal as a bookmark (`Replicas::bookmark`).
+        if outright && (self.has_unsaved() || !self.is_owner()) {
             let kept = match self.role {
                 Role::Owner(_) => self.written(&self.confirmed),
                 Role::Follower(_) => self.written(&self.visible),
