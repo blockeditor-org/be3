@@ -124,9 +124,12 @@ impl Desk {
             .gesture
             .and_then(|(window, _)| self.windows.iter().position(|held| held.window == window));
         let displays = &self.displays;
-        be_sdk_window_stack::keep_in_work_areas(&mut self.windows, moving, |held| {
-            let display = owner(displays, held.rect);
-            Some((display.rect, display.work?))
+        be_sdk_window_stack::keep_in_work_areas(&mut self.windows, moving, |_| {
+            displays
+                .iter()
+                .map(|display| Some((display.rect, display.work?)))
+                .collect::<Option<Vec<_>>>()
+                .unwrap_or_default()
         })
     }
 

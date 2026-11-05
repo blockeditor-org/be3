@@ -246,9 +246,13 @@ fn keep_in_work_areas(
 ) -> bool {
     let moving = moving.and_then(|key| windows.iter().position(|window| window.key == *key));
     be_sdk_window_stack::keep_in_work_areas(windows, moving, |window| {
-        let display = displays[be_sdk_window_stack::home(displays, window.rect)?];
-        let work = work_area_on(&window.key.app, window.key.instance, display).unwrap_or(display);
-        Some((display, work))
+        displays
+            .iter()
+            .map(|display| {
+                let work = work_area_on(&window.key.app, window.key.instance, *display);
+                (*display, work.unwrap_or(*display))
+            })
+            .collect()
     })
 }
 

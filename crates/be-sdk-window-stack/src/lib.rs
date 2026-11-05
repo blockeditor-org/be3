@@ -5,6 +5,9 @@ use be_sdk_api::{
 
 pub const OPEN_GRAB: Vec2 = vec2(24.0, 16.0);
 pub const SMALLEST: Vec2 = vec2(96.0, 64.0);
+/// How much of a window's top edge, where its bar is, stays on a work area, so the window can
+/// always be grabbed by its bar again.
+pub const KEPT: Vec2 = vec2(96.0, 48.0);
 pub const WALL: f32 = 0.5;
 const PLACEMENT: &str = "desktop";
 
@@ -181,27 +184,54 @@ pub fn drag<W: Stacked>(
     }
 }
 
+/// Keeps each window but the `moving` one off the bands of the display it is mostly on and its
+/// bar on a work area. `areas` gives, for a window, every display with its work area.
 pub fn keep_in_work_areas<W: Stacked>(
     windows: &mut [W],
     moving: Option<usize>,
-    area: impl Fn(&W) -> Option<(Rect, Rect)>,
+    areas: impl Fn(&W) -> Vec<(Rect, Rect)>,
 ) -> bool {
     let mut moved = false;
     for (index, window) in windows.iter_mut().enumerate() {
         if window.pinned() || window.fullscreen() || Some(index) == moving {
             continue;
         }
-        let Some((display, work)) = area(window) else {
+        let areas = areas(window);
+        let rect = window.rect();
+        let displays: Vec<Rect> = areas.iter().map(|(display, _)| *display).collect();
+        let Some((display, work)) = home(&displays, rect).map(|home| areas[home]) else {
             continue;
         };
-        let rect = window.rect();
         let to = fitted(rect, display, work);
+        let works: Vec<Rect> = areas.iter().map(|(_, work)| *work).collect();
+        let to = Rect::from_min_size(grabbable(to, &works, work), to.size());
         if to != rect {
             window.set_rect(to);
             moved = true;
         }
     }
     moved
+}
+
+/// Where `rect` goes so that its top edge (`KEPT` of it) lies on one of `works`: where it is
+/// when it already does, else the nearest such place on `home`.
+pub fn grabbable(rect: Rect, works: &[Rect], home: Rect) -> Pos2 {
+    let kept = KEPT.min(rect.size());
+    let bar = Rect::from_min_size(rect.min, vec2(rect.width(), kept.y));
+    let reached = works.iter().any(|work| {
+        let shared = work.intersect(bar);
+        shared.width() >= kept.x - WALL && shared.height() >= kept.y - WALL
+    });
+    if reached {
+        return rect.min;
+    }
+    let x = rect
+        .min
+        .x
+        .min(home.max.x - kept.x)
+        .max(home.min.x + kept.x - rect.width());
+    let y = rect.min.y.min(home.max.y - kept.y).max(home.min.y);
+    pos2(x, y)
 }
 
 pub fn fitted(rect: Rect, display: Rect, work: Rect) -> Rect {
