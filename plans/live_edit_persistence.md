@@ -49,27 +49,35 @@ implemented yet.
   that commit. The server keeps only the newest base state, beside the journal
   and outside history, so retention never sees it. Once the owner reports
   `clean_at` past an entry, the server drops it.
-- A new server table is frozen like every other (guides/frozen_formats.md),
-  but its payloads are session data a later build may drop.
+- An owner alone in its session relays nothing today; it appends what it
+  sequenced every 250 ms, folded with `LiveEdit::absorb_operation`, so a crash
+  loses at most that much.
 - On the device, the replica appends to a local journal in the refs database
   instead of writing a local commit per seal, and keeps a local base the same
   way.
 
 ### 2. Commits at pauses
 
-- The owner commits when the block has been quiet for a while, when some
-  minutes have passed since the last commit with edits, when the journal grows
-  past a size, when the last participant leaves, and before its code changes
-  (the host stopping or updating, `Incompatible`, the server closing the
-  connection for a new build). **(ask)** the quiet time, the longest gap and
-  the size.
+- The owner commits:
+  - after 30 s with no edits, a natural pause, which is the state retention
+    prefers to keep;
+  - 5 minutes after the first edit since the last commit, while edits go on,
+    which bounds what a restore point misses and what a reader replays;
+  - when the journal passes 1 MiB, so replaying it stays well under a second;
+  - at once when the last participant leaves, and before its code changes (the
+    host stopping or updating, `Incompatible`, the server closing the
+    connection for a new build).
+
+  Steady editing then makes about 12 commits an hour, and editing in bursts
+  at most about 120, which pruning (4) thins to one a minute.
 - **Recovery.** A new owner after a crash, or a follower joining, loads the
   base commit and session state and replays the journal. A joining follower
   then needs no `Snapshot` from the owner.
 - **Readers outside the session** (`open`, `read_contents`, `be`, export,
-  search) read the head commit, which can be minutes behind while someone
-  edits. **(ask)** accept that, or have them replay the journal, which needs
-  the type module.
+  search) read the base and the journal with the head, in the same request,
+  and apply the journal with the type's `LiveEdit`. They see everything the
+  owner sequenced, short of what is still in flight. A reader whose type has
+  another tag can't replay the journal and reads the head commit alone.
 
 ### 3. Live-edit formats stay unfrozen
 
@@ -96,10 +104,11 @@ implemented yet.
 
 ### 5. Session restarts
 
-- A restart is rare and triggered by cost, not a timer: when session state
-  passes a limit (more tombstones than visible content, or a size), preferably
-  while the owner is alone and idle, and for free when everyone leaves. It
-  waits until no gesture is open.
+- A restart is rare and triggered by cost, not a timer: when session state is
+  over 1 MiB and larger than the visible content, at the next commit while no
+  gesture is open, preferably while the owner is alone; and for free when
+  everyone leaves. A restart forced in the middle of a session is a sign the
+  limit is too low.
 - The owner commits and drops session state, and every replica reloads from
   that commit. That needs loading a commit to give the same positions on every
   replica (all content from one reserved client id at offsets `0..len`, list
@@ -124,8 +133,10 @@ reloaded. Then 1 and 2 together, then 3, 4 and the rest of 5.
 
 - An owner cut off by the fault relay after edits and before a commit: the new
   owner recovers every edit from the journal.
-- With a manual clock, an hour of steady edits makes a few commits, and pruning
-  at publish keeps pinned commits and merge parents.
+- With a manual clock, an hour of steady edits makes about 12 commits, and
+  pruning at publish keeps pinned commits and merge parents.
+- A reader outside the session (`be`) sees edits that are in the journal but
+  not yet in a commit.
 - A journal written by another module tag is dropped and the block marked.
 - A restart keeps a follower's pending edit and the peers' cursors; a painting
   shows the message when undo reaches it.
