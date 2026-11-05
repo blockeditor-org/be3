@@ -1386,17 +1386,12 @@ impl<S: ObjectStore> Peer<S> {
         };
         let time = now_milliseconds();
         let encoded = metadata.encode();
-        let key = self.sealing_key(block).await?;
-        // A head sealed under an older key is sealed again even when nothing else changed: a
-        // rotation's owner seals once more so what is written after is under the new key, and
-        // reused parts leave the manifest as it was.
         if extra_parents.is_empty()
             && bookmark.is_none()
             && let Some(previous) = &previous
             && previous.manifest == manifest
             && previous.references == references
             && previous.metadata == encoded
-            && expected.is_some_and(|head| self.sealed_under(head) == Some(key))
         {
             return Ok(Sealed::Unchanged(expected.expect("a previous commit")));
         }
@@ -1419,6 +1414,7 @@ impl<S: ObjectStore> Peer<S> {
             Some(label) => be_block_commit::CommitKind::Bookmark(label),
             None => be_block_commit::CommitKind::Autosave,
         };
+        let key = self.sealing_key(block).await?;
         let commit = Commit::new(manifest, self.account, time)
             .with_parents(parents.clone())
             .with_kind(kind)
@@ -1445,12 +1441,6 @@ impl<S: ObjectStore> Peer<S> {
             self.refs.revise(summary)?;
         }
         Ok(Sealed::Sealed(id))
-    }
-
-    /// The key a stored object was sealed under, read from its header.
-    fn sealed_under(&self, object: CommitId) -> Option<Uuid> {
-        let sealed = self.commits.vault().store().get(object.hash()).ok()??;
-        be_block_store::sealed_key(&sealed).ok()
     }
 
     pub async fn publish_sealed(
