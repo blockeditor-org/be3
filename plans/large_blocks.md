@@ -29,8 +29,9 @@ and per-part references (formerly 1–4) are done; 1a's wiring and 5 are left.
   (`LiveContent::read_range`, answered through the replica and the `read-part`
   host call), and a save reuses what it never loaded
   (guides/blocks/apps.md, "Reading a range";
-  `a_replica_that_loads_only_the_header_reads_the_payload_on_demand`). `Blob`
-  supports it per kind (`BlobKind::LOADS`), but no kind uses it yet.
+  `a_replica_that_loads_only_the_header_reads_the_payload_on_demand`). Every
+  `Blob` loads only its header, and blob editors read the payload through
+  `ContentProjection::payload`.
 - **Range reads on the peer.** `Peer::stream_header`, `stream_range`,
   `read_span` and `read_part` fetch only the nodes and chunks a range touches.
 - **Publishing** sends what changed since the expected head: an
@@ -69,22 +70,10 @@ but still load whole. Left:
 
 ### 5. What is left of loading part of a block
 
-- **Blob kinds load only their header.** Image, audio, PDF, game module and
-  workspace file editors read `Blob::data()` (`be-app-image/src/root/picture.rs`,
-  `be-app-audio/src/root/ui.rs`, `be-app-pdf/src/root/pages.rs`,
-  `be-app-deterministic-game`, the canvas's `export.rs`). Give
-  `ContentProjection<Blob<K>>` a payload signal that holds `data()` when it is
-  loaded and otherwise reads `[header length, stored_length)` with
-  `read_range` once per snapshot, move those editors onto it, then set each
-  kind's `BlobKind::LOADS` to `Loads::FirstPart`.
 - **An operation that adds a part** (closing a chat segment) carries the
   part's hash. Every replica encodes the same bytes and checks the hash. Chat
   is its first user.
 
 ## Order of work
 
-Chat needs what is left of 1a and 5; blobs need 5's first item.
-
-## Tests
-
-- An image editor shows an image whose replica loaded only its header.
+Chat needs what is left of 1a and 5.

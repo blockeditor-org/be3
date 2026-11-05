@@ -57,7 +57,7 @@ state. Dynamic artifacts use `EditorHost::content_of` and
 ### Reading a range
 
 A type that loads only its first part (`be_block::Loads::FirstPart`, such as
-a blob kind whose `BlobKind::LOADS` says so) leaves the rest of its stored form
+`Blob`) leaves the rest of its stored form
 in the store: the replica, its followers and every editor's `Snapshot` hold
 only that part's bytes, and `Snapshot::length` says how long the whole is. An
 editor reads the rest with `LiveContent::read_range(offset, length, done)`,
@@ -65,6 +65,9 @@ which sends `FromEditor::Read { token, offset, length }`; the replica answers
 `ToEditor::Range { token, result }` from the parts it holds, unsaved ones
 included, and the type module's `read-part` host call for the parts it left in
 the store (guides/type_modules.md). Offsets are into the whole stored form.
+A blob editor uses `ContentProjection::payload()` instead, a signal of the
+payload that reads it once per snapshot (so a header edit reads nothing) and
+holds what a host-made snapshot already carried.
 
 ## State and change callbacks
 

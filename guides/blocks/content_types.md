@@ -219,11 +219,11 @@ A block saved by another schema is offered for reset (guides/blocks/host.md,
 A small header plus a payload that can be megabytes: `Blob<K>` for any
 `BlobKind` (`ImageContent`, `AudioContent`, `PdfContent`,
 `GameModuleContent`). It saves its header and payload as two parts and keeps
-the payload's ref when loaded, so a rename uploads only the header. A kind
-whose `BlobKind::LOADS` is `Loads::FirstPart` loads only the header, and its
-payload stays in the store (`Blob::is_loaded`, `payload_length`) until an
-editor reads it by range; no kind does yet, since their editors read `data()`.
-It is
+the payload's ref when loaded, so a rename uploads only the header. Its
+replicas load only the header (`Loads::FirstPart`): the payload stays in the
+store (`Blob::is_loaded`, `payload_length`), and an editor reads it with
+`ContentProjection::payload`, a signal that reads it by range with each
+snapshot and holds it. It is
 `Streamed`, its only live edit is
 `BlobOp::SetHeader`, and an offline merge takes whichever side changed. The
 payload never travels as an operation (session frames are at most 8 MB): it
