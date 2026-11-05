@@ -24,6 +24,24 @@ organization is a link, not a reference. The URL format (`be_block::block_url`,
 `<base>#block/<organization>/<block>`) is stored in text and so is read
 forever: a reference is found by its fragment alone, whatever host precedes it.
 
+### Parts
+
+`BlockContent::parts` returns the stored form as a tree of `Part`s
+(`be_block_store::manifest`): new bytes, a `Reused` part of the head the
+content was loaded from, or a `Node` of child parts. The leaves in order are
+`encode()` exactly, so everything that reads bytes (`decode`, merge, type
+modules, export) is unaffected; parts only decide what a save seals and
+uploads. Each `Bytes` leaf is sealed on its own (split by the chunker only
+past its minimum, 256 KiB by default) and each `Node` becomes a node of the
+manifest tree (guides/blocks/server.md), so an edit costs the changed leaf and
+the nodes above it. `from_stored(&Stored)` decodes and keeps the `PartRef` of
+each `LoadedPart` it may hand back as `Reused`; the tree it gets has the shape
+the content wrote, a leaf the vault split over chunks still being one part.
+Keep a node's children to dozens, choose parts from the content alone (every
+replica must choose the same ones), and leave reuse to parts whose bytes did
+not change. The default is one leaf of `encode()`. Peer-level `save` and
+`open` use parts; replicas still save a type module's bytes as one leaf.
+
 ## Documents: `be_block_model`
 
 Almost every type is a `Document<R>`: structs deriving `be_block_model::Model`
@@ -167,7 +185,9 @@ A block saved by another schema is offered for reset (guides/blocks/host.md,
 
 A small header plus a payload that can be megabytes: `Blob<K>` for any
 `BlobKind` (`ImageContent`, `AudioContent`, `PdfContent`,
-`GameModuleContent`). It is `Streamed`, its only live edit is
+`GameModuleContent`). It saves its header and payload as two parts and keeps
+the payload's ref when loaded, so a rename uploads only the header. It is
+`Streamed`, its only live edit is
 `BlobOp::SetHeader`, and an offline merge takes whichever side changed. The
 payload never travels as an operation (session frames are at most 8 MB): it
 arrives as a commit, from `write-content` seeding a new block or replacing an

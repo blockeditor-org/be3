@@ -4,73 +4,61 @@ A block loads, saves and publishes whole, so every save costs more as the block
 grows, whatever changed. This plan makes a save cost what changed, and lets a
 reader load part of a block. Chat needs it (plans/chat.md); the canvas, and any
 block with many children or attachments, gains too. Saving less often is
-plans/live_edit_persistence.md. Not implemented yet.
+plans/live_edit_persistence.md. Parts and the manifest tree (formerly 1 and 2)
+are done; the rest is not implemented yet.
 
 ## What exists
 
-- **Chunking.** `be_block_store::chunker::split` is content-defined:
-  `ChunkerConfig::DEFAULT` is 256 KiB minimum, 1 MiB average, 4 MiB maximum.
-  The chunker is set per `Vault` (`with_chunker`), not per content type. A
-  commit holds a flat `Manifest { content_type, length, chunks: Vec<ChunkRef> }`.
-- **Saving.** `CommitStore::write(…, data: &[u8], …)` chunks the whole stored
-  form again on every save. Unchanged chunks deduplicate, but an edit anywhere
-  re-uploads the chunk around it, at least 256 KiB.
+- **Parts.** `BlockContent::parts` returns the stored form as a tree of
+  `Part`s (new bytes, `Reused(PartRef)` from the loaded head, or a `Node` of
+  children) whose leaves concatenate to `encode()`; `from_stored(&Stored)`
+  gets the `LoadedPart` tree back. Each leaf is sealed on its own (split by the
+  vault's chunker past its minimum), and `Blob` saves its header and payload as
+  two parts (guides/blocks/content_types.md, "Parts").
+- **The manifest tree.** `Manifest { content_type, root: Option<PartRef> }`
+  names a tree of sealed `Node`s in the shape of the parts; unchanged subtrees
+  are shared between commits, and a manifest may mix data key epochs. A
+  be-block-client test (`a_large_block_saved_after_a_small_change_uploads_only_what_changed`)
+  shows an 8 KiB edit to a 4 MiB block saving one chunk and two nodes.
+- **Not wired through replicas.** Peer-level `save` and `open` use parts, but
+  the replica host saves a type module's bytes as one leaf
+  (`be-block-type-host`, `Call::Publish` and `Call::Stash`): the type protocol
+  (`be-sdk-type-api`) carries bytes, not parts. Documents' parts (1a) need
+  parts, and reused refs, on that protocol.
 - **Range reads.** `Streamed` content is `[u32 header length][header][payload]`;
-  `Peer::stream_header`, `stream_range` and `read_span` fetch only the chunks a
-  range touches. Only a be-block-client test uses them
+  `Peer::stream_header`, `stream_range` and `read_span` fetch only the nodes
+  and chunks a range touches. Only a be-block-client test uses them
   (`a_large_image_streams_without_downloading_all_of_it`). The replica and apps
   always load content whole, and `Blob` holds its payload in memory.
 - **Publishing.** `publish` (`crates/be-block-protocol/wit/blocks.wit`) carries
-  the full `chunks` list and the full `references` list. The server's
+  the full `chunks` list (every node and chunk of the manifest tree) and the full `references` list. The server's
   `store_edges` (`crates/be-server/src/blocks.rs`) deletes every edge of the
   block and inserts them again, and each `Commit` stores the full
   `references`.
 - **References** come from `BlockContent::references_in` over the whole
   content.
 - **Sessions.** A joining follower gets the owner's whole state in `Snapshot`.
-- Commits, manifests and chunks are server data, which
-  guides/frozen_formats.md calls frozen. No data that matters is saved yet, so
-  this plan changes them freely and lifts that freeze for them.
 - `Document::to_bytes` writes the whole document as one CBOR value
   (`stored::save`). `Document::to_parts` splits the same form into a tree of
   parts by its structure (1a), but nothing saves through it yet.
 
 ## The design
 
-### 1. Content chooses its chunks
-
-- `BlockContent` may return its stored form as parts. A part is either new
-  bytes, saved as a chunk of its own, or an existing `ChunkRef` from the head it
-  was loaded from. By default content returns one part holding all its bytes,
-  chunked as today.
-- The vault seals new parts and writes a manifest that reuses the old refs.
-  Seal nonces are derived from the key and the plaintext
-  (`decisions/deterministic_seal_nonce.md`), so two replicas that encode the
-  same part get the same chunk and hash.
-- `Blob` puts its header in a part of its own, so changing the header no
-  longer re-chunks the payload.
-- After key rotation a manifest mixes chunks sealed under different data key
-  epochs. Sealed bytes name their key, so reading should work; add a test.
-
 ### 1a. be-block-model splits documents itself
 
 The model side is done: `Document::to_parts` / `from_parts`
 (guides/blocks/content_types.md, "The stored form"). Left:
 
-- Wire `Document`'s parts into `BlockContent`'s parts (1), reusing the loaded
-  head's `ChunkRef`s for parts whose hash didn't change, so text, canvas and
-  database blocks get cheap saves.
+- Wire `Document`'s parts into `BlockContent::parts` and `from_stored`
+  (guides/blocks/content_types.md, "Parts"): return a `Part::Node` per
+  document part, and `Part::Reused` with the loaded `PartRef` for parts that
+  didn't change, so text, canvas and database blocks get cheap saves. The
+  replica host and the type protocol must carry parts and refs for this to
+  reach real saves (see "What exists").
 - Parts still load whole. Loading part of a document is 5; the model could
   later offer it per field (an attribute such as `#[model(lazy)]` on a
   `List`), with a part's objects loaded when first read. Chat's segments don't
   need that, since they are its own layout.
-
-### 2. A manifest tree
-
-- The commit names a root object; the manifest is a tree of objects, and
-  unchanged subtrees are shared between commits. A commit then costs its
-  changed parts plus a few small nodes, not a list of every chunk.
-- The tree replaces the flat manifest; nothing keeps reading the old one.
 
 ### 3. Publish sends what changed
 
@@ -103,14 +91,13 @@ The model side is done: `Document::to_parts` / `from_parts`
 
 ## Order of work
 
-1, 3 and 4 are independent; 1a and 2 build on 1; 5 builds on 1 and 4. Chat
-needs 1–5; the canvas and text need 1, 1a, 2 and 3.
+3 and 4 are independent; 5 builds on 4. Chat needs 1a and 3–5; the canvas
+and text need 1a and 3.
 
 ## Tests
 
-- In be-block-client: a large block saved after a small change uploads one
-  small chunk and a few manifest nodes, and publishes a small reference change.
-  Count bytes with the fault relay.
-- A manifest mixing data key epochs reads after a rotation.
+- In be-block-client, extend
+  `a_large_block_saved_after_a_small_change_uploads_only_what_changed`: the
+  publish carries a small reference and object change, not the full lists.
 - A replica that loads only the header reads a payload range on demand, and a
   follower joining it gets a snapshot without the payload.

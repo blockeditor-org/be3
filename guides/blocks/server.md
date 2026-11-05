@@ -8,8 +8,16 @@ the server are in guides/blocks/keys.md.
 - **be-block-store**: content-addressed, encrypted objects. `Hash` is the
   SHA-256 of the *ciphertext*, so the server verifies what it holds without
   reading it. `chunker::split` is content-defined, so an edit in the middle of a
-  large file re-uploads one chunk. A `Manifest` (`{content_type, length,
-  chunks}`) plus `Vault::read_range` is how a large block streams. `ObjectStore`
+  large file re-uploads one chunk. A `Manifest` (`{content_type, root}`) names
+  the root of a tree of sealed `Node`s over the chunks, in the shape of the
+  content's parts (guides/blocks/content_types.md, "Parts"); a leaf split over
+  many chunks is grouped under nodes chosen by the chunks' hashes. Unchanged
+  subtrees are shared between commits, and a reused part keeps the data key it
+  was sealed under, so one manifest can mix key epochs. `Vault::objects` lists
+  a tree's nodes and chunks (`publish` sends them all as `chunks`);
+  `missing_objects` names what is absent a level at a time, which
+  `Peer::fetch_range` fetches until none is left. `Vault::read_range` is how a
+  large block streams. `ObjectStore`
   is synchronous; fetching over the network is explicit (`Peer::fetch`).
   Durability rules are on `ObjectStore::sync`.
 - **be-block-commit**: a `Commit` (`{parents, manifest, author, time, kind,

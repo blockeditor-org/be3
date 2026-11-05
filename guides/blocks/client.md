@@ -42,9 +42,12 @@ each `due()` until it gives up. The fault relay (guides/blocks/server.md,
 
 ## Reading and writing
 
-- `open` reads the head commit and its chunks in one `ReadContents`.
-- `save` publishes against the head it read, carrying the commit and the chunks
-  that head lacks, so a save is one round trip. A merge, or new objects over
+- `open` reads the head commit and its objects in one `ReadContents`, and
+  decodes with `BlockContent::from_stored`; `read_contents` returns `Stored`
+  (bytes and the parts they were saved in).
+- `save` seals `BlockContent::parts` and publishes against the head it read,
+  carrying the commit and the objects (nodes and chunks) that head lacks, so a
+  save is one round trip and costs what changed. A merge, or new objects over
   half a frame, upload first: only what `MissingObjects` says is missing, in
   `PutObjects` of up to 2 MiB.
 - `read_contents` reads many heads at once (one `ReadContents` per 256 blocks,
