@@ -8,7 +8,7 @@ use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui_components_unstyled::{DropHandle, DropTarget, drag_board};
+use beui_components_unstyled::{DragSource, DropHandle, DropTarget, drag_board};
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::components::root::Root;
@@ -116,10 +116,11 @@ impl DockBarDriver for State {
             dock.lift_bar(bar, rect.min + grab, rect);
         }
         drag_board().begin(
-            Rc::new(DockDragged::Bar(bar)),
+            DragSource {
+                outside: Rc::new(move |point: DragPoint| dock.bar_outside(bar, point)),
+                ..DragSource::new(Rc::new(DockDragged::Bar(bar)))
+            },
             DragPoint::of(press),
-            Rc::new(|_| {}),
-            Rc::new(move |point: DragPoint| dock.bar_outside(bar, point)),
         );
     }
 }

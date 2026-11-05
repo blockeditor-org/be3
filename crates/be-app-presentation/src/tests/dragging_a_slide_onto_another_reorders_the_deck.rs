@@ -15,5 +15,9 @@ fn dragging_a_slide_onto_another_reorders_the_deck() {
     test.drag(from, onto);
     test.run();
 
-    assert_eq!(slide_ids(&test), [ids[1], ids[2], ids[0]]);
+    assert_eq!(
+        slide_ids(&test),
+        [ids[1], ids[2], ids[0]],
+        "the slide lands past every slide it was carried over half of"
+    );
 }

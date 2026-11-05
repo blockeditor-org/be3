@@ -18,7 +18,13 @@ fn a_bare_pane_shows_its_one_tab_and_takes_no_other() {
     assert!(state.is_bare(stage));
     assert!(!state.is_bare(leaf_of(&state, 2)));
     let two = Entry::Tab(TabId::new(2));
-    assert!(!state.admits(two, DockDrop::Pane { leaf: stage }));
+    assert!(!state.admits(
+        two,
+        DockDrop::Tab {
+            leaf: stage,
+            index: usize::MAX
+        }
+    ));
     assert!(!state.admits(
         two,
         DockDrop::Tab {
@@ -43,7 +49,13 @@ fn a_bare_pane_shows_its_one_tab_and_takes_no_other() {
         ),
         "a bare pane can still be split from its edge"
     );
-    state.drop_tab(TabId::new(2), DockDrop::Pane { leaf: stage });
+    state.drop_tab(
+        TabId::new(2),
+        DockDrop::Tab {
+            leaf: stage,
+            index: usize::MAX,
+        },
+    );
     assert_eq!(state.entries(stage), vec![Entry::Tab(TabId::new(1))]);
     let restored = DockState::from_spec(&state.spec());
     assert!(

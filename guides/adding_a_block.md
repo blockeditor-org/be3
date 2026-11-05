@@ -144,13 +144,17 @@ a `MetaKey::derived` key.
 
 ## 6. Children
 
-If the type has children the Files sidebar can add, remove or swap, override
-`Root::child_edit`, which turns a `ChildChange` into an ordinary edit (`None`
-for a change the type does not take; an empty `Edit` for one already done).
-The host calls it through the block's replica, without asking the editor.
-`crates/be-type-presentation/src/presentation.rs` and be-block's `folder.rs`
-are examples. The manifest's `children` says which of these edits the type
-accepts.
+If the type has children the Files sidebar can add, remove, swap or reorder,
+override `Root::child_edit`, which turns a `ChildChange` into an ordinary edit
+(`None` for a change the type does not take; an empty `Edit` for one already
+done). The host calls it through the block's replica, without asking the
+editor. `crates/be-type-presentation/src/presentation.rs` and
+`crates/be-type-workspace/src/folder.rs` (which reorders) are examples. A type
+that takes `Reorder` keeps its children in order, so it overrides
+`Root::references` to list them in that order too: the file tree lists a
+block's children in the order of its references, and be-block-model's own
+reference index keeps the order blocks first appeared in. The manifest's
+`children` says which of these edits the type accepts.
 
 ## 7. Undo
 

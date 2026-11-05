@@ -38,6 +38,7 @@ fn deleting_needs_a_container_that_can_delete_children() {
         add: false,
         delete: true,
         replace: false,
+        reorder: false,
     });
     assert!(can_move_out_of(
         &client,

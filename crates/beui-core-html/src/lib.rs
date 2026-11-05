@@ -5,6 +5,7 @@ pub mod colors;
 pub mod css;
 pub mod document;
 pub mod dom;
+pub mod drags;
 pub mod drawing;
 pub mod files;
 pub mod focus;

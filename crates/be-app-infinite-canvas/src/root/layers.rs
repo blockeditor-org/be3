@@ -13,9 +13,6 @@ use beui::{Align, Direction};
 const ROW_PADDING: Space = Space::Xs;
 const ROW_RADIUS: Radius = Radius::Sm;
 
-#[derive(Clone, Copy, PartialEq)]
-struct Layer(Uuid);
-
 #[component]
 pub(crate) fn CanvasLayers(state: CanvasState) -> NodeId {
     view! {
@@ -35,20 +32,45 @@ fn LayerList(state: CanvasState) -> NodeId {
     let ids =
         create_memo(move || entities.with(|ids| ids.iter().rev().copied().collect::<Vec<Uuid>>()));
     let empty = create_memo(move || ids.with(Vec::is_empty));
+    let read_only = state.editor().read_only();
+    let moved = move |moved: ReorderMove<Uuid, Uuid>| state.move_layer(moved.payload, moved.after);
+    let text = move |id: Uuid| {
+        state
+            .entities
+            .get_untracked(id)
+            .map(|entity| layer_label(&state, &entity))
+            .unwrap_or_default()
+    };
+    let ghost = move |id: Uuid| {
+        view! {
+            <LayerGhost label={text(id)} />
+        }
+    };
     view! {
-        <List spacing=Space::Xs2 @test_id={"infinite-canvas.layers"}>
+        <List spacing=Space::Xs2>
             <Show condition={empty}>
                 <Text style=TextStyle::CAPTION>"Nothing on the canvas yet."</Text>
             </Show>
-            <ForEach keys={ids}>|id: Uuid|
-                <LayerRow state id />
-            </ForEach>
+            <Reorder
+                keys={ids}
+                payload={Func::new(Some)}
+                disabled={read_only}
+                text={text}
+                preview={ghost}
+                on_move={moved}
+            >|reorder: ReorderHandle<Uuid, Uuid>|
+                <List spacing=Space::Xs2 @test_id={"infinite-canvas.layers"}>
+                    <ForEach keys={reorder.order}>|id: Uuid|
+                        <LayerRow state reorder id />
+                    </ForEach>
+                </List>
+            </Reorder>
         </List>
     }
 }
 
 #[component]
-fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
+fn LayerRow(state: CanvasState, reorder: ReorderHandle<Uuid, Uuid>, id: Uuid) -> NodeId {
     let entity = state.entities.watch(id).stored();
     let label = create_memo(move || {
         entity
@@ -70,62 +92,48 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
+    let fill = create_memo(move || match selected.get() {
+        true => ColorRole::AccentSoft,
+        false => ColorRole::None,
+    });
     let toggle = move || state.set_hidden(id, !hidden.get_untracked());
     let select = move || state.select(id, false);
-    let dropped = move |(Layer(moved), point): (Layer, DragPoint)| {
-        let in_front = point.fraction.y < 0.5;
-        state.move_layer(moved, id, in_front);
-    };
-    let ghost = move |_: Layer| {
-        view! {
-            <LayerGhost label={label} />
-        }
-    };
     view! {
-        <DropTarget on_drop={dropped}>|handle: DropHandle| {
-            let fill = create_memo(move || match selected.get() {
-                true => ColorRole::AccentSoft,
-                false => ColorRole::None,
-            });
-            view! {
-                <Frame
-                    fill={fill}
-                    radius=ROW_RADIUS
-                    border={create_memo(move || handle.over.get().then_some(Border::new(ColorRole::Accent)))}
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                        <Button
-                            icon_only=true
-                            glyph={glyph}
-                            label={toggle_label}
-                            size=ButtonSize::Small
-                            variant=ButtonVariant::Ghost
-                            capture_presses=true
-                            @test_id={format!("infinite-canvas.layer.{id}.visibility")}
-                            on_click={toggle}
-                        />
-                        <ListItem grow=1.0>
-                            <Draggable
-                                payload={Some(Layer(id))}
-                                cursor=CursorIcon::PointingHand
-                                preview={ghost}
-                                on_click={select}
-                                @test_id={format!("infinite-canvas.layer.{id}")}
-                            >|_: DragHandle|
-                                <Frame padding={Padding::vertical(ROW_PADDING)}>
-                                    <Text color={text}>{label}</Text>
-                                </Frame>
-                            </Draggable>
-                        </ListItem>
-                    </List>
-                </Frame>
-            }
-        }</DropTarget>
+        <ReorderItem
+            reorder
+            item=id
+            radius=ROW_RADIUS
+            cursor=CursorIcon::PointingHand
+            on_click={select}
+        >|_: ReorderItemHandle|
+            <Frame fill={fill} radius=ROW_RADIUS>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                    <Button
+                        icon_only=true
+                        glyph={glyph}
+                        label={toggle_label}
+                        size=ButtonSize::Small
+                        variant=ButtonVariant::Ghost
+                        capture_presses=true
+                        @test_id={format!("infinite-canvas.layer.{id}.visibility")}
+                        on_click={toggle}
+                    />
+                    <ListItem grow=1.0>
+                        <Frame
+                            padding={Padding::vertical(ROW_PADDING)}
+                            @test_id={format!("infinite-canvas.layer.{id}")}
+                        >
+                            <Text color={text}>{label}</Text>
+                        </Frame>
+                    </ListItem>
+                </List>
+            </Frame>
+        </ReorderItem>
     }
 }
 
 #[component]
-fn LayerGhost(label: be_sdk_beui::beui::reactive::Memo<String>) -> NodeId {
+fn LayerGhost(label: String) -> NodeId {
     view! {
         <Frame
             fill=ColorRole::Control

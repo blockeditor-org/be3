@@ -384,7 +384,7 @@ pub fn Swatches(
             wrap=true
             spacing
         >|option: ChoiceOptionHandle| {
-            let color = swatches[option.index];
+            let color = swatches[option.index.get_untracked()];
             content.call(SwatchHandle { color, option })
         }</Choice>
     }

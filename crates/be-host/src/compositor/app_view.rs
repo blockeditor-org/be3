@@ -1524,7 +1524,7 @@ fn carry(drag: BlockDrag) {
         return;
     };
     let point = DragPoint::at(pointer.pos, Modifiers::NONE);
-    board.begin(Rc::new(drag), point, Rc::new(|_| {}), Rc::new(|_| {}));
+    board.begin(beui::unstyled::DragSource::new(Rc::new(drag)), point);
 }
 
 fn focus_when_asked(

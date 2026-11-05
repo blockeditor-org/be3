@@ -13,5 +13,11 @@ fn a_tab_declared_later_in_a_locked_pane_is_locked_to_its_area() {
         Some(DockHome::Area("editors".to_owned()))
     );
     let files = leaf_of(&state, 1);
-    assert!(!state.admits(Entry::Tab(TabId::new(11)), DockDrop::Pane { leaf: files }));
+    assert!(!state.admits(
+        Entry::Tab(TabId::new(11)),
+        DockDrop::Tab {
+            leaf: files,
+            index: usize::MAX
+        }
+    ));
 }

@@ -48,10 +48,10 @@ pub fn display_rows(
         .filter(|(_, row)| filters.iter().all(|filter| filter.matches(row, fields)))
         .map(|(index, row)| DisplayRow { index, row })
         .collect();
-    if let Some(sort) = sort
-        && let Some(field) = fields.iter().find(|field| field.id == sort.field_id)
-    {
-        display.sort_by(|a, b| compare_sorted_rows(&a.row, &b.row, sort, field, labels));
+    if let Some(sorted) = sorted_by(sort, fields) {
+        display.sort_by(|a, b| {
+            display_order((&a.row, a.index), (&b.row, b.index), Some(sorted), labels)
+        });
     }
     for offset in 0..extra_row_count(rows.len(), selected) {
         display.push(DisplayRow {
@@ -60,6 +60,27 @@ pub fn display_rows(
         });
     }
     display
+}
+
+pub fn sorted_by(
+    sort: Option<DatabaseViewSort>,
+    fields: &[DatabaseField],
+) -> Option<(DatabaseViewSort, &DatabaseField)> {
+    let sort = sort?;
+    Some((sort, fields.iter().find(|field| field.id == sort.field_id)?))
+}
+
+pub fn display_order(
+    (a, a_index): (&DatabaseRow, usize),
+    (b, b_index): (&DatabaseRow, usize),
+    sorted: Option<(DatabaseViewSort, &DatabaseField)>,
+    labels: &BlockLabels,
+) -> Ordering {
+    sorted
+        .map_or(Ordering::Equal, |(sort, field)| {
+            compare_sorted_rows(a, b, sort, field, labels)
+        })
+        .then(a_index.cmp(&b_index))
 }
 
 pub fn extra_row_count(len: usize, selected: Option<usize>) -> usize {

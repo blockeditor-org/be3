@@ -11,8 +11,8 @@ use crate::unstyled as dock;
 pub use crate::unstyled::{DockApi, DockArea, DockHostLayout, DockSnap, DockWindowActions};
 use crate::unstyled::{
     DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
-    DockDragged, DockGripHandle, DockPreviewHandle, DockSplitterHandle, DockStackHandle,
-    DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
+    DockDragged, DockGripHandle, DockHighlightHandle, DockPreviewHandle, DockSplitterHandle,
+    DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
 };
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
@@ -67,13 +67,14 @@ const CHROME_PADDING: Space = Space::Xs2;
 const RULE: f32 = 1.0;
 const SPLITTER_LINE: f32 = 1.0;
 const TAB_STRIP_SPACING: Space = Space::Sm;
-const DROP_MARKER: Stroke = Stroke::Focus;
 const SPLITTER_REACH: f32 = 3.0;
 const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: Size = Size::Xs;
 pub const WINDOW_CHROME: beui_view::types::Vec2 =
     beui_view::types::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
 const DROP_OPACITY: f32 = 0.25;
+const DROP_LABEL_MARGIN: Space = Space::Md;
+const DROP_LABEL_PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs);
 const AWAY_SPACING: Space = Space::Lg;
 const AWAY_PADDING: Space = Space::Xl3;
 const PREVIEW_OPACITY: f32 = 0.92;
@@ -108,7 +109,6 @@ pub fn DockHost(
             splitter_reach=SPLITTER_REACH
             icon_sidebar_width=ICON_SIDEBAR
             tab_spacing={TAB_STRIP_SPACING.px()}
-            drop_marker_width={DROP_MARKER.px()}
             back_shade={back_shade}
             menu={menu_style()}
             content={move || content.call(())}
@@ -155,8 +155,8 @@ pub fn DockHost(
             grip={move |handle: DockGripHandle| view! {
                 <DockGrip handle />
             }}
-            highlight={move || view! {
-                <DockDropHighlight />
+            highlight={move |handle: DockHighlightHandle| view! {
+                <DockDropHighlight handle />
             }}
             bar_margin={BAR_MARGIN.px()}
             bar_band={move |handle: DockBarBandHandle| view! {
@@ -961,11 +961,31 @@ fn DockBarBandFace(handle: DockBarBandHandle) -> NodeId {
 }
 
 #[component]
-fn DockDropHighlight() -> NodeId {
+fn DockDropHighlight(handle: DockHighlightHandle) -> NodeId {
+    let DockHighlightHandle { group_with } = handle;
+    let grouping = create_memo(move || group_with.get().is_some());
+    let label = create_memo(move || {
+        group_with
+            .get()
+            .map(|title| format!("Group with {title}"))
+            .unwrap_or_default()
+    });
     view! {
         <Layers>
             <Frame fill=ColorRole::Accent radius=Radius::Md opacity=DROP_OPACITY />
             <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
+            <Show condition={grouping}>
+                <Frame align=Align2::CENTER padding=DROP_LABEL_MARGIN>
+                    <Frame
+                        fill=ColorRole::Accent
+                        radius=Radius::Md
+                        padding=DROP_LABEL_PADDING
+                        @test_id="dock.drop.label"
+                    >
+                        <Text color=TextColor::OnAccent overflow=Overflow::Ellipsis>{label}</Text>
+                    </Frame>
+                </Frame>
+            </Show>
         </Layers>
     }
 }

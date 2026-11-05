@@ -210,6 +210,7 @@ impl Root for Folder {
             ChildChange::Replace { old, new } => listed(old)
                 .map(|entry| FolderEntry::BLOCK.set(entry.id, &BlockRef(new)))
                 .collect(),
+            ChildChange::Reorder { .. } => return None,
         })
     }
 }

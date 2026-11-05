@@ -15,7 +15,10 @@ fn a_locked_tab_dropped_outside_its_area_stays_put() {
     );
 
     let outside = [
-        DockDrop::Pane { leaf: editors },
+        DockDrop::Tab {
+            leaf: editors,
+            index: usize::MAX,
+        },
         DockDrop::Tab {
             leaf: editors,
             index: 0,
@@ -36,9 +39,27 @@ fn a_locked_tab_dropped_outside_its_area_stays_put() {
         );
         state.drop_tab(TabId::new(1), target);
     }
-    assert!(!state.admits_leaf(files, DockDrop::Pane { leaf: editors }));
-    state.drop_leaf(files, DockDrop::Pane { leaf: editors });
-    state.drop_tab(TabId::new(10), DockDrop::Pane { leaf: files });
+    assert!(!state.admits_leaf(
+        files,
+        DockDrop::Tab {
+            leaf: editors,
+            index: usize::MAX
+        }
+    ));
+    state.drop_leaf(
+        files,
+        DockDrop::Tab {
+            leaf: editors,
+            index: usize::MAX,
+        },
+    );
+    state.drop_tab(
+        TabId::new(10),
+        DockDrop::Tab {
+            leaf: files,
+            index: usize::MAX,
+        },
+    );
 
     assert_eq!(
         state.entries(files),

@@ -391,6 +391,9 @@ fn api_child(change: be_block::ChildChange) -> be_sdk_type_api::ChildChange {
         be_block::ChildChange::Replace { old, new } => {
             be_sdk_type_api::ChildChange::Replace(be_sdk_type_api::ReplaceChild { old, new })
         }
+        be_block::ChildChange::Reorder { block, after } => {
+            be_sdk_type_api::ChildChange::Reorder(be_sdk_type_api::ReorderChild { block, after })
+        }
     }
 }
 

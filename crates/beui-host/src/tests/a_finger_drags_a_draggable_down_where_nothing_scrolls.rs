@@ -8,7 +8,12 @@ fn a_finger_drags_a_draggable_down_where_nothing_scrolls() {
     let (document, [source, target]) = toolbar_of(move || {
         [
             view! {
-                <Draggable payload={7_u32}>|_: DragHandle|
+                <Draggable
+                    payload={7_u32}
+                    preview={|_: u32| view! {
+                        <Frame width=40.0 height=40.0 />
+                    }}
+                >|_: DragHandle|
                     <Frame width=40.0 height=40.0 />
                 </Draggable>
             },
