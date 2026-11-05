@@ -251,9 +251,9 @@ might become a view over location metadata, as above.
 
 ### Chat
 
-A group chat is a planned editor. It hasn't been designed. As a block it would
-get members, permissions and history from the core, and links to the documents
-it talks about.
+A group chat is a planned editor, designed in `plans/chat.md`. As a block it
+gets members, permissions and history from the core, and links to the
+documents it talks about.
 
 ### Presentation
 
