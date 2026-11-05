@@ -61,7 +61,7 @@ fn a_replica_that_loads_only_the_header_reads_the_payload_on_demand() {
 
     sim.operate(1, 1, BlobOp::SetHeader("take two".into()));
     sim.settle();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert!(sim.errors.is_empty(), "{:?}", sim.errors);
     let renamed = FileContent::new("take two".into(), payload.clone());
     assert_eq!(sim.head_content(), renamed);
