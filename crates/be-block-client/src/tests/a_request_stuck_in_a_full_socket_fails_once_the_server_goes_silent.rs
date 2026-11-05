@@ -16,8 +16,17 @@ async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {
 
     relay.jam_at_next_request();
     let heard = relay.heard();
-    let answer = crate::ask(client::objects::put_objects(
+    let answer = crate::ask(client::blocks::publish(
         &connection,
+        uuid::Uuid::nil(),
+        be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"a commit")),
+        None,
+        Vec::new(),
+        Vec::new(),
+        0,
+        false,
+        Vec::new(),
+        Vec::new(),
         vec![vec![7; be_block_protocol::MAX_FRAME_BYTES - 1024]],
     ));
     relay.heard_beyond(heard).await;

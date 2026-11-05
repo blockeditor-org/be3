@@ -25,7 +25,7 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
         kept.len() as u64,
         "an upload no block holds is charged to its uploader"
     );
-    assert!(lasting.get_object(hashes[0]).await.unwrap().is_some());
+    assert!(lasting.objects().has(hashes[0]).unwrap());
     drop(lasting);
 
     let impatient = ServerStore::open_with(
@@ -34,6 +34,7 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
             upload_grace: Duration::ZERO,
             ..crate::store::StorageLimits::DEFAULT
         },
+        None,
     )
     .unwrap();
     assert_eq!(
@@ -41,7 +42,7 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
         1,
         "an upload past its grace is deleted"
     );
-    assert!(impatient.get_object(hashes[0]).await.unwrap().is_none());
+    assert!(!impatient.objects().has(hashes[0]).unwrap());
     assert_eq!(impatient.storage_usage(identity).await.unwrap().pending, 0);
 
     drop(impatient);

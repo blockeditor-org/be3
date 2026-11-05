@@ -7,8 +7,8 @@ use std::{
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
     AccountStorage, Authenticated, BlockChange, BlockEvent, BlockSummary, BrowserLogin,
-    BrowserLoginState, Collected, Contents, CreatedAgent, Error, ErrorCode, Listing,
-    OrganizationOpened, PairingMessage, RecoveryKey, SessionEvent, SessionState, embed,
+    BrowserLoginState, Collected, Contents, CreatedAgent, Error, ErrorCode, Header, Listing,
+    OrganizationOpened, PairingMessage, RecoveryKey, SessionEvent, SessionState, UploadUrl, embed,
 };
 use be_block_session::Claim;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
@@ -109,8 +109,8 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
         },
         Call::Objects(call) => match call {
             objects::Call::HoldObjects { block: held, .. } => block(*held, Access::Edit),
-            objects::Call::PutObjects { .. }
-            | objects::Call::GetObject { .. }
+            objects::Call::UploadUrls { .. }
+            | objects::Call::DownloadUrls { .. }
             | objects::Call::MissingObjects { .. } => Rule::Organization,
         },
         Call::Blocks(call) => match call {
@@ -297,6 +297,8 @@ pub(crate) struct Connection {
     pub(crate) header_token: Option<String>,
     pub(crate) identity: Option<Identity>,
     pub(crate) config: ServerConfig,
+    /// What presigns the URLs object bytes move with (`Services::transfers`).
+    pub(crate) transfers: crate::objects::Bucket,
     /// The address the connection comes from; see [`crate::Services::client_address`].
     pub(crate) address: IpAddr,
     /// Since when the connection has had no account.
@@ -352,6 +354,7 @@ impl Client {
                 header_token: None,
                 identity: None,
                 config: services.config.clone(),
+                transfers: services.transfers.clone(),
                 address,
                 anonymous_since: tokio::time::Instant::now(),
                 anonymous: Some(anonymous),
@@ -1269,26 +1272,63 @@ impl Client {
         use embed::objects::Call;
         let connection = &self.connection;
         match call {
-            Call::PutObjects { reply, objects } => {
-                let stored = async {
+            Call::UploadUrls { reply, objects } => {
+                let signed = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    connection.store.put_objects(identity, objects).await
+                    at_most_urls(objects.len())?;
+                    let sized = objects
+                        .iter()
+                        .map(|object| (object.hash, object.length))
+                        .collect();
+                    connection.store.reserve_uploads(identity, sized).await?;
+                    let lifetime = connection.store.transfer_lifetime();
+                    Ok(objects
+                        .into_iter()
+                        .map(|object| {
+                            let length = usize::try_from(object.length).unwrap_or(usize::MAX);
+                            let signed =
+                                connection
+                                    .transfers
+                                    .presign_put(object.hash, length, lifetime);
+                            UploadUrl {
+                                url: signed.url,
+                                headers: signed
+                                    .headers
+                                    .into_iter()
+                                    .map(|(name, value)| Header {
+                                        name: name.to_owned(),
+                                        value,
+                                    })
+                                    .collect(),
+                            }
+                        })
+                        .collect())
                 }
                 .await;
-                self.reply(reply, stored);
+                self.reply(reply, signed);
             }
-            Call::GetObject { reply, hash } => {
-                let found = async {
+            Call::DownloadUrls { reply, hashes } => {
+                let signed = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    match connection.store.may_read_object(identity, hash).await? {
-                        true => connection.store.get_object(hash).await,
-                        false => Ok(None),
-                    }
+                    at_most_urls(hashes.len())?;
+                    let lifetime = connection.store.transfer_lifetime();
+                    let readable = connection
+                        .store
+                        .may_read_objects(identity, hashes.clone())
+                        .await?;
+                    let urls: Vec<Option<String>> = hashes
+                        .into_iter()
+                        .zip(readable)
+                        .map(|(hash, readable)| {
+                            readable.then(|| connection.transfers.presign_get(hash, lifetime))
+                        })
+                        .collect();
+                    Ok(urls)
                 }
                 .await;
-                self.reply(reply, found);
+                self.reply(reply, signed);
             }
             Call::MissingObjects { reply, hashes } => {
                 let missing = async {
@@ -2194,5 +2234,20 @@ impl Connection {
                 },
             )
             .await;
+    }
+}
+
+/// Refuses an `upload-urls` or `download-urls` call that names more objects than one answer
+/// holds.
+fn at_most_urls(objects: usize) -> Result<(), ServerError> {
+    match objects > be_block_protocol::MAX_OBJECT_URLS {
+        true => Err(ServerError::Refused(
+            ErrorCode::InvalidRequest,
+            format!(
+                "ask for at most {} objects at a time",
+                be_block_protocol::MAX_OBJECT_URLS
+            ),
+        )),
+        false => Ok(()),
     }
 }

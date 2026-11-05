@@ -61,7 +61,7 @@ use be_block_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, Obj
 use be_block_protocol::{
     Agent, ErrorCode, Organization, OrganizationInvitation, OrganizationKind, OrganizationRole,
 };
-use be_block_store::{FileStore, Hash, ObjectStore};
+use be_block_store::Hash;
 use rand::TryRngCore;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
@@ -70,7 +70,7 @@ use uuid::Uuid;
 
 use crate::{ServerError, schema};
 
-pub const MAX_OBJECT_BYTES: usize = 8 * 1024 * 1024;
+pub use be_block_protocol::MAX_OBJECT_BYTES;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Identity {
@@ -110,7 +110,7 @@ impl std::ops::Deref for ServerStore {
 pub struct Shared {
     database: Arc<Mutex<Connection>>,
     pub(crate) session_changes: tokio::sync::watch::Sender<u64>,
-    objects: FileStore,
+    objects: crate::objects::Objects,
     graphs: std::sync::Mutex<HashMap<Uuid, Arc<std::sync::RwLock<Cached>>>>,
     /// A read-only connection beside the writer (the database is in WAL mode), for reads that
     /// must not wait behind writes: whether a reader may download an object.
@@ -134,11 +134,18 @@ pub const MAX_AGENTS_PER_CREATOR: i64 = 16;
 pub const USAGE_CHANGES_QUEUED: usize = 256;
 
 impl ServerStore {
+    /// Opens the server in `root` with the default limits and its objects in `root/objects`.
     pub fn open(root: impl AsRef<Path>) -> Result<Self, ServerError> {
-        Self::open_with(root, StorageLimits::DEFAULT)
+        Self::open_with(root, StorageLimits::DEFAULT, None)
     }
 
-    pub fn open_with(root: impl AsRef<Path>, limits: StorageLimits) -> Result<Self, ServerError> {
+    /// Opens the server in `root`, with its objects in `bucket` (behind a cache in
+    /// `root/object-cache`) or, with none, in `root/objects`.
+    pub fn open_with(
+        root: impl AsRef<Path>,
+        limits: StorageLimits,
+        bucket: Option<&crate::objects::BucketConfig>,
+    ) -> Result<Self, ServerError> {
         let root: PathBuf = root.as_ref().to_path_buf();
         std::fs::create_dir_all(&root)?;
         let connection = Connection::open(root.join("metadata.sqlite"))?;
@@ -146,7 +153,7 @@ impl ServerStore {
         schema::initialize(&connection)?;
         let object_refs = load_object_refs(&connection)?;
         let server = crate::organization::ServerKey::load_or_create(&connection)?;
-        let objects = FileStore::open(root.join("objects"))?;
+        let objects = crate::objects::Objects::open(&root, bucket)?;
         let reader = Connection::open_with_flags(
             root.join("metadata.sqlite"),
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -1021,13 +1028,10 @@ impl ServerStore {
         .await
     }
 
-    pub async fn get_object(&self, hash: Hash) -> Result<Option<Vec<u8>>, ServerError> {
-        let store = self.objects.clone();
-        blocking(move || Ok(store.get(hash)?)).await
-    }
-
     /// Reads objects in order until the next would take more than `room` bytes, skipping any
-    /// that are missing.
+    /// that are missing. They are read a batch at a time (`Objects::get_many`), so a bucket
+    /// costs a round trip per batch rather than per object; a batch may read past the last
+    /// object that fits.
     pub async fn get_objects(
         &self,
         hashes: Vec<Hash>,
@@ -1036,15 +1040,17 @@ impl ServerStore {
         let store = self.objects.clone();
         blocking(move || {
             let mut objects = Vec::new();
-            for hash in hashes {
-                let Some(bytes) = store.get(hash)? else {
-                    continue;
-                };
-                if bytes.len() > room {
-                    break;
+            for batch in hashes.chunks(crate::objects::PARALLEL_READS) {
+                for read in store.get_many(batch) {
+                    let Some(bytes) = read? else {
+                        continue;
+                    };
+                    if bytes.len() > room {
+                        return Ok(objects);
+                    }
+                    room -= bytes.len();
+                    objects.push(bytes);
                 }
-                room -= bytes.len();
-                objects.push(bytes);
             }
             Ok(objects)
         })
@@ -1061,6 +1067,17 @@ pub(crate) async fn blocking<R: Send + 'static>(
         .map_err(|error| ServerError::Io(std::io::Error::other(error)))?
 }
 
+/// Whether the server holds `hash`: `object_sizes` names every object from when its upload is
+/// reserved until it is forgotten, and `confirmed` once its bytes were seen in the object store
+/// (`ServerStore::confirm_uploads`), so this asks no object store.
+pub(crate) fn stored(connection: &Connection, hash: Hash) -> Result<bool, ServerError> {
+    Ok(connection
+        .prepare_cached("SELECT EXISTS(SELECT 1 FROM object_sizes WHERE hash = ?1 AND confirmed)")?
+        .query_row([hash.to_hex()], |row| row.get(0))?)
+}
+
+/// Whether `identity` uploaded `hash` in its organization and proved it has the object's bytes
+/// (`ServerStore::reserve_uploads`).
 pub(crate) fn uploaded(
     connection: &Connection,
     identity: Identity,
@@ -1069,7 +1086,7 @@ pub(crate) fn uploaded(
     Ok(connection
         .prepare_cached(
             "SELECT EXISTS(SELECT 1 FROM object_uploads
-             WHERE organization_id = ?1 AND account_id = ?2 AND hash = ?3)",
+             WHERE organization_id = ?1 AND account_id = ?2 AND hash = ?3 AND proven)",
         )?
         .query_row(
             params![
@@ -1404,7 +1421,7 @@ impl ServerStore {
             .expect("object refs are never poisoned")
     }
 
-    pub(crate) fn objects(&self) -> &FileStore {
+    pub fn objects(&self) -> &crate::objects::Objects {
         &self.objects
     }
 

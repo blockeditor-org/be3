@@ -581,10 +581,11 @@ async fn check(snapshot: &Snapshot) {
         &BackupKey::from_hex(snapshot.backup_key).unwrap(),
         &restored,
         None,
+        None,
     )
     .unwrap_or_else(|error| panic!("{name}: the backup no longer restores: {error}"));
     assert!(report.objects > 0);
-    assert!(backup::verify(&restored).unwrap().missing.is_empty());
+    assert!(backup::verify(&restored, None).unwrap().missing.is_empty());
     let server = start(Some(restored)).await;
     let (_, owner_token) = sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
     let owner = peer(&server, snapshot.owner_phrase, &owner_token, organization).await;

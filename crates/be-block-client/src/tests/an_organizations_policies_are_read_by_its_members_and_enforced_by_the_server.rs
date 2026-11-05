@@ -195,23 +195,15 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
 
     let early = pseudorandom(64, 6);
     let early_hash = be_block_store::Hash::of(&early);
-    crate::ask(client::objects::put_objects(
-        &admin.connection(),
-        vec![early],
-    ))
-    .await
-    .unwrap();
+    super::upload(&admin, vec![early]).await.unwrap();
     let mut policies = OrganizationPoliciesContent::default();
     policies.apply(&OrganizationPolicies::set_storage_quota(Some(1)));
     policies.apply(&OrganizationPolicies::set_history_days(Some(30)));
     let head = admin.summary(block).await.unwrap().head;
     admin.save(block, &policies, head).await.unwrap();
-    let over = crate::ask(client::objects::put_objects(
-        &admin.connection(),
-        vec![pseudorandom(64, 5)],
-    ))
-    .await
-    .unwrap_err();
+    let over = super::upload(&admin, vec![pseudorandom(64, 5)])
+        .await
+        .unwrap_err();
     assert_eq!(refused(over), ErrorCode::OverQuota);
     let held = crate::ask(client::objects::hold_objects(
         &admin.connection(),

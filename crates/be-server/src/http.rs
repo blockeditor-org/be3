@@ -23,6 +23,8 @@ use crate::{
     greeting,
 };
 
+mod s3;
+
 const PATH_SUFFIX: &str = "/http";
 /// Where a one-shot call is posted: a greeting and one call that needs no sign-in, answered and
 /// closed with no session (`one_shot`).
@@ -287,10 +289,23 @@ pub(crate) async fn route(
     }
     let head = Head::parse(&buffer)?;
     let client = services.client_address(peer.ip(), head.forwarded.as_deref());
-    let (Some(place), Some(anonymous)) = (
-        place.or_else(|| services.addresses.take(client)),
-        anonymous.or_else(|| services.unsigned.admit(client, &eviction)),
-    ) else {
+    let Some(place) = place.or_else(|| services.addresses.take(client)) else {
+        tracing::debug!(%client, "refusing a request: its address holds too many connections");
+        refuse(&mut stream, 429, "too many connections from this address").await?;
+        return Ok(None);
+    };
+    let path = head.path.split('?').next().unwrap_or_default();
+    // An S3 request carries its own signature, which s3s checks, so it is not one of the
+    // connections waiting to sign in: a client moves many objects at once.
+    if let Some(service) = &services.s3
+        && s3::is_s3(path)
+    {
+        drop(anonymous);
+        s3::serve(stream, buffer, service).await?;
+        drop(place);
+        return Ok(None);
+    }
+    let Some(anonymous) = anonymous.or_else(|| services.unsigned.admit(client, &eviction)) else {
         tracing::debug!(%client, "refusing a request: its address holds too many connections");
         refuse(&mut stream, 429, "too many connections from this address").await?;
         return Ok(None);
@@ -313,7 +328,6 @@ pub(crate) async fn route(
         .await?;
         return Ok(None);
     }
-    let path = head.path.split('?').next().unwrap_or_default();
     if head.method == "POST" && path.ends_with(CALL_SUFFIX) {
         one_shot(stream, buffer, client, (anonymous, eviction), services).await?;
         return Ok(None);

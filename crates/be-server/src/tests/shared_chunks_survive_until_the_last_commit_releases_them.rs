@@ -71,18 +71,14 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
     assert!(objects > 0, "pruning the first draft freed nothing");
 
     for chunk in &shared {
-        let response = client
-            .call(|peer| client::objects::get_object(peer, *chunk))
-            .await;
+        let response = client.download(*chunk).await;
         assert!(
             matches!(response, Ok(Some(_))),
             "a chunk the surviving commit still holds was deleted"
         );
     }
 
-    let response = client
-        .call(|peer| client::objects::get_object(peer, first.hash()))
-        .await;
+    let response = client.download(first.hash()).await;
     assert!(
         matches!(response, Ok(None)),
         "the pruned commit object survived"

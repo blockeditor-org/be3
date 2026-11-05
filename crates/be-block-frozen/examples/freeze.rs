@@ -117,6 +117,7 @@ fn freeze(
     let backup_key = BackupKey::generate();
     let report = backup::backup(
         data,
+        None,
         &Directory(target.to_path_buf()),
         &backup_key,
         SystemTime::now(),
@@ -773,11 +774,24 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     ))
     .await?;
 
-    ask(client::objects::put_objects(
+    let upload = ask(client::objects::upload_urls(
         &owner.connection(),
-        vec![scene::PENDING_UPLOAD.to_vec()],
+        vec![be_block_protocol::ObjectLength {
+            hash: be_block_store::Hash::of(scene::PENDING_UPLOAD),
+            length: scene::PENDING_UPLOAD.len() as u64,
+        }],
     ))
-    .await?;
+    .await?
+    .pop()
+    .ok_or("the server answered no upload URL")?;
+    let headers: Vec<(String, String)> = upload
+        .headers
+        .into_iter()
+        .map(|header| (header.name, header.value))
+        .collect();
+    be_block_client::http::put(&upload.url, &headers, scene::PENDING_UPLOAD.to_vec())
+        .await
+        .map_err(text)?;
     let (used_invite, _) =
         be_server::store::invite_codes::create(data, Some(1), None).map_err(text)?;
     let (unused_invite, _) =

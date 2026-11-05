@@ -6,7 +6,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use be_block_store::{FileStore, Hash, ObjectStore};
+use be_block_store::{Hash, ObjectStore};
+
+use crate::objects::{BucketConfig, Objects};
 use chacha20poly1305::{
     ChaCha20Poly1305, Key, Nonce,
     aead::{Aead, KeyInit},
@@ -18,6 +20,8 @@ const SEALED_MAGIC: &[u8] = b"be3-backup-v1";
 const NONCE_LEN: usize = 12;
 const DATABASES: &str = "databases";
 const OBJECTS: &str = "objects";
+/// Objects read from the server's store in one `Objects::get_many`.
+const READ_AT_ONCE: usize = 64;
 const HOUR: u64 = 60 * 60;
 const DAY: u64 = 24 * HOUR;
 const KEEP_EVERY: u64 = 48 * HOUR;
@@ -292,12 +296,15 @@ pub struct BackupReport {
     pub pruned: usize,
 }
 
+/// Backs up the server in `data_dir`, whose objects are in `bucket` if it has one.
 pub fn backup(
     data_dir: &Path,
+    bucket: Option<&BucketConfig>,
     target: &dyn Target,
     key: &BackupKey,
     now: SystemTime,
 ) -> Result<BackupReport, BackupError> {
+    let objects = Objects::open(data_dir, bucket)?;
     let staging = data_dir.join("backup.sqlite");
     let _ = fs::remove_file(&staging);
     Connection::open(data_dir.join("metadata.sqlite"))?
@@ -307,7 +314,6 @@ pub fn backup(
     fs::remove_file(&staging)?;
     let (snapshot, referenced) = (snapshot?, referenced?);
 
-    let objects = FileStore::open(data_dir.join("objects"))?;
     let record = data_dir.join(format!(
         "backed-up-{}.txt",
         Hash::of(target.name().as_bytes()).to_hex()
@@ -318,17 +324,20 @@ pub fn backup(
         .map(str::to_owned)
         .collect();
     let mut sent = 0;
-    for hash in &referenced {
-        let hex = hash.to_hex();
-        if uploaded.contains(&hex) {
-            continue;
+    let wanted: Vec<Hash> = referenced
+        .iter()
+        .filter(|hash| !uploaded.contains(&hash.to_hex()))
+        .copied()
+        .collect();
+    for batch in wanted.chunks(READ_AT_ONCE) {
+        for (hash, bytes) in batch.iter().zip(objects.get_many(batch)) {
+            let hex = hash.to_hex();
+            let bytes = bytes?
+                .ok_or_else(|| BackupError::Missing(format!("object {hex} on this server")))?;
+            target.put(&object_path(&hex), &bytes)?;
+            uploaded.insert(hex);
+            sent += 1;
         }
-        let bytes = objects
-            .get(*hash)?
-            .ok_or_else(|| BackupError::Missing(format!("object {hex} on this server")))?;
-        target.put(&object_path(&hex), &bytes)?;
-        uploaded.insert(hex);
-        sent += 1;
     }
     let mut listed: Vec<&String> = uploaded.iter().collect();
     listed.sort();
@@ -395,10 +404,13 @@ pub struct RestoreReport {
     pub objects: usize,
 }
 
+/// Restores a backup into the empty `data_dir`, writing its objects to `bucket`, the one the
+/// restored server will use, if any.
 pub fn restore(
     target: &dyn Target,
     key: &BackupKey,
     data_dir: &Path,
+    bucket: Option<&BucketConfig>,
     snapshot: Option<&str>,
 ) -> Result<RestoreReport, BackupError> {
     if data_dir.join("metadata.sqlite").exists() {
@@ -418,7 +430,7 @@ pub fn restore(
         .ok_or_else(|| BackupError::Missing(format!("snapshot {name}")))?;
     let database = key.open(&sealed)?;
     fs::create_dir_all(data_dir)?;
-    let objects = FileStore::open(data_dir.join("objects"))?;
+    let objects = Objects::open(data_dir, bucket)?;
     let staging = data_dir.join("restoring.sqlite");
     fs::write(&staging, &database)?;
     let referenced = referenced_objects(&Connection::open(&staging)?)?;
@@ -448,14 +460,18 @@ pub struct VerifyReport {
     pub missing: Vec<String>,
 }
 
-pub fn verify(data_dir: &Path) -> Result<VerifyReport, BackupError> {
+/// Checks that every object the database in `data_dir` references is stored intact, in
+/// `bucket` if the server has one.
+pub fn verify(data_dir: &Path, bucket: Option<&BucketConfig>) -> Result<VerifyReport, BackupError> {
     let database = Connection::open(data_dir.join("metadata.sqlite"))?;
+    let objects = Objects::open(data_dir, bucket)?;
     let referenced = referenced_objects(&database)?;
-    let objects = FileStore::open(data_dir.join("objects"))?;
     let mut missing = Vec::new();
-    for hash in &referenced {
-        if objects.get(*hash)?.is_none() {
-            missing.push(hash.to_hex());
+    for batch in referenced.chunks(READ_AT_ONCE) {
+        for (hash, bytes) in batch.iter().zip(objects.get_many(batch)) {
+            if bytes?.is_none() {
+                missing.push(hash.to_hex());
+            }
         }
     }
     Ok(VerifyReport {

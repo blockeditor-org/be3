@@ -54,8 +54,8 @@ race a new child its parent has not listed yet.
 SQLite for metadata (`schema.rs`, checked on open by
 `be_block_sqlite_schema::ensure`, which only lets a schema grow; the host's
 `host.sqlite3` is checked the same way and recreated, signing the device out,
-when it does not match), a `FileStore` for objects, and postcard frames over a
-websocket. Where a websocket cannot get through, `POST .../http` carries the
+when it does not match), an object store (`objects.rs`, "Where objects live"
+below), and postcard frames over a websocket. Where a websocket cannot get through, `POST .../http` carries the
 same frames (`http.rs`): the greeting's answer names a session in a
 `Be3-Session` header, and each later post carries queued client frames and is
 answered with whatever the server has for the client; notifications wait for
@@ -64,6 +64,43 @@ the next post. An answer stops taking frames once its replies fill
 `Be3-More`, on which the client posts again at once (with an empty body if it
 has nothing to send). The client gives up on a post only after `QUIET_WAIT`
 with no bytes moving either way, so a large post on a slow link goes through.
+
+### Objects over S3
+
+Clients move object bytes only through presigned S3 URLs (decisions/objects_live_in_s3_compatible_storage.md):
+`objects.upload-urls` takes (hash, length) pairs, reserves them as an upload
+(below, "Storage") and answers a presigned PUT per object (`upload-url`: the
+URL and the headers to send with it); `objects.download-urls` answers a
+presigned GET for each object the caller may read (`may_read_objects`) and none
+for the rest. Each names at most `be_block_protocol::MAX_OBJECT_URLS` objects.
+Only `publish`'s carried objects and `read-contents`' objects travel inside
+frames. The URLs are signed by `Services::transfers`, an `objects::Bucket`:
+the configured bucket, so bytes go between clients and the bucket and never
+through the server, or with none the server's own endpoint below
+`ServerConfig::public_url` (`--public-url`; by default `http://` and the
+address it listens on), `S3Endpoint::transfers`. A URL lasts
+`ServerStore::transfer_lifetime`, at most 15 minutes and under half of
+`upload_grace`.
+
+With no bucket, be-server answers S3 requests itself at `.../storage/objects/HASH` (`s3.rs`, served
+by `http/s3.rs` through the `s3s` crate; with a bucket it serves none): path-style, one bucket `objects`,
+keys the object's hash in lowercase hex, whatever path the proxy puts in
+front (`OneBucket` gives s3s the bucket, so signatures cover the full path;
+s3s still checks the first path segment is a valid bucket name, so the mount,
+`s3::PATH`, is `storage/` and not `s3/`).
+Only GetObject (with Range), HeadObject and PutObject are served; PutObject
+requires `x-amz-checksum-sha256`, stores only a body whose hash is both the key
+and the checksum, and answers once the object is synced. Every request is
+SigV4-signed, in practice presigned, with one credential pair derived from
+the server's own secret: `ServerStore::s3_endpoint` gives an `S3Endpoint`,
+whose `bucket(server_url)` and `credentials()` feed `s3::presign_get` and
+`s3::presign_put` (which signs the length and checksum, so the URL takes only
+that object; `rusty-s3` signs). Bodies are read whole within
+`BODY_READ_TIMEOUT`, up to `MAX_OBJECT_BYTES`. Answers carry
+`Access-Control-Allow-Origin: *` and `Cross-Origin-Resource-Policy:
+cross-origin`, and preflights are answered, so a cross-origin isolated page
+can use the URLs; the signature is the only credential. The endpoint itself
+counts and records nothing: `upload-urls` did before it signed.
 
 ### Protocol
 
@@ -168,12 +205,16 @@ with no bytes moving either way, so a large post on a slow link goes through.
   account may store `ServerConfig::account_quota` bytes, and an organization
   its settings' `storage_quota` bytes; an upload, publish or hold that would
   pass either is refused with `OverQuota` before anything is written, and
-  nothing that frees space is ever refused. Each `PutObjects` upload is a row in `object_uploads` (per
+  nothing that frees space is ever refused. Each object `upload-urls` reserves
+  (`reserve_uploads`) or `publish` carries is a row in `object_uploads` (per
   organization, account and object, with its payer) charged to the payer as
   `pending`, once per payer and object, until one of the uploader's own
   publishes or holds uses it, which deletes the row; `collect_uploads` deletes
   rows older than `upload_grace` (and the object, when no block holds it), when
-  the server starts and every `UPLOAD_SWEEP_INTERVAL`. Counters are kept incrementally:
+  the server starts and every `UPLOAD_SWEEP_INTERVAL`. A reservation is renewed
+  each time its URL is signed, and the URL expires well inside the grace, so no
+  upload can land after its reservation was collected and leave bytes nothing
+  names. Counters are kept incrementally:
   `object_sizes`, `account_objects` (per payer and object, how many of its
   blocks hold it), `account_usage`, `organization_usage`, and `block_sizes`,
   which the cached `BlockGraph` mirrors as `BlockNode::size` and `tree_size`
@@ -191,14 +232,50 @@ with no bytes moving either way, so a large post on a slow link goes through.
   (by a commit, `commit_objects`, or by `HoldObjects`); anything else reads as
   missing. A merge commit holds its extra parents' objects, so a stash that was
   never a head stays readable. A block may hold or publish an object only if
-  its caller has an unused upload of it there (`object_uploads`) or may already
-  read it (`holdable` in `blocks.rs`); `MissingObjects` answers by the same rule, so
-  knowing a hash neither reads it nor tells whether someone else stored it.
+  its caller has a proven, unused upload of it there (`object_uploads.proven`)
+  or may already read it (`holdable` in `blocks.rs`), and its bytes are
+  confirmed (below); `MissingObjects` answers by the same rule, so knowing a
+  hash neither reads it nor tells whether someone else stored it. An upload
+  proves the uploader has the bytes only when they are the first to arrive or
+  were carried in the call: sending bytes the store already holds changes
+  nothing the server can see, so a reservation of an object already stored
+  (`reserve` first confirms any upload of it that arrived) is unproven.
 - **Watches and live sessions** are keyed by organization and block
   (`watch::Place`): a block id is the client's choice, so another organization
   can hold a block with the same one. Watching or joining needs `View`, and
   taking a session's lease needs `Edit` (a viewer's claim is refused, and the
   replica host ignores the refusal).
+
+### Where objects live
+
+`ServerConfig::bucket` chooses the store (`objects::Objects`), which the store,
+usage accounting, collection and backups all go through: with none, a
+`FileStore` in `DATA/objects`; with a `BucketConfig`, an S3 bucket
+(`objects::S3Store`) behind a cache (`objects::Cached`): a `FileStore` in
+`DATA/object-cache` opened with `FileStore::open_cache` (never synced), holding
+at most `cache_bytes` and dropping the least recently used object first. A put
+goes to the bucket, then the cache; a read the cache misses is fetched and
+cached. Only the S3 API is spoken (decisions/objects_live_in_s3_compatible_storage.md):
+path-style, one object per key, the key being the hash's lowercase hex, flat
+at the bucket's top. `objects::Bucket` presigns with `rusty-s3`:
+`presign_get(hash, ttl)` and `presign_put(hash, length, ttl)` (both on `s3::presign_get` and `s3::presign_put`, the one presigning the endpoint uses too), whose
+`Presigned::headers` (`Content-Length`, `x-amz-checksum-sha256`, the base64 of
+the hash) are signed, so the bucket takes only that object; the server's own
+requests are presigned the same way and sent with `ureq`.
+
+A bucket is a round trip away, so a request asks it about an object at most
+once: `object_sizes` names every object from when its upload is reserved
+until `forget_objects`, with the reserved length, and answers usage's sizes.
+Bytes arrive after the reservation, so an object counts as stored
+(`store::stored`, its `confirmed` column) only once `confirm_uploads` saw it
+in the store with that length (`Objects::len_many`, a HEAD each on a bucket):
+`publish`, `hold-objects` and `missing-objects` confirm the caller's own
+unconfirmed reservations among the objects they name first, and a held
+object is confirmed already, so downloads ask nothing. Carried objects are
+confirmed when written (`put_objects`). Reads and writes of several objects go
+`objects::PARALLEL_READS` at a time (`Objects::get_many`, `put_many`,
+`len_many`). Tests run an S3 server in process: `be_server::TestBucket` (`s3s`
+over `s3s-fs`, on a runtime of its own), which clients' tests use too.
 
 ### Organizations and access
 
@@ -294,8 +371,8 @@ which adds the organization's graph. A job captures what it needs by value
 (the store is a cheap clone) and runs to its end even when its caller is
 dropped. Uploads are written and synced, and objects read, on the blocking
 pool too, outside the lock (`put_objects` after it reserves the quota,
-`get_object`, `get_objects`). Whether a reader may download an object
-(`may_read_object`) is answered from a read-only connection beside the writer
+`confirm_uploads`, `get_objects`). Whether a reader may download objects
+(`may_read_objects`) is answered from a read-only connection beside the writer
 and the organization's cached graph, read under its own lock, so downloads
 wait neither for the database lock nor for other organizations' calls; a
 graph job that may have left its graph apart from the database marks it
