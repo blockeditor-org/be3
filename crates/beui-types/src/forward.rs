@@ -22,6 +22,10 @@ pub enum Forwarded {
     },
     Left,
     Focus(bool),
+    /// A key pressed while this catcher had the focus that something else took: an action that
+    /// captures it, such as the desktop's Alt+Tab. The catcher heard the keys held before it, so a
+    /// program would take their release as a lone tap (Alt alone opens Firefox's menu bar).
+    KeyTaken,
     Input(Event),
 }
 
@@ -135,6 +139,8 @@ impl Replay {
                     }
                 }
                 Forwarded::Left => out.push(Input::PointerLeft.into()),
+                // An app's runner hears intercepted keys itself (`Input::InterceptedKey`).
+                Forwarded::KeyTaken => {}
                 Forwarded::Focus(focused) | Forwarded::Input(Event::Focus(focused)) => {
                     if self.focused != *focused {
                         self.focused = *focused;

@@ -1122,6 +1122,21 @@ impl State {
         }
     }
 
+    /// Tells the window with the keyboard that a key it never heard was pressed between the keys it
+    /// holds and their release, as an X11 grab does: the keyboard leaves and enters again with
+    /// those keys held, so a release after it is no lone tap (Alt alone shows Firefox's menu bar).
+    pub fn interrupt_keys(&mut self) {
+        let keyboard = self.keyboard();
+        let Some(focus) = keyboard.current_focus() else {
+            return;
+        };
+        if keyboard.pressed_keys().is_empty() {
+            return;
+        }
+        keyboard.set_focus(self, None, SERIAL_COUNTER.next_serial());
+        keyboard.set_focus(self, Some(focus), SERIAL_COUNTER.next_serial());
+    }
+
     pub fn set_keyboard(&mut self, keyboard: &KeyboardConfig) -> bool {
         let handle = self.seat.get_keyboard().expect("the seat has a keyboard");
         handle.change_repeat_info(keyboard.repeat_rate, keyboard.repeat_delay);

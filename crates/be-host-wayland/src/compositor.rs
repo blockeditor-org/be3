@@ -763,6 +763,9 @@ impl Compositor {
                         state.text_inputs.commit_text(text);
                     }
                 }
+                Forwarded::KeyTaken if state.keyboard_window() == Some(id) => {
+                    state.interrupt_keys();
+                }
                 Forwarded::Input(Event::PointerMotion(delta))
                     if state.keyboard_window() == Some(id) =>
                 {

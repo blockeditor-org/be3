@@ -203,7 +203,7 @@ fn route(
                     .or_else(|| input.pointer.and_then(|pos| topmost(shown, pos))),
                 false,
             ),
-            Forwarded::Focus(_) | Forwarded::Input(_) => (None, false),
+            Forwarded::Focus(_) | Forwarded::KeyTaken | Forwarded::Input(_) => (None, false),
         };
         let Some(target) = target else {
             continue;
