@@ -1507,7 +1507,7 @@ fn read_history(
     let mut statement = connection.prepare(
         "SELECT commit_id, parents, time, pinned FROM block_commits
          WHERE organization_id = ?1 AND block_id = ?2
-         ORDER BY time DESC",
+         ORDER BY time DESC, rowid DESC",
     )?;
     let rows = statement.query_map(
         params![organization.to_string(), block.to_string()],

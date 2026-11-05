@@ -85,10 +85,12 @@ pub struct RetentionPlan {
 /// widening age buckets. The newest commit is kept and wins its slot, so a commit arriving in the
 /// slot of the one before it replaces that one; in older slots the commit with the longest quiet
 /// interval after it wins: a state left alone for an hour outranks the keystroke bursts around
-/// it. The server runs it on each publish (guides/blocks/server.md, "History").
+/// it. Commits with the same time keep the order given, newest first: the server lists them in
+/// the order they arrived, so a later commit stamped in the same millisecond still replaces an
+/// earlier one. The server runs it on each publish (guides/blocks/server.md).
 pub fn plan(summaries: &[CommitSummary], now: i64, policy: &RetentionPolicy) -> RetentionPlan {
     let mut ordered: Vec<_> = summaries.to_vec();
-    ordered.sort_by(|left, right| right.time.cmp(&left.time).then(right.id.cmp(&left.id)));
+    ordered.sort_by(|left, right| right.time.cmp(&left.time));
 
     let mut candidates: HashMap<(usize, i64), usize> = HashMap::new();
     let mut plan = RetentionPlan::default();

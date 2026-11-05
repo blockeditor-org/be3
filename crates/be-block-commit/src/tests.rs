@@ -4,6 +4,7 @@ use uuid::Uuid;
 use super::*;
 use crate::{commit::Commit, merge::merge_lines, retention::*};
 
+mod commits_stamped_in_the_same_millisecond_keep_the_one_that_arrived_last;
 mod a_change_keeps_its_id_across_rewrites_and_an_older_commit_is_its_own_change;
 mod a_commit_chain_walks_to_its_root;
 mod a_commit_is_stored_by_field_name_and_reads_past_fields_it_does_not_know;
