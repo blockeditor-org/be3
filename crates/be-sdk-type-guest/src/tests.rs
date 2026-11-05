@@ -408,7 +408,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     tag: TAG,
                     status: Status::default(),
                     history: (false, false),
-                    undo: UndoState::default(),
+                    undo: UndoState {
+                        can_undo: false,
+                        can_redo: false,
+                        restarted_at: None,
+                        lost_edits: false,
+                    },
                     described: None,
                     wake: None,
                     released: false,
