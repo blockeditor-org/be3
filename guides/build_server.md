@@ -3,12 +3,12 @@
 Every buck2 action runs on a remote execution server. `BE3_BUILD_SERVER` picks which, or else
 the one saved in `~/.config/be3/build-server`; at a terminal with neither, `./scripts/buck`
 asks and saves the answer (delete the file to be asked again). Otherwise it is `blocks.pfg.pw`.
-CI sets `BE3_BUILD_SERVER=namespace` in .github/workflows/ci.yml.
+CI sets `BE3_BUILD_SERVER=blocks.pfg.pw` in .github/workflows/ci.yml.
 
 | `BE3_BUILD_SERVER` | Server | Key | In a Claude Code cloud session |
 |---|---|---|---|
-| `blocks.pfg.pw` (default) | our NativeLink build VM, behind the gateway over WireGuard | gateway header | works once the proxy adds the gateway header for it |
-| `namespace` (CI's) | Namespace's remote execution | gateway header, to its waker | works with no setup |
+| `blocks.pfg.pw` (default, and CI's) | our NativeLink build VM, behind the gateway over WireGuard | gateway header | works once the proxy adds the gateway header for it |
+| `namespace` | Namespace's remote execution | gateway header, to its waker | works with no setup |
 | `api.be3.pfg.pw` | our NativeLink server | gateway header | works with no setup |
 | `buildbuddy` | `remote.buildbuddy.io` | `x-buildbuddy-api-key` | not working |
 | `local` | a NativeLink server of your own at `host:port` | none, no TLS | too small to host |
