@@ -8,8 +8,10 @@
 //! folder's owner, a pending link carrying a grant, and that contact's change of recovery phrase), an object the owner uploaded that no block holds yet, and two
 //! invite codes that each make one account, one already used.
 //!
-//! These values are what old data looks like: changing one stops the snapshots' test guarding
-//! that data. Add to the scene, with a `*_SINCE` snapshot name, rather than edit it.
+//! Once a snapshot is taken, these values are what old data looks like: changing one stops the
+//! snapshots' test guarding that data. Add to the scene, with a `*_SINCE` snapshot name, rather
+//! than edit it. Nothing is frozen now (guides/frozen_formats.md), so `SNAPSHOTS` is empty and
+//! the scene may change freely.
 
 pub const ORGANIZATION: &str = "Frozen";
 

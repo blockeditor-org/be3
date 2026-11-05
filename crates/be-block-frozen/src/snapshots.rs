@@ -1,5 +1,3 @@
-mod s2026_11_04;
-
 /// What opens one zipped server snapshot: the tokens, recovery phrases, link and invite codes and
 /// keys the `freeze` example printed into `sNAME.rs`. A new snapshot is listed in `SNAPSHOTS`.
 pub struct Snapshot {
@@ -52,4 +50,4 @@ pub struct Usage {
     pub team_tree_size: u64,
 }
 
-pub const SNAPSHOTS: &[&Snapshot] = &[&s2026_11_04::SNAPSHOT];
+pub const SNAPSHOTS: &[&Snapshot] = &[];

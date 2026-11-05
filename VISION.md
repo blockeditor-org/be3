@@ -124,8 +124,9 @@ opens to your sheets and a button to make one. Not designed yet.
   moderation problems, and is a stance on privacy and social features.
 - **Being able to leave.** Export to plain files is part of trusting the host with
   your notes, and doubles as a second backup.
-- **Frozen formats.** Nobody trusts an app with their notes if an update can
-  break them (`guides/frozen_formats.md`).
+- **Frozen formats, later.** Nobody trusts an app with their notes if an update
+  can break them. While no real data is stored, formats change freely; once
+  people rely on be3, its formats freeze (`guides/frozen_formats.md`).
 
 ## Decisions
 

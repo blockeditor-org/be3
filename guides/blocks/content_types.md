@@ -124,7 +124,8 @@ nothing a session needs. An object is a map by field name plus `$kind`
 serde form in CBOR, and that same CBOR is what registers hold in memory and
 what `set` sends.
 
-The format changes without migrations:
+No type is frozen, so a type's format changes however it needs to, with no
+renames or migrations for old data. These are the tools a frozen type would use:
 
 - **Adding is free**: a missing property reads as its default. A struct held in
   a register needs `#[serde(default)]` (on each field of an enum's struct
@@ -144,10 +145,9 @@ The format changes without migrations:
   `#[serde(with = "be_block_model::references::block_ref")]`) are tagged, so
   `Document::block_refs` finds them even inside unknown properties.
 
-Until a type is frozen its format changes freely; a block saved by another
-schema is offered for reset (guides/blocks/host.md, "Blocks saved by another
-build"). Freezing (`Root::FROZEN`, `schema::freeze`, `schema::check_frozen`)
-is guides/frozen_formats.md.
+A block saved by another schema is offered for reset (guides/blocks/host.md,
+"Blocks saved by another build"). Freezing (`Root::FROZEN`, `schema::freeze`,
+`schema::check_frozen`) is guides/frozen_formats.md.
 
 ## Files: `Blob<K>`
 

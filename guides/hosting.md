@@ -11,8 +11,8 @@ home) and `BE3_DEPLOY_UNITS` (`be-server`, restarted with `sudo systemctl`) name
 The directory holds only `be-server` and the `build-info.json` it reads beside it.
 
 `--data-dir` holds `metadata.sqlite` and `objects/`. The server adds missing tables, indexes and
-defaulted columns on startup and refuses incompatible schemas; the data and its backups are
-frozen formats (guides/frozen_formats.md). Don't run `CollectDetached` or `PruneHistory` against
+defaulted columns on startup and refuses incompatible schemas; the data and its backups are not
+frozen (guides/frozen_formats.md), so a change may require deleting them. Don't run `CollectDetached` or `PruneHistory` against
 it: be-host never sends them and backups never delete objects.
 
 ## Routes, the proxy and the gateway

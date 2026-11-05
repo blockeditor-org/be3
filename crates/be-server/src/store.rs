@@ -144,7 +144,6 @@ impl ServerStore {
         let connection = Connection::open(root.join("metadata.sqlite"))?;
         connection.busy_timeout(Duration::from_secs(5))?;
         schema::initialize(&connection)?;
-        connection.execute("UPDATE sessions SET kind = 'app', public_id = lower(hex(randomblob(16))), created = ?1 WHERE kind = 'legacy' AND (account_id IN (SELECT account_id FROM agents) OR account_id IN (SELECT id FROM accounts WHERE local_profile = 1))", [portal::now()])?;
         let object_refs = load_object_refs(&connection)?;
         let server = crate::organization::ServerKey::load_or_create(&connection)?;
         let objects = FileStore::open(root.join("objects"))?;

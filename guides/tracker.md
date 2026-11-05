@@ -83,8 +83,7 @@ rows.
 - **Rows** are `be-block-model` objects in `Database`, so cells merge. A row's page is a text
   block under the database, made on first use. Multi-row relations keep each link as its own
   key (`DatabaseRow::links`) so concurrent additions both stay; an inverse column is computed
-  (`inverses`), not stored. `Database`, `DatabaseSchema` and `DatabaseView` are frozen
-  (`tests/frozen_database*.rs` in be-block).
+  (`inverses`), not stored.
 - **Order.** Rows keep a manual order, the order of `Database::rows`: dragging a card or a list
   row (or Alt with an arrow key) moves it there with `ViewData::move_row`, and into another
   group sets its group value, in one edit. A sort decides the order instead, so a sorted list

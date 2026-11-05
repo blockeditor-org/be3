@@ -7,19 +7,7 @@ metadata points to its settings block, one block per kind in
 whose `kinds` are defaults and `policies` policies). Kinds declare `FOLLOWS`,
 `RULE` and `VISIBILITY` (`be-block/src/settings.rs`,
 `be-block/src/workspace_settings.rs`) and resolve through
-`be_block::Resolution` (guides/settings.md). What is left is the server wipe that closes the
-breaking changes, and later kinds.
-
-## 1. Breaking changes, landed together before one server wipe
-
-Saved data may change incompatibly here, as a one-time exception to
-`guides/frozen_formats.md`: there is one server with data, and its content is
-kept as a `.block` file. Block files don't store permissions, so a re-import
-takes the default access. Every change of this section has landed (metadata
-that points to a block, the access model with `Manage`, settings blocks and
-the `ANYONE_INSIDE` grant on a kind). Remaining, unless it has already
-happened outside the repository: wipe the server, re-import once, and update
-`guides/frozen_formats.md` to say the break is over.
+`be_block::Resolution` (guides/settings.md). What is left is later kinds.
 
 ## Later
 

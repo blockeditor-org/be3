@@ -27,7 +27,7 @@ Guides:
 - guides/canvas.md: the infinite canvas app and its block type: the model and raster layers, profiles, line binding, hand-drawn and freehand drawing, gestures, device input, export, and its tests and bench
 - guides/common_commands.md: for people too: running things as a person (a window, the VR simulator and an XR headset, the displays and the login session, an Android device) and as an agent (headless `:dev`, `drive`), and every buck2 target
 - guides/build_server.md
-- guides/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
+- guides/frozen_formats.md: that no saved format is frozen yet, and how to freeze one later: the rules, and the tests that would hold it
 - guides/hosting.md
 - guides/desktop.md: be-host as a desktop, what every host shares: the `be3:desktop` package, DesktopHost and the mailbox, program windows as tabs, displays as one space, a shell that stops
 - guides/desktop/shell.md: the desktop app: its bars per display, the Status bar and Quick settings, the Apps panel, window chips, window keys
@@ -89,7 +89,7 @@ Design principles:
 - If a request asks for a feature that seems to violate standard conventions or user expectations, use AskUserQuestion to confirm.
 - General:
   - One obvious way to do things: prefer one canonical API for a concept. Don’t add parallel forms that users must choose between and we must maintain.
-  - Keep reading whatever a frozen format saved, forever (guides/frozen_formats.md: the server's data and backups, and text, folder and database blocks), and change one only by adding to it. Don't keep backward compatibility in any other serialization format or in network requests: the project is early, and users can delete that data.
+  - Ignore backward compatibility for data: no format is frozen yet (guides/frozen_formats.md), so change any saved or serialized format (the server's data and backups, block files, block content, network requests) however a change needs, with no migrations, renames kept for old names or fallbacks for old data. The project is early and no real data is stored; whoever has old data deletes it.
   - Treat everything in the repo as in scope for any task. Fix bugs and missing features at their source (in beui, for example) rather than working around them, and update any guide you find out of date.
   - Do not edit files named README.md.
   - Write guides for agents. Add something to a guide only if a summary of that area written from scratch would include it. Put notes that only help humans in the PR description, the handoff message, or both.

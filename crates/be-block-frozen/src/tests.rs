@@ -9,10 +9,7 @@ use uuid::Uuid;
 use crate::scene;
 use crate::snapshots::{SNAPSHOTS, Snapshot};
 
-mod a_tracker_downloaded_as_a_block_file_uploads_and_reads_back;
 mod every_snapshot_of_a_servers_data_still_serves_what_it_held;
-
-const TRACKER: &[u8] = include_bytes!("fixtures/tracker.block");
 
 pub(crate) fn sources() -> be_tool_cli::tracker::Sources {
     Box::new(be_type_bundle::sources)
@@ -33,22 +30,6 @@ async fn start(data: Option<PathBuf>) -> Running {
         Some(data) => Running::at(data, config()).await,
         None => Running::start(config()).await,
     }
-}
-
-async fn owner(server: &Running) -> Tracker<MemoryStore> {
-    Tracker::new(
-        Peer::connect(
-            PeerConfig::new(
-                be_block_client::socket_url(&server.url),
-                be_block_keys::RecoveryPhrase::generate().secret(),
-                Credentials::Token(server.register(scene::OWNER_EMAIL, scene::OWNER_NAME).await),
-            ),
-            MemoryStore::new(),
-        )
-        .await
-        .unwrap(),
-        sources(),
-    )
 }
 
 struct Unpacked {
