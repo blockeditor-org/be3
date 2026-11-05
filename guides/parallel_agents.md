@@ -51,8 +51,9 @@ the headless be-host.
 - Name a known flake in every prompt with what to do instead (push and say so if it is the only
   failure outside the child's crates), or every child stalls on it. Give one agent the fix.
 - Build server outages ("service is currently unavailable", resets, dropped bootstrap
-  downloads): a child reruns once, then commits as `wip:`, pushes and reports. The coordinator
-  runs verify itself before deciding whether to pause everyone and ask the user.
+  downloads): a child reruns once, then commits as `wip:`, pushes, reports and stops. The
+  coordinator reruns verify once itself; if that fails too, it pauses everyone and asks the user
+  how to continue.
 - When the usage limit is reached every session stops; message each to resume after it resets.
 
 ## Subagents on one VM

@@ -149,6 +149,8 @@ pub struct Space {
     tracked: Option<Views>,
     raw: Option<Views>,
     pub panels: Vec<Panel>,
+    /// The panels as they were when the cursor was last pointed again (`repoint`).
+    pointed_over: Vec<Panel>,
     pub mouse: Held,
     pub lasers: Vec<Laser>,
     pub both: Option<Both>,
@@ -204,6 +206,7 @@ impl Space {
             tracked: None,
             raw: None,
             panels: Vec::new(),
+            pointed_over: Vec::new(),
             mouse: Held::default(),
             lasers: Vec::new(),
             both: None,
@@ -1818,9 +1821,42 @@ impl Space {
         self.place_carried();
         self.fit_chrome();
         self.rescale();
+        self.repoint(&mut out);
         self.remember_cursor();
         out.append(&mut self.reports);
         *incoming = out;
+    }
+
+    /// A panel that opens, closes, moves or resizes under a resting cursor changes
+    /// what the cursor is over without any motion, so the program hears a move to
+    /// wherever the cursor now lands, as it would on a screen when a window appears
+    /// under the mouse. Without it, what shows as hovered would depend on whether a
+    /// move happened to come after the panel changed.
+    fn repoint(&mut self, out: &mut Vec<Incoming>) {
+        if self.pointed_over == self.panels {
+            return;
+        }
+        self.pointed_over.clone_from(&self.panels);
+        if !self.grabbed
+            || self.pressed > 0
+            || self.mouse.gripped().is_some()
+            || self.mouse.gesture.is_some()
+            || self.chrome.hovered.is_some()
+        {
+            return;
+        }
+        let Some(ray) = self.cursor_ray() else {
+            return;
+        };
+        let sent = self.mouse.hovered.and(self.mouse.last);
+        match self.pick(ray) {
+            Some(hit)
+                if sent.is_some_and(|(window, pos)| {
+                    window == hit.window && pos.distance(hit.pos) < 0.01
+                }) => {}
+            Some(_) => self.point(Input::PointerMoved(Pos2::ZERO), ray, out),
+            None => self.leave(out),
+        }
     }
 
     pub fn frame(&mut self, output: &FrameOutput, view: &LayerView) -> Composed {

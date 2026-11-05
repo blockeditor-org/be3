@@ -11,9 +11,9 @@ use be_lib_prompt::{Choice, Saved, choose, config_directory, interactive, save_p
 use crate::{Result, repository};
 
 const SERVERS: [&str; 5] = [
+    "blocks.pfg.pw",
     "namespace",
     "api.be3.pfg.pw",
-    "blocks.pfg.pw",
     "buildbuddy",
     "local",
 ];
@@ -66,7 +66,19 @@ pub fn configure(buck2: &Path) -> Result<()> {
         } else {
             engine = server.clone();
             storage = engine.clone();
-            header = gateway_header(&server);
+            let name = format!("build-server-key.{server}");
+            let what = format!("{server} gateway key");
+            let saved = if server == "blocks.pfg.pw" {
+                Saved {
+                    variable: "BE3_BUILD_SERVER_KEY",
+                    name: &name,
+                    what: &what,
+                    checkout: Some(repository()),
+                }
+            } else {
+                gateway()
+            };
+            header = gateway_header(&server, &saved);
         }
         engine_address = format!("{engine}:443");
         storage_address = format!("{storage}:443");
@@ -135,7 +147,7 @@ fn server() -> Result<String> {
         server = ask_for_server(&saved).unwrap_or_default();
     }
     if server.is_empty() {
-        server = "namespace".to_owned();
+        server = SERVERS[0].to_owned();
     }
     if SERVERS.contains(&server.as_str()) {
         return Ok(server);
@@ -256,14 +268,14 @@ fn key(server: &str) -> Result<String> {
     ))
 }
 
-fn gateway_header(server: &str) -> String {
+fn gateway_header(server: &str, saved: &Saved) -> String {
     let why = format!(
-        "buck2 builds on {server}, behind the gateway, so it needs the whole value of\n\
+        "buck2 builds on {server}, behind its gateway, so it needs the whole value of\n\
          the Be3-Gateway-Authorization header, such as \"Bearer KEY\" (guides/build_server.md)."
     );
-    gateway()
+    saved
         .stored()
-        .or_else(|| gateway().ask(&why))
+        .or_else(|| saved.ask(&why))
         .map_or_else(String::new, |key| {
             format!("Be3-Gateway-Authorization:{key}")
         })
