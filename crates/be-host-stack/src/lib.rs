@@ -476,6 +476,13 @@ pub fn hold_clock(at: Option<std::time::Instant>) {
     send(Command::HoldClock(at));
 }
 
+/// The host's wall clock while a test pins it, `None` otherwise: commit times and the embedded
+/// server's retention follow it (`be_block_commit::pin_now`), so a test moves history on with
+/// its clock.
+pub fn pin_wall_clock(at: Option<std::time::Duration>) {
+    be_block_commit::pin_now(at.map(|at| i64::try_from(at.as_millis()).unwrap_or(i64::MAX)));
+}
+
 pub use replicas::unframe;
 
 pub fn take_editor_frames(editor: u64) -> Vec<(Uuid, Vec<u8>)> {

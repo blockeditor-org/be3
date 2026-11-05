@@ -364,6 +364,7 @@ async fn outside_peer(
 
 impl Drop for Harness {
     fn drop(&mut self) {
+        be_block_commit::pin_now(None);
         if std::thread::panicking() {
             abandon();
         } else {

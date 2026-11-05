@@ -235,7 +235,7 @@ pub(super) async fn list(peer: &Arc<Peer<Store>>, block: Uuid) -> Result<Vec<Rev
         .map(|entry| Revision {
             commit: *entry.commit.hash().as_bytes(),
             time: entry.time,
-            current: Some(entry.commit) == summary.head,
+            current: entry.head,
         })
         .collect();
     revisions.sort_by(|a, b| {

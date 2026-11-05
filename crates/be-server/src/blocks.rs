@@ -1043,7 +1043,12 @@ impl ServerStore {
                 Access::View,
                 "readable",
             )?;
-            read_history(database, identity.organization, block)
+            let head = graph.head(block);
+            let mut entries = read_history(database, identity.organization, block)?;
+            for entry in &mut entries {
+                entry.head = head == Some(entry.commit);
+            }
+            Ok(entries)
         })
         .await
     }
@@ -1523,6 +1528,7 @@ fn read_history(
             parents: decode_parents(&parents)?,
             time,
             pinned,
+            head: false,
         });
     }
     Ok(entries)

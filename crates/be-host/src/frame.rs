@@ -183,6 +183,9 @@ pub(crate) fn begin(context: &beui::native::Context) {
         deliver(save);
     }
     be_host_stack::hold_clock(context.clock_stopped().then(|| context.now()));
+    be_host_stack::pin_wall_clock(
+        beui::reactive::wall_clock_is_pinned().then(beui::reactive::wall_clock),
+    );
     let mut frame = Frame {
         now: Some(context.now()),
         wall: Some(beui::reactive::wall_clock()),

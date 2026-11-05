@@ -8,7 +8,6 @@ fn revision_history_previews_and_restores_a_text_file() {
     host.type_text("Original revision");
     host.run(&["scroll", "Tab \"Settings\"", "0", "200"]);
     host.click("Tab \"History\"");
-    host.wait("UTC\" #workspace.revision.");
     host.wait("UTC · Current");
     let original = host
         .tree()
@@ -18,6 +17,9 @@ fn revision_history_previews_and_restores_a_text_file() {
         .and_then(|tail| tail.split_whitespace().next())
         .map(|id| format!("#{id}"))
         .expect("the original content has a saved revision");
+    // History keeps a state per minute, so the original stays only once the next edit lands a
+    // minute later.
+    host.pause(60_000);
     host.click("#text.surface");
     host.key("ctrl+a");
     host.type_text("Latest revision");

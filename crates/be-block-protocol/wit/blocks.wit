@@ -58,6 +58,9 @@ interface blocks {
         parents: list<commit-id>,
         time: s64,
         pinned: bool,
+        /// The block's head when the history was read: read in the same step,
+        /// so a publish that prunes the head before can't leave none marked.
+        head: bool,
     }
 
     /// The summaries asked for, and as many of the objects of their heads as

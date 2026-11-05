@@ -98,6 +98,11 @@ pub fn pin_wall_clock(at: Option<(Instant, Duration)>) {
     core::pin_wall_clock(at);
 }
 
+/// Whether the wall clock is pinned, as tests pin it.
+pub fn wall_clock_is_pinned() -> bool {
+    core::wall_clock_is_pinned()
+}
+
 pub fn after_input(after: impl FnOnce() + 'static) {
     core::after_input(after);
 }
