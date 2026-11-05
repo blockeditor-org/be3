@@ -12,7 +12,7 @@ use super::Peer;
 use crate::{ClientError, http};
 
 /// Object requests a peer has in flight at once. Natively each takes a connection of its own.
-const TRANSFERS: usize = 16;
+const TRANSFERS: usize = 8;
 
 impl<S: ObjectStore> Peer<S> {
     /// Fetches the objects among `hashes` this device lacks, and fails with `MissingObject` for

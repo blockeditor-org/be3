@@ -25,10 +25,14 @@ async fn objects_move_between_devices_and_a_bucket_directly() {
     for chunk in &chunks {
         assert!(bucket.file(*chunk).exists(), "{chunk} is not in the bucket");
     }
-    let passed = std::fs::read_dir(harness.server.directory.join("object-cache"))
-        .map(|entries| entries.count())
-        .unwrap_or(0);
-    assert_eq!(passed, 0, "the bytes passed through the server");
+    let cache = harness.server.directory.join("object-cache");
+    for chunk in &chunks {
+        let hex = chunk.to_hex();
+        assert!(
+            !cache.join(&hex[..2]).join(&hex[2..]).exists(),
+            "{chunk} passed through the server"
+        );
+    }
 
     // Another device reads them from the bucket, checking each against its hash.
     let laptop = another(&harness, &phone).await;

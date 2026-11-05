@@ -183,8 +183,8 @@ impl ServerStore {
     /// an object is too large, its length is not the one the server already has for it, or the
     /// upload takes the uploader past its quota or the organization past its policy's. A
     /// reserved object counts as stored only once `confirm_uploads` saw its bytes, and one the
-    /// server already had is the uploader's to hold only if it may read it already: sending
-    /// bytes the store holds proves nothing the server can see.
+    /// server already had is the uploader's to hold only if it could read it when it reserved
+    /// it: sending bytes the store holds proves nothing the server can see.
     pub async fn reserve_uploads(
         &self,
         identity: Identity,
@@ -349,8 +349,9 @@ impl ServerStore {
                 .query_row([hash.to_hex()], |row| Ok((row.get(0)?, row.get(1)?)))
                 .optional()?;
             // Bytes an upload sends to an object already stored change nothing the server can
-            // see, so only carried bytes, or bytes that are the first to arrive, prove the
-            // uploader has the object; knowing its hash and length proves nothing.
+            // see, so only carried bytes, bytes that are the first to arrive, or being able to
+            // read it already prove the uploader has the object; knowing its hash and length
+            // proves nothing.
             let proven = match known {
                 Some((known, _)) if known != to_sql(*bytes) => {
                     return Err(ServerError::Refused(
@@ -358,7 +359,11 @@ impl ServerStore {
                         format!("object {hash} is {known} bytes, not {bytes}"),
                     ));
                 }
-                Some((_, confirmed)) => carried || !confirmed,
+                Some((_, confirmed)) => {
+                    carried
+                        || !confirmed
+                        || crate::blocks::readable(graph, &transaction, identity, *hash)?
+                }
                 None => {
                     transaction
                         .prepare_cached("INSERT INTO object_sizes (hash, bytes) VALUES (?1, ?2)")?

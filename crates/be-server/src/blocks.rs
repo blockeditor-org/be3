@@ -1321,7 +1321,7 @@ impl ServerStore {
 }
 
 /// Whether a block the caller can view holds `hash`, by a commit or by `HoldObjects`.
-fn readable(
+pub(crate) fn readable(
     graph: &BlockGraph,
     database: &Connection,
     identity: Identity,
