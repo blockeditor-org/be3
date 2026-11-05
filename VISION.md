@@ -98,6 +98,12 @@ program, but the host must still build without it.
 may want an entry point of its own, the way the Google Sheets app on Android
 opens to your sheets and a button to make one. Not designed yet.
 
+**Connected apps.** A third party's own product, with its own website and
+login, should be able to connect to a person's account and edit blocks of its
+types wherever they are, without our involvement and on any server.
+`plans/connected_apps.md` has the design, which waits for the server protocol
+to be frozen.
+
 ## Where it runs
 
 - **Linux, Windows, macOS, the web and Android** run today.
