@@ -29,12 +29,13 @@ fn a_document_split_into_parts_loads_back_whole() {
     assert!(large_page, "a large page is a part naming parts of its own");
     assert_eq!(from_parts::<Book>(&root), document);
 
-    let mut held: std::collections::BTreeMap<_, _> = root
-        .all()
-        .into_iter()
-        .map(|part| (part.hash(), part.bytes().to_vec()))
-        .collect();
-    let child = root.children()[0].hash();
-    held.insert(child, b"not the part".to_vec());
-    assert!(Document::<Book>::from_parts(root.bytes(), |hash| held.get(&hash).cloned()).is_err());
+    let mut bytes = Vec::new();
+    root.write(&mut bytes);
+    let child = root.children()[0].bytes();
+    let at = bytes
+        .windows(child.len())
+        .position(|window| window == child)
+        .expect("the child is in the stored bytes");
+    bytes[at + child.len() - 1] ^= 1;
+    assert!(Document::<Book>::from_bytes(&bytes).is_err());
 }
