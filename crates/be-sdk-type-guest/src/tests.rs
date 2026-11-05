@@ -10,8 +10,8 @@ use be_block_protocol::ClientId;
 use be_block_session::{Lease, Resume};
 use be_block_store::Hash;
 use be_sdk_type_api::{
-    Change, Description, EditorId, Endpoint, Opening, PublishOutcome, Recipients, SessionTag,
-    Status,
+    Change, Description, EditorId, Endpoint, Journal, JournalBase, Opening, PublishOutcome,
+    Recipients, SessionTag, Status,
     embed::{exports::replicas::Replica, host::Call},
     ops::{Backlog, Connection, Incoming, OpId, Outcome, Outlets, Reply, Side, guest::Executor},
 };
@@ -43,6 +43,7 @@ mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
 mod a_late_joiner_types_where_it_sees_the_caret;
 mod a_message_no_build_can_read_stops_a_follower_saving;
+mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
 mod a_module_answers_stateless_requests;
 mod a_peer_running_another_build_is_refused;
 mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
@@ -55,12 +56,13 @@ mod an_abandoned_lease_is_claimed;
 mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
+mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_owner_renews_its_lease_while_it_holds_the_session;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
-mod edits_are_sealed_once_they_rest_for_the_seal_interval;
+mod edits_are_committed_once_they_rest_for_the_quiet_interval;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
@@ -328,6 +330,7 @@ fn opening(
         tag: TAG,
         head,
         session,
+        journal: None,
     }
 }
 
@@ -369,6 +372,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     largest_relay: usize,
     part_reads: usize,
     written: u64,
+    journal: Option<Journal>,
+    appended: usize,
     make: fn() -> Module,
 }
 
@@ -412,6 +417,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             largest_relay: 0,
             part_reads: 0,
             written: 0,
+            journal: None,
+            appended: 0,
             make,
         }
     }
@@ -466,9 +473,14 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             be_sdk_type_api::embed::exports::replicas::start(host, vec![0; 32])
         });
         self.settle();
+        let journal = self
+            .journal
+            .clone()
+            .filter(|journal| journal.base.commit == local);
         let opening = Opening {
             content_type: C::CONTENT_TYPE,
             tag: self.devices[device].tag,
+            journal,
             ..opening(client, local, self.lease.state().clone())
         };
         let replica = self.to(device, |host| Replica::new(host, opening));
@@ -908,6 +920,64 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| reply.send(host, &()));
                 self.lease
                     .heartbeat(client, generation, clean_at, self.now as i64);
+            }
+            Call::Append {
+                reply,
+                generation,
+                entries,
+                relay,
+            } => {
+                self.to(device, |host| reply.send(host, &()));
+                if relay {
+                    let participants = self.lease.state().participants.clone();
+                    for entry in &entries {
+                        for peer in &participants {
+                            if *peer == client {
+                                continue;
+                            }
+                            if let Some(to) = self.device_of(*peer) {
+                                self.relay(to, client, entry.payload.clone());
+                            }
+                        }
+                    }
+                }
+                let state = self.lease.state();
+                if !state.is_owner(client) || state.generation != generation {
+                    return;
+                }
+                self.appended += 1;
+                let journal = self.journal.get_or_insert_with(|| Journal {
+                    base: JournalBase {
+                        commit: None,
+                        sequence: 0,
+                        state: Vec::new(),
+                    },
+                    entries: Vec::new(),
+                });
+                for entry in entries {
+                    let last = journal
+                        .entries
+                        .last()
+                        .map_or(journal.base.sequence, |entry| entry.sequence);
+                    if entry.sequence > last {
+                        journal.entries.push(entry);
+                    }
+                }
+            }
+            Call::RebaseJournal {
+                reply,
+                generation,
+                base,
+            } => {
+                self.to(device, |host| reply.send(host, &()));
+                let state = self.lease.state();
+                if !state.is_owner(client) || state.generation != generation {
+                    return;
+                }
+                self.journal = Some(Journal {
+                    base,
+                    entries: Vec::new(),
+                });
             }
             Call::ReportStatus { reply, status } => {
                 self.to(device, |host| reply.send(host, &()));

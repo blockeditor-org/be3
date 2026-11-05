@@ -27,7 +27,7 @@ fn an_owner_whose_lease_lapsed_follows_whoever_claims_it() {
     );
     assert_eq!(sim.publishes, 0);
 
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(sim.publishes, 1, "only the new owner saves");
     assert_eq!(count(&sim.head_content()), 111);
     for device in 0..2 {
@@ -38,7 +38,7 @@ fn an_owner_whose_lease_lapsed_follows_whoever_claims_it() {
     sim.operate(1, 1, Counter::add(1_000));
     sim.operate(0, 1, Counter::add(10_000));
     sim.settle();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(count(&sim.head_content()), 11_111);
     for device in 0..2 {
         assert_eq!(count(&sim.content(device)), 11_111);

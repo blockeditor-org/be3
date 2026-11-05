@@ -1134,6 +1134,7 @@ impl ServerStore {
                     params![organization, block.to_string()],
                 )?;
                 forget_block_keys(&transaction, identity.organization, block)?;
+                crate::journal::forget(&transaction, identity.organization, block)?;
                 let resized = chain(graph, block);
                 graph.remove(block);
                 persist_sizes(&transaction, graph, identity.organization, resized)?;

@@ -22,7 +22,7 @@ interface objects {
 interface blocks {
     use types.{
         access-level, account-id, block-id, block-parent, block-summary, commit-id,
-        content-type-id, error, hash, key-id, key-set, listing, organization-role,
+        content-type-id, error, hash, journal, key-id, key-set, listing, organization-role,
     };
 
     variant publish-outcome {
@@ -65,6 +65,9 @@ interface blocks {
     record contents {
         blocks: list<block-summary>,
         objects: list<list<u8>>,
+        /// Each block's journal, in the order of `blocks`; none when it has
+        /// nothing past its base.
+        journals: list<option<journal>>,
     }
 
     /// What `collect-detached` deleted and freed.
@@ -150,8 +153,8 @@ interface blocks {
     /// One block's summary, which lists it as `listing.block` would.
     read-block: async func(block: block-id) -> result<block-summary, error>;
 
-    /// Summaries of `blocks` and the objects of their heads the caller does
-    /// not hold, those of the commits in `held` left out.
+    /// Summaries of `blocks`, their journals, and the objects of their heads
+    /// the caller does not hold, those of the commits in `held` left out.
     read-contents: async func(blocks: list<block-id>, held: list<commit-id>) -> result<contents, error>;
 
     /// Moves a block, with the keys it needs under its new parent.
@@ -189,12 +192,15 @@ interface blocks {
 /// Live sessions on blocks, whose connections relay edits to each other and
 /// share one lease.
 interface sessions {
-    use types.{block-id, client-id, commit-id, error, session-state};
+    use types.{block-id, client-id, commit-id, error, hash, journal, journal-base, journal-entry, session-state};
 
     record joined {
         /// This connection, as the session's participants name it.
         client: client-id,
         state: session-state,
+        /// The block's journal as of joining; what is appended after reaches
+        /// this connection as relays.
+        journal: option<journal>,
     }
 
     record relayed {
@@ -233,5 +239,19 @@ interface sessions {
         /// Relays a sealed message to one participant, or to every other one
         /// with no `to`.
         relay: async func(to: option<client-id>, payload: list<u8>) -> result<_, error>;
+
+        /// The owner of `generation` appends operations it sequenced to the
+        /// block's journal, written by the build `tag` names, and with `relay`
+        /// relays each entry's payload to every other participant. Entries at
+        /// or below the journal's last sequence number are dropped as already
+        /// held. Entries from anyone but the owner of `generation` are relayed
+        /// and not kept. Refused while the journal is another `tag`'s: the
+        /// owner rebases first.
+        append: async func(generation: u64, tag: hash, entries: list<journal-entry>, relay: bool) -> result<_, error>;
+
+        /// The journal starts over from `base`, dropping every entry: the
+        /// owner of `generation` rebases after each commit, and on taking the
+        /// session before it appends.
+        rebase-journal: async func(generation: u64, tag: hash, base: journal-base) -> result<_, error>;
     }
 }

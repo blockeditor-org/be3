@@ -143,7 +143,9 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             | embed::sessions::Call::SessionRelay { this, .. } => {
                 Rule::Session(this.op(), Access::View)
             }
-            embed::sessions::Call::SessionClaimOwnership { this, .. } => {
+            embed::sessions::Call::SessionClaimOwnership { this, .. }
+            | embed::sessions::Call::SessionAppend { this, .. }
+            | embed::sessions::Call::SessionRebaseJournal { this, .. } => {
                 Rule::Session(this.op(), Access::Edit)
             }
         },
@@ -1464,7 +1466,19 @@ impl Client {
                         .read_contents(connection.identity()?, blocks, held)
                         .await?;
                     let objects = connection.store.get_objects(hashes, CONTENTS_BYTES).await?;
-                    Ok(Contents { blocks, objects })
+                    let journals = connection
+                        .store
+                        .read_journals(
+                            connection.identity()?.organization,
+                            blocks.iter().map(|summary| summary.id).collect(),
+                            CONTENTS_BYTES / 2,
+                        )
+                        .await?;
+                    Ok(Contents {
+                        blocks,
+                        objects,
+                        journals,
+                    })
                 }
                 .await;
                 self.reply(reply, read);
@@ -1671,7 +1685,11 @@ impl Client {
                     };
                     let state = connection.registry.join(place, connection.client).await;
                     connection.announce(place, &state).await;
-                    Ok::<_, ServerError>((state, place))
+                    let journal = connection
+                        .store
+                        .read_journal(place.organization, place.block)
+                        .await?;
+                    Ok::<_, ServerError>(((state, journal), place))
                 }
                 .await;
                 let op = stream.op();
@@ -1705,9 +1723,10 @@ impl Client {
                         }
                 };
                 let event = match joined {
-                    Ok((state, _)) => SessionEvent::Joined {
+                    Ok(((state, journal), _)) => SessionEvent::Joined {
                         client: self.connection.client,
                         state,
+                        journal,
                     },
                     Err(error) => {
                         let _ = streams.send(&mut lock, SessionEvent::Refused(wire(error)), only);
@@ -1806,6 +1825,85 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, relayed);
+            }
+            Call::SessionAppend {
+                this,
+                reply,
+                generation,
+                tag,
+                entries,
+                relay,
+            } => {
+                let block = self.joined(this.op());
+                let connection = &self.connection;
+                let appended = async {
+                    prelude?;
+                    let block = block?;
+                    let state = connection.registry.state(block).await;
+                    if !state.participants.contains(&connection.client) {
+                        return Err(not_joined());
+                    }
+                    for entry in &entries {
+                        crate::limits::at_most(
+                            "a journal entry",
+                            entry.payload.len(),
+                            MAX_RELAY_BYTES,
+                        )?;
+                    }
+                    if state.is_owner(connection.client) && state.generation == generation {
+                        connection
+                            .store
+                            .append_journal(
+                                block.organization,
+                                block.block,
+                                generation,
+                                tag,
+                                entries.clone(),
+                            )
+                            .await?;
+                    }
+                    if relay {
+                        let participants = state.participants;
+                        for entry in entries {
+                            let message = Push::Relayed {
+                                block,
+                                from: connection.client,
+                                payload: entry.payload.into(),
+                            };
+                            connection
+                                .hub
+                                .send_all(&participants, connection.client, &message)
+                                .await;
+                        }
+                    }
+                    Ok(())
+                }
+                .await;
+                self.reply(reply, appended);
+            }
+            Call::SessionRebaseJournal {
+                this,
+                reply,
+                generation,
+                tag,
+                base,
+            } => {
+                let block = self.joined(this.op());
+                let connection = &self.connection;
+                let rebased = async {
+                    prelude?;
+                    let block = block?;
+                    let state = connection.registry.state(block).await;
+                    if !state.is_owner(connection.client) || state.generation != generation {
+                        return Err(not_owner());
+                    }
+                    connection
+                        .store
+                        .rebase_journal(block.organization, block.block, generation, tag, base)
+                        .await
+                }
+                .await;
+                self.reply(reply, rebased);
             }
         }
     }
@@ -2182,4 +2280,11 @@ impl Connection {
             )
             .await;
     }
+}
+
+fn not_owner() -> ServerError {
+    ServerError::Refused(
+        ErrorCode::PermissionDenied,
+        "only the session's owner writes its journal".into(),
+    )
 }

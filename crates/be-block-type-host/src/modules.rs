@@ -752,6 +752,53 @@ impl Modules {
         }
     }
 
+    /// A block's content as a reader outside its session sees it: its head with the journal
+    /// replayed on top by the type, when this build wrote the journal on that head; otherwise
+    /// the head alone.
+    pub async fn readable(&mut self, read: be_block_client::BlockRead) -> Option<Vec<u8>> {
+        let be_block_client::BlockRead {
+            summary,
+            stored,
+            journal,
+        } = read;
+        let bytes = stored.map(|stored| stored.bytes);
+        let Some(journal) = journal.filter(|journal| {
+            journal.base.commit == summary.head && !journal.entries.is_empty()
+        }) else {
+            return bytes;
+        };
+        let content_type = summary.content_type;
+        let module = self.module_of(content_type)?;
+        let journal = match journal.tag.as_bytes() == &self.tag(module).0 {
+            true => be_sdk_type_api::Journal {
+                base: be_sdk_type_api::JournalBase {
+                    commit: journal.base.commit,
+                    sequence: journal.base.sequence,
+                    state: journal.base.state,
+                },
+                entries: journal
+                    .entries
+                    .into_iter()
+                    .map(|entry| be_sdk_type_api::JournalEntry {
+                        sequence: entry.sequence,
+                        payload: entry.payload,
+                    })
+                    .collect(),
+            },
+            false => return bytes,
+        };
+        let head = bytes.clone();
+        match self
+            .ask_type(content_type, |connection| {
+                replicas::replay(connection, content_type, head, journal)
+            })
+            .await
+        {
+            Ok(replayed) => Some(replayed),
+            Err(_) => bytes,
+        }
+    }
+
     pub async fn blank(&mut self, content_type: Uuid) -> Result<Vec<u8>, String> {
         self.ask_type(content_type, |connection| {
             replicas::blank(connection, content_type)

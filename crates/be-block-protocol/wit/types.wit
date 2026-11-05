@@ -208,4 +208,29 @@ interface types {
         participants: list<client-id>,
         clean-at: option<commit-id>,
     }
+
+    /// One operation a session's owner sequenced, sealed with the block's key
+    /// as a relay is.
+    record journal-entry {
+        generation: u64,
+        sequence: u64,
+        payload: list<u8>,
+    }
+
+    /// Where a journal starts: a commit (none for no content), the last
+    /// sequence number it holds and the session state as of it, sealed with
+    /// the block's key.
+    record journal-base {
+        commit: option<commit-id>,
+        sequence: u64,
+        state: list<u8>,
+    }
+
+    /// What a block's session owners sequenced since its base and have not
+    /// committed, written by the build of the block's type that `tag` names.
+    record journal {
+        tag: hash,
+        base: journal-base,
+        entries: list<journal-entry>,
+    }
 }

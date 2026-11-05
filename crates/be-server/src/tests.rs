@@ -448,7 +448,7 @@ impl TestClient {
         let session = client::sessions::Session::new(&self.peer, block);
         let mut events = session.join();
         let joined = match events.recv().await {
-            Some(SessionEvent::Joined { client, state }) => Ok((client, state)),
+            Some(SessionEvent::Joined { client, state, .. }) => Ok((client, state)),
             Some(SessionEvent::Refused(error)) => Err(error),
             other => panic!("joining answered {other:?}"),
         };

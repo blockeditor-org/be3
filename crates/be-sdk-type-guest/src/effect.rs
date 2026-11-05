@@ -1,5 +1,7 @@
 use be_block_commit::CommitId;
-use be_sdk_type_api::{Description, Merging, Recipients, ReplicaId, Status, Written};
+use be_sdk_type_api::{
+    Description, JournalBase, JournalEntry, Merging, Recipients, ReplicaId, Status, Written,
+};
 
 pub(crate) type Token = u64;
 
@@ -50,6 +52,17 @@ pub(crate) enum Effect {
         replica: ReplicaId,
         generation: u64,
         clean_at: Option<CommitId>,
+    },
+    Append {
+        replica: ReplicaId,
+        generation: u64,
+        entries: Vec<JournalEntry>,
+        relay: bool,
+    },
+    Rebase {
+        replica: ReplicaId,
+        generation: u64,
+        base: JournalBase,
     },
     Release {
         replica: ReplicaId,

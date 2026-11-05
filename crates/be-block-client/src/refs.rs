@@ -6,8 +6,8 @@ use std::{
 use be_block_commit::CommitId;
 use be_block_graph::BlockParent;
 use be_block_protocol::{
-    BlockSummary, EscrowKey, KeyRow, KeySet, Listing, Organization, OrganizationKind,
-    OrganizationRole, WrappedBy, WrappedKey,
+    BlockSummary, EscrowKey, Journal, JournalBase, JournalEntry, KeyRow, KeySet, Listing,
+    Organization, OrganizationKind, OrganizationRole, WrappedBy, WrappedKey,
 };
 use be_block_store::{Hash, StoreError};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -38,10 +38,12 @@ pub(crate) enum Table {
     Outbox,
     Unsent,
     Workspaces,
+    JournalBase,
+    JournalEntry,
 }
 
 impl Table {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 12] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -52,6 +54,8 @@ impl Table {
         Self::Outbox,
         Self::Unsent,
         Self::Workspaces,
+        Self::JournalBase,
+        Self::JournalEntry,
     ];
 
     pub fn code(self) -> u8 {
@@ -66,6 +70,8 @@ impl Table {
             Self::Outbox => 8,
             Self::Unsent => 9,
             Self::Workspaces => 10,
+            Self::JournalBase => 11,
+            Self::JournalEntry => 12,
         }
     }
 
@@ -275,7 +281,29 @@ struct State {
     contacts: Vec<(Uuid, [u8; 32])>,
     outbox: BTreeMap<u64, Op>,
     unsent: BTreeMap<Uuid, Unsent>,
+    journals: HashMap<Uuid, Journaled>,
     next: u64,
+}
+
+/// A block's journal on this device, sealed as on the server: what this device's replica
+/// sequenced as its owner since the base, kept until a commit holds it.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+struct JournalHead {
+    tag: Hash,
+    generation: u64,
+    base: JournalBase,
+}
+
+#[derive(Clone, Debug)]
+struct Journaled {
+    head: JournalHead,
+    entries: BTreeMap<u64, JournalEntry>,
+}
+
+fn journal_entry_key(block: Uuid, sequence: u64) -> Vec<u8> {
+    let mut key = block.as_bytes().to_vec();
+    key.extend(sequence.to_be_bytes());
+    key
 }
 
 impl State {
@@ -320,6 +348,38 @@ impl State {
                 self.unsent.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::Workspaces => {}
+            Table::JournalBase => {
+                let head: JournalHead = decode(value)?;
+                let block = uuid_key(&row.key)?;
+                let entries = self
+                    .journals
+                    .remove(&block)
+                    .map(|journal| journal.entries)
+                    .unwrap_or_default();
+                self.journals.insert(block, Journaled { head, entries });
+            }
+            Table::JournalEntry => {
+                let (block, sequence) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
+                let entry: JournalEntry = decode(value)?;
+                let block = uuid_key(block)?;
+                let sequence = sequence_key(sequence)?;
+                self.journals
+                    .entry(block)
+                    .or_insert_with(|| Journaled {
+                        head: JournalHead {
+                            tag: Hash::from_bytes([0; 32]),
+                            generation: 0,
+                            base: JournalBase {
+                                commit: None,
+                                sequence: 0,
+                                state: Vec::new(),
+                            },
+                        },
+                        entries: BTreeMap::new(),
+                    })
+                    .entries
+                    .insert(sequence, entry);
+            }
         }
         Ok(())
     }
@@ -643,6 +703,110 @@ impl Refs {
         Ok(sequence)
     }
 
+    /// The block's journal on this device, sealed.
+    pub fn journal(&self, block: Uuid) -> Option<Journal> {
+        let state = self.state.lock().unwrap();
+        let journal = state.journals.get(&block)?;
+        Some(Journal {
+            tag: journal.head.tag,
+            base: journal.head.base.clone(),
+            entries: journal.entries.values().cloned().collect(),
+        })
+    }
+
+    /// Appends sealed entries past the journal's last, starting the journal over for another
+    /// `tag`, as the server does.
+    pub fn append_journal(
+        &self,
+        block: Uuid,
+        tag: Hash,
+        generation: u64,
+        entries: Vec<JournalEntry>,
+    ) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            let journal = state.journals.entry(block).or_insert_with(|| Journaled {
+                head: JournalHead {
+                    tag,
+                    generation,
+                    base: JournalBase {
+                        commit: None,
+                        sequence: 0,
+                        state: Vec::new(),
+                    },
+                },
+                entries: BTreeMap::new(),
+            });
+            if journal.head.tag != tag {
+                for sequence in std::mem::take(&mut journal.entries).into_keys() {
+                    rows.push(Row {
+                        table: Table::JournalEntry,
+                        key: journal_entry_key(block, sequence),
+                        value: None,
+                    });
+                }
+                journal.head.tag = tag;
+            }
+            journal.head.generation = generation;
+            rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &journal.head));
+            let mut last = journal
+                .entries
+                .last_key_value()
+                .map_or(journal.head.base.sequence, |(sequence, _)| *sequence);
+            for entry in entries {
+                if entry.sequence <= last {
+                    continue;
+                }
+                last = entry.sequence;
+                rows.push(row(
+                    Table::JournalEntry,
+                    journal_entry_key(block, entry.sequence),
+                    &entry,
+                ));
+                journal.entries.insert(entry.sequence, entry);
+            }
+        }
+        self.write(rows)
+    }
+
+    /// Starts the journal over from `base` (sealed), dropping every entry, as the server does.
+    pub fn rebase_journal(
+        &self,
+        block: Uuid,
+        tag: Hash,
+        generation: u64,
+        base: JournalBase,
+    ) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            let head = JournalHead {
+                tag,
+                generation,
+                base,
+            };
+            if let Some(journal) = state.journals.get(&block) {
+                for sequence in journal.entries.keys() {
+                    rows.push(Row {
+                        table: Table::JournalEntry,
+                        key: journal_entry_key(block, *sequence),
+                        value: None,
+                    });
+                }
+            }
+            rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &head));
+            state.journals.insert(
+                block,
+                Journaled {
+                    head,
+                    entries: BTreeMap::new(),
+                },
+            );
+        }
+        self.write(rows)
+    }
+
     pub fn creating(&self, block: Uuid) -> bool {
         let state = self.state.lock().unwrap();
         state
@@ -715,6 +879,13 @@ impl Refs {
                 .values()
                 .map(Op::block)
                 .chain(state.unsent.keys().copied())
+                .chain(
+                    state
+                        .journals
+                        .iter()
+                        .filter(|(_, journal)| !journal.entries.is_empty())
+                        .map(|(block, _)| *block),
+                )
                 .collect();
             let gone: HashSet<Uuid> = blocks.difference(&kept).copied().collect();
             let about = |listing: &Listing| match listing {
@@ -743,6 +914,13 @@ impl Refs {
             }
             state.listings.retain(|listing, _| !about(listing));
             for block in &gone {
+                if state.journals.remove(block).is_some() {
+                    rows.push(Row {
+                        table: Table::JournalBase,
+                        key: block.as_bytes().to_vec(),
+                        value: None,
+                    });
+                }
                 for (table, held) in [
                     (Table::Head, &mut state.heads),
                     (Table::Remote, &mut state.remotes),

@@ -18,7 +18,7 @@ fn concurrent_edits_converge() {
         assert_eq!(texts(&sim.content(device)), owner);
         assert_eq!(texts(sim.mirror(device, 1)), owner);
     }
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(texts(&sim.head_content()), owner);
     for device in 0..3 {
         assert_eq!(sim.devices[device].status.head, sim.head);

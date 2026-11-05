@@ -15,7 +15,7 @@ fn a_follower_that_takes_over_saves_its_edit_too_large_to_relay() {
     sim.settle();
     sim.crash(0);
     sim.deaf.clear();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert!(sim.devices[1].status.owner);
     assert!(
         sim.largest_relay < 1024 * 1024,

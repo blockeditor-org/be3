@@ -1,30 +1,39 @@
 # Saving live edits less often
 
-A session owner seals a commit 750 ms after an edit, so a block edited for an
-hour makes up to 4,800 commits, of which the server keeps one a minute. This
-plan keeps edits durable with a journal of operations, writes commits only at
-pauses, and restarts long-lived sessions so their state stays small. The canvas has the same problem as chat
-(plans/chat.md). Making each commit cheaper is plans/large_blocks.md. Pruning
-as commits arrive and deterministic loading are done; the rest is not
-implemented yet.
+Edits are durable in a journal of operations, commits are written at pauses,
+and the server prunes as commits arrive (built). What is left: tie the
+journal's format to the module tag, and restart long-lived sessions so their
+state stays small. The canvas has the same problem as chat (plans/chat.md).
+Making each commit cheaper is plans/large_blocks.md.
 
 ## What exists
 
-- **Sealing.** The owner seals `SEAL_INTERVAL` (750 ms,
-  `crates/be-sdk-type-guest/src/replica.rs`) after it starts owing a seal. A
-  seal writes a commit and its local head to the refs database in one
-  transaction (`Refs::push_publish`), records it in the outbox, and publishes.
-- **Relays.** The owner sequences operations and broadcasts them through the
-  server (`sessions.relay`). The server sees the sealed relays and keeps
-  nothing.
-- **Session state** (tombstones, text positions, split fragments) is never
-  saved. The owner hands it over in `Snapshot` and `Sealed`
-  (`LiveEdit::session_state`), and it goes only when the session ends because
-  everyone left. Nothing else restarts a session, so a block someone always has
-  open keeps all its tombstones.
+- **The journal** (guides/blocks/client.md, "The journal"; guides/type_modules.md,
+  Peers). The owner appends every operation it sequences to the block's journal
+  on the server and in the device's refs database: with others in the session
+  in the same call that relays it (`sessions.append`), alone folded every
+  `APPEND_INTERVAL`. A journal has a base (commit, sequence number, session
+  state) and is tagged with the module that wrote it. Each commit rebases it,
+  dropping every entry. A replica opening on its base replays it; a reader
+  outside the session (`Modules::readable`: export, `be download`, the
+  tracker) replays it when its tag is the module's.
+- **Commits at pauses.** `QUIET_INTERVAL` (30 s) with no edits,
+  `COMMIT_INTERVAL` (5 min) after the first, `JOURNAL_BYTES` (1 MiB) appended,
+  on close, at once when a peer of another build greets the owner or a
+  takeover leaves it owing, and locally when the connection drops
+  (`crates/be-sdk-type-guest/src/replica.rs`, `Replicas::disconnected`).
+- **Session state** (tombstones, text positions, split fragments) is saved only
+  as a journal's base. A follower joining with the journal's base and
+  numbering greets with them (`Catchup { base, sealed }`) and the owner's
+  `Snapshot` carries no state; otherwise the owner hands it over as before.
+  Nothing restarts a session, so a block someone always has open keeps all its
+  tombstones.
 - **Compatibility.** Each type module has a `Tag` (its hash), and an owner
   answers a different tag with `Incompatible`, so two builds of a type never
-  edit one session.
+  edit one session. The server refuses an append to a journal of another tag
+  until the owner rebases; a replica of another tag opens on the head alone
+  and starts the journal over at its first append or commit, losing the other
+  build's entries without saying so (3).
 - **Retention.** The server prunes as each publish arrives (guides/blocks/server.md):
   `RetentionPolicy::default()` keeps one state per minute for the last hour,
   then one per 10 minutes for a day, per hour for a week, per day for 30 days
@@ -40,46 +49,23 @@ implemented yet.
 
 ## The design
 
-### 1. The journal
+### Left from the journal and commits at pauses
 
-- Each operation the owner sequences is appended to a journal on the server:
-  sealed as relays are, with its sequence number, lease generation and module
-  tag. The server takes entries only from the current owner, for the current
-  generation, in order, and deduplicates by `OpId`. One call both broadcasts
-  and appends.
-- The journal starts from a base: a commit plus the sealed session state as of
-  that commit. The server keeps only the newest base state, beside the journal
-  and outside history, so retention never sees it. Once the owner reports
-  `clean_at` past an entry, the server drops it.
-- An owner alone in its session relays nothing today; it appends what it
-  sequenced every 250 ms, folded with `LiveEdit::absorb_operation`, so a crash
-  loses at most that much.
-- On the device, the replica appends to a local journal in the refs database
-  instead of writing a local commit per seal, and keeps a local base the same
-  way.
-
-### 2. Commits at pauses
-
-- The owner commits:
-  - after 30 s with no edits, a natural pause, which is the state retention
-    prefers to keep;
-  - 5 minutes after the first edit since the last commit, while edits go on,
-    which bounds what a restore point misses and what a reader replays;
-  - when the journal passes 1 MiB, so replaying it stays well under a second;
-  - at once when the last participant leaves, and before its code changes (the
-    host stopping or updating, `Incompatible`, the server closing the
-    connection for a new build).
-
-  Steady editing then makes about 12 commits an hour, and editing in bursts
-  at most about 120, which pruning at publish thins to one a minute.
-- **Recovery.** A new owner after a crash, or a follower joining, loads the
-  base commit and session state and replays the journal. A joining follower
-  then needs no `Snapshot` from the owner.
-- **Readers outside the session** (`open`, `read_contents`, `be`, export,
-  search) read the base and the journal with the head, in the same request,
-  and apply the journal with the type's `LiveEdit`. They see everything the
-  owner sequenced, short of what is still in flight. A reader whose type has
-  another tag can't replay the journal and reads the head commit alone.
+- A follower that takes over keeps the operations it applied since its last
+  sealed head and appends them again after its rebase. One that cannot number
+  them (it missed some, or was catching up) commits at once instead, so they
+  live only in its memory for one round trip.
+- The server has no notice that it is closing for a new build. Clients notice
+  when they reconnect: a refused build updates the host, which flushes first,
+  and on any disconnect the host commits what each replica owns locally,
+  since a reconnect reopens replicas from their heads.
+- A module restart reopens its replicas from their heads and replays what the
+  host kept since the last commit; it does not read the journal, which holds
+  the same operations.
+- `be sync` reads heads without the journal, since it records which head it
+  synced; search does not read contents yet.
+- The base's session state is sent whole at every commit; restarts (5) bound
+  it.
 
 ### 3. Live-edit formats stay unfrozen
 
@@ -115,15 +101,10 @@ implemented yet.
 
 ## Order of work
 
-1 and 2 together, then 3 and the rest of 5.
+3, then 5.
 
 ## Tests
 
-- An owner cut off by the fault relay after edits and before a commit: the new
-  owner recovers every edit from the journal.
-- With a manual clock, an hour of steady edits makes about 12 commits.
-- A reader outside the session (`be`) sees edits that are in the journal but
-  not yet in a commit.
 - A journal written by another module tag is dropped and the block marked.
 - A restart keeps a follower's pending edit and the peers' cursors; a painting
   shows the message when undo reaches it.

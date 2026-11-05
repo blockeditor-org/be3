@@ -15,7 +15,7 @@ fn a_follower_that_missed_messages_catches_up_once_resynchronized() {
     for text in ["a", "b", "c"] {
         sim.operate(0, 1, add(text));
     }
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     for text in ["d", "e"] {
         sim.operate(0, 1, add(text));
     }

@@ -95,7 +95,7 @@ survives a reload. Traps that shape this code:
   `std::sync::Mutex`, so connections never cross between the page and the worker
   (`be_host_stack::link` keeps them per thread on wasm).
 - An unload cannot wait for the worker, so durability does not depend on it: a replica seals
-  within `SEAL_INTERVAL` of an edit, `beforeunload` asks while anything is unsaved
+  within `APPEND_INTERVAL` of an edit (guides/blocks/client.md, "The journal"), `beforeunload` asks while anything is unsaved
   (`be_host_stack::status().unsaved`), and the worker seals while the browser asks.
 - Every context counts the monotonic clock from `performance.timeOrigin`, so an `Instant` means
   the same time in the page and the worker.

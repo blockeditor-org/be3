@@ -2527,9 +2527,10 @@ async fn export(
                 Some(bytes) => Some(bytes),
                 None => stored(peer, block.id).await?,
             },
-            false => read
-                .next()
-                .and_then(|(_, content)| content.map(|stored| stored.bytes)),
+            false => match read.next() {
+                Some(read) => replicas.modules.readable(read).await,
+                None => None,
+            },
         };
         if let Some(derived) = shared
             .lock()

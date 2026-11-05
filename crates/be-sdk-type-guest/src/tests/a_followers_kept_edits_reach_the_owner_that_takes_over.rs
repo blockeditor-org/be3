@@ -16,7 +16,7 @@ fn a_followers_kept_edits_reach_the_owner_that_takes_over() {
     sim.settle();
     sim.crash(0);
     sim.deaf.clear();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert!(sim.devices[1].status.owner);
     assert_eq!(texts(&sim.head_content()), ["replacement"]);
     for device in 1..3 {

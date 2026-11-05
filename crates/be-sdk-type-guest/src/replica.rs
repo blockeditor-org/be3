@@ -7,8 +7,8 @@ use be_block_session::{
     Follower, Inherited, KeptEdits, OpId, Resume, Sequencer, SessionMessage, SessionOp,
 };
 use be_sdk_type_api::{
-    Change, EditorId, Endpoint, FileChange, Merging, Recipients, ReplicaId, SessionTag, Status,
-    Written,
+    Change, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
+    Recipients, ReplicaId, SessionTag, Status, Written,
 };
 use uuid::Uuid;
 
@@ -19,7 +19,21 @@ use crate::{
     wire::Wire,
 };
 
-pub const SEAL_INTERVAL: u64 = 750;
+/// An owner commits once its session has gone this long with no edits: a natural pause,
+/// which is the state retention prefers to keep.
+pub const QUIET_INTERVAL: u64 = 30_000;
+
+/// An owner commits at most this long after the first edit since its last commit, while edits
+/// go on, which bounds what a restore point misses and what a reader replays.
+pub const COMMIT_INTERVAL: u64 = 5 * 60_000;
+
+/// An owner commits once what it appended to the journal since its last commit passes this,
+/// so replaying a journal stays well under a second.
+pub const JOURNAL_BYTES: usize = 1024 * 1024;
+
+/// An owner alone in its session appends what it sequenced this often, folded, so a crash
+/// loses at most this much; with others there it appends each operation as it relays it.
+pub const APPEND_INTERVAL: u64 = 250;
 
 pub const HEARTBEAT_INTERVAL: u64 = be_block_session::LEASE_MILLISECONDS as u64 / 2;
 
@@ -37,6 +51,7 @@ pub(crate) struct Opened {
     pub(crate) tag: SessionTag,
     pub(crate) head: Option<CommitId>,
     pub(crate) session: SessionState,
+    pub(crate) journal: Option<Journal>,
     pub(crate) from_file: Option<FromFileFn>,
     pub(crate) now: u64,
 }
@@ -348,6 +363,12 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     tokens: Token,
     now: u64,
     owes_since: Option<u64>,
+    last_edit: Option<u64>,
+    opened_journal: Option<Journal>,
+    rebased: bool,
+    unappended: Vec<SessionOp>,
+    append_at: Option<u64>,
+    appended_bytes: usize,
     beaten: Option<u64>,
     active: bool,
     sealing: bool,
@@ -398,9 +419,10 @@ where
 
     fn tick(&mut self, now: u64, out: &mut Vec<Effect>) {
         self.now = self.now.max(now);
-        let due = self
-            .owes_since
-            .is_some_and(|since| self.now >= since + SEAL_INTERVAL);
+        if self.append_at.is_some_and(|at| self.now >= at) {
+            self.append_unappended();
+        }
+        let due = self.commit_at().is_some_and(|at| self.now >= at);
         if due && !self.sealing {
             self.sealing = true;
             self.jobs.push_back(Job::Seal {
@@ -417,9 +439,12 @@ where
     fn wake_at(&self) -> Option<u64> {
         let seal = match self.sealing {
             true => None,
-            false => self.owes_since.map(|since| since + SEAL_INTERVAL),
+            false => self.commit_at(),
         };
-        seal.into_iter().chain(self.beat_at()).min()
+        seal.into_iter()
+            .chain(self.append_at)
+            .chain(self.beat_at())
+            .min()
     }
 
     fn released(&self) -> bool {
@@ -474,6 +499,12 @@ where
             tokens: 0,
             now: opened.now,
             owes_since: None,
+            last_edit: None,
+            opened_journal: opened.journal,
+            rebased: false,
+            unappended: Vec::new(),
+            append_at: None,
+            appended_bytes: 0,
             beaten: None,
             active: false,
             sealing: false,
@@ -543,10 +574,109 @@ where
             };
             if let Some(op) = sequencer.accept(id, C::encode_operation(&operation)) {
                 self.confirmed.apply(&operation);
-                self.broadcast(&SessionMessage::Accepted { op });
+                self.sequenced(op);
             }
         }
         self.flush();
+    }
+
+    /// When the owner commits what it owes: after a quiet spell, at most `COMMIT_INTERVAL`
+    /// after it started owing, or at once when the journal grew past `JOURNAL_BYTES`.
+    fn commit_at(&self) -> Option<u64> {
+        let since = self.owes_since?;
+        if self.appended_bytes >= JOURNAL_BYTES {
+            return Some(since);
+        }
+        let quiet = self.last_edit.map_or(since, |edited| edited.max(since)) + QUIET_INTERVAL;
+        Some(quiet.min(since + COMMIT_INTERVAL))
+    }
+
+    /// Commits now rather than at the next pause: before a build that cannot replay this one's
+    /// journal reads the block, or when a follower needs a reload.
+    fn commit_now(&mut self) {
+        if self.is_owner() && !self.is_clean() && !self.sealing {
+            self.sealing = true;
+            self.jobs.push_back(Job::Seal {
+                sealing: Sealing::Due,
+                reply: None,
+            });
+        }
+    }
+
+    fn alone(&self) -> bool {
+        self.state
+            .participants
+            .iter()
+            .all(|participant| *participant == self.client)
+    }
+
+    /// The owner sequenced `op`: with others in the session it appends it to the journal and
+    /// relays it in one call; alone it appends it within `APPEND_INTERVAL`, folded.
+    fn sequenced(&mut self, op: SessionOp) {
+        self.last_edit = Some(self.now);
+        self.unappended.push(op);
+        match self.alone() {
+            true => {
+                self.append_at.get_or_insert(self.now + APPEND_INTERVAL);
+            }
+            false => self.append_unappended(),
+        }
+    }
+
+    fn append_unappended(&mut self) {
+        self.append_at = None;
+        let ops = std::mem::take(&mut self.unappended);
+        if ops.is_empty() {
+            return;
+        }
+        match self.alone() {
+            true => {
+                let folded = fold::<C>(ops);
+                self.append(folded, false);
+            }
+            false => self.append(ops, true),
+        }
+    }
+
+    fn append(&mut self, ops: Vec<SessionOp>, relay: bool) {
+        if !self.is_owner() || ops.is_empty() {
+            return;
+        }
+        if !self.rebased {
+            self.rebase_journal();
+        }
+        let entries: Vec<JournalEntry> = ops
+            .into_iter()
+            .map(|op| JournalEntry {
+                sequence: op.sequence,
+                payload: Wire::Session(SessionMessage::Accepted { op }).encode(),
+            })
+            .collect();
+        self.appended_bytes += entries
+            .iter()
+            .map(|entry| entry.payload.len())
+            .sum::<usize>();
+        self.out.push(Effect::Append {
+            replica: self.id,
+            generation: self.state.generation,
+            entries,
+            relay,
+        });
+    }
+
+    /// Starts the journal from this owner's base: its last commit, the sequence number that
+    /// commit holds, and the session state as of it.
+    fn rebase_journal(&mut self) {
+        self.rebased = true;
+        self.out.push(Effect::Rebase {
+            replica: self.id,
+            generation: self.state.generation,
+            base: JournalBase {
+                commit: self.base,
+                sequence: self.sealed,
+                state: self.sealed_state.clone(),
+            },
+        });
     }
 
     fn beat_at(&self) -> Option<u64> {
@@ -802,10 +932,12 @@ where
             } => {
                 self.confirmed = next();
                 self.base = head;
-                if self.confirmed.adopt_session_state(&state).is_err() {
-                    return self.unreadable_message();
+                if !state.is_empty() {
+                    if self.confirmed.adopt_session_state(&state).is_err() {
+                        return self.unreadable_message();
+                    }
+                    self.sealed_state = state;
                 }
-                self.sealed_state = state;
                 if let Role::Follower(follower) = &mut self.role {
                     follower.set_applied(sealed);
                 }
@@ -1354,12 +1486,31 @@ where
 
     fn loaded(&mut self, content: C) {
         self.confirmed = content;
-        self.visible = self.confirmed.clone();
         self.sealed_state = self.confirmed.session_state();
+        let journal = self
+            .opened_journal
+            .take()
+            .filter(|journal| journal.base.commit == self.base);
+        let replayed = match journal {
+            Some(journal) => self.replay_journal(journal),
+            None => Vec::new(),
+        };
+        self.visible = self.confirmed.clone();
         self.projected = Settling::new(self.visible.clone(), Vec::new());
+        let last = replayed.last().map_or(self.sealed, |op| op.sequence);
         self.role = match self.state.is_owner(self.client) {
-            true => Role::Owner(Sequencer::new(self.base)),
-            false => Role::Follower(Follower::new(self.client)),
+            true => {
+                let mut sequencer = Sequencer::continuing(self.base, self.sealed, 0);
+                for op in replayed {
+                    sequencer.replayed(op);
+                }
+                Role::Owner(sequencer)
+            }
+            false => {
+                let mut follower = Follower::new(self.client);
+                follower.set_applied(last);
+                Role::Follower(follower)
+            }
         };
         self.loaded = true;
         self.described = true;
@@ -1375,6 +1526,38 @@ where
 
     fn is_owner(&self) -> bool {
         matches!(self.role, Role::Owner(_))
+    }
+
+    /// Loads a journal on the base just read: its session state, then every operation in it,
+    /// answered in order. An owner opening with it continues from its numbering without
+    /// rebasing; one that took it over rebases first (`adopt`).
+    fn replay_journal(&mut self, journal: Journal) -> Vec<SessionOp> {
+        if !journal.base.state.is_empty() {
+            if self
+                .confirmed
+                .adopt_session_state(&journal.base.state)
+                .is_err()
+            {
+                return Vec::new();
+            }
+            self.sealed_state = journal.base.state;
+        }
+        self.sealed = journal.base.sequence;
+        self.rebased = self.state.is_owner(self.client);
+        let mut replayed = Vec::new();
+        for entry in journal.entries {
+            let Some(Wire::Session(SessionMessage::Accepted { op })) = Wire::decode(&entry.payload)
+            else {
+                continue;
+            };
+            let Ok(operation) = C::decode_operation(&op.payload) else {
+                continue;
+            };
+            self.confirmed.apply(&operation);
+            self.appended_bytes += entry.payload.len();
+            replayed.push(op);
+        }
+        replayed
     }
 
     fn is_clean(&self) -> bool {
@@ -1505,7 +1688,7 @@ where
                     return true;
                 };
                 self.confirmed.apply(&operation);
-                self.broadcast(&SessionMessage::Accepted { op });
+                self.sequenced(op);
             }
             Role::Follower(follower)
                 if oversized
@@ -1887,6 +2070,10 @@ where
             head: self.base,
             owner: self.is_owner(),
             clean: self.is_clean(),
+            journaled: match self.role {
+                Role::Owner(_) => self.unappended.is_empty() && self.held.is_empty(),
+                Role::Follower(_) => self.is_clean(),
+            },
             owes_seal: self.loaded && self.is_owner() && !self.is_clean(),
             incompatible: self.incompatible,
             diverged: self.diverged,
@@ -1978,10 +2165,10 @@ where
         let Role::Follower(follower) = &self.role else {
             return;
         };
-        let since = follower.applied();
+        let message = follower.catchup(self.base, self.sealed);
         let owner = self.state.owner;
         self.send_wire(owner, &Wire::Tag(self.tag));
-        self.send_wire(owner, &Wire::Session(SessionMessage::Catchup { since }));
+        self.send_wire(owner, &Wire::Session(message));
     }
 
     fn receive(&mut self, from: ClientId, wire: Wire) {
@@ -1996,6 +2183,7 @@ where
                     return;
                 }
                 self.other_builds.insert(from);
+                self.commit_now();
                 return self.send_wire(Some(from), &Wire::Incompatible);
             }
             Wire::Incompatible => {
@@ -2040,28 +2228,40 @@ where
                 self.confirmed.apply(&operation);
                 self.visible.apply(&operation);
                 self.journal(Journaled::Applied(operation), None);
-                self.broadcast(&SessionMessage::Accepted { op });
+                self.sequenced(op);
             }
             SessionMessage::Accepted { op } => match self.role {
                 Role::Owner(_) => self.inherit_accepted(&op),
                 Role::Follower(_) if !self.catching_up => self.apply_accepted(&op),
                 Role::Follower(_) => {}
             },
-            SessionMessage::Catchup { since } => {
+            SessionMessage::Catchup {
+                since,
+                base,
+                sealed,
+            } => {
                 let Role::Owner(sequencer) = &self.role else {
                     return;
                 };
-                if sequencer.inherited() > 0 {
+                let inherited = sequencer.inherited() > 0;
+                if inherited {
                     self.reload = true;
                 }
+                let holds = base == sequencer.head() && sealed == self.sealed && since >= sealed;
                 let message = SessionMessage::Snapshot {
                     head: sequencer.head(),
                     sealed: self.sealed,
                     sequence: sequencer.sequence(),
                     ops: sequencer.since(since.min(self.sealed)),
-                    state: self.sealed_state.clone(),
+                    state: match holds {
+                        true => Vec::new(),
+                        false => self.sealed_state.clone(),
+                    },
                 };
                 self.send(Some(from), &message);
+                if inherited {
+                    self.commit_now();
+                }
             }
             SessionMessage::Snapshot {
                 head,
@@ -2075,7 +2275,7 @@ where
                 };
                 self.catching_up = false;
                 let applied = follower.applied();
-                if head != self.base || applied < sealed {
+                if head != self.base || sealed != self.sealed || applied < sealed {
                     return self.read(
                         vec![head],
                         Then::Snapshot {
@@ -2274,6 +2474,10 @@ where
         let Ok(operation) = C::decode_operation(&op.payload) else {
             return self.unreadable_message();
         };
+        if inherited == Inherited::Continued {
+            self.append_unappended();
+            self.append(vec![op.clone()], false);
+        }
         self.confirmed.apply(&operation);
         self.visible.apply(&operation);
         self.journal(Journaled::Applied(operation), None);
@@ -2371,6 +2575,9 @@ where
             .retain(|(client, _), _| state.participants.contains(client));
         self.presence_changed |= self.presence.len() != before;
         self.state = state;
+        if !self.alone() {
+            self.append_unappended();
+        }
         for client in joined {
             self.show_presence_to(client);
         }
@@ -2454,6 +2661,8 @@ where
             false => Vec::new(),
         };
         self.role = Role::Owner(sequencer);
+        self.rebased = false;
+        self.appended_bytes = 0;
         self.replace_visible(self.confirmed.clone());
         for handed in self.handed.clone() {
             self.jobs.push_back(Job::Keep(Keeping {
@@ -2471,10 +2680,13 @@ where
             }
             None => {
                 for op in accepted {
-                    self.broadcast(&SessionMessage::Accepted { op });
+                    self.sequenced(op);
                 }
             }
         }
+        // The journal starts over at this owner's first append, so what it took over is
+        // durable once committed.
+        self.commit_now();
     }
 
     fn claim(&mut self) {
@@ -2725,6 +2937,10 @@ where
         self.sealed = sequence;
         self.sealed_state = self.confirmed.session_state();
         self.owes_since = None;
+        self.unappended.clear();
+        self.append_at = None;
+        self.appended_bytes = 0;
+        self.rebase_journal();
         let reload = std::mem::take(&mut self.reload).then(|| self.sealed_state.clone());
         if reload.is_some() {
             self.op_heads.clear();
@@ -2746,4 +2962,66 @@ where
             clean_at: Some(head),
         });
     }
+}
+
+/// Folds consecutive operations into as few as `LiveEdit::absorb_operation` allows, each
+/// numbered as the last it absorbed and kept under the relay limit.
+fn fold<C: LiveEdit>(ops: Vec<SessionOp>) -> Vec<SessionOp> {
+    let mut folded = Vec::new();
+    let mut current: Option<(SessionOp, C::Op, usize)> = None;
+    let finish = |current: (SessionOp, C::Op, usize)| SessionOp {
+        payload: C::encode_operation(&current.1),
+        ..current.0
+    };
+    for op in ops {
+        let Ok(operation) = C::decode_operation(&op.payload) else {
+            folded.extend(current.take().map(finish));
+            folded.push(op);
+            continue;
+        };
+        let size = op.payload.len();
+        let leftover = match &mut current {
+            Some((last, into, bound)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
+                let leftover = C::absorb_operation(into, operation);
+                if leftover.is_none() {
+                    *bound += size;
+                    last.id = op.id;
+                    last.sequence = op.sequence;
+                }
+                leftover
+            }
+            _ => Some(operation),
+        };
+        if let Some(operation) = leftover {
+            folded.extend(current.replace((op, operation, size)).map(finish));
+        }
+    }
+    folded.extend(current.map(finish));
+    folded
+}
+
+/// The content of `bytes` (the type's default for none) with `journal` replayed on top, for a
+/// reader outside the session.
+pub(crate) fn replay<C: LiveEdit + Default>(
+    bytes: Option<&[u8]>,
+    journal: &Journal,
+) -> Result<Vec<u8>, String> {
+    let mut content = match bytes {
+        Some(bytes) => C::decode(bytes).map_err(|error| error.to_string())?,
+        None => C::default(),
+    };
+    if !journal.base.state.is_empty() {
+        content
+            .adopt_session_state(&journal.base.state)
+            .map_err(|error| error.to_string())?;
+    }
+    for entry in &journal.entries {
+        let Some(Wire::Session(SessionMessage::Accepted { op })) = Wire::decode(&entry.payload)
+        else {
+            return Err("a journal entry this build cannot read".into());
+        };
+        let operation = C::decode_operation(&op.payload).map_err(|error| error.to_string())?;
+        content.apply(&operation);
+    }
+    Ok(content.encode())
 }

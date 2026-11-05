@@ -110,7 +110,8 @@ and seals it locally.
 - **Opening offline.** A block opened while down gets `OFFLINE_CLIENT` owning a
   made-up session (`Open::made_up`): `Publish` becomes `Peer::seal` (a local
   commit in the outbox), `Resume` treats the local head as remote, and
-  heartbeats, claims and relays are skipped. The same happens while the block
+  heartbeats, claims and relays are skipped, and the journal is the device's
+  alone. The same happens while the block
   has outbox commits, and while the host keeps (`Replicas::keep_all`, used by
   flush and stop).
 - **Draining on connect.** The worker drains the outbox in a task
@@ -223,8 +224,9 @@ is saved.
 
 A block file (`be_block_client::transfer`, what `be download` writes) holds a
 tree. host-services' `export-block` lists the tree a level at a time and fills
-each block's bytes from its open session or its head, so it works for types
-the host does not know.
+each block's bytes from its open session, or its head with the journal
+replayed (`Modules::readable`), so it works for types the host does not know
+(they read the head alone).
 
 `import-blocks(parent)` takes any file: non-`.block` files go to
 `be_host_stack::import_file`, which picks a type the way `be sync` does

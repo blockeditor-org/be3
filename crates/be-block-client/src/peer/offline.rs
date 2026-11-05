@@ -231,7 +231,7 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         blocks: &[(Uuid, Option<CommitId>)],
         reason: String,
-    ) -> Result<Vec<(BlockSummary, Option<be_block_store::Stored>)>, ClientError> {
+    ) -> Result<Vec<super::BlockRead>, ClientError> {
         let mut read = Vec::with_capacity(blocks.len());
         for (block, _) in blocks {
             let mut summary = self
@@ -243,7 +243,12 @@ impl<S: ObjectStore> Peer<S> {
                 Some(head) => Some(self.read_at(head).await?),
                 None => None,
             };
-            read.push((summary, content));
+            let journal = self.local_journal(*block).ok().flatten();
+            read.push(super::BlockRead {
+                summary,
+                stored: content,
+                journal,
+            });
         }
         Ok(read)
     }

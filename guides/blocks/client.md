@@ -71,9 +71,10 @@ more round trips than one.
 The owner sequences and broadcasts. A follower applies its own edit at once,
 rebases it over operations that arrive meanwhile, and reconciles against the
 owner's echo; a replica keeps `confirmed` and `visible` (confirmed plus
-pending). Only the owner seals: a seal writes a commit, heartbeats `clean_at`,
-and tells the followers with `SessionMessage::Sealed` which commit holds which
-sequence number.
+pending). Only the owner seals, at pauses (guides/type_modules.md, Peers): a
+seal writes a commit, heartbeats `clean_at`, rebases the journal, and tells
+the followers with `SessionMessage::Sealed` which commit holds which sequence
+number.
 
 - **One edit in flight.** A follower's typing waits in the replica's `unsent`
   queue while an edit is unconfirmed, folded by `LiveEdit::absorb_operation`
@@ -104,15 +105,43 @@ sequence number.
   the session incompatible; on a follower also diverged, and a diverged session
   refuses to edit or seal.
 
+## The journal
+
+What the owner sequenced since its last commit is kept durable in the block's
+journal, so a commit can wait for a pause. A journal is a base (a commit, or
+none for no content; the last sequence number it holds; the session state as
+of it) and entries (sequence number, lease generation, payload), all sealed
+with the block key; the server keeps it beside history, never in it
+(`be_server::journal`), and records the module tag that wrote it.
+
+- `Peer::append` seals entries, keeps them in the device's journal in the refs
+  database and, online, sends `sessions.append`, which relays each entry to the
+  other participants as a relay would and keeps it when the caller owns the
+  session's current generation: one call broadcasts and appends. Entries at or
+  below the last sequence number are dropped as already held.
+- `Peer::rebase_journal` starts the journal over from a base, dropping every
+  entry: an owner rebases after each commit, and on taking a session before it
+  appends.
+- Joining (`Peer::join_session`) answers the journal as of joining, so a
+  replica opening on its base needs no state from the owner
+  (`be_block_type_host::Replicas` picks the server's or the device's,
+  whichever holds more). `read_contents` answers each block's journal
+  (`BlockRead::journal`, opened; offline the device's); a reader applies it
+  with `Modules::readable`, which replays it through the type when its tag is
+  the module's and its base is the head, and reads the head alone otherwise.
+  Export, `be download` and the tracker's reads go through it; `be sync` reads
+  heads alone, since it records which head it synced.
+
 ## The refs database
 
 A `Peer` keeps what it learns in `RefsDb` (`be_block_client::refs`, SQLite on
 every platform, in the origin private file system on the web), keyed by server,
 account and organization: local and last-known remote heads, raw
 `BlockSummary`s (metadata stays sealed), key rows and wraps, verified contacts
-and escrow chain, the workspace list, the outbox and the unsent area. A sealed
-commit and its local head are written in one transaction
-(`Refs::push_publish`); a record that no longer decodes is skipped on load.
+and escrow chain, the workspace list, the outbox, the unsent area and each
+block's journal. A sealed commit and its local head are written in one
+transaction (`Refs::push_publish`); a record that no longer decodes is skipped
+on load.
 
 `Peer::cached` builds a peer from it with no network, and `Peer::attach` hands
 it a signed-in connection later (after every reconnect), which opens the

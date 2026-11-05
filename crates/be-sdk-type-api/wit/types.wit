@@ -148,6 +148,9 @@ interface types {
         head: option<commit-id>,
         owner: bool,
         clean: bool,
+        /// Whatever is not clean is in the journal: an owner appended all it
+        /// sequenced.
+        journaled: bool,
         owes-seal: bool,
         incompatible: bool,
         diverged: bool,
@@ -202,6 +205,28 @@ interface types {
     variant failure {
         unknown-type,
         malformed(string),
+    }
+
+    /// One operation the owner sequenced: a session message the module wrote,
+    /// the same bytes a peer hears relayed.
+    record journal-entry {
+        sequence: u64,
+        payload: list<u8>,
+    }
+
+    /// Where a journal starts: a commit (none for no content), the last
+    /// sequence number it holds and the session state as of it.
+    record journal-base {
+        commit: option<commit-id>,
+        sequence: u64,
+        state: list<u8>,
+    }
+
+    /// What a block's session owners sequenced since `base` and did not
+    /// commit, by this module's build.
+    record journal {
+        base: journal-base,
+        entries: list<journal-entry>,
     }
 
     record merged {

@@ -317,6 +317,15 @@ all on a disconnect costs what that client joined, and remembers an empty
 session for its `clean_at` for a day and at most `MAX_EMPTY_SESSIONS`; a peer
 taking over a forgotten one merges rather than fast-forwards.
 
+Each block's journal (guides/blocks/client.md, "The journal") is two tables,
+`block_journals` (tag, generation, base) and `journal_entries`, written by
+`be_server::journal` and deleted with the block. It is kept whether or not
+anyone is in the session, so a crashed owner's edits wait for the next one. An
+`append` is kept only from the current owner of its generation (it is relayed
+either way, as a relay is), refused when the journal is another tag's until
+the owner rebases, and bounded by `MAX_JOURNAL_BYTES`; `read-contents` answers
+journals while they fit in a quarter of a frame.
+
 Nothing the store does blocks the runtime's threads. Its SQL runs as owned
 jobs on tokio's blocking pool, one at a time under the database lock:
 `ServerStore::with_database(move |store, database| ...)`, and `with_graph`,

@@ -27,11 +27,23 @@ use crate::{
     refs::{Creation, Pending, Refs, RefsDb, Scope, Session},
 };
 
+/// A block as `Peer::read_contents` read it.
+#[derive(Clone, Debug)]
+pub struct BlockRead {
+    pub summary: BlockSummary,
+    /// The content of the summary's head.
+    pub stored: Option<Stored>,
+    /// What the block's session sequenced past its base, opened; none when it has nothing, or
+    /// it could not be opened.
+    pub journal: Option<be_block_protocol::Journal>,
+}
+
 const CARRIED_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 2;
 const CONTENTS_BLOCKS: usize = 256;
 const FETCHING: usize = 64;
 
 mod import;
+mod journal;
 mod offline;
 mod prefixes;
 mod rotation;
@@ -1144,10 +1156,14 @@ impl<S: ObjectStore> Peer<S> {
         self.retrying(|| Ok(self.commits.get(commit)?)).await
     }
 
+    /// Each block's summary, the content of its head and its journal: what its session's owner
+    /// sequenced since its base, opened, for a reader to apply with the block's type
+    /// (`be_block_type_host::Replicas::read_contents`). The journal is the server's, or offline
+    /// this device's.
     pub async fn read_contents(
         &self,
         blocks: &[(Uuid, Option<CommitId>)],
-    ) -> Result<Vec<(BlockSummary, Option<Stored>)>, ClientError> {
+    ) -> Result<Vec<BlockRead>, ClientError> {
         match self.read_contents_online(blocks).await {
             Err(ClientError::Disconnected(reason)) => {
                 self.read_contents_cached(blocks, reason).await
@@ -1159,7 +1175,7 @@ impl<S: ObjectStore> Peer<S> {
     async fn read_contents_online(
         &self,
         blocks: &[(Uuid, Option<CommitId>)],
-    ) -> Result<Vec<(BlockSummary, Option<Stored>)>, ClientError> {
+    ) -> Result<Vec<BlockRead>, ClientError> {
         let mut asked = Vec::new();
         for group in blocks.chunks(CONTENTS_BLOCKS) {
             let ids: Vec<Uuid> = group.iter().map(|(id, _)| *id).collect();
@@ -1173,8 +1189,13 @@ impl<S: ObjectStore> Peer<S> {
         }
         let mut summaries = Vec::with_capacity(blocks.len());
         for (ids, answer) in asked {
-            let be_block_protocol::Contents { blocks, objects } = answer.await??;
-            if !blocks.iter().map(|summary| summary.id).eq(ids) {
+            let be_block_protocol::Contents {
+                blocks,
+                objects,
+                journals,
+            } = answer.await??;
+            if !blocks.iter().map(|summary| summary.id).eq(ids) || journals.len() != blocks.len()
+            {
                 return Err(ClientError::Unexpected);
             }
             let store = self.commits.vault().store();
@@ -1184,18 +1205,25 @@ impl<S: ObjectStore> Peer<S> {
             for summary in &blocks {
                 self.note(summary);
             }
-            summaries.extend(blocks);
+            summaries.extend(blocks.into_iter().zip(journals));
         }
-        futures_util::future::try_join_all(summaries.into_iter().map(|summary| async move {
-            let content = match summary.head {
-                Some(head) => {
-                    let commit = self.load_commit(head).await?;
-                    Some(self.load_manifest(&commit.manifest).await?)
-                }
-                None => None,
-            };
-            Ok((summary, content))
-        }))
+        futures_util::future::try_join_all(summaries.into_iter().map(
+            |(summary, journal)| async move {
+                let stored = match summary.head {
+                    Some(head) => {
+                        let commit = self.load_commit(head).await?;
+                        Some(self.load_manifest(&commit.manifest).await?)
+                    }
+                    None => None,
+                };
+                let journal = journal.and_then(|journal| self.open_journal(journal).ok());
+                Ok(BlockRead {
+                    summary,
+                    stored,
+                    journal,
+                })
+            },
+        ))
         .await
     }
 
@@ -1218,7 +1246,12 @@ impl<S: ObjectStore> Peer<S> {
         let read = self
             .read_contents(&[(block, self.local_head(block))])
             .await?;
-        let Some((summary, Some(stored))) = read.into_iter().next() else {
+        let Some(BlockRead {
+            summary,
+            stored: Some(stored),
+            ..
+        }) = read.into_iter().next()
+        else {
             return Ok(None);
         };
         if let Some(head) = summary.head {
@@ -1870,11 +1903,16 @@ impl<S: ObjectStore> Peer<S> {
         Ok(client::blocks::list_access(&self.connection(), block).await??)
     }
 
+    /// Joins a block's session: this connection's id, the session's state, and the block's
+    /// journal as of joining, sealed (`open_journal`).
     pub fn join_session(
         &self,
         block: Uuid,
     ) -> Result<
-        impl Future<Output = Result<(ClientId, SessionState), ClientError>> + Send + use<S>,
+        impl Future<
+            Output = Result<(ClientId, SessionState, Option<be_block_protocol::Journal>), ClientError>,
+        > + Send
+        + use<S>,
         ClientError,
     > {
         Ok(self.connection().join_session(block))

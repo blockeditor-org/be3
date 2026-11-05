@@ -152,9 +152,21 @@ it, so two builds of a type never edit one session.
 The session (`crates/be-block-session`) is owner sequencing with follower
 rebase. The rules an agent most needs:
 
-- An owner seals `SEAL_INTERVAL` (750 ms) after it starts owing a seal. While
-  a seal's publish is unanswered it keeps taking edits, holding them back from
-  the sequence until the answer.
+- Every operation the owner sequences goes to the block's journal
+  (guides/blocks/client.md, "The journal") through the host's `append`: with
+  others in the session at once, relayed by the same call; alone, folded and
+  every `APPEND_INTERVAL` (250 ms). The owner commits at pauses: `QUIET_INTERVAL`
+  (30 s) with no edits, at most `COMMIT_INTERVAL` (5 min) after it started
+  owing, once it appended `JOURNAL_BYTES` (1 MiB), when it closes, and at once
+  when a peer of another build greets it or a takeover leaves it owing. Each
+  commit `rebase-journal`s, which starts the journal over. While a commit's
+  publish is unanswered it keeps taking edits, holding them back from the
+  sequence until the answer.
+- A replica opening on the journal's base (`opening.journal`) loads its session
+  state and replays it: as owner it continues the journal's numbering, as a
+  follower it greets with that base and is sent no session state, and one
+  that takes over from a crashed owner commits what it replayed at once.
+  `replay` does the same for a reader outside the session.
 - An edit too large to relay (over 1 MiB) is never relayed: an owner
   publishes it, and a follower stashes it and hands the owner a `Kept`. A
   follower stays responsible for each stash until the owner answers `Saved`,

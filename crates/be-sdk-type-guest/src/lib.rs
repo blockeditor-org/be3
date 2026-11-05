@@ -8,7 +8,8 @@ use std::{
 use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
 use be_block_commit::MergeResult;
 use be_sdk_type_api::{
-    Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Merged,
+    Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Journal,
+    Merged,
     Opening, Plain, PlainFile, PublishOutcome, ReorderChild, ReplaceChild, ReplicaId, SessionState,
     TypeInfo,
     guest::{exports::replicas, host},
@@ -30,7 +31,9 @@ pub use be_sdk_type_api as api;
 pub use be_wasm_guest_abi as abi;
 pub use file::{BlobFile, DocumentFile, FileForm};
 pub use record::{NoHistory, Recorder};
-pub use replica::{HEARTBEAT_INTERVAL, SEAL_INTERVAL};
+pub use replica::{
+    APPEND_INTERVAL, COMMIT_INTERVAL, HEARTBEAT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL,
+};
 
 use effect::{Answer, Effect, HeadEvent, RequestId};
 use replica::{AnyReplica, Input, Opened, Replica};
@@ -43,6 +46,8 @@ type ChildFn = fn(Option<&[u8]>, ChildChange) -> Result<Option<Vec<u8>>, String>
 
 type ToFileFn = fn(&[u8]) -> Result<Option<PlainFile>, String>;
 
+type ReplayFn = fn(Option<&[u8]>, &Journal) -> Result<Vec<u8>, String>;
+
 pub struct Registration {
     info: TypeInfo,
     open: fn(Opened) -> Box<dyn AnyReplica>,
@@ -50,6 +55,7 @@ pub struct Registration {
     blank: fn() -> Vec<u8>,
     merge: MergeFn,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
+    replay: ReplayFn,
     child: ChildFn,
     to_file: Option<ToFileFn>,
     from_file: Option<FromFileFn>,
@@ -73,6 +79,7 @@ impl Registration {
             blank: || C::default().encode(),
             merge: merge::<C>,
             describe: describe_bytes::<C>,
+            replay: replica::replay::<C>,
             child: child::<C>,
             to_file: None,
             from_file: None,
@@ -290,6 +297,7 @@ impl Module {
                 tag: opening.tag,
                 head: opening.head,
                 session: opening.session.clone(),
+                journal: opening.journal.clone(),
                 from_file: kind.from_file,
                 now,
             })
@@ -514,6 +522,17 @@ impl Module {
                 generation,
                 clean_at,
             } => ops::with_parent(replica, || host::report_clean(generation, clean_at)).detach(),
+            Effect::Append {
+                replica,
+                generation,
+                entries,
+                relay,
+            } => ops::with_parent(replica, || host::append(generation, entries, relay)).detach(),
+            Effect::Rebase {
+                replica,
+                generation,
+                base,
+            } => ops::with_parent(replica, || host::rebase_journal(generation, base)).detach(),
             Effect::Release { replica } => {
                 let closing = self.shared.state.borrow_mut().closing.remove(&replica);
                 ops::end(replica);
@@ -623,6 +642,19 @@ impl replicas::Guest for Module {
                     })
                     .map_err(Failure::Malformed)
             }),
+        )
+    }
+
+    fn replay(
+        &self,
+        content_type: Uuid,
+        bytes: Option<Vec<u8>>,
+        journal: Journal,
+    ) -> impl Future<Output = Result<Vec<u8>, Failure>> + 'static {
+        ready(
+            self.with_kind(content_type, |kind| (kind.replay)(bytes.as_deref(), &journal))
+                .ok_or(Failure::UnknownType)
+                .and_then(|replayed| replayed.map_err(Failure::Malformed)),
         )
     }
 

@@ -5,8 +5,8 @@ package be3:block-type@0.1.0;
 interface replicas {
     use types.{
         block-id, change, client-id, commit-id, content-type-id, description, editor-id,
-        endpoint, failure, merged, organization-id, plain-file, session-state, session-tag,
-        type-info,
+        endpoint, failure, journal, merged, organization-id, plain-file, session-state,
+        session-tag, type-info,
     };
 
     record opening {
@@ -18,6 +18,9 @@ interface replicas {
         /// The head the host just read; the replica reads it itself.
         head: option<commit-id>,
         session: session-state,
+        /// The block's journal by this module's build, when its base is
+        /// `head`: the replica loads the base and replays it.
+        journal: option<journal>,
     }
 
     /// The device's one replica of a block. Dropping it closes it: it seals
@@ -66,6 +69,14 @@ interface replicas {
     start: async func(entropy: list<u8>) -> list<type-info>;
 
     blank: async func(content-type: content-type-id) -> result<list<u8>, failure>;
+
+    /// Content bytes (none for the type's default) with a journal of this
+    /// build replayed on top, for a reader outside the session.
+    replay: async func(
+        content-type: content-type-id,
+        bytes: option<list<u8>>,
+        journal: journal,
+    ) -> result<list<u8>, failure>;
 
     /// A side that is none is the type's default.
     merge3: async func(

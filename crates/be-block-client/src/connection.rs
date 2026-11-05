@@ -7,8 +7,10 @@ use std::{
 };
 
 use be_block_commit::CommitId;
+use be_block_store::Hash;
 use be_block_protocol::{
-    BlockEvent, ClientId, PairingMessage, SessionEvent, SessionState, client, hello, read_hello,
+    BlockEvent, ClientId, Journal, JournalBase, JournalEntry, PairingMessage, SessionEvent,
+    SessionState, client, hello, read_hello,
 };
 use be_wasm_ops::{
     MethodId, OpId, Side,
@@ -290,7 +292,12 @@ impl Connection {
         }
     }
 
-    pub fn join_session(self: &Arc<Self>, block: Uuid) -> Answer<(ClientId, SessionState)> {
+    /// Joins a block's session: this connection's id, the session's state and the block's
+    /// journal as of joining, sealed.
+    pub fn join_session(
+        self: &Arc<Self>,
+        block: Uuid,
+    ) -> Answer<(ClientId, SessionState, Option<Journal>)> {
         let session = Arc::new(client::sessions::Session::new(&self.peer, block));
         let mut joining = session.join();
         let left = self.registry().sessions.insert(block, Arc::clone(&session));
@@ -298,7 +305,11 @@ impl Connection {
         let connection = Arc::clone(self);
         Box::pin(async move {
             let joined = match joining.recv().await {
-                Some(SessionEvent::Joined { client, state }) => Ok((client, state)),
+                Some(SessionEvent::Joined {
+                    client,
+                    state,
+                    journal,
+                }) => Ok((client, state, journal)),
                 Some(SessionEvent::Refused(error)) => Err(ClientError::from(error)),
                 Some(SessionEvent::Changed(_) | SessionEvent::Relayed { .. }) => {
                     Err(ClientError::Unexpected)
@@ -388,6 +399,33 @@ impl Connection {
             .session(block)
             .map(|session| session.relay(to, payload));
         Box::pin(async move { Ok(relayed?.await??) })
+    }
+
+    pub fn append(
+        &self,
+        block: Uuid,
+        generation: u64,
+        tag: Hash,
+        entries: Vec<JournalEntry>,
+        relay: bool,
+    ) -> Answer<()> {
+        let appended = self
+            .session(block)
+            .map(|session| session.append(generation, tag, entries, relay));
+        Box::pin(async move { Ok(appended?.await??) })
+    }
+
+    pub fn rebase_journal(
+        &self,
+        block: Uuid,
+        generation: u64,
+        tag: Hash,
+        base: JournalBase,
+    ) -> Answer<()> {
+        let rebased = self
+            .session(block)
+            .map(|session| session.rebase_journal(generation, tag, base));
+        Box::pin(async move { Ok(rebased?.await??) })
     }
 
     pub fn closed(&self) -> watch::Receiver<bool> {

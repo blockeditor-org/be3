@@ -5,8 +5,8 @@ package be3:block-type@0.1.0;
 /// canceled when the replica ends.
 interface host {
     use types.{
-        byte-range, commit-id, description, loaded, merging, part-ref, recipients, resume,
-        status, written,
+        byte-range, commit-id, description, journal-base, journal-entry, loaded, merging,
+        part-ref, recipients, resume, status, written,
     };
 
     /// The frame clock in milliseconds. The module starts it once; the host
@@ -50,6 +50,16 @@ interface host {
 
     /// The owner's heartbeat.
     report-clean: async func(generation: u64, clean-at: option<commit-id>);
+
+    /// The owner of `generation` appends what it sequenced to the block's
+    /// journal, on the device and on the server, and with `relay` the server
+    /// relays each entry to every other participant as `send` to peers would.
+    append: async func(generation: u64, entries: list<journal-entry>, relay: bool);
+
+    /// The owner of `generation` starts the journal from `base`: after each
+    /// commit, and before its first append when the journal it opened with
+    /// was not its base.
+    rebase-journal: async func(generation: u64, base: journal-base);
 
     /// Opaque bytes for a peer, every peer, an editor or the host.
     send: async func(to: recipients, bytes: list<u8>);

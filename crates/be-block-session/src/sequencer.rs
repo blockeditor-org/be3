@@ -29,8 +29,12 @@ pub enum SessionMessage {
     Accepted {
         op: SessionOp,
     },
+    /// A follower asks for what it lacks: the operations after `since`, and the head and
+    /// session state unless it already holds `base` as sealed at `sealed`.
     Catchup {
         since: u64,
+        base: Option<CommitId>,
+        sealed: u64,
     },
     Snapshot {
         head: Option<CommitId>,
@@ -146,6 +150,14 @@ impl Sequencer {
         self.sequence = op.sequence;
         self.log.push_back(op.clone());
         Inherited::Continued
+    }
+
+    /// Takes an operation replayed from the journal, numbered as its owner numbered it: a
+    /// folded entry skips the numbers it absorbed.
+    pub fn replayed(&mut self, op: SessionOp) {
+        self.accepted.insert(op.id);
+        self.sequence = self.sequence.max(op.sequence);
+        self.log.push_back(op);
     }
 
     pub fn since(&self, sequence: u64) -> Vec<SessionOp> {
@@ -275,9 +287,11 @@ impl Follower {
             .collect()
     }
 
-    pub fn catchup(&self) -> SessionMessage {
+    pub fn catchup(&self, base: Option<CommitId>, sealed: u64) -> SessionMessage {
         SessionMessage::Catchup {
             since: self.applied,
+            base,
+            sealed,
         }
     }
 }
