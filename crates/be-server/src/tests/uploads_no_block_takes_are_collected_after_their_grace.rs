@@ -34,6 +34,7 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
             upload_grace: Duration::ZERO,
             ..crate::store::StorageLimits::DEFAULT
         },
+        None,
     )
     .unwrap();
     assert_eq!(

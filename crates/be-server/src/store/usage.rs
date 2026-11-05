@@ -163,22 +163,17 @@ impl ServerStore {
         Ok(shrank)
     }
 
-    /// The size of an object the server holds. Every object stored since sizes were kept has
-    /// one; the file's length stands in for any other.
+    /// The size of an object the server holds, from `object_sizes`, which has a row for every
+    /// object from its upload until it is forgotten (`forget_objects`), so nothing asks the
+    /// object store, which may be a bucket a round trip away.
     fn object_bytes(&self, connection: &Connection, hash: Hash) -> Result<u64, ServerError> {
         let stored: Option<i64> = connection
             .prepare_cached("SELECT bytes FROM object_sizes WHERE hash = ?1")?
             .query_row([hash.to_hex()], |row| row.get(0))
             .optional()?;
-        if let Some(bytes) = stored {
-            return Ok(u64::try_from(bytes).unwrap_or(0));
-        }
-        let bytes = self.objects().len(hash)?.unwrap_or(0) as u64;
-        connection.execute(
-            "INSERT OR IGNORE INTO object_sizes (hash, bytes) VALUES (?1, ?2)",
-            params![hash.to_hex(), to_sql(bytes)],
-        )?;
-        Ok(bytes)
+        stored
+            .and_then(|bytes| u64::try_from(bytes).ok())
+            .ok_or(ServerError::Corrupt)
     }
 
     /// Stores uploaded objects, charging the ones no block holds to the uploader until a block
@@ -200,24 +195,39 @@ impl ServerStore {
             .map(|bytes| (Hash::of(bytes), bytes.len() as u64))
             .collect();
         if !sized.is_empty() {
-            let sized = sized.clone();
+            let reserved = sized.clone();
             self.with_graph(identity.organization, move |store, graph, database| {
-                store.reserve_uploads(graph, database, identity, &sized)
+                store.reserve_uploads(graph, database, identity, &reserved)
             })
             .await?;
         }
         // Writing and syncing 8 MiB objects would stall the runtime's threads, so the files
         // are written on the blocking pool, after the quota is reserved and outside the lock.
         let store = self.objects().clone();
-        crate::store::blocking(move || {
-            let hashes = objects
-                .iter()
-                .map(|bytes| store.put(bytes))
-                .collect::<Result<Vec<Hash>, _>>()?;
+        let hashes = crate::store::blocking(move || {
+            let hashes = store.put_many(&objects)?;
             store.sync()?;
             Ok(hashes)
         })
-        .await
+        .await?;
+        // Only now is each object stored, so only now does `object_sizes` name it: a failed
+        // write leaves it missing (`missing_objects`), and the uploader sends it again.
+        if !sized.is_empty() {
+            self.with_database(move |_, database| {
+                let transaction = database.unchecked_transaction()?;
+                for (hash, bytes) in &sized {
+                    transaction
+                        .prepare_cached(
+                            "INSERT OR IGNORE INTO object_sizes (hash, bytes) VALUES (?1, ?2)",
+                        )?
+                        .execute(params![hash.to_hex(), to_sql(*bytes)])?;
+                }
+                transaction.commit()?;
+                Ok(())
+            })
+            .await?;
+        }
+        Ok(hashes)
     }
 
     fn reserve_uploads(
@@ -238,10 +248,6 @@ impl ServerStore {
             if !seen.insert(*hash) {
                 continue;
             }
-            transaction.execute(
-                "INSERT OR IGNORE INTO object_sizes (hash, bytes) VALUES (?1, ?2)",
-                params![hash.to_hex(), to_sql(*bytes)],
-            )?;
             if !upload_charged(&transaction, payer, *hash)? {
                 pending += bytes;
             }

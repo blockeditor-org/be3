@@ -7,7 +7,7 @@ const USAGE: &str = "\
 Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
             [--build-info-file FILE] [--auth-origin URL] [--account-quota BYTES]
-            [--trusted-proxy ADDR]...
+            [--trusted-proxy ADDR]... [--object-cache BYTES]
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
@@ -30,6 +30,13 @@ Usage:
   --trusted-proxy ADDR      Also take the client's address from X-Forwarded-For when a
                             connection comes from ADDR; it is always taken from loopback, where
                             the reverse proxy runs, and ignored from anyone else
+  --object-cache BYTES      With a bucket, the bytes of objects kept in DIR/object-cache
+                            (default: 2147483648, 2 GiB)
+
+Objects are kept in DIR/objects, or, when BE_S3_ENDPOINT, BE_S3_REGION,
+BE_S3_BUCKET, BE_S3_ACCESS_KEY and BE_S3_SECRET_KEY are all set, in that bucket
+of an S3-compatible store (path-style), with the objects used most recently
+cached on disk. backup, restore and verify read the same variables.
 
 A backup uploads every object the database references that the target does not
 have yet, never deleting one, and then the database, sealed with the backup
@@ -121,6 +128,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
         portal: Some(PORTAL),
         ..ServerConfig::default()
     };
+    let mut cache_bytes = be_server::objects::DEFAULT_CACHE_BYTES;
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -158,6 +166,12 @@ async fn run() -> Result<(), Box<dyn Error>> {
                     .parse()?;
                 config.trusted_proxies.to_mut().push(proxy);
             }
+            "--object-cache" => {
+                cache_bytes = arguments
+                    .next()
+                    .ok_or("--object-cache needs a byte count")?
+                    .parse()?;
+            }
             "--help" => {
                 println!("{USAGE}");
                 return Ok(());
@@ -165,6 +179,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
             other => return Err(format!("unknown argument {other}\n\n{USAGE}").into()),
         }
     }
+    config.bucket = bucket(cache_bytes)?;
 
     let build = be_lib_build_id::current()?;
     let listener = TcpListener::bind(address).await?;
@@ -173,12 +188,39 @@ async fn run() -> Result<(), Box<dyn Error>> {
         data = %data_dir.display(),
         login = config.allow_login,
         registration = config.allow_registration,
+        bucket = ?config.bucket.as_ref().map(|config| &config.bucket),
         build,
         "be-server listening"
     );
     be_server::serve_with_config(listener, data_dir, config, shutdown()).await?;
     tracing::info!("be-server stopped");
     Ok(())
+}
+
+/// The bucket the `BE_S3_*` variables name, if they are set: all five, or none.
+fn bucket(
+    cache_bytes: u64,
+) -> Result<Option<be_server::objects::BucketConfig>, Box<dyn Error + Send + Sync>> {
+    const NAMES: [&str; 5] = [
+        "BE_S3_ENDPOINT",
+        "BE_S3_REGION",
+        "BE_S3_BUCKET",
+        "BE_S3_ACCESS_KEY",
+        "BE_S3_SECRET_KEY",
+    ];
+    let values: Vec<Option<String>> = NAMES.iter().map(|name| env::var(name).ok()).collect();
+    if values.iter().all(Option::is_none) {
+        return Ok(None);
+    }
+    let [Some(endpoint), Some(region), Some(name), Some(access), Some(secret)] =
+        <[Option<String>; 5]>::try_from(values).expect("five names")
+    else {
+        return Err(format!("set all of {} or none", NAMES.join(", ")).into());
+    };
+    Ok(Some(be_server::objects::BucketConfig {
+        bucket: be_server::objects::Bucket::new(&endpoint, &region, &name, &access, &secret)?,
+        cache_bytes,
+    }))
 }
 
 async fn shutdown() {
@@ -262,6 +304,7 @@ fn maintain(command: &str, options: Options) -> Result<(), Box<dyn Error + Send 
         "backup" => {
             let report = backup::backup(
                 &options.data_dir(),
+                bucket(be_server::objects::DEFAULT_CACHE_BYTES)?.as_ref(),
                 options.target()?.as_ref(),
                 &options.key()?,
                 std::time::SystemTime::now(),
@@ -283,6 +326,7 @@ fn maintain(command: &str, options: Options) -> Result<(), Box<dyn Error + Send 
                 options.target()?.as_ref(),
                 &options.key()?,
                 &data_dir,
+                bucket(be_server::objects::DEFAULT_CACHE_BYTES)?.as_ref(),
                 options.snapshot.as_deref(),
             )?;
             tracing::info!(
@@ -292,7 +336,10 @@ fn maintain(command: &str, options: Options) -> Result<(), Box<dyn Error + Send 
             );
         }
         _ => {
-            let report = backup::verify(&options.data_dir())?;
+            let report = backup::verify(
+                &options.data_dir(),
+                bucket(be_server::objects::DEFAULT_CACHE_BYTES)?.as_ref(),
+            )?;
             if !report.missing.is_empty() {
                 return Err(format!(
                     "{} of {} objects are missing or damaged: {}",

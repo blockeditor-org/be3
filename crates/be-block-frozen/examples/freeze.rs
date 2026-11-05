@@ -117,6 +117,7 @@ fn freeze(
     let backup_key = BackupKey::generate();
     let report = backup::backup(
         data,
+        None,
         &Directory(target.to_path_buf()),
         &backup_key,
         SystemTime::now(),

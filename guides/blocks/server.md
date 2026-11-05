@@ -54,8 +54,8 @@ race a new child its parent has not listed yet.
 SQLite for metadata (`schema.rs`, checked on open by
 `be_block_sqlite_schema::ensure`, which only lets a schema grow; the host's
 `host.sqlite3` is checked the same way and recreated, signing the device out,
-when it does not match), a `FileStore` for objects, and postcard frames over a
-websocket. Where a websocket cannot get through, `POST .../http` carries the
+when it does not match), an object store (`objects.rs`, "Where objects live"
+below), and postcard frames over a websocket. Where a websocket cannot get through, `POST .../http` carries the
 same frames (`http.rs`): the greeting's answer names a session in a
 `Be3-Session` header, and each later post carries queued client frames and is
 answered with whatever the server has for the client; notifications wait for
@@ -220,6 +220,31 @@ has to.
   can hold a block with the same one. Watching or joining needs `View`, and
   taking a session's lease needs `Edit` (a viewer's claim is refused, and the
   replica host ignores the refusal).
+
+### Where objects live
+
+`ServerConfig::bucket` chooses the store (`objects::Objects`), which the store,
+usage accounting, collection and backups all go through: with none, a
+`FileStore` in `DATA/objects`; with a `BucketConfig`, an S3 bucket
+(`objects::S3Store`) behind a cache (`objects::Cached`): a `FileStore` in
+`DATA/object-cache` opened with `FileStore::open_cache` (never synced), holding
+at most `cache_bytes` and dropping the least recently used object first. A put
+goes to the bucket, then the cache; a read the cache misses is fetched and
+cached. Only the S3 API is spoken (decisions/objects_live_in_s3_compatible_storage.md):
+path-style, one object per key, the key being the hash's lowercase hex, flat
+at the bucket's top. `objects::Bucket` presigns with `rusty-s3`:
+`presign_get(hash, ttl)` and `presign_put(hash, length, ttl)`, whose
+`Presigned::headers` (`Content-Length`, `x-amz-checksum-sha256`, the base64 of
+the hash) are signed, so the bucket takes only that object; the server's own
+requests are presigned the same way and sent with `ureq`.
+
+A bucket is a round trip away, so nothing on a request's path asks it whether
+an object exists or how large it is: `object_sizes` names every object from
+when its bytes are written (`put_objects`, after the write) until
+`forget_objects`, and answers `MissingObjects` (`store::stored`) and usage's
+sizes. Reads and writes of several objects go `objects::PARALLEL_READS` at a
+time (`Objects::get_many`, `put_many`). Tests run an S3 server in process:
+`objects::tests::TestBucket` (`s3s` over `s3s-fs`, on a runtime of its own).
 
 ### Organizations and access
 

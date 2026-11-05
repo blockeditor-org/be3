@@ -92,7 +92,8 @@ impl ObjectStore for MemoryStore {
 #[derive(Clone)]
 pub struct FileStore {
     root: PathBuf,
-    unsynced: Arc<Mutex<Unsynced>>,
+    /// None for a cache (`open_cache`), whose writes are never synced.
+    unsynced: Option<Arc<Mutex<Unsynced>>>,
 }
 
 #[derive(Default)]
@@ -103,12 +104,19 @@ struct Unsynced {
 
 impl FileStore {
     pub fn open(root: impl Into<PathBuf>) -> Result<Self, StoreError> {
-        let root = root.into();
+        Self::opened(root.into(), Some(Arc::default()))
+    }
+
+    /// A store for copies kept elsewhere too, such as be-server's cache in front of a bucket:
+    /// `sync` does nothing and nothing is remembered for it, so a crash may lose or tear what
+    /// was written (a torn object reads as missing, as in any `FileStore`).
+    pub fn open_cache(root: impl Into<PathBuf>) -> Result<Self, StoreError> {
+        Self::opened(root.into(), None)
+    }
+
+    fn opened(root: PathBuf, unsynced: Option<Arc<Mutex<Unsynced>>>) -> Result<Self, StoreError> {
         fs::create_dir_all(&root)?;
-        let store = Self {
-            root,
-            unsynced: Arc::default(),
-        };
+        let store = Self { root, unsynced };
         store.remove_abandoned_writes()?;
         Ok(store)
     }
@@ -186,7 +194,10 @@ impl ObjectStore for FileStore {
         let temporary = directory.join(format!("{}.partial", uuid::Uuid::new_v4()));
         fs::File::create(&temporary)?.write_all(bytes)?;
         fs::rename(&temporary, &path)?;
-        let mut unsynced = self.unsynced.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(unsynced) = &self.unsynced else {
+            return Ok(hash);
+        };
+        let mut unsynced = unsynced.lock().unwrap_or_else(PoisonError::into_inner);
         if created {
             unsynced.directories.insert(self.root.clone());
         }
@@ -217,14 +228,16 @@ impl ObjectStore for FileStore {
     }
 
     fn sync(&self) -> Result<(), StoreError> {
-        let unsynced =
-            std::mem::take(&mut *self.unsynced.lock().unwrap_or_else(PoisonError::into_inner));
+        let Some(pending) = &self.unsynced else {
+            return Ok(());
+        };
+        let unsynced = std::mem::take(&mut *pending.lock().unwrap_or_else(PoisonError::into_inner));
         if unsynced.files.is_empty() && unsynced.directories.is_empty() {
             return Ok(());
         }
         let synced = sync_written(&self.root, &unsynced);
         if synced.is_err() {
-            let mut held = self.unsynced.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut held = pending.lock().unwrap_or_else(PoisonError::into_inner);
             held.files.extend(unsynced.files);
             held.directories.extend(unsynced.directories);
         }

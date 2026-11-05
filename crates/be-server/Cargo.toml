@@ -43,5 +43,7 @@ workspace = true
 [dev-dependencies]
 futures-util = "0.3"
 jiff = "0.2"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util", "time"] }
+hyper-util = { version = "0.1", features = ["server-auto", "tokio"] }
+s3s-fs = "0.17"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "test-util", "time"] }
 tokio-tungstenite = "0.23"

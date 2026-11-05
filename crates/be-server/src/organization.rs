@@ -8,7 +8,7 @@ use be_block_keys::{Party, RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
     ErrorCode, KeyKind, OrganizationKind, OrganizationRole, ServerAccount, WrappedBy,
 };
-use be_block_store::{ContentKey, FileStore, Keyring, Vault};
+use be_block_store::{ContentKey, Keyring, Vault};
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
@@ -160,7 +160,7 @@ impl ServerKey {
     pub(crate) fn read<C: BlockContent>(
         &self,
         connection: &Connection,
-        objects: &FileStore,
+        objects: &crate::objects::Objects,
         graph: &BlockGraph,
         organization: Uuid,
         block: Uuid,

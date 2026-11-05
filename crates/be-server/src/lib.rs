@@ -39,6 +39,7 @@ pub mod contacts;
 mod http;
 pub mod keys;
 pub mod limits;
+pub mod objects;
 mod organization;
 pub mod s3;
 pub mod schema;
@@ -144,6 +145,9 @@ pub struct ServerConfig {
     /// The fewest seconds between two polls of a browser sign-in, at first; tests that poll
     /// one sign-in again at once set it to zero.
     pub sign_in_poll_interval: Duration,
+    /// Where objects live: this bucket, behind a cache of its `cache_bytes` in
+    /// `DATA/object-cache`, or with none a `FileStore` in `DATA/objects`.
+    pub bucket: Option<objects::BucketConfig>,
 }
 
 impl ServerConfig {
@@ -162,6 +166,7 @@ impl ServerConfig {
         ]),
         sign_in_timeout: SIGN_IN_TIMEOUT,
         sign_in_poll_interval: browser_auth::POLL_INTERVAL,
+        bucket: None,
     };
 
     pub const OPEN: Self = Self {
@@ -323,6 +328,7 @@ pub async fn serve_with_mail(
             account_quota: config.account_quota,
             upload_grace: config.upload_grace,
         },
+        config.bucket.as_ref(),
     )?);
     let services = Services {
         portal: config

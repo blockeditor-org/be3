@@ -654,7 +654,7 @@ impl ServerStore {
         identity: Identity,
         hash: Hash,
     ) -> Result<bool, ServerError> {
-        Ok(self.objects().has(hash)?
+        Ok(crate::store::stored(database, hash)?
             && (crate::store::uploaded(database, identity, hash)?
                 || readable(graph, database, identity, hash)?))
     }
@@ -1578,7 +1578,7 @@ fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
         .collect()
 }
 
-fn remove_objects(objects: &be_block_store::FileStore, freed: &[Hash]) -> Result<(), ServerError> {
+fn remove_objects(objects: &crate::objects::Objects, freed: &[Hash]) -> Result<(), ServerError> {
     for hash in freed {
         objects.remove(*hash)?;
     }

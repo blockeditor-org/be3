@@ -21,7 +21,7 @@ async fn a_backup_restores_into_a_server_that_serves_the_same_blocks() {
     let report = tokio::task::spawn_blocking({
         let target = Directory(target.0.clone());
         let key = BackupKey::from_hex(&key.to_hex()).unwrap();
-        move || backup::backup(&data_dir, &target, &key, std::time::SystemTime::now())
+        move || backup::backup(&data_dir, None, &target, &key, std::time::SystemTime::now())
     })
     .await
     .unwrap()
@@ -31,6 +31,7 @@ async fn a_backup_restores_into_a_server_that_serves_the_same_blocks() {
 
     let again = backup::backup(
         &harness.directory,
+        None,
         &target,
         &key,
         std::time::SystemTime::now() + Duration::from_secs(3600),
@@ -43,19 +44,19 @@ async fn a_backup_restores_into_a_server_that_serves_the_same_blocks() {
 
     let restored = harness.directory.with_extension("restored");
     assert!(
-        backup::restore(&target, &BackupKey::generate(), &restored, None).is_err(),
+        backup::restore(&target, &BackupKey::generate(), &restored, None, None).is_err(),
         "another key opened the backup"
     );
-    let report = backup::restore(&target, &key, &restored, None).expect("the backup restores");
+    let report = backup::restore(&target, &key, &restored, None, None).expect("the backup restores");
     assert_eq!(
         report.snapshot, again.snapshot,
         "restore picked an older snapshot"
     );
     assert!(
-        backup::restore(&target, &key, &restored, None).is_err(),
+        backup::restore(&target, &key, &restored, None, None).is_err(),
         "a restore wrote over a server"
     );
-    assert!(backup::verify(&restored).unwrap().missing.is_empty());
+    assert!(backup::verify(&restored, None).unwrap().missing.is_empty());
 
     let token = client.token.clone();
     harness.stop().await;
