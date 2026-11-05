@@ -18,11 +18,13 @@ fn an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner() {
     harness
         .clock
         .advance(Duration::from_millis(be_sdk_type_guest::APPEND_INTERVAL));
-    runtime()
-        .block_on(appends.wait_for(|appends| *appends > 0))
-        .expect("the owner appended its edit to the journal");
-    let reader = runtime().block_on(harness.outside_peer());
-    runtime().block_on(async {
+    let committed = runtime().block_on(async {
+        appends
+            .wait_for(|appends| *appends > 0)
+            .await
+            .expect("the owner appended its edit to the journal");
+        let reader = harness.outside_peer().await;
+        // The append's answer is not watched, so the reader asks until the server holds it.
         while !reader
             .read_contents(&[(block, None)])
             .await
@@ -33,12 +35,14 @@ fn an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner() {
                     .is_some_and(|journal| !journal.entries.is_empty())
             })
         {}
+        reader
+            .open::<CounterContent>(block)
+            .await
+            .expect("the counter opens")
+            .map(|counter| counter.root().value())
     });
     assert_eq!(
-        runtime()
-            .block_on(reader.open::<CounterContent>(block))
-            .unwrap()
-            .map(|counter| counter.root().value()),
+        committed,
         Some(4),
         "the edit is in the journal, not yet in a commit"
     );
