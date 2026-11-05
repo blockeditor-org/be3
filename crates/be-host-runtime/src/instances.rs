@@ -1531,7 +1531,7 @@ impl Instances {
             .is_some_and(|root| root.input.focused())
     }
 
-    fn is_anchored_screen(&self, screen: ScreenId) -> bool {
+    pub(super) fn is_anchored_screen(&self, screen: ScreenId) -> bool {
         self.entries.values().any(|entry| {
             entry
                 .anchored

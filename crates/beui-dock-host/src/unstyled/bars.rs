@@ -42,9 +42,17 @@ const WINDOW_SIZE: Vec2 = Vec2::new(240.0, 40.0);
 const POP_OFFSET: Vec2 = Vec2::new(16.0, 16.0);
 /// How long a gap takes to open under a dragged bar while the layout previews where it would land.
 const GAP_SECONDS: f32 = 0.2;
-/// A bar let go at this pointer speed or more is thrown: it floats over the edge its path runs
-/// into and never docks.
+/// A bar let go at this pointer speed or more outside every band is thrown: it floats over the
+/// edge its path runs into and never docks.
 const THROW_SPEED: f32 = 300.0;
+/// How near an edge, in bands (the band there, else the bar's thickness), the pointer must come
+/// for a bar to dock in that edge's band.
+const DOCK_REACH: f32 = 0.5;
+/// How far out, in bands, a bar docked in a band (or about to be) holds on to it.
+const DOCK_HOLD: f32 = 1.5;
+/// A bar grabbed while floating over an edge docks there only once the pointer has come this
+/// share of the way from where it grabbed towards the edge, so a grab alone keeps it floating.
+const FLOAT_HOLD: f32 = 0.5;
 const SETTLE: Spring = Spring {
     stiffness: 420.0,
     damping: 32.0,
@@ -460,7 +468,7 @@ impl State {
             let (edge, distance) = nearest_edge(pane, point.pos);
             let beside = reach(pane, body, edge);
             let band = band(body);
-            if distance < beside + band {
+            if distance < self.dock_reach(edge, beside, size) {
                 let align = self
                     .band_align(bar, edge, point.pos)
                     .unwrap_or_else(|| along_third(body, edge, point.pos));
@@ -498,6 +506,26 @@ impl State {
         ))
     }
 
+    /// How near `edge` the pointer docks a carried bar of `size` in its band, `beside` deep: half a
+    /// band to come in, and half again past the band to stay, so the band neither snatches a bar
+    /// passing near it nor drops one nudged along it. A bar grabbed floating over the edge must
+    /// first be pulled towards it.
+    fn dock_reach(&self, edge: DockEdge, beside: f32, size: Vec2) -> f32 {
+        let depth = beside.max(size.x.min(size.y));
+        let lift = self.lifting.lift.get_untracked();
+        let docked = lift
+            .and_then(|lift| lift.target)
+            .is_some_and(|(placement, _)| placement.is_beside() && placement.edge() == edge);
+        if docked {
+            return depth * DOCK_HOLD;
+        }
+        let reach = depth * DOCK_REACH;
+        match lift.and_then(|lift| lift.floated) {
+            Some((floated, grabbed)) if floated == edge => reach.min(grabbed * FLOAT_HOLD),
+            _ => reach,
+        }
+    }
+
     fn at_home(&self, point: DragPoint) -> DragPoint {
         let home = self.home();
         match window_point(point.pos, point.window, home) {
@@ -513,10 +541,13 @@ impl State {
     pub(super) fn drop_bar(&self, bar: TabId, point: DragPoint) {
         let point = self.at_home(point);
         let lifted = self.lifting.lifts(bar);
+        let resolved = self.resolve_bar(point, bar);
+        let docks = resolved.is_some_and(|(placement, _)| placement.is_beside());
         let target = lifted
             .then(|| self.thrown(bar, point))
             .flatten()
-            .or_else(|| self.resolve_bar(point, bar))
+            .filter(|_| !docks)
+            .or(resolved)
             .or_else(|| self.float_near(bar, point));
         let Some((placement, slot)) = target.or_else(|| {
             let state = self.state.get_untracked();
@@ -632,6 +663,12 @@ impl State {
             return;
         };
         let target = (!placement.is_window()).then(|| (placement, state.bar_slot(bar)));
+        let floated = match placement {
+            DockBarPlacement::Over(edge, _) => self
+                .bar_areas(bar)
+                .map(|(_, pane)| (edge, edge_distance(pane, edge, pointer))),
+            _ => None,
+        };
         let lifting = self.lifting;
         *lifting.flight.value().borrow_mut() = Flight {
             pos: rect.min,
@@ -653,6 +690,7 @@ impl State {
             from: Some(placement)
                 .filter(|placement| state.is_dock_bar(bar) && !placement.is_beside()),
             target,
+            floated,
             settling: false,
             carried: lifting.carried.get().is_some(),
         }));
@@ -674,6 +712,15 @@ impl State {
         let target = self
             .resolve_bar(point, lift.bar)
             .filter(|(placement, _)| !placement.is_window());
+        let still_over = |edge: DockEdge| {
+            target.is_some_and(|(placement, _)| !placement.is_beside() && placement.edge() == edge)
+        };
+        if lift.floated.is_some_and(|(edge, _)| !still_over(edge)) {
+            self.lifting.lift.set(Some(Lift {
+                floated: None,
+                ..lift
+            }));
+        }
         self.retarget(target);
         self.follow_pointer();
         self.animate_lift();
@@ -736,7 +783,17 @@ impl State {
         {
             let flight = lifting.flight.value();
             let mut flight = flight.borrow_mut();
-            flight.speed = flight.velocity.get();
+            let mut speed = flight.velocity.get();
+            // A bar held in a band moved only along it, whatever the pointer did across it.
+            if let Some((DockBarPlacement::Beside(edge, _), _)) =
+                lifting.lift.get_untracked().and_then(|lift| lift.target)
+            {
+                match edge.direction() {
+                    Direction::Horizontal => speed.y = 0.0,
+                    Direction::Vertical => speed.x = 0.0,
+                }
+            }
+            flight.speed = speed;
         }
         self.retarget(Some((placement, slot)));
         lifting.lift.update(|lift| {
@@ -842,11 +899,16 @@ impl State {
             flight.grab.y.clamp(0.0, size.y.max(0.0)),
         );
         let free = flight.pointer - grab;
-        Some(match (lift.target, gap) {
-            (Some((DockBarPlacement::Beside(edge, _), _)), Some(gap)) => match edge.direction() {
-                Direction::Horizontal => pos2(free.x, gap.min.y),
-                Direction::Vertical => pos2(gap.min.x, free.y),
-            },
+        Some(match lift.target {
+            Some((DockBarPlacement::Beside(edge, _), _)) => {
+                // Until the gap it lands in is measured, the bar keeps its place across the band
+                // rather than following the pointer out of it for a frame.
+                let held = gap.map_or(flight.pos, |gap| gap.min);
+                match edge.direction() {
+                    Direction::Horizontal => pos2(free.x, held.y),
+                    Direction::Vertical => pos2(held.x, free.y),
+                }
+            }
             _ => free,
         })
     }
@@ -947,6 +1009,9 @@ pub(super) struct Lift {
     edge: DockEdge,
     from: Option<DockBarPlacement>,
     target: Option<(DockBarPlacement, usize)>,
+    /// The edge a bar grabbed floating floated over, and how far from it the pointer grabbed, until
+    /// it is carried away from that edge.
+    floated: Option<(DockEdge, f32)>,
     settling: bool,
     carried: bool,
 }
@@ -1068,6 +1133,15 @@ fn nearest_edge(body: Rect, pos: Pos2) -> (DockEdge, f32) {
     .into_iter()
     .min_by(|(_, first), (_, second)| first.total_cmp(second))
     .unwrap_or((DockEdge::Top, 0.0))
+}
+
+fn edge_distance(pane: Rect, edge: DockEdge, pos: Pos2) -> f32 {
+    match edge {
+        DockEdge::Top => pos.y - pane.top(),
+        DockEdge::Bottom => pane.bottom() - pos.y,
+        DockEdge::Left => pos.x - pane.left(),
+        DockEdge::Right => pane.right() - pos.x,
+    }
 }
 
 fn reach(pane: Rect, rect: Rect, edge: DockEdge) -> f32 {

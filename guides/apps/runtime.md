@@ -87,6 +87,12 @@ until the app has sent the `PresentCommit` that follows that layout
 painting fills or punches its space: a closed child never shows its hole in
 the placer's old painting. Answers held after it wait with it, in order.
 
+An anchored view the app closes leaves the same way (`Runtime::place`, `Closing`): the app sends
+its screens ahead of the frame's commits, and the host keeps the closed view, showing its last
+frame, until the present that follows and, where it composites the app's surfaces, that present's
+pixels have arrived. What the view showed may have moved into another of the app's surfaces (a
+dragged dock bar settling back into its band), so it is never missing for a frame in between.
+
 A child that has taken its parent's frame does not wait on the parent to learn
 where the camera put it: the host moves it with the camera itself and asks
 both editors in the same frame (guides/pan_and_zoom.md).

@@ -251,6 +251,10 @@ pub(super) struct Runtime {
     taking_in: bool,
     layouts_heard: u64,
     presents_heard: u64,
+    /// Presents applied, in the order the app sent them among its other answers.
+    presents_applied: u64,
+    /// The app's screens while anchored views it closed are still shown (`Runtime::place`).
+    closing: Option<Closing>,
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
@@ -325,6 +329,15 @@ impl From<Heard> for Answer {
             Heard::Withdrawn(op) => Self::Withdrawn(op),
         }
     }
+}
+
+/// The app's screens while anchored views they leave out are still shown: until the present
+/// after the layout (`presented_by`, counted in `Runtime::presents_applied`) and, when it painted,
+/// the frame of that present's sequence (`drawn_by`).
+struct Closing {
+    presented_by: u64,
+    drawn_by: Option<u64>,
+    layout: ScreenLayout,
 }
 
 struct Laid {
@@ -487,6 +500,8 @@ impl Runtime {
             taking_in: false,
             layouts_heard: 0,
             presents_heard: 0,
+            presents_applied: 0,
+            closing: None,
             instances,
             layout: ScreenLayout::default(),
             pass: 0,
@@ -537,6 +552,8 @@ impl Runtime {
         self.held.clear();
         self.layouts_heard = 0;
         self.presents_heard = 0;
+        self.presents_applied = 0;
+        self.closing = None;
         self.error = None;
         self.status = PresenterStatus::waiting();
         self.layout = ScreenLayout::default();
@@ -996,6 +1013,7 @@ impl Runtime {
                 frame.set_damage(self.presents.damage_through(frame.presents()));
                 changed = frame_changed(frame.damage());
                 self.shared.borrow_mut().publish(&self.layout, Some(frame));
+                self.close_anchored();
                 self.frames += 1;
                 be_host_base::performance::record_group_count(
                     PACING,
@@ -1095,6 +1113,56 @@ impl Runtime {
         let exported = !painted.is_empty();
         previews::exported(&self.app.identity.id, &self.shared, painted);
         exported
+    }
+
+    /// Takes the app's screens. An anchored view they leave out stays, showing its last frame,
+    /// until the frame that closed it is drawn (`Closing`): what the view showed may have moved
+    /// into another of the app's surfaces (a dragged dock bar settling back into its band), which
+    /// shows only with that frame, so it is never missing in between, as children come and go
+    /// with the frame that fills their space. The app sends a layout ahead of the frame's commits.
+    fn place(&mut self, layout: ScreenLayout) {
+        self.closing = None;
+        let closed: Vec<_> = self
+            .layout
+            .screens
+            .iter()
+            .filter(|placement| {
+                layout.placement(placement.screen).is_none()
+                    && self.instances.is_anchored_screen(placement.screen)
+            })
+            .cloned()
+            .collect();
+        if closed.is_empty() {
+            self.laid_out(layout);
+            return;
+        }
+        let mut shown = layout.clone();
+        shown.screens.extend(closed);
+        self.laid_out(shown);
+        self.closing = Some(Closing {
+            presented_by: self.presents_applied + 1,
+            drawn_by: None,
+            layout,
+        });
+    }
+
+    /// Lets the anchored views a layout closed go once the frame that follows it has been
+    /// presented and, where the host composites the app's surfaces, its pixels have arrived.
+    fn close_anchored(&mut self) {
+        let Some(closing) = &self.closing else {
+            return;
+        };
+        let presented = self.presents_applied >= closing.presented_by;
+        let drawn = closing
+            .drawn_by
+            .is_none_or(|sequence| self.presents.shown >= sequence);
+        if !presented || !drawn {
+            return;
+        }
+        if let Some(closing) = self.closing.take() {
+            self.laid_out(closing.layout);
+            mark(&self.app.identity.id);
+        }
     }
 
     fn laid_out(&mut self, layout: ScreenLayout) {
@@ -1231,7 +1299,7 @@ impl Runtime {
         for answer in answers {
             changed |= match answer {
                 Answer::Layout(layout) => {
-                    self.laid_out(layout);
+                    self.place(layout);
                     true
                 }
                 Answer::FrameNeeded => {
@@ -1325,9 +1393,19 @@ impl Runtime {
         self.pacing.animating = animating;
         self.pacing.painting = false;
         self.await_next_frame(repaint_after_micros);
+        self.presents_applied += 1;
+        if let Some(closing) = &mut self.closing
+            && self.presents_applied == closing.presented_by
+        {
+            closing.drawn_by = presented
+                .as_ref()
+                .filter(|_| cfg!(not(target_arch = "wasm32")))
+                .map(|presented| presented.sequence);
+        }
         if let Some(presented) = presented {
             self.presents.report(presented);
         }
+        self.close_anchored();
         self.drawn = self
             .layout
             .screens
