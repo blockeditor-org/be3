@@ -15,12 +15,8 @@ pub(crate) use beui_core::current::{
     with_document,
 };
 
-pub(crate) fn copy_text(text: String) {
-    with_document(|document| document.copy_text(text));
-}
-
-pub(crate) fn copy_image(png: Vec<u8>) {
-    with_document(|document| document.copy_image(png));
+pub(crate) fn copy(clip: crate::types::Clip) {
+    with_document(|document| document.copy(clip));
 }
 
 pub(crate) fn request_paste() {

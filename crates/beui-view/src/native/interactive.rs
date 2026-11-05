@@ -15,8 +15,8 @@ use beui_types::ImeEvent;
 use beui_types::ImeText;
 use beui_types::KeyPress;
 use beui_types::NodeId;
-use beui_types::PasteKind;
-use beui_types::Pasted;
+
+use beui_types::ClipItem;
 use beui_types::PointerInput;
 use beui_types::PointerPress;
 use beui_types::Pos2;
@@ -43,8 +43,8 @@ pub(crate) fn interactive(
     on_activate: ClickCallback,
     on_step: Callback<f32>,
     on_text: Callback<String>,
-    pastes: Prop<Vec<PasteKind>>,
-    on_paste: Callback<Pasted>,
+    pastes: Prop<Vec<String>>,
+    on_paste: Callback<ClipItem>,
     on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,

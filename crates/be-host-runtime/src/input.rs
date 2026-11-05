@@ -1,7 +1,5 @@
-use be_sdk_api::{
-    DroppedFile, Input, InputBatch, Pasted, ScreenId, ScreenPlacement, Size, TimedInput,
-    ViewportMetrics, shell_types::Dragged,
-};
+use be_sdk_api::clipboard::{ClipFile, Files};
+use be_sdk_api::{Input, InputBatch, ScreenId, ScreenPlacement, Size, TimedInput, ViewportMetrics};
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use uuid::Uuid;
 
@@ -13,7 +11,8 @@ pub struct BlockDrag {
 
 pub(super) struct DragEvent {
     pub(super) position: Pos2,
-    pub(super) dragged: Dragged,
+    pub(super) items: Vec<be_sdk_api::ClipItem>,
+    pub(super) action: be_sdk_api::DropAction,
     pub(super) dropped: bool,
 }
 
@@ -38,12 +37,13 @@ pub(super) fn file_drop(input: &beui::ForwardedInput, dropping: bool) -> Option<
     let pointer = input.pointer.filter(|_| input.hovered)?;
     Some(DragEvent {
         position: Pos2::ZERO + (pointer - input.rect.min),
-        dragged: Dragged::Files(files),
+        items: vec![be_sdk_api::clipboard::ClipFormat::encode(&Files { files })],
+        action: be_sdk_api::DropAction::Copy,
         dropped,
     })
 }
 
-fn read_dropped(file: beui::DroppedFile) -> Option<DroppedFile> {
+fn read_dropped(file: beui::DroppedFile) -> Option<ClipFile> {
     let name = Some(file.name.clone())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "File".to_owned());
@@ -51,7 +51,7 @@ fn read_dropped(file: beui::DroppedFile) -> Option<DroppedFile> {
         Some(bytes) => bytes.to_vec(),
         None => read_path(file.path.as_ref()?)?,
     };
-    Some(DroppedFile { name, data })
+    Some(ClipFile { name, data })
 }
 
 fn read_path(path: &std::path::Path) -> Option<Vec<u8>> {
@@ -89,8 +89,8 @@ impl InputForwarder {
         };
         for Replayed { input, time, over } in self.replay.replay(&input, zoom, aim) {
             match input {
-                Input::Paste(Pasted::Text(text)) => {
-                    for piece in be_sdk_api::paste_events(&text) {
+                Input::Paste(item) => {
+                    for piece in be_sdk_api::paste_events(item) {
                         batch.push(piece);
                     }
                 }

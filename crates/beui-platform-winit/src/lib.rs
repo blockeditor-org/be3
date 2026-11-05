@@ -41,7 +41,7 @@ use winit::window::{
 
 use accessibility::{Accessibility, Request};
 use accesskit::TreeUpdate;
-use beui_core::clipboard::PasteAnswer;
+use beui_core::clipboard::{Clip, PasteAnswer};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
 use beui_core::program::{Lifecycle, NativeWindow, SafeArea, Setup, Waker};
@@ -53,7 +53,6 @@ use beui_types::{
     ScrollDelta, TouchId, TouchPhase,
 };
 use beui_types::{DroppedFile, FileDrag};
-use beui_types::{PasteKind, Pasted};
 use beui_types::{Pos2, Vec2, pos2, vec2};
 use clipboard::Clipboard;
 use preferences::SystemPreferences;
@@ -174,25 +173,12 @@ struct WinitPlatform<'a> {
 }
 
 impl PlatformServices for WinitPlatform<'_> {
-    fn copy(&mut self, text: String) {
-        self.clipboard.set(text);
+    fn copy(&mut self, clip: Clip) {
+        self.clipboard.copy(clip);
     }
 
-    fn copy_image(&mut self, png: Vec<u8>) {
-        self.clipboard.set_image(&png);
-    }
-
-    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
-        answer.send(kinds.iter().find_map(|kind| {
-            match kind {
-                PasteKind::Text => self
-                    .clipboard
-                    .get()
-                    .filter(|text| !text.is_empty())
-                    .map(Pasted::Text),
-                PasteKind::Image => self.clipboard.image().map(Pasted::Image),
-            }
-        }));
+    fn paste(&mut self, formats: &[String], answer: PasteAnswer) {
+        self.clipboard.paste(formats, answer);
     }
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {

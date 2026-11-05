@@ -21,7 +21,7 @@ fn a_window_that_copies_keeps_its_own_selection() {
     let mut copied = None;
     for _ in 0..4 {
         harness.frame(Vec::new());
-        copied = copied.or_else(|| harness.output.as_mut()?.copied_text.take());
+        copied = copied.or_else(|| harness.output.as_mut()?.copied.take()?.plain_text());
     }
     assert_eq!(copied.as_deref(), Some("copied in a window"));
     harness.settle();

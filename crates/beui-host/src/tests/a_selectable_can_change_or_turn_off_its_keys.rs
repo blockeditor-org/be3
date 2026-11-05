@@ -24,7 +24,7 @@ fn a_selectable_can_change_or_turn_off_its_keys() {
     harness.click(harness.center(text.get()));
     harness.frame(Vec::new());
     let copy = |harness: &mut Harness, modifiers: Modifiers| {
-        harness.frame(pressed_with(Key::C, modifiers)).copied_text
+        harness.frame(pressed_with(Key::C, modifiers)).copied_text()
     };
     let ctrl_shift = Modifiers {
         shift: true,

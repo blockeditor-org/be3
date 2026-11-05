@@ -35,3 +35,25 @@ holds a font codepoint.
   joined layer's pane.
 - **Children over anchored views on the web.** A child placed Above the pixels
   of an anchored view shows under them. Done: it shows above them, as natively.
+
+## 5. The clipboard's last pieces
+
+The typed clipboard is in (guides/beui/platforms.md, Clipboard and paste;
+guides/apps/host_services.md, Copying and cutting blocks). Left of it:
+
+- **macOS and Android.** be3 formats stay in memory there, matched by plain
+  text. Done: macOS writes them as custom pasteboard types and knows another
+  program copied by the pasteboard's change count; Android carries them as
+  `ClipData` MIME types.
+- **Images beside text on desktops.** arboard puts either the plain text or a
+  PNG on the system clipboard, not both. Done: a clip with both offers both.
+- **Paste in the files pane.** It copies and cuts blocks but takes no paste.
+  Done: Paste on a folder places a `be3/blocks` clip there through
+  `paste-blocks`.
+- **Ids in pasted canvas items inside a checkout.** `be3/blocks` ids are
+  translated across the protocol, but the block ids inside canvas entities are
+  not. Done: a canvas in a checkout pastes entities whose blocks resolve there.
+- **Rich text marks in text fragments**, with `text/html` written from marks
+  and read back into them. Marks travel as byte ranges within each chunk; keys
+  mean something only under the same schema; embeds bring block references.
+

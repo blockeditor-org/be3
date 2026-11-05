@@ -1,8 +1,9 @@
 use crate::base::interactive::InteractiveNode;
 use crate::base::overlay::OverlayNode;
+use beui_types::ClipItem;
 use beui_types::SoftKeyboard;
+use beui_types::clipboard::formats;
 use beui_types::{ImeArea, ImeEvent, ImeText, Key, KeyPress, Keyboard};
-use beui_types::{PasteKind, Pasted};
 use beui_types::{Rect, Vec2};
 
 use crate::current::with_document;
@@ -36,8 +37,8 @@ pub struct Focus {
     pub on_activate: ClickCallback,
     pub on_step: Callback<f32>,
     pub on_text: Callback<String>,
-    pub pastes: Vec<PasteKind>,
-    pub on_paste: Callback<Pasted>,
+    pub pastes: Vec<String>,
+    pub on_paste: Callback<ClipItem>,
     pub on_ime: Callback<ImeEvent>,
     pub on_key: KeyCallback,
     pub on_motion: Callback<Vec2>,
@@ -108,7 +109,9 @@ impl Document {
         }
     }
 
-    pub fn paste_kinds(&self) -> Vec<PasteKind> {
+    /// The formats the focus takes from the clipboard, preferred first; plain
+    /// text for a focus that only takes typed text.
+    pub fn paste_formats(&self) -> Vec<String> {
         let Some(focus) = self
             .focused
             .and_then(|focused| focus_of(self.arena.get(focused)))
@@ -117,31 +120,29 @@ impl Document {
         };
         match (focus.pastes.is_empty(), focus.on_text.is_empty()) {
             (false, _) => focus.pastes.clone(),
-            (true, false) => vec![PasteKind::Text],
+            (true, false) => vec![formats::TEXT.to_owned()],
             (true, true) => Vec::new(),
         }
     }
 
-    pub fn paste_focused(&mut self, pasted: Pasted) {
+    pub fn paste_focused(&mut self, pasted: ClipItem) {
         let Some(focused) = self.focused else {
             return;
         };
         let handles = focus_of(self.arena.get(focused)).is_some_and(|focus| {
-            focus.pastes.contains(&pasted.kind()) && !focus.on_paste.is_empty()
+            focus.pastes.contains(&pasted.format) && !focus.on_paste.is_empty()
         });
-        match pasted {
-            pasted if handles => {
-                self.call_focusable_handler(focused, pasted, |node| &node.on_paste);
-            }
-            Pasted::Text(text) => self.text_focused(&text),
-            Pasted::Image(_) => {}
+        if handles {
+            self.call_focusable_handler(focused, pasted, |node| &node.on_paste);
+        } else if let Some(text) = pasted.as_text() {
+            self.text_focused(&text);
         }
     }
 
     pub fn set_focusable_pastes(
         &mut self,
         focusable: NodeOf<InteractiveNode>,
-        pastes: Vec<PasteKind>,
+        pastes: Vec<String>,
     ) {
         if self.contains(focusable)
             && focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.pastes != pastes)

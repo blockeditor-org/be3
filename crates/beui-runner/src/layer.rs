@@ -3,13 +3,12 @@ use std::time::Instant;
 use accesskit::TreeUpdate;
 
 use crate::renderer::Capture;
-use beui_core::clipboard::PasteAnswer;
+use beui_core::clipboard::{Clip, PasteAnswer};
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
 use beui_core::program::{Program, Setup};
 use beui_core::window::{Resize, WindowState};
-use beui_types::PasteKind;
 use beui_types::{Pos2, Vec2};
 use beui_types::{WindowId, WindowRequest};
 
@@ -96,21 +95,12 @@ pub trait Layer {
         Some((window, at))
     }
 
-    fn copy(&mut self, text: String, below: &mut dyn PlatformServices) {
-        below.copy(text);
+    fn copy(&mut self, clip: Clip, below: &mut dyn PlatformServices) {
+        below.copy(clip);
     }
 
-    fn copy_image(&mut self, png: Vec<u8>, below: &mut dyn PlatformServices) {
-        below.copy_image(png);
-    }
-
-    fn paste(
-        &mut self,
-        kinds: &[PasteKind],
-        answer: PasteAnswer,
-        below: &mut dyn PlatformServices,
-    ) {
-        below.paste(kinds, answer);
+    fn paste(&mut self, formats: &[String], answer: PasteAnswer, below: &mut dyn PlatformServices) {
+        below.paste(formats, answer);
     }
 
     fn pick_file(
@@ -208,24 +198,17 @@ impl Below<'_> {
 }
 
 impl PlatformServices for Below<'_> {
-    fn copy(&mut self, text: String) {
+    fn copy(&mut self, clip: Clip) {
         match self.split() {
-            Some((top, mut below)) => top.copy(text, &mut below),
-            None => self.platform.copy(text),
+            Some((top, mut below)) => top.copy(clip, &mut below),
+            None => self.platform.copy(clip),
         }
     }
 
-    fn copy_image(&mut self, png: Vec<u8>) {
+    fn paste(&mut self, formats: &[String], answer: PasteAnswer) {
         match self.split() {
-            Some((top, mut below)) => top.copy_image(png, &mut below),
-            None => self.platform.copy_image(png),
-        }
-    }
-
-    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
-        match self.split() {
-            Some((top, mut below)) => top.paste(kinds, answer, &mut below),
-            None => self.platform.paste(kinds, answer),
+            Some((top, mut below)) => top.paste(formats, answer, &mut below),
+            None => self.platform.paste(formats, answer),
         }
     }
 
@@ -402,21 +385,12 @@ impl<L: Layer> Layer for std::rc::Rc<std::cell::RefCell<L>> {
         self.borrow().down(window, at)
     }
 
-    fn copy(&mut self, text: String, below: &mut dyn PlatformServices) {
-        self.borrow_mut().copy(text, below);
+    fn copy(&mut self, clip: Clip, below: &mut dyn PlatformServices) {
+        self.borrow_mut().copy(clip, below);
     }
 
-    fn copy_image(&mut self, png: Vec<u8>, below: &mut dyn PlatformServices) {
-        self.borrow_mut().copy_image(png, below);
-    }
-
-    fn paste(
-        &mut self,
-        kinds: &[PasteKind],
-        answer: PasteAnswer,
-        below: &mut dyn PlatformServices,
-    ) {
-        self.borrow_mut().paste(kinds, answer, below);
+    fn paste(&mut self, formats: &[String], answer: PasteAnswer, below: &mut dyn PlatformServices) {
+        self.borrow_mut().paste(formats, answer, below);
     }
 
     fn pick_file(

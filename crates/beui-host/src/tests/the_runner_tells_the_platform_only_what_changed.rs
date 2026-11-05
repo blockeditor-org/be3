@@ -1,5 +1,6 @@
 use super::*;
-use crate::{PasteKind, Pasted, native::PasteAnswer};
+use crate::clipboard::formats;
+use crate::{Clip, ClipItem, native::PasteAnswer};
 use beui_core::program::SafeArea;
 use beui_core::window::WindowState;
 use beui_runner::renderer::Loaded;
@@ -10,13 +11,14 @@ type Log = Signal<Vec<String>>;
 struct Recording(Log);
 
 impl PlatformServices for Recording {
-    fn copy(&mut self, text: String) {
+    fn copy(&mut self, clip: Clip) {
+        let text = clip.plain_text().unwrap_or_default();
         self.0.update(|log| log.push(format!("copy {text}")));
     }
 
-    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
-        self.0.update(|log| log.push(format!("paste {kinds:?}")));
-        answer.send(Some(Pasted::Text("pasted".to_owned())));
+    fn paste(&mut self, formats: &[String], answer: PasteAnswer) {
+        self.0.update(|log| log.push(format!("paste {formats:?}")));
+        answer.send(Some(ClipItem::text("pasted")));
     }
 
     fn pick_file(&mut self, _request: FilePickRequest, _answer: FilePickAnswer) {
@@ -40,14 +42,15 @@ impl Program for Typing {
     fn update(&mut self, context: &Context, _rect: Rect) {
         context.set_cursor_icon(CursorIcon::Text);
         if self.frames == 0 {
-            context.copy_text("copied".to_owned());
+            context.copy(Clip::text("copied"));
             context.request_paste();
         }
-        context.accept_pastes(&[PasteKind::Text]);
+        context.accept_pastes(&[formats::TEXT.to_owned()]);
         context.input(|input| {
             for event in &input.events {
-                if let Event::Paste(Pasted::Text(text)) = event {
-                    self.typed.update(|typed| typed.push(text.clone()));
+                if let Event::Paste(item) = event {
+                    let text = item.as_text().unwrap_or_default();
+                    self.typed.update(|typed| typed.push(text));
                 }
             }
         });
@@ -84,7 +87,7 @@ fn the_runner_tells_the_platform_only_what_changed() {
         .expect("a loaded runner draws");
     assert_eq!(
         log.update(std::mem::take),
-        ["copy copied", "paste [Text]", "cursor Text"]
+        ["copy copied", "paste [\"text/plain\"]", "cursor Text"]
     );
     assert!(frame.deferred, "the pasted text waits for the next frame");
 

@@ -25,12 +25,8 @@ pub(crate) fn use_preference_layer(
     )
 }
 
-pub(crate) fn copy_text(text: String) {
-    beui_core_html::page::copy_text(text);
-}
-
-pub(crate) fn copy_image(png: Vec<u8>) {
-    let _ = png;
+pub(crate) fn copy(clip: crate::types::Clip) {
+    beui_core_html::page::copy(&clip);
 }
 
 pub(crate) fn focus_takes_text() -> bool {

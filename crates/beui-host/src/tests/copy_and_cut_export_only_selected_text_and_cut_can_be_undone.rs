@@ -11,7 +11,7 @@ fn copy_and_cut_export_only_selected_text_and_cut_can_be_undone() {
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     let output = harness.frame(pressed_with(Key::C, Modifiers::CTRL));
-    assert_eq!(output.copied_text, None);
+    assert_eq!(output.copied_text(), None);
     harness.key(Key::Home, Modifiers::NONE);
     harness.key(
         Key::ArrowRight,
@@ -22,7 +22,10 @@ fn copy_and_cut_export_only_selected_text_and_cut_can_be_undone() {
         },
     );
     let output = harness.frame(pressed_with(Key::C, Modifiers::CTRL));
-    assert_eq!(output.copied_text.as_deref().map(str::trim), Some("Hello"));
+    assert_eq!(
+        output.copied_text().as_deref().map(str::trim),
+        Some("Hello")
+    );
     assert_eq!(
         harness
             .document()
@@ -32,7 +35,7 @@ fn copy_and_cut_export_only_selected_text_and_cut_can_be_undone() {
     );
     harness.key(Key::A, Modifiers::CTRL);
     let output = harness.frame(pressed_with(Key::X, Modifiers::CTRL));
-    assert_eq!(output.copied_text.as_deref(), Some("Hello world"));
+    assert_eq!(output.copied_text().as_deref(), Some("Hello world"));
     assert_eq!(
         harness
             .document()

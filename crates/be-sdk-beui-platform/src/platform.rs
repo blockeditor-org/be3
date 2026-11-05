@@ -1,23 +1,37 @@
 use be_sdk::accesskit::TreeUpdate;
 use be_sdk::driver::HostServices;
-use beui_core::clipboard::PasteAnswer;
+use beui_core::clipboard::{Clip, ClipData, PasteAnswer};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
 use beui_runner::PlatformServices;
-use beui_types::PasteKind;
 
 pub(crate) struct HostPlatform<'a>(pub(crate) &'a mut HostServices);
 
 impl PlatformServices for HostPlatform<'_> {
-    fn copy(&mut self, text: String) {
-        self.0.copy_text(text);
+    fn copy(&mut self, clip: Clip) {
+        let items = clip
+            .entries
+            .iter()
+            .map(|entry| be_sdk_api::OfferedClipItem {
+                format: entry.format.clone(),
+                data: match &entry.data {
+                    ClipData::Ready(data) => Some(data.to_vec()),
+                    ClipData::Lazy(_) => None,
+                },
+            })
+            .collect();
+        let render = move |format: &str, answer: Box<dyn FnOnce(Option<Vec<u8>>)>| {
+            let entry = clip.entries.iter().find(|entry| entry.format == format);
+            match entry.map(|entry| &entry.data) {
+                Some(ClipData::Lazy(render)) => render(answer),
+                Some(ClipData::Ready(data)) => answer(Some(data.to_vec())),
+                None => answer(None),
+            }
+        };
+        self.0.copy(items, std::rc::Rc::new(render));
     }
 
-    fn copy_image(&mut self, png: Vec<u8>) {
-        self.0.copy_image(png);
-    }
-
-    fn paste(&mut self, _kinds: &[PasteKind], answer: PasteAnswer) {
+    fn paste(&mut self, _formats: &[String], answer: PasteAnswer) {
         self.0.request_paste();
         drop(answer);
     }

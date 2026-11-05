@@ -142,17 +142,34 @@ Per-device behaviour that spans platforms:
 
 ## Clipboard and paste
 
-`Context::copy_text` and `copy_image` (a PNG) write; Android and DRM drop
-images. `Context::watch_copies` hears every text copy, and
-`Context::read_clipboard` reads the text for the program itself; be-host-wayland
-bridges the Wayland clipboard with these two.
+A copy is a `Clip` (`beui-types/src/clip.rs`): representations of the same
+content, richest first, each a format id and its data, or a `Render` that makes
+the data only when a paste asks for it. Format ids and the be3 formats (serde
+types encoded with postcard: `TextFragment`, `Blocks`, `CanvasItems`, `Files`)
+are in `be-lib-ui-types/src/clipboard.rs`; standard ones keep their MIME type
+(`text/plain`, `text/html`, `image/png`). `reactive::copy(Clip)` or
+`Context::copy` writes; `Context::watch_copies` hears every copy, and
+`Context::read_clipboard` reads a format for the program itself;
+be-host-wayland bridges the Wayland clipboard with these two.
+
+A platform keeps the clip it last copied (`HeldClip`) and answers pastes from it
+while it is still the clipboard's, so lazy representations and be3 formats
+survive where the system clipboard cannot carry them. Windows knows by the
+clipboard's sequence number and carries be3 formats as registered formats; the
+web writes them as `web ` types where `ClipboardItem.supports` says so
+(Chromium) and reads them from the async clipboard; elsewhere the plain text on
+the clipboard is compared with the text written. On the system clipboard each
+platform puts the plain text, or a PNG when there is none.
 
 The focus reads the clipboard only by pasting: an `Interactive`'s `pastes`
-lists the `PasteKind`s it takes. `request_paste` (a Paste menu) or Ctrl+V asks
-`PlatformServices::paste` for the first kind the clipboard holds, and the
-answer enters the intake as `Input::Paste`, after earlier input. Platforms that
-already deliver Ctrl+V as a paste (`delivers_paste_shortcut`: the browser, an
-app's host) are not asked again.
+lists the format ids it takes, preferred first, and its `on_paste` gets a
+`ClipItem`. `request_paste` (a Paste menu) or Ctrl+V asks
+`PlatformServices::paste` for the first of them the clipboard holds; Ctrl+Shift+V
+asks for plain text only. The answer enters the intake as `Input::Paste`, after
+earlier input; `Input::PastePiece`s before it, which the app protocol sends for
+data over its message limit, are joined into it. Platforms that already deliver
+Ctrl+V as a paste (`delivers_paste_shortcut`: the browser, an app's host) are not
+asked again.
 
 An `Interactive` with `clipboard_keys` (a terminal) takes Ctrl+C, V, X and A as
 plain keys. This matters only on the web, which decides in `keydown` before the

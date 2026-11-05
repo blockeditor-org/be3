@@ -60,7 +60,7 @@ fn a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it() 
         .center(text_within(harness.document(), toolbar, "Copy").expect("the toolbar offers Copy"));
     harness.touch(TouchPhase::Start, copy);
     let copied = harness.touch(TouchPhase::End, copy);
-    assert_eq!(copied.copied_text.as_deref(), Some("world"));
+    assert_eq!(copied.copied_text().as_deref(), Some("world"));
     assert!(
         harness
             .document()

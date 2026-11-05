@@ -234,8 +234,8 @@ UTF-8 bytes. A focusable's `on_ime` gets them; without one, commits arrive
 through `on_text`. A text area passes them to beui-text-editor-core as
 `EditorCommand::Ime`, leaves keys to the input method while composing, and
 reports `ime_cursor` and `ime_text` so the candidate window sits by the caret
-(`ImeMirror` in `beui-web-input` keeps the web's hidden textarea in step). Copy and cut return text in `FrameOutput::copied_text` for the host to
-write to its clipboard. `clipboard_keys` on an `Interactive` (a terminal) tells
+(`ImeMirror` in `beui-web-input` keeps the web's hidden textarea in step). Copy and cut return a clip in `FrameOutput::copied` for the host to write to
+its clipboard: a text area's is a `TextFragment` and its plain text. `clipboard_keys` on an `Interactive` (a terminal) tells
 the web platform not to let the browser run its own copy, cut and select-all
 (guides/beui/platforms.md, Clipboard and paste).
 

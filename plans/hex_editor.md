@@ -4,7 +4,8 @@ The text block's hex view (`crates/be-app-text/src/hex.rs`) is a hand-painted
 view of its own. This plan rebuilds it from beui's text area. The point is to
 make `beui-text-editor-core` keep bytes that are not valid UTF-8 intact, and to
 let people inspect them; a codepoint view is expected later on the same pieces.
-Not implemented yet. The clipboard parts are in plans/clipboard.md.
+Not implemented yet. The clipboard parts exist: the hex view copies a text fragment and pastes its bytes
+(guides/beui/platforms.md, Clipboard and paste).
 
 ## What exists
 
@@ -87,8 +88,8 @@ indent and list continuation, collapsible sections).
   overwrite mode; the second commits the byte. A pending digit makes no undo
   step. Check it against the platform input method on Android and the
   on-screen keyboard.
-- Copy offers the bytes as a text fragment and `68 65 6c` as plain text
-  (plans/clipboard.md).
+- Copy offers the bytes as a text fragment and `68 65 6c` as plain text, as
+  the hex view does today.
 
 ## Two linked editors
 

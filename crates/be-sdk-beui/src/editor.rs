@@ -622,6 +622,44 @@ impl Editor {
         self.state().core.host().take_panel_requests()
     }
 
+    /// Copies references to blocks, each `(id, type, title)`: `be3/blocks`,
+    /// and as plain text each title and its link, which needs the link base
+    /// watched (`watch::<LinkBaseWatch>`).
+    pub fn copy_blocks(&self, blocks: &[(Uuid, Uuid, String)]) {
+        if blocks.is_empty() {
+            return;
+        }
+        let organization = self.host().organization_id();
+        let base = self.host().watched::<be_sdk::LinkBaseWatch>();
+        let clip = beui::clipboard::Blocks {
+            blocks: blocks
+                .iter()
+                .map(|(id, block_type, title)| beui::clipboard::ClipBlock {
+                    id: *id,
+                    organization: (!organization.is_nil()).then_some(organization),
+                    block_type: *block_type,
+                    title: title.clone(),
+                })
+                .collect(),
+        };
+        let text = blocks
+            .iter()
+            .map(|(id, _, title)| match &base {
+                Some(base) if !base.is_empty() && !organization.is_nil() => format!(
+                    "{title} {}",
+                    be_block::block_url::block_url(base, organization, *id)
+                ),
+                _ => title.clone(),
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        copy(
+            beui::Clip::new()
+                .with(beui::clipboard::ClipFormat::encode(&clip))
+                .with(beui::ClipItem::text(text)),
+        );
+    }
+
     pub fn watch<W: Watched>(&self) -> Memo<W::Value>
     where
         W::Value: Default,

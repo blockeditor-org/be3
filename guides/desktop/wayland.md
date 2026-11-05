@@ -207,10 +207,12 @@ smithay writes `IconicState` only by unmapping the frame. To try it, the log nam
 be-host's clipboard and the Wayland clipboard are one (`selection.rs`, `compositor/clipboard.rs`).
 
 - A program that sets the selection (through `wl_data_device` or `ext-data-control-v1` /
-  `zwlr-data-control-v1`, which `wl-copy` and clipboard managers use) is asked for its text, read
-  without blocking and handed to be-host (`Context::copy_text`); the program keeps its selection
-  with all its types. A selection that offers only images is not handed over.
-- Otherwise the selection is `HostClipboard`, read from the platform only when a program pastes.
+  `zwlr-data-control-v1`, which `wl-copy` and clipboard managers use) is asked for its text and
+  its `image/png`, read without blocking and handed to be-host as one clip (`Context::copy`), so
+  both outlive the program; the program keeps its selection with all its types.
+- Otherwise the selection is `HostClipboard`, offered under the MIME type of every format the
+  host's clip holds (plain text under each text name) and read from the host's clip, by format,
+  only when a program pastes.
   A platform cannot say when its clipboard changes, so a program's selection gives way to the
   host's when be-host's window is focused again and the platform's text is no longer the program's.
 - X11 shares both through `X11Wm`'s selection callbacks (`State::announce_x11_selection`,

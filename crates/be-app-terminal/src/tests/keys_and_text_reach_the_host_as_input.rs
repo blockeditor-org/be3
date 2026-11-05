@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::beui::{Input, Pasted};
+use be_sdk_beui::beui::{ClipItem, Input};
 
 fn keys(sent: Vec<TerminalMessage>) -> Vec<(Key, bool, String)> {
     sent.into_iter()
@@ -47,7 +47,7 @@ fn keys_and_text_reach_the_host_as_input() {
     );
     harness
         .editor
-        .step(vec![Input::Paste(Pasted::Text("echo pasted".to_owned()))]);
+        .step(vec![Input::Paste(ClipItem::text("echo pasted"))]);
     harness.editor.run();
     assert_eq!(
         harness.sent(),

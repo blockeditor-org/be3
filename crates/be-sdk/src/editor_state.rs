@@ -45,6 +45,8 @@ pub struct Drag {
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub dropped: bool,
+    /// Whether a drop moves the block here, copies it, or adds a reference.
+    pub action: be_sdk_api::DropAction,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -584,6 +586,7 @@ impl EditorCore {
                 block_id: drag.block_id,
                 block_type: drag.block_type,
                 dropped: drag.dropped,
+                action: drag.action,
             });
         }
         let rect = inner.content_rect.get();

@@ -12,7 +12,6 @@ use be_sdk_api::{
     FrameSpec, HostPanel, HostTransform, LayoutCommit, Opening, PresentCommit, PresentedFrame,
     PreviewImage, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
     ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
-    shell_types::{Dragged, DraggedBlock},
 };
 use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;
@@ -2249,6 +2248,36 @@ pub fn set_presence_visible(app_id: &str, instance: EditorInstanceId, visible: b
     });
 }
 
+/// Asks an instance to render a representation of its copy `serial`; poll
+/// `take_rendered` with the request it answers. `None` when the instance is
+/// gone.
+pub fn render_clip(
+    app_id: &str,
+    instance: EditorInstanceId,
+    serial: u64,
+    format: String,
+) -> Option<u64> {
+    with(app_id, |runtime| {
+        let (messages, request) = runtime.instances.render_clip(instance, serial, format);
+        runtime.send(messages);
+        request
+    })
+    .flatten()
+}
+
+/// What an instance rendered for `request`, once it answered; `Some(None)`
+/// when it rendered nothing or is gone.
+pub fn take_rendered(
+    app_id: &str,
+    instance: EditorInstanceId,
+    request: u64,
+) -> Option<Option<Vec<u8>>> {
+    with(app_id, |runtime| {
+        runtime.instances.take_rendered(instance, request)
+    })
+    .unwrap_or(Some(None))
+}
+
 pub fn replace_child(
     app_id: &str,
     instance: EditorInstanceId,
@@ -2857,7 +2886,7 @@ pub struct PlacedView {
     pub wants_keyboard: bool,
     pub keyboard_toggles: Option<u32>,
     pub intercepted_keys: Vec<beui::KeyChord>,
-    pub pastes: Vec<beui::PasteKind>,
+    pub pastes: Vec<String>,
     pub clipboard_keys: bool,
     pub every_sample: bool,
     pub work_area: Option<Rect>,
@@ -3221,7 +3250,7 @@ pub fn drag_over_view(
     app_id: &str,
     instance: EditorInstanceId,
     region: ViewId,
-    over: Option<(BlockDrag, Pos2)>,
+    over: Option<(BlockDrag, Pos2, be_sdk_api::DropAction)>,
     dropped: bool,
 ) {
     with(app_id, |runtime| {
@@ -3230,13 +3259,21 @@ pub fn drag_over_view(
             .placement(instance, region)
             .map_or(Pos2::ZERO, |placement| placement.rect.min);
         let was = runtime.instances.dragging(instance, region);
-        let event = over.map(|(drag, at)| DragEvent {
-            position: Pos2::ZERO + (at - origin),
-            dragged: Dragged::Block(DraggedBlock {
-                block_id: drag.block_id.into_bytes(),
-                block_type: drag.block_type.into_bytes(),
-            }),
-            dropped,
+        let event = over.map(|(drag, at, action)| {
+            let blocks = be_sdk_api::clipboard::Blocks {
+                blocks: vec![be_sdk_api::clipboard::ClipBlock {
+                    id: drag.block_id,
+                    organization: None,
+                    block_type: drag.block_type,
+                    title: String::new(),
+                }],
+            };
+            DragEvent {
+                position: Pos2::ZERO + (at - origin),
+                items: vec![be_sdk_api::clipboard::ClipFormat::encode(&blocks)],
+                action,
+                dropped,
+            }
         });
         let messages = runtime
             .instances

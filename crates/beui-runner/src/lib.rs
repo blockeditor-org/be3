@@ -10,19 +10,20 @@ use std::time::{Duration, Instant};
 use accesskit::TreeUpdate;
 
 use crate::renderer::{Capture, Loaded, Rendering};
-use beui_core::clipboard::{ClipboardRead, PasteAnswer, PasteRequest};
+use beui_core::clipboard::{Clip, ClipboardRead, PasteAnswer, PasteRequest};
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::file_picker::{FilePickAnswer, FilePickId, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveId, FileSaveRequest};
 use beui_core::program::accessibility_dump::AccessibilityDump;
 use beui_core::program::{Program, SafeArea, Setup, Waker, next_batch, safe_rect};
 use beui_core::window::{Resize, WindowReports, WindowState};
+use beui_types::ClipItem;
 use beui_types::Event;
 use beui_types::FilePick;
 use beui_types::FileSave;
 use beui_types::Input;
 use beui_types::Vec2;
-use beui_types::{PasteKind, Pasted};
+use beui_types::clipboard::formats;
 use beui_types::{WindowId, WindowReport};
 
 mod controller;
@@ -107,12 +108,14 @@ pub trait Platform {
 /// platform implements only what it has; layers receive the services below them
 /// and forward to them by default.
 pub trait PlatformServices {
-    fn copy(&mut self, _text: String) {}
+    /// Puts `clip` on the clipboard. A platform keeps it to answer pastes of
+    /// what it cannot put on the system clipboard (lazy representations, be3
+    /// formats), until another program copies.
+    fn copy(&mut self, _clip: Clip) {}
 
-    fn copy_image(&mut self, _png: Vec<u8>) {}
-
-    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
-        let _ = kinds;
+    /// Answers with the first of `formats` the clipboard holds.
+    fn paste(&mut self, formats: &[String], answer: PasteAnswer) {
+        let _ = formats;
         answer.send(None);
     }
 
@@ -201,9 +204,9 @@ pub struct Runner {
     intake: Intake,
     picks: (Sender<Answered>, Receiver<Answered>),
     saves: (Sender<Saved>, Receiver<Saved>),
-    pastes: (Sender<Pasted>, Receiver<Pasted>),
-    typed_pastes: (Sender<Pasted>, Receiver<Pasted>),
-    clipboard_reads: Vec<(Receiver<Pasted>, ClipboardRead)>,
+    pastes: (Sender<ClipItem>, Receiver<ClipItem>),
+    typed_pastes: (Sender<ClipItem>, Receiver<ClipItem>),
+    clipboard_reads: Vec<(Receiver<ClipItem>, ClipboardRead)>,
     keyboard_chosen: bool,
     publishing_accessibility: bool,
     unpresented: bool,
@@ -223,12 +226,12 @@ pub struct Runner {
 }
 
 fn type_pastes(
-    pastes: &Receiver<Pasted>,
+    pastes: &Receiver<ClipItem>,
     held: beui_types::Modifiers,
     incoming: &mut Vec<Incoming>,
 ) {
     while let Ok(pasted) = pastes.try_recv() {
-        if let Pasted::Text(text) = pasted {
+        if let Some(text) = pasted.as_text() {
             let mut typed = Vec::new();
             beui_types::input::typing::typed(&text, held, &mut typed);
             incoming.extend(typed.into_iter().map(Incoming::from));
@@ -493,8 +496,8 @@ impl Runner {
         type_pastes(&self.typed_pastes.1, held, &mut self.intake.incoming);
         for (pasted, read) in std::mem::take(&mut self.clipboard_reads) {
             match pasted.try_recv() {
-                Ok(Pasted::Text(text)) => read.answer(Some(text)),
-                Ok(_) | Err(mpsc::TryRecvError::Disconnected) => read.answer(None),
+                Ok(item) => read.answer(Some(item)),
+                Err(mpsc::TryRecvError::Disconnected) => read.answer(None),
                 Err(mpsc::TryRecvError::Empty) => self.clipboard_reads.push((pasted, read)),
             }
         }
@@ -655,18 +658,12 @@ impl Runner {
         }
 
         let mut below = services(&mut self.layers, platform);
-        if let Some(text) = &output.copied_text {
-            below.copy(text.clone());
-        }
-        if let Some(png) = output.copied_image.take() {
-            below.copy_image(png);
+        if let Some(clip) = &output.copied {
+            below.copy(clip.clone());
         }
         for read in std::mem::take(&mut output.clipboard_reads) {
             let (sender, pasted) = mpsc::channel();
-            below.paste(
-                &[beui_types::PasteKind::Text],
-                PasteAnswer::new(sender, self.waker.clone()),
-            );
+            below.paste(&read.formats, PasteAnswer::new(sender, self.waker.clone()));
             self.clipboard_reads.push((pasted, read));
         }
         for request in std::mem::take(&mut output.file_picks) {
@@ -682,20 +679,30 @@ impl Runner {
             .extend(output.typed.drain(..).map(Incoming::from));
         if output.paste == Some(PasteRequest::Typed) {
             let answer = PasteAnswer::new(self.typed_pastes.0.clone(), self.waker.clone());
-            below.paste(&[beui_types::PasteKind::Text], answer);
+            below.paste(&[formats::TEXT.to_owned()], answer);
             let held = self.intake.modifiers();
             type_pastes(&self.typed_pastes.1, held, &mut self.intake.incoming);
         }
-        let delivered =
-            output.paste == Some(PasteRequest::Shortcut) && below.delivers_paste_shortcut();
-        if output
-            .paste
-            .is_some_and(|paste| paste != PasteRequest::Typed)
-            && !delivered
-            && !output.main().window.requests.pastes.is_empty()
-        {
+        let delivered = matches!(output.paste, Some(PasteRequest::Shortcut { .. }))
+            && below.delivers_paste_shortcut();
+        let wanted = match output.paste {
+            Some(PasteRequest::Shortcut { plain: true }) => output
+                .main()
+                .window
+                .requests
+                .pastes
+                .iter()
+                .filter(|format| *format == formats::TEXT)
+                .cloned()
+                .collect(),
+            Some(PasteRequest::Asked | PasteRequest::Shortcut { .. }) => {
+                output.main().window.requests.pastes.clone()
+            }
+            Some(PasteRequest::Typed) | None => Vec::new(),
+        };
+        if !delivered && !wanted.is_empty() {
             let answer = PasteAnswer::new(self.pastes.0.clone(), self.waker.clone());
-            below.paste(&output.main().window.requests.pastes, answer);
+            below.paste(&wanted, answer);
             while let Ok(pasted) = self.pastes.1.try_recv() {
                 self.intake.incoming.push(Input::Paste(pasted).into());
             }

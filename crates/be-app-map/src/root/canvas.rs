@@ -15,8 +15,9 @@ use crate::tiles::TileId;
 use super::labels::{self, MapLabel};
 use super::state::MapState;
 use super::tiles::{self, Tile};
+use beui::ClipItem;
+use beui::clipboard::formats;
 use beui::unstyled::gestures;
-use beui::{PasteKind, Pasted};
 
 pub(crate) const REGION_COLOR: Color32 = Color32::from_rgb(245, 180, 60);
 const ATTRIBUTION: &str = "© OpenStreetMap contributors";
@@ -200,8 +201,8 @@ fn MapSurface(state: MapState, children: Option<Child>) -> NodeId {
     view! {
         <Interactive
             focusable=true
-            pastes={vec![PasteKind::Image]}
-            on_paste={move |pasted: Pasted| state.take_paste(pasted)}
+            pastes={vec![formats::PNG.to_owned()]}
+            on_paste={move |pasted: ClipItem| state.take_paste(pasted)}
             on_key={move |press: KeyPress| {
                 if (press.key == Key::Delete || press.key == Key::Backspace)
                     && let Some(id) = state.selected.get_untracked() {

@@ -45,7 +45,10 @@ fn tapping_inside_a_touch_selection_shows_a_toolbar_that_copies_it() {
     harness.touch(TouchPhase::Start, row);
     let output = harness.touch(TouchPhase::End, row);
 
-    assert_eq!(output.copied_text.as_deref().map(str::trim), Some("Hello"));
+    assert_eq!(
+        output.copied_text().as_deref().map(str::trim),
+        Some("Hello")
+    );
     assert!(
         harness
             .document()

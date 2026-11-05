@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::clipboard::{ClipboardRead, PasteRequest};
+use crate::clipboard::{Clip, ClipboardRead, PasteRequest};
 use crate::damage;
 use crate::display::{Display, Group, Layer};
 use crate::file_picker::{FilePickId, FilePickRequest};
@@ -22,9 +22,9 @@ use crate::program::Waker;
 use crate::program::accessibility_dump::{AccessibilityDump, TestIds};
 use crate::screen_simulation::ScreenSimulation;
 use crate::window::{Appearance, WindowHosting, WindowState};
+use beui_types::ClipItem;
 use beui_types::Event;
 use beui_types::NodeId;
-use beui_types::PasteKind;
 use beui_types::Vec2;
 use beui_types::geometry::Region;
 use beui_types::layer::{EscapedLayer, HostTransform, LayerSpace};
@@ -37,7 +37,7 @@ use beui_types::{Pos2, Rect, pos2};
 use beui_types::{PreferenceLayer, Preferences};
 use beui_types::{PreferenceLayers, PreferenceSource};
 
-type CopyWatcher = Rc<dyn Fn(&str)>;
+type CopyWatcher = Rc<dyn Fn(&Clip)>;
 
 #[derive(Default)]
 struct Kept {
@@ -79,8 +79,7 @@ struct Inner {
     verifying: Cell<bool>,
     damage: RefCell<Vec<Rect>>,
     moves: RefCell<Vec<(Moved, Vec<Rc<Display>>)>>,
-    copied_text: RefCell<Option<String>>,
-    copied_image: RefCell<Option<Vec<u8>>>,
+    copied: RefCell<Option<Clip>>,
     paste: Cell<Option<PasteRequest>>,
     clipboard_reads: RefCell<Vec<ClipboardRead>>,
     copy_watchers: RefCell<Vec<CopyWatcher>>,
@@ -270,8 +269,7 @@ pub struct FrameOutput {
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
     pub raise_requested: bool,
-    pub copied_text: Option<String>,
-    pub copied_image: Option<Vec<u8>>,
+    pub copied: Option<Clip>,
     pub paste: Option<PasteRequest>,
     pub clipboard_reads: Vec<ClipboardRead>,
     pub file_picks: Vec<FilePickRequest>,
@@ -291,6 +289,11 @@ pub struct FrameOutput {
 }
 
 impl FrameOutput {
+    /// The plain text of what the frame copied.
+    pub fn copied_text(&self) -> Option<String> {
+        self.copied.as_ref().and_then(Clip::plain_text)
+    }
+
     pub fn main(&self) -> &WindowOutput {
         self.window(WindowId::MAIN)
             .expect("a frame always holds the main window")
@@ -372,8 +375,7 @@ impl Context {
                 verifying: Cell::new(false),
                 damage: RefCell::new(Vec::new()),
                 moves: RefCell::new(Vec::new()),
-                copied_text: RefCell::new(None),
-                copied_image: RefCell::new(None),
+                copied: RefCell::new(None),
                 paste: Cell::new(None),
                 clipboard_reads: RefCell::new(Vec::new()),
                 copy_watchers: RefCell::new(Vec::new()),
@@ -708,8 +710,7 @@ impl Context {
         self.inner.paint_stack.borrow_mut().clear();
         self.inner.damage.borrow_mut().clear();
         self.inner.moves.borrow_mut().clear();
-        self.inner.copied_text.borrow_mut().take();
-        self.inner.copied_image.borrow_mut().take();
+        self.inner.copied.borrow_mut().take();
         self.inner.paste.set(None);
         self.inner.fullscreen.set(None);
         self.inner.window_requests.borrow_mut().clear();
@@ -790,11 +791,11 @@ impl Context {
             .iter()
             .fold(Region::NOTHING, |region, rect| region.union((*rect).into()));
         let changed = main_rescaled || !damage.is_empty() || moved.is_some();
-        let copied_text = self.inner.copied_text.borrow_mut().take();
-        if let Some(text) = &copied_text {
+        let copied = self.inner.copied.borrow_mut().take();
+        if let Some(clip) = &copied {
             let watchers = self.inner.copy_watchers.borrow().clone();
             for watcher in watchers {
-                watcher(text);
+                watcher(clip);
             }
         }
         let accessibility = std::mem::take(&mut *self.inner.accessibility.borrow_mut());
@@ -862,8 +863,7 @@ impl Context {
             escaped: std::mem::take(&mut *self.inner.escaped.borrow_mut()),
             window_requests: std::mem::take(&mut *self.inner.window_requests.borrow_mut()),
             dump,
-            copied_text,
-            copied_image: self.inner.copied_image.borrow_mut().take(),
+            copied,
             paste: self.inner.paste.take(),
             clipboard_reads: std::mem::take(&mut *self.inner.clipboard_reads.borrow_mut()),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
@@ -977,14 +977,9 @@ impl Context {
         Painter::new(self.clone(), Rect::EVERYTHING)
     }
 
-    pub fn copy_text(&self, text: String) {
-        *self.inner.copied_image.borrow_mut() = None;
-        *self.inner.copied_text.borrow_mut() = Some(text);
-    }
-
-    pub fn copy_image(&self, png: Vec<u8>) {
-        *self.inner.copied_text.borrow_mut() = None;
-        *self.inner.copied_image.borrow_mut() = Some(png);
+    /// Puts `clip` on the clipboard at the end of the frame.
+    pub fn copy(&self, clip: Clip) {
+        *self.inner.copied.borrow_mut() = Some(clip);
     }
 
     pub fn request_paste(&self) {
@@ -997,28 +992,35 @@ impl Context {
         self.inner.paste.set(Some(PasteRequest::Typed));
     }
 
-    pub fn paste_shortcut(&self) {
-        self.inner.paste.set(Some(PasteRequest::Shortcut));
+    /// Ctrl+V, or Ctrl+Shift+V (`plain`), which pastes plain text only.
+    pub fn paste_shortcut(&self, plain: bool) {
+        self.inner.paste.set(Some(PasteRequest::Shortcut { plain }));
     }
 
-    pub fn accept_pastes(&self, kinds: &[PasteKind]) {
-        self.inner.window.borrow_mut().requests.pastes = kinds.to_vec();
+    pub fn accept_pastes(&self, formats: &[String]) {
+        self.inner.window.borrow_mut().requests.pastes = formats.to_vec();
     }
 
     pub fn take_clipboard_keys(&self, keys: bool) {
         self.inner.window.borrow_mut().requests.clipboard_keys = keys;
     }
 
-    /// Reads the clipboard's text for the program itself, outside any focus. Answered
-    /// at the start of a later frame, `None` without text.
-    pub fn read_clipboard(&self, answer: impl FnOnce(Option<String>) + 'static) {
+    /// Reads the clipboard for the program itself, outside any focus: the first
+    /// of `formats` it holds. Answered at the start of a later frame, `None`
+    /// when it holds none of them.
+    pub fn read_clipboard(
+        &self,
+        formats: Vec<String>,
+        answer: impl FnOnce(Option<ClipItem>) + 'static,
+    ) {
         self.inner
             .clipboard_reads
             .borrow_mut()
-            .push(ClipboardRead::new(answer));
+            .push(ClipboardRead::new(formats, answer));
     }
 
-    pub fn watch_copies(&self, watcher: impl Fn(&str) + 'static) {
+    /// Calls `watcher` with each clip the program copies.
+    pub fn watch_copies(&self, watcher: impl Fn(&Clip) + 'static) {
         self.inner.copy_watchers.borrow_mut().push(Rc::new(watcher));
     }
 

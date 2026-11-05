@@ -189,8 +189,7 @@ pub enum HostCommand {
 #[derive(Default)]
 pub struct Output {
     pub fullscreen: Option<bool>,
-    pub copied: Option<String>,
-    pub copied_image: Option<Vec<u8>>,
+    pub copied: Option<CopiedClip>,
     pub file_picks: Vec<(FileFilter, PickSlot)>,
     pub paste: bool,
     pub grab: Option<bool>,
@@ -357,18 +356,18 @@ pub fn set_grab(grab: bool) {
     with(|host| host.output.grab = Some(grab));
 }
 
-pub fn copy_text(text: String) {
-    with(|host| {
-        host.output.copied_image = None;
-        host.output.copied = Some(text);
-    });
+/// What an app instance copied (`shell.copy`): items without data are
+/// rendered by the instance on request (`render-clip` with `serial`).
+#[derive(Clone, Debug)]
+pub struct CopiedClip {
+    pub app_id: String,
+    pub instance: be_sdk_api::EditorInstanceId,
+    pub serial: u64,
+    pub items: Vec<be_sdk_api::OfferedClipItem>,
 }
 
-pub fn copy_image(png: Vec<u8>) {
-    with(|host| {
-        host.output.copied = None;
-        host.output.copied_image = Some(png);
-    });
+pub fn copy(clip: CopiedClip) {
+    with(|host| host.output.copied = Some(clip));
 }
 
 pub type PickSlot = Option<Box<dyn FnOnce(FilePick)>>;

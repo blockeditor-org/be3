@@ -149,7 +149,7 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
             let asks =
                 matches!(fate, Fate::Program | Fate::Unheard) || doc.paste_requested() && !asked;
             if asks && pastes(*press) {
-                ctx.paste_shortcut();
+                ctx.paste_shortcut(press.modifiers.shift);
             }
             return Err(fate);
         }

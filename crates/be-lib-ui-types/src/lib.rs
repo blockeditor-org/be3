@@ -40,7 +40,7 @@ pub use be_lib_ui_preferences::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSetting, PointerSettings, PointerSpeed,
     PreferenceLayer, Preferences, Rotation, ThemeKind,
 };
-pub use clipboard::{PasteKind, Pasted};
+pub use clipboard::ClipItem;
 pub use files::{FileFilter, FilePick, FileSave, PickedFile, SavedFile};
 pub use input::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,

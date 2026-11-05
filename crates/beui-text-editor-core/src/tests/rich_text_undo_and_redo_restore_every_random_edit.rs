@@ -142,7 +142,9 @@ fn step(tester: &mut EditorTester, random: &mut Random) -> String {
         }
         8 => {
             place(tester);
-            tester.execute(EditorCommand::Paste(b"pasted\ntwo"));
+            tester.execute(EditorCommand::Paste(&TextFragment::chars(
+                b"pasted\ntwo".to_vec(),
+            )));
             format!("paste two lines at {anchor}..{focus}")
         }
         9 => {

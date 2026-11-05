@@ -13,7 +13,7 @@ fn text_a_program_copies_reaches_the_host() {
     let mut copied = None;
     for _ in 0..4 {
         harness.frame(Vec::new());
-        copied = copied.or_else(|| harness.output.as_mut()?.copied_text.take());
+        copied = copied.or_else(|| harness.output.as_mut()?.copied.take()?.plain_text());
     }
 
     assert_eq!(copied.as_deref(), Some("copied in a program"));

@@ -40,13 +40,6 @@ pub(super) fn submit(cx: &Context) {
     cx.on_submit.call();
 }
 
-fn copy(state: TextAreaState, mode: CopyMode) {
-    let text = state.copy(mode);
-    if !text.is_empty() {
-        copy_text(text);
-    }
-}
-
 fn selected(state: TextAreaState) -> bool {
     state
         .selection_ranges()
@@ -85,17 +78,14 @@ fn command(cx: &Context, press: KeyPress) -> bool {
         }
         Key::C | Key::X if command && cx.masked.get_untracked() => return true,
         Key::C if command => {
-            copy(state, CopyMode::Copy);
+            state.copy_to_clipboard(CopyMode::Copy);
             return true;
         }
         Key::X if command => {
-            copy(
-                state,
-                match cx.locked.get_untracked() {
-                    true => CopyMode::Copy,
-                    false => CopyMode::Cut,
-                },
-            );
+            state.copy_to_clipboard(match cx.locked.get_untracked() {
+                true => CopyMode::Copy,
+                false => CopyMode::Cut,
+            });
             return true;
         }
         _ => {}

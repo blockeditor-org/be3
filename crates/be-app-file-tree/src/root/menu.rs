@@ -1,8 +1,9 @@
 use be_sdk_beui::Editor;
 use be_sdk_beui::be_block::{self, BlockContent, SettingsContent};
 use be_sdk_beui::beui::icons::{
-    ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE, ICON_PENCIL_LINE,
-    ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS, ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
+    ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE,
+    ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK, ICON_SCISSORS, ICON_SETTINGS, ICON_SHARE_2,
+    ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -246,6 +247,19 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             renaming.start(shown.key);
         }
     };
+    let copy_row = move || {
+        if let Some((id, shown)) = shown() {
+            editor.copy_blocks(&[(id, shown.block_type, shown.label.clone())]);
+        }
+    };
+    let cut = move || {
+        if let Some((id, shown)) = shown() {
+            editor.copy_blocks(&[(id, shown.block_type, shown.label.clone())]);
+            if let Some(container) = shown.container {
+                editor.host().cut_blocks(&[id], container);
+            }
+        }
+    };
     let share = move || {
         if let Some((id, _)) = shown() {
             editor.host().share_block(id);
@@ -316,6 +330,19 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                 }</ForEach>
             </MenuItem>
             <MenuItem label="Rename" glyph=ICON_PENCIL_LINE disabled={edit} on_click={rename} />
+            <MenuItem
+                label="Copy"
+                glyph=ICON_COPY
+                row_test_id={"file-tree.copy".to_owned()}
+                on_click={copy_row}
+            />
+            <MenuItem
+                label="Cut"
+                glyph=ICON_SCISSORS
+                disabled={rooted}
+                row_test_id={"file-tree.cut".to_owned()}
+                on_click={cut}
+            />
             <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} on_click={share} />
             <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} on_click={unlink} />
             <MenuItem

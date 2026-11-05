@@ -69,6 +69,11 @@ interface app {
         /// Puts a block in place of a child block; false when the editor cannot.
         replace-child: async func(old: block-id, new: block-id) -> bool;
 
+        /// Renders representation `format` of the editor's copy `serial`
+        /// (`shell.copy`), which a paste asked for; none once the editor
+        /// copied something else or cannot.
+        render-clip: async func(serial: u64, format: string) -> option<list<u8>>;
+
         /// Shows one of the dialogs the instance that draws the window draws.
         show-dialog: async func(block: block-id, dialog: shell-dialog);
     }

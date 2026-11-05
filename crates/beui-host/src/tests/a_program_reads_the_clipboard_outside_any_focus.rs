@@ -11,7 +11,10 @@ impl Program for Reading {
         while *asks > 0 {
             *asks -= 1;
             let read = self.read.clone();
-            context.read_clipboard(move |text| read.borrow_mut().push(text));
+            context.read_clipboard(
+                vec![crate::clipboard::formats::TEXT.to_owned()],
+                move |item| read.borrow_mut().push(item.and_then(|item| item.as_text())),
+            );
         }
     }
 }

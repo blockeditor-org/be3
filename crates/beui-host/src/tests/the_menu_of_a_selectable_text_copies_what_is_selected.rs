@@ -60,7 +60,7 @@ fn the_menu_of_a_selectable_text_copies_what_is_selected() {
     }]);
 
     assert_eq!(
-        clicked.copied_text.as_deref(),
+        clicked.copied_text().as_deref(),
         Some("main\n0123abc"),
         "Copy is the first item of the menu"
     );

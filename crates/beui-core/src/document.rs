@@ -162,8 +162,7 @@ pub struct Document {
     pub paint_cache: RefCell<PaintCache>,
     pub(crate) canvas_moves: Vec<NodeId>,
     pub(crate) canvas_moves_from: u64,
-    pub copied_text: Option<String>,
-    pub copied_image: Option<Vec<u8>>,
+    pub copied: Option<crate::clipboard::Clip>,
     next_paint: Option<Instant>,
     now: Instant,
     reactive_scope: ::beui_reactive::Scope,
@@ -406,8 +405,7 @@ impl Document {
             paint_cache: RefCell::new(PaintCache::default()),
             canvas_moves: Vec::new(),
             canvas_moves_from: 0,
-            copied_text: None,
-            copied_image: None,
+            copied: None,
             next_paint: None,
             now: crate::timer::frame_clock(),
             reactive_scope: ::beui_reactive::Scope::new(),
@@ -996,14 +994,8 @@ impl Document {
         }
     }
 
-    pub fn copy_text(&mut self, text: impl Into<String>) {
-        self.copied_image = None;
-        self.copied_text = Some(text.into());
-    }
-
-    pub fn copy_image(&mut self, png: Vec<u8>) {
-        self.copied_text = None;
-        self.copied_image = Some(png);
+    pub fn copy(&mut self, clip: crate::clipboard::Clip) {
+        self.copied = Some(clip);
     }
 
     pub fn request_paste(&mut self) {
@@ -1457,16 +1449,13 @@ impl Document {
             .read_only()
             .with_untracked(|chords| ctx.intercept_keys(chords));
 
-        if let Some(text) = self.copied_text.take() {
-            ctx.copy_text(text);
-        }
-        if let Some(png) = self.copied_image.take() {
-            ctx.copy_image(png);
+        if let Some(clip) = self.copied.take() {
+            ctx.copy(clip);
         }
         if std::mem::take(&mut self.paste_requested) {
             ctx.request_paste();
         }
-        ctx.accept_pastes(&self.paste_kinds());
+        ctx.accept_pastes(&self.paste_formats());
         ctx.take_clipboard_keys(self.clipboard_keys());
         let window_resized = std::mem::take(&mut self.windows.focus_resized);
         if (resized || window_resized) && self.focus_takes_text() {

@@ -1694,7 +1694,9 @@ dependencies = [
  "be-lib-ui-preferences",
  "be-wasm-ops",
  "be-wasm-ops-bindgen",
+ "postcard",
  "serde",
+ "uuid",
 ]
 
 [[package]]
@@ -3078,6 +3080,7 @@ dependencies = [
  "beui-core",
  "beui-runner",
  "beui-types",
+ "clipboard-win",
  "futures-util",
  "image",
  "pollster",
@@ -3161,6 +3164,7 @@ version = "0.1.0"
 dependencies = [
  "be-lib-graphemes",
  "be-lib-sequence",
+ "be-lib-ui-types",
  "memchr",
  "serde",
  "similar",

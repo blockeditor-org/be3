@@ -1,10 +1,11 @@
 use super::*;
-use crate::{PasteKind, native::PasteRequest};
+use crate::clipboard::formats;
+use crate::native::PasteRequest;
 
 #[test]
 fn a_typed_paste_types_the_clipboard_key_by_key() {
     let mut intaken = Intaken::new();
-    intaken.platform.clipboard = Some("Hé".to_owned());
+    intaken.platform.clipboard = Some(crate::Clip::text("Hé"));
     *intaken.ask.borrow_mut() = Some((PasteRequest::Typed, Vec::new()));
     let seen = intaken.frame(1.0, []);
     let typed: Vec<&Event> = seen
@@ -20,5 +21,5 @@ fn a_typed_paste_types_the_clipboard_key_by_key() {
         !seen.iter().any(|event| matches!(event, Event::Paste(_))),
         "nothing is pasted"
     );
-    assert_eq!(intaken.platform.pastes, [vec![PasteKind::Text]]);
+    assert_eq!(intaken.platform.pastes, [vec![formats::TEXT.to_owned()]]);
 }

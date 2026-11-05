@@ -301,7 +301,7 @@ pub enum Event {
     },
     ScrollEnded,
     Text(String),
-    Paste(be_lib_ui_types::clipboard::Pasted),
+    Paste(be_lib_ui_types::clipboard::ClipItem),
     Touch {
         id: TouchId,
         phase: TouchPhase,

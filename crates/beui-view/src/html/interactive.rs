@@ -7,8 +7,8 @@ use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
 use crate::types::CursorIcon;
-use crate::types::PasteKind;
-use crate::types::Pasted;
+
+use crate::types::ClipItem;
 use crate::types::Pos2;
 use crate::types::SoftKeyboard;
 use crate::types::TouchDrags;
@@ -41,8 +41,8 @@ pub(crate) fn interactive(
     on_activate: ClickCallback,
     on_step: Callback<f32>,
     on_text: Callback<String>,
-    pastes: Prop<Vec<PasteKind>>,
-    on_paste: Callback<Pasted>,
+    pastes: Prop<Vec<String>>,
+    on_paste: Callback<ClipItem>,
     on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
