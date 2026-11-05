@@ -6,8 +6,8 @@
 //! S3-compatible store has: single-request PUT, GET, HEAD, DELETE and ListObjectsV2. An
 //! object's key is its hash in lowercase hex, flat at the top of the bucket (S3 has no
 //! directories to shard, and a flat key is what a client is handed in a presigned URL). Every
-//! request, the server's own included, is a SigV4 presigned URL from `rusty-s3`, sent with
-//! `ureq`; a PUT signs its `Content-Length` and its `x-amz-checksum-sha256` (the base64 of the
+//! request, the server's own included, is a SigV4 presigned URL (`crate::s3`'s presigning,
+//! which the server's own S3 endpoint shares), sent with `ureq`; a PUT signs its `Content-Length` and its `x-amz-checksum-sha256` (the base64 of the
 //! object's SHA-256, which is its `Hash`), so the bucket refuses any other bytes.
 
 use std::{
@@ -18,7 +18,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use base64::Engine;
 use be_block_store::{FileStore, Hash, ObjectStore, StoreError};
 use rusty_s3::{S3Action, UrlStyle};
 
@@ -85,29 +84,20 @@ impl Bucket {
 
     /// A URL anyone holding it may GET the object from until `ttl` passes (at most 7 days).
     pub fn presign_get(&self, hash: Hash, ttl: Duration) -> String {
-        let key = Self::key(hash);
-        self.bucket
-            .get_object(Some(&self.credentials), &key)
-            .sign(ttl)
-            .into()
+        crate::s3::presign_get(&self.bucket, &self.credentials, hash, ttl).into()
     }
 
-    /// A URL that uploads exactly the object `hash` of `length` bytes until `ttl` passes: the
-    /// length and the checksum are signed headers, so the bucket refuses a request without
-    /// them or with other values, and a body whose SHA-256 is not `hash`.
-    pub fn presign_put(&self, hash: Hash, length: u64, ttl: Duration) -> Presigned {
-        let key = Self::key(hash);
-        let headers = vec![
-            ("content-length", length.to_string()),
-            ("x-amz-checksum-sha256", checksum(hash)),
-        ];
-        let mut action = self.bucket.put_object(Some(&self.credentials), &key);
-        for (name, value) in &headers {
-            action.headers_mut().insert(*name, value.clone());
-        }
+    /// A URL that uploads exactly the object `hash` of `length` bytes until `ttl` passes
+    /// (`s3::presign_put`): the length and the checksum are signed headers, so the bucket
+    /// refuses a request without them or with other values, and a body whose SHA-256 is not
+    /// `hash`.
+    pub fn presign_put(&self, hash: Hash, length: usize, ttl: Duration) -> Presigned {
         Presigned {
-            url: action.sign(ttl).into(),
-            headers,
+            url: crate::s3::presign_put(&self.bucket, &self.credentials, hash, length, ttl).into(),
+            headers: vec![
+                ("content-length", length.to_string()),
+                ("x-amz-checksum-sha256", crate::s3::checksum(hash)),
+            ],
         }
     }
 
@@ -126,11 +116,6 @@ impl Bucket {
             .sign(OWN_REQUEST_TTL)
             .into()
     }
-}
-
-/// The `x-amz-checksum-sha256` of an object: the base64 of its SHA-256, which is its hash.
-pub fn checksum(hash: Hash) -> String {
-    base64::engine::general_purpose::STANDARD.encode(hash.as_bytes())
 }
 
 /// Objects in a bucket. `get` checks each object's hash as a `FileStore` does, so a tampered
@@ -209,7 +194,7 @@ impl ObjectStore for S3Store {
         let hash = Hash::of(bytes);
         let presigned = self
             .bucket
-            .presign_put(hash, bytes.len() as u64, OWN_REQUEST_TTL);
+            .presign_put(hash, bytes.len(), OWN_REQUEST_TTL);
         let mut request = self.agent.put(&presigned.url);
         for (name, value) in &presigned.headers {
             request = request.set(name, value);

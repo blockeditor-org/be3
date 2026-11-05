@@ -7,12 +7,12 @@ fn a_presigned_put_takes_only_the_object_it_was_signed_for() {
     let store = S3Store::new(bucket.clone());
     let object = b"an object a client uploads itself";
     let hash = Hash::of(object);
-    let presigned = bucket.presign_put(hash, object.len() as u64, Duration::from_secs(60));
+    let presigned = bucket.presign_put(hash, object.len(), Duration::from_secs(60));
     assert_eq!(
         presigned.headers,
         vec![
             ("content-length", object.len().to_string()),
-            ("x-amz-checksum-sha256", checksum(hash)),
+            ("x-amz-checksum-sha256", crate::s3::checksum(hash)),
         ]
     );
     let put = |body: &[u8], headers: &[(&str, String)]| {

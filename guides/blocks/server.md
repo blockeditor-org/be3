@@ -233,7 +233,7 @@ goes to the bucket, then the cache; a read the cache misses is fetched and
 cached. Only the S3 API is spoken (decisions/objects_live_in_s3_compatible_storage.md):
 path-style, one object per key, the key being the hash's lowercase hex, flat
 at the bucket's top. `objects::Bucket` presigns with `rusty-s3`:
-`presign_get(hash, ttl)` and `presign_put(hash, length, ttl)`, whose
+`presign_get(hash, ttl)` and `presign_put(hash, length, ttl)` (both on `s3::presign_get` and `s3::presign_put`, the one presigning the endpoint uses too), whose
 `Presigned::headers` (`Content-Length`, `x-amz-checksum-sha256`, the base64 of
 the hash) are signed, so the bucket takes only that object; the server's own
 requests are presigned the same way and sent with `ureq`.
