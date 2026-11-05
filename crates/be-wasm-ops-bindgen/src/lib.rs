@@ -476,6 +476,7 @@ impl Generator {
         let mut embed = Modules::default();
         let mut client = Modules::default();
         let mut served = Vec::new();
+        let mut named = Vec::new();
         for interface in imports {
             if self.resolve.interfaces[*interface].functions.is_empty() {
                 continue;
@@ -484,6 +485,10 @@ impl Generator {
             let module = self.module_name(*interface);
             let methods = self.methods(*interface)?;
             args.extend(self.args(&module, &methods));
+            named.extend(methods.iter().map(|method| {
+                let (constant, name) = (&method.constant, &method.name);
+                quote!((crate::__args::#constant, #name))
+            }));
             let nest = self.nest(*interface);
             embed.push(nest.clone(), &module, self.embed_import(&module, &methods));
             client.push(nest, &module, self.client(&methods)?);
@@ -499,6 +504,9 @@ impl Generator {
             }
 
             pub mod embed {
+                /// Every function and resource method the world serves, with its name.
+                pub const METHODS: &[(::be_wasm_ops::MethodId, &str)] = &[#(#named),*];
+
                 #embed
 
                 #world_call

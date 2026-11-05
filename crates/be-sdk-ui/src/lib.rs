@@ -11,6 +11,32 @@ pub const EMBEDDED_EDITOR_PADDING: f32 = 12.0;
 pub const EMBEDDED_EDITOR_TITLE_HEIGHT: f32 = 28.0;
 pub const EMBEDDED_EDITOR_TITLE_GAP: f32 = 8.0;
 
+/// A count of bytes as people read it, in decimal units as storage is sold:
+/// `950 bytes`, `12 KB`, `3.4 MB`, `10 GB`. Two significant figures below ten
+/// of a unit, whole units above.
+pub fn bytes_label(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["KB", "MB", "GB", "TB", "PB"];
+    if bytes < 1000 {
+        return match bytes {
+            1 => "1 byte".to_owned(),
+            bytes => format!("{bytes} bytes"),
+        };
+    }
+    let mut value = bytes as f64;
+    let mut unit = UNITS[0];
+    for next in UNITS {
+        value /= 1000.0;
+        unit = next;
+        if value < 999.5 {
+            break;
+        }
+    }
+    match value < 9.95 {
+        true => format!("{value:.1} {unit}"),
+        false => format!("{value:.0} {unit}"),
+    }
+}
+
 pub fn embedded_editor_frame(width: f32, height: f32, scale: f32) -> (f32, f32) {
     (
         (width + EMBEDDED_EDITOR_PADDING * 2.0) * scale,

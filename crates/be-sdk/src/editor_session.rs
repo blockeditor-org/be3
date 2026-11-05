@@ -563,6 +563,7 @@ impl EditorSession {
                 be_sdk_api::shell_types::Focus {
                     block_id: focused.block_id.map(Uuid::into_bytes),
                     block_type: focused.block_type.into_bytes(),
+                    editor: focused.editor.map(Uuid::into_bytes),
                     via: focused.via.into_iter().map(Uuid::into_bytes).collect(),
                 },
             )

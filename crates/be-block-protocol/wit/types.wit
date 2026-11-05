@@ -42,6 +42,8 @@ interface types {
         policy-unreadable,
         policy-refused,
         over-quota,
+        /// A sign-in was polled sooner than its interval allows.
+        slow-down,
     }
 
     /// A connection, as the server numbers them; a session's participants and
@@ -107,6 +109,13 @@ interface types {
         held: bool,
         opens-inside: bool,
         sets-access: bool,
+        /// Bytes of the distinct objects this block holds: every version it
+        /// keeps and every object it holds. Zero for a block the reader only
+        /// knows exists.
+        size: u64,
+        /// `size` plus the `tree-size` of each child (blocks whose parent is
+        /// this one), not deduplicated across blocks.
+        tree-size: u64,
     }
 
     enum key-kind {

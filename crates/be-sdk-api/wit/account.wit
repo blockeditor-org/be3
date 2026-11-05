@@ -29,6 +29,23 @@ interface account {
         constructor();
         next: async func() -> host-preference-sources;
     }
+
+    /// What the server keeps for the account against its quota, in bytes.
+    record account-storage {
+        /// Held by the blocks the account pays for.
+        held: u64,
+        /// Uploaded and not yet held by any block.
+        pending: u64,
+        /// None when there is no limit.
+        quota: option<u64>,
+    }
+
+    /// The account's storage, none until the server has said (or on a host
+    /// with no server).
+    resource storage-usage-watch {
+        constructor();
+        next: async func() -> option<account-storage>;
+    }
 }
 
 /// The account's contacts, watched only by the shell's editor.

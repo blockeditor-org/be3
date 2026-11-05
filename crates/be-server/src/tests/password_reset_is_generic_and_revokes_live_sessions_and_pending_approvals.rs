@@ -4,7 +4,7 @@ use super::*;
 async fn password_reset_is_generic_and_revokes_live_sessions_and_pending_approvals() {
     let harness = Harness::start().await;
     let mut app = harness.member("reset@example.com").await;
-    let (code, secret) = begin_session(&mut app).await;
+    let (code, secret) = begin_session(&harness).await;
     let mut browser = Browser::default();
     browser
         .login(&harness, "reset@example.com", "correct horse battery")
@@ -56,24 +56,25 @@ async fn password_reset_is_generic_and_revokes_live_sessions_and_pending_approva
     assert!(store.resolve_token(&app.token).await.is_err());
     assert!(
         store
-            .login_browser("reset@example.com", "correct horse battery")
+            .login_browser("reset@example.com", "correct horse battery", "")
             .await
             .is_err()
     );
     assert!(
         store
-            .login_browser("reset@example.com", "a new password")
+            .login_browser("reset@example.com", "a new password", "")
             .await
             .is_ok()
     );
     app.ended().await;
-    let mut claimant = harness.client().await;
-    assert!(matches!(
-        claimant
-            .call(|peer| client::account::finish_browser_login(peer, code, secret))
-            .await,
-        Err(_)
-    ));
+    let claimed = poll_login(&harness, &code, &secret).await;
+    assert!(
+        !matches!(
+            claimed,
+            Ok(be_block_protocol::BrowserLoginState::Approved(_))
+        ),
+        "an approval made before a password reset still signed in: {claimed:?}"
+    );
     assert_eq!(
         browser
             .submit(

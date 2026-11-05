@@ -6,21 +6,30 @@ use tokio::net::TcpListener;
 const USAGE: &str = "\
 Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
-            [--build-info-file FILE] [--auth-origin URL]
+            [--build-info-file FILE] [--auth-origin URL] [--account-quota BYTES]
+            [--trusted-proxy ADDR]...
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
   be-server verify [--data-dir DIR]
+  be-server invite-code create [--data-dir DIR] [--uses N] [--expires DAYS]
+  be-server invite-code list [--data-dir DIR]
+  be-server invite-code revoke [--data-dir DIR] ID
 
   --addr ADDR               Address to listen on (default: 127.0.0.1:9090)
   --data-dir DIR            Where accounts and blocks are stored (default: be-server-data)
   --allow-login             Accept sign-ins with a password; without it, only devices
                             already signed in can connect, with the tokens they hold
-  --allow-registration      Let anyone who reaches the portal register a verified account
+  --allow-registration      Let anyone with an invite code register a verified account
   --build-info-file FILE    JSON build metadata; clients must match its id. By
                             default the build-info.json file beside the executable, and with
                             neither it does not start
   --auth-origin URL         Public origin of the account portal (required outside localhost)
+  --account-quota BYTES     Bytes each account may store, or none for no limit
+                            (default: 10737418240, 10 GiB)
+  --trusted-proxy ADDR      Also take the client's address from X-Forwarded-For when a
+                            connection comes from ADDR; it is always taken from loopback, where
+                            the reverse proxy runs, and ignored from anyone else
 
 A backup uploads every object the database references that the target does not
 have yet, never deleting one, and then the database, sealed with the backup
@@ -30,6 +39,12 @@ Storage zone, with the zone's password in BUNNY_STORAGE_KEY and its region's
 endpoint in BUNNY_STORAGE_ENDPOINT (default: https://storage.bunnycdn.com).
 Without the backup key a backup cannot be restored, and without the recovery
 phrase its notes cannot be read.
+
+Registering needs an invite code from `invite-code create`, which prints the
+code once; the server keeps only its hash. --uses limits how many accounts it
+makes and --expires how many days it works (by default neither is limited).
+`list` shows each code's id, uses and expiry, and `revoke ID` deletes one.
+These work on the data directory while the server runs.
 
 RUST_LOG sets what is logged (default: info).";
 
@@ -86,6 +101,10 @@ async fn run() -> Result<(), Box<dyn Error>> {
             println!("{}", backup::BackupKey::generate().to_hex());
             return Ok(());
         }
+        Some("invite-code") => {
+            arguments.next();
+            return invite_code(arguments).map_err(|error| error.to_string().into());
+        }
         Some(command @ ("backup" | "restore" | "verify")) => {
             let command = command.to_owned();
             arguments.next();
@@ -122,6 +141,22 @@ async fn run() -> Result<(), Box<dyn Error>> {
                 let origin = arguments.next().ok_or("--auth-origin needs a URL")?;
                 be_server::mail::validate_origin(&origin)?;
                 config.auth_origin = Some(origin);
+            }
+            "--account-quota" => {
+                let quota = arguments
+                    .next()
+                    .ok_or("--account-quota needs a byte count")?;
+                config.account_quota = match quota.as_str() {
+                    "none" => None,
+                    bytes => Some(bytes.parse()?),
+                };
+            }
+            "--trusted-proxy" => {
+                let proxy = arguments
+                    .next()
+                    .ok_or("--trusted-proxy needs an address")?
+                    .parse()?;
+                config.trusted_proxies.to_mut().push(proxy);
             }
             "--help" => {
                 println!("{USAGE}");
@@ -272,6 +307,67 @@ fn maintain(command: &str, options: Options) -> Result<(), Box<dyn Error + Send 
                 "every object is present and intact"
             );
         }
+    }
+    Ok(())
+}
+
+fn invite_code(
+    mut arguments: impl Iterator<Item = String>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    use be_server::store::invite_codes;
+    let command = arguments
+        .next()
+        .ok_or(format!("name an invite-code command\n\n{USAGE}"))?;
+    let mut data_dir = PathBuf::from("be-server-data");
+    let mut uses = None;
+    let mut expires = None;
+    let mut id = None;
+    while let Some(argument) = arguments.next() {
+        let mut value = || arguments.next().ok_or(format!("{argument} needs a value"));
+        match argument.as_str() {
+            "--data-dir" => data_dir = PathBuf::from(value()?),
+            "--uses" if command == "create" => uses = Some(value()?.parse::<u32>()?),
+            "--expires" if command == "create" => expires = Some(value()?.parse::<u32>()?),
+            other if command == "revoke" && id.is_none() && !other.starts_with('-') => {
+                id = Some(other.to_owned());
+            }
+            other => return Err(format!("unknown argument {other}\n\n{USAGE}").into()),
+        }
+    }
+    let shown =
+        |limit: Option<i64>, none: &str| limit.map_or(none.to_owned(), |limit| limit.to_string());
+    match command.as_str() {
+        "create" => {
+            let (code, record) = invite_codes::create(&data_dir, uses, expires)?;
+            println!("{code}");
+            eprintln!(
+                "invite code {} made: uses {}, expires {}",
+                record.id,
+                shown(record.uses, "unlimited"),
+                shown(record.expires, "never")
+            );
+        }
+        "list" => {
+            println!("id        created     used  uses       expires");
+            for code in invite_codes::list(&data_dir)? {
+                println!(
+                    "{:<8}  {:<10}  {:<4}  {:<9}  {}",
+                    code.id,
+                    code.created,
+                    code.used,
+                    shown(code.uses, "unlimited"),
+                    shown(code.expires, "never")
+                );
+            }
+        }
+        "revoke" => {
+            let id = id.ok_or("name the code to revoke by its id")?;
+            if !invite_codes::revoke(&data_dir, &id)? {
+                return Err(format!("no invite code has the id {id}").into());
+            }
+            eprintln!("invite code {id} revoked");
+        }
+        other => return Err(format!("unknown invite-code command {other}\n\n{USAGE}").into()),
     }
     Ok(())
 }

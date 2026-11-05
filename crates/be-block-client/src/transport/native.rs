@@ -22,6 +22,8 @@ use super::Frame;
 
 mod http;
 
+pub(crate) use http::post_once;
+
 type Stream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 pub(crate) enum Writer {

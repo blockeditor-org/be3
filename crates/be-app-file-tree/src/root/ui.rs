@@ -281,6 +281,7 @@ fn Inspector(inspecting: Signal<Option<Inspection>>, opened_from: NodeRef) -> No
     let access = field(|shown| &shown.access);
     let generated = field(|shown| &shown.generated);
     let shown_as = field(|shown| &shown.shown_as);
+    let size = field(|shown| &shown.size);
     let dismiss = move || inspecting.set(None);
     view! {
         <Dialog
@@ -301,6 +302,7 @@ fn Inspector(inspecting: Signal<Option<Inspection>>, opened_from: NodeRef) -> No
                 <Field label="Your access" value={access} named="access" />
                 <Field label="Generated" value={generated} named="generated" />
                 <Field label="Shown here as" value={shown_as} named="shown-as" />
+                <Field label="Size" value={size} named="size" />
             </List>
         </Dialog>
     }
@@ -535,22 +537,32 @@ fn detail(editor: Editor, row: Memo<Option<Row>>) -> (Memo<String>, Memo<bool>) 
         let Some(row) = row.get().filter(|row| row.id.is_some()) else {
             return String::new();
         };
-        if zooms(&row) || row.expandable {
+        let size = row
+            .inspection
+            .as_ref()
+            .map(|inspection| inspection.tree_size.clone())
+            .unwrap_or_default();
+        let kind = if zooms(&row) || row.expandable {
             let count = row
                 .inspection
                 .as_ref()
                 .map(|inspection| inspection.references.clone())
                 .unwrap_or_default();
-            return match count.as_str() {
+            match count.as_str() {
                 "1" => "1 item".to_owned(),
                 count => format!("{count} items"),
-            };
+            }
+        } else {
+            editor
+                .block_types()
+                .display_name(row.block_type)
+                .unwrap_or("Block")
+                .to_owned()
+        };
+        match size.is_empty() {
+            true => kind,
+            false => format!("{kind} · {size}"),
         }
-        editor
-            .block_types()
-            .display_name(row.block_type)
-            .unwrap_or("Block")
-            .to_owned()
     });
     let detailed = create_memo(move || {
         density.get() == Density::Comfortable && !detail.with(String::is_empty)

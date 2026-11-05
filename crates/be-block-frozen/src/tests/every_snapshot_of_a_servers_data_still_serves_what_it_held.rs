@@ -55,13 +55,12 @@ fn form_value(value: &str) -> String {
     value.bytes().map(|byte| format!("%{byte:02X}")).collect()
 }
 async fn sign_in(server: &Running, email: &str, password: &str) -> (Arc<Connection>, String) {
-    let connection = Connection::connect(&socket(server), &be_block_client::Clock::real())
+    let be_block_protocol::BrowserLogin { code, secret, .. } =
+        be_block_client::call_once(&server.url, |peer| {
+            client::account::begin_browser_login(peer)
+        })
         .await
-        .unwrap();
-    let be_block_protocol::BrowserLogin { code, secret } =
-        ask(client::account::begin_browser_login(&connection))
-            .await
-            .expect("browser sign-in starts");
+        .expect("browser sign-in starts");
     let page = portal_http(server, "GET", "/auth/login", "", "").await;
     let signed_in = portal_http(
         server,
@@ -94,13 +93,25 @@ async fn sign_in(server: &Running, email: &str, password: &str) -> (Arc<Connecti
     )
     .await;
     assert!(approved.starts_with("HTTP/1.1 303"), "{approved}");
-    let Ok(be_block_protocol::Authenticated { token, .. }) = ask(
-        client::account::finish_browser_login(&connection, code, secret),
-    )
+    let Ok(be_block_protocol::BrowserLoginState::Approved(be_block_protocol::Authenticated {
+        token,
+        ..
+    })) = be_block_client::call_once(&server.url, |peer| {
+        client::account::poll_browser_login(peer, code, secret)
+    })
     .await
     else {
         panic!("{email}'s password no longer signs in")
     };
+    let connection = Connection::connect(&socket(server), &be_block_client::Clock::real())
+        .await
+        .unwrap();
+    ask(client::account::authenticate(
+        &connection,
+        Some(token.clone()),
+    ))
+    .await
+    .expect("the token signs in");
     (connection, token)
 }
 
@@ -152,8 +163,14 @@ async fn check(snapshot: &Snapshot) {
     let (by_password, owner_token) =
         sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
     let store = be_server::ServerStore::open(&server.directory).unwrap();
-    assert!(store.resolve_token(snapshot.owner_token).await.is_ok());
-    assert!(store.resolve_token(snapshot.friend_token).await.is_ok());
+    assert!(
+        store.resolve_token(snapshot.owner_token).await.is_ok(),
+        "{name}: the owner's session was not kept"
+    );
+    assert!(
+        store.resolve_token(snapshot.friend_token).await.is_ok(),
+        "{name}: the friend's session was not kept"
+    );
     let Ok(be_block_protocol::RecoveryKey { public, .. }) =
         ask(client::keys::get_recovery_key(&by_password)).await
     else {
@@ -223,6 +240,7 @@ async fn check(snapshot: &Snapshot) {
         ),
         "{name}: the server no longer reads the policies shared with it: {refused}"
     );
+    check_storage(snapshot, &server, &store, &owner).await;
     let metadata = |block: &str| {
         let owner = &owner;
         let block = id(block);
@@ -440,6 +458,33 @@ async fn check(snapshot: &Snapshot) {
     assert!(friend.summary(id(snapshot.recipes)).await.is_err());
     let owner_personal = peer(&server, snapshot.owner_phrase, &owner_token, personal).await;
     assert_eq!(
+        text(&owner_personal, snapshot.usage.friend_note).await,
+        scene::FRIEND_NOTE
+    );
+    let holiday = owner_personal.summary(id(snapshot.holiday)).await.unwrap();
+    let holiday_note = owner_personal
+        .summary(id(snapshot.holiday_note))
+        .await
+        .unwrap();
+    let friend_note = owner_personal
+        .summary(id(snapshot.usage.friend_note))
+        .await
+        .unwrap();
+    assert!(friend_note.size > 0);
+    assert_eq!(
+        holiday.tree_size,
+        holiday.size + holiday_note.tree_size + friend_note.tree_size,
+        "{name}: what the friend made in the owner's folder is not in its tree"
+    );
+    let friend_storage = ask(client::account::storage_usage(&friend.connection()))
+        .await
+        .unwrap();
+    assert_eq!(
+        (friend_storage.held, snapshot.usage.friend_held),
+        (0, 0),
+        "{name}: the friend is charged for a block in the owner's tree"
+    );
+    assert_eq!(
         text(&owner_personal, snapshot.holiday_note).await,
         scene::HOLIDAY_NOTE
     );
@@ -547,6 +592,142 @@ async fn check(snapshot: &Snapshot) {
     assert_eq!(text(&owner, snapshot.plan).await, scene::PLAN[1]);
     drop(owner);
     server.stop().await;
+}
+
+/// Storage accounting: block and subtree sizes, usage, the quota policy, an agent's charges, and
+/// invite codes.
+async fn check_storage(
+    snapshot: &Snapshot,
+    server: &Running,
+    store: &be_server::ServerStore,
+    owner: &Peer<MemoryStore>,
+) {
+    let name = snapshot.name;
+    let summary = |block: &str| {
+        let block = id(block);
+        async move { owner.summary(block).await.unwrap() }
+    };
+    let (my_files, notes, shopping, program, archive, long) = (
+        summary(snapshot.my_files).await,
+        summary(snapshot.notes).await,
+        summary(snapshot.shopping).await,
+        summary(snapshot.program).await,
+        summary(snapshot.archive).await,
+        summary(snapshot.long).await,
+    );
+    for leaf in [&shopping, &program, &long] {
+        assert!(leaf.size > 0, "{name}: a block's objects were not counted");
+        assert_eq!(
+            leaf.tree_size, leaf.size,
+            "{name}: a leaf's tree is more than itself"
+        );
+    }
+    assert_eq!(archive.tree_size, archive.size + long.tree_size, "{name}");
+    assert_eq!(
+        notes.tree_size,
+        notes.size + shopping.tree_size + program.tree_size + archive.tree_size,
+        "{name}: a folder's tree is not itself and its children's"
+    );
+    assert_eq!(
+        my_files.tree_size,
+        my_files.size + notes.tree_size,
+        "{name}"
+    );
+    let storage = ask(client::account::storage_usage(&owner.connection()))
+        .await
+        .unwrap();
+    assert!(
+        storage.held >= long.size,
+        "{name}: the owner is charged less than one of its blocks holds"
+    );
+
+    let usage = &snapshot.usage;
+    assert_eq!(
+        (storage.held, storage.pending),
+        (usage.owner_held, usage.owner_pending),
+        "{name}: the owner's usage changed"
+    );
+    assert!(
+        usage.owner_pending >= scene::PENDING_UPLOAD.len() as u64,
+        "{name}: the upload no block holds no longer counts"
+    );
+    assert_eq!(my_files.tree_size, usage.my_files_tree_size, "{name}");
+    let team = summary(snapshot.team).await;
+    assert_eq!(
+        (team.size, team.tree_size),
+        (usage.team_size, usage.team_tree_size),
+        "{name}: the team's sizes changed"
+    );
+    assert_eq!(text(owner, usage.agent_note).await, scene::AGENT_NOTE);
+    assert_eq!(
+        owner.organization_policies().await.unwrap().quota(),
+        Some(scene::STORAGE_QUOTA),
+        "{name}: the storage quota no longer reads in bytes"
+    );
+    let agent = Connection::connect(&socket(server), &be_block_client::Clock::real())
+        .await
+        .unwrap();
+    ask(client::account::authenticate(
+        &agent,
+        Some(snapshot.agent_token.to_owned()),
+    ))
+    .await
+    .unwrap();
+    ask(client::organizations::open_organization(
+        &agent,
+        id(snapshot.organization),
+    ))
+    .await
+    .unwrap();
+    let charged = ask(client::account::storage_usage(&agent)).await.unwrap();
+    assert_eq!(
+        (charged.held, charged.pending),
+        (storage.held, storage.pending),
+        "{name}: the agent is no longer charged to the account that created it"
+    );
+
+    let register = |email: &'static str, invite: &'static str| async move {
+        store
+            .registration_link(
+                email,
+                email,
+                scene::REGISTERED_PASSWORD,
+                invite,
+                "",
+                "192.0.2.7",
+            )
+            .await
+    };
+    assert!(
+        register("again@example.com", usage.used_invite)
+            .await
+            .is_err(),
+        "{name}: a used-up invite code registered another account"
+    );
+    let link = register("unused@example.com", usage.unused_invite)
+        .await
+        .unwrap_or_else(|error| panic!("{name}: the unused invite code was refused: {error}"));
+    store
+        .confirm_mail(&link.token, None, "192.0.2.7")
+        .await
+        .unwrap();
+    assert!(
+        register("third@example.com", usage.unused_invite)
+            .await
+            .is_err(),
+        "{name}: an invite code registered more accounts than it allows"
+    );
+    assert!(
+        store
+            .login_browser(
+                scene::REGISTERED_EMAIL,
+                scene::REGISTERED_PASSWORD,
+                "192.0.2.7"
+            )
+            .await
+            .is_ok(),
+        "{name}: the account the used code made no longer signs in"
+    );
 }
 
 async fn run(tracker: &Tracker<be_block_store::FileStore>, arguments: &[&str]) -> String {

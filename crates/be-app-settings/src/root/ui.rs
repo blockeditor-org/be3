@@ -6,7 +6,7 @@ use be_sdk_beui::be_block::{
 };
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::icons::{
-    ICON_BUILDING, ICON_CLOUD_OFF, ICON_COLUMNS_3, ICON_FOLDER_COG, ICON_KEYBOARD,
+    ICON_BUILDING, ICON_CLOUD_OFF, ICON_COLUMNS_3, ICON_FOLDER_COG, ICON_HARD_DRIVE, ICON_KEYBOARD,
     ICON_LAYOUT_GRID, ICON_MONITOR, ICON_MONITOR_SMARTPHONE, ICON_PLUS, ICON_TAG,
 };
 use be_sdk_beui::beui::reactive::*;
@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use super::block;
 use super::setup::{DeviceSection, DeviceSetup, DifferencesSection, SetUpDone, SetUpHeading};
-use super::{DEVICES_EDITOR, ORGANIZATION_EDITOR};
+use super::{DEVICES_EDITOR, ORGANIZATION_EDITOR, STORAGE_EDITOR};
 use beui::{Align, Direction};
 
 const PADDING: Space = Space::Xl;
@@ -101,23 +101,48 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                     <Workspaces editor={editor} shown={shown} />
                     <Show condition={own}>
                         <Section title="You" caption="">
-                            <SettingRow
-                                label="Your tags"
-                                detail="Only you see them"
-                                glyph=ICON_TAG
-                                @test_id={"settings.personal-tags"}
-                                on_click={move || {
-                                    if let Some(tags) = editor.personal_tags() {
-                                        editor.host().open_block(tags, TagsContent::CONTENT_TYPE);
-                                    }
-                                }}
-                            />
+                            <List spacing=ROW_SPACING>
+                                <StorageRow editor={editor} />
+                                <SettingRow
+                                    label="Your tags"
+                                    detail="Only you see them"
+                                    glyph=ICON_TAG
+                                    @test_id={"settings.personal-tags"}
+                                    on_click={move || {
+                                        if let Some(tags) = editor.personal_tags() {
+                                            editor.host().open_block(tags, TagsContent::CONTENT_TYPE);
+                                        }
+                                    }}
+                                />
+                            </List>
                         </Section>
                     </Show>
                     <Organization editor={editor} shown={shown} />
                 </List>
             </Frame>
         </Scroll>
+    }
+}
+
+/// The way into the Storage page. It says no numbers: the page follows the server's usage
+/// while it is open, and the list, open far more often, opens no stream for it.
+#[component]
+fn StorageRow(editor: Editor) -> NodeId {
+    let block = editor.block_id();
+    let selected = shown_with(editor, block, STORAGE_EDITOR);
+    view! {
+        <SettingRow
+            label="Storage"
+            detail="What your blocks take on the server"
+            glyph=ICON_HARD_DRIVE
+            selected={selected}
+            @test_id={"settings.storage"}
+            on_click={move || {
+                editor
+                    .host()
+                    .open_block_with(block, SettingsContent::CONTENT_TYPE, STORAGE_EDITOR)
+            }}
+        />
     }
 }
 
@@ -240,7 +265,7 @@ fn Devices(
     let client = editor.host().client_id();
     let used = settings.project(move |settings| settings.root().profile(client));
     let children = editor.watch_blocks(BlockQuery::Children(block));
-    let comparing = create_memo(move || shown.get() == Some(block));
+    let comparing = shown_with(editor, block, DEVICES_EDITOR);
     view! {
         <Section title="Devices" caption="">
             <List spacing=ROW_SPACING>
@@ -524,6 +549,15 @@ fn SettingRow(
 fn shown_block(editor: Editor) -> Memo<Option<Uuid>> {
     let focused = editor.focused_block();
     create_memo(move || focused.with(|focused| focused.block_id))
+}
+
+/// Whether `block` is shown beside the list in the editor `with`, for the pages that open a
+/// block with an editor of their own.
+fn shown_with(editor: Editor, block: Uuid, with: Uuid) -> Memo<bool> {
+    let focused = editor.focused_block();
+    create_memo(move || {
+        focused.with(|focused| focused.block_id == Some(block) && focused.editor == Some(with))
+    })
 }
 
 fn blocked<C: Layer>(editor: Editor, layer: ContentProjection<C>, own: Memo<bool>) -> Memo<bool> {

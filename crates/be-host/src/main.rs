@@ -570,6 +570,7 @@ struct HostCore {
     agents: Vec<be_block_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
     contacts: contacts::Contacts,
+    storage_published: Option<u64>,
     members: members::Members,
     scheduled_organization_list: bool,
     server_url: String,
@@ -664,6 +665,7 @@ struct PendingAccountRequest {
     _answers: host::Mailbox,
     browser: Option<accounts::BrowserLogin>,
     _cancel: tokio::sync::oneshot::Sender<()>,
+    check_now: tokio::sync::mpsc::UnboundedSender<()>,
     server: ServerLocation,
     url: String,
     authorization: Option<String>,
@@ -865,6 +867,7 @@ impl HostCore {
             agents: Vec::new(),
             agent_created: None,
             contacts: contacts::Contacts::default(),
+            storage_published: None,
             members: members::Members::default(),
             scheduled_organization_list: false,
             server_url,
@@ -1275,6 +1278,7 @@ impl HostCore {
             .unwrap_or_else(|| format!("{}/auth", accounts::link_base(&url)));
         let (answers, post) = desk().mailbox(HostCore::account_answered);
         let (cancel, cancelled) = tokio::sync::oneshot::channel();
+        let (check_now, checks) = tokio::sync::mpsc::unbounded_channel();
         platform::spawn_request(async move {
             let notify = post.clone();
             let result = if !remote {
@@ -1286,6 +1290,7 @@ impl HostCore {
                     requested,
                     auth_url,
                     move |browser| notify.send(accounts::LoginEvent::Browser(browser)),
+                    checks,
                     Box::pin(async {
                         let _ = cancelled.await;
                     }),
@@ -1299,6 +1304,7 @@ impl HostCore {
             _answers: answers,
             browser: None,
             _cancel: cancel,
+            check_now,
             server,
             url,
             authorization,
@@ -2464,7 +2470,7 @@ impl HostCore {
             }
         }
         if refocused && let Some(focus) = self.focus(shell) {
-            be_host_runtime::set_focus(focus.block, focus.via);
+            be_host_runtime::set_focus(focus.block, focus.editor, focus.via);
         }
         if rewatched {
             self.watch_artifacts(self.watched());
@@ -2488,6 +2494,7 @@ impl HostCore {
         }
         Some(editors::FocusReport {
             block: report.block,
+            editor: report.editor,
             via: report.via.clone(),
         })
     }
@@ -2932,6 +2939,7 @@ impl HostCore {
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
         self.contacts.publish();
+        self.publish_storage();
         self.load_organizations_if_needed();
         if self.choosing_session {
             self.root_settings.ensure();
@@ -3023,6 +3031,24 @@ impl HostCore {
             data_dir: self.data_dir.clone(),
             clock: be_block_client::Clock::real(),
         });
+    }
+
+    /// Follows the account's storage while an editor watches it, and publishes each answer.
+    fn publish_storage(&mut self) {
+        be_host_stack::watch_storage(be_host_base::watches::watched::<
+            be_sdk_api::StorageUsageWatch,
+        >());
+        let revision = Some(be_host_stack::storage_revision());
+        if self.storage_published == revision {
+            return;
+        }
+        self.storage_published = revision;
+        let usage = be_host_stack::storage_usage().map(|usage| be_sdk_api::AccountStorage {
+            held: usage.held,
+            pending: usage.pending,
+            quota: usage.quota,
+        });
+        be_host_base::watches::publish::<be_sdk_api::StorageUsageWatch>(&usage);
     }
 
     fn publish_administrator(&self) {
@@ -3125,6 +3151,11 @@ impl HostCore {
                     .and_then(|pending| pending.browser.as_ref())
                 {
                     self.account_error = platform::open_browser(&browser.url).err();
+                }
+            }
+            UiCommand::CheckLoginNow => {
+                if let Some(pending) = &self.pending_account_request {
+                    let _ = pending.check_now.send(());
                 }
             }
             UiCommand::RetryAccount => {

@@ -35,9 +35,12 @@ const SCHEMA: &str = "
         display_name TEXT NOT NULL DEFAULT '',
         password_hash TEXT NOT NULL DEFAULT '',
         device_code TEXT NOT NULL DEFAULT '',
-        expires INTEGER NOT NULL
+        expires INTEGER NOT NULL,
+        address TEXT NOT NULL DEFAULT '',
+        invite_hash TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX account_mail_email ON account_mail(email, purpose);
+    CREATE INDEX account_mail_address ON account_mail(address);
 
     CREATE TABLE organizations (
         id              TEXT PRIMARY KEY,
@@ -110,6 +113,7 @@ const SCHEMA: &str = "
         metadata        BLOB NOT NULL DEFAULT x'',
         version         INTEGER NOT NULL DEFAULT 0,
         key_id          TEXT NOT NULL DEFAULT '',
+        payer           TEXT NOT NULL,
         PRIMARY KEY (organization_id, id)
     );
 
@@ -228,9 +232,73 @@ const SCHEMA: &str = "
     CREATE INDEX block_objects_hash
         ON block_objects (organization_id, hash);
 
+    CREATE INDEX organizations_owner
+        ON organizations (owner_id);
+    CREATE INDEX invitations_organization
+        ON invitations (organization_id);
     CREATE TABLE server_account (
         id              INTEGER PRIMARY KEY CHECK (id = 1),
         account_id      TEXT NOT NULL REFERENCES accounts(id),
         secret          BLOB NOT NULL
+    );
+
+    CREATE TABLE invite_codes (
+        id              TEXT PRIMARY KEY,
+        code_hash       TEXT NOT NULL UNIQUE,
+        created         INTEGER NOT NULL,
+        expires         INTEGER NOT NULL DEFAULT 0,
+        uses            INTEGER,
+        used            INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE INDEX agents_created_by ON agents (created_by);
+
+    CREATE TABLE object_sizes (
+        hash            TEXT PRIMARY KEY,
+        bytes           INTEGER NOT NULL
+    );
+
+    CREATE TABLE object_uploads (
+        organization_id TEXT NOT NULL,
+        account_id      TEXT NOT NULL,
+        hash            TEXT NOT NULL,
+        payer           TEXT NOT NULL,
+        uploaded        INTEGER NOT NULL,
+        PRIMARY KEY (organization_id, account_id, hash)
+    );
+
+    CREATE INDEX object_uploads_payer
+        ON object_uploads (payer, hash);
+
+    CREATE INDEX object_uploads_object
+        ON object_uploads (hash);
+
+    CREATE INDEX object_uploads_uploaded
+        ON object_uploads (uploaded);
+
+    CREATE TABLE block_sizes (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        size            INTEGER NOT NULL DEFAULT 0,
+        tree_size       INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (organization_id, block_id)
+    );
+
+    CREATE TABLE account_objects (
+        account_id      TEXT NOT NULL,
+        hash            TEXT NOT NULL,
+        count           INTEGER NOT NULL CHECK (count > 0),
+        PRIMARY KEY (account_id, hash)
+    );
+
+    CREATE TABLE account_usage (
+        account_id      TEXT PRIMARY KEY,
+        held            INTEGER NOT NULL DEFAULT 0,
+        pending         INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE organization_usage (
+        organization_id TEXT PRIMARY KEY,
+        bytes           INTEGER NOT NULL DEFAULT 0
     );
 ";

@@ -11,6 +11,7 @@ be_sdk_beui::beui_app!("../manifest.json", {
     settings => root::SettingsRoot,
     profile => root::SettingsProfileRoot,
     devices => root::DevicesRoot,
+    storage => root::StorageRoot,
     organization => root::OrganizationRoot,
     offline => root::OfflineRoot,
     display => display::DisplaySettingsRoot,

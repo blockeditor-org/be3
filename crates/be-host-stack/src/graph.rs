@@ -23,6 +23,9 @@ pub struct Node {
     pub locked: bool,
     pub held: bool,
     pub sets_access: bool,
+    /// Bytes the server keeps for this block alone, and with every block below it.
+    pub size: u64,
+    pub tree_size: u64,
 }
 
 impl Node {

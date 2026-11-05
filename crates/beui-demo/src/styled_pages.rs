@@ -3475,8 +3475,80 @@ pub(crate) fn TreePage() -> NodeId {
             >
                 <ProjectTree />
             </Sample>
+            <Sample
+                title="Treemap"
+                code={vec![DiskTreemap::SOURCE, disk_level::SOURCE, disk_size::SOURCE]}
+            >
+                <DiskTreemap />
+            </Sample>
         </ScrollPage>
     }
+}
+
+/// A disk: (name, parent, size in bytes, opens). A folder's size is its own
+/// field, as a server would report it, never added up from below.
+const DISK: [(&str, Option<usize>, u64, bool); 16] = [
+    ("Photos", None, 6_400_000_000, true),
+    ("Music", None, 2_100_000_000, true),
+    ("Projects", None, 1_300_000_000, true),
+    ("Notes", None, 220_000_000, false),
+    ("Backups", None, 4_800_000_000, false),
+    ("2025", Some(0), 3_900_000_000, true),
+    ("2024", Some(0), 2_500_000_000, false),
+    ("Summer", Some(5), 2_600_000_000, false),
+    ("Winter", Some(5), 1_300_000_000, false),
+    ("Albums", Some(1), 1_700_000_000, false),
+    ("Podcasts", Some(1), 400_000_000, false),
+    ("be3", Some(2), 900_000_000, false),
+    ("site", Some(2), 250_000_000, false),
+    ("notes.md", Some(2), 90_000_000, false),
+    ("scratch", Some(2), 60_000_000, false),
+    ("Readme", None, 3_000_000, false),
+];
+
+const TREEMAP_HEIGHT: f32 = 280.0;
+
+#[sample]
+#[component]
+fn DiskTreemap() -> NodeId {
+    let path = create_signal(Vec::<TreemapItem<usize>>::new());
+    let items = create_memo(move || disk_level(path.with(|path| path.last().map(|item| item.key))));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text style=TextStyle::CAPTION>
+                "Each tile's area is its size; pointing at one or focusing it names it. A press, Enter or Space goes into a tile that opens, and Up, Backspace or Alt+Up comes back out. The arrow keys move between tiles."
+            </Text>
+            <ListItem length=TREEMAP_HEIGHT>
+                <Treemap
+                    items
+                    path
+                    format={disk_size}
+                    label="Disk"
+                    tile_test_id="demo.treemap.tile"
+                    up_test_id="demo.treemap.up"
+                />
+            </ListItem>
+        </List>
+    }
+}
+
+#[sample]
+fn disk_level(parent: Option<usize>) -> Vec<TreemapItem<usize>> {
+    DISK.iter()
+        .enumerate()
+        .filter(|(_, (_, above, _, _))| *above == parent)
+        .map(|(key, (label, _, size, opens))| TreemapItem {
+            key,
+            label: (*label).to_owned(),
+            size: *size,
+            opens: *opens,
+        })
+        .collect()
+}
+
+#[sample]
+fn disk_size(bytes: u64) -> String {
+    format!("{:.1} GB", bytes as f64 / 1e9)
 }
 
 #[sample]

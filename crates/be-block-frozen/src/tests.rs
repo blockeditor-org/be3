@@ -15,11 +15,20 @@ pub(crate) fn sources() -> be_tool_cli::tracker::Sources {
     Box::new(be_type_bundle::sources)
 }
 
+/// An open server that keeps every upload no block holds: a snapshot's are older than the
+/// default grace, and the test checks they still count.
+fn config() -> be_server::ServerConfig {
+    be_server::ServerConfig {
+        upload_grace: std::time::Duration::from_secs(100 * 365 * 24 * 60 * 60),
+        ..be_server::ServerConfig::OPEN
+    }
+}
+
 async fn start(data: Option<PathBuf>) -> Running {
     be_lib_build_id::install("frozen");
     match data {
-        Some(data) => Running::at(data, be_server::ServerConfig::OPEN).await,
-        None => Running::start(be_server::ServerConfig::OPEN).await,
+        Some(data) => Running::at(data, config()).await,
+        None => Running::start(config()).await,
     }
 }
 

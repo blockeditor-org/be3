@@ -45,6 +45,9 @@ web-sys = { version = "0.3", features = [
     "CloseEvent",
     "Event",
     "MessageEvent",
+    "RequestCredentials",
+    "RequestInit",
+    "Response",
     "WebSocket",
 ] }
 
@@ -55,7 +58,7 @@ be-block-fault-relay = { path = "../be-block-fault-relay" }
 be-type-image = { path = "../be-type-image" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 be-type-text = { path = "../be-type-text" }
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "time"] }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "test-util", "time"] }
 be-type-workspace = { path = "../be-type-workspace" }
 
 [lints]

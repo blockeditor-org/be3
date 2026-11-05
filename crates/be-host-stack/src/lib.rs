@@ -568,6 +568,8 @@ pub fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             locked: false,
             held: true,
             sets_access: false,
+            size: 0,
+            tree_size: 0,
         });
     });
     send(Command::Duplicate {
@@ -665,6 +667,25 @@ pub fn contacts() -> Vec<be_block_client::Contact> {
 
 pub fn contacts_revision() -> u64 {
     with_shared(|shared| shared.contacts_revision).unwrap_or_default()
+}
+
+/// The account's storage as the server last said, while `watch_storage` is on.
+pub fn storage_usage() -> Option<be_block_protocol::AccountStorage> {
+    with_shared(|shared| shared.storage.clone()).flatten()
+}
+
+pub fn storage_revision() -> u64 {
+    with_shared(|shared| shared.storage_revision).unwrap_or_default()
+}
+
+/// Follows the account's storage while `on`, from a stream the server sends it on.
+pub fn watch_storage(on: bool) {
+    let changed =
+        with_shared_mut(|shared| std::mem::replace(&mut shared.storage_watched, on) != on)
+            .unwrap_or(false);
+    if changed {
+        send(Command::Storage);
+    }
 }
 
 pub fn make_contact_link(
@@ -1006,6 +1027,8 @@ pub fn create(
             locked: false,
             held: true,
             sets_access: false,
+            size: 0,
+            tree_size: 0,
         });
     });
     send(Command::Create {
@@ -1228,6 +1251,8 @@ pub fn import(bytes: &[u8], parent: be_block_graph::BlockParent) -> Result<(Uuid
                 locked: false,
                 held: true,
                 sets_access: false,
+                size: 0,
+                tree_size: 0,
             });
         });
         if let Some(bytes) = &block.content {

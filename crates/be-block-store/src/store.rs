@@ -138,6 +138,26 @@ impl FileStore {
         Ok(())
     }
 
+    /// Every object the store holds, in no order. It reads every shard, so it is for one-time
+    /// maintenance, never a request.
+    pub fn hashes(&self) -> Result<Vec<Hash>, StoreError> {
+        let mut hashes = Vec::new();
+        for shard in fs::read_dir(&self.root)? {
+            let shard = shard?;
+            if !shard.file_type()?.is_dir() {
+                continue;
+            }
+            let prefix = shard.file_name().to_string_lossy().into_owned();
+            for entry in fs::read_dir(shard.path())? {
+                let name = entry?.file_name().to_string_lossy().into_owned();
+                if let Some(hash) = Hash::from_hex(&format!("{prefix}{name}")) {
+                    hashes.push(hash);
+                }
+            }
+        }
+        Ok(hashes)
+    }
+
     pub fn root(&self) -> &Path {
         &self.root
     }

@@ -98,6 +98,7 @@ pub use types::{
     WindowResize, WindowResizeBegin,
 };
 
+pub use account::AccountStorage;
 pub use account::HostPreferenceSources;
 pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
@@ -120,7 +121,9 @@ pub use desktop::{
     windows::{HostWindow, OpenProgram, WindowKind, WindowOrigin},
 };
 pub use desktop_types::TrayMenuEntry;
-pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};
+pub use guest::account::{
+    AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch, StorageUsageWatch,
+};
 pub use guest::contacts::ContactsWatch;
 pub use guest::desktop::{
     displays::{DesktopBarWatch, DisplaysWatch},

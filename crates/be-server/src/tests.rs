@@ -23,40 +23,63 @@ mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_block_shared_from_a_hidden_folder_is_listed_as_shared;
 mod a_blocks_references_are_listed_and_announced_together;
+mod a_browser_sign_in_waits_on_polls_and_holds_no_connection;
 mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_also_refuses_browser_registration_and_login;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
 mod a_connection_hears_only_of_the_blocks_it_listed;
+mod a_connection_holds_a_bounded_number_of_listings;
+mod a_connection_holds_a_bounded_number_of_streams_and_sessions;
+mod a_connection_keeps_only_so_many_refused_listings;
+mod a_connection_reads_more_blocks_than_it_may_hold_listings;
 mod a_contact_card_the_server_swaps_does_not_open;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
+mod a_download_does_not_wait_behind_another_organizations_store_call;
 mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
+mod a_message_arriving_slowly_is_not_taken_for_silence;
 mod a_move_never_takes_a_workspace_or_more_access_without_manage;
+mod a_move_past_the_new_payers_quota_is_refused;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
+mod a_publish_pushes_the_new_storage_usage_to_its_payer;
+mod a_refused_call_keeps_the_cached_graph;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
+mod a_removed_agents_blocks_stay_charged_to_its_creator;
 mod a_rotation_gives_every_block_below_it_a_new_key_or_nothing;
 mod a_server_without_a_portal_answers_its_pages_as_json;
 mod a_session_hands_ownership_over_without_a_merge;
 mod a_settings_block_changes_only_with_manage_on_its_parent;
 mod a_settings_kind_opens_to_anyone_who_views_a_block_inside;
+mod a_slow_store_call_does_not_delay_another_connections_ping;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
+mod an_account_creates_a_bounded_number_of_agents;
+mod an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within;
 mod an_agent_signs_in_with_its_token_until_it_is_removed;
+mod an_agent_stores_against_its_creators_quota;
 mod an_editor_changes_the_prefixes_and_tags_but_no_other_kind;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
+mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
+mod an_invitation_never_takes_the_id_of_a_contact_link;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
+mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
+mod an_upload_is_used_once_and_keeps_its_object_until_collected;
+mod anonymous_mail_requests_never_fill_the_global_cap;
+mod another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashes;
 mod another_build_is_greeted_and_turned_away;
+mod block_sizes_add_up_their_subtrees_and_follow_moves;
 mod blocks_publish_and_read_back_through_the_server;
-mod browser_authorization_survives_disconnecting_before_approval;
 mod browser_forms_enforce_origin_policy_and_deny_sign_in;
 mod browser_pages_escape_codes_and_keep_available_actions;
+mod clients_not_signed_in_hold_only_their_share;
 mod closing_a_kind_rotates_it_for_who_read_it_inside;
 mod contacts_are_made_by_a_link_and_finished_by_its_owner;
 mod email_changes_wait_for_verification_and_notify_the_old_address;
+mod every_call_states_who_may_make_it;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
 mod expired_mail_and_browser_sessions_fail_and_mail_issuance_is_bounded;
@@ -64,6 +87,7 @@ mod history_records_each_commits_parents;
 mod key_rows_are_served_only_to_who_may_see_their_block;
 mod local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers;
 mod losing_every_block_inside_rotates_a_kind_open_inside;
+mod mail_links_are_bounded_per_address_and_unknown_resets_cost_the_same;
 mod members_manage_only_the_agents_they_created;
 mod metadata_travels_with_the_content_once_a_block_has_any;
 mod moving_a_block_drops_the_wraps_of_its_old_scope;
@@ -71,27 +95,38 @@ mod moving_a_block_out_of_what_is_shared_rotates_its_keys;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod objects_are_served_only_from_blocks_the_reader_can_see;
 mod old_database_backups_thin_out_by_age;
+mod one_address_holds_only_so_many_connections_and_http_sessions;
+mod one_shot_calls_only_sign_in_and_are_rate_limited;
 mod only_a_manager_lets_go_of_a_blocks_settings;
 mod only_a_manager_shares_and_a_lower_grant_reduces_nothing;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod password_changes_rotate_the_browser_and_revoke_other_sessions;
+mod password_hashing_refuses_past_its_queue_and_each_addresss_share;
 mod password_reset_is_generic_and_revokes_live_sessions_and_pending_approvals;
 mod passwords_are_validated_on_the_server_without_truncation_or_echoing;
 mod proxy_account_authentication_never_discloses_the_token;
 mod pruning_history_keeps_pinned_commits;
 mod references_keep_the_order_their_block_lists_them_in;
 mod registering_joins_the_one_personal_organization_as_an_editor;
+mod registration_checks_its_invite_code_before_hashing_the_password;
+mod registration_needs_an_invite_code_spent_when_the_account_is_made;
 mod registration_requires_verification_and_links_are_purpose_bound_and_single_use;
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod removing_a_contact_revokes_what_the_two_shared;
 mod repeated_failed_sign_ins_lock_the_account_out;
 mod requests_sent_before_a_close_are_still_carried_out;
+mod revoking_a_session_announces_only_a_change;
 mod revoking_an_http_session_removes_its_access;
 mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
+mod sign_in_failures_lock_a_pair_before_an_address_or_an_email_and_decay;
 mod the_access_list_leaves_administrators_to_the_organization_line;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
 mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
+mod the_session_registry_forgets_the_longest_empty_sessions_first;
+mod the_trees_owner_pays_for_what_anyone_makes_in_it;
+mod uploads_no_block_takes_are_collected_after_their_grace;
+mod what_one_account_keeps_on_the_server_is_bounded;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 const KEY: Uuid = Uuid::from_u128(0x006b_6579);
@@ -280,6 +315,9 @@ struct TestClient {
     directory: Option<PathBuf>,
     peer: Peer,
     heard: Vec<Heard>,
+    listening: bool,
+    /// Every method this client started a call of.
+    started: Arc<std::sync::Mutex<std::collections::BTreeSet<be_wasm_ops::MethodId>>>,
     sessions: std::collections::HashMap<Uuid, client::sessions::Session>,
     notifications: Vec<Notice>,
     token: String,
@@ -310,21 +348,23 @@ impl TestClient {
 
     fn over(socket: Socket) -> Self {
         let (sending, outbound) = tokio::sync::mpsc::unbounded_channel();
+        let started = Arc::new(std::sync::Mutex::new(std::collections::BTreeSet::new()));
+        let starting = Arc::clone(&started);
         let peer = Peer::new(be_wasm_ops::Side::Guest, move |frame| {
+            if let Ok(be_wasm_ops::Frame::Start { method, .. }) = be_wasm_ops::decode_frame(&frame)
+            {
+                starting.lock().unwrap().insert(method);
+            }
             let _ = sending.send(frame);
         });
         let (closing, closed) = oneshot::channel();
         let pump = tokio::spawn(pump(socket, peer.clone(), outbound, closed));
-        let heard = vec![
-            Heard::Changes(client::blocks::changes(&peer)),
-            Heard::Paired(client::account::paired(&peer)),
-            Heard::Contacts(client::contacts::contacts_changed(&peer)),
-            Heard::KeyWork(client::keys::key_work_changed(&peer)),
-        ];
         Self {
             directory: None,
             peer,
-            heard,
+            heard: Vec::new(),
+            listening: false,
+            started,
             sessions: std::collections::HashMap::new(),
             notifications: Vec::new(),
             token: String::new(),
@@ -346,13 +386,33 @@ impl TestClient {
         }
     }
 
-    async fn call<T, E: be_wasm_ops::wire::Decode<Result<T, Error>>>(
+    /// Makes a call; once one signs the connection in, opens the streams every client follows,
+    /// which the server refuses before then.
+    async fn call<T: 'static, E: be_wasm_ops::wire::Decode<Result<T, Error>>>(
         &mut self,
         start: impl FnOnce(&Peer) -> Pending<Result<T, Error>, E>,
     ) -> Result<T, Error> {
         let answered = start(&self.peer).await.expect("the connection stayed open");
+        if let Ok(answer) = &answered
+            && (answer as &dyn std::any::Any).is::<Authenticated>()
+        {
+            self.listen();
+        }
         self.collect();
         answered
+    }
+
+    fn listen(&mut self) {
+        if std::mem::replace(&mut self.listening, true) {
+            return;
+        }
+        let peer = &self.peer;
+        self.heard.extend([
+            Heard::Changes(client::blocks::changes(peer)),
+            Heard::Paired(client::account::paired(peer)),
+            Heard::Contacts(client::contacts::contacts_changed(peer)),
+            Heard::KeyWork(client::keys::key_work_changed(peer)),
+        ]);
     }
 
     async fn round_trip(&mut self) {
@@ -890,12 +950,94 @@ async fn http(
     let status = response.split_whitespace().nth(1).unwrap().parse().unwrap();
     (status, response)
 }
-async fn begin_session(client: &mut TestClient) -> (String, String) {
-    let begun = client
-        .call(|peer| client::account::begin_browser_login(peer))
+async fn begin_session(harness: &Harness) -> (String, String) {
+    let begun = harness
+        .once(|peer| client::account::begin_browser_login(peer))
         .await
         .expect("a browser authorization session starts");
     (begun.code, begun.secret)
+}
+
+/// Polls a browser sign-in once, as a one-shot call.
+async fn poll_login(
+    harness: &Harness,
+    code: &str,
+    secret: &str,
+) -> Result<be_block_protocol::BrowserLoginState, Error> {
+    let (code, secret) = (code.to_owned(), secret.to_owned());
+    harness
+        .once(|peer| client::account::poll_browser_login(peer, code, secret))
+        .await
+}
+
+/// Posts `body` to `path` and answers the status and the body of the answer.
+async fn post_bytes(harness: &Harness, path: &str, body: &[u8]) -> (u16, Vec<u8>) {
+    let address = harness.address;
+    let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+    stream
+        .write_all(
+            format!(
+                "POST {path} HTTP/1.1\r\nHost: {address}\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n",
+                body.len()
+            )
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+    stream.write_all(body).await.unwrap();
+    let mut bytes = Vec::new();
+    stream.read_to_end(&mut bytes).await.unwrap();
+    let end = bytes
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .expect("an HTTP answer");
+    let head = String::from_utf8_lossy(&bytes[..end]).to_string();
+    let status = head.split_whitespace().nth(1).unwrap().parse().unwrap();
+    (status, bytes[end + 4..].to_vec())
+}
+
+fn framed(frames: &[Vec<u8>]) -> Vec<u8> {
+    let mut body = Vec::new();
+    for frame in frames {
+        body.extend_from_slice(&(frame.len() as u32).to_be_bytes());
+        body.extend_from_slice(frame);
+    }
+    body
+}
+
+fn unframed(mut body: &[u8]) -> Vec<Vec<u8>> {
+    let mut frames = Vec::new();
+    while body.len() >= 4 {
+        let size = u32::from_be_bytes(body[..4].try_into().unwrap()) as usize;
+        frames.push(body[4..4 + size].to_vec());
+        body = &body[4 + size..];
+    }
+    frames
+}
+
+impl Harness {
+    /// Makes one call as a one-shot post (`POST /api/be/call`), as a client signing in does.
+    async fn once<T: 'static, E: be_wasm_ops::wire::Decode<Result<T, Error>>>(
+        &self,
+        start: impl FnOnce(&Peer) -> Pending<Result<T, Error>, E>,
+    ) -> Result<T, Error> {
+        let (sending, mut sent) = tokio::sync::mpsc::unbounded_channel();
+        let peer = Peer::new(be_wasm_ops::Side::Guest, move |frame| {
+            let _ = sending.send(frame);
+        });
+        let mut pending = start(&peer);
+        let _ = poll(&mut pending);
+        let call = sent.try_recv().expect("the call was started");
+        let (status, answer) =
+            post_bytes(self, "/api/be/call", &framed(&[hello(BUILD), call])).await;
+        assert_eq!(status, 200, "{}", String::from_utf8_lossy(&answer));
+        let frames = unframed(&answer);
+        assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
+        for frame in &frames[1..] {
+            peer.receive(frame).unwrap();
+        }
+        pending.await.expect("the call was answered")
+    }
 }
 async fn fixture_account(
     directory: &std::path::Path,
@@ -920,6 +1062,13 @@ impl mail::Delivery for CapturedMail {
     }
 }
 impl Harness {
+    /// A fresh invite code with no limits, as `be-server invite-code create` makes.
+    fn invite(&self) -> String {
+        crate::store::invite_codes::create(&self.directory, None, None)
+            .unwrap()
+            .0
+    }
+
     fn mail_token(&self, email: &str) -> String {
         let messages = self.mail.0.lock().unwrap();
         let body = &messages

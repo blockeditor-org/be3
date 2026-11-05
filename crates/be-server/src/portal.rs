@@ -44,7 +44,10 @@ pub(crate) async fn handle(
     fields: &HashMap<String, String>,
     token: &str,
     origin: &str,
+    client: std::net::IpAddr,
 ) -> Result<Response, ServerError> {
+    let address = client.to_string();
+    let address = address.as_str();
     let value = |name: &str| {
         fields
             .get(name)
@@ -78,7 +81,7 @@ pub(crate) async fn handle(
         match path {
             "/auth/login" => {
                 login_allowed()?;
-                let (_, credential) = services.store.login_browser(value("email"), value("password")).await?;
+                let (_, credential) = services.store.login_browser(value("email"), value("password"), address).await?;
                 if !token.is_empty() { services.store.logout(token).await?; }
                 response.cookie = Some(credential);
                 response.location = Some(link("/auth", &code));
@@ -87,13 +90,13 @@ pub(crate) async fn handle(
                 login_allowed()?;
                 if !services.config.allow_registration { return Err(invalid("This server is not accepting new accounts.")); }
                 confirm_password()?;
-                let mail = services.store.registration_link(value("email"), value("display_name"), value("password"), &code).await?;
+                let mail = services.store.registration_link(value("email"), value("display_name"), value("password"), value("invite"), &code, address).await?;
                 deliver(services, origin, mail);
                 response.location = Some(link("/auth/check-email", &code));
             },
             "/auth/forgot" => {
                 login_allowed()?;
-                if let Some(mail) = services.store.password_reset_link(value("email"), &code).await? { deliver(services, origin, mail); }
+                if let Some(mail) = services.store.password_reset_link(value("email"), &code, address).await? { deliver(services, origin, mail); }
                 response.location = Some(link("/auth/reset-requested", &code));
             },
             "/auth/verify" => {
@@ -102,7 +105,7 @@ pub(crate) async fn handle(
                     login_allowed()?;
                     if !services.config.allow_registration { return Err(invalid("This server is not accepting new accounts.")); }
                 }
-                let (registered, saved_code, old_email) = services.store.confirm_mail(value("token"), None).await?;
+                let (registered, saved_code, old_email) = services.store.confirm_mail(value("token"), None, address).await?;
                 if let Some(account) = registered {
                     if !token.is_empty() { services.store.logout(token).await?; }
                     response.cookie = Some(services.store.browser_session(account).await?);
@@ -115,7 +118,7 @@ pub(crate) async fn handle(
             "/auth/reset" => {
                 login_allowed()?;
                 confirm_password()?;
-                let (_, saved_code, _) = services.store.confirm_mail(value("token"), Some(value("password"))).await?;
+                let (_, saved_code, _) = services.store.confirm_mail(value("token"), Some(value("password")), address).await?;
                 response.cookie = Some(String::new());
                 response.location = Some(link("/auth/password-reset", &saved_code));
             },
@@ -141,13 +144,13 @@ pub(crate) async fn handle(
                 response.location = Some("/auth/settings?saved=1".into());
             },
             "/auth/settings/email" => {
-                let mail = services.store.email_change_link(account()?, value("email"), value("current_password")).await?;
+                let mail = services.store.email_change_link(account()?, value("email"), value("current_password"), address).await?;
                 deliver(services, origin, mail);
                 response.location = Some("/auth/check-email".into());
             },
             "/auth/settings/password" => {
                 confirm_password()?;
-                response.cookie = Some(services.store.change_password(account()?, value("current_password"), value("password"), token).await?);
+                response.cookie = Some(services.store.change_password(account()?, value("current_password"), value("password"), token, address).await?);
                 response.location = Some("/auth/settings?saved=1".into());
             },
             "/auth/sessions/revoke" => {
@@ -264,13 +267,14 @@ pub(crate) async fn handle(
         screen,
         email: field("email", |profile| &profile.email),
         display_name: field("display_name", |profile| &profile.display_name),
+        invite: fields.get("invite").cloned().unwrap_or_default(),
         account: profile.as_ref().map(|profile| Account {
             display_name: profile.display_name.clone(),
             email: profile.email.clone(),
         }),
         code,
         code_problem,
-        csrf: services.browser_auth.form(token)?,
+        csrf: services.browser_auth.form(token, client),
         problem: (!error.is_empty()).then(|| Problem::from_message(&error)),
         mail_token: value("token").into(),
         sessions: sessions.into_iter().map(session).collect(),

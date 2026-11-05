@@ -14,7 +14,11 @@ use uuid::Uuid;
 use crate::{
     ServerError,
     keys::{forget_block_keys, store_keys},
-    store::{Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid},
+    limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_METADATA_BYTES},
+    store::{
+        Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid,
+        usage::{forget_objects, payer_for_new, persist_sizes},
+    },
 };
 
 pub enum PublishOutcome {
@@ -66,6 +70,24 @@ impl Visibility {
         self.administrator
     }
 
+    /// The blocks a member who administers nothing may know of, and perhaps some more: what lies
+    /// below the member's own entry points and in the organization's settings. A member's call
+    /// walks these rather than the whole organization, as the personal one holds every
+    /// account's blocks. `None` for an administrator, who may know of everything.
+    fn candidates(&self, graph: &BlockGraph) -> Option<BTreeSet<Uuid>> {
+        if self.administrator {
+            return None;
+        }
+        let mut blocks: BTreeSet<Uuid> = self
+            .visible
+            .get_or_init(|| graph.visible(self.account))
+            .keys()
+            .copied()
+            .collect();
+        blocks.extend(graph.subtree(crate::organization::settings_of(self.organization)));
+        Some(blocks)
+    }
+
     fn access(&self, graph: &BlockGraph, block: Uuid) -> Access {
         let inherited = self.inherited(graph, block);
         if inherited.can_view() || !graph.contains(block) {
@@ -98,19 +120,39 @@ fn require(
     level: Access,
     verb: &str,
 ) -> Result<(), ServerError> {
-    if graph.get(block).is_none() {
-        return Err(ServerError::Refused(
-            ErrorCode::BlockNotFound,
-            format!("block {block} does not exist"),
-        ));
-    }
-    if seen.inherited(graph, block) >= level {
+    if graph.contains(block) && seen.inherited(graph, block) >= level {
         return Ok(());
     }
-    Err(ServerError::Refused(
-        ErrorCode::PermissionDenied,
-        format!("block {block} is not {verb} by this account"),
-    ))
+    Err(refusal(graph, seen, block, verb))
+}
+
+/// Why a block below the access a call needs is refused. A block the caller may not know exists
+/// answers as one that does not, so no refusal tells anyone what another organization or account
+/// holds.
+fn refusal(graph: &BlockGraph, seen: &Visibility, block: Uuid, verb: &str) -> ServerError {
+    match seen.access(graph, block).can_know_exists() {
+        true => ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            format!("block {block} is not {verb} by this account"),
+        ),
+        false => not_found(block),
+    }
+}
+
+pub(crate) fn not_found(block: Uuid) -> ServerError {
+    ServerError::Refused(
+        ErrorCode::BlockNotFound,
+        format!("block {block} does not exist"),
+    )
+}
+
+fn verb(level: Access) -> &'static str {
+    match level {
+        Access::None | Access::KnowExists => "known",
+        Access::View => "readable",
+        Access::Edit => "editable",
+        Access::Manage => "managed",
+    }
 }
 
 fn require_parent_of(
@@ -170,6 +212,8 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         held: graph.holds(block),
         opens_inside: node.is_open_inside() && graph.settings_owner(block).is_some(),
         sets_access: node.sets_access(),
+        size: node.size,
+        tree_size: node.tree_size,
     })
 }
 
@@ -187,11 +231,18 @@ impl ServerStore {
         keys: KeySet,
     ) -> Result<BlockSummary, ServerError> {
         let references = distinct(references);
-        self.with_graph(identity.organization, move |graph, database| {
+        crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
+        self.with_graph(identity.organization, move |store, graph, database| {
+            if graph.authored(identity.account) >= MAX_BLOCKS_PER_ACCOUNT {
+                return Err(crate::limits::too_many(
+                    "blocks one account makes in an organization",
+                    MAX_BLOCKS_PER_ACCOUNT,
+                ));
+            }
             if let BlockParent::Block(target) = parent {
                 require_parent_of(graph, &visibility(identity), content_type, target)?;
             }
-            self.may_create(graph, database, identity, block, content_type, parent)?;
+            store.may_create(graph, database, identity, block, content_type, parent)?;
             if !keys
                 .keys
                 .iter()
@@ -207,10 +258,12 @@ impl ServerStore {
             graph.insert(block, node)?;
             let (kind, parent_id) = encode_parent(parent);
             let transaction = database.unchecked_transaction()?;
+            let payer = payer_for_new(&transaction, identity.organization, parent, identity.account)?;
             transaction.execute(
                 "INSERT INTO blocks
-                    (organization_id, id, content_type, author, parent_kind, parent_id, head, metadata)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7)",
+                    (organization_id, id, content_type, author, parent_kind, parent_id, head, metadata,
+                     payer)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8)",
                 params![
                     identity.organization.to_string(),
                     block.to_string(),
@@ -219,6 +272,7 @@ impl ServerStore {
                     kind,
                     parent_id,
                     metadata,
+                    payer.to_string(),
                 ],
             )?;
             store_edges(
@@ -250,7 +304,8 @@ impl ServerStore {
         references: Vec<Uuid>,
     ) -> Result<(BlockSummary, Vec<Uuid>), ServerError> {
         let references = distinct(references);
-        self.with_graph(identity.organization, move |graph, database| {
+        crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
+        self.with_graph(identity.organization, move |_, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             if let Some(head) = graph.head(block) {
                 return Err(ServerError::Refused(
@@ -286,7 +341,7 @@ impl ServerStore {
         blocks: Vec<Uuid>,
         subtree: bool,
     ) -> Result<Vec<Vec<(crate::watch::Push, bool)>>, ServerError> {
-        self.with_graph(organization, move |graph, _| {
+        self.with_graph(organization, move |_, graph, _| {
             let mut touched = Vec::new();
             for block in blocks {
                 match subtree {
@@ -338,7 +393,7 @@ impl ServerStore {
         organization: Uuid,
         blocks: Vec<Uuid>,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
-        self.with_graph(organization, move |graph, _| {
+        self.with_graph(organization, move |_, graph, _| {
             Ok(blocks
                 .into_iter()
                 .flat_map(|block| graph.audience(block))
@@ -347,31 +402,45 @@ impl ServerStore {
         .await
     }
 
+    /// Refuses unless the caller has at least `level` on every one of `blocks`: the check the
+    /// dispatcher makes for a call's block arguments before its handler runs. A refusal here
+    /// keeps the cached graph, unlike an error inside a change.
+    pub async fn require_access(
+        &self,
+        identity: Identity,
+        blocks: Vec<Uuid>,
+        level: Access,
+    ) -> Result<(), ServerError> {
+        self.with_graph(identity.organization, move |_, graph, _| {
+            let seen = visibility(identity);
+            Ok(blocks
+                .into_iter()
+                .find(|block| !graph.contains(*block) || seen.access(graph, *block) < level)
+                .map_or(Ok(()), |block| {
+                    Err(refusal(graph, &seen, block, verb(level)))
+                }))
+        })
+        .await?
+    }
+
     pub async fn read_block(
         &self,
         identity: Identity,
         block: Uuid,
     ) -> Result<BlockSummary, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
-            if !graph.contains(block) {
-                return Err(ServerError::Refused(
-                    ErrorCode::BlockNotFound,
-                    format!("block {block} does not exist"),
-                ));
-            }
+        self.with_graph(identity.organization, move |_, graph, _| {
+            let Some(node) = graph.get(block) else {
+                return Err(not_found(block));
+            };
             let seen = visibility(identity);
             if !seen.can_view(graph, block) {
                 let access = graph.effective_access(block, identity.account);
-                let node = graph.get(block).ok_or(ServerError::Corrupt)?;
                 return match access.can_know_exists() {
                     true => Ok(BlockSummary {
                         revision: graph.revision(),
                         ..BlockSummary::no_access(block, node.content_type, access)
                     }),
-                    false => Err(ServerError::Refused(
-                        ErrorCode::PermissionDenied,
-                        format!("block {block} is not readable by this account"),
-                    )),
+                    false => Err(not_found(block)),
                 };
             }
             summary_with(graph, &seen, block).ok_or(ServerError::Corrupt)
@@ -385,7 +454,7 @@ impl ServerStore {
         blocks: Vec<Uuid>,
         held: Vec<CommitId>,
     ) -> Result<(Vec<BlockSummary>, Vec<Hash>), ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
             let held: BTreeSet<CommitId> = held.into_iter().collect();
             let mut statement = database.prepare(
@@ -396,18 +465,7 @@ impl ServerStore {
             let mut summaries = Vec::with_capacity(blocks.len());
             let mut objects = Vec::new();
             for block in blocks {
-                if !graph.contains(block) {
-                    return Err(ServerError::Refused(
-                        ErrorCode::BlockNotFound,
-                        format!("block {block} does not exist"),
-                    ));
-                }
-                if !seen.can_view(graph, block) {
-                    return Err(ServerError::Refused(
-                        ErrorCode::PermissionDenied,
-                        format!("block {block} is not readable by this account"),
-                    ));
-                }
+                require(graph, &seen, block, Access::View, "readable")?;
                 let summary = summary_with(graph, &seen, block).ok_or(ServerError::Corrupt)?;
                 if let Some(head) = summary.head
                     && !held.contains(&head)
@@ -444,17 +502,10 @@ impl ServerStore {
         references: Vec<Uuid>,
         metadata: Vec<u8>,
     ) -> Result<PublishOutcome, ServerError> {
+        crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         let mut held = vec![commit.hash()];
         held.extend(chunks.iter().copied());
-        for hash in &held {
-            if !self.objects().has(*hash)? {
-                return Err(ServerError::Refused(
-                    ErrorCode::ObjectNotFound,
-                    format!("object {hash} must be uploaded before it can be published"),
-                ));
-            }
-        }
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let current = graph.head(block);
             if current != expected {
@@ -482,7 +533,8 @@ impl ServerStore {
                 )
                 .optional()?;
             if existing.is_none() {
-                self.within_quota(graph, &transaction, identity.organization, &held)?;
+                store.require_holdable(graph, database, identity, &held, "published")?;
+                let holding = store.before_holding(&transaction, graph, identity, block, &held)?;
                 transaction.execute(
                     "INSERT INTO block_commits
                         (organization_id, block_id, commit_id, parents, time, pinned, received)
@@ -497,7 +549,6 @@ impl ServerStore {
                         be_block_commit::now_milliseconds()
                     ],
                 )?;
-                let mut refs = self.object_refs();
                 for (position, hash) in held.iter().enumerate() {
                     transaction.execute(
                         "INSERT INTO commit_objects
@@ -512,8 +563,17 @@ impl ServerStore {
                         ],
                     )?;
                 }
+                let grew = store.charge_holding(graph, &transaction, &holding)?;
+                let mut refs = store.object_refs();
                 refs.retain(&held);
                 persist_refs(&transaction, &refs, &held)?;
+                graph.add_size(block, grew, true)?;
+                persist_sizes(
+                    &transaction,
+                    graph,
+                    identity.organization,
+                    chain(graph, block),
+                )?;
             }
             transaction.execute(
                 "UPDATE blocks SET head = ?3, metadata = ?4, version = version + 1
@@ -543,25 +603,79 @@ impl ServerStore {
         identity: Identity,
         hash: Hash,
     ) -> Result<bool, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
-            let mut statement = database.prepare(
-                "SELECT block_id FROM commit_objects WHERE organization_id = ?1 AND hash = ?2
-                 UNION
-                 SELECT block_id FROM block_objects WHERE organization_id = ?1 AND hash = ?2",
-            )?;
-            let rows = statement.query_map(
-                params![identity.organization.to_string(), hash.to_hex()],
-                |row| row.get::<_, String>(0),
-            )?;
-            let seen = visibility(identity);
-            for row in rows {
-                if seen.can_view(graph, parse_uuid(&row?)?) {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
+        // Downloads take neither the database lock nor the graph job's: the holders come from the
+        // read-only connection and access from the cached graph, which a revocation changes
+        // before its call returns. Only a graph not cached yet costs a graph job.
+        let organization = identity.organization;
+        let cached = self
+            .with_reader(move |store, reader| {
+                let holders = holders_of(reader, organization, hash)?;
+                let seen = visibility(identity);
+                Ok(store.read_graph(organization, |graph| {
+                    holders.iter().any(|block| seen.can_view(graph, *block))
+                }))
+            })
+            .await?;
+        if let Some(readable) = cached {
+            return Ok(readable);
+        }
+        self.with_graph(organization, move |_, graph, database| {
+            readable(graph, database, identity, hash)
         })
         .await
+    }
+
+    /// Which of `hashes` the caller lacks, as far as it may know: an object it neither uploaded
+    /// nor may read is missing to it whether or not someone else stored it.
+    pub async fn missing_objects(
+        &self,
+        identity: Identity,
+        hashes: Vec<Hash>,
+    ) -> Result<Vec<Hash>, ServerError> {
+        self.with_graph(identity.organization, move |store, graph, database| {
+            let mut missing = Vec::new();
+            for hash in hashes {
+                if !store.holdable(graph, database, identity, hash)? {
+                    missing.push(hash);
+                }
+            }
+            Ok(missing)
+        })
+        .await
+    }
+
+    /// Whether the caller may have a block hold `hash`: the server has it, and the caller uploaded
+    /// it in this organization or may already read it. Knowing a hash proves nothing, so a hash
+    /// someone else stored is not the caller's to hold, publish or then read.
+    fn holdable(
+        &self,
+        graph: &BlockGraph,
+        database: &Connection,
+        identity: Identity,
+        hash: Hash,
+    ) -> Result<bool, ServerError> {
+        Ok(self.objects().has(hash)?
+            && (crate::store::uploaded(database, identity, hash)?
+                || readable(graph, database, identity, hash)?))
+    }
+
+    fn require_holdable(
+        &self,
+        graph: &BlockGraph,
+        database: &Connection,
+        identity: Identity,
+        hashes: &[Hash],
+        verb: &str,
+    ) -> Result<(), ServerError> {
+        for hash in hashes {
+            if !self.holdable(graph, database, identity, *hash)? {
+                return Err(ServerError::Refused(
+                    ErrorCode::ObjectNotFound,
+                    format!("object {hash} must be uploaded before it can be {verb}"),
+                ));
+            }
+        }
+        Ok(())
     }
 
     pub async fn hold_objects(
@@ -570,18 +684,11 @@ impl ServerStore {
         block: Uuid,
         objects: Vec<Hash>,
     ) -> Result<(), ServerError> {
-        for hash in &objects {
-            if !self.objects().has(*hash)? {
-                return Err(ServerError::Refused(
-                    ErrorCode::ObjectNotFound,
-                    format!("object {hash} must be uploaded before it can be held"),
-                ));
-            }
-        }
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
+            store.require_holdable(graph, database, identity, &objects, "held")?;
             let transaction = database.unchecked_transaction()?;
-            self.within_quota(graph, &transaction, identity.organization, &objects)?;
+            let holding = store.before_holding(&transaction, graph, identity, block, &objects)?;
             let organization = identity.organization.to_string();
             let mut fresh = Vec::new();
             for hash in objects {
@@ -594,9 +701,17 @@ impl ServerStore {
                     fresh.push(hash);
                 }
             }
-            let mut refs = self.object_refs();
+            let grew = store.charge_holding(graph, &transaction, &holding)?;
+            let mut refs = store.object_refs();
             refs.retain(&fresh);
             persist_refs(&transaction, &refs, &fresh)?;
+            graph.add_size(block, grew, true)?;
+            persist_sizes(
+                &transaction,
+                graph,
+                identity.organization,
+                chain(graph, block),
+            )?;
             transaction.commit()?;
             Ok(())
         })
@@ -610,7 +725,7 @@ impl ServerStore {
         parent: BlockParent,
         keys: KeySet,
     ) -> Result<(BTreeSet<Uuid>, BTreeSet<Uuid>), ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
             require_edit(graph, &seen, block)?;
             if block == crate::organization::settings_of(identity.organization) {
@@ -633,7 +748,7 @@ impl ServerStore {
                     require_parent_of(graph, &seen, node.content_type, target)?;
                 }
                 BlockParent::Root if node.parent != BlockParent::Root => {
-                    self.may_add_workspace(graph, database, identity, block, node.content_type)?;
+                    store.may_add_workspace(graph, database, identity, block, node.content_type)?;
                 }
                 BlockParent::Root | BlockParent::Detached => {}
             }
@@ -659,8 +774,12 @@ impl ServerStore {
                         && seen.can_view(graph, owner)
                 },
             )?;
+            store.follow_payer(graph, &transaction, identity, block, parent)?;
+            let mut resized = chain(graph, block);
             graph.set_parent(block, parent)?;
             graph.touch(block)?;
+            resized.extend(graph.ancestors(block));
+            persist_sizes(&transaction, graph, identity.organization, resized)?;
             let lost = match viewing {
                 Some(viewing) => {
                     crate::keys::lost_below(&transaction, graph, identity.organization, viewing)?
@@ -685,7 +804,7 @@ impl ServerStore {
     }
 
     pub async fn list_shared(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             if seen.administrator {
                 return Ok(Vec::new());
@@ -705,7 +824,7 @@ impl ServerStore {
         identity: Identity,
         parent: BlockParent,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             let settings = crate::organization::settings_of(identity.organization);
             Ok(graph
@@ -720,10 +839,16 @@ impl ServerStore {
     }
 
     pub async fn list_deleted(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
-            Ok(graph
-                .deleted_roots()
+            let deleted = match seen.candidates(graph) {
+                None => graph.deleted_roots(),
+                Some(blocks) => blocks
+                    .into_iter()
+                    .filter(|block| graph.contains(*block) && !graph.holds(*block))
+                    .collect(),
+            };
+            Ok(deleted
                 .into_iter()
                 .filter_map(|block| summary_with(graph, &seen, block))
                 .filter(|block| block.access.can_know_exists())
@@ -737,7 +862,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             Ok(graph
                 .backrefs(block)
@@ -754,7 +879,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             let mut found: BTreeMap<Uuid, BlockSummary> = BTreeMap::new();
             for owner in graph.ancestors(block) {
@@ -785,7 +910,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
+        self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             if !seen.can_view(graph, block) {
                 return Ok(Vec::new());
@@ -805,13 +930,14 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<HistoryEntry>, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
-            if !visibility(identity).can_view(graph, block) {
-                return Err(ServerError::Refused(
-                    ErrorCode::PermissionDenied,
-                    format!("block {block} is not readable by this account"),
-                ));
-            }
+        self.with_graph(identity.organization, move |_, graph, database| {
+            require(
+                graph,
+                &visibility(identity),
+                block,
+                Access::View,
+                "readable",
+            )?;
             read_history(database, identity.organization, block)
         })
         .await
@@ -823,10 +949,10 @@ impl ServerStore {
         block: Uuid,
         drop: Vec<CommitId>,
     ) -> Result<usize, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let head = graph.head(block);
-            let kept_for = self
+            let kept_for = store
                 .policies(graph, database, identity.organization)?
                 .history_kept_for();
             let transaction = database.unchecked_transaction()?;
@@ -844,22 +970,41 @@ impl ServerStore {
                 .filter(|entry| entry.pinned)
                 .map(|entry| entry.commit)
                 .collect();
-            let mut refs = self.object_refs();
+            let mut refs = store.object_refs();
             let mut freed = Vec::new();
+            let mut released = Vec::new();
             for commit in drop {
                 if head == Some(commit) || pinned.contains(&commit) {
                     continue;
                 }
-                freed.extend(release_commit(
+                let (rows, gone) = release_commit(
                     &transaction,
                     &mut refs,
                     identity.organization,
                     block,
                     commit,
-                )?);
+                )?;
+                released.extend(rows);
+                freed.extend(gone);
             }
+            std::mem::drop(refs);
+            let shrank = store.release_charged(
+                &transaction,
+                graph,
+                identity.organization,
+                block,
+                &released,
+            )?;
+            let freed = forget_objects(&transaction, &freed)?;
+            graph.add_size(block, shrank, false)?;
+            persist_sizes(
+                &transaction,
+                graph,
+                identity.organization,
+                chain(graph, block),
+            )?;
             transaction.commit()?;
-            remove_objects(self.objects(), &freed)?;
+            remove_objects(store.objects(), &freed)?;
             Ok(freed.len())
         })
         .await
@@ -877,14 +1022,21 @@ impl ServerStore {
     }
 
     pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
-            let kept_for = self
+            let kept_for = store
                 .policies(graph, database, identity.organization)?
                 .history_kept_for();
             let since = be_block_commit::now_milliseconds() - kept_for;
             let mut detached = Vec::new();
-            for block in graph.detached() {
+            let candidates = match seen.candidates(graph) {
+                None => graph.detached(),
+                Some(blocks) => blocks
+                    .into_iter()
+                    .filter(|block| graph.contains(*block) && !graph.is_live(*block))
+                    .collect(),
+            };
+            for block in candidates {
                 if !seen.inherited(graph, block).can_edit() {
                     continue;
                 }
@@ -896,25 +1048,34 @@ impl ServerStore {
                 detached.push(block);
             }
             let transaction = database.unchecked_transaction()?;
-            let mut refs = self.object_refs();
+            let mut refs = store.object_refs();
             let mut freed = Vec::new();
             let mut removed = Vec::new();
             for block in detached {
+                let mut released = Vec::new();
                 for commit in read_history(&transaction, identity.organization, block)? {
-                    freed.extend(release_commit(
+                    let (rows, gone) = release_commit(
                         &transaction,
                         &mut refs,
                         identity.organization,
                         block,
                         commit.commit,
-                    )?);
+                    )?;
+                    released.extend(rows);
+                    freed.extend(gone);
                 }
-                freed.extend(release_held(
+                let (rows, gone) =
+                    release_held(&transaction, &mut refs, identity.organization, block)?;
+                released.extend(rows);
+                freed.extend(gone);
+                let shrank = store.release_charged(
                     &transaction,
-                    &mut refs,
+                    graph,
                     identity.organization,
                     block,
-                )?);
+                    &released,
+                )?;
+                graph.add_size(block, shrank, false)?;
                 let organization = identity.organization.to_string();
                 transaction.execute(
                     "DELETE FROM block_edges WHERE organization_id = ?1 AND block_id = ?2",
@@ -937,11 +1098,15 @@ impl ServerStore {
                     params![organization, block.to_string()],
                 )?;
                 forget_block_keys(&transaction, identity.organization, block)?;
+                let resized = chain(graph, block);
                 graph.remove(block);
+                persist_sizes(&transaction, graph, identity.organization, resized)?;
                 removed.push(block);
             }
+            std::mem::drop(refs);
+            let freed = forget_objects(&transaction, &freed)?;
             transaction.commit()?;
-            remove_objects(self.objects(), &freed)?;
+            remove_objects(store.objects(), &freed)?;
             Ok(Collected {
                 blocks: removed,
                 objects: freed.len(),
@@ -958,14 +1123,14 @@ impl ServerStore {
         account: Uuid,
         access: Access,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             let leaving = account == identity.account && access == Access::None;
             match leaving {
-                true if !graph.contains(block) => {
-                    return Err(ServerError::Refused(
-                        ErrorCode::BlockNotFound,
-                        format!("block {block} does not exist"),
-                    ));
+                true if !visibility(identity)
+                    .access(graph, block)
+                    .can_know_exists() =>
+                {
+                    return Err(not_found(block));
                 }
                 true => {}
                 false
@@ -1031,7 +1196,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<AccessList, ServerError> {
-        self.with_graph(identity.organization, move |graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             require_manage(graph, &visibility(identity), block)?;
             let company = crate::keys::organization_kind(database, identity.organization)?
                 == be_block_protocol::OrganizationKind::Company;
@@ -1136,6 +1301,36 @@ impl ServerStore {
         })
         .await
     }
+}
+
+/// Whether a block the caller can view holds `hash`, by a commit or by `HoldObjects`.
+fn readable(
+    graph: &BlockGraph,
+    database: &Connection,
+    identity: Identity,
+    hash: Hash,
+) -> Result<bool, ServerError> {
+    let seen = visibility(identity);
+    Ok(holders_of(database, identity.organization, hash)?
+        .into_iter()
+        .any(|block| seen.can_view(graph, block)))
+}
+
+/// The blocks of `organization` that hold `hash`, by a commit or by `HoldObjects`.
+fn holders_of(
+    database: &Connection,
+    organization: Uuid,
+    hash: Hash,
+) -> Result<Vec<Uuid>, ServerError> {
+    let mut statement = database.prepare_cached(
+        "SELECT block_id FROM commit_objects WHERE organization_id = ?1 AND hash = ?2
+         UNION
+         SELECT block_id FROM block_objects WHERE organization_id = ?1 AND hash = ?2",
+    )?;
+    let rows = statement.query_map(params![organization.to_string(), hash.to_hex()], |row| {
+        row.get::<_, String>(0)
+    })?;
+    rows.map(|row| parse_uuid(&row?)).collect()
 }
 
 pub(crate) fn revoke_or_grant(
@@ -1306,7 +1501,7 @@ fn release_commit(
     organization: Uuid,
     block: Uuid,
     commit: CommitId,
-) -> Result<Vec<Hash>, ServerError> {
+) -> Result<(Vec<Hash>, Vec<Hash>), ServerError> {
     let mut held = Vec::new();
     {
         let mut statement = connection.prepare(
@@ -1345,7 +1540,7 @@ fn release_commit(
     )?;
     let freed = refs.release(&held);
     persist_refs(connection, refs, &held)?;
-    Ok(freed)
+    Ok((held, freed))
 }
 
 fn release_held(
@@ -1353,7 +1548,7 @@ fn release_held(
     refs: &mut ObjectRefs,
     organization: Uuid,
     block: Uuid,
-) -> Result<Vec<Hash>, ServerError> {
+) -> Result<(Vec<Hash>, Vec<Hash>), ServerError> {
     let mut held = Vec::new();
     {
         let mut statement = connection.prepare(
@@ -1373,7 +1568,14 @@ fn release_held(
     )?;
     let freed = refs.release(&held);
     persist_refs(connection, refs, &held)?;
-    Ok(freed)
+    Ok((held, freed))
+}
+
+/// A block and its ancestors: the blocks whose sizes change with its own.
+fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
+    std::iter::once(block)
+        .chain(graph.ancestors(block))
+        .collect()
 }
 
 fn remove_objects(objects: &be_block_store::FileStore, freed: &[Hash]) -> Result<(), ServerError> {

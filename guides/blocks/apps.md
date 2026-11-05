@@ -102,7 +102,9 @@ anything holds the `BlockList`.
 
 A `BlockInfo` carries type, author, parent (`BlockLocation`), name, references,
 access, artifact source, `locked` (viewable but no key yet, so metadata is
-empty) and `deleted`. `BlockInfo::reach` (`Open`, `Locked`, `NoAccess`),
+empty), `deleted`, and the server's `size` and `tree_size` in bytes (the
+block alone, and with everything below it; zero where the reader only knows
+it exists). A size comes from that field, never from walking the children. `BlockInfo::reach` (`Open`, `Locked`, `NoAccess`),
 `BlockInfo::label` and `be_sdk_beui::label_glyph` give every place that draws
 a referenced block one way to show these states.
 

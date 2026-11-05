@@ -18,7 +18,13 @@ const OFFLINE_ABOUT: &str = "Whether this device keeps a workspace's blocks so t
 const FIXED: &str = "Set by your organization";
 
 const HISTORY_DAYS: [Option<u32>; 5] = [None, Some(7), Some(30), Some(90), Some(365)];
-const QUOTAS: [Option<u64>; 4] = [None, Some(10_000), Some(100_000), Some(1_000_000)];
+const GIGABYTE: u64 = 1_000_000_000;
+const QUOTAS: [Option<u64>; 4] = [
+    None,
+    Some(10 * GIGABYTE),
+    Some(100 * GIGABYTE),
+    Some(1_000 * GIGABYTE),
+];
 const GRACE_DAYS: [Option<u32>; 3] = [Some(1), None, Some(30)];
 
 struct Policy<R> {
@@ -88,13 +94,8 @@ const POLICIES: [Policy<OrganizationPolicies>; 4] = [
     Policy {
         key: "quota",
         label: "Storage quota",
-        description: "The encrypted objects the server keeps for this organization. Uploads past it are refused.",
-        options: &[
-            "No limit",
-            "10,000 objects",
-            "100,000 objects",
-            "1,000,000 objects",
-        ],
+        description: "The bytes of encrypted objects the server keeps for this organization. Uploads past it are refused.",
+        options: &["No limit", "10 GB", "100 GB", "1 TB"],
         get: |policies| index_of(&QUOTAS, &policies.storage_quota),
         set: |index| OrganizationPolicies::set_storage_quota(QUOTAS[index.min(QUOTAS.len() - 1)]),
     },

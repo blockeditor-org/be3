@@ -53,6 +53,7 @@ pub fn start_embedded_server_at(
                     be_server::ServerConfig {
                         local_profiles: true,
                         lease,
+                        account_quota: None,
                         ..be_server::ServerConfig::OPEN
                     },
                     shutdown,

@@ -19,6 +19,43 @@ pub(crate) fn spawn(future: impl Future<Output = ()> + 'static) {
     wasm_bindgen_futures::spawn_local(future);
 }
 
+/// Posts `body` to `url` with `fetch`, sending the page's cookies for the server's origin (the
+/// gateway's; guides/hosting.md), and answers the frames of the answer. No content type is set,
+/// so the post needs no preflight.
+pub(crate) async fn post_once(url: &str, body: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+    let init = web_sys::RequestInit::new();
+    init.set_method("POST");
+    init.set_credentials(web_sys::RequestCredentials::Include);
+    init.set_body(&js_sys::Uint8Array::from(body).into());
+    let global = js_sys::global();
+    let fetch = js_sys::Reflect::get(&global, &JsValue::from_str("fetch"))
+        .ok()
+        .and_then(|fetch| fetch.dyn_into::<js_sys::Function>().ok())
+        .ok_or_else(|| "this page cannot fetch".to_owned())?;
+    let promise = fetch
+        .call2(&global, &JsValue::from_str(url), &init)
+        .map_err(|error| describe(&error))?;
+    let response: web_sys::Response =
+        wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise))
+            .await
+            .map_err(|error| format!("could not reach {url}: {}", describe(&error)))?
+            .unchecked_into();
+    let buffer = wasm_bindgen_futures::JsFuture::from(
+        response.array_buffer().map_err(|error| describe(&error))?,
+    )
+    .await
+    .map_err(|error| describe(&error))?;
+    let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
+    if response.status() != 200 {
+        return Err(format!(
+            "the server answered {}: {}",
+            response.status(),
+            String::from_utf8_lossy(&bytes)
+        ));
+    }
+    super::frames(&bytes)
+}
+
 pub(crate) async fn connect(url: &str) -> Result<(Writer, Reader), String> {
     if !url.starts_with("ws://") && !url.starts_with("wss://") {
         return Err(format!(

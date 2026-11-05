@@ -496,6 +496,7 @@ fn CodeEntry(csrf: String, code: Signal<String>, lead: String) -> NodeId {
 #[component]
 fn Register(page: Shown) -> NodeId {
     let (email, name) = values(page);
+    let invite = page.read(|page| create_signal(page.invite.clone()));
     let password = create_signal(String::new());
     let confirmation = create_signal(String::new());
     let mismatch = confirm(password, confirmation, page.problem(Named::Confirmation));
@@ -508,6 +509,15 @@ fn Register(page: Shown) -> NodeId {
                 />
                 <Notice text={page.general()} />
                 <PortalForm action="/auth/register" csrf={page.csrf()} code={page.code()}>
+                    <Field
+                        kind=InputKind::Text
+                        name="invite"
+                        label="Invite code"
+                        autocomplete="off"
+                        hint="From the people who run this server."
+                        value={invite}
+                        problem={page.problem(Named::Invite)}
+                    />
                     <Field
                         kind=InputKind::Text
                         name="display_name"

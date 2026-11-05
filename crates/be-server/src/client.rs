@@ -1,35 +1,206 @@
 use std::{
     collections::{BTreeSet, HashMap},
+    net::IpAddr,
     sync::Arc,
 };
 
+use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
-    Authenticated, BlockChange, BlockEvent, BlockSummary, BrowserLogin, Collected, Contents,
-    CreatedAgent, Error, ErrorCode, Listing, OrganizationOpened, PairingMessage, RecoveryKey,
-    SessionEvent, SessionState, embed,
+    AccountStorage, Authenticated, BlockChange, BlockEvent, BlockSummary, BrowserLogin,
+    BrowserLoginState, Collected, Contents, CreatedAgent, Error, ErrorCode, Listing,
+    OrganizationOpened, PairingMessage, RecoveryKey, SessionEvent, SessionState, embed,
 };
 use be_block_session::Claim;
-use be_block_store::Hash;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::{
     CONTENTS_BYTES, Identity, PublishOutcome, ServerConfig, ServerError, ServerStore, Services,
-    SessionRegistry, WatchHub, browser_auth, contacts, store, watch::Push,
+    SessionRegistry, WatchHub,
+    address::{Anonymous, Eviction},
+    browser_auth, contacts,
+    limits::{
+        MAX_PAIRING_BYTES, MAX_RELAY_BYTES, MAX_SESSIONS_PER_CONNECTION, MAX_STREAMS_PER_CONNECTION,
+    },
+    store,
+    watch::{Place, Push},
 };
 
 /// Items a stream keeps beyond the credit its consumer granted. A client that lets one fill up
 /// is disconnected, as is one whose hub queue (`PUSHES`) fills.
 const STREAM_BUFFER: usize = 4096;
+/// Bytes every stream of one connection keeps together beyond the credit granted; a client that
+/// holds back more, by not reading what it is sent, is disconnected too.
+pub(crate) const STREAM_BUFFER_BYTES: usize = 4 * be_block_protocol::MAX_FRAME_BYTES;
 const PUSHES: usize = 4096;
 
+/// What a call needs before its handler runs. Every call of `be3:server` has one, stated in `rule`
+/// alone, and the dispatcher (`Client::admit`) applies it; a handler then checks only what its rule
+/// cannot say (a move's destination, a grant's grantee), under the graph lock.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Rule {
+    /// Anyone, signed in or not: the calls that sign in.
+    Anyone,
+    SignedIn,
+    /// Signed in, with an organization open.
+    Organization,
+    /// An administrator of the organization open.
+    Administrator,
+    /// An administrator of the organization named.
+    AdministratorOf(Uuid),
+    /// At least this access to every block named, in the organization open. A block the caller
+    /// may not know exists is refused as one that does not.
+    Blocks(Vec<Uuid>, Access),
+    /// At least this access to the block of a live session.
+    Session(OpId, Access),
+}
+
+fn block(block: Uuid, level: Access) -> Rule {
+    Rule::Blocks(vec![block], level)
+}
+
+/// The one place each call's requirement is stated. Its matches name every call, so a new call
+/// does not compile until it has a rule.
+pub(crate) fn rule(call: &embed::Call) -> Rule {
+    use embed::{Call, account, blocks, contacts, keys, members, objects, organizations};
+    match call {
+        Call::Connection(embed::connection::Call::Ping { .. }) => Rule::Anyone,
+        Call::Account(call) => match call {
+            account::Call::BeginBrowserLogin { .. }
+            | account::Call::PollBrowserLogin { .. }
+            | account::Call::CreateLocalProfile { .. }
+            | account::Call::Authenticate { .. } => Rule::Anyone,
+            account::Call::StorageUsage { .. } | account::Call::StorageChanged { .. } => {
+                Rule::Organization
+            }
+            account::Call::Logout { .. }
+            | account::Call::Pair { .. }
+            | account::Call::Paired { .. } => Rule::SignedIn,
+        },
+        Call::Organizations(call) => match call {
+            organizations::Call::Invite { organization, .. } => {
+                Rule::AdministratorOf(*organization)
+            }
+            organizations::Call::ListOrganizations { .. }
+            | organizations::Call::CreateOrganization { .. }
+            | organizations::Call::OpenOrganization { .. }
+            | organizations::Call::GetInvitation { .. }
+            | organizations::Call::AcceptInvitation { .. } => Rule::SignedIn,
+        },
+        Call::Members(call) => match call {
+            members::Call::ListMembers { .. }
+            | members::Call::SetRole { .. }
+            | members::Call::RemoveMember { .. } => Rule::Administrator,
+            members::Call::CreateAgent { .. }
+            | members::Call::ListAgents { .. }
+            | members::Call::RemoveAgent { .. } => Rule::SignedIn,
+        },
+        Call::Contacts(call) => match call {
+            contacts::Call::CreateContactLink { .. }
+            | contacts::Call::GetContactLink { .. }
+            | contacts::Call::AcceptContactLink { .. }
+            | contacts::Call::ListContactLinks { .. }
+            | contacts::Call::DeleteContactLink { .. }
+            | contacts::Call::PutContact { .. }
+            | contacts::Call::ListContacts { .. }
+            | contacts::Call::RemoveContact { .. }
+            | contacts::Call::ContactsChanged { .. } => Rule::SignedIn,
+        },
+        Call::Objects(call) => match call {
+            objects::Call::HoldObjects { block: held, .. } => block(*held, Access::Edit),
+            objects::Call::PutObjects { .. }
+            | objects::Call::GetObject { .. }
+            | objects::Call::MissingObjects { .. } => Rule::Organization,
+        },
+        Call::Blocks(call) => match call {
+            blocks::Call::CreateBlock { parent, .. } => match parent {
+                BlockParent::Block(parent) => block(*parent, Access::Edit),
+                BlockParent::Root | BlockParent::Detached => Rule::Organization,
+            },
+            blocks::Call::SetMetadata { block: of, .. }
+            | blocks::Call::Publish { block: of, .. }
+            | blocks::Call::SetParent { block: of, .. }
+            | blocks::Call::PruneHistory { block: of, .. }
+            | blocks::Call::DeleteBlock { block: of, .. } => block(*of, Access::Edit),
+            blocks::Call::SetAccess { block: of, .. } => block(*of, Access::KnowExists),
+            blocks::Call::ReadContents { blocks, .. } => Rule::Blocks(blocks.clone(), Access::View),
+            blocks::Call::ListHistory { block: of, .. } | blocks::Call::Watch { block: of, .. } => {
+                block(*of, Access::View)
+            }
+            blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
+            // Reading a block is listing it (`Connection::list`): the listing is registered
+            // before the store answers, which refuses less than `KnowExists` as not found.
+            blocks::Call::ReadBlock { .. }
+            | blocks::Call::ListBlocks { .. }
+            | blocks::Call::Unlist { .. }
+            | blocks::Call::CollectDetached { .. } => Rule::Organization,
+            blocks::Call::Changes { .. } => Rule::SignedIn,
+        },
+        Call::Sessions(call) => match call {
+            embed::sessions::Call::SessionNew { .. } => Rule::SignedIn,
+            embed::sessions::Call::SessionJoin { this, .. }
+            | embed::sessions::Call::SessionHeartbeat { this, .. }
+            | embed::sessions::Call::SessionRelay { this, .. } => {
+                Rule::Session(this.op(), Access::View)
+            }
+            embed::sessions::Call::SessionClaimOwnership { this, .. } => {
+                Rule::Session(this.op(), Access::Edit)
+            }
+        },
+        Call::Keys(call) => match call {
+            keys::Call::GetRecoveryKey { .. }
+            | keys::Call::SetRecoveryKey { .. }
+            | keys::Call::ResealKeys { .. } => Rule::SignedIn,
+            keys::Call::CreateEscrow { .. } => Rule::Administrator,
+            keys::Call::Rotate { roots, .. } => Rule::Blocks(roots.clone(), Access::Edit),
+            keys::Call::GetKeys { .. }
+            | keys::Call::PutKeys { .. }
+            | keys::Call::GetKeyWork { .. }
+            | keys::Call::PinEscrow { .. } => Rule::Organization,
+            keys::Call::KeyWorkChanged { .. } => Rule::SignedIn,
+        },
+    }
+}
+
+/// Whether a session's connection may make `call` first: only a call that signs it in. Signing
+/// in through the browser is one-shot calls (`http.rs`, `one_shot`), so no connection waits on it.
+pub(crate) fn signs_in(call: &embed::Call, local_profiles: bool) -> bool {
+    match call {
+        embed::Call::Account(embed::account::Call::Authenticate { .. }) => true,
+        embed::Call::Account(embed::account::Call::CreateLocalProfile { .. }) => local_profiles,
+        _ => false,
+    }
+}
+
+fn login_disabled() -> ServerError {
+    ServerError::Refused(
+        ErrorCode::LoginDisabled,
+        "This server is not accepting sign-ins.".into(),
+    )
+}
+
+fn seconds(duration: std::time::Duration) -> u32 {
+    u32::try_from(duration.as_secs()).unwrap_or(u32::MAX)
+}
+
+fn administrators_only() -> ServerError {
+    ServerError::Refused(
+        ErrorCode::PermissionDenied,
+        "only an administrator of the organization may do this".into(),
+    )
+}
+
+fn not_joined() -> ServerError {
+    ServerError::Refused(
+        ErrorCode::PermissionDenied,
+        "join the session before speaking in it".into(),
+    )
+}
+
 pub(crate) enum Late {
-    SignedIn {
-        reply: Reply<Result<Authenticated, Error>>,
-        profile: store::Profile,
-        token: String,
-    },
+    /// The usage of the account this connection follows may have changed.
+    Storage,
 }
 
 fn wire(error: ServerError) -> Error {
@@ -41,18 +212,27 @@ fn wire(error: ServerError) -> Error {
 
 #[derive(Clone, Copy, PartialEq)]
 enum Route {
-    Watch(Uuid),
+    Watch(Place),
     Changes,
     Paired,
     Contacts,
     KeyWork,
-    Events { session: OpId, block: Uuid },
+    Storage,
+    Events { session: OpId, block: Place },
 }
 
-#[derive(Default)]
 struct Streams {
     outlets: Outlets<Route>,
     sessions: HashMap<OpId, Uuid>,
+}
+
+impl Default for Streams {
+    fn default() -> Self {
+        Self {
+            outlets: Outlets::within(STREAM_BUFFER_BYTES),
+            sessions: HashMap::new(),
+        }
+    }
 }
 
 impl Streams {
@@ -67,18 +247,37 @@ impl Streams {
             .map_err(|_| ServerError::Socket("the client is not reading what it is sent".into()))
     }
 
-    fn open(&mut self, stream: be_wasm_ops::Producer<impl Sized>, route: Route) {
-        self.outlets
-            .insert(stream, route, Backlog::Queue(STREAM_BUFFER));
+    fn open(
+        &mut self,
+        connection: &mut be_wasm_ops::Connection,
+        stream: be_wasm_ops::Producer<impl Sized>,
+        route: Route,
+    ) {
+        self.open_with(connection, stream, route, Backlog::Queue(STREAM_BUFFER));
     }
 
-    fn events(&self, session: OpId) -> Option<OpId> {
-        self.outlets.routes().find_map(|(op, route)| {
-            matches!(route, Route::Events { session: of, .. } if *of == session).then_some(op)
+    /// Opens a stream, or refuses it once the connection has `MAX_STREAMS_PER_CONNECTION`.
+    fn open_with(
+        &mut self,
+        connection: &mut be_wasm_ops::Connection,
+        stream: be_wasm_ops::Producer<impl Sized>,
+        route: Route,
+        backlog: Backlog,
+    ) {
+        match self.outlets.len() < MAX_STREAMS_PER_CONNECTION {
+            true => self.outlets.insert(stream, route, backlog),
+            false => stream.fail(connection, OpError::Denied),
+        }
+    }
+
+    fn events(&self, session: OpId) -> Option<(OpId, Place)> {
+        self.outlets.routes().find_map(|(op, route)| match route {
+            Route::Events { session: of, block } if *of == session => Some((op, *block)),
+            _ => None,
         })
     }
 
-    fn in_session(&self, block: Uuid) -> bool {
+    fn in_session(&self, block: Place) -> bool {
         self.outlets
             .routes()
             .any(|(_, route)| matches!(route, Route::Events { block: of, .. } if *of == block))
@@ -93,9 +292,25 @@ pub(crate) struct Connection {
     pub(crate) client: u64,
     pub(crate) account: Option<Uuid>,
     pub(crate) token: Option<String>,
+    /// The `ServerStore::session_changes` version `token` last resolved at.
+    checked: Option<u64>,
     pub(crate) header_token: Option<String>,
     pub(crate) identity: Option<Identity>,
     pub(crate) config: ServerConfig,
+    /// The address the connection comes from; see [`crate::Services::client_address`].
+    pub(crate) address: IpAddr,
+    /// Since when the connection has had no account.
+    anonymous_since: tokio::time::Instant,
+    /// The connection's place among those not signed in, until it signs in.
+    anonymous: Option<Anonymous>,
+    /// Tells when `anonymous` was let go of for a newer connection.
+    pub(crate) eviction: Arc<Eviction>,
+    /// Whether the connection serves a session, which must sign in with its first call, or one
+    /// one-shot call (`http.rs`, `one_shot`).
+    one_shot: bool,
+    /// Set once the connection should be closed after what it has answered: its first call was
+    /// not one that signs in, or it logged out.
+    pub(crate) closing: bool,
 }
 
 pub(crate) struct Client {
@@ -105,11 +320,20 @@ pub(crate) struct Client {
     late: mpsc::UnboundedSender<Late>,
     pub(crate) lates: mpsc::UnboundedReceiver<Late>,
     streams: Streams,
+    /// The storage usage last sent to `Route::Storage`, and whether a task follows the payer's.
+    storage: Option<AccountStorage>,
+    following_storage: bool,
 }
 
 impl Client {
+    /// A client from `address`, holding `anonymous`, its place among those not signed in, which
+    /// `eviction` tells the loss of, until it signs in. A `one_shot` client answers one call that
+    /// needs no sign-in; any other must sign in with its first call.
     pub(crate) async fn open(
         services: &Services,
+        address: IpAddr,
+        one_shot: bool,
+        (anonymous, eviction): (Anonymous, Arc<Eviction>),
         sink: impl Fn(Vec<u8>) + Send + Sync + 'static,
     ) -> Self {
         let (sender, pushes) = mpsc::channel(PUSHES);
@@ -124,15 +348,24 @@ impl Client {
                 client,
                 account: None,
                 token: None,
+                checked: None,
                 header_token: None,
                 identity: None,
                 config: services.config.clone(),
+                address,
+                anonymous_since: tokio::time::Instant::now(),
+                anonymous: Some(anonymous),
+                eviction,
+                one_shot,
+                closing: false,
             },
             peer: Peer::new(be_wasm_ops::Side::Host, sink),
             pushes,
             late,
             lates,
             streams: Streams::default(),
+            storage: None,
+            following_storage: false,
         }
     }
 
@@ -176,15 +409,56 @@ impl Client {
 
     pub(crate) async fn late(&mut self, late: Late) {
         match late {
-            Late::SignedIn {
-                reply,
-                profile,
-                token,
-            } => {
-                let authenticated = self.connection.authenticated(profile, token).await;
-                self.reply(reply, Ok(authenticated));
-            }
+            Late::Storage => self.send_storage().await,
         }
+    }
+
+    /// Sends the account's storage usage to its storage streams when it differs from the last
+    /// sent.
+    async fn send_storage(&mut self) {
+        let Ok(identity) = self.connection.identity() else {
+            return;
+        };
+        let Ok(usage) = self.connection.store.storage_usage(identity).await else {
+            return;
+        };
+        if self.storage.as_ref() == Some(&usage) {
+            return;
+        }
+        let mut lock = self.peer.lock();
+        if self
+            .streams
+            .send(&mut lock, usage.clone(), |route| *route == Route::Storage)
+            .is_ok()
+        {
+            self.storage = Some(usage);
+        }
+    }
+
+    /// Follows the payer's usage changes for this connection's storage streams, until the
+    /// connection closes.
+    fn follow_storage(&mut self, payer: Uuid) {
+        if std::mem::replace(&mut self.following_storage, true) {
+            return;
+        }
+        let mut changes = self.connection.store.usage_changes.subscribe();
+        let late = self.late.clone();
+        tokio::spawn(async move {
+            loop {
+                let changed = tokio::select! {
+                    changed = changes.recv() => changed,
+                    () = late.closed() => return,
+                };
+                let ours = match changed {
+                    Ok(changed) => changed == payer,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => true,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                };
+                if ours && late.send(Late::Storage).is_err() {
+                    return;
+                }
+            }
+        });
     }
 
     pub(crate) async fn close(self) {
@@ -220,7 +494,7 @@ impl Client {
         {
             let mut lock = self.peer.lock();
             let streams = &mut self.streams;
-            let sessions = |block: Uuid| move |route: &Route| matches!(route, Route::Events { block: of, .. } if *of == block);
+            let sessions = |block: Place| move |route: &Route| matches!(route, Route::Events { block: of, .. } if *of == block);
             match push {
                 Push::BlockChanged(block) => {
                     streams.send(&mut lock, BlockChange::Changed(block), |route| {
@@ -273,7 +547,10 @@ impl Client {
                 } => {
                     streams.send(
                         &mut lock,
-                        SessionEvent::Relayed { from, payload },
+                        SessionEvent::Relayed {
+                            from,
+                            payload: payload.to_vec(),
+                        },
                         sessions(block),
                     )?;
                 }
@@ -302,12 +579,16 @@ impl Client {
         let left = {
             let mut lock = self.peer.lock();
             let streams = &mut self.streams;
-            if let Some(block) = streams.sessions.remove(&op) {
-                if let Some(events) = streams.events(op) {
+            if streams.sessions.remove(&op).is_some() {
+                let joined = streams.events(op);
+                if let Some((events, _)) = joined {
                     streams.outlets.end(&mut lock, events, canceled);
                 }
                 embed::sessions::Session(op).end(&mut lock);
-                (!streams.in_session(block)).then_some((block, true))
+                joined
+                    .map(|(_, block)| block)
+                    .filter(|block| !streams.in_session(*block))
+                    .map(|block| (block, true))
             } else {
                 match streams.outlets.end(&mut lock, op, canceled) {
                     Some(Route::Watch(block)) => {
@@ -340,9 +621,7 @@ impl Client {
 
     async fn prelude(&mut self) -> Result<(), ServerError> {
         let connection = &mut self.connection;
-        if let Some(token) = &connection.token {
-            connection.store.resolve_token(token).await?;
-        }
+        connection.signed_in().await?;
         if connection.identity.is_some() {
             connection.identity = connection.hub.identity(connection.client).await;
         }
@@ -359,7 +638,20 @@ impl Client {
             }
             call => call,
         };
+        if self.connection.account.is_none()
+            && !self.connection.one_shot
+            && !signs_in(&call, self.connection.config.local_profiles)
+        {
+            tracing::debug!("closing a connection whose first call does not sign it in");
+            self.connection.closing = true;
+            return;
+        }
         let prelude = self.prelude().await;
+        let rule = rule(&call);
+        let prelude = match prelude {
+            Ok(()) => self.admit(rule).await,
+            refused => refused,
+        };
         match call {
             embed::Call::Connection(_) => {}
             embed::Call::Account(call) => self.account(call, prelude).await,
@@ -373,53 +665,110 @@ impl Client {
         }
     }
 
+    /// Applies a call's rule before its handler runs; each handler starts with `prelude?`, the
+    /// answer this gives.
+    async fn admit(&self, rule: Rule) -> Result<(), ServerError> {
+        let connection = &self.connection;
+        match rule {
+            Rule::Anyone => Ok(()),
+            Rule::SignedIn => connection.account().map(drop),
+            Rule::Organization => connection.identity().map(drop),
+            Rule::Administrator => match connection.identity()?.is_administrator() {
+                true => Ok(()),
+                false => Err(administrators_only()),
+            },
+            Rule::AdministratorOf(organization) => {
+                let account = connection.account()?;
+                match connection.store.membership(account, organization).await? {
+                    be_block_protocol::OrganizationRole::Administrator => Ok(()),
+                    be_block_protocol::OrganizationRole::Editor => Err(administrators_only()),
+                }
+            }
+            Rule::Blocks(blocks, level) => {
+                let identity = connection.identity()?;
+                connection
+                    .store
+                    .require_access(identity, blocks, level)
+                    .await
+            }
+            Rule::Session(session, level) => {
+                let identity = connection.identity()?;
+                let place = match self.streams.events(session) {
+                    Some((_, place)) => place,
+                    None => match self.streams.sessions.get(&session) {
+                        Some(block) => Place {
+                            organization: identity.organization,
+                            block: *block,
+                        },
+                        None => return Err(not_joined()),
+                    },
+                };
+                if place.organization != identity.organization {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "this session is in another organization than the one open".into(),
+                    ));
+                }
+                connection
+                    .store
+                    .require_access(identity, vec![place.block], level)
+                    .await
+            }
+        }
+    }
+
     async fn account(&mut self, call: embed::account::Call, prelude: Result<(), ServerError>) {
         use embed::account::Call;
         match call {
             Call::BeginBrowserLogin { reply } => {
                 let begun = prelude.and_then(|()| {
-                    let (code, secret) =
-                        self.connection.browser_auth.begin(self.connection.client)?;
-                    Ok(BrowserLogin { code, secret })
+                    let connection = &self.connection;
+                    if !connection.config.allow_login {
+                        return Err(login_disabled());
+                    }
+                    let (code, secret, interval, expires) =
+                        connection.browser_auth.begin(connection.address);
+                    Ok(BrowserLogin {
+                        code,
+                        secret,
+                        interval: seconds(interval),
+                        expires: seconds(expires),
+                    })
                 });
                 self.reply(reply, begun);
             }
-            Call::FinishBrowserLogin {
+            Call::PollBrowserLogin {
                 reply,
                 code,
                 secret,
             } => {
-                let finished = prelude.and_then(|()| {
-                    if !self.connection.config.allow_login {
-                        return Err(ServerError::Refused(
-                            ErrorCode::LoginDisabled,
-                            "This server is not accepting sign-ins.".into(),
-                        ));
+                let polled = async {
+                    prelude?;
+                    let connection = &self.connection;
+                    if !connection.config.allow_login {
+                        return Err(login_disabled());
                     }
-                    self.connection
-                        .browser_auth
-                        .finish(self.connection.client, &code, &secret)
-                });
-                let decided = match finished {
-                    Err(error) => return self.reply(reply, Err(error)),
-                    Ok(browser_auth::Finished::Approved { account, issuer }) => {
-                        let signed_in = async {
-                            let connection = &self.connection;
+                    Ok(match connection.browser_auth.poll(&code, &secret)? {
+                        browser_auth::Polled::Pending => BrowserLoginState::Pending,
+                        browser_auth::Polled::Denied => BrowserLoginState::Denied,
+                        browser_auth::Polled::Expired => BrowserLoginState::Expired,
+                        browser_auth::Polled::Approved { account, issuer } => {
                             let token = connection
                                 .store
                                 .claim_browser_session(account, &issuer)
                                 .await?;
                             let profile = connection.store.resolve_token(&token).await?;
-                            Ok::<_, ServerError>(
-                                self.connection.authenticated(profile, token).await,
-                            )
-                        };
-                        let signed_in = signed_in.await;
-                        return self.reply(reply, signed_in);
-                    }
-                    Ok(browser_auth::Finished::Waiting(decided)) => decided,
-                };
-                self.wait_for_browser(reply, code, secret, decided);
+                            BrowserLoginState::Approved(Authenticated {
+                                account: profile.account,
+                                email: profile.email,
+                                display_name: profile.display_name,
+                                token,
+                            })
+                        }
+                    })
+                }
+                .await;
+                self.reply(reply, polled);
             }
             Call::CreateLocalProfile {
                 reply,
@@ -473,6 +822,7 @@ impl Client {
                         connection.store.logout(&token).await?;
                     }
                     connection.account = None;
+                    connection.closing = true;
                     connection.identity = None;
                     connection.hub.leave_account(connection.client).await;
                     Ok(())
@@ -480,11 +830,21 @@ impl Client {
                 .await;
                 self.reply(reply, logged_out);
             }
+            Call::StorageUsage { reply } => {
+                let connection = &self.connection;
+                let usage = async {
+                    prelude?;
+                    connection.store.storage_usage(connection.identity()?).await
+                }
+                .await;
+                self.reply(reply, usage);
+            }
             Call::Pair { reply, to, payload } => {
                 let connection = &self.connection;
                 let paired = async {
                     prelude?;
                     let account = connection.account()?;
+                    crate::limits::at_most("a pairing message", payload.len(), MAX_PAIRING_BYTES)?;
                     let message = Push::Paired(PairingMessage {
                         from: connection.client,
                         payload,
@@ -505,63 +865,52 @@ impl Client {
                 self.reply(reply, paired);
             }
             Call::Paired { stream } => {
-                self.streams.open(stream, Route::Paired);
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
+                self.streams
+                    .open(&mut self.peer.lock(), stream, Route::Paired);
+            }
+            Call::StorageChanged { stream } => {
+                let connection = &self.connection;
+                let payer = async {
+                    prelude?;
+                    connection.store.payer(connection.account()?).await
+                }
+                .await;
+                match payer {
+                    Ok(payer) => {
+                        {
+                            let mut lock = self.peer.lock();
+                            let earlier: Vec<OpId> = self
+                                .streams
+                                .outlets
+                                .routes()
+                                .filter(|(_, route)| **route == Route::Storage)
+                                .map(|(op, _)| op)
+                                .collect();
+                            for op in earlier {
+                                self.streams.outlets.end(&mut lock, op, None);
+                            }
+                            self.streams.open_with(
+                                &mut lock,
+                                stream,
+                                Route::Storage,
+                                Backlog::Latest,
+                            );
+                        }
+                        self.storage = None;
+                        self.follow_storage(payer);
+                        self.send_storage().await;
+                    }
+                    Err(error) => {
+                        let mut lock = self.peer.lock();
+                        tracing::debug!(%error, "refused a storage stream");
+                        stream.fail(&mut lock, OpError::Denied);
+                    }
+                }
             }
         }
-    }
-
-    fn wait_for_browser(
-        &self,
-        reply: Reply<Result<Authenticated, Error>>,
-        code: String,
-        secret: String,
-        mut decided: tokio::sync::watch::Receiver<()>,
-    ) {
-        let peer = self.peer.clone();
-        let late = self.late.clone();
-        let sessions = Arc::clone(&self.connection.browser_auth);
-        let store = Arc::clone(&self.connection.store);
-        let client = self.connection.client;
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    () = peer.canceled(reply.op()) => {
-                        reply.fail(&mut peer.lock(), OpError::Canceled);
-                        return;
-                    }
-                    _ = decided.changed() => {}
-                }
-                let approved = match sessions.finish(client, &code, &secret) {
-                    Err(error) => {
-                        reply.send(&mut peer.lock(), &Err(wire(error)));
-                        return;
-                    }
-                    Ok(browser_auth::Finished::Waiting(next)) => {
-                        decided = next;
-                        continue;
-                    }
-                    Ok(browser_auth::Finished::Approved { account, issuer }) => {
-                        async {
-                            let token = store.claim_browser_session(account, &issuer).await?;
-                            let profile = store.resolve_token(&token).await?;
-                            Ok::<_, ServerError>((profile, token))
-                        }
-                        .await
-                    }
-                };
-                match approved {
-                    Ok((profile, token)) => {
-                        let _ = late.send(Late::SignedIn {
-                            reply,
-                            profile,
-                            token,
-                        });
-                    }
-                    Err(error) => reply.send(&mut peer.lock(), &Err(wire(error))),
-                }
-                return;
-            }
-        });
     }
 
     async fn organizations(
@@ -903,9 +1252,15 @@ impl Client {
                 self.reply(reply, removed);
             }
             Call::ContactsChanged { stream } => {
-                self.streams
-                    .outlets
-                    .insert(stream, Route::Contacts, Backlog::Latest);
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
+                self.streams.open_with(
+                    &mut self.peer.lock(),
+                    stream,
+                    Route::Contacts,
+                    Backlog::Latest,
+                );
             }
         }
     }
@@ -918,14 +1273,7 @@ impl Client {
                 let stored = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    connection
-                        .store
-                        .may_store(
-                            identity,
-                            objects.iter().map(|bytes| Hash::of(bytes)).collect(),
-                        )
-                        .await?;
-                    connection.store.put_objects(&objects)
+                    connection.store.put_objects(identity, objects).await
                 }
                 .await;
                 self.reply(reply, stored);
@@ -935,7 +1283,7 @@ impl Client {
                     prelude?;
                     let identity = connection.identity()?;
                     match connection.store.may_read_object(identity, hash).await? {
-                        true => connection.store.get_object(hash),
+                        true => connection.store.get_object(hash).await,
                         false => Ok(None),
                     }
                 }
@@ -945,8 +1293,10 @@ impl Client {
             Call::MissingObjects { reply, hashes } => {
                 let missing = async {
                     prelude?;
-                    connection.identity()?;
-                    connection.store.missing_objects(&hashes)
+                    connection
+                        .store
+                        .missing_objects(connection.identity()?, hashes)
+                        .await
                 }
                 .await;
                 self.reply(reply, missing);
@@ -1048,7 +1398,7 @@ impl Client {
                 let published = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    connection.store.put_objects(&objects)?;
+                    connection.store.put_objects(identity, objects).await?;
                     let outcome = connection
                         .store
                         .publish(
@@ -1065,13 +1415,17 @@ impl Client {
                     }
                     Ok(match outcome {
                         PublishOutcome::Published(head, _) => {
+                            let place = Place {
+                                organization: identity.organization,
+                                block,
+                            };
                             connection
                                 .hub
                                 .broadcast(
-                                    block,
+                                    place,
                                     connection.client,
                                     Push::HeadChanged {
-                                        block,
+                                        block: place,
                                         head,
                                         author: identity.account,
                                     },
@@ -1110,18 +1464,7 @@ impl Client {
                         .store
                         .read_contents(connection.identity()?, blocks, held)
                         .await?;
-                    let mut objects = Vec::new();
-                    let mut room = CONTENTS_BYTES;
-                    for hash in hashes {
-                        let Some(bytes) = connection.store.get_object(hash)? else {
-                            continue;
-                        };
-                        if bytes.len() > room {
-                            break;
-                        }
-                        room -= bytes.len();
-                        objects.push(bytes);
-                    }
+                    let objects = connection.store.get_objects(hashes, CONTENTS_BYTES).await?;
                     Ok(Contents { blocks, objects })
                 }
                 .await;
@@ -1177,7 +1520,11 @@ impl Client {
                 self.reply(reply, unlisted);
             }
             Call::Changes { stream } => {
-                self.streams.open(stream, Route::Changes);
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
+                self.streams
+                    .open(&mut self.peer.lock(), stream, Route::Changes);
             }
             Call::ListHistory { reply, block } => {
                 let listed = async {
@@ -1210,9 +1557,17 @@ impl Client {
                     connection
                         .reannounce(identity, vec![block], true, before)
                         .await;
+                    let place = Place {
+                        organization: identity.organization,
+                        block,
+                    };
                     connection
                         .hub
-                        .broadcast(block, connection.client, Push::BlockDeleted { block })
+                        .broadcast(
+                            place,
+                            connection.client,
+                            Push::BlockDeleted { block: place },
+                        )
                         .await;
                     Ok(())
                 }
@@ -1278,19 +1633,20 @@ impl Client {
                 self.reply(reply, listed);
             }
             Call::Watch { stream, block } => {
-                let allowed = async {
-                    prelude?;
-                    let identity = connection.identity()?;
-                    connection.store.read_block(identity, block).await?;
-                    Ok::<_, ServerError>(())
+                let allowed = prelude.and_then(|()| connection.identity());
+                let Ok(identity) = allowed else {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                };
+                let place = Place {
+                    organization: identity.organization,
+                    block,
+                };
+                if self.streams.outlets.len() >= MAX_STREAMS_PER_CONNECTION {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
                 }
-                .await;
-                if allowed.is_err() {
-                    stream.fail(&mut self.peer.lock(), OpError::Denied);
-                    return;
-                }
-                connection.hub.watch(block, connection.client).await;
-                self.streams.open(stream, Route::Watch(block));
+                connection.hub.watch(place, connection.client).await;
+                self.streams
+                    .open(&mut self.peer.lock(), stream, Route::Watch(place));
             }
         }
     }
@@ -1299,6 +1655,18 @@ impl Client {
         use embed::sessions::Call;
         match call {
             Call::SessionNew { resource, block } => {
+                if prelude.is_err() {
+                    return self
+                        .peer
+                        .lock()
+                        .complete(resource.op(), be_wasm_ops::Outcome::Err(OpError::Denied));
+                }
+                if self.streams.sessions.len() >= MAX_SESSIONS_PER_CONNECTION {
+                    return self
+                        .peer
+                        .lock()
+                        .complete(resource.op(), be_wasm_ops::Outcome::Err(OpError::Denied));
+                }
                 self.streams.sessions.insert(resource.op(), block);
             }
             Call::SessionJoin { this, stream } => {
@@ -1310,25 +1678,47 @@ impl Client {
                 let connection = &self.connection;
                 let joined = async {
                     prelude?;
-                    let identity = connection.identity()?;
-                    connection.store.read_block(identity, block).await?;
-                    let state = connection.registry.join(block, connection.client).await;
-                    connection.announce(block, &state).await;
-                    Ok::<_, ServerError>(state)
+                    let place = Place {
+                        organization: connection.identity()?.organization,
+                        block,
+                    };
+                    let state = connection.registry.join(place, connection.client).await;
+                    connection.announce(place, &state).await;
+                    Ok::<_, ServerError>((state, place))
                 }
                 .await;
                 let op = stream.op();
                 let mut lock = self.peer.lock();
                 let streams = &mut self.streams;
-                if let Some(before) = streams.events(session) {
+                if let Some((before, _)) = streams.events(session) {
                     streams
                         .outlets
                         .end(&mut lock, before, Some(OpError::Canceled));
                 }
-                streams.open(stream, Route::Events { session, block });
-                let only = |route: &Route| *route == Route::Events { session, block };
+                let place = joined.as_ref().map_or(
+                    Place {
+                        organization: Uuid::nil(),
+                        block,
+                    },
+                    |(_, place)| *place,
+                );
+                streams.open(
+                    &mut lock,
+                    stream,
+                    Route::Events {
+                        session,
+                        block: place,
+                    },
+                );
+                let only = |route: &Route| {
+                    *route
+                        == Route::Events {
+                            session,
+                            block: place,
+                        }
+                };
                 let event = match joined {
-                    Ok(state) => SessionEvent::Joined {
+                    Ok((state, _)) => SessionEvent::Joined {
                         client: self.connection.client,
                         state,
                     },
@@ -1349,7 +1739,6 @@ impl Client {
                 let connection = &self.connection;
                 let claimed = async {
                     prelude?;
-                    connection.identity()?;
                     let block = block?;
                     let (claim, state) = connection
                         .registry
@@ -1373,7 +1762,6 @@ impl Client {
                 let connection = &self.connection;
                 let beat = async {
                     prelude?;
-                    connection.identity()?;
                     let block = block?;
                     Ok::<SessionState, ServerError>(
                         match connection
@@ -1399,19 +1787,16 @@ impl Client {
                 let connection = &self.connection;
                 let relayed = async {
                     prelude?;
-                    connection.identity()?;
                     let block = block?;
                     let participants = connection.registry.participants(block).await;
                     if !participants.contains(&connection.client) {
-                        return Err(ServerError::Refused(
-                            ErrorCode::PermissionDenied,
-                            "join the session before speaking in it".into(),
-                        ));
+                        return Err(not_joined());
                     }
+                    crate::limits::at_most("a relayed message", payload.len(), MAX_RELAY_BYTES)?;
                     let message = Push::Relayed {
                         block,
                         from: connection.client,
-                        payload,
+                        payload: payload.into(),
                     };
                     match to {
                         Some(target) if participants.contains(&target) => {
@@ -1438,18 +1823,11 @@ impl Client {
         }
     }
 
-    fn joined(&self, session: OpId) -> Result<Uuid, ServerError> {
+    fn joined(&self, session: OpId) -> Result<Place, ServerError> {
         self.streams
-            .sessions
-            .get(&session)
-            .copied()
-            .filter(|_| self.streams.events(session).is_some())
-            .ok_or_else(|| {
-                ServerError::Refused(
-                    ErrorCode::PermissionDenied,
-                    "join the session before speaking in it".into(),
-                )
-            })
+            .events(session)
+            .map(|(_, block)| block)
+            .ok_or_else(not_joined)
     }
 
     async fn keys(&mut self, call: embed::keys::Call, prelude: Result<(), ServerError>) {
@@ -1533,9 +1911,15 @@ impl Client {
                 self.reply(reply, work);
             }
             Call::KeyWorkChanged { stream } => {
-                self.streams
-                    .outlets
-                    .insert(stream, Route::KeyWork, Backlog::Latest);
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
+                self.streams.open_with(
+                    &mut self.peer.lock(),
+                    stream,
+                    Route::KeyWork,
+                    Backlog::Latest,
+                );
             }
             Call::Rotate { reply, roots, keys } => {
                 let rotated = async {
@@ -1584,10 +1968,24 @@ impl Client {
 }
 
 impl Connection {
+    /// When the connection is closed unless it signs in first, or none once it has an account.
+    /// One let go of to make room for a newer connection closes at once.
+    pub(crate) fn sign_in_deadline(&self) -> Option<tokio::time::Instant> {
+        if self.account.is_some() {
+            return None;
+        }
+        if self.eviction.evicted() {
+            return Some(self.anonymous_since);
+        }
+        Some(self.anonymous_since + self.config.sign_in_timeout)
+    }
+
     async fn authenticated(&mut self, profile: store::Profile, token: String) -> Authenticated {
         self.hub.join_account(self.client, profile.account).await;
         self.account = Some(profile.account);
+        self.anonymous = None;
         self.token = Some(token.clone());
+        self.checked = None;
         Authenticated {
             account: profile.account,
             email: profile.email,
@@ -1615,6 +2013,21 @@ impl Connection {
             pinned,
             server: self.store.server_account(),
         })
+    }
+
+    /// Fails once the connection's token no longer signs it in. It resolves the token again
+    /// only after a session changed (`ServerStore::sessions_changed`), not on every call.
+    pub(crate) async fn signed_in(&mut self) -> Result<(), ServerError> {
+        let Some(token) = &self.token else {
+            return Ok(());
+        };
+        let version = *self.store.session_changes.borrow();
+        if self.checked == Some(version) {
+            return Ok(());
+        }
+        self.store.resolve_token(token).await?;
+        self.checked = Some(version);
+        Ok(())
     }
 
     fn identity(&self) -> Result<Identity, ServerError> {
@@ -1667,7 +2080,13 @@ impl Connection {
     async fn evict_sessions(&self, organization: Uuid, account: Uuid) {
         for (client, identity) in self.hub.clients_of(organization, account).await {
             for block in self.registry.blocks_of(client).await {
-                if self.store.read_block(identity, block).await.is_ok() {
+                let kept = block.organization != organization
+                    || self
+                        .store
+                        .require_access(identity, vec![block.block], Access::View)
+                        .await
+                        .is_ok();
+                if kept {
                     continue;
                 }
                 self.hub.unwatch(block, client).await;
@@ -1738,21 +2157,33 @@ impl Connection {
 
     async fn list(&self, listing: Listing) -> Result<Vec<BlockSummary>, ServerError> {
         let identity = self.identity()?;
-        self.hub.list(self.client, listing).await;
-        let blocks = match listing {
-            Listing::Shared => self.store.list_shared(identity).await?,
-            Listing::Children(parent) => self.store.list_children(identity, parent).await?,
-            Listing::Deleted => self.store.list_deleted(identity).await?,
-            Listing::Backrefs(block) => self.store.list_backrefs(identity, block).await?,
-            Listing::References(block) => self.store.list_references(identity, block).await?,
-            Listing::Block(block) => vec![self.store.read_block(identity, block).await?],
-            Listing::OpenSettings(block) => self.store.list_open_settings(identity, block).await?,
+        let new = self.hub.list(self.client, listing).await?;
+        let blocks = async {
+            Ok::<_, ServerError>(match listing {
+                Listing::Shared => self.store.list_shared(identity).await?,
+                Listing::Children(parent) => self.store.list_children(identity, parent).await?,
+                Listing::Deleted => self.store.list_deleted(identity).await?,
+                Listing::Backrefs(block) => self.store.list_backrefs(identity, block).await?,
+                Listing::References(block) => self.store.list_references(identity, block).await?,
+                Listing::Block(block) => vec![self.store.read_block(identity, block).await?],
+                Listing::OpenSettings(block) => {
+                    self.store.list_open_settings(identity, block).await?
+                }
+            })
+        }
+        .await;
+        let blocks = match blocks {
+            Ok(blocks) => blocks,
+            Err(error) => {
+                self.hub.refused(self.client, listing, new).await;
+                return Err(error);
+            }
         };
         self.hub.listed(self.client, listing, &blocks).await;
         Ok(blocks)
     }
 
-    async fn announce(&self, block: Uuid, state: &SessionState) {
+    async fn announce(&self, block: Place, state: &SessionState) {
         self.hub
             .send_all(
                 &state.participants,

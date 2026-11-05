@@ -60,6 +60,8 @@ impl BlockSummary {
             held: true,
             opens_inside: false,
             sets_access: false,
+            size: 0,
+            tree_size: 0,
         }
     }
 }

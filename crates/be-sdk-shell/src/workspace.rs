@@ -745,6 +745,7 @@ impl Workspace {
         self.host().report_focus(FocusedBlock {
             block_id: focused.map(|(id, _)| id),
             block_type: focused.map_or_else(Uuid::nil, |(_, block_type)| block_type),
+            editor: focus.active.and_then(|item| item.editor),
             via: focused.map_or_else(Vec::new, |(id, _)| self.via_chain(id)),
         });
     }

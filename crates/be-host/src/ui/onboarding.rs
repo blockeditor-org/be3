@@ -260,6 +260,9 @@ pub(super) fn AddAccountDialog(
                 .shown(editing)
                 .named("back"),
                 DialogAction::cancel("Cancel"),
+                DialogAction::secondary("Check now", || send(UiCommand::CheckLoginNow))
+                    .shown(waiting)
+                    .named("check-now"),
                 DialogAction::primary(footer_primary, move || {
                     if waiting.get_untracked() {
                         send(UiCommand::OpenLoginBrowser);
@@ -372,7 +375,7 @@ pub(super) fn AddAccountDialog(
                 <Show condition={waiting}>
                     <List spacing=Space::Xl>
                         <Text style=TextStyle::PARAGRAPH>
-                            "Sign in and approve this code in your browser. You can also use a browser on another device."
+                            "Sign in and approve this code in your browser. You can also use a browser on another device. This is checked every few seconds; once you have approved it, choose Check now."
                         </Text>
                         <Card>
                             <List spacing=Space::Xl>

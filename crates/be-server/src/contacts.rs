@@ -90,6 +90,25 @@ pub(crate) fn befriend(
     other_sealed: &[u8],
 ) -> Result<(), ServerError> {
     for (account, contact, sealed) in [(owner, other, owner_sealed), (other, owner, other_sealed)] {
+        crate::limits::at_most(
+            "a contact card",
+            sealed.len(),
+            crate::limits::MAX_SEALED_BYTES,
+        )?;
+        let (known, count): (bool, i64) = connection
+            .prepare_cached(
+                "SELECT EXISTS(SELECT 1 FROM contacts WHERE account_id = ?1 AND contact_id = ?2),
+                        (SELECT COUNT(*) FROM contacts WHERE account_id = ?1)",
+            )?
+            .query_row(params![account.to_string(), contact.to_string()], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })?;
+        if !known && count >= crate::limits::MAX_CONTACTS_PER_ACCOUNT {
+            return Err(crate::limits::too_many(
+                "contacts one account has",
+                crate::limits::MAX_CONTACTS_PER_ACCOUNT,
+            ));
+        }
         connection.execute(
             "INSERT INTO contacts (account_id, contact_id, sealed) VALUES (?1, ?2, ?3)
              ON CONFLICT (account_id, contact_id)
@@ -298,6 +317,19 @@ impl ServerStore {
         code: Vec<u8>,
         grant: Option<PendingGrant>,
     ) -> Result<(), ServerError> {
+        crate::limits::at_most(
+            "a contact card",
+            card.len(),
+            crate::limits::MAX_SEALED_BYTES,
+        )?;
+        crate::limits::at_most("a link code", code.len(), crate::limits::MAX_SEALED_BYTES)?;
+        if let Some(grant) = &grant {
+            crate::limits::at_most(
+                "a pending grant",
+                grant.sealed.len(),
+                crate::limits::MAX_SEALED_BYTES,
+            )?;
+        }
         if let Some(grant) = &grant {
             let role = self.membership(owner, grant.organization).await?;
             let identity = Identity {
@@ -306,14 +338,14 @@ impl ServerStore {
                 role,
             };
             let grant = grant.clone();
-            self.with_graph(grant.organization, move |graph, database| {
+            self.with_graph(grant.organization, move |store, graph, database| {
                 if !visibility(identity).can_manage(graph, grant.block) {
                     return Err(ServerError::Refused(
                         ErrorCode::PermissionDenied,
                         format!("block {} is not managed by this account", grant.block),
                     ));
                 }
-                if !self
+                if !store
                     .policies(graph, database, grant.organization)?
                     .shares_outside()
                 {
@@ -345,51 +377,64 @@ impl ServerStore {
             ),
             None => Default::default(),
         };
-        let database = self.database().lock().await;
-        let inserted = database.execute(
-            "INSERT OR IGNORE INTO contact_links
-                (id, owner_id, card, code, grant_organization, grant_block, grant_access,
-                 grant_key, grant_sealed)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![
-                link.to_string(),
-                owner.to_string(),
-                card,
-                code,
-                organization,
-                block,
-                access,
-                key,
-                sealed
-            ],
-        )?;
-        if inserted == 0 {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                "a contact link with that id already exists".into(),
-            ));
-        }
-        Ok(())
+        self.with_database(move |_, database| {
+            let open: i64 = database
+                .prepare_cached("SELECT COUNT(*) FROM contact_links WHERE owner_id = ?1")?
+                .query_row([owner.to_string()], |row| row.get(0))?;
+            if open >= crate::limits::MAX_CONTACT_LINKS_PER_ACCOUNT {
+                return Err(crate::limits::too_many(
+                    "contact links one account has open",
+                    crate::limits::MAX_CONTACT_LINKS_PER_ACCOUNT,
+                ));
+            }
+            let inserted = database.execute(
+                "INSERT OR IGNORE INTO contact_links
+                    (id, owner_id, card, code, grant_organization, grant_block, grant_access,
+                     grant_key, grant_sealed)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    link.to_string(),
+                    owner.to_string(),
+                    card,
+                    code,
+                    organization,
+                    block,
+                    access,
+                    key,
+                    sealed
+                ],
+            )?;
+            if inserted == 0 {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a contact link with that id already exists".into(),
+                ));
+            }
+            Ok(())
+        })
+        .await
     }
 
     pub async fn contact_link(&self, caller: Uuid, link: Uuid) -> Result<ContactLink, ServerError> {
-        let database = self.database().lock().await;
-        let stored = stored_link(&database, link)?
-            .filter(|stored| stored.accepter.is_none())
-            .ok_or_else(link_not_found)?;
-        if stored.owner == caller {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                "this is your own contact link: send it to the person you want to connect with"
-                    .into(),
-            ));
-        }
-        Ok(ContactLink {
-            id: link,
-            owner: stored.owner,
-            card: stored.card,
-            grant: stored.grant,
+        self.with_database(move |_, database| {
+            let stored = stored_link(&database, link)?
+                .filter(|stored| stored.accepter.is_none())
+                .ok_or_else(link_not_found)?;
+            if stored.owner == caller {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "this is your own contact link: send it to the person you want to connect with"
+                        .into(),
+                ));
+            }
+            Ok(ContactLink {
+                id: link,
+                owner: stored.owner,
+                card: stored.card,
+                grant: stored.grant,
+            })
         })
+        .await
     }
 
     pub async fn accept_contact_link(
@@ -400,21 +445,31 @@ impl ServerStore {
         contact: Vec<u8>,
         key: Vec<u8>,
     ) -> Result<Accepted, ServerError> {
+        for (what, bytes) in [
+            ("a contact card", &card),
+            ("a sealed contact", &contact),
+            ("a granted key", &key),
+        ] {
+            crate::limits::at_most(what, bytes.len(), crate::limits::MAX_SEALED_BYTES)?;
+        }
         let found = self.contact_link(caller, link).await?;
         let owner = found.owner;
         let Some(grant) = found.grant else {
-            let database = self.database().lock().await;
-            let transaction = database.unchecked_transaction()?;
-            mark_accepted(&transaction, link, caller, &card)?;
-            befriend(&transaction, owner, &[], caller, &contact)?;
-            transaction.commit()?;
-            return Ok(Accepted {
-                owner,
-                granted: None,
-            });
+            return self
+                .with_database(move |_, database| {
+                    let transaction = database.unchecked_transaction()?;
+                    mark_accepted(&transaction, link, caller, &card)?;
+                    befriend(&transaction, owner, &[], caller, &contact)?;
+                    transaction.commit()?;
+                    Ok(Accepted {
+                        owner,
+                        granted: None,
+                    })
+                })
+                .await;
         };
         let granted = self
-            .with_graph(grant.organization, move |graph, database| {
+            .with_graph(grant.organization, move |store, graph, database| {
                 let transaction = database.unchecked_transaction()?;
                 mark_accepted(&transaction, link, caller, &card)?;
                 befriend(&transaction, owner, &[], caller, &contact)?;
@@ -429,7 +484,7 @@ impl ServerStore {
                         })
                         .can_manage(graph, grant.block)
                     })
-                    && self
+                    && store
                         .policies(graph, &transaction, grant.organization)
                         .is_ok_and(|policies| policies.shares_outside());
                 let mut granted = None;
@@ -471,39 +526,44 @@ impl ServerStore {
     }
 
     pub async fn contact_links(&self, caller: Uuid) -> Result<Vec<OwnContactLink>, ServerError> {
-        let database = self.database().lock().await;
-        let mut ids = Vec::new();
-        {
-            let mut statement =
-                database.prepare("SELECT id FROM contact_links WHERE owner_id = ?1")?;
-            let rows = statement.query_map([caller.to_string()], |row| row.get::<_, String>(0))?;
-            for row in rows {
-                ids.push(parse_uuid(&row?)?);
+        self.with_database(move |_, database| {
+            let mut ids = Vec::new();
+            {
+                let mut statement =
+                    database.prepare("SELECT id FROM contact_links WHERE owner_id = ?1")?;
+                let rows =
+                    statement.query_map([caller.to_string()], |row| row.get::<_, String>(0))?;
+                for row in rows {
+                    ids.push(parse_uuid(&row?)?);
+                }
             }
-        }
-        let mut links = Vec::new();
-        for id in ids {
-            let Some(stored) = stored_link(&database, id)? else {
-                continue;
-            };
-            links.push(OwnContactLink {
-                id,
-                code: stored.code,
-                accepter: stored.accepter,
-                card: stored.accepter_card,
-                grant: stored.grant,
-            });
-        }
-        Ok(links)
+            let mut links = Vec::new();
+            for id in ids {
+                let Some(stored) = stored_link(&database, id)? else {
+                    continue;
+                };
+                links.push(OwnContactLink {
+                    id,
+                    code: stored.code,
+                    accepter: stored.accepter,
+                    card: stored.accepter_card,
+                    grant: stored.grant,
+                });
+            }
+            Ok(links)
+        })
+        .await
     }
 
     pub async fn delete_contact_link(&self, caller: Uuid, link: Uuid) -> Result<(), ServerError> {
-        let database = self.database().lock().await;
-        database.execute(
-            "DELETE FROM contact_links WHERE id = ?1 AND owner_id = ?2",
-            params![link.to_string(), caller.to_string()],
-        )?;
-        Ok(())
+        self.with_database(move |_, database| {
+            database.execute(
+                "DELETE FROM contact_links WHERE id = ?1 AND owner_id = ?2",
+                params![link.to_string(), caller.to_string()],
+            )?;
+            Ok(())
+        })
+        .await
     }
 
     pub async fn put_contact(
@@ -512,49 +572,58 @@ impl ServerStore {
         contact: Uuid,
         sealed: Vec<u8>,
     ) -> Result<(), ServerError> {
-        let database = self.database().lock().await;
-        let updated = database.execute(
-            "UPDATE contacts SET sealed = ?3 WHERE account_id = ?1 AND contact_id = ?2",
-            params![caller.to_string(), contact.to_string(), sealed],
+        crate::limits::at_most(
+            "a contact card",
+            sealed.len(),
+            crate::limits::MAX_SEALED_BYTES,
         )?;
-        if updated == 0 {
-            return Err(ServerError::Refused(
-                ErrorCode::NotAContact,
-                "that account is not one of your contacts".into(),
-            ));
-        }
-        Ok(())
+        self.with_database(move |_, database| {
+            let updated = database.execute(
+                "UPDATE contacts SET sealed = ?3 WHERE account_id = ?1 AND contact_id = ?2",
+                params![caller.to_string(), contact.to_string(), sealed],
+            )?;
+            if updated == 0 {
+                return Err(ServerError::Refused(
+                    ErrorCode::NotAContact,
+                    "that account is not one of your contacts".into(),
+                ));
+            }
+            Ok(())
+        })
+        .await
     }
 
     pub async fn list_contacts(&self, caller: Uuid) -> Result<Vec<ContactRow>, ServerError> {
-        let database = self.database().lock().await;
-        let mut statement = database.prepare(
-            "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name, contacts.sealed
-             FROM contacts JOIN accounts ON accounts.id = contacts.contact_id
-             WHERE contacts.account_id = ?1
-             ORDER BY accounts.display_name, accounts.email",
-        )?;
-        let rows = statement.query_map([caller.to_string()], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, Vec<u8>>(3)?,
-            ))
-        })?;
-        let mut contacts = Vec::new();
-        for row in rows {
-            let (account, email, display_name, sealed) = row?;
-            let changes = key_changes(&database, &account, caller)?;
-            contacts.push(ContactRow {
-                account: parse_uuid(&account)?,
-                email,
-                display_name,
-                sealed,
-                changes,
-            });
-        }
-        Ok(contacts)
+        self.with_database(move |_, database| {
+            let mut statement = database.prepare(
+                "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name, contacts.sealed
+                 FROM contacts JOIN accounts ON accounts.id = contacts.contact_id
+                 WHERE contacts.account_id = ?1
+                 ORDER BY accounts.display_name, accounts.email",
+            )?;
+            let rows = statement.query_map([caller.to_string()], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Vec<u8>>(3)?,
+                ))
+            })?;
+            let mut contacts = Vec::new();
+            for row in rows {
+                let (account, email, display_name, sealed) = row?;
+                let changes = key_changes(&database, &account, caller)?;
+                contacts.push(ContactRow {
+                    account: parse_uuid(&account)?,
+                    email,
+                    display_name,
+                    sealed,
+                    changes,
+                });
+            }
+            Ok(contacts)
+        })
+        .await
     }
 
     pub async fn remove_contact(
@@ -563,55 +632,59 @@ impl ServerStore {
         other: Uuid,
     ) -> Result<Vec<Granted>, ServerError> {
         let shared = {
-            let database = self.database().lock().await;
-            let transaction = database.unchecked_transaction()?;
-            transaction.execute(
-                "DELETE FROM contacts WHERE (account_id = ?1 AND contact_id = ?2)
-                    OR (account_id = ?2 AND contact_id = ?1)",
-                params![caller.to_string(), other.to_string()],
-            )?;
-            transaction.execute(
-                "DELETE FROM key_changes WHERE (account_id = ?1 AND contact_id = ?2)
-                    OR (account_id = ?2 AND contact_id = ?1)",
-                params![caller.to_string(), other.to_string()],
-            )?;
-            transaction.execute(
-                "DELETE FROM contact_links WHERE (owner_id = ?1 AND accepter_id = ?2)
-                    OR (owner_id = ?2 AND accepter_id = ?1)",
-                params![caller.to_string(), other.to_string()],
-            )?;
-            let mut shared = Vec::new();
-            {
-                let mut statement = transaction.prepare(
-                    "SELECT mine.organization_id, mine.role, theirs.role
-                     FROM memberships mine JOIN memberships theirs
-                        ON theirs.organization_id = mine.organization_id
-                     WHERE mine.account_id = ?1 AND theirs.account_id = ?2",
+            self.with_database(move |_, database| {
+                let transaction = database.unchecked_transaction()?;
+                transaction.execute(
+                    "DELETE FROM contacts WHERE (account_id = ?1 AND contact_id = ?2)
+                        OR (account_id = ?2 AND contact_id = ?1)",
+                    params![caller.to_string(), other.to_string()],
                 )?;
-                let rows =
-                    statement.query_map(params![caller.to_string(), other.to_string()], |row| {
-                        Ok((
-                            row.get::<_, String>(0)?,
-                            row.get::<_, String>(1)?,
-                            row.get::<_, String>(2)?,
-                        ))
-                    })?;
-                for row in rows {
-                    let (organization, mine, theirs) = row?;
-                    shared.push((
-                        parse_uuid(&organization)?,
-                        decode_role(&mine)?,
-                        decode_role(&theirs)?,
-                    ));
+                transaction.execute(
+                    "DELETE FROM key_changes WHERE (account_id = ?1 AND contact_id = ?2)
+                        OR (account_id = ?2 AND contact_id = ?1)",
+                    params![caller.to_string(), other.to_string()],
+                )?;
+                transaction.execute(
+                    "DELETE FROM contact_links WHERE (owner_id = ?1 AND accepter_id = ?2)
+                        OR (owner_id = ?2 AND accepter_id = ?1)",
+                    params![caller.to_string(), other.to_string()],
+                )?;
+                let mut shared = Vec::new();
+                {
+                    let mut statement = transaction.prepare(
+                        "SELECT mine.organization_id, mine.role, theirs.role
+                         FROM memberships mine JOIN memberships theirs
+                            ON theirs.organization_id = mine.organization_id
+                         WHERE mine.account_id = ?1 AND theirs.account_id = ?2",
+                    )?;
+                    let rows = statement.query_map(
+                        params![caller.to_string(), other.to_string()],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, String>(2)?,
+                            ))
+                        },
+                    )?;
+                    for row in rows {
+                        let (organization, mine, theirs) = row?;
+                        shared.push((
+                            parse_uuid(&organization)?,
+                            decode_role(&mine)?,
+                            decode_role(&theirs)?,
+                        ));
+                    }
                 }
-            }
-            transaction.commit()?;
-            shared
+                transaction.commit()?;
+                Ok(shared)
+            })
+            .await?
         };
         let mut revoked = Vec::new();
         for (organization, mine, theirs) in shared {
             let found = self
-                .with_graph(organization, move |graph, database| {
+                .with_graph(organization, move |_, graph, database| {
                     let me = visibility(Identity {
                         account: caller,
                         organization,

@@ -54,15 +54,17 @@ pub enum Field {
     Password,
     Confirmation,
     CurrentPassword,
+    Invite,
 }
 
 impl Field {
-    pub const ALL: [Field; 5] = [
+    pub const ALL: [Field; 6] = [
         Field::Email,
         Field::DisplayName,
         Field::Password,
         Field::Confirmation,
         Field::CurrentPassword,
+        Field::Invite,
     ];
 
     pub fn name(&self) -> &'static str {
@@ -72,6 +74,7 @@ impl Field {
             Field::Password => "password",
             Field::Confirmation => "confirmation",
             Field::CurrentPassword => "current_password",
+            Field::Invite => "invite",
         }
     }
 
@@ -82,6 +85,7 @@ impl Field {
             Field::Password => "Password:",
             Field::Confirmation => "Password confirmation:",
             Field::CurrentPassword => "Current password:",
+            Field::Invite => "Invite code:",
         }
     }
 }
@@ -128,6 +132,8 @@ pub struct Page {
     pub problem: Option<Problem>,
     pub email: String,
     pub display_name: String,
+    /// The invite code typed into the registration form, kept when it is shown again.
+    pub invite: String,
     pub mail_token: String,
     pub sessions: Vec<Session>,
     pub saved: bool,

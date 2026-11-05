@@ -144,8 +144,15 @@ connection is declared lost.
 
 `be-host-stack/src/graph.rs` mirrors the part of the server's graph something
 in the host is looking at: a `Node` per block with type, author, parent,
-access, references, unsealed `BlockMetadata` and `locked` (no key opens it).
-The host never lists the whole organization.
+access, references, unsealed `BlockMetadata`, `locked` (no key opens it) and
+the server's `size` and `tree_size`. The host never lists the whole
+organization.
+
+The account's storage against its quota is not in the graph: while an editor
+watches `StorageUsageWatch`, be-host turns on `be_host_stack::watch_storage`,
+which follows the server's `account.storage-changed` stream (opened again on
+reconnecting) and publishes each value; a stream that ends while connected
+sets the stack's error.
 
 Everything asks the mirror through `Query` (`Roots`, `Detached`, `Shared`,
 `Children`, `References`, `Backrefs`, `Parents`, `Block`, `Subtree`), and

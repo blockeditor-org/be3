@@ -198,6 +198,8 @@ pub struct ArtifactState {
 pub struct FocusedBlock {
     pub block_id: Option<Uuid>,
     pub block_type: Uuid,
+    /// The editor it is shown with when one was asked for by id; `None` for its default.
+    pub editor: Option<Uuid>,
     pub via: Vec<Uuid>,
 }
 
@@ -205,6 +207,7 @@ impl FocusedBlock {
     fn same(&self, other: &Self) -> bool {
         self.block_id == other.block_id
             && self.block_type == other.block_type
+            && self.editor == other.editor
             && self.via == other.via
     }
 }

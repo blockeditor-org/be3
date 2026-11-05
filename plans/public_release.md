@@ -13,21 +13,10 @@ using it would. Each item says what "done" looks like.
 - **Pairing names the device by its OS only** ("linux", from
   `std::env::consts::OS` in `be-host-stack/src/keys.rs`). Done: a device name.
 
-## Isolation between accounts
-
-- `MissingObjects` answers for any hash a signed-in account names, so it
-  tells anyone whether the server holds an object. `GetObject` and
-  `PutObjects` already check access (`may_read_object`, `may_store`). Done:
-  scoped to the objects the reader may see.
-
 ## Server
 
 - App tokens (sessions of kind `app`) never expire; only browser sessions
   do. Done: an expiry with sliding renewal.
-- Sign-in lockout is per email (`locked_out` in `be-server/src/store.rs`).
-  Done: per-IP limits too, from the forwarded address be-server already reads.
-- Objects uploaded but never published or held are never collected
-  (`put_objects` stores them with no reference).
 - A health endpoint and a config file in place of flags.
 
 ## Web offline

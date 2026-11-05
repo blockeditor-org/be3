@@ -1,24 +1,29 @@
 use super::*;
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn cancelled_and_expired_authorizations_cannot_be_claimed() {
-    let sessions = Arc::new(Sessions::default());
-    let (first, first_secret) = sessions.begin(1).unwrap();
-    let (second, second_secret) = sessions.begin(1).unwrap();
-    assert!(sessions.finish(1, &first, &first_secret).is_err());
+    let sessions = Sessions::default();
+    let address = IpAddr::from([192, 0, 2, 1]);
+    let (code, secret, _, _) = sessions.begin(address);
+    assert!(
+        matches!(sessions.poll(&code, "not the secret"), Ok(Polled::Expired)),
+        "a wrong secret read a sign-in"
+    );
+    let (expired, expired_secret, _, _) = sessions.begin(address);
+    sessions
+        .pending
+        .lock()
+        .unwrap()
+        .get_mut(&expired)
+        .unwrap()
+        .account = Some(Uuid::new_v4());
+    tokio::time::advance(LIFETIME + Duration::from_secs(1)).await;
     assert!(matches!(
-        sessions.finish(2, &second, &second_secret),
-        Ok(Finished::Waiting(_))
+        sessions.poll(&expired, &expired_secret),
+        Ok(Polled::Expired)
     ));
-    let (expired, expired_secret) = sessions.begin(1).unwrap();
-    {
-        let mut entries = sessions.pending.lock().unwrap();
-        let entry = entries.get_mut(&expired).unwrap();
-        entry.account = Some(Uuid::new_v4());
-        entry.expires -= LIFETIME + Duration::from_secs(1);
-    }
-    assert!(sessions.finish(1, &expired, &expired_secret).is_err());
-    let form = sessions.form("").unwrap();
-    sessions.forms.lock().unwrap().get_mut(&form).unwrap().0 -= LIFETIME + Duration::from_secs(1);
+    assert!(matches!(sessions.poll(&code, &secret), Ok(Polled::Expired)));
+    let form = sessions.form("", address);
+    tokio::time::advance(LIFETIME + Duration::from_secs(1)).await;
     assert!(sessions.consume_form(&form, "").is_err());
 }

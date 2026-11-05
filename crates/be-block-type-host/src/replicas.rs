@@ -10,7 +10,7 @@ use std::sync::PoisonError;
 use be_block_client::{Answer, ClientError, Event, Peer, Reconciled, Saved, Sealed, Write};
 use be_block_commit::CommitId;
 use be_block_graph::BlockParent;
-use be_block_protocol::{ClientId, SessionState};
+use be_block_protocol::{ClientId, ErrorCode, SessionState};
 use be_sdk_type_api::ops::wire::{self, Decode};
 use be_sdk_type_api::{
     ByteRange, Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome,
@@ -1588,6 +1588,8 @@ impl<H: Host> Replicas<H> {
         let state = match claimed {
             Ok(state) => state,
             Err(error) if unreachable(&error) => return,
+            // Only an editor may own a block's lease; a viewer's claim changes nothing.
+            Err(ClientError::Refused(ErrorCode::PermissionDenied, _)) => return,
             Err(error) => return H::record(shared, error),
         };
         let Some(open) = self.open.get_mut(&replica) else {

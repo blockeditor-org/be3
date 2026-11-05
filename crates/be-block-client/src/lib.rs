@@ -40,6 +40,61 @@ pub fn http_url(server_url: &str) -> String {
     format!("{}/api/be/http", base.trim_end_matches('/'))
 }
 
+/// Where one-shot calls are posted (`call_once`).
+pub fn call_url(server_url: &str) -> String {
+    let base = match server_url.split_once("://") {
+        Some(("ws", host)) => format!("http://{host}"),
+        Some(("wss", host)) => format!("https://{host}"),
+        _ => server_url.to_owned(),
+    };
+    format!("{}/api/be/call", base.trim_end_matches('/'))
+}
+
+/// Makes one call that needs no sign-in (beginning or polling a browser sign-in, or making a
+/// local profile) as a one-shot post: a greeting and the call, answered and closed. Signing in
+/// holds no connection open while a person approves it in their browser.
+pub async fn call_once<T, E: be_wasm_ops::wire::Decode<Result<T, be_block_protocol::Error>>>(
+    server_url: &str,
+    start: impl FnOnce(
+        &be_wasm_ops::net::Peer,
+    ) -> be_wasm_ops::net::Pending<Result<T, be_block_protocol::Error>, E>,
+) -> Result<T, ClientError> {
+    let ours = be_lib_build_id::current().map_err(ClientError::NoBuild)?;
+    let (sending, sent) = std::sync::mpsc::channel();
+    let peer = be_wasm_ops::net::Peer::new(be_wasm_ops::Side::Guest, move |frame| {
+        let _ = sending.send(frame);
+    });
+    let pending = start(&peer);
+    let mut body = transport::framed(&be_block_protocol::hello(ours));
+    while let Ok(frame) = sent.try_recv() {
+        body.extend_from_slice(&transport::framed(&frame));
+    }
+    let answer = transport::post_once(&call_url(server_url), &body)
+        .await
+        .map_err(ClientError::Disconnected)?;
+    let mut answer = answer.into_iter();
+    let theirs = answer
+        .next()
+        .as_deref()
+        .and_then(be_block_protocol::read_hello)
+        .ok_or_else(|| ClientError::Incompatible {
+            ours: ours.to_owned(),
+            theirs: "a build that does not greet".to_owned(),
+        })?;
+    if !be_lib_build_id::compatible(ours, &theirs) {
+        return Err(ClientError::Incompatible {
+            ours: ours.to_owned(),
+            theirs,
+        });
+    }
+    for frame in answer {
+        peer.receive(&frame)
+            .map_err(|error| ClientError::Disconnected(error.to_string()))?;
+    }
+    peer.close();
+    connection::ask(pending).await
+}
+
 static AUTHORIZATION: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
 
 pub fn authorize(server_url: &str, header: Option<String>) {

@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, hash_map::Entry},
     error::Error,
     fmt,
 };
@@ -61,6 +61,13 @@ pub struct BlockNode {
     pub version: u64,
     #[serde(default)]
     pub key: Option<Uuid>,
+    /// Bytes of the distinct objects the block holds, history included.
+    #[serde(default)]
+    pub size: u64,
+    /// `size` plus each child's `tree_size`. `set_parent` and `remove` carry it between
+    /// ancestors, and `add_size` adds to every ancestor, so it is kept in O(depth).
+    #[serde(default)]
+    pub tree_size: u64,
 }
 
 impl BlockNode {
@@ -75,6 +82,8 @@ impl BlockNode {
             metadata: Vec::new(),
             version: 0,
             key: None,
+            size: 0,
+            tree_size: 0,
         }
     }
 }
@@ -125,7 +134,9 @@ pub struct BlockGraph {
     settings: HashMap<Uuid, BTreeSet<Uuid>>,
     entries: HashMap<Uuid, BTreeSet<Uuid>>,
     loose: BTreeSet<Uuid>,
+    authored: HashMap<Uuid, usize>,
     revision: u64,
+    changes: u64,
 }
 
 impl BlockNode {
@@ -237,6 +248,17 @@ impl BlockGraph {
         self.revision = self.revision.max(revision);
     }
 
+    /// Counts the calls that may have changed the graph (everything taking `&mut self` but
+    /// `advance_to`), so a caller can tell whether a failed action left it as it was.
+    pub const fn changes(&self) -> u64 {
+        self.changes
+    }
+
+    /// The blocks `account` authored, kept as a count so a limit on it costs nothing.
+    pub fn authored(&self, account: Uuid) -> usize {
+        self.authored.get(&account).copied().unwrap_or(0)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.blocks.is_empty()
     }
@@ -254,6 +276,7 @@ impl BlockGraph {
     }
 
     pub fn insert(&mut self, id: Uuid, node: BlockNode) -> Result<(), GraphError> {
+        self.changes += 1;
         if self.blocks.contains_key(&id) {
             return Err(GraphError::AlreadyExists(id));
         }
@@ -271,6 +294,7 @@ impl BlockGraph {
             self.settings.entry(owner).or_default().insert(id);
         }
         self.entries.entry(node.author).or_default().insert(id);
+        *self.authored.entry(node.author).or_default() += 1;
         for account in node.grants.keys() {
             self.entries.entry(*account).or_default().insert(id);
         }
@@ -344,6 +368,7 @@ impl BlockGraph {
     }
 
     pub fn set_parent(&mut self, id: Uuid, parent: BlockParent) -> Result<(), GraphError> {
+        self.changes += 1;
         if !self.blocks.contains_key(&id) {
             return Err(GraphError::NotFound(id));
         }
@@ -355,7 +380,10 @@ impl BlockGraph {
                 return Err(GraphError::ParentCycle);
             }
         }
+        let tree = self.node_mut(id)?.tree_size;
+        self.add_to_ancestors(id, tree, false);
         let previous = std::mem::replace(&mut self.node_mut(id)?.parent, parent);
+        self.add_to_ancestors(id, tree, true);
         unindex(&mut self.children, previous, id);
         self.children.entry(parent).or_default().insert(id);
         if self
@@ -485,7 +513,16 @@ impl BlockGraph {
     }
 
     pub fn remove(&mut self, id: Uuid) -> Option<BlockNode> {
+        self.changes += 1;
+        let tree = self.blocks.get(&id)?.tree_size;
+        self.add_to_ancestors(id, tree, false);
         let node = self.blocks.remove(&id)?;
+        if let Entry::Occupied(mut count) = self.authored.entry(node.author) {
+            *count.get_mut() -= 1;
+            if *count.get() == 0 {
+                count.remove();
+            }
+        }
         for reference in &node.references {
             if let Some(backrefs) = self.backrefs.get_mut(reference) {
                 backrefs.remove(&id);
@@ -966,8 +1003,46 @@ impl BlockGraph {
         audience
     }
 
+    /// Changes a block's own size by `bytes` (adding or taking away), and the tree size of it
+    /// and every ancestor with it.
+    pub fn add_size(&mut self, id: Uuid, bytes: u64, adding: bool) -> Result<(), GraphError> {
+        let node = self.node_mut(id)?;
+        node.size = shifted(node.size, bytes, adding);
+        node.tree_size = shifted(node.tree_size, bytes, adding);
+        self.add_to_ancestors(id, bytes, adding);
+        Ok(())
+    }
+
+    /// Sets a block's sizes as they were stored, without touching its ancestors.
+    pub fn set_sizes(&mut self, id: Uuid, size: u64, tree_size: u64) -> Result<(), GraphError> {
+        let node = self.node_mut(id)?;
+        node.size = size;
+        node.tree_size = tree_size;
+        Ok(())
+    }
+
+    fn add_to_ancestors(&mut self, id: Uuid, bytes: u64, adding: bool) {
+        if bytes == 0 {
+            return;
+        }
+        let above: Vec<Uuid> = self.ancestors(id).collect();
+        for ancestor in above {
+            if let Some(node) = self.blocks.get_mut(&ancestor) {
+                node.tree_size = shifted(node.tree_size, bytes, adding);
+            }
+        }
+    }
+
     fn node_mut(&mut self, id: Uuid) -> Result<&mut BlockNode, GraphError> {
+        self.changes += 1;
         self.blocks.get_mut(&id).ok_or(GraphError::NotFound(id))
+    }
+}
+
+fn shifted(value: u64, bytes: u64, adding: bool) -> u64 {
+    match adding {
+        true => value.saturating_add(bytes),
+        false => value.saturating_sub(bytes),
     }
 }
 

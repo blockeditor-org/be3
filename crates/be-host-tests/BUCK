@@ -94,6 +94,7 @@ APPS = {
     "the_organizations_screen_takes_an_invite_link": [],
     "the_rename_card_from_the_files_reaches_past_them": ["text"],
     "the_rename_card_takes_the_keyboard_with_its_name_selected": ["text"],
+    "the_storage_page_says_what_the_server_counts": ["settings"],
     "the_text_settings_point_at_the_tab_from_its_menu_and_the_palette": ["text"],
     "the_workspace_splitter_reaches_over_the_files_and_its_tabs_scroll_with_the_wheel": [],
     "two_canvas_tabs_share_one_popped_out_tool_bar_that_follows_the_tab_shown": ["infinite-canvas"],

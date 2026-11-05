@@ -58,6 +58,7 @@ pub mod tokens;
 pub mod tool_pill;
 pub mod tooltip;
 pub mod tree;
+pub mod treemap;
 
 pub use accordion::Accordion;
 pub use action_bar::{ActionBar, ActionLabels};
@@ -80,6 +81,7 @@ pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use beui_components_unstyled::{
     Reorder, ReorderGap, ReorderHandle, ReorderItemHandle, ReorderMove,
 };
+pub use beui_components_unstyled::{TREEMAP_MOST_TILES, TreemapItem, TreemapTile, TreemapTileKey};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
     Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, Layer, Layers, ListItem, Modality,
@@ -153,6 +155,7 @@ pub use tokens::{CornerSet, Length, Padding, Size, Space, Stroke, use_size, use_
 pub use tool_pill::ToolPill;
 pub use tooltip::Tooltip;
 pub use tree::{Tree, TreeRowFace};
+pub use treemap::Treemap;
 
 pub mod choice;
 pub mod listbox;
