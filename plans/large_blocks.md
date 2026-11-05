@@ -17,7 +17,8 @@ and per-part references (formerly 1–4) are done; 1a's wiring and 5 are left.
   two parts (guides/blocks/content_types.md, "Parts").
 - **The manifest tree.** `Manifest { content_type, root: Option<PartRef> }`
   names a tree of sealed `Node`s in the shape of the parts; unchanged subtrees
-  are shared between commits, and a manifest may mix data key epochs. A
+  are shared between commits until the data key rotates, when a write reseals
+  them. A
   be-block-client test (`a_large_block_saved_after_a_small_change_uploads_only_what_changed`)
   shows an 8 KiB edit to a 4 MiB block saving one chunk and two nodes.
 - **Replicas.** A type module's replica loads a commit with its parts (the

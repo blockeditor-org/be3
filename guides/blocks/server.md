@@ -12,8 +12,12 @@ the server are in guides/blocks/keys.md.
   the root of a tree of sealed `Node`s over the chunks, in the shape of the
   content's parts (guides/blocks/content_types.md, "Parts"); a leaf split over
   many chunks is grouped under nodes chosen by the chunks' hashes. Unchanged
-  subtrees are shared between commits, and a reused part keeps the data key it
-  was sealed under, so one manifest can mix key epochs. `Vault::objects` lists
+  subtrees are shared between commits while the data key stays the same: a
+  write reseals a reused part sealed under another key (`Vault::stale_parts`
+  names them, and `Peer::write_content` fetches their objects first), so after
+  a rotation the next commit, a rekey's seal among them, holds nothing the old
+  key alone opens, and a subtree is always sealed under one key (its top
+  object's, `Vault::sealed_under`). `Vault::objects` lists
   a tree's nodes and chunks;
   `missing_objects` names what is absent a level at a time, which
   `Peer::fetch_range` fetches until none is left. `Vault::read_range` is how a

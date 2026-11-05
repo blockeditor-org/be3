@@ -763,7 +763,17 @@ impl<S: ObjectStore> Peer<S> {
         parts: impl Into<Part<'a>>,
     ) -> Result<Manifest, ClientError> {
         let key = self.sealing_key(block).await?;
-        Ok(self.commits.vault().write(key, content_type, parts)?)
+        let parts = parts.into();
+        let vault = self.commits.vault();
+        let stale = vault.stale_parts(key, &parts)?;
+        for part in stale {
+            let manifest = Manifest {
+                content_type,
+                root: Some(part),
+            };
+            self.fetch_range(&manifest, 0, u64::MAX).await?;
+        }
+        Ok(vault.write(key, content_type, parts)?)
     }
 
     pub fn account(&self) -> Uuid {
@@ -1281,7 +1291,10 @@ impl<S: ObjectStore> Peer<S> {
             Content::Encoded(content_type, parts) => {
                 self.write_content(block, content_type, parts).await?
             }
-            Content::Written(manifest) => manifest,
+            Content::Written(manifest) => {
+                let parts = manifest.root.map_or_else(|| Part::from(Vec::new()), Part::Reused);
+                self.write_content(block, manifest.content_type, parts).await?
+            }
         };
         let mut parents = Vec::new();
         if let Some((base, ours)) = write.merging {

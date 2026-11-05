@@ -89,7 +89,8 @@ impl Manifest {
 /// Each `Bytes` is sealed on its own, split by the vault's chunker when it is larger than the
 /// chunker's minimum, so an edit to one part re-uploads only that part. `Reused` names a part
 /// of the head the content was loaded from, which is kept as it was without sealing it again,
-/// even when it was sealed under an older data key. `Node` groups parts, and becomes a node of
+/// unless it was sealed under another data key (a rotation): then the vault seals its objects
+/// again under the write's key. `Node` groups parts, and becomes a node of
 /// the manifest tree, so a commit's new nodes are the ones on the path to what changed. Keep a
 /// `Node`'s children few (dozens, not thousands): every change to one of them writes the node
 /// again. Empty parts are left out.
