@@ -250,6 +250,57 @@ interface displays {
         constructor();
         next: async func() -> bool;
     }
+
+    enum screen-side {
+        top,
+        bottom,
+        left,
+        right,
+    }
+
+    /// An edge of a display that a shell reveals a hidden bar from, along `side` of `display`
+    /// from `start` to `end`, all in desktop points, named by the shell's `id`.
+    ///
+    /// With `wall`, the pointer cannot cross it, even where another display begins, and pushing
+    /// on past it counts toward the edge's `pushed`; a finger landing just inside it swipes it
+    /// (`pull`) rather than reaching what is under it. Without, the edge is open, and `keep` is
+    /// where the pointer counts as `near` what it revealed. `deliberate` (over a full screen
+    /// window) counts pushes only once the pointer has rested against the wall a moment, and
+    /// takes swipes only from closer to the edge.
+    record screen-edge {
+        id: u32,
+        display: rect,
+        side: screen-side,
+        start: f32,
+        end: f32,
+        wall: bool,
+        deliberate: bool,
+        keep: option<rect>,
+    }
+
+    /// What happened at an edge since the shell first set it. `pushed` only grows, in points.
+    /// `pull` is how far in from the edge a finger swiping it is; when it lifts, `pulls` counts
+    /// one more and `pulled` is how far it reached (nothing for a cancelled swipe). `taps-away`
+    /// counts fingers that landed outside `keep` while the edge was open.
+    record screen-edge-state {
+        id: u32,
+        pushed: f32,
+        near: bool,
+        pull: option<f32>,
+        pulls: u32,
+        pulled: f32,
+        taps-away: u32,
+    }
+
+    /// The edges the shell set, each as it stands; answered only where the host moves the
+    /// pointer itself (a login session).
+    resource screen-edges-watch {
+        constructor();
+        next: async func() -> list<screen-edge-state>;
+    }
+
+    /// Replaces the shell's screen edges. An edge keeps what it heard while its `id` stays.
+    set-edges: async func(edges: list<screen-edge>);
 }
 
 /// Locking the screen and ending the session.

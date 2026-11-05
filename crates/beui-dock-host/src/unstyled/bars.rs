@@ -24,8 +24,11 @@ use beui_view::types::{
 use beui_view::types::{Pos2, Rect, Sides, Vec2, pos2, vec2};
 use beui_view::window::{Window, WindowHandle};
 
-use beui_dock::{DockBarControl, DockBarDriver, DockBarMove, DockDragStage, DockRequest, bar_menu};
+use beui_dock::{
+    BarAutoHide, DockBarControl, DockBarDriver, DockBarMove, DockDragStage, DockRequest, bar_menu,
+};
 
+use super::reveal::DockBarHidden;
 use super::{
     DockAlign, DockBarPlacement, DockDragged, DockEdge, DockMode, DockState, FLOAT_INSET, LeafId,
     State, TabId,
@@ -93,6 +96,12 @@ impl DockBarDriver for State {
         }
     }
 
+    fn hold_band(&self, bar: TabId, held: bool) {
+        if self.panels.is_alive() {
+            self.reveal.hold(bar, held);
+        }
+    }
+
     fn begin_move(&self, bar: TabId, press: PointerPress) {
         let dock = *self;
         if !dock.panels.is_alive() || dock.mode.get_untracked() != DockMode::Tiled {
@@ -140,10 +149,18 @@ impl State {
                 None => dock.pop_out_bar(bar),
             });
             let hide = Callback::new(move |()| dock.hide_bar(bar, true));
+            let auto_hide = BarAutoHide {
+                offered: create_memo(move || dock.offers_auto_hide(bar)),
+                on: create_memo(move || {
+                    let edge = placement.get().map(DockBarPlacement::edge);
+                    state.with(|state| edge.is_some_and(|edge| state.is_edge_auto_hidden(edge)))
+                }),
+                set: Callback::new(move |hidden: bool| dock.auto_hide_band(bar, hidden)),
+            };
             provide_context(DockBarControl::local(
                 bar,
                 Rc::new(dock),
-                bar_menu(placement, place, hide),
+                bar_menu(placement, place, hide, Some(auto_hide)),
             ));
             self.content.call(bar)
         });
@@ -173,6 +190,14 @@ impl State {
             true => LayerLevel::Normal,
             false => LayerLevel::Raised,
         }
+    }
+
+    fn auto_hide_band(&self, bar: TabId, hidden: bool) {
+        self.edit(|state| {
+            if let Some(placement) = state.bar_placement(bar) {
+                state.set_edge_auto_hidden(placement.edge(), hidden);
+            }
+        });
     }
 
     fn hide_bar(&self, bar: TabId, hidden: bool) {
@@ -536,7 +561,7 @@ impl State {
         });
     }
 
-    fn bars_at(
+    pub(super) fn bars_at(
         &self,
         holder: BarHolder,
         edge: DockEdge,
@@ -1223,6 +1248,14 @@ pub(super) fn DockBarred(
                                 align=DockAlign::End
                                 ends={right}
                             />
+                            <Show condition={matches!(holder, BarHolder::Dock)}>
+                                <Layers>
+                                    <DockBarHidden dock edge=DockEdge::Top />
+                                    <DockBarHidden dock edge=DockEdge::Bottom />
+                                    <DockBarHidden dock edge=DockEdge::Left />
+                                    <DockBarHidden dock edge=DockEdge::Right />
+                                </Layers>
+                            </Show>
                         </Layers>
                     </ListItem>
                     <DockBarBand dock holder edge=DockEdge::Right />
@@ -1238,7 +1271,8 @@ fn DockBarBand(dock: State, holder: BarHolder, edge: DockEdge) -> NodeId {
     let bars = dock.bars_at(holder, edge, false, move |placement| {
         placement.is_beside() && placement.edge() == edge
     });
-    let shown = create_memo(move || match bars.with(Vec::is_empty) {
+    let concealed = create_memo(move || matches!(holder, BarHolder::Dock) && dock.conceals(edge));
+    let shown = create_memo(move || match bars.with(Vec::is_empty) || concealed.get() {
         true => Vec::new(),
         false => vec![edge],
     });
@@ -1296,7 +1330,7 @@ fn DockBarBand(dock: State, holder: BarHolder, edge: DockEdge) -> NodeId {
 }
 
 #[component]
-fn DockBarRun(
+pub(super) fn DockBarRun(
     dock: State,
     holder: BarHolder,
     edge: DockEdge,

@@ -8,7 +8,9 @@ use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_bord
 use beui_macros::{component, view};
 
 use crate::unstyled as dock;
-pub use crate::unstyled::{DockApi, DockArea, DockHostLayout, DockSnap, DockWindowActions};
+pub use crate::unstyled::{
+    DockApi, DockArea, DockHostLayout, DockSnap, DockWindowActions, HiddenBand,
+};
 use crate::unstyled::{
     DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
     DockDragged, DockGripHandle, DockHighlightHandle, DockPreviewHandle, DockSplitterHandle,

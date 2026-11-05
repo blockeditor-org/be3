@@ -39,6 +39,7 @@ fn hosted(bar: u64) -> DockUpdate {
                 homes: Vec::new(),
                 unlocked: Vec::new(),
                 compact: Vec::new(),
+                auto_hidden: Vec::new(),
                 bars: vec![DockPlacedBar {
                     bar: DockTabPath::own(bar),
                     owner: None,

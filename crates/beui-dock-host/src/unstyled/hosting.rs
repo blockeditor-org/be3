@@ -146,6 +146,7 @@ pub struct DockHostLayout {
     covers: Signal<BarCovers>,
     floats: Signal<BarFloats>,
     covered: Signal<bool>,
+    reveal: super::reveal::BandReveal,
     area: Signal<Rect>,
     snaps: Signal<HashMap<TabId, Snapped>>,
     areas: Signal<Vec<DockArea>>,
@@ -205,6 +206,7 @@ impl DockHostLayout {
             covers: create_signal(BarCovers::default()),
             floats: create_signal(BarFloats::default()),
             covered: create_signal(false),
+            reveal: super::reveal::BandReveal::new(),
             area: create_signal(Rect::ZERO),
             snaps: create_signal(HashMap::default()),
             areas: create_signal(Vec::new()),
@@ -236,6 +238,30 @@ impl DockHostLayout {
         if self.covered.get_untracked() != covered {
             self.covered.set(covered);
         }
+    }
+
+    /// Lets the band of the dock's own bars along each edge hide until revealed (`reveal`): the
+    /// grip menu of a bar in one offers Auto-hide, and every band hides while a full screen tab or
+    /// something outside (`set_covered`) covers the dock.
+    pub fn offer_hidden_bands(&self) {
+        if !self.reveal.offered.get_untracked() {
+            self.reveal.offered.set(true);
+        }
+    }
+
+    /// The bands that hide until revealed, tracked.
+    pub fn hidden_bands(&self) -> Vec<super::HiddenBand> {
+        self.reveal.bands.get()
+    }
+
+    /// Slides the hidden band along `edge` out by `amount`, from 0 (hidden) to 1 (all out).
+    pub fn reveal(&self, edge: DockEdge, amount: f32) {
+        self.reveal.set_amount(edge, amount);
+    }
+
+    /// How far the hidden band along `edge` is out, tracked.
+    pub fn revealed(&self, edge: DockEdge) -> f32 {
+        self.reveal.amount(edge)
     }
 
     /// Where the dock bars floating over this place are, in the dock's coordinates, so the owner can keep
@@ -834,6 +860,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
                 covers: layout.covers,
                 floats: layout.floats,
                 covered: layout.covered,
+                reveal: layout.reveal,
                 area: layout.area,
                 bars_away: create_memo(move || bars_hosted.with(Option::is_some)),
                 bar_key,

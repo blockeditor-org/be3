@@ -48,6 +48,7 @@ impl DockState {
             .collect();
         spec.outside = self.outside.clone();
         spec.compact.clone_from(&self.compact);
+        spec.auto_hidden.clone_from(&self.auto_hidden);
         spec.unlocked = self
             .unlocked
             .iter()
@@ -157,6 +158,7 @@ impl DockState {
             .collect();
         state.outside = spec.outside.clone();
         state.compact.clone_from(&spec.compact);
+        state.auto_hidden.clone_from(&spec.auto_hidden);
         for place in &spec.unlocked {
             match state.place_of_spec(place) {
                 Some(place) => state.unlocked.push(place),

@@ -6,6 +6,7 @@ mod fullscreen;
 mod hosting;
 mod keyboard;
 mod modifier_drag;
+mod reveal;
 mod switch;
 #[cfg(test)]
 mod tests;
@@ -67,6 +68,7 @@ use fullscreen::DockAway;
 pub use fullscreen::DockAwayHandle;
 pub use hosting::{DockArea, DockHost, DockHostLayout, DockSnap, DockWindowActions, holding_area};
 use modifier_drag::{Resized, modifier_resize};
+pub use reveal::HiddenBand;
 use switch::DockSwitchView;
 pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 
@@ -317,6 +319,7 @@ struct State {
     covers: Signal<BarCovers>,
     floats: Signal<BarFloats>,
     covered: Signal<bool>,
+    reveal: reveal::BandReveal,
     bars_away: Memo<bool>,
     bar_band: RenderFn<DockBarBandHandle>,
     lifting: Lifting,
@@ -1683,6 +1686,7 @@ pub(crate) struct DockConfig {
     pub(crate) covers: Signal<BarCovers>,
     pub(crate) floats: Signal<BarFloats>,
     pub(crate) covered: Signal<bool>,
+    pub(crate) reveal: reveal::BandReveal,
     pub(crate) area: Signal<Rect>,
     pub(crate) bar_band: Option<RenderFn<DockBarBandHandle>>,
     pub(crate) bars_away: Memo<bool>,
@@ -1745,6 +1749,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         covers,
         floats,
         covered,
+        reveal,
         area: dock_rect_held,
         bars_away,
         bar_key,
@@ -1831,6 +1836,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         covers,
         floats,
         covered,
+        reveal,
         bars_away,
         bar_band: bar_band
             .unwrap_or_else(|| RenderFn::new(|handle: DockBarBandHandle| handle.body)),

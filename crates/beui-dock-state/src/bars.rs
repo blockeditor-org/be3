@@ -194,9 +194,38 @@ impl DockState {
             .is_some_and(|tab| self.is_shown(tab, mode))
     }
 
+    /// Whether the band of the dock's own bars along `edge` hides until its owner reveals it.
+    pub fn is_edge_auto_hidden(&self, edge: DockEdge) -> bool {
+        self.auto_hidden.contains(&edge)
+    }
+
+    pub fn set_edge_auto_hidden(&mut self, edge: DockEdge, hidden: bool) {
+        self.auto_hidden.retain(|held| *held != edge);
+        if hidden {
+            self.auto_hidden.push(edge);
+        }
+    }
+
+    /// The edges with a band of the dock's own bars, auto-hidden or not.
+    pub fn dock_bands(&self) -> Vec<DockEdge> {
+        DockEdge::ALL
+            .into_iter()
+            .filter(|edge| {
+                self.bars.iter().any(|held| {
+                    held.owner.is_none()
+                        && !held.hidden
+                        && held.placement.is_beside()
+                        && held.placement.edge() == *edge
+                })
+            })
+            .collect()
+    }
+
+    /// The edges whose band of the dock's own bars takes room from the body: not auto-hidden.
     pub fn dock_band_edges(&self) -> Vec<DockEdge> {
         DockEdge::ALL
             .into_iter()
+            .filter(|edge| !self.auto_hidden.contains(edge))
             .filter(|edge| {
                 self.bars.iter().any(|held| {
                     held.owner.is_none()

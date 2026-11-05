@@ -103,7 +103,7 @@ pub use account::HostPreferenceSources;
 pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
 pub use desktop::{
-    displays::HostDisplay,
+    displays::{HostDisplay, ScreenEdge, ScreenEdgeState, ScreenSide},
     input::{
         CapturedChord, CapturedTrigger, HostInputDevice, InputCapture, InputReach, KeyboardLayout,
         KeyboardLayouts, Pointing, RemapState, WheelTurn,
@@ -126,7 +126,7 @@ pub use guest::account::{
 };
 pub use guest::contacts::ContactsWatch;
 pub use guest::desktop::{
-    displays::{DesktopBarWatch, DisplaysWatch},
+    displays::{DesktopBarWatch, DisplaysWatch, ScreenEdgesWatch},
     epaper::EpaperWatch,
     input::{
         InputCaptureWatch, InputDevicesWatch, InputReachWatch, KeyboardLayoutsWatch, RemapsWatch,

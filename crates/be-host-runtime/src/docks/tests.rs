@@ -153,6 +153,7 @@ fn hosted_by_root() -> DockHosted {
             outside: Vec::new(),
             unlocked: Vec::new(),
             compact: Vec::new(),
+            auto_hidden: Vec::new(),
         },
         tabs: spliced.tabs.iter().map(|tab| tab.tab.clone()).collect(),
         focused: Some(path(&[INNER_CHILD], 5)),

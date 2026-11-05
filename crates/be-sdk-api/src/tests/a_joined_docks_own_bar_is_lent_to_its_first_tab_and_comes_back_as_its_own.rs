@@ -41,6 +41,7 @@ fn a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own() {
             homes: Vec::new(),
             unlocked: Vec::new(),
             compact: Vec::new(),
+            auto_hidden: Vec::new(),
             bars: vec![DockPlacedBar {
                 bar,
                 owner: Some(side),

@@ -1444,6 +1444,7 @@ fn spec_to_layout(spec: &DockSpec, path: PathOf<'_>) -> api::DockLayout {
                 })
             })
             .collect(),
+        auto_hidden: spec.auto_hidden.iter().copied().map(edge_to_api).collect(),
     }
 }
 
@@ -1524,6 +1525,12 @@ fn layout_to_spec(layout: &api::DockLayout, tab: TabOf<'_>) -> DockSpec {
                     folded: compact.folded,
                 })
             })
+            .collect(),
+        auto_hidden: layout
+            .auto_hidden
+            .iter()
+            .copied()
+            .map(edge_from_api)
             .collect(),
         ..spec
     }

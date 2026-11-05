@@ -1,6 +1,7 @@
 mod bar;
 mod calendar;
 mod clock;
+mod edges;
 mod ending;
 mod launcher;
 mod layouts;
@@ -156,6 +157,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
                         </Docking>
                     </DockHost>
                 </ListItem>
+                <edges::HiddenBands edges={shell.edges} layout=host display />
                 <media::LevelDisplay osd={desktop.osd} area display />
                 <Show condition={launches}>
                     <ProgramsPanelKey
@@ -274,6 +276,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     <layouts::LayoutKey layouts />
                 </Show>
                 <WindowShortcuts editor host />
+                <edges::HiddenBands edges={shell.edges} layout=host display=0 />
                 <media::LevelDisplay osd area display=0 />
                 <Show condition={launches}>
                     <ProgramsPanelKey programs_panel windows host />

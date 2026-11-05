@@ -1106,6 +1106,8 @@ interface types {
     /// A dock as its holder holds it, which it hands back to `restore`.
     /// `unlocked` names the areas and pinned groups the user unlocked: their
     /// tabs may leave and, for an area, other tabs may come in.
+    /// `auto-hidden` names the edges whose band of the dock's own bars hides
+    /// until it is revealed, where the dock offers that.
     record dock-layout {
         tree: dock-tree,
         homes: list<dock-home>,
@@ -1113,6 +1115,7 @@ interface types {
         outside: list<dock-outside>,
         unlocked: list<dock-place>,
         compact: list<dock-compact>,
+        auto-hidden: list<dock-edge>,
     }
 
     /// How a compact dock arranges a tree with a bare stage pane, by the
