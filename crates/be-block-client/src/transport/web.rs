@@ -27,19 +27,7 @@ pub(crate) async fn post_once(url: &str, body: &[u8]) -> Result<Vec<Vec<u8>>, St
     init.set_method("POST");
     init.set_credentials(web_sys::RequestCredentials::Include);
     init.set_body(&js_sys::Uint8Array::from(body).into());
-    let global = js_sys::global();
-    let fetch = js_sys::Reflect::get(&global, &JsValue::from_str("fetch"))
-        .ok()
-        .and_then(|fetch| fetch.dyn_into::<js_sys::Function>().ok())
-        .ok_or_else(|| "this page cannot fetch".to_owned())?;
-    let promise = fetch
-        .call2(&global, &JsValue::from_str(url), &init)
-        .map_err(|error| describe(&error))?;
-    let response: web_sys::Response =
-        wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise))
-            .await
-            .map_err(|error| format!("could not reach {url}: {}", describe(&error)))?
-            .unchecked_into();
+    let response = fetch(url, &init).await?;
     let buffer = wasm_bindgen_futures::JsFuture::from(
         response.array_buffer().map_err(|error| describe(&error))?,
     )
@@ -54,6 +42,113 @@ pub(crate) async fn post_once(url: &str, body: &[u8]) -> Result<Vec<Vec<u8>>, St
         ));
     }
     super::frames(&bytes)
+}
+
+async fn fetch(url: &str, init: &web_sys::RequestInit) -> Result<web_sys::Response, String> {
+    let global = js_sys::global();
+    let fetch = js_sys::Reflect::get(&global, &JsValue::from_str("fetch"))
+        .ok()
+        .and_then(|fetch| fetch.dyn_into::<js_sys::Function>().ok())
+        .ok_or_else(|| "this page cannot fetch".to_owned())?;
+    let promise = fetch
+        .call2(&global, &JsValue::from_str(url), init)
+        .map_err(|error| describe(&error))?;
+    Ok(
+        wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise))
+            .await
+            .map_err(|error| format!("could not reach {url}: {}", describe(&error)))?
+            .unchecked_into(),
+    )
+}
+
+/// The longest refusal read to describe a failed request.
+const REFUSAL_BYTES: usize = 16 * 1024;
+
+/// Sends one `method` request to `url` with a CORS `fetch` that sends no cookies, and answers
+/// the body of a 2xx answer, refusing one longer than `limit` as soon as it is. The headers the
+/// browser sets itself are dropped from `headers`.
+pub(crate) async fn request(
+    method: &str,
+    url: &str,
+    headers: &[(String, String)],
+    body: &[u8],
+    limit: usize,
+) -> Result<Vec<u8>, crate::http::Error> {
+    use crate::http::Error;
+    let init = web_sys::RequestInit::new();
+    init.set_method(method);
+    init.set_mode(web_sys::RequestMode::Cors);
+    init.set_credentials(web_sys::RequestCredentials::Omit);
+    let pairs = js_sys::Array::new();
+    for (name, value) in headers {
+        if ["host", "content-length", "connection", "transfer-encoding"]
+            .iter()
+            .any(|own| name.eq_ignore_ascii_case(own))
+        {
+            continue;
+        }
+        pairs.push(&js_sys::Array::of2(
+            &JsValue::from_str(name),
+            &JsValue::from_str(value),
+        ));
+    }
+    init.set_headers(&pairs);
+    if method != "GET" {
+        init.set_body(&js_sys::Uint8Array::from(body).into());
+    }
+    let response = fetch(url, &init).await.map_err(Error::Failed)?;
+    let status = response.status();
+    if (200..300).contains(&status) {
+        return read_body(&response, limit).await;
+    }
+    let message = match read_body(&response, REFUSAL_BYTES).await {
+        Ok(body) => String::from_utf8_lossy(&body).trim().to_owned(),
+        Err(_) => String::new(),
+    };
+    Err(Error::from_status(status, message))
+}
+
+/// Reads `response`'s body a chunk at a time, failing with `TooLarge` as soon as it is longer than
+/// `limit`.
+async fn read_body(
+    response: &web_sys::Response,
+    limit: usize,
+) -> Result<Vec<u8>, crate::http::Error> {
+    use crate::http::Error;
+    let length = response
+        .headers()
+        .get("content-length")
+        .ok()
+        .flatten()
+        .and_then(|length| length.trim().parse::<usize>().ok());
+    if length.is_some_and(|length| length > limit) {
+        return Err(Error::TooLarge { limit });
+    }
+    let Some(stream) = response.body() else {
+        return Ok(Vec::new());
+    };
+    let reader: web_sys::ReadableStreamDefaultReader = stream.get_reader().unchecked_into();
+    let mut body = Vec::new();
+    loop {
+        let chunk = wasm_bindgen_futures::JsFuture::from(reader.read())
+            .await
+            .map_err(|error| Error::Failed(describe(&error)))?;
+        let done = js_sys::Reflect::get(&chunk, &JsValue::from_str("done"))
+            .ok()
+            .and_then(|done| done.as_bool())
+            .unwrap_or(true);
+        if done {
+            return Ok(body);
+        }
+        let value: js_sys::Uint8Array = js_sys::Reflect::get(&chunk, &JsValue::from_str("value"))
+            .map_err(|error| Error::Failed(describe(&error)))?
+            .unchecked_into();
+        if value.length() as usize > limit - body.len() {
+            let _ = reader.cancel();
+            return Err(Error::TooLarge { limit });
+        }
+        body.extend_from_slice(&value.to_vec());
+    }
 }
 
 pub(crate) async fn connect(url: &str) -> Result<(Writer, Reader), String> {

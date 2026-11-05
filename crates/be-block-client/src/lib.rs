@@ -7,6 +7,7 @@ use be_block_store::{Hash, StoreError};
 pub mod clock;
 pub mod connection;
 pub mod contacts;
+pub mod http;
 pub mod keys;
 pub mod peer;
 pub mod refs;
