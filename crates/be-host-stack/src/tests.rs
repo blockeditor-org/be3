@@ -538,6 +538,7 @@ fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
         .map(|counter| counter.root().value())
 }
 
+#[track_caller]
 fn wait_for_count(block: Uuid, expected: i64) {
     crate::wait_until(|shared| (counted(shared, block) == Some(expected)).then_some(()));
 }
@@ -549,6 +550,7 @@ fn ask_for(queries: Vec<Query>) {
     want(owner, wanted);
 }
 
+#[track_caller]
 fn wait_until(_what: &str, ready: impl Fn(&Shared) -> bool) {
     crate::wait_until(|shared| ready(shared).then_some(()));
 }

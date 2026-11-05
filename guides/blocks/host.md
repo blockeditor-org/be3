@@ -61,6 +61,13 @@ connection's broadcast, with one deadline for the autosave a dirty session is
 owed. `status().wakes` counts wakes, and a test asserts an idle peer never
 wakes.
 
+Tests wait on the stack with `be_host_stack::wait_until`, which fails at the
+caller after `WAIT_LIMIT` instead of waiting forever: tests share one stack in
+turn, so one endless wait would hang the whole target. Commit times and an
+embedded server's history follow `be_block_commit::now_milliseconds`, which a
+test pins with `pin_now` to step history a minute at a time (be-host pins it to
+its wall clock while that is pinned, so `drive pause` moves it).
+
 The host refuses an `Operate`, a replacing `write-content` and graph commands
 for a block the account may only read (`Instances::editable` asks the
 mirror's access); it does not rely on the app's `editable()`.

@@ -832,7 +832,15 @@ pub fn backgrounded() {
     send(Command::Flush(done));
 }
 
+/// How long a test waits for the stack before failing: a wait that never ends would hang the
+/// whole test target until the build server's timeout, with no word of which test or wait.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+pub const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Waits until `read` finds what it wants in the stack's state, and panics at the caller after
+/// `WAIT_LIMIT`.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[track_caller]
 pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
     let (shared, changed) = stack()
         .lock()
@@ -840,12 +848,21 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         .as_ref()
         .map(|stack| (Arc::clone(&stack.shared), Arc::clone(&stack.changed)))
         .expect("the stack is running");
+    let deadline = std::time::Instant::now() + WAIT_LIMIT;
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     loop {
         if let Some(value) = read(&held) {
             return value;
         }
-        held = changed.wait(held).unwrap_or_else(PoisonError::into_inner);
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() {
+            drop(held);
+            panic!("the stack never reached what this waits for in {} s", WAIT_LIMIT.as_secs());
+        }
+        held = changed
+            .wait_timeout(held, left)
+            .unwrap_or_else(PoisonError::into_inner)
+            .0;
     }
 }
 
