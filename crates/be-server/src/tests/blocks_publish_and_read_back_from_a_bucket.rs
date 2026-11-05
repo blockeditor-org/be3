@@ -1,7 +1,5 @@
 use super::*;
 
-use crate::objects::tests::TestBucket;
-
 #[tokio::test]
 async fn blocks_publish_and_read_back_from_a_bucket() {
     let bucket = TestBucket::start();
@@ -24,6 +22,18 @@ async fn blocks_publish_and_read_back_from_a_bucket() {
     assert!(
         matches!(&missing, Ok(missing) if *missing == objects),
         "{missing:?}"
+    );
+    // Bytes move between the client and the bucket, never through the server.
+    let urls = client
+        .reserve(&[author.store.get(objects[0]).unwrap().unwrap()])
+        .await
+        .unwrap();
+    assert!(
+        urls[0]
+            .url
+            .starts_with(&format!("http://{}/{}/", bucket.address, TestBucket::NAME)),
+        "{}",
+        urls[0].url
     );
     let response = client
         .publish(&author, block, head, chunks.clone(), None, 1_000)
@@ -55,14 +65,22 @@ async fn blocks_publish_and_read_back_from_a_bucket() {
     std::fs::remove_dir_all(harness.directory.join("object-cache")).unwrap();
     assert_eq!(client.read_block(block).await.head, Some(head));
     for chunk in &chunks {
-        let read = client
-            .call(|peer| client::objects::get_object(peer, *chunk))
-            .await;
+        let read = client.download(*chunk).await;
         assert!(
             matches!(&read, Ok(Some(bytes)) if Hash::of(bytes) == *chunk),
             "{read:?}"
         );
     }
+    let url = client
+        .call(|peer| client::objects::download_urls(peer, vec![chunks[0]]))
+        .await
+        .unwrap()
+        .remove(0)
+        .unwrap();
+    assert!(
+        url.starts_with(&format!("http://{}/", bucket.address)),
+        "{url}"
+    );
     let contents = client
         .call(|peer| client::blocks::read_contents(peer, vec![block], Vec::new()))
         .await;

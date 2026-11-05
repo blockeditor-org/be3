@@ -7,7 +7,7 @@ const USAGE: &str = "\
 Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
             [--build-info-file FILE] [--auth-origin URL] [--account-quota BYTES]
-            [--trusted-proxy ADDR]... [--object-cache BYTES]
+            [--trusted-proxy ADDR]... [--object-cache BYTES] [--public-url URL]
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
@@ -32,6 +32,10 @@ Usage:
                             the reverse proxy runs, and ignored from anyone else
   --object-cache BYTES      With a bucket, the bytes of objects kept in DIR/object-cache
                             (default: 2147483648, 2 GiB)
+  --public-url URL          The URL clients reach the server at, with its path behind a
+                            proxy (https://api.be3.pfg.pw/api/be). Without a bucket, clients
+                            move object bytes through the server's S3 endpoint below it
+                            (default: http:// and the address it listens on)
 
 Objects are kept in DIR/objects, or, when BE_S3_ENDPOINT, BE_S3_REGION,
 BE_S3_BUCKET, BE_S3_ACCESS_KEY and BE_S3_SECRET_KEY are all set, in that bucket
@@ -166,6 +170,9 @@ async fn run() -> Result<(), Box<dyn Error>> {
                     .parse()?;
                 config.trusted_proxies.to_mut().push(proxy);
             }
+            "--public-url" => {
+                config.public_url = Some(arguments.next().ok_or("--public-url needs a URL")?);
+            }
             "--object-cache" => {
                 cache_bytes = arguments
                     .next()
@@ -189,6 +196,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
         login = config.allow_login,
         registration = config.allow_registration,
         bucket = ?config.bucket.as_ref().map(|config| &config.bucket),
+        public_url = ?config.public_url,
         build,
         "be-server listening"
     );

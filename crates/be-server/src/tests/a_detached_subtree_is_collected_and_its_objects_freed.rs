@@ -83,9 +83,7 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
         "an object another commit still holds was deleted"
     );
 
-    let response = client
-        .call(|peer| client::objects::get_object(peer, chunks[0]))
-        .await;
+    let response = client.download(chunks[0]).await;
     assert!(matches!(response, Ok(Some(_))), "{response:?}");
 
     let response = client

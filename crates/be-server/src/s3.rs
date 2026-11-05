@@ -3,8 +3,8 @@
 //! configured (guides/blocks/server.md, "Objects over S3").
 //!
 //! The endpoint is path-style with one bucket, [`BUCKET`], mounted at [`PATH`] below wherever the
-//! server is reached (`http://127.0.0.1:9090/s3/objects/HASH`, or
-//! `https://api.be3.pfg.pw/api/be/s3/objects/HASH` through the proxy). An object's key is its
+//! server is reached (`http://127.0.0.1:9090/storage/objects/HASH`, or
+//! `https://api.be3.pfg.pw/api/be/storage/objects/HASH` through the proxy). An object's key is its
 //! hash in lowercase hex. Only GetObject (with Range), HeadObject and PutObject are served; every
 //! request is signed with the server's own credentials ([`S3Endpoint`]).
 
@@ -28,8 +28,10 @@ use s3s::{
 
 use crate::store::MAX_OBJECT_BYTES;
 
-/// Where the endpoint is mounted, below the server's URL.
-pub const PATH: &str = "s3/";
+/// Where the endpoint is mounted, below the server's URL. s3s still reads a request's first path
+/// segment as a bucket name and refuses one that is not valid (`s3` is too short), so on a
+/// server reached at its root this segment has to be one.
+pub const PATH: &str = "storage/";
 /// The one bucket.
 pub const BUCKET: &str = "objects";
 /// The region requests are signed for.
@@ -69,6 +71,12 @@ impl S3Endpoint {
 
     pub fn credentials(&self) -> rusty_s3::Credentials {
         rusty_s3::Credentials::new(self.access_key.clone(), self.secret_key.clone())
+    }
+
+    /// The endpoint as reached at `server`, as a `Bucket` that presigns the URLs clients move
+    /// object bytes with when the server keeps them itself.
+    pub fn transfers(&self, server: &url::Url) -> crate::objects::Bucket {
+        crate::objects::Bucket::from_parts(self.bucket(server), self.credentials())
     }
 }
 

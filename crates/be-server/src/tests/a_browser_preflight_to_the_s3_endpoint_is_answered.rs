@@ -4,7 +4,7 @@ use super::{an_object_uploads_and_downloads_with_presigned_s3_urls::send, *};
 async fn a_browser_preflight_to_the_s3_endpoint_is_answered() {
     let harness = Harness::start().await;
     let url = format!(
-        "{}/api/be/s3/objects/{}",
+        "{}/api/be/storage/objects/{}",
         harness.url,
         Hash::of(b"to upload").to_hex()
     )

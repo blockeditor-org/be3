@@ -30,9 +30,7 @@ async fn a_download_does_not_wait_behind_another_organizations_store_call() {
 
     // The busy organization's call holds the database lock until released; the download
     // reads through the read-only connection and the library's cached graph.
-    let downloaded = reader
-        .call(|peer| client::objects::get_object(peer, chunks[0]))
-        .await;
+    let downloaded = reader.download(chunks[0]).await;
     assert!(matches!(downloaded, Ok(Some(_))), "{downloaded:?}");
 
     release.send(()).unwrap();

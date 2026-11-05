@@ -33,6 +33,14 @@ the one deployments upload to: the server lists and deletes keys in it. Moving a
 server's objects there is a backup and a restore into a fresh data directory with the variables
 set.
 
+With a bucket, clients upload and download objects with URLs the server presigns against the
+bucket, so the bucket must answer browsers too: give the zone a CORS rule allowing the web
+build's origin (`https://be3.pfg.pw`) to `GET`, `HEAD` and `PUT`, with the request headers
+`content-type`, `range` and `x-amz-checksum-sha256` (a PUT that sends the checksum is
+preflighted) and exposing `Content-Length`, `Content-Range` and `ETag`. Requests carry no
+credentials; the signature is the authority. Without a bucket, the server's own S3 endpoint
+answers these itself.
+
 ## Routes, the proxy and the gateway
 
 The server speaks WebSockets at `/api/be` and the same protocol over HTTP posts at
@@ -53,10 +61,13 @@ WebSocket API can't set headers), a host-only cookie on `api.be3.pfg.pw` that vi
 `https://api.be3.pfg.pw/` sets before redirecting to the web build. The public web bundle holds
 no gateway key. Because the page is on another origin, the proxy must allow the web build's
 exact origin with credentials and let preflights through without the cookie; any HTTP fetch
-added for API access must include credentials. The S3 endpoint, `/api/be/s3/*`
+added for API access must include credentials. The S3 endpoint, `/api/be/storage/*`
 (guides/blocks/server.md, "Objects over S3"), is the exception: its presigned URLs are fetched
 without credentials, so the proxy must pass it through without the gateway check, keeping its
-path, `Host` and query (the signature covers them) and adding no CORS headers of its own.
+path, `Host` and query (the signature covers them) and adding no CORS headers of its own. The
+server signs those URLs for the URL clients reach it at, which it can't see behind Caddy: run
+it with `--public-url https://api.be3.pfg.pw/api/be`, or every presigned URL names its
+loopback address.
 
 ### Proxy account credentials
 

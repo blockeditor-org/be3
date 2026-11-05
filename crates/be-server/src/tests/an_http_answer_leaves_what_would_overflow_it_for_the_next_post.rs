@@ -126,9 +126,10 @@ async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
     let (frames, _) = post(&mut stream, &session, &sent).await;
     posted.heard(&frames);
 
+    // Each read answers the head's objects that fit in half a frame, a large one among them.
     let mut reads: Vec<_> = large
         .iter()
-        .map(|hash| client::objects::get_object(&posted.peer, *hash))
+        .map(|_| client::blocks::read_contents(&posted.peer, vec![block], Vec::new()))
         .collect();
     let sent = posted.frames();
     let (mut frames, more) = post(&mut stream, &session, &sent).await;
@@ -147,11 +148,14 @@ async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
     }
     assert_eq!(answered(&frames), large.len());
     posted.heard(&frames);
-    for (index, read) in reads.iter_mut().enumerate() {
-        let std::task::Poll::Ready(Ok(Ok(Some(bytes)))) = poll(read) else {
-            panic!("a read was not answered with its object");
+    for read in &mut reads {
+        let std::task::Poll::Ready(Ok(Ok(contents))) = poll(read) else {
+            panic!("a read was not answered");
         };
-        assert_eq!(bytes, vec![index as u8; 3 << 20]);
+        assert!(
+            contents.objects.contains(&vec![0; 3 << 20]),
+            "a read was not answered with the large object"
+        );
     }
     harness.stop().await;
 }

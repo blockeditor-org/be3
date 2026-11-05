@@ -1,9 +1,7 @@
 use super::*;
 
 async fn read(client: &mut TestClient, hash: Hash) -> Option<Vec<u8>> {
-    let response = client
-        .call(|peer| client::objects::get_object(peer, hash))
-        .await;
+    let response = client.download(hash).await;
     let Ok(bytes) = response else {
         panic!("reading an object failed: {response:?}");
     };

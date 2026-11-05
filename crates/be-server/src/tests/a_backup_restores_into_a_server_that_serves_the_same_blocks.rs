@@ -65,9 +65,7 @@ async fn a_backup_restores_into_a_server_that_serves_the_same_blocks() {
     let mut returning = revived.second_connection(&token, organization).await;
     assert_eq!(returning.read_block(block).await.head, Some(head));
     for chunk in &chunks {
-        let response = returning
-            .call(|peer| client::objects::get_object(peer, *chunk))
-            .await;
+        let response = returning.download(*chunk).await;
         assert!(
             matches!(response, Ok(Some(_))),
             "a chunk did not survive the restore"

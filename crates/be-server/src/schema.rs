@@ -255,7 +255,8 @@ const SCHEMA: &str = "
 
     CREATE TABLE object_sizes (
         hash            TEXT PRIMARY KEY,
-        bytes           INTEGER NOT NULL
+        bytes           INTEGER NOT NULL,
+        confirmed       INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE object_uploads (
@@ -264,6 +265,7 @@ const SCHEMA: &str = "
         hash            TEXT NOT NULL,
         payer           TEXT NOT NULL,
         uploaded        INTEGER NOT NULL,
+        proven          INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, account_id, hash)
     );
 
