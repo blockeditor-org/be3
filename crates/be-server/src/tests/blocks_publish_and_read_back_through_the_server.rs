@@ -23,16 +23,8 @@ async fn blocks_publish_and_read_back_through_the_server() {
                 first,
                 None,
                 Vec::new(),
-<<<<<<< HEAD
                 objects_change(&[], chunks.clone()),
-                1_000,
-||||||| parent of 1fd538f2 (feat: prune history as each publish arrives, keeping a state per minute for the last hour)
-                chunks.clone(),
-                1_000,
-=======
-                chunks.clone(),
                 minutes_ago(2),
->>>>>>> 1fd538f2 (feat: prune history as each publish arrives, keeping a state per minute for the last hour)
                 false,
                 listing(&[], Vec::new()),
                 Vec::new(),
@@ -67,16 +59,8 @@ async fn blocks_publish_and_read_back_through_the_server() {
                 second,
                 Some(first),
                 Some(first).into_iter().collect(),
-<<<<<<< HEAD
                 objects_change(&chunks, next_chunks),
-                2_000,
-||||||| parent of 1fd538f2 (feat: prune history as each publish arrives, keeping a state per minute for the last hour)
-                next_chunks,
-                2_000,
-=======
-                next_chunks,
                 minutes_ago(1),
->>>>>>> 1fd538f2 (feat: prune history as each publish arrives, keeping a state per minute for the last hour)
                 false,
                 listing(&[], Vec::new()),
                 Vec::new(),
