@@ -192,6 +192,7 @@ pub struct EditorMirror<C: LiveEdit> {
     revision: u64,
     projected: Option<Vec<Projected<C::Op>>>,
     length: u64,
+    snapshots: u64,
     reads: u64,
     ranges: Vec<(u64, Result<Vec<u8>, String>)>,
 }
@@ -210,6 +211,7 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             revision: 0,
             projected: None,
             length: 0,
+            snapshots: 0,
             reads: 0,
             ranges: Vec::new(),
         }
@@ -259,6 +261,12 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     /// only its first part holds the start.
     pub fn stored_length(&self) -> u64 {
         self.length
+    }
+
+    /// How many snapshots the mirror took: what it holds of a type that loads only its first
+    /// part changes only with one, so a reader of the rest reads again when this moves.
+    pub fn snapshots(&self) -> u64 {
+        self.snapshots
     }
 
     /// Asks the replica for a range of the stored form; its answer comes back from `receive`
@@ -363,6 +371,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         }
         self.confirmed = Some(Settling::new(settled, unsettled));
         self.length = snapshot.length;
+        self.snapshots += 1;
         self.resyncing = false;
         self.rebuild();
     }

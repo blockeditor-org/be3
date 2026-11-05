@@ -10,9 +10,9 @@ fn payload() -> Vec<u8> {
 
 #[test]
 fn a_replica_that_loads_only_the_header_reads_the_payload_on_demand() {
-    let mut sim = Sim::<RecordingContent>::new(2, recording_module);
+    let mut sim = Sim::<FileContent>::new(2, file_module);
     let payload = payload();
-    let recording = RecordingContent::new("take one".into(), payload.clone());
+    let recording = FileContent::new("take one".into(), payload.clone());
     sim.publish_elsewhere(&recording);
     let header = recording.encode().len() - payload.len();
 
@@ -63,7 +63,7 @@ fn a_replica_that_loads_only_the_header_reads_the_payload_on_demand() {
     sim.settle();
     sim.advance(crate::SEAL_INTERVAL);
     assert!(sim.errors.is_empty(), "{:?}", sim.errors);
-    let renamed = RecordingContent::new("take two".into(), payload.clone());
+    let renamed = FileContent::new("take two".into(), payload.clone());
     assert_eq!(sim.head_content(), renamed);
     assert_eq!(sim.part_reads, 1, "saving a rename read the payload");
 

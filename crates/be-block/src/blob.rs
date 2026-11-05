@@ -16,10 +16,6 @@ pub trait BlobKind: Send + Sync + 'static {
 
     const SCHEMA: u32 = 0;
 
-    /// `Loads::FirstPart` leaves the payload in the store for editors to read by range
-    /// (`Blob::is_loaded`); a kind switches once its editors read it that way.
-    const LOADS: Loads = Loads::Whole;
-
     type Header: Clone
         + Debug
         + Default
@@ -71,8 +67,8 @@ impl<K: BlobKind> Blob<K> {
         &self.data
     }
 
-    /// False for a blob of a kind that loads only its header (`BlobKind::LOADS`), whose
-    /// payload stays in the store.
+    /// False for a blob a replica loaded, which holds only its header: its payload stays in
+    /// the store, and editors read it by range (`ContentProjection::payload` in be-sdk-beui).
     pub const fn is_loaded(&self) -> bool {
         !self.unloaded
     }
@@ -139,7 +135,7 @@ impl<K: BlobKind> BlockContent for Blob<K> {
 
     const FROZEN: bool = K::FROZEN;
 
-    const LOADS: Loads = K::LOADS;
+    const LOADS: Loads = Loads::FirstPart;
 
     fn schema() -> String {
         format!("blob {}", K::SCHEMA)

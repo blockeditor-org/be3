@@ -140,6 +140,11 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             .map(|()| self.0.mirror.borrow().stored_length())
     }
 
+    /// How many snapshots the projection took (`EditorMirror::snapshots`).
+    pub fn snapshots(&self) -> u64 {
+        self.0.mirror.borrow().snapshots()
+    }
+
     /// Reads a range of the block's stored form as its replica holds it, including what it
     /// has not saved; `done` runs once the replica answers. A type that loads only its first
     /// part reads the rest this way.

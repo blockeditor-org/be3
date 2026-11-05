@@ -24,17 +24,18 @@ enum Loaded {
 #[component]
 pub fn ModuleView(editor: Editor) -> NodeId {
     let module = editor.block_content::<GameModuleContent>();
-    let loaded = module.project(|module| {
-        if module.data().is_empty() {
-            return Loaded::Loading;
-        }
-        match Game::load(module.data()) {
+    let payload = module.payload();
+    let loaded = create_memo(move || match payload.get() {
+        Err(Pending::Loading) => Loaded::Loading,
+        Err(Pending::Failed(error)) => Loaded::Failed(error),
+        Ok(data) if data.is_empty() => Loaded::Loading,
+        Ok(data) => match Game::load(&data) {
             Ok(game) => Loaded::Named(game.name().to_owned()),
             Err(error) => Loaded::Failed(error),
-        }
+        },
     });
     let source = module.project(|module| module.header().source_name.clone());
-    let size = module.project(|module| module.data().len());
+    let size = create_memo(move || payload.get().map_or(0, |data| data.len()));
     let bytes = create_memo(move || format!("{} bytes", size.get()));
 
     let name = create_memo(move || match loaded.get() {

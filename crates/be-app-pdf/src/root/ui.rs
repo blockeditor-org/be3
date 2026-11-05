@@ -26,6 +26,7 @@ const PANEL_PADDING: Space = Space::Lg;
 #[component]
 pub fn PdfEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<PdfContent>();
+    let payload = block.payload();
     let pages = Pages::new();
     let chooser = FileChooser::new(filter(), imported);
     let shown = pages.shown();
@@ -49,6 +50,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         let size = pages.shown().get_untracked().size();
         pages.pump(
             &block,
+            payload,
             &performance,
             waker.clone(),
             viewport(placed.get(), canvas.get(), size, device.get()),
@@ -336,6 +338,7 @@ fn PageCanvas(
 #[component]
 pub fn PdfPreview(editor: Editor) -> NodeId {
     let block = editor.block_content::<PdfContent>();
+    let payload = block.payload();
     let pages = Pages::new();
     let shown = pages.shown();
     let performance = editor
@@ -350,6 +353,7 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
         let size = pages.shown().get_untracked().size();
         pages.pump(
             &block,
+            payload,
             &performance,
             waker.clone(),
             viewport(placed.get(), None, size, device.get()),
