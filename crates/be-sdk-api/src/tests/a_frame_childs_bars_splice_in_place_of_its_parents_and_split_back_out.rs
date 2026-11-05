@@ -70,6 +70,7 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
             homes: Vec::new(),
             unlocked: Vec::new(),
             compact: Vec::new(),
+            auto_hidden: Vec::new(),
             bars: vec![DockPlacedBar {
                 bar: tools.clone(),
                 owner: Some(DockTabPath::own(2)),

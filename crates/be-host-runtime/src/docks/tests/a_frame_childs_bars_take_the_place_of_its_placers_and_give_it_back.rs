@@ -34,6 +34,7 @@ fn root_hosts(docks: &mut Docks, bars: Vec<DockPlacedBar>, covers: Vec<DockCover
                 outside: Vec::new(),
                 unlocked: Vec::new(),
                 compact: Vec::new(),
+                auto_hidden: Vec::new(),
             },
             tabs: delivered.tabs.iter().map(|tab| tab.tab.clone()).collect(),
             focused: None,

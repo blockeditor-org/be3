@@ -148,6 +148,9 @@ fn like_the_first(first: DockingLayout<TabId>, display: u32) -> DockingSnapshot<
         state.add_bar(bar, None, first.bar_placement(&from).unwrap_or(placement));
         state.set_bar_hidden(bar, first.is_bar_hidden(&from));
     }
+    for edge in DockEdge::ALL {
+        state.set_edge_auto_hidden(edge, first.is_edge_auto_hidden(edge));
+    }
     DockingSnapshot::new(state, bars.map(|bar| (bar, bar)))
 }
 
@@ -282,6 +285,7 @@ pub(crate) struct Shell {
     pub(crate) windows: DeskWindows,
     pub(crate) clock: ReadSignal<String>,
     pub(crate) layouts: Layouts,
+    pub(crate) edges: super::edges::HiddenEdges,
 }
 
 impl Shell {
@@ -299,6 +303,7 @@ impl Shell {
             windows,
             clock: wall_clock(),
             layouts,
+            edges: super::edges::HiddenEdges::new(workspace.editor()),
         }
     }
 }

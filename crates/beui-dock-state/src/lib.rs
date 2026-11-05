@@ -643,6 +643,7 @@ pub struct DockState {
     see_through: Vec<TabId>,
     compact: Vec<DockCompact>,
     hidden: Vec<SurfaceId>,
+    auto_hidden: Vec<DockEdge>,
 }
 
 impl Default for DockState {
@@ -673,6 +674,7 @@ impl DockState {
             see_through: Vec::new(),
             compact: Vec::new(),
             hidden: Vec::new(),
+            auto_hidden: Vec::new(),
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
         let focus = leaf.id;

@@ -3,9 +3,10 @@ use std::cell::RefCell;
 use be_block::DisplaySettings;
 use be_block::display_settings::ScreenUse;
 use be_host_desktop::desktop_host::{DesktopHost, Host};
-use be_sdk_api::HostDisplay;
+use be_sdk_api::{HostDisplay, ScreenEdge, ScreenEdgeState, ScreenSide};
 use beui_platform_drm::{
-    Display, DisplayConfig, DisplayControl, DisplayUse, Displays, Epaper, Monitor,
+    Display, DisplayConfig, DisplayControl, DisplayUse, Displays, EdgeState, Epaper, Monitor,
+    ScreenEdges, Side,
 };
 
 use super::Screen;
@@ -16,6 +17,7 @@ thread_local! {
     static EPAPER: RefCell<Option<Epaper>> = const { RefCell::new(None) };
     static MONITORS: RefCell<Vec<Monitor>> = const { RefCell::new(Vec::new()) };
     static DISPLAYS: RefCell<Vec<Display>> = const { RefCell::new(Vec::new()) };
+    static EDGES: RefCell<Option<ScreenEdges>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn start(setup: &beui::native::Setup) {
@@ -56,6 +58,19 @@ pub(crate) fn start(setup: &beui::native::Setup) {
         be_host_base::watches::publish::<be_sdk_api::EpaperWatch>(&true);
     }
     EPAPER.with(|slot| *slot.borrow_mut() = epaper);
+    let edges = setup.get::<ScreenEdges>().cloned();
+    if let Some(edges) = &edges {
+        let watched = edges.clone();
+        let publish = move || {
+            let states: Vec<ScreenEdgeState> =
+                watched.states().into_iter().map(edge_state).collect();
+            be_host_base::watches::publish::<be_sdk_api::ScreenEdgesWatch>(&states);
+            be_host_base::host::wake();
+        };
+        publish();
+        edges.watch(publish);
+    }
+    EDGES.with(|slot| *slot.borrow_mut() = edges);
 }
 
 pub(crate) fn epaper() -> bool {
@@ -67,6 +82,51 @@ pub(crate) fn stop() {
     drop(control);
     let epaper = EPAPER.with(|slot| slot.borrow_mut().take());
     drop(epaper);
+    let edges = EDGES.with(|slot| slot.borrow_mut().take());
+    drop(edges);
+}
+
+/// Hands the shell's screen edges to the platform, which walls the pointer at them.
+pub(crate) fn run_edges() {
+    let Some(edges) = be_host_base::watches::take_calls(be_sdk_api::requested::set_edges).pop()
+    else {
+        return;
+    };
+    EDGES.with(|slot| {
+        if let Some(held) = slot.borrow().as_ref() {
+            held.set(edges.into_iter().map(screen_edge).collect());
+        }
+    });
+}
+
+fn screen_edge(edge: ScreenEdge) -> beui_platform_drm::ScreenEdge {
+    beui_platform_drm::ScreenEdge {
+        id: edge.id,
+        display: edge.display,
+        side: match edge.side {
+            ScreenSide::Top => Side::Top,
+            ScreenSide::Bottom => Side::Bottom,
+            ScreenSide::Left => Side::Left,
+            ScreenSide::Right => Side::Right,
+        },
+        start: edge.start,
+        end: edge.end,
+        wall: edge.wall,
+        deliberate: edge.deliberate,
+        keep: edge.keep,
+    }
+}
+
+fn edge_state(state: EdgeState) -> ScreenEdgeState {
+    ScreenEdgeState {
+        id: state.id,
+        pushed: state.pushed,
+        near: state.near,
+        pull: state.pull,
+        pulls: state.pulls,
+        pulled: state.pulled,
+        taps_away: state.taps_away,
+    }
 }
 
 pub(crate) fn run_epaper() {

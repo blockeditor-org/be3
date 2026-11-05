@@ -1,15 +1,16 @@
 use crate::__args::{
-    DESKTOP_EPAPER_REFRESH, DESKTOP_INPUT_SWITCH_LAYOUT, DESKTOP_MEDIA_REQUEST,
-    DESKTOP_NOTIFICATIONS_REPORT, DESKTOP_POWER_ANSWER_ENDING, DESKTOP_POWER_REQUEST,
-    DESKTOP_PROGRAMS_REQUEST, DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST, DesktopEpaperRefreshArgs,
-    DesktopInputSwitchLayoutArgs, DesktopMediaRequestArgs, DesktopNotificationsReportArgs,
-    DesktopPowerAnswerEndingArgs, DesktopPowerRequestArgs, DesktopProgramsRequestArgs,
-    DesktopTrayRequestArgs, DesktopWifiRequestArgs,
+    DESKTOP_DISPLAYS_SET_EDGES, DESKTOP_EPAPER_REFRESH, DESKTOP_INPUT_SWITCH_LAYOUT,
+    DESKTOP_MEDIA_REQUEST, DESKTOP_NOTIFICATIONS_REPORT, DESKTOP_POWER_ANSWER_ENDING,
+    DESKTOP_POWER_REQUEST, DESKTOP_PROGRAMS_REQUEST, DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST,
+    DesktopDisplaysSetEdgesArgs, DesktopEpaperRefreshArgs, DesktopInputSwitchLayoutArgs,
+    DesktopMediaRequestArgs, DesktopNotificationsReportArgs, DesktopPowerAnswerEndingArgs,
+    DesktopPowerRequestArgs, DesktopProgramsRequestArgs, DesktopTrayRequestArgs,
+    DesktopWifiRequestArgs,
 };
 use crate::ops::{MethodId, Started, decode};
 use crate::{
-    EndingAnswer, MediaRequest, NotificationReport, PowerAction, ProgramAction, TrayRequest,
-    WifiRequest,
+    EndingAnswer, MediaRequest, NotificationReport, PowerAction, ProgramAction, ScreenEdge,
+    TrayRequest, WifiRequest,
 };
 
 fn args<A: serde::de::DeserializeOwned>(started: &Started, method: MethodId) -> Option<A> {
@@ -37,6 +38,10 @@ pub fn wifi(started: &Started) -> Option<WifiRequest> {
 
 pub fn epaper_refresh(started: &Started) -> Option<()> {
     args::<DesktopEpaperRefreshArgs>(started, DESKTOP_EPAPER_REFRESH).map(|_| ())
+}
+
+pub fn set_edges(started: &Started) -> Option<Vec<ScreenEdge>> {
+    args::<DesktopDisplaysSetEdgesArgs>(started, DESKTOP_DISPLAYS_SET_EDGES).map(|args| args.edges)
 }
 
 pub fn switch_layout(started: &Started) -> Option<u32> {

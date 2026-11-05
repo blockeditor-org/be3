@@ -4,8 +4,8 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui_dock_state::{
-    DockBarPlacement, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode, DockSpecPane,
-    DockSpecWindow, DockState, TabId, joined_host, joined_key, joined_prefix,
+    DockBarPlacement, DockEdge, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
+    DockSpecPane, DockSpecWindow, DockState, TabId, joined_host, joined_key, joined_prefix,
 };
 use beui_macros::{component, view};
 use beui_view::primitives::*;
@@ -395,6 +395,10 @@ impl<K: DockKey> DockingLayout<K> {
             return false;
         };
         self.state.with(|state| state.is_bar_hidden(bar))
+    }
+
+    pub fn is_edge_auto_hidden(&self, edge: DockEdge) -> bool {
+        self.state.with(|state| state.is_edge_auto_hidden(edge))
     }
 
     pub fn hide_bar(&self, key: &K) {

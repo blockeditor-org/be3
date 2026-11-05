@@ -4,9 +4,9 @@ use beui_types::Direction;
 use beui_types::{Pos2, Rect};
 
 use super::{
-    Bar, DockBarPlacement, DockCompact, DockHome, DockOutside, DockState, Entry, FLOATING_SIZE,
-    Group, GroupId, Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split, SplitId, SplitSize,
-    Surface, SurfaceId, TabId, Tree,
+    Bar, DockBarPlacement, DockCompact, DockEdge, DockHome, DockOutside, DockState, Entry,
+    FLOATING_SIZE, Group, GroupId, Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split,
+    SplitId, SplitSize, Surface, SurfaceId, TabId, Tree,
 };
 
 const FLOAT_ORIGIN: Pos2 = Pos2::new(64.0, 48.0);
@@ -22,6 +22,7 @@ pub struct DockSpec {
     pub outside: Vec<DockOutside>,
     pub unlocked: Vec<DockSpecPlace>,
     pub compact: Vec<DockCompact>,
+    pub auto_hidden: Vec<DockEdge>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

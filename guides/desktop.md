@@ -42,6 +42,8 @@ A compositor in another language could implement it from the WIT alone.
   `windows` and `programs` only under `--desktop`); on Windows, under `--desktop` only, `windows`,
   `programs` and `power`. Elsewhere every watch answers `unsupported` and calls are dropped.
 - Each watch is published as soon as the service behind it runs, even empty.
+- Only the shell watches windows, contacts and screen edges, and only it calls `windows` and
+  `set-edges` (`shell_only` in `published.rs`): screen edges wall the pointer.
 - The desktop app shows a control only while the host offers what backs it
   (`editor.offered::<W>()`), so an unsupported interface simply hides its controls. Settings does
   the same at a finer grain: `InputReachWatch` says where keymap, key repeat and middle-click paste

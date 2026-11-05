@@ -61,7 +61,7 @@ fn a_window_dragged_over_the_bars_passes_beneath_them() {
     }]);
     fixture.settle();
     assert!(
-        !raised(&fixture).0,
-        "a fullscreen window covers the bars, so they are no longer drawn above it"
+        !fixture.test.shown("dock.bar.band.bottom"),
+        "a fullscreen window hides the bars until a push brings them out over it"
     );
 }

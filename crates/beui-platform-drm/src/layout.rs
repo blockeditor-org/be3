@@ -51,7 +51,7 @@ pub fn clamp(position: Pos2, outputs: &[Rect]) -> Pos2 {
         .unwrap_or(position)
 }
 
-fn inside(rect: Rect, position: Pos2) -> bool {
+pub(crate) fn inside(rect: Rect, position: Pos2) -> bool {
     position.x >= rect.left()
         && position.y >= rect.top()
         && position.x < rect.right()
