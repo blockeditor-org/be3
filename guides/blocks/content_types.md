@@ -168,10 +168,14 @@ by content-defined chunking. Encoding is deterministic, kept data included
 removing a list object changes one part plus the parts on its path to the
 root, moving one changes two, and typing in a large `Text` changes one.
 
-`Document`'s `BlockContent::parts` saves each part with children as a `Node`
-of its own bytes and then its children, and one without as `Bytes`.
-`from_stored` maps each loaded part's hash to its `PartRef`, so a part whose
-hash didn't change goes back as `Reused` with everything under it.
+`Document`'s `BlockContent::parts` saves each part with children or block
+references as a `Node` of its own bytes and then its children, listing the
+blocks its own bytes reference (`DocumentPart::references`), and any other as
+`Bytes`. `from_stored` maps each loaded part's hash to its `PartRef`, so a
+part whose hash didn't change goes back as `Reused` with everything under it,
+references included. `references_in` still lists every block reference too
+(`Document::block_refs`), since describing a block for the graph mirror reads
+only `references_in`; the commit lists each once.
 
 No type is frozen, so a type's format changes however it needs to, with no
 renames or migrations for old data. These are the tools a frozen type would use:

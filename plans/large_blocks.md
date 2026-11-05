@@ -52,9 +52,11 @@ and per-part references (formerly 1–4) are done; 1a's wiring and 5 are left.
 Documents save as parts (guides/blocks/content_types.md, "The stored form")
 but still load whole. Left:
 
-- Each document part lists the references its own objects hold
-  (`Part::Node { references }`), and `references_in` returns none of those,
-  so a reused part keeps its references.
+- Each document part lists the references its own bytes hold
+  (`Part::Node { references }`), but `references_in` still lists them all,
+  because `describe` (the graph mirror) reads only `references_in`. A document
+  that loads only some parts (5) must drop them from `references_in` and have
+  `describe` add its parts' references.
 - Loading part of a document is 5; the model could later offer it per field
   (an attribute such as `#[model(lazy)]` on a `List`), with a part's objects
   loaded when first read. Chat's segments don't need that, since they are its
