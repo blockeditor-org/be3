@@ -72,6 +72,10 @@ pub(crate) enum Input {
     },
     Read {
         token: Token,
+        result: Result<be_block::Stored, String>,
+    },
+    PartRead {
+        token: Token,
         result: Result<Vec<u8>, String>,
     },
     Resumed {
@@ -170,6 +174,19 @@ struct Keeping {
     edits: Option<KeptEdits>,
     from: ClientId,
     attempts: u8,
+}
+
+/// An editor's range read, answered once every piece is.
+struct RangeRead {
+    editor: EditorId,
+    token: u64,
+    pieces: Vec<Piece>,
+}
+
+enum Piece {
+    Ready(Vec<u8>),
+    Waiting(Token),
+    Failed(String),
 }
 
 enum Slot<C> {
@@ -340,6 +357,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     loaded: bool,
     released: bool,
     reported: Reported,
+    ranges: Vec<RangeRead>,
     out: Vec<Effect>,
 }
 
@@ -360,6 +378,7 @@ where
         self.now = self.now.max(now);
         match input {
             Input::Read { token, result } => self.answer_read(token, result),
+            Input::PartRead { token, result } => self.answer_part_read(token, result),
             Input::Resumed { token, result } => self.answer_resume(token, result),
             Input::Head(
                 event @ (HeadEvent::Published { .. }
@@ -464,6 +483,7 @@ where
             loaded: false,
             released: false,
             reported: Reported::default(),
+            ranges: Vec::new(),
             out: Vec::new(),
         }
     }
@@ -624,7 +644,10 @@ where
                 head,
                 from_this_device,
             }) => self.moved(head, from_this_device),
-            Input::Head(_) | Input::Read { .. } | Input::Resumed { .. } => {}
+            Input::Head(_)
+            | Input::Read { .. }
+            | Input::PartRead { .. }
+            | Input::Resumed { .. } => {}
             Input::Lease {
                 session,
                 resynchronize,
@@ -692,10 +715,11 @@ where
             .map(|commit| match commit {
                 Some(commit) => {
                     let token = self.token();
-                    self.out.push(Effect::Read {
+                    self.out.push(Effect::Load {
                         replica: self.id,
                         token,
                         commit,
+                        first_part: C::LOADS == be_block::Loads::FirstPart,
                     });
                     Slot::Waiting(token)
                 }
@@ -706,7 +730,7 @@ where
         self.finish_reads();
     }
 
-    fn answer_read(&mut self, token: Token, result: Result<Vec<u8>, String>) {
+    fn answer_read(&mut self, token: Token, result: Result<be_block::Stored, String>) {
         let Some(Wait::Reads { slots, .. }) = &mut self.waiting else {
             return;
         };
@@ -716,7 +740,8 @@ where
         else {
             return;
         };
-        let decoded = result.and_then(|bytes| C::decode(&bytes).map_err(|error| error.to_string()));
+        let decoded = result
+            .and_then(|stored| C::from_stored(&stored).map_err(|error| error.to_string()));
         match decoded {
             Ok(content) => {
                 *slot = Slot::Ready(content);
@@ -1559,7 +1584,122 @@ where
                 payload,
             } => self.send(to, &SessionMessage::Channel { channel, payload }),
             FromEditor::Resend => self.snapshot_to(editor),
+            FromEditor::Read {
+                token,
+                offset,
+                length,
+            } => self.read_range(editor, token, offset, length),
             FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_) => {}
+        }
+    }
+
+    /// Reads `length` bytes of the visible content's stored form from `offset`: the bytes it
+    /// holds, and the parts it left in the store through `read-part`. An editor of a type that
+    /// loads only its first part reads the rest this way.
+    fn read_range(&mut self, editor: EditorId, token: u64, offset: u64, length: u64) {
+        let end = offset.saturating_add(length);
+        let mut planned = Vec::new();
+        let parts = self.visible.parts();
+        let mut at = 0;
+        let mut leaves = vec![&parts];
+        while let Some(part) = leaves.pop() {
+            let start = at;
+            let stop = start + part.length();
+            if let be_block::Part::Node { parts, .. } = part {
+                if stop > offset && start < end {
+                    leaves.extend(parts.iter().rev());
+                } else {
+                    at = stop;
+                }
+                continue;
+            }
+            at = stop;
+            if stop <= offset || start >= end {
+                continue;
+            }
+            let from = offset.max(start) - start;
+            let to = end.min(stop) - start;
+            match part {
+                be_block::Part::Bytes(bytes) => {
+                    let from = usize::try_from(from).unwrap_or(usize::MAX);
+                    let to = usize::try_from(to).unwrap_or(usize::MAX);
+                    planned.push(Err(bytes[from..to].to_vec()));
+                }
+                be_block::Part::Reused(part) => planned.push(Ok((*part, from, to - from))),
+                be_block::Part::Node { .. } => {}
+            }
+        }
+        drop(parts);
+        let mut pieces = Vec::with_capacity(planned.len());
+        for plan in planned {
+            match plan {
+                Err(bytes) => pieces.push(Piece::Ready(bytes)),
+                Ok((part, offset, length)) => {
+                    let read = self.token();
+                    self.out.push(Effect::ReadPart {
+                        replica: self.id,
+                        token: read,
+                        part,
+                        offset,
+                        length,
+                    });
+                    pieces.push(Piece::Waiting(read));
+                }
+            }
+        }
+        self.ranges.push(RangeRead {
+            editor,
+            token,
+            pieces,
+        });
+        self.finish_ranges();
+    }
+
+    fn answer_part_read(&mut self, token: Token, result: Result<Vec<u8>, String>) {
+        for range in &mut self.ranges {
+            for piece in &mut range.pieces {
+                if matches!(piece, Piece::Waiting(waiting) if *waiting == token) {
+                    *piece = match &result {
+                        Ok(bytes) => Piece::Ready(bytes.clone()),
+                        Err(error) => Piece::Failed(error.clone()),
+                    };
+                }
+            }
+        }
+        self.finish_ranges();
+    }
+
+    fn finish_ranges(&mut self) {
+        let (done, waiting) = std::mem::take(&mut self.ranges)
+            .into_iter()
+            .partition(|range: &RangeRead| {
+                !range
+                    .pieces
+                    .iter()
+                    .any(|piece| matches!(piece, Piece::Waiting(_)))
+            });
+        self.ranges = waiting;
+        for range in done {
+            let mut bytes = Vec::new();
+            let mut failed = None;
+            for piece in range.pieces {
+                match piece {
+                    Piece::Ready(piece) => bytes.extend(piece),
+                    Piece::Failed(error) => failed = Some(error),
+                    Piece::Waiting(_) => {}
+                }
+            }
+            let result = match failed {
+                Some(error) => Err(error),
+                None => Ok(bytes),
+            };
+            self.tell_editor(
+                range.editor,
+                &ToEditor::Range {
+                    token: range.token,
+                    result,
+                },
+            );
         }
     }
 
@@ -1635,9 +1775,15 @@ where
 
     fn snapshot_to(&mut self, editor: EditorId) {
         let settled = self.projected.settled();
+        let bytes = settled.encode();
+        let length = match C::LOADS {
+            be_block::Loads::Whole => bytes.len() as u64,
+            be_block::Loads::FirstPart => settled.parts().length(),
+        };
         let snapshot = Snapshot {
             content_type: self.content_type,
-            bytes: settled.encode(),
+            length,
+            bytes,
             session: settled.session_state(),
             unsettled: self
                 .projected

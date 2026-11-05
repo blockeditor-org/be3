@@ -235,6 +235,7 @@ pub fn snapshot_frame(content_type: Uuid, bytes: Vec<u8>) -> Vec<u8> {
     frame(
         ToEditor::Snapshot(be_sdk_type_guest::editor::Snapshot {
             content_type,
+            length: bytes.len() as u64,
             bytes,
             session: Vec::new(),
             unsettled: Vec::new(),

@@ -25,7 +25,10 @@ struct Projection<C: LiveEdit> {
     announced: Cell<u64>,
     revisions: Callbacks<(), dyn Fn(u64)>,
     due: RefCell<Option<Rc<dyn Fn()>>>,
+    reads: RefCell<HashMap<u64, Box<Read>>>,
 }
+
+type Read = dyn FnOnce(Result<Vec<u8>, String>);
 
 impl<C: LiveEdit> Drop for Projection<C> {
     fn drop(&mut self) {
@@ -62,6 +65,7 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             announced: Cell::new(0),
             revisions: Callbacks::default(),
             due: RefCell::new(None),
+            reads: RefCell::new(HashMap::default()),
         }))
     }
 
@@ -127,6 +131,27 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
 
     pub fn on_revision(&self, run: impl Fn(u64) + 'static) -> Subscription {
         self.0.revisions.add((), Rc::new(run))
+    }
+
+    /// The whole stored form's length, of which a type that loads only its first part
+    /// (`be_block::Loads::FirstPart`) holds the start.
+    pub fn stored_length(&self) -> Result<u64, Unready> {
+        self.ready()
+            .map(|()| self.0.mirror.borrow().stored_length())
+    }
+
+    /// Reads a range of the block's stored form as its replica holds it, including what it
+    /// has not saved; `done` runs once the replica answers. A type that loads only its first
+    /// part reads the rest this way.
+    pub fn read_range(
+        &self,
+        offset: u64,
+        length: u64,
+        done: impl FnOnce(Result<Vec<u8>, String>) + 'static,
+    ) {
+        let (token, message) = self.0.mirror.borrow_mut().read_range(offset, length);
+        self.0.reads.borrow_mut().insert(token, Box::new(done));
+        self.0.host.send_to_replica(self.0.block, message);
     }
 
     pub fn operate(&self, operation: C::Op) {
@@ -231,6 +256,13 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             }
         }
         self.collect_touched();
+        let ranges = self.0.mirror.borrow_mut().take_ranges();
+        for (token, result) in ranges {
+            let done = self.0.reads.borrow_mut().remove(&token);
+            if let Some(done) = done {
+                done(result);
+            }
+        }
     }
 }
 

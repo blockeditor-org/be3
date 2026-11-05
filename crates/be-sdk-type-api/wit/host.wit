@@ -5,7 +5,8 @@ package be3:block-type@0.1.0;
 /// canceled when the replica ends.
 interface host {
     use types.{
-        byte-range, commit-id, description, merging, recipients, resume, status, written,
+        byte-range, commit-id, description, loaded, merging, part-ref, recipients, resume,
+        status, written,
     };
 
     /// The frame clock in milliseconds. The module starts it once; the host
@@ -17,7 +18,13 @@ interface host {
     /// The module cancels it when it wants to wake at another time.
     sleep-until: async func(at: u64);
 
-    read: async func(commit: commit-id, range: option<byte-range>) -> result<list<u8>, string>;
+    /// A commit's stored form; with `first-part`, only the bytes of its root's
+    /// first part (`be_block::Loads::FirstPart`).
+    load: async func(commit: commit-id, first-part: bool) -> result<loaded, string>;
+
+    /// A range of the bytes of a saved part, which a replica that loaded only
+    /// its first part reads on demand.
+    read-part: async func(part: part-ref, range: byte-range) -> result<list<u8>, string>;
 
     /// A compare-and-swap on `expected`, whose commit is the first parent. An
     /// unchanged save answers `published` with the same head.

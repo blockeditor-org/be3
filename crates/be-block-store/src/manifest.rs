@@ -185,10 +185,21 @@ impl LoadedPart {
     pub fn range(&self) -> Range<u64> {
         self.start..self.start + self.reference.length()
     }
+
+    /// Where the first child part ends, or this part when it has none: what a replica that
+    /// loads only the first part reads.
+    pub fn first_end(&self) -> u64 {
+        match self.children.first() {
+            Some(first) => first.range().end,
+            None => self.range().end,
+        }
+    }
 }
 
 /// A block's stored form as read from a manifest: the bytes `BlockContent::decode` reads, and
 /// the parts they were saved in, so content can hand unchanged ones back as `Part::Reused`.
+/// Content that loads part of itself (`be_block::Loads::FirstPart`) gets only the stored
+/// form's start in `bytes`; `holds` says which parts it has.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Stored {
     pub bytes: Vec<u8>,
@@ -199,6 +210,18 @@ impl Stored {
     /// Stored bytes with no saved parts behind them, as content is before its first save.
     pub fn unsaved(bytes: Vec<u8>) -> Self {
         Self { bytes, root: None }
+    }
+
+    /// Whether `bytes` holds all of `part`.
+    pub fn holds(&self, part: &LoadedPart) -> bool {
+        part.range().end <= self.bytes.len() as u64
+    }
+
+    /// The whole stored form's length, which `bytes` may hold only the start of.
+    pub fn length(&self) -> u64 {
+        self.root
+            .as_ref()
+            .map_or(self.bytes.len() as u64, |root| root.reference.length())
     }
 
     pub fn bytes_of(&self, part: &LoadedPart) -> &[u8] {

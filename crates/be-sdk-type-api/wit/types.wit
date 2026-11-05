@@ -109,6 +109,39 @@ interface types {
         length: u64,
     }
 
+    record chunk-ref {
+        hash: hash,
+        length: u32,
+    }
+
+    record node-ref {
+        hash: hash,
+        length: u64,
+    }
+
+    /// A saved part of a block's stored form (`be_block_store::PartRef`).
+    variant part-ref {
+        chunk(chunk-ref),
+        chunks(node-ref),
+        node(node-ref),
+    }
+
+    /// One part of a loaded stored form, in pre-order: the part, how many
+    /// child parts follow it, and the blocks it references itself.
+    record loaded-part {
+        part: part-ref,
+        children: u32,
+        references: list<block-id>,
+    }
+
+    /// A commit's stored form as a replica loads it (`be_block_store::Stored`):
+    /// its bytes from the start, all of them or only its first part, and the
+    /// parts it was saved in.
+    record loaded {
+        bytes: list<u8>,
+        parts: list<loaded-part>,
+    }
+
     record status {
         head: option<commit-id>,
         owner: bool,

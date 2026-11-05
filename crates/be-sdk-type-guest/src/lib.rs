@@ -464,13 +464,32 @@ impl Module {
                     })
                 });
             }
-            Effect::Read {
+            Effect::Load {
                 replica,
                 token,
                 commit,
+                first_part,
             } => {
-                let pending = ops::with_parent(replica, || host::read(commit, None));
+                let pending = ops::with_parent(replica, || host::load(commit, first_part));
                 self.answer_later(replica, pending, move |result| Input::Read {
+                    token,
+                    result: result.and_then(|loaded| loaded).and_then(|loaded| {
+                        loaded
+                            .into_stored()
+                            .ok_or_else(|| "the host loaded parts that form no tree".to_owned())
+                    }),
+                });
+            }
+            Effect::ReadPart {
+                replica,
+                token,
+                part,
+                offset,
+                length,
+            } => {
+                let range = be_sdk_type_api::ByteRange { offset, length };
+                let pending = ops::with_parent(replica, || host::read_part(part.into(), range));
+                self.answer_later(replica, pending, move |result| Input::PartRead {
                     token,
                     result: result.and_then(|read| read),
                 });

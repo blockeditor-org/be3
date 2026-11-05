@@ -9,6 +9,7 @@ use super::*;
 
 mod a_different_key_produces_different_objects;
 mod a_file_store_persists_objects_across_reopening;
+mod a_first_part_loads_without_the_rest;
 mod a_keyring_opens_by_the_id_sealed_bytes_carry;
 mod a_manifest_mixing_data_key_epochs_reads_after_rotation;
 mod a_manifest_round_trips_through_the_vault;

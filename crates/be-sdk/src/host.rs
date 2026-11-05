@@ -41,6 +41,7 @@ pub struct BlockDrag {
 pub struct HostContent {
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
+    pub length: u64,
     pub session: Vec<u8>,
     pub unsettled: Vec<Vec<u8>>,
     pub applied: u64,
@@ -48,9 +49,15 @@ pub struct HostContent {
 
 impl HostContent {
     pub fn of<C: be_block::LiveEdit>(content: &C) -> Self {
+        let bytes = content.encode();
+        let length = match C::LOADS {
+            be_block::Loads::Whole => bytes.len() as u64,
+            be_block::Loads::FirstPart => content.parts().length(),
+        };
         Self {
             content_type: C::CONTENT_TYPE,
-            bytes: content.encode(),
+            bytes,
+            length,
             session: content.session_state(),
             unsettled: Vec::new(),
             applied: 0,
@@ -61,6 +68,7 @@ impl HostContent {
         Snapshot {
             content_type: self.content_type,
             bytes: self.bytes,
+            length: self.length,
             session: self.session,
             unsettled: self.unsettled,
             applied: self.applied,
@@ -1215,7 +1223,9 @@ impl EditorHost {
                     })
                     .collect(),
             ),
-            content @ (ToEditor::Snapshot(_) | ToEditor::Operations(_)) => {
+            content @ (ToEditor::Snapshot(_)
+            | ToEditor::Operations(_)
+            | ToEditor::Range { .. }) => {
                 if self.followed.borrow().contains_key(&block) {
                     self.update_content(block, content);
                 }
@@ -1279,6 +1289,10 @@ impl EditorHost {
             message
             @ (FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_)) => {
                 self.content_operations.borrow_mut().push((block, message));
+            }
+            message @ FromEditor::Read { .. } => {
+                self.content_operations.borrow_mut().push((block, message));
+                self.waker.wake();
             }
         }
     }

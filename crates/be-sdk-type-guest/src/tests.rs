@@ -266,6 +266,16 @@ fn count(content: &CounterContent) -> i64 {
 struct Stored {
     parents: Vec<CommitId>,
     bytes: Vec<u8>,
+    manifest: be_block_store::Manifest,
+}
+
+const SEALING: Uuid = Uuid::from_u128(0x5ea1);
+
+fn vault() -> be_block_store::Vault<be_block_store::MemoryStore> {
+    let keys = be_block_store::Keyring::new();
+    keys.insert(SEALING, be_block_store::ContentKey::from_bytes([7; 32]));
+    be_block_store::Vault::new(be_block_store::MemoryStore::new(), keys)
+        .with_chunker(be_block_store::ChunkerConfig::SMALL)
 }
 
 struct Lone {
@@ -339,6 +349,7 @@ struct Device {
 struct Sim<C: LiveEdit + Clone + Default> {
     now: u64,
     commits: BTreeMap<CommitId, Stored>,
+    vault: be_block_store::Vault<be_block_store::MemoryStore>,
     head: Option<CommitId>,
     lease: Lease,
     devices: Vec<Device>,
@@ -355,6 +366,7 @@ struct Sim<C: LiveEdit + Clone + Default> {
     held: Vec<(usize, Call)>,
     deaf: BTreeSet<usize>,
     largest_relay: usize,
+    part_reads: usize,
     written: u64,
     make: fn() -> Module,
 }
@@ -364,6 +376,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         Self {
             now: 1_000,
             commits: BTreeMap::new(),
+            vault: vault(),
             head: None,
             lease: Lease::new(),
             devices: (0..devices)
@@ -396,6 +409,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             held: Vec::new(),
             deaf: BTreeSet::new(),
             largest_relay: 0,
+            part_reads: 0,
             written: 0,
             make,
         }
@@ -587,14 +601,27 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn write(&mut self, bytes: Vec<u8>, parents: Vec<CommitId>) -> CommitId {
+        self.write_parts(be_block::Part::from(bytes), parents)
+    }
+
+    fn write_parts(&mut self, parts: be_block::Part<'_>, parents: Vec<CommitId>) -> CommitId {
         self.written += 1;
+        let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
+        let bytes = self.vault.read(&manifest).unwrap();
         let id = CommitId::from_hash(Hash::of_parts(&[&bytes, &self.written.to_be_bytes()]));
-        self.commits.insert(id, Stored { parents, bytes });
+        self.commits.insert(
+            id,
+            Stored {
+                parents,
+                bytes,
+                manifest,
+            },
+        );
         id
     }
 
     fn publish_elsewhere(&mut self, content: &C) -> CommitId {
-        let head = self.write(content.encode(), self.head.into_iter().collect());
+        let head = self.write_parts(content.parts(), self.head.into_iter().collect());
         self.head = Some(head);
         if !self.quiet {
             self.moved(head, None);
@@ -828,12 +855,31 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let commit = self.write(content.bytes, parent.into_iter().collect());
                 self.to(device, |host| reply.send(host, &Ok(commit)));
             }
-            Call::Read { reply, commit, .. } => {
+            Call::Load {
+                reply,
+                commit,
+                first_part,
+            } => {
+                let result = match self.commits.get(&commit) {
+                    Some(stored) => {
+                        let loaded = match first_part {
+                            true => self.vault.load_first(&stored.manifest),
+                            false => self.vault.load(&stored.manifest),
+                        };
+                        loaded
+                            .map(be_sdk_type_api::Loaded::of)
+                            .map_err(|error| error.to_string())
+                    }
+                    None => Err("no such commit".to_owned()),
+                };
+                self.to(device, |host| reply.send(host, &result));
+            }
+            Call::ReadPart { reply, part, range } => {
+                self.part_reads += 1;
                 let result = self
-                    .commits
-                    .get(&commit)
-                    .map(|stored| stored.bytes.clone())
-                    .ok_or_else(|| "no such commit".to_owned());
+                    .vault
+                    .read_part(part.into(), range.offset, range.length)
+                    .map_err(|error| error.to_string());
                 self.to(device, |host| reply.send(host, &result));
             }
             Call::ResumeSession { reply, local } => {

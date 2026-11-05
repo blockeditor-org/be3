@@ -86,8 +86,21 @@ impl fmt::Display for ContentError {
 
 impl Error for ContentError {}
 
+/// How much of its stored form a replica of a type loads.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Loads {
+    Whole,
+    /// Only the root's first part (`Part::Node`'s first child), such as a file's header; the
+    /// rest stays in the store. `from_stored` gets a `Stored` holding only that part's bytes,
+    /// `parts` hands the rest back as `Part::Reused`, and editors read it a range at a time
+    /// (guides/blocks/apps.md, "Reading a range").
+    FirstPart,
+}
+
 pub trait BlockContent: Sized + Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
+
+    const LOADS: Loads = Loads::Whole;
 
     const FROZEN: bool = false;
 

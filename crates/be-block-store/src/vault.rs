@@ -367,6 +367,36 @@ impl<S: ObjectStore> Vault<S> {
         Ok(Stored { bytes, root })
     }
 
+    /// The parts of the stored form, without its bytes. Fails on a node this store lacks.
+    pub fn outline(&self, manifest: &Manifest) -> Result<Option<LoadedPart>, StoreError> {
+        manifest
+            .root
+            .map(|root| self.loaded(root, 0))
+            .transpose()
+    }
+
+    /// Like `load`, but `Stored::bytes` holds only the root's first part (all of a stored
+    /// form that has one part), for content that loads the rest on demand
+    /// (`be_block::Loads::FirstPart`).
+    pub fn load_first(&self, manifest: &Manifest) -> Result<Stored, StoreError> {
+        let root = self.outline(manifest)?;
+        let end = root.as_ref().map_or(0, LoadedPart::first_end);
+        let bytes = self.read_range(manifest, 0, end)?;
+        if bytes.len() as u64 != end {
+            return Err(StoreError::Corrupt);
+        }
+        Ok(Stored { bytes, root })
+    }
+
+    /// `length` bytes of a saved part from `offset`, as `read_range` reads a manifest's.
+    pub fn read_part(&self, part: PartRef, offset: u64, length: u64) -> Result<Vec<u8>, StoreError> {
+        let manifest = Manifest {
+            content_type: Uuid::nil(),
+            root: Some(part),
+        };
+        self.read_range(&manifest, offset, length)
+    }
+
     fn loaded(&self, reference: PartRef, start: u64) -> Result<LoadedPart, StoreError> {
         let mut children = Vec::new();
         let mut references = Vec::new();

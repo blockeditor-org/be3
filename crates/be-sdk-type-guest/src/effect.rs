@@ -24,10 +24,18 @@ pub(crate) enum Effect {
         parent: Option<CommitId>,
         content: Written,
     },
-    Read {
+    Load {
         replica: ReplicaId,
         token: Token,
         commit: CommitId,
+        first_part: bool,
+    },
+    ReadPart {
+        replica: ReplicaId,
+        token: Token,
+        part: be_block::PartRef,
+        offset: u64,
+        length: u64,
     },
     Resume {
         replica: ReplicaId,

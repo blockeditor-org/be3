@@ -29,13 +29,25 @@ pub enum FromEditor {
         payload: Vec<u8>,
     },
     Resend,
+    /// Asks for `length` bytes of the block's stored form from `offset`, as the replica holds
+    /// it: what a type that loads only its first part left in the store comes this way. The
+    /// replica answers `ToEditor::Range` with the same `token`.
+    Read {
+        token: u64,
+        offset: u64,
+        length: u64,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Snapshot {
     pub content_type: Uuid,
+    /// `encode()`: for a type that loads only its first part (`be_block::Loads::FirstPart`),
+    /// only that part's bytes, the rest read with `FromEditor::Read`.
     #[serde(with = "serde_bytes")]
     pub bytes: Vec<u8>,
+    /// The whole stored form's length.
+    pub length: u64,
     #[serde(with = "serde_bytes")]
     pub session: Vec<u8>,
     #[serde(
@@ -81,6 +93,41 @@ pub enum ToEditor {
     Operations(Vec<EditorOperation>),
     Presence(Vec<PeerPresence>),
     PeerMessages(Vec<PeerMessage>),
+    Range {
+        token: u64,
+        #[serde(with = "range_result")]
+        result: Result<Vec<u8>, String>,
+    },
+}
+
+mod range_result {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Deserialize, Serialize)]
+    enum Read {
+        Ok(#[serde(with = "serde_bytes")] Vec<u8>),
+        Err(String),
+    }
+
+    pub fn serialize<S: Serializer>(
+        result: &Result<Vec<u8>, String>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match result {
+            Ok(bytes) => Read::Ok(bytes.clone()),
+            Err(error) => Read::Err(error.clone()),
+        }
+        .serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Result<Vec<u8>, String>, D::Error> {
+        Ok(match Read::deserialize(deserializer)? {
+            Read::Ok(bytes) => Ok(bytes),
+            Read::Err(error) => Err(error),
+        })
+    }
 }
 
 fn encode<T: Serialize>(message: &T) -> Vec<u8> {
@@ -144,6 +191,9 @@ pub struct EditorMirror<C: LiveEdit> {
     peer_messages: Vec<PeerMessage>,
     revision: u64,
     projected: Option<Vec<Projected<C::Op>>>,
+    length: u64,
+    reads: u64,
+    ranges: Vec<(u64, Result<Vec<u8>, String>)>,
 }
 
 impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
@@ -159,6 +209,9 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             peer_messages: Vec::new(),
             revision: 0,
             projected: None,
+            length: 0,
+            reads: 0,
+            ranges: Vec::new(),
         }
     }
 }
@@ -200,6 +253,31 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         if let Some(log) = &mut self.projected {
             log.push(projected);
         }
+    }
+
+    /// The whole stored form's length as of the last snapshot, of which a type that loads
+    /// only its first part holds the start.
+    pub fn stored_length(&self) -> u64 {
+        self.length
+    }
+
+    /// Asks the replica for a range of the stored form; its answer comes back from `receive`
+    /// and is taken with `take_ranges` under the token this returns.
+    pub fn read_range(&mut self, offset: u64, length: u64) -> (u64, FromEditor) {
+        self.reads += 1;
+        let token = self.reads;
+        (
+            token,
+            FromEditor::Read {
+                token,
+                offset,
+                length,
+            },
+        )
+    }
+
+    pub fn take_ranges(&mut self) -> Vec<(u64, Result<Vec<u8>, String>)> {
+        std::mem::take(&mut self.ranges)
     }
 
     pub fn pending(&self) -> usize {
@@ -253,6 +331,10 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 self.peer_messages.extend(messages);
                 None
             }
+            ToEditor::Range { token, result } => {
+                self.ranges.push((token, result));
+                None
+            }
         }
     }
 
@@ -280,6 +362,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             self.pending.pop_front();
         }
         self.confirmed = Some(Settling::new(settled, unsettled));
+        self.length = snapshot.length;
         self.resyncing = false;
         self.rebuild();
     }

@@ -33,6 +33,106 @@ pub use types::*;
 
 pub type ReplicaId = OpId;
 
+impl From<be_block_store::PartRef> for PartRef {
+    fn from(part: be_block_store::PartRef) -> Self {
+        let node = |node: be_block_store::NodeRef| NodeRef {
+            hash: *node.hash.as_bytes(),
+            length: node.length,
+        };
+        match part {
+            be_block_store::PartRef::Chunk(chunk) => Self::Chunk(ChunkRef {
+                hash: *chunk.hash.as_bytes(),
+                length: chunk.length,
+            }),
+            be_block_store::PartRef::Chunks(chunks) => Self::Chunks(node(chunks)),
+            be_block_store::PartRef::Node(parts) => Self::Node(node(parts)),
+        }
+    }
+}
+
+impl From<PartRef> for be_block_store::PartRef {
+    fn from(part: PartRef) -> Self {
+        let node = |node: NodeRef| be_block_store::NodeRef {
+            hash: be_block_store::Hash::from_bytes(node.hash),
+            length: node.length,
+        };
+        match part {
+            PartRef::Chunk(chunk) => Self::Chunk(be_block_store::ChunkRef {
+                hash: be_block_store::Hash::from_bytes(chunk.hash),
+                length: chunk.length,
+            }),
+            PartRef::Chunks(chunks) => Self::Chunks(node(chunks)),
+            PartRef::Node(parts) => Self::Node(node(parts)),
+        }
+    }
+}
+
+impl Loaded {
+    pub fn of(stored: be_block_store::Stored) -> Self {
+        fn flatten(part: &be_block_store::LoadedPart, parts: &mut Vec<LoadedPart>) {
+            parts.push(LoadedPart {
+                part: part.reference.into(),
+                children: u32::try_from(part.children.len()).unwrap_or(u32::MAX),
+                references: part.references.clone(),
+            });
+            for child in &part.children {
+                flatten(child, parts);
+            }
+        }
+        let mut parts = Vec::new();
+        if let Some(root) = &stored.root {
+            flatten(root, &mut parts);
+        }
+        Self {
+            bytes: stored.bytes,
+            parts,
+        }
+    }
+
+    /// The `Stored` this was made from; none when its parts don't form one tree.
+    pub fn into_stored(self) -> Option<be_block_store::Stored> {
+        fn rebuild(
+            parts: &mut std::slice::Iter<'_, LoadedPart>,
+            start: u64,
+            depth: usize,
+        ) -> Option<be_block_store::LoadedPart> {
+            let part = parts.next()?;
+            let reference = be_block_store::PartRef::from(part.part);
+            let mut children = Vec::new();
+            let mut at = start;
+            for _ in 0..part.children {
+                if depth > 64 {
+                    return None;
+                }
+                let child = rebuild(parts, at, depth + 1)?;
+                at = child.range().end;
+                children.push(child);
+            }
+            if !children.is_empty() && at != start + reference.length() {
+                return None;
+            }
+            Some(be_block_store::LoadedPart {
+                reference,
+                start,
+                children,
+                references: part.references.clone(),
+            })
+        }
+        let mut parts = self.parts.iter();
+        let root = match self.parts.is_empty() {
+            true => None,
+            false => Some(rebuild(&mut parts, 0, 0)?),
+        };
+        if parts.next().is_some() {
+            return None;
+        }
+        Some(be_block_store::Stored {
+            bytes: self.bytes,
+            root,
+        })
+    }
+}
+
 pub type Entries = BTreeMap<Uuid, Vec<u8>>;
 
 #[derive(
