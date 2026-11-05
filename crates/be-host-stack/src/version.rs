@@ -228,9 +228,13 @@ impl Versions {
                 _ => match block.head {
                     Some(head) => {
                         let commit = self.commit_of(context.peer, head).await?;
+                        let listed = context
+                            .peer
+                            .references_of(block.real, &commit)
+                            .await
+                            .map_err(failed)?;
                         let references = with_graph(context.shared, |graph| {
-                            commit
-                                .references
+                            listed
                                 .iter()
                                 .map(|reference| graph.to_local(scope, *reference))
                                 .collect()

@@ -42,6 +42,12 @@ replica must choose the same ones), and leave reuse to parts whose bytes did
 not change. The default is one leaf of `encode()`. Peer-level `save` and
 `open` use parts; replicas still save a type module's bytes as one leaf.
 
+A `Node` also lists the blocks its own bytes reference (`Part::Node {
+references }`, read back as `LoadedPart::references`). A commit references
+`references_in` and then every node's references in tree order, so content
+that keeps references per part reports only the rest from `references_in`,
+and a part it reuses keeps its references without being read or encoded.
+
 ## Documents: `be_block_model`
 
 Almost every type is a `Document<R>`: structs deriving `be_block_model::Model`

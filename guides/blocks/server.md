@@ -14,7 +14,7 @@ the server are in guides/blocks/keys.md.
   many chunks is grouped under nodes chosen by the chunks' hashes. Unchanged
   subtrees are shared between commits, and a reused part keeps the data key it
   was sealed under, so one manifest can mix key epochs. `Vault::objects` lists
-  a tree's nodes and chunks (`publish` sends them all as `chunks`);
+  a tree's nodes and chunks;
   `missing_objects` names what is absent a level at a time, which
   `Peer::fetch_range` fetches until none is left. `Vault::read_range` is how a
   large block streams. `ObjectStore`
@@ -24,7 +24,10 @@ the server are in guides/blocks/keys.md.
   references, metadata}`) is an encrypted object; `Publish` also sends its
   parents in plaintext, so the server knows every block's history graph.
   `references` are derived from the *sealed* state, so the reference graph
-  always describes content that was stored. `merge` is diff3
+  always describes content that was stored. A commit's `references` are the
+  content's own and its metadata's; the parts of its manifest tree hold the
+  rest in their nodes (`Node::references`), so an unchanged part shares them
+  between commits. `Peer::references_of` lists them all. `merge` is diff3
   (`merge_slices`, with `merge_lines` and `render_conflicts` on top).
   Retention (`retention::plan`) runs only when a client calls `Peer::prune`,
   and nothing calls it on a schedule yet.
@@ -165,8 +168,15 @@ with no bytes moving either way, so a large post on a slow link goes through.
   transports send whatever is queued together, so independent requests cost one
   round trip; only a chain where each needs the last one's answer costs more.
 - **Publishing** is a compare-and-swap on the head: a stale publish comes back
-  `Rejected` with the head to merge against. It writes the head, the edges the
-  commit declares and refcounts for its new chunks.
+  `Rejected` with the head to merge against. It carries what changed since the
+  expected head: an `ObjectChange` (objects added and removed; the server
+  lists the commit's objects in `commit_objects` from the expected head's) and
+  a `ReferenceChange` (references removed, and added at their index in the new
+  list; a moved one is both). It writes the head, refcounts for its new
+  objects and only the edges that changed: `block_edges.position` is spaced
+  (`EDGE_SPACING`), so a reference put between two others takes a position
+  between theirs and the rest stay. A first commit (no expected head) lists
+  everything, replacing the references its block was made with.
 - **Storage** is charged to each block's payer (`blocks.payer`): its parent's
   payer, or at the top its author (an agent's creator), counting each distinct
   object once per payer and every version a block keeps. A move re-charges the

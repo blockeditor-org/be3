@@ -22,10 +22,10 @@ async fn pruning_history_keeps_pinned_commits() {
                 first,
                 None,
                 Vec::new(),
-                first_chunks.clone(),
+                held(&[], first_chunks.clone()),
                 1_000,
                 true,
-                Vec::new(),
+                listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
             )

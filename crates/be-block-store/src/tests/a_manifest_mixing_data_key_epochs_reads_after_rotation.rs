@@ -11,7 +11,7 @@ fn a_manifest_mixing_data_key_epochs_reads_after_rotation() {
         .write(
             id(1),
             CONTENT,
-            Part::Node(vec![Part::from(&header), Part::from(&payload)]),
+            Part::node(vec![Part::from(&header), Part::from(&payload)]),
         )
         .unwrap();
     let loaded = vault.load(&first).unwrap().root.unwrap();
@@ -22,7 +22,7 @@ fn a_manifest_mixing_data_key_epochs_reads_after_rotation() {
         .write(
             id(2),
             CONTENT,
-            Part::Node(vec![
+            Part::node(vec![
                 Part::from(&renamed),
                 Part::Reused(loaded.children[1].reference),
             ]),

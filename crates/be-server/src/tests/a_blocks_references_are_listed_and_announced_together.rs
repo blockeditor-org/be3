@@ -41,10 +41,10 @@ async fn a_blocks_references_are_listed_and_announced_together() {
                 commit,
                 None,
                 Vec::new(),
-                chunks,
+                held(&[], chunks),
                 1_000,
                 false,
-                issues.clone(),
+                listing(&[], issues.clone()),
                 Vec::new(),
                 Vec::new(),
             )

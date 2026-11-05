@@ -221,15 +221,22 @@ impl<S: ObjectStore> Vault<S> {
                 self.group(key, sealing, chunks)
             }
             Part::Reused(part) => Ok(Some(*part)),
-            Part::Node(children) => {
+            Part::Node {
+                parts: children,
+                references,
+            } => {
                 let mut parts = Vec::with_capacity(children.len());
                 for child in children {
                     parts.extend(self.write_part(key, sealing, child)?);
                 }
-                if parts.is_empty() {
+                if parts.is_empty() && references.is_empty() {
                     return Ok(None);
                 }
-                Ok(Some(PartRef::Node(self.put_node(key, sealing, parts)?)))
+                let node = Node {
+                    parts,
+                    references: references.clone(),
+                };
+                Ok(Some(PartRef::Node(self.put_node(key, sealing, node)?)))
             }
         }
     }
@@ -262,11 +269,21 @@ impl<S: ObjectStore> Vault<S> {
             }
             if grouped.len() == 1 {
                 let parts = grouped.pop().expect("one group");
-                return Ok(Some(PartRef::Chunks(self.put_node(key, sealing, parts)?)));
+                let node = Node {
+                    parts,
+                    references: Vec::new(),
+                };
+                return Ok(Some(PartRef::Chunks(self.put_node(key, sealing, node)?)));
             }
             parts = grouped
                 .into_iter()
-                .map(|group| self.put_node(key, sealing, group).map(PartRef::Chunks))
+                .map(|parts| {
+                    let node = Node {
+                        parts,
+                        references: Vec::new(),
+                    };
+                    self.put_node(key, sealing, node).map(PartRef::Chunks)
+                })
                 .collect::<Result<_, _>>()?;
         }
     }
@@ -275,10 +292,9 @@ impl<S: ObjectStore> Vault<S> {
         &self,
         key: Uuid,
         sealing: &ContentKey,
-        parts: Vec<PartRef>,
+        node: Node,
     ) -> Result<NodeRef, StoreError> {
-        let length = parts.iter().map(|part| part.length()).sum();
-        let node = Node { parts };
+        let length = node.parts.iter().map(|part| part.length()).sum();
         let hash = self.store.put(&sealing.seal(key, &encode_value(&node)?))?;
         Ok(NodeRef { hash, length })
     }
@@ -301,7 +317,11 @@ impl<S: ObjectStore> Vault<S> {
         visit: &mut impl FnMut(PartRef, u64) -> Result<bool, StoreError>,
     ) -> Result<(), StoreError> {
         let end = start + part.length();
-        if end <= range.start || start >= range.end {
+        let overlaps = match part.length() {
+            0 => range.contains(&start),
+            _ => end > range.start && start < range.end,
+        };
+        if !overlaps {
             return Ok(());
         }
         if !visit(part, start)? {
@@ -349,18 +369,41 @@ impl<S: ObjectStore> Vault<S> {
 
     fn loaded(&self, reference: PartRef, start: u64) -> Result<LoadedPart, StoreError> {
         let mut children = Vec::new();
+        let mut references = Vec::new();
         if let PartRef::Node(node) = reference {
+            let node = self.node(node)?;
             let mut at = start;
-            for child in self.node(node)?.parts {
+            for child in node.parts {
                 children.push(self.loaded(child, at)?);
                 at += child.length();
             }
+            references = node.references;
         }
         Ok(LoadedPart {
             reference,
             start,
             children,
+            references,
         })
+    }
+
+    /// The references of every node of the manifest tree (`Part::Node`), in tree order, each
+    /// once. Fails on a node this store does not hold.
+    pub fn references(&self, manifest: &Manifest) -> Result<Vec<Uuid>, StoreError> {
+        let mut references = Vec::new();
+        let mut seen = HashSet::new();
+        self.walk_manifest(manifest, 0..u64::MAX, |part, _| {
+            let PartRef::Node(node) = part else {
+                return Ok(false);
+            };
+            for reference in self.node(node)?.references {
+                if seen.insert(reference) {
+                    references.push(reference);
+                }
+            }
+            Ok(true)
+        })?;
+        Ok(references)
     }
 
     pub fn read_range(

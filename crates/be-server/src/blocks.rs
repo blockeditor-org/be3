@@ -4,11 +4,11 @@ use be_block_graph::{
 };
 use be_block_protocol::{
     AccessEntry, AccessList, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet,
-    OrganizationRole,
+    ObjectChange, OrganizationRole, ReferenceChange,
 };
 use be_block_store::{Hash, ObjectStore};
 use rusqlite::{Connection, OptionalExtension, params};
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use uuid::Uuid;
 
 use crate::{
@@ -322,7 +322,8 @@ impl ServerStore {
                 params![organization, block.to_string(), metadata],
             )?;
             if relinked.is_some() {
-                store_edges(&transaction, &organization, block, &references)?;
+                let before = graph.references(block);
+                change_edges(&transaction, &organization, block, &before, &references)?;
             }
             transaction.commit()?;
             graph.set_references(block, &references)?;
@@ -496,15 +497,14 @@ impl ServerStore {
         commit: CommitId,
         expected: Option<CommitId>,
         parents: Vec<CommitId>,
-        chunks: Vec<Hash>,
+        held: ObjectChange,
         time: i64,
         pinned: bool,
-        references: Vec<Uuid>,
+        references: ReferenceChange,
         metadata: Vec<u8>,
     ) -> Result<PublishOutcome, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
-        let mut held = vec![commit.hash()];
-        held.extend(chunks.iter().copied());
+        let change = held;
         self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let current = graph.head(block);
@@ -514,7 +514,25 @@ impl ServerStore {
             if current == Some(commit) {
                 return Ok(PublishOutcome::Published(commit, None));
             }
-            let references = distinct(references);
+            let organization = identity.organization.to_string();
+            let base = match expected {
+                Some(expected) => {
+                    let mut base = commit_objects(database, &organization, block, expected)?;
+                    base.retain(|hash| *hash != expected.hash());
+                    base
+                }
+                None => Vec::new(),
+            };
+            let mut held = vec![commit.hash()];
+            held.extend(change.apply(&base));
+            let mut sent = vec![commit.hash()];
+            sent.extend(change.added.iter().copied());
+            // A first commit lists every reference, replacing any its block was made with.
+            let listed = match expected {
+                Some(_) => graph.references(block),
+                None => Vec::new(),
+            };
+            let references = distinct(references.apply(&listed));
             require_keeping_settings(graph, &visibility(identity), block, &references)?;
             let relinked = relinked(graph, block, &references);
             let redescribed = (relinked.is_some()
@@ -523,7 +541,6 @@ impl ServerStore {
                     .is_some_and(|node| node.metadata != metadata))
             .then(|| relinked.clone().unwrap_or_default());
             let transaction = database.unchecked_transaction()?;
-            let organization = identity.organization.to_string();
             let existing: Option<i64> = transaction
                 .query_row(
                     "SELECT 1 FROM block_commits
@@ -533,7 +550,7 @@ impl ServerStore {
                 )
                 .optional()?;
             if existing.is_none() {
-                store.require_holdable(graph, database, identity, &held, "published")?;
+                store.require_holdable(graph, database, identity, &sent, "published")?;
                 let holding = store.before_holding(&transaction, graph, identity, block, &held)?;
                 transaction.execute(
                     "INSERT INTO block_commits
@@ -586,7 +603,8 @@ impl ServerStore {
                 ],
             )?;
             if relinked.is_some() {
-                store_edges(&transaction, &organization, block, &references)?;
+                let before = graph.references(block);
+                change_edges(&transaction, &organization, block, &before, &references)?;
             }
             transaction.commit()?;
             graph.set_references(block, &references)?;
@@ -1647,6 +1665,10 @@ fn relinked(graph: &BlockGraph, block: Uuid, references: &[Uuid]) -> Option<Vec<
     )
 }
 
+/// Positions of a block's edges are spaced this far apart, so a reference put in between two
+/// others takes a free position instead of moving the rest.
+const EDGE_SPACING: i64 = 1 << 20;
+
 fn store_edges(
     transaction: &rusqlite::Transaction<'_>,
     organization: &str,
@@ -1657,18 +1679,132 @@ fn store_edges(
         "DELETE FROM block_edges WHERE organization_id = ?1 AND block_id = ?2",
         params![organization, block.to_string()],
     )?;
-    for (position, reference) in references.iter().enumerate() {
-        transaction.execute(
-            "INSERT OR IGNORE INTO block_edges
-                (organization_id, block_id, reference_id, position)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![
-                organization,
-                block.to_string(),
-                reference.to_string(),
-                i64::try_from(position).map_err(|_| ServerError::Corrupt)?
-            ],
-        )?;
+    let positions = (0..).map(|index: i64| index * EDGE_SPACING);
+    insert_edges(
+        transaction,
+        organization,
+        block,
+        references.iter().copied().zip(positions),
+    )
+}
+
+fn insert_edges(
+    transaction: &rusqlite::Transaction<'_>,
+    organization: &str,
+    block: Uuid,
+    edges: impl IntoIterator<Item = (Uuid, i64)>,
+) -> Result<(), ServerError> {
+    let mut statement = transaction.prepare_cached(
+        "INSERT OR REPLACE INTO block_edges
+            (organization_id, block_id, reference_id, position)
+         VALUES (?1, ?2, ?3, ?4)",
+    )?;
+    for (reference, position) in edges {
+        statement.execute(params![
+            organization,
+            block.to_string(),
+            reference.to_string(),
+            position
+        ])?;
     }
     Ok(())
+}
+
+/// Turns a block's edges from `before` into `after`, writing only the edges that left, joined
+/// or moved; an edge put in between two others takes a position between theirs.
+fn change_edges(
+    transaction: &rusqlite::Transaction<'_>,
+    organization: &str,
+    block: Uuid,
+    before: &[Uuid],
+    after: &[Uuid],
+) -> Result<(), ServerError> {
+    let change = ReferenceChange::between(before, after);
+    {
+        let mut removing = transaction.prepare_cached(
+            "DELETE FROM block_edges
+             WHERE organization_id = ?1 AND block_id = ?2 AND reference_id = ?3",
+        )?;
+        for reference in &change.removed {
+            removing.execute(params![
+                organization,
+                block.to_string(),
+                reference.to_string()
+            ])?;
+        }
+    }
+    if change.added.is_empty() {
+        return Ok(());
+    }
+    let mut positions: HashMap<Uuid, i64> = HashMap::new();
+    {
+        let mut statement = transaction.prepare_cached(
+            "SELECT reference_id, position FROM block_edges
+             WHERE organization_id = ?1 AND block_id = ?2",
+        )?;
+        let rows = statement.query_map(params![organization, block.to_string()], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })?;
+        for row in rows {
+            let (reference, position) = row?;
+            let reference = Uuid::parse_str(&reference).map_err(|_| ServerError::Corrupt)?;
+            positions.insert(reference, position);
+        }
+    }
+    let added: HashSet<Uuid> = change.added.iter().map(|placed| placed.block).collect();
+    let mut placed = Vec::with_capacity(added.len());
+    let mut low = None;
+    let mut index = 0;
+    while index < after.len() {
+        if !added.contains(&after[index]) {
+            low = positions.get(&after[index]).copied();
+            index += 1;
+            continue;
+        }
+        let end = (index..after.len())
+            .find(|at| !added.contains(&after[*at]))
+            .unwrap_or(after.len());
+        let count = i64::try_from(end - index).map_err(|_| ServerError::Corrupt)?;
+        let high = after.get(end).and_then(|next| positions.get(next).copied());
+        let (first, step) = match (low, high) {
+            (None, None) => (0, EDGE_SPACING),
+            (None, Some(high)) => (high - EDGE_SPACING * count, EDGE_SPACING),
+            (Some(low), None) => (low + EDGE_SPACING, EDGE_SPACING),
+            (Some(low), Some(high)) if high - low > count => {
+                let step = (high - low) / (count + 1);
+                (low + step, step)
+            }
+            (Some(_), Some(_)) => return store_edges(transaction, organization, block, after),
+        };
+        for (offset, reference) in after[index..end].iter().enumerate() {
+            let offset = i64::try_from(offset).map_err(|_| ServerError::Corrupt)?;
+            placed.push((*reference, first + step * offset));
+        }
+        low = placed.last().map(|(_, position)| *position);
+        index = end;
+    }
+    insert_edges(transaction, organization, block, placed)
+}
+
+/// The objects a commit of `block` holds, in the order it listed them: the commit first.
+fn commit_objects(
+    database: &Connection,
+    organization: &str,
+    block: Uuid,
+    commit: CommitId,
+) -> Result<Vec<Hash>, ServerError> {
+    let mut statement = database.prepare_cached(
+        "SELECT hash FROM commit_objects
+         WHERE organization_id = ?1 AND block_id = ?2 AND commit_id = ?3
+         ORDER BY position",
+    )?;
+    let rows = statement.query_map(
+        params![organization, block.to_string(), commit.hash().to_hex()],
+        |row| row.get::<_, String>(0),
+    )?;
+    let mut objects = Vec::new();
+    for row in rows {
+        objects.push(Hash::from_hex(&row?).ok_or(ServerError::Corrupt)?);
+    }
+    Ok(objects)
 }

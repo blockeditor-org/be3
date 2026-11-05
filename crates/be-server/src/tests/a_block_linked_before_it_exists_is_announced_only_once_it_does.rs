@@ -30,10 +30,10 @@ async fn a_block_linked_before_it_exists_is_announced_only_once_it_does() {
                 commit,
                 None,
                 Vec::new(),
-                chunks,
+                held(&[], chunks),
                 1_000,
                 false,
-                vec![note],
+                listing(&[], vec![note]),
                 Vec::new(),
                 Vec::new(),
             )

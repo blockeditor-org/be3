@@ -182,6 +182,8 @@ pub struct Pending {
     pub commit: CommitId,
     pub expected: Option<CommitId>,
     pub parents: Vec<CommitId>,
+    /// Every object the commit holds besides itself, and below every block it references:
+    /// sending it, `Peer::send_pending` turns both into changes from the expected head's.
     pub chunks: Vec<Hash>,
     pub time: i64,
     pub pinned: bool,

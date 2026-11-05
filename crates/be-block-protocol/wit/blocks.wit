@@ -32,6 +32,27 @@ interface blocks {
         rejected(option<commit-id>),
     }
 
+    /// The objects a commit holds besides itself, as a change from those
+    /// its expected head holds: those in `removed` go, then `added` join.
+    record object-change {
+        added: list<hash>,
+        removed: list<hash>,
+    }
+
+    /// A reference that joins a list at `index` of the new list.
+    record placed-reference {
+        index: u32,
+        block: block-id,
+    }
+
+    /// A commit's references as a change from its expected head's: those
+    /// in `removed` go, then each of `added`, in order, goes in at its index.
+    /// A reference that moves is removed and added.
+    record reference-change {
+        removed: list<block-id>,
+        added: list<placed-reference>,
+    }
+
     record history-entry {
         commit: commit-id,
         parents: list<commit-id>,
@@ -111,15 +132,17 @@ interface blocks {
     set-metadata: async func(block: block-id, metadata: list<u8>, references: list<block-id>) -> result<block-summary, error>;
 
     /// Stores `objects` and moves the head to `commit` if it is `expected`.
+    /// `held` and `references` are changes from what `expected` holds and
+    /// references, so a commit that changes little sends little.
     publish: async func(
         block: block-id,
         commit: commit-id,
         expected: option<commit-id>,
         parents: list<commit-id>,
-        chunks: list<hash>,
+        held: object-change,
         time: s64,
         pinned: bool,
-        references: list<block-id>,
+        references: reference-change,
         metadata: list<u8>,
         objects: list<list<u8>>,
     ) -> result<publish-outcome, error>;

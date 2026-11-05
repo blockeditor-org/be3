@@ -53,11 +53,14 @@ impl PartRef {
     }
 }
 
-/// One object of a manifest tree: the parts under it in order. Its bytes are theirs
-/// concatenated.
+/// One object of a manifest tree: the parts under it in order, whose bytes concatenated are
+/// its bytes, and the blocks the content said this part references (`Part::Node`), which a
+/// commit that reuses the node keeps without reading its bytes.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Node {
     pub parts: Vec<PartRef>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<Uuid>,
 }
 
 /// What a commit holds of its content: the root of a tree of sealed nodes over the chunks of
@@ -90,11 +93,29 @@ impl Manifest {
 /// the manifest tree, so a commit's new nodes are the ones on the path to what changed. Keep a
 /// `Node`'s children few (dozens, not thousands): every change to one of them writes the node
 /// again. Empty parts are left out.
+///
+/// A `Node`'s `references` are the blocks its own bytes reference (not its children's, which
+/// say their own). A commit references what `BlockContent::references_in` returns and then
+/// every node's references in tree order, so content that loads or re-encodes only some parts
+/// keeps the references of the parts it reuses (guides/blocks/content_types.md, "Parts").
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Part<'a> {
     Bytes(Cow<'a, [u8]>),
     Reused(PartRef),
-    Node(Vec<Part<'a>>),
+    Node {
+        parts: Vec<Part<'a>>,
+        references: Vec<Uuid>,
+    },
+}
+
+impl<'a> Part<'a> {
+    /// A node of `parts` that references nothing itself.
+    pub const fn node(parts: Vec<Part<'a>>) -> Self {
+        Self::Node {
+            parts,
+            references: Vec::new(),
+        }
+    }
 }
 
 impl Part<'_> {
@@ -102,7 +123,7 @@ impl Part<'_> {
         match self {
             Self::Bytes(bytes) => bytes.len() as u64,
             Self::Reused(part) => part.length(),
-            Self::Node(parts) => parts.iter().map(Part::length).sum(),
+            Self::Node { parts, .. } => parts.iter().map(Part::length).sum(),
         }
     }
 
@@ -119,7 +140,7 @@ impl Part<'_> {
                 true
             }
             Self::Reused(_) => false,
-            Self::Node(parts) => parts.iter().all(|part| part.flatten_into(bytes)),
+            Self::Node { parts, .. } => parts.iter().all(|part| part.flatten_into(bytes)),
         }
     }
 }
@@ -150,12 +171,14 @@ impl<'a, const N: usize> From<&'a [u8; N]> for Part<'a> {
 
 /// A saved part as a reader loaded it: where its bytes are in the stored form, and its child
 /// parts in the shape the content wrote them (`PartRef::Node`). A part whose bytes the vault
-/// split over chunks is one part with no children.
+/// split over chunks is one part with no children. `references` are the node's own
+/// (`Part::Node`).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LoadedPart {
     pub reference: PartRef,
     pub start: u64,
     pub children: Vec<LoadedPart>,
+    pub references: Vec<Uuid>,
 }
 
 impl LoadedPart {

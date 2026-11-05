@@ -9,7 +9,7 @@ fn a_blob_saves_its_header_and_payload_as_separate_parts() {
 
     let parts = content.parts();
     assert_eq!(parts.flatten().unwrap(), encoded);
-    let Part::Node(children) = &parts else {
+    let Part::Node { parts: children, .. } = &parts else {
         panic!("a blob is saved as a node of parts");
     };
     assert_eq!(children.len(), 2);
@@ -31,16 +31,19 @@ fn a_blob_saves_its_header_and_payload_as_separate_parts() {
                 length: encoded.len() as u64,
             }),
             start: 0,
+            references: Vec::new(),
             children: vec![
                 LoadedPart {
                     reference: header_part,
                     start: 0,
                     children: Vec::new(),
+                    references: Vec::new(),
                 },
                 LoadedPart {
                     reference: saved,
                     start: start as u64,
                     children: Vec::new(),
+                    references: Vec::new(),
                 },
             ],
         }),
@@ -48,7 +51,7 @@ fn a_blob_saves_its_header_and_payload_as_separate_parts() {
     let mut loaded = BytesContent::from_stored(&stored).unwrap();
     assert_eq!(loaded, content);
     loaded.apply(&BlobOp::SetHeader(header("renamed.png")));
-    let Part::Node(children) = loaded.parts() else {
+    let Part::Node { parts: children, .. } = loaded.parts() else {
         panic!("a blob is saved as a node of parts");
     };
     assert_eq!(

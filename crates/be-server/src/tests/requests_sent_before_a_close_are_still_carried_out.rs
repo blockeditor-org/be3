@@ -37,10 +37,10 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
                 head,
                 None,
                 Vec::new(),
-                chunks,
+                held(&[], chunks),
                 1_000,
                 false,
-                Vec::new(),
+                listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
             )

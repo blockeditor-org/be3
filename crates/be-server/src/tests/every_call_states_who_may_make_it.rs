@@ -258,10 +258,10 @@ impl TestClient {
                         commit,
                         None,
                         Vec::new(),
-                        Vec::new(),
+                        held(&[], Vec::new()),
                         1_000,
                         false,
-                        Vec::new(),
+                        listing(&[], Vec::new()),
                         Vec::new(),
                         vec![b"an object".to_vec()],
                     )

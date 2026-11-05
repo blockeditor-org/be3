@@ -1388,7 +1388,7 @@ impl Client {
                 commit,
                 expected,
                 parents,
-                chunks,
+                held,
                 time,
                 pinned,
                 references,
@@ -1402,7 +1402,7 @@ impl Client {
                     let outcome = connection
                         .store
                         .publish(
-                            identity, block, commit, expected, parents, chunks, time, pinned,
+                            identity, block, commit, expected, parents, held, time, pinned,
                             references, metadata,
                         )
                         .await?;

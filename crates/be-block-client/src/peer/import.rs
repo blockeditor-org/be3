@@ -311,10 +311,10 @@ impl<S: ObjectStore> Peer<S> {
                     pending.commit,
                     None,
                     Vec::new(),
-                    pending.chunks,
+                    be_block_protocol::ObjectChange::between(&[], &pending.chunks),
                     pending.time,
                     false,
-                    pending.references,
+                    be_block_protocol::ReferenceChange::between(&[], &pending.references),
                     pending.metadata,
                     Vec::new(),
                 )

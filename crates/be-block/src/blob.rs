@@ -131,7 +131,7 @@ impl<K: BlobKind> BlockContent for Blob<K> {
             Some(saved) => Part::Reused(saved),
             None => Part::from(self.data.as_slice()),
         };
-        Part::Node(vec![Part::from(header), payload])
+        Part::node(vec![Part::from(header), payload])
     }
 
     fn from_stored(stored: &Stored) -> Result<Self, ContentError> {

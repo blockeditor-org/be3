@@ -47,7 +47,9 @@ each `due()` until it gives up. The fault relay (guides/blocks/server.md,
   (bytes and the parts they were saved in).
 - `save` seals `BlockContent::parts` and publishes against the head it read,
   carrying the commit and the objects (nodes and chunks) that head lacks, so a
-  save is one round trip and costs what changed. A merge, or new objects over
+  save is one round trip and costs what changed. The outbox keeps a commit's
+  full object and reference lists; `send_pending` sends them as changes from
+  the expected head's (`held_by`, `references_of`). A merge, or new objects over
   half a frame, upload first: only what `MissingObjects` says is missing, in
   `PutObjects` of up to 2 MiB.
 - `read_contents` reads many heads at once (one `ReadContents` per 256 blocks,

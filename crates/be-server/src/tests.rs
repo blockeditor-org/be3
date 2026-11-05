@@ -642,6 +642,7 @@ impl TestClient {
     ) -> Result<be_block_protocol::PublishOutcome, Error> {
         self.upload(&author.store, &author.objects_of(commit, &chunks))
             .await;
+        let before = author.held_by(expected);
         self.call(|peer| {
             client::blocks::publish(
                 peer,
@@ -649,10 +650,10 @@ impl TestClient {
                 commit,
                 expected,
                 expected.into_iter().collect(),
-                chunks,
+                held(&before, chunks),
                 time,
                 false,
-                Vec::new(),
+                listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
             )
@@ -725,10 +726,10 @@ impl TestClient {
                     head,
                     None,
                     Vec::new(),
-                    chunks,
+                    held(&[], chunks),
                     1_000,
                     false,
-                    children,
+                    listing(&[], children),
                     Vec::new(),
                     Vec::new(),
                 )
@@ -757,6 +758,14 @@ impl TestClient {
             .await;
         (block, data)
     }
+}
+
+fn held(before: &[Hash], after: Vec<Hash>) -> be_block_protocol::ObjectChange {
+    be_block_protocol::ObjectChange::between(before, &after)
+}
+
+fn listing(before: &[Uuid], after: Vec<Uuid>) -> be_block_protocol::ReferenceChange {
+    be_block_protocol::ReferenceChange::between(before, &after)
 }
 
 struct Author {
@@ -793,6 +802,14 @@ impl Author {
             )
             .unwrap();
         (commit, chunks)
+    }
+
+    /// The objects `commit` holds besides itself, as `compose` listed them.
+    fn held_by(&self, commit: Option<CommitId>) -> Vec<Hash> {
+        commit.map_or_else(Vec::new, |commit| {
+            let manifest = self.commits.get(commit).unwrap().manifest;
+            self.commits.vault().objects(&manifest).unwrap()
+        })
     }
 
     fn objects_of(&self, commit: CommitId, chunks: &[Hash]) -> Vec<Hash> {

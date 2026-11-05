@@ -4,8 +4,8 @@ A block loads, saves and publishes whole, so every save costs more as the block
 grows, whatever changed. This plan makes a save cost what changed, and lets a
 reader load part of a block. Chat needs it (plans/chat.md); the canvas, and any
 block with many children or attachments, gains too. Saving less often is
-plans/live_edit_persistence.md. Parts and the manifest tree (formerly 1 and 2)
-are done; the rest is not implemented yet.
+plans/live_edit_persistence.md. Parts, the manifest tree, publishing changes
+and per-part references (formerly 1–4) are done; 1a's wiring and 5 are left.
 
 ## What exists
 
@@ -30,13 +30,16 @@ are done; the rest is not implemented yet.
   and chunks a range touches. Only a be-block-client test uses them
   (`a_large_image_streams_without_downloading_all_of_it`). The replica and apps
   always load content whole, and `Blob` holds its payload in memory.
-- **Publishing.** `publish` (`crates/be-block-protocol/wit/blocks.wit`) carries
-  the full `chunks` list (every node and chunk of the manifest tree) and the full `references` list. The server's
-  `store_edges` (`crates/be-server/src/blocks.rs`) deletes every edge of the
-  block and inserts them again, and each `Commit` stores the full
-  `references`.
-- **References** come from `BlockContent::references_in` over the whole
-  content.
+- **Publishing** sends what changed since the expected head: an
+  `ObjectChange` and an order-keeping `ReferenceChange`
+  (`crates/be-block-protocol`); the server rebuilds the commit's object list
+  from the expected head's rows and writes only the edges that changed
+  (guides/blocks/server.md, "Publishing"). The server still stores a full
+  `commit_objects` list per commit, written from the change.
+- **References** are `BlockContent::references_in` plus each manifest node's
+  own (`Part::Node { references }`), so a reused part keeps its references
+  without being loaded (guides/blocks/content_types.md, "Parts").
+  `Peer::references_of` lists a commit's.
 - **Sessions.** A joining follower gets the owner's whole state in `Snapshot`.
 - `Document::to_bytes` writes the whole document as one CBOR value
   (`stored::save`). `Document::to_parts` splits the same form into a tree of
@@ -55,27 +58,13 @@ The model side is done: `Document::to_parts` / `from_parts`
   didn't change, so text, canvas and database blocks get cheap saves. The
   replica host and the type protocol must carry parts and refs for this to
   reach real saves (see "What exists").
+- Each document part lists the references its own objects hold
+  (`Part::Node { references }`), and `references_in` returns none of those,
+  so a reused part keeps its references.
 - Parts still load whole. Loading part of a document is 5; the model could
   later offer it per field (an attribute such as `#[model(lazy)]` on a
   `List`), with a part's objects loaded when first read. Chat's segments don't
   need that, since they are its own layout.
-
-### 3. Publish sends what changed
-
-- `publish` carries the chunks and references added and removed since the
-  expected head. The server applies the edges that changed instead of
-  rewriting them all. Announcements of blocks that start or stop being
-  referenced already work from changes.
-- A commit stores its references in the same tree shape as the manifest, so
-  unchanged references are shared too.
-- `block_edges` keeps its schema.
-
-### 4. References without loading everything
-
-- Content that loads only part of itself can't run `references_in` over all of
-  it. Each part reports its own references, and a reused part keeps the ones it
-  had: the content records them in its own index (chat's segment index, for
-  example) so a closed part's references never change.
 
 ### 5. Replicas and apps that load part of a block
 
@@ -91,13 +80,9 @@ The model side is done: `Document::to_parts` / `from_parts`
 
 ## Order of work
 
-3 and 4 are independent; 5 builds on 4. Chat needs 1a and 3–5; the canvas
-and text need 1a and 3.
+5 is left. Chat needs 1a and 5; the canvas and text need 1a.
 
 ## Tests
 
-- In be-block-client, extend
-  `a_large_block_saved_after_a_small_change_uploads_only_what_changed`: the
-  publish carries a small reference and object change, not the full lists.
 - A replica that loads only the header reads a payload range on demand, and a
   follower joining it gets a snapshot without the payload.

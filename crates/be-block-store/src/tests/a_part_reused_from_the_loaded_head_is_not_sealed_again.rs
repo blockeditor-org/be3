@@ -7,10 +7,10 @@ fn a_part_reused_from_the_loaded_head_is_not_sealed_again() {
     let vault = vault(8);
     let parts: Vec<Vec<u8>> = (0..6).map(|seed| pseudorandom(60, seed)).collect();
     fn tree(parts: &[Vec<u8>]) -> Part<'_> {
-        Part::Node(vec![
+        Part::node(vec![
             Part::from(&parts[0]),
-            Part::Node(parts[1..4].iter().map(Part::from).collect()),
-            Part::Node(parts[4..].iter().map(Part::from).collect()),
+            Part::node(parts[1..4].iter().map(Part::from).collect()),
+            Part::node(parts[4..].iter().map(Part::from).collect()),
         ])
     }
     let first = vault.write(id(8), CONTENT, tree(&parts)).unwrap();
@@ -28,9 +28,9 @@ fn a_part_reused_from_the_loaded_head_is_not_sealed_again() {
 
     let mut edited = parts.clone();
     edited[2] = pseudorandom(50, 99);
-    let reused = Part::Node(vec![
+    let reused = Part::node(vec![
         Part::Reused(root.children[0].reference),
-        Part::Node(vec![
+        Part::node(vec![
             Part::Reused(root.children[1].children[0].reference),
             Part::from(&edited[2]),
             Part::Reused(root.children[1].children[2].reference),

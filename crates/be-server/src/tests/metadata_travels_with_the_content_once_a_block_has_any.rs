@@ -32,10 +32,10 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
                 head,
                 None,
                 Vec::new(),
-                chunks,
+                held(&[], chunks),
                 1_000,
                 false,
-                Vec::new(),
+                listing(&[], Vec::new()),
                 b"sealed with content".to_vec(),
                 Vec::new(),
             )

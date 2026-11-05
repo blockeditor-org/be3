@@ -14,8 +14,8 @@ use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
     AccessList, BlockSummary, ClientId, ErrorCode, EscrowKey, HistoryEntry, KeyKind, KeySet,
-    Listing, OrganizationKind, OrganizationRole, PublishOutcome, ServerAccount, SessionState,
-    WrappedBy, client,
+    Listing, ObjectChange, OrganizationKind, OrganizationRole, PublishOutcome, ReferenceChange,
+    ServerAccount, SessionState, WrappedBy, client,
 };
 use be_block_store::{
     ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, Part, StoreError, Stored, Vault,
@@ -688,13 +688,44 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Every object of a manifest tree, fetching the nodes this peer lacks but not the chunks.
     pub async fn objects_of(&self, manifest: &Manifest) -> Result<Vec<Hash>, ClientError> {
+        self.fetch_nodes(manifest).await?;
+        Ok(self.commits.vault().objects(manifest)?)
+    }
+
+    async fn fetch_nodes(&self, manifest: &Manifest) -> Result<(), ClientError> {
         loop {
             let missing = self.commits.vault().missing_nodes(manifest)?;
             if missing.is_empty() {
-                return Ok(self.commits.vault().objects(manifest)?);
+                return Ok(());
             }
             self.fetch(&missing).await?;
         }
+    }
+
+    /// What a commit of `block` references: `Commit::references` (the content's own and its
+    /// metadata's) and then those of the parts of its manifest tree, resolved, each once. Reading
+    /// it fetches the commit's nodes, never its chunks.
+    pub async fn references_of(
+        &self,
+        block: Uuid,
+        commit: &Commit,
+    ) -> Result<Vec<Uuid>, ClientError> {
+        self.fetch_nodes(&commit.manifest).await?;
+        let parts = self.commits.vault().references(&commit.manifest)?;
+        let mut references = commit.references.clone();
+        references.extend(self.resolve(block, parts));
+        Ok(deduplicated(references))
+    }
+
+    /// The objects the server holds for a commit besides the commit itself: its manifest
+    /// tree's, and for a merge each other parent and its tree's, as `seal` lists them.
+    async fn held_by(&self, commit: &Commit) -> Result<Vec<Hash>, ClientError> {
+        let mut held = self.objects_of(&commit.manifest).await?;
+        for parent in commit.parents.iter().skip(1) {
+            held.push(parent.hash());
+            held.extend(self.objects_of(&self.load_commit(*parent).await?.manifest).await?);
+        }
+        Ok(held)
     }
 
     pub async fn write_content<'a>(
@@ -1287,6 +1318,9 @@ impl<S: ObjectStore> Peer<S> {
         }
         let mut parents: Vec<_> = expected.into_iter().collect();
         let mut chunks = self.objects_of(&manifest).await?;
+        let mut listed = references.clone();
+        listed.extend(self.resolve(block, self.commits.vault().references(&manifest)?));
+        let listed = deduplicated(listed);
         for parent in &extra_parents {
             chunks.push(parent.hash());
             chunks.extend(self.objects_of(&self.commits.get(*parent)?.manifest).await?);
@@ -1315,7 +1349,7 @@ impl<S: ObjectStore> Peer<S> {
             chunks,
             time,
             pinned,
-            references,
+            references: listed,
             metadata: sealed.clone(),
         })?;
         if !self.is_attached()
@@ -1360,8 +1394,17 @@ impl<S: ObjectStore> Peer<S> {
         };
         let manifest = self.commits.get(id)?.manifest;
         let merging = parents.len() > usize::from(expected.is_some());
+        let (held, listed) = match &previous {
+            Some(previous) => (
+                self.held_by(previous).await?,
+                self.references_of(block, previous).await?,
+            ),
+            None => (Vec::new(), Vec::new()),
+        };
+        let held = ObjectChange::between(&held, chunks);
+        let listed = ReferenceChange::between(&listed, references);
         let mut hashes = vec![id.hash()];
-        hashes.extend(chunks.iter().copied());
+        hashes.extend(held.added.iter().copied());
         let mut carried = match merging {
             true => None,
             false => self.carried(id, &manifest, previous.as_ref())?,
@@ -1377,10 +1420,10 @@ impl<S: ObjectStore> Peer<S> {
                     id,
                     expected,
                     parents.clone(),
-                    chunks.clone(),
+                    held.clone(),
                     time,
                     pinned,
-                    references.clone(),
+                    listed.clone(),
                     metadata.clone(),
                     objects,
                 ))

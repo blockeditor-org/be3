@@ -70,10 +70,10 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
                 commit,
                 None,
                 Vec::new(),
-                chunks.clone(),
+                held(&[], chunks.clone()),
                 1_000,
                 false,
-                Vec::new(),
+                listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
             )
