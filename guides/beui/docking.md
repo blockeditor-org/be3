@@ -207,6 +207,11 @@ alone even inside another dock's tab.
   edge, docked in a band, or popped into a window. At the root, bars are placed by key
   (`{block type}/{key}` across apps), so every canvas's `tools` bar shares one placement and one
   popped-out window. The dock offers no way to show a hidden bar again: its owner must.
+  Dragged by its grip (`unstyled/bars.rs`), a bar docks in an edge's band only within half a
+  band of that edge (the band there, else the bar's thickness), and holds on to the band to half
+  a band past it; a bar grabbed floating over an edge must first be pulled halfway from where it
+  was grabbed towards that edge. Let go at speed outside every band, it is thrown to float over
+  the edge its path runs into; inside a band it docks there.
 - **Fullscreen**: one tab at a time (`DockState::set_fullscreen`) moves its panel into an overlay,
   or a hosted `Window`, over an area; leaving puts it back without rebuilding. The dock binds no key
   to leave: whoever enters offers the way out.
