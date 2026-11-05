@@ -784,7 +784,7 @@ impl Author {
 
     fn compose(&self, text: &[u8], time: i64, parent: Option<CommitId>) -> (CommitId, Vec<Hash>) {
         let manifest = self.commits.vault().write(KEY, CONTENT, text).unwrap();
-        let chunks = manifest.chunk_hashes();
+        let chunks = self.commits.vault().objects(&manifest).unwrap();
         let commit = self
             .commits
             .put(

@@ -228,7 +228,7 @@ impl<S: ObjectStore> Peer<S> {
             .with_references(references.clone())
             .with_metadata(encoded.clone());
         let id = self.commits.put(key, &commit)?;
-        let chunks = manifest.chunk_hashes();
+        let chunks = vault.objects(&manifest)?;
         let mut objects = vec![id.hash()];
         objects.extend(chunks.iter().copied());
         Ok(Prepared {

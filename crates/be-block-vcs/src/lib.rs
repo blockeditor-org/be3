@@ -4,7 +4,7 @@ pub use be_block::ConflictKind;
 
 use be_block::{BlockMetadata, NAME};
 use be_block_commit::{ChangeId, Commit, CommitId, CommitKind, CommitStore};
-use be_block_store::{Hash, Manifest, ObjectStore, StoreError, Vault};
+use be_block_store::{Manifest, ObjectStore, StoreError, Vault};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -40,13 +40,12 @@ impl Tree {
         be_block_store::decode_value(&vault.read(manifest)?)
     }
 
-    pub fn objects(&self) -> BTreeSet<Hash> {
+    /// The contents the tree names, of its entries and every side of its conflicts.
+    pub fn manifests(&self) -> impl Iterator<Item = &Manifest> {
         self.entries
             .values()
             .chain(self.conflicts.values().flat_map(Conflict::sides))
             .filter_map(|entry| entry.content.as_ref())
-            .flat_map(Manifest::chunk_hashes)
-            .collect()
     }
 
     pub fn resolve(&mut self, block: Uuid, take: Option<Side>) -> bool {
@@ -104,13 +103,6 @@ pub fn message_of(commit: &Commit) -> Option<&str> {
     }
 }
 
-pub fn held_objects(commit: CommitId, tree: &Manifest, current: &Tree, base: &Tree) -> Vec<Hash> {
-    let known = base.objects();
-    let mut held = vec![commit.hash()];
-    held.extend(tree.chunk_hashes());
-    held.extend(current.objects().difference(&known));
-    held
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum Change {

@@ -5,7 +5,8 @@ use chacha20poly1305::{
 use rand::TryRngCore;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
+    ops::Range,
     sync::{Arc, RwLock},
 };
 use uuid::Uuid;
@@ -14,13 +15,19 @@ use crate::{
     StoreError,
     chunker::{ChunkerConfig, split},
     hash::Hash,
-    manifest::{ChunkRef, Manifest, decode_value, encode_value},
+    manifest::{
+        ChunkRef, LoadedPart, Manifest, Node, NodeRef, Part, PartRef, Stored, decode_value,
+        encode_value,
+    },
     store::ObjectStore,
 };
 
 pub const NONCE_LEN: usize = 12;
 pub const TAG: &[u8; 4] = b"be3K";
 const HEADER_LEN: usize = TAG.len() + 16;
+const GROUP_MINIMUM: usize = 4;
+const GROUP_AVERAGE: u16 = 64;
+const GROUP_MAXIMUM: usize = 256;
 
 #[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ContentKey([u8; 32]);
@@ -183,39 +190,177 @@ impl<S: ObjectStore> Vault<S> {
         self.keys.open(sealed)
     }
 
-    pub fn write(
+    /// Seals the new parts of `parts` and writes the manifest tree over them, keeping every
+    /// `Part::Reused` as it was.
+    pub fn write<'a>(
         &self,
         key: Uuid,
         content_type: Uuid,
-        data: &[u8],
+        parts: impl Into<Part<'a>>,
     ) -> Result<Manifest, StoreError> {
         let sealing = self.keys.get(key).ok_or(StoreError::MissingKey(key))?;
-        let mut chunks = Vec::new();
-        for range in split(data, self.chunker) {
-            let length = u32::try_from(range.len()).map_err(|_| StoreError::ChunkTooLarge)?;
-            let hash = self.store.put(&sealing.seal(key, &data[range]))?;
-            chunks.push(ChunkRef { hash, length });
+        let root = self.write_part(key, &sealing, &parts.into())?;
+        Ok(Manifest { content_type, root })
+    }
+
+    fn write_part(
+        &self,
+        key: Uuid,
+        sealing: &ContentKey,
+        part: &Part<'_>,
+    ) -> Result<Option<PartRef>, StoreError> {
+        match part {
+            Part::Bytes(bytes) => {
+                let mut chunks = Vec::new();
+                for range in split(bytes, self.chunker) {
+                    let length =
+                        u32::try_from(range.len()).map_err(|_| StoreError::ChunkTooLarge)?;
+                    let hash = self.store.put(&sealing.seal(key, &bytes[range]))?;
+                    chunks.push(PartRef::Chunk(ChunkRef { hash, length }));
+                }
+                self.group(key, sealing, chunks)
+            }
+            Part::Reused(part) => Ok(Some(*part)),
+            Part::Node(children) => {
+                let mut parts = Vec::with_capacity(children.len());
+                for child in children {
+                    parts.extend(self.write_part(key, sealing, child)?);
+                }
+                if parts.is_empty() {
+                    return Ok(None);
+                }
+                Ok(Some(PartRef::Node(self.put_node(key, sealing, parts)?)))
+            }
         }
-        Ok(Manifest {
-            content_type,
-            length: data.len() as u64,
-            chunks,
-        })
+    }
+
+    /// Groups one part's chunks under nodes chosen by the chunks' hashes, as a prolly tree
+    /// does, so a changed chunk rewrites only the nodes above it.
+    fn group(
+        &self,
+        key: Uuid,
+        sealing: &ContentKey,
+        mut parts: Vec<PartRef>,
+    ) -> Result<Option<PartRef>, StoreError> {
+        loop {
+            if parts.len() <= 1 {
+                return Ok(parts.pop());
+            }
+            let mut grouped = Vec::new();
+            let mut group = Vec::new();
+            for part in parts {
+                group.push(part);
+                let boundary = u16::from_le_bytes([part.hash().as_bytes()[0], part.hash().as_bytes()[1]])
+                    % GROUP_AVERAGE
+                    == 0;
+                if (boundary && group.len() >= GROUP_MINIMUM) || group.len() >= GROUP_MAXIMUM {
+                    grouped.push(std::mem::take(&mut group));
+                }
+            }
+            if !group.is_empty() {
+                grouped.push(group);
+            }
+            if grouped.len() == 1 {
+                let parts = grouped.pop().expect("one group");
+                return Ok(Some(PartRef::Chunks(self.put_node(key, sealing, parts)?)));
+            }
+            parts = grouped
+                .into_iter()
+                .map(|group| self.put_node(key, sealing, group).map(PartRef::Chunks))
+                .collect::<Result<_, _>>()?;
+        }
+    }
+
+    fn put_node(
+        &self,
+        key: Uuid,
+        sealing: &ContentKey,
+        parts: Vec<PartRef>,
+    ) -> Result<NodeRef, StoreError> {
+        let length = parts.iter().map(|part| part.length()).sum();
+        let node = Node { parts };
+        let hash = self.store.put(&sealing.seal(key, &encode_value(&node)?))?;
+        Ok(NodeRef { hash, length })
+    }
+
+    fn node(&self, node: NodeRef) -> Result<Node, StoreError> {
+        let node_value: Node = self.get_value(node.hash)?;
+        if node_value.parts.iter().map(|part| part.length()).sum::<u64>() != node.length {
+            return Err(StoreError::Corrupt);
+        }
+        Ok(node_value)
+    }
+
+    /// Visits every part under `part` that overlaps `range`, a node before its parts, with
+    /// where it starts in the stored form. `visit` answers whether to go into a node.
+    fn walk(
+        &self,
+        part: PartRef,
+        start: u64,
+        range: &Range<u64>,
+        visit: &mut impl FnMut(PartRef, u64) -> Result<bool, StoreError>,
+    ) -> Result<(), StoreError> {
+        let end = start + part.length();
+        if end <= range.start || start >= range.end {
+            return Ok(());
+        }
+        if !visit(part, start)? {
+            return Ok(());
+        }
+        if let Some(node) = part.node() {
+            let mut at = start;
+            for child in self.node(node)?.parts {
+                self.walk(child, at, range, visit)?;
+                at += child.length();
+            }
+        }
+        Ok(())
+    }
+
+    fn walk_manifest(
+        &self,
+        manifest: &Manifest,
+        range: Range<u64>,
+        mut visit: impl FnMut(PartRef, u64) -> Result<bool, StoreError>,
+    ) -> Result<(), StoreError> {
+        match manifest.root {
+            Some(root) => self.walk(root, 0, &range, &mut visit),
+            None => Ok(()),
+        }
     }
 
     pub fn read(&self, manifest: &Manifest) -> Result<Vec<u8>, StoreError> {
-        let mut data = Vec::with_capacity(usize::try_from(manifest.length).unwrap_or(0));
-        for chunk in &manifest.chunks {
-            let sealed = self
-                .store
-                .get(chunk.hash)?
-                .ok_or(StoreError::MissingObject(chunk.hash))?;
-            data.extend_from_slice(&self.open(&sealed)?);
-        }
-        if data.len() as u64 != manifest.length {
+        let data = self.read_range(manifest, 0, manifest.length())?;
+        if data.len() as u64 != manifest.length() {
             return Err(StoreError::Corrupt);
         }
         Ok(data)
+    }
+
+    /// The stored form and the parts it was saved in, in the shape the content wrote them.
+    pub fn load(&self, manifest: &Manifest) -> Result<Stored, StoreError> {
+        let bytes = self.read(manifest)?;
+        let root = match manifest.root {
+            Some(root) => Some(self.loaded(root, 0)?),
+            None => None,
+        };
+        Ok(Stored { bytes, root })
+    }
+
+    fn loaded(&self, reference: PartRef, start: u64) -> Result<LoadedPart, StoreError> {
+        let mut children = Vec::new();
+        if let PartRef::Node(node) = reference {
+            let mut at = start;
+            for child in self.node(node)?.parts {
+                children.push(self.loaded(child, at)?);
+                at += child.length();
+            }
+        }
+        Ok(LoadedPart {
+            reference,
+            start,
+            children,
+        })
     }
 
     pub fn read_range(
@@ -224,21 +369,15 @@ impl<S: ObjectStore> Vault<S> {
         offset: u64,
         length: u64,
     ) -> Result<Vec<u8>, StoreError> {
-        let end = offset.saturating_add(length).min(manifest.length);
+        let end = offset.saturating_add(length).min(manifest.length());
         if offset >= end {
             return Ok(Vec::new());
         }
         let mut data = Vec::with_capacity(usize::try_from(end - offset).unwrap_or(0));
-        let mut position = 0u64;
-        for chunk in &manifest.chunks {
-            let chunk_end = position + u64::from(chunk.length);
-            if chunk_end <= offset {
-                position = chunk_end;
-                continue;
-            }
-            if position >= end {
-                break;
-            }
+        self.walk_manifest(manifest, offset..end, |part, position| {
+            let PartRef::Chunk(chunk) = part else {
+                return Ok(true);
+            };
             let sealed = self
                 .store
                 .get(chunk.hash)?
@@ -250,32 +389,75 @@ impl<S: ObjectStore> Vault<S> {
             let start = usize::try_from(offset.saturating_sub(position)).unwrap_or(0);
             let stop = usize::try_from((end - position).min(u64::from(chunk.length))).unwrap_or(0);
             data.extend_from_slice(&plain[start..stop]);
-            position = chunk_end;
-        }
+            Ok(false)
+        })?;
         Ok(data)
     }
 
-    pub fn chunks_in_range(&self, manifest: &Manifest, offset: u64, length: u64) -> Vec<ChunkRef> {
-        let end = offset.saturating_add(length).min(manifest.length);
-        let mut position = 0u64;
-        let mut overlapping = Vec::new();
-        for chunk in &manifest.chunks {
-            let chunk_end = position + u64::from(chunk.length);
-            if chunk_end > offset && position < end {
-                overlapping.push(*chunk);
-            }
-            position = chunk_end;
-        }
-        overlapping
+    /// Every object of the manifest tree: its nodes and chunks. Fails on a node this store
+    /// does not hold.
+    pub fn objects(&self, manifest: &Manifest) -> Result<Vec<Hash>, StoreError> {
+        self.objects_besides(manifest, &HashSet::new())
     }
 
-    pub fn missing_chunks(&self, manifest: &Manifest) -> Result<Vec<Hash>, StoreError> {
-        let mut missing = Vec::new();
-        for chunk in &manifest.chunks {
-            if !self.store.has(chunk.hash)? {
-                missing.push(chunk.hash);
+    /// The manifest's objects that are not under a node or chunk in `known`, such as the
+    /// objects of the commit it was loaded from.
+    pub fn objects_besides(
+        &self,
+        manifest: &Manifest,
+        known: &HashSet<Hash>,
+    ) -> Result<Vec<Hash>, StoreError> {
+        let mut objects = Vec::new();
+        let mut seen = HashSet::new();
+        self.walk_manifest(manifest, 0..u64::MAX, |part, _| {
+            let hash = part.hash();
+            if known.contains(&hash) || !seen.insert(hash) {
+                return Ok(false);
             }
-        }
+            objects.push(hash);
+            Ok(true)
+        })?;
+        Ok(objects)
+    }
+
+    /// The objects under `offset..offset + length` that this store lacks and can name: a
+    /// missing node hides what is under it, so fetch these and ask again until none are left.
+    pub fn missing_objects(
+        &self,
+        manifest: &Manifest,
+        offset: u64,
+        length: u64,
+    ) -> Result<Vec<Hash>, StoreError> {
+        let mut missing = Vec::new();
+        let mut seen = HashSet::new();
+        let end = offset.saturating_add(length);
+        self.walk_manifest(manifest, offset..end, |part, _| {
+            let hash = part.hash();
+            if !seen.insert(hash) {
+                return Ok(false);
+            }
+            if self.store.has(hash)? {
+                return Ok(true);
+            }
+            missing.push(hash);
+            Ok(false)
+        })?;
+        Ok(missing)
+    }
+
+    /// The manifest's nodes this store lacks and can name, leaving chunks out.
+    pub fn missing_nodes(&self, manifest: &Manifest) -> Result<Vec<Hash>, StoreError> {
+        let mut missing = Vec::new();
+        self.walk_manifest(manifest, 0..u64::MAX, |part, _| {
+            if part.node().is_none() {
+                return Ok(false);
+            }
+            if self.store.has(part.hash())? {
+                return Ok(true);
+            }
+            missing.push(part.hash());
+            Ok(false)
+        })?;
         Ok(missing)
     }
 

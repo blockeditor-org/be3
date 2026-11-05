@@ -231,7 +231,7 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         blocks: &[(Uuid, Option<CommitId>)],
         reason: String,
-    ) -> Result<Vec<(BlockSummary, Option<Vec<u8>>)>, ClientError> {
+    ) -> Result<Vec<(BlockSummary, Option<be_block_store::Stored>)>, ClientError> {
         let mut read = Vec::with_capacity(blocks.len());
         for (block, _) in blocks {
             let mut summary = self
@@ -248,9 +248,12 @@ impl<S: ObjectStore> Peer<S> {
         Ok(read)
     }
 
-    pub(super) async fn read_at(&self, head: CommitId) -> Result<Vec<u8>, ClientError> {
+    pub(super) async fn read_at(
+        &self,
+        head: CommitId,
+    ) -> Result<be_block_store::Stored, ClientError> {
         let commit = self.load_commit(head).await?;
-        self.read_manifest(&commit.manifest).await
+        self.load_manifest(&commit.manifest).await
     }
 
     pub async fn drain(&self, skip: impl Fn(Uuid) -> bool) -> Result<Vec<Drained>, ClientError> {

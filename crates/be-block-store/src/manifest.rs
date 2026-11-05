@@ -1,28 +1,188 @@
+use std::{borrow::Cow, ops::Range};
+
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 use crate::{StoreError, hash::Hash};
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct ChunkRef {
     pub hash: Hash,
     pub length: u32,
 }
 
+/// A sealed `Node` and the length of the bytes under it.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct NodeRef {
+    pub hash: Hash,
+    pub length: u64,
+}
+
+/// A saved part of a block's stored form, as a manifest names it.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum PartRef {
+    /// A part's bytes in one chunk.
+    Chunk(ChunkRef),
+    /// A part's bytes split over several chunks: a node of `Chunk` and `Chunks` refs the vault
+    /// grouped, which a reader sees as one part.
+    Chunks(NodeRef),
+    /// A part with child parts: a node of the children's refs, in order.
+    Node(NodeRef),
+}
+
+impl PartRef {
+    pub const fn hash(self) -> Hash {
+        match self {
+            Self::Chunk(chunk) => chunk.hash,
+            Self::Chunks(node) | Self::Node(node) => node.hash,
+        }
+    }
+
+    pub const fn length(self) -> u64 {
+        match self {
+            Self::Chunk(chunk) => chunk.length as u64,
+            Self::Chunks(node) | Self::Node(node) => node.length,
+        }
+    }
+
+    pub const fn node(self) -> Option<NodeRef> {
+        match self {
+            Self::Chunk(_) => None,
+            Self::Chunks(node) | Self::Node(node) => Some(node),
+        }
+    }
+}
+
+/// One object of a manifest tree: the parts under it in order. Its bytes are theirs
+/// concatenated.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Node {
+    pub parts: Vec<PartRef>,
+}
+
+/// What a commit holds of its content: the root of a tree of sealed nodes over the chunks of
+/// the stored form. A commit that changes one part costs that part's chunks and the nodes on
+/// the path to it; every other subtree is shared with the commit it was loaded from.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Manifest {
     pub content_type: Uuid,
-    pub length: u64,
-    pub chunks: Vec<ChunkRef>,
+    pub root: Option<PartRef>,
 }
 
 impl Manifest {
-    pub fn chunk_hashes(&self) -> Vec<Hash> {
-        self.chunks.iter().map(|chunk| chunk.hash).collect()
+    pub fn length(&self) -> u64 {
+        self.root.map_or(0, PartRef::length)
     }
 
     pub fn is_empty(&self) -> bool {
-        self.length == 0
+        self.root.is_none()
+    }
+}
+
+/// A block's stored form as content hands it to be saved: a tree whose leaves, in order, are
+/// the stored bytes. `BlockContent::parts` returns one; by default it is one `Bytes` holding
+/// `encode()`.
+///
+/// Each `Bytes` is sealed on its own, split by the vault's chunker when it is larger than the
+/// chunker's minimum, so an edit to one part re-uploads only that part. `Reused` names a part
+/// of the head the content was loaded from, which is kept as it was without sealing it again,
+/// even when it was sealed under an older data key. `Node` groups parts, and becomes a node of
+/// the manifest tree, so a commit's new nodes are the ones on the path to what changed. Keep a
+/// `Node`'s children few (dozens, not thousands): every change to one of them writes the node
+/// again. Empty parts are left out.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Part<'a> {
+    Bytes(Cow<'a, [u8]>),
+    Reused(PartRef),
+    Node(Vec<Part<'a>>),
+}
+
+impl Part<'_> {
+    pub fn length(&self) -> u64 {
+        match self {
+            Self::Bytes(bytes) => bytes.len() as u64,
+            Self::Reused(part) => part.length(),
+            Self::Node(parts) => parts.iter().map(Part::length).sum(),
+        }
+    }
+
+    /// The stored form this tree describes, for a part that holds no `Reused` part.
+    pub fn flatten(&self) -> Option<Vec<u8>> {
+        let mut bytes = Vec::with_capacity(usize::try_from(self.length()).unwrap_or(0));
+        self.flatten_into(&mut bytes).then_some(bytes)
+    }
+
+    fn flatten_into(&self, bytes: &mut Vec<u8>) -> bool {
+        match self {
+            Self::Bytes(held) => {
+                bytes.extend_from_slice(held);
+                true
+            }
+            Self::Reused(_) => false,
+            Self::Node(parts) => parts.iter().all(|part| part.flatten_into(bytes)),
+        }
+    }
+}
+
+impl<'a> From<&'a [u8]> for Part<'a> {
+    fn from(bytes: &'a [u8]) -> Self {
+        Self::Bytes(Cow::Borrowed(bytes))
+    }
+}
+
+impl<'a> From<&'a Vec<u8>> for Part<'a> {
+    fn from(bytes: &'a Vec<u8>) -> Self {
+        Self::Bytes(Cow::Borrowed(bytes))
+    }
+}
+
+impl From<Vec<u8>> for Part<'_> {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self::Bytes(Cow::Owned(bytes))
+    }
+}
+
+impl<'a, const N: usize> From<&'a [u8; N]> for Part<'a> {
+    fn from(bytes: &'a [u8; N]) -> Self {
+        Self::Bytes(Cow::Borrowed(bytes))
+    }
+}
+
+/// A saved part as a reader loaded it: where its bytes are in the stored form, and its child
+/// parts in the shape the content wrote them (`PartRef::Node`). A part whose bytes the vault
+/// split over chunks is one part with no children.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LoadedPart {
+    pub reference: PartRef,
+    pub start: u64,
+    pub children: Vec<LoadedPart>,
+}
+
+impl LoadedPart {
+    pub fn range(&self) -> Range<u64> {
+        self.start..self.start + self.reference.length()
+    }
+}
+
+/// A block's stored form as read from a manifest: the bytes `BlockContent::decode` reads, and
+/// the parts they were saved in, so content can hand unchanged ones back as `Part::Reused`.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Stored {
+    pub bytes: Vec<u8>,
+    pub root: Option<LoadedPart>,
+}
+
+impl Stored {
+    /// Stored bytes with no saved parts behind them, as content is before its first save.
+    pub fn unsaved(bytes: Vec<u8>) -> Self {
+        Self { bytes, root: None }
+    }
+
+    pub fn bytes_of(&self, part: &LoadedPart) -> &[u8] {
+        let range = part.range();
+        let start = usize::try_from(range.start).unwrap_or(usize::MAX);
+        let end = usize::try_from(range.end).unwrap_or(usize::MAX);
+        self.bytes.get(start..end).unwrap_or_default()
     }
 }
 

@@ -2527,7 +2527,9 @@ async fn export(
                 Some(bytes) => Some(bytes),
                 None => stored(peer, block.id).await?,
             },
-            false => read.next().and_then(|(_, content)| content),
+            false => read
+                .next()
+                .and_then(|(_, content)| content.map(|stored| stored.bytes)),
         };
         if let Some(derived) = shared
             .lock()

@@ -12,10 +12,10 @@ async fn a_large_image_streams_without_downloading_all_of_it() {
     let original = image("panorama.png", 512 * 1024, 17);
     author.save(block, &original, None).await.unwrap();
     let manifest = author.manifest(block).await.unwrap().unwrap();
+    let objects = author.commits().vault().objects(&manifest).unwrap().len();
     assert!(
-        manifest.chunks.len() > 100,
-        "the payload was stored as {} chunks",
-        manifest.chunks.len()
+        objects > 100,
+        "the payload was stored as {objects} objects"
     );
 
     let reader = harness.second(&author).await;
@@ -29,8 +29,7 @@ async fn a_large_image_streams_without_downloading_all_of_it() {
     let held = reader.commits().vault().store().count();
     assert!(
         held < 8,
-        "reading a header pulled down {held} objects of {} chunks",
-        manifest.chunks.len()
+        "reading a header pulled down {held} objects of {objects}"
     );
     let after_header = reader.commits().vault().store().total_bytes();
 
@@ -41,8 +40,8 @@ async fn a_large_image_streams_without_downloading_all_of_it() {
     assert_eq!(slice, original.data()[300_000..300_512]);
     let fetched = reader.commits().vault().store().total_bytes() - after_header;
     assert!(
-        fetched < 4_096,
-        "reading 512 bytes pulled down {fetched} bytes of payload"
+        fetched < 16 * 1024,
+        "reading 512 bytes pulled down {fetched} bytes of payload and its manifest nodes"
     );
 
     let tail = reader

@@ -50,7 +50,7 @@ async fn large_files_saved_at_once_through_a_relay_all_arrive() {
     let read = reader.read_contents(&wanted).await.unwrap();
     for ((_, content), (_, photo)) in read.iter().zip(&photos) {
         assert!(
-            content.as_deref() == Some(&photo.encode()[..]),
+            content.as_ref().map(|stored| &stored.bytes[..]) == Some(&photo.encode()[..]),
             "a large file read back differs from what was saved"
         );
     }

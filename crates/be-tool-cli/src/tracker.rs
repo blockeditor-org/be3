@@ -336,7 +336,7 @@ impl<S: ObjectStore> Tracker<S> {
         if let Some(head) = summary.head {
             self.peer.remember(block, head).map_err(explain)?;
         }
-        Ok((summary.head, bytes))
+        Ok((summary.head, bytes.map(|stored| stored.bytes)))
     }
 
     async fn publish(
