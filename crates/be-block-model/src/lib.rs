@@ -36,7 +36,7 @@ pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
 pub use items::Items;
 pub use latest::{Latest, LatestMap, Stamp, Stamped};
-pub use parts::{PART, Part, SPLICE};
+pub use parts::{DocumentPart, PART, SPLICE, read as read_stored};
 pub use references::BlockRef;
 pub use schema::{Kind, Property, Shape};
 pub use series::Series;
@@ -512,7 +512,7 @@ impl<R: Model> Document<R> {
     /// The stored form split into parts: the root part, naming the parts below
     /// it. An unchanged object or stretch of text gives the same part each
     /// save, so a save stores only the parts on the path to what changed.
-    pub fn to_parts(&self) -> Part {
+    pub fn to_parts(&self) -> DocumentPart {
         parts::split_document(self.to_stored())
     }
 

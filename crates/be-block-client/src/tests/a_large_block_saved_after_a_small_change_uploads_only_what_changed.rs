@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use be_block::{BlobOp, LiveEdit, Part, PartRef, Stored};
+use be_block::be_block_model::local_client;
+use be_block::{BlobOp, LiveEdit, ObjectId, Part, PartRef, Stored};
+use be_type_text::{TextBlock, TextContent};
 
 use super::*;
 
@@ -163,6 +165,50 @@ async fn a_large_block_saved_after_a_small_change_uploads_only_what_changed() {
         .unwrap();
     assert_eq!(read.header().source_name, "renamed.png");
     assert_eq!(read.data(), renamed.data());
+
+    let text_block = author
+        .create::<TextContent>(BlockParent::Block(workspace))
+        .await
+        .unwrap();
+    let words: String = pseudorandom(1024 * 1024, 8)
+        .into_iter()
+        .map(|byte| char::from(b'a' + byte % 26))
+        .collect();
+    let saved = author
+        .save(text_block, &TextBlock::of(&words), None)
+        .await
+        .unwrap()
+        .published()
+        .unwrap();
+    let mut typed = author
+        .open::<TextContent>(text_block)
+        .await
+        .unwrap()
+        .unwrap();
+    let op = typed
+        .text(ObjectId::ROOT, TextBlock::BODY)
+        .unwrap()
+        .insert(local_client(), 500_000, b"typed".to_vec())
+        .unwrap();
+    typed.apply(&TextBlock::BODY.edit(ObjectId::ROOT, op).into());
+    let before = relay.heard();
+    author
+        .save(text_block, &typed, Some(saved))
+        .await
+        .unwrap()
+        .published()
+        .expect("the typing is published");
+    let sent = relay.heard() - before;
+    assert!(
+        sent < 128 * 1024,
+        "typing into a 1 MiB text sent {sent} bytes"
+    );
+    let read = reader
+        .open::<TextContent>(text_block)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(read, typed);
 
     harness.stop().await;
 }

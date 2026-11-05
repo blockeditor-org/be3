@@ -20,11 +20,10 @@ are done; the rest is not implemented yet.
   are shared between commits, and a manifest may mix data key epochs. A
   be-block-client test (`a_large_block_saved_after_a_small_change_uploads_only_what_changed`)
   shows an 8 KiB edit to a 4 MiB block saving one chunk and two nodes.
-- **Not wired through replicas.** Peer-level `save` and `open` use parts, but
-  the replica host saves a type module's bytes as one leaf
-  (`be-block-type-host`, `Call::Publish` and `Call::Stash`): the type protocol
-  (`be-sdk-type-api`) carries bytes, not parts. Documents' parts (1a) need
-  parts, and reused refs, on that protocol.
+- **Replicas.** A type module's replica sends its parts' shape with the bytes
+  (`written.parts` on the type protocol), so its saves are parts too. It holds
+  no `PartRef`s, so nothing it saves is `Reused`: unchanged parts are sealed
+  again, to the same chunks (deterministic nonces), and are not uploaded.
 - **Range reads.** `Streamed` content is `[u32 header length][header][payload]`;
   `Peer::stream_header`, `stream_range` and `read_span` fetch only the nodes
   and chunks a range touches. Only a be-block-client test uses them
@@ -38,27 +37,20 @@ are done; the rest is not implemented yet.
 - **References** come from `BlockContent::references_in` over the whole
   content.
 - **Sessions.** A joining follower gets the owner's whole state in `Snapshot`.
-- `Document::to_bytes` writes the whole document as one CBOR value
-  (`stored::save`). `Document::to_parts` splits the same form into a tree of
-  parts by its structure (1a), but nothing saves through it yet.
+- **Documents** save as parts chosen by their structure: list objects by id,
+  large objects as parts of their own, text and other bytes by content-defined
+  chunking (guides/blocks/content_types.md, "The stored form"). Typing in a
+  1 MiB text block uploads one part and the nodes above it.
 
 ## The design
 
-### 1a. be-block-model splits documents itself
+### 1a. Loading part of a document
 
-The model side is done: `Document::to_parts` / `from_parts`
-(guides/blocks/content_types.md, "The stored form"). Left:
-
-- Wire `Document`'s parts into `BlockContent::parts` and `from_stored`
-  (guides/blocks/content_types.md, "Parts"): return a `Part::Node` per
-  document part, and `Part::Reused` with the loaded `PartRef` for parts that
-  didn't change, so text, canvas and database blocks get cheap saves. The
-  replica host and the type protocol must carry parts and refs for this to
-  reach real saves (see "What exists").
-- Parts still load whole. Loading part of a document is 5; the model could
-  later offer it per field (an attribute such as `#[model(lazy)]` on a
-  `List`), with a part's objects loaded when first read. Chat's segments don't
-  need that, since they are its own layout.
+Documents save as parts (guides/blocks/content_types.md, "The stored form")
+but still load whole. Loading part of a document is 5; the model could later
+offer it per field (an attribute such as `#[model(lazy)]` on a `List`), with a
+part's objects loaded when first read. Chat's segments don't need that, since
+they are its own layout.
 
 ### 3. Publish sends what changed
 

@@ -2079,7 +2079,7 @@ impl<H: Host> Replicas<H> {
                 let io = self.io.clone();
                 H::spawn(async move {
                     let sealed = io.clone();
-                    let mut write = Write::encoded(content_type, parts_of(&content.bytes, &content.parts), expected)
+                    let mut write = Write::encoded(content_type, be_sdk_type_api::written_parts(&content.bytes, &content.parts), expected)
                         .described(content.references, content.derived);
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);
@@ -2119,7 +2119,7 @@ impl<H: Host> Replicas<H> {
                 }
                 let peer = Arc::clone(peer);
                 self.answer_later(replica, module, async move {
-                    let write = Write::encoded(content_type, parts_of(&content.bytes, &content.parts), parent)
+                    let write = Write::encoded(content_type, be_sdk_type_api::written_parts(&content.bytes, &content.parts), parent)
                         .described(content.references, content.derived);
                     let stashed = peer
                         .stash(block, write)
@@ -2400,36 +2400,3 @@ async fn reset<H: Host>(
     Ok(())
 }
 
-/// The parts a replica wrote `bytes` in, from the shape `Written` carries; one
-/// part when the shape is empty or doesn't match the bytes.
-fn parts_of<'a>(bytes: &'a [u8], shape: &[be_sdk_type_api::WrittenPart]) -> be_block_store::Part<'a> {
-    fn take<'a>(
-        bytes: &'a [u8],
-        at: &mut usize,
-        shape: &mut std::slice::Iter<'_, be_sdk_type_api::WrittenPart>,
-        depth: usize,
-    ) -> Option<be_block_store::Part<'a>> {
-        match shape.next()? {
-            be_sdk_type_api::WrittenPart::Bytes(length) => {
-                let end = at.checked_add(usize::try_from(*length).ok()?)?;
-                let part = bytes.get(*at..end)?;
-                *at = end;
-                Some(be_block_store::Part::from(part))
-            }
-            be_sdk_type_api::WrittenPart::Node(count) if depth < 64 => {
-                let mut parts = Vec::new();
-                for _ in 0..*count {
-                    parts.push(take(bytes, at, shape, depth + 1)?);
-                }
-                Some(be_block_store::Part::Node(parts))
-            }
-            be_sdk_type_api::WrittenPart::Node(_) => None,
-        }
-    }
-    let mut at = 0;
-    let mut iter = shape.iter();
-    match take(bytes, &mut at, &mut iter, 0) {
-        Some(part) if at == bytes.len() && iter.next().is_none() => part,
-        _ => be_block_store::Part::from(bytes),
-    }
-}

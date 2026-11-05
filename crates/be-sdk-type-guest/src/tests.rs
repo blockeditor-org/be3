@@ -23,6 +23,7 @@ use crate::{
 };
 
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
+mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_file_maps_to_a_block_and_back;
 mod a_follower_edit_goes_beneath_a_peer_edit_the_owner_ordered_first;
 mod a_follower_keeps_its_unconfirmed_edit_through_a_reload;

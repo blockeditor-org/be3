@@ -9,6 +9,7 @@ be-block-commit = { path = "../be-block-commit", default-features = false }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-ops-bindgen = { path = "../be-wasm-ops-bindgen" }
 be-block-protocol = { path = "../be-block-protocol" }
+be-block-store = { path = "../be-block-store", default-features = false }
 be-block-session = { path = "../be-block-session", default-features = false }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["serde", "v4"] }
