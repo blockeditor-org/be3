@@ -35,7 +35,10 @@ WebSocket API can't set headers), a host-only cookie on `api.be3.pfg.pw` that vi
 `https://api.be3.pfg.pw/` sets before redirecting to the web build. The public web bundle holds
 no gateway key. Because the page is on another origin, the proxy must allow the web build's
 exact origin with credentials and let preflights through without the cookie; any HTTP fetch
-added for API access must include credentials.
+added for API access must include credentials. The S3 endpoint, `/api/be/s3/*`
+(guides/blocks/server.md, "Objects over S3"), is the exception: its presigned URLs are fetched
+without credentials, so the proxy must pass it through without the gateway check, keeping its
+path, `Host` and query (the signature covers them) and adding no CORS headers of its own.
 
 ### Proxy account credentials
 

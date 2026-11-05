@@ -65,6 +65,27 @@ the next post. An answer stops taking frames once its replies fill
 has nothing to send). The client gives up on a post only after `QUIET_WAIT`
 with no bytes moving either way, so a large post on a slow link goes through.
 
+### Objects over S3
+
+be-server answers S3 requests itself at `.../s3/objects/HASH` (`s3.rs`, served
+by `http/s3.rs` through the `s3s` crate): path-style, one bucket `objects`,
+keys the object's hash in lowercase hex, whatever path the proxy puts in
+front (`OneBucket` gives s3s the bucket, so signatures cover the full path).
+Only GetObject (with Range), HeadObject and PutObject are served; PutObject
+requires `x-amz-checksum-sha256`, stores only a body whose hash is both the key
+and the checksum, and answers once the object is synced. Every request is
+SigV4-signed, in practice presigned, with one credential pair derived from
+the server's own secret: `ServerStore::s3_endpoint` gives an `S3Endpoint`,
+whose `bucket(server_url)` and `credentials()` feed `s3::presign_get` and
+`s3::presign_put` (which signs the length and checksum, so the URL takes only
+that object; `rusty-s3` signs). Bodies are read whole within
+`BODY_READ_TIMEOUT`, up to `MAX_OBJECT_BYTES`. Answers carry
+`Access-Control-Allow-Origin: *` and `Cross-Origin-Resource-Policy:
+cross-origin`, and preflights are answered, so a cross-origin isolated page
+can use the URLs; the signature is the only credential. Uploads this way are
+not counted against a quota or recorded as uploads; whatever presigns a PUT
+has to.
+
 ### Protocol
 
 - **Greeting.** Each side sends `be_block_protocol::hello` with its build id

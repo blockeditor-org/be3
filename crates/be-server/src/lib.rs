@@ -40,6 +40,7 @@ mod http;
 pub mod keys;
 pub mod limits;
 mod organization;
+pub mod s3;
 pub mod schema;
 pub mod sessions;
 pub mod store;
@@ -316,17 +317,19 @@ pub async fn serve_with_mail(
         mail::validate_origin(origin).map_err(ServerError::Socket)?;
     }
     let interval = config.sign_in_poll_interval;
+    let store = Arc::new(ServerStore::open_with(
+        data_dir.into(),
+        store::StorageLimits {
+            account_quota: config.account_quota,
+            upload_grace: config.upload_grace,
+        },
+    )?);
     let services = Services {
         portal: config
             .portal
             .map(|portal| Arc::new(portal::Served::new(portal))),
-        store: Arc::new(ServerStore::open_with(
-            data_dir.into(),
-            store::StorageLimits {
-                account_quota: config.account_quota,
-                upload_grace: config.upload_grace,
-            },
-        )?),
+        s3: s3::service(&store.s3_endpoint(), Arc::new(store.objects().clone())),
+        store,
         hub: Arc::new(WatchHub::new()),
         registry: Arc::new(SessionRegistry::new(config.lease)),
         config,
@@ -436,6 +439,8 @@ pub(crate) struct Services {
     unsigned: Arc<address::Unsigned>,
     /// One-shot calls (`http::one_shot`) per address.
     calls: Arc<address::Rate>,
+    /// The S3 endpoint over the server's objects (`s3`).
+    s3: s3s::service::S3Service,
 }
 
 /// What a connection was let in with: its place among its address's connections and among

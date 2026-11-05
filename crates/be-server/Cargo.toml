@@ -8,6 +8,7 @@ license.workspace = true
 base64 = "0.22"
 be-server-portal = { path = "../be-server-portal" }
 argon2 = "0.5"
+async-trait = "0.1"
 chacha20poly1305 = "0.10"
 be-block = { path = "../be-block" }
 be-block-commit = { path = "../be-block-commit" }
@@ -18,10 +19,14 @@ be-block-protocol = { path = "../be-block-protocol" }
 be-block-session = { path = "../be-block-session" }
 be-block-store = { path = "../be-block-store" }
 be-lib-build-id = { path = "../be-lib-build-id" }
+bytes = "1"
 futures-util = "0.3"
+http = "1"
 httparse = "1"
 rand = "0.9"
 rusqlite = { version = "0.32", features = ["bundled"] }
+rusty-s3 = "0.11"
+s3s = "0.17"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
@@ -29,6 +34,7 @@ tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-threa
 tokio-tungstenite = "0.23"
 tracing = "0.1"
 ureq = { version = "2", features = ["json"] }
+url = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [lints]
@@ -36,5 +42,6 @@ workspace = true
 
 [dev-dependencies]
 futures-util = "0.3"
+jiff = "0.2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util", "time"] }
 tokio-tungstenite = "0.23"
