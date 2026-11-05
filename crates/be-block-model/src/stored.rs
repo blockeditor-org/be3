@@ -20,7 +20,7 @@ pub const CRITICAL: u64 = 0x6265_3303;
 const UUID: u64 = 37;
 
 const KIND: &str = "$kind";
-const ID: &str = "$id";
+pub(crate) const ID: &str = "$id";
 
 pub fn encode<T: Serialize + ?Sized>(value: &T) -> Vec<u8> {
     let mut out = Vec::new();
@@ -160,8 +160,7 @@ fn field(tree: &Tree, value: &Value, shape: &Shape) -> Stored {
     }
 }
 
-pub(crate) fn load(bytes: &[u8], kind: &Kind) -> Result<Tree, Malformed> {
-    let envelope: Stored = decode(bytes).ok_or(Malformed)?;
+pub(crate) fn load(envelope: Stored, kind: &Kind) -> Result<Tree, Malformed> {
     let mut entries = properties(envelope).ok_or(Malformed)?;
     let format = entries
         .remove("format")
@@ -192,6 +191,33 @@ fn properties(value: Stored) -> Option<BTreeMap<String, Stored>> {
             .filter_map(|(key, value)| Some((key.into_text().ok()?, value)))
             .collect(),
     )
+}
+
+/// `value` with every map's entries in the order of their encoded keys,
+/// shorter first, so data kept for a newer build encodes the same bytes
+/// whatever order the build that wrote it used.
+fn canonical(value: Stored) -> Stored {
+    match value {
+        Stored::Map(entries) => {
+            let mut entries: Vec<(Vec<u8>, Stored, Stored)> = entries
+                .into_iter()
+                .map(|(key, value)| {
+                    let key = canonical(key);
+                    (encode(&key), key, canonical(value))
+                })
+                .collect();
+            entries.sort_by(|(a, ..), (b, ..)| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
+            Stored::Map(
+                entries
+                    .into_iter()
+                    .map(|(_, key, value)| (key, value))
+                    .collect(),
+            )
+        }
+        Stored::Array(items) => Stored::Array(items.into_iter().map(canonical).collect()),
+        Stored::Tag(tag, inner) => Stored::Tag(tag, Box::new(canonical(*inner))),
+        other => other,
+    }
 }
 
 fn uncritical(value: Stored) -> Stored {
@@ -249,7 +275,7 @@ impl Loading {
         }
         kept.properties = entries
             .into_iter()
-            .map(|(name, value)| (name, encode(&value)))
+            .map(|(name, value)| (name, encode(&canonical(value))))
             .collect();
         self.objects.insert(
             id,

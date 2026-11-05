@@ -18,6 +18,7 @@ mod history;
 mod items;
 mod latest;
 mod merge;
+mod parts;
 mod rebase;
 pub mod references;
 pub mod schema;
@@ -35,6 +36,7 @@ pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
 pub use items::Items;
 pub use latest::{Latest, LatestMap, Stamp, Stamped};
+pub use parts::{PART, Part, SPLICE};
 pub use references::BlockRef;
 pub use schema::{Kind, Property, Shape};
 pub use series::Series;
@@ -498,7 +500,27 @@ impl<R: Model> Document<R> {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Malformed> {
-        stored::load(bytes, &R::kind()).map(Self::from_tree)
+        let stored = stored::decode(bytes).ok_or(Malformed)?;
+        stored::load(stored, &R::kind()).map(Self::from_tree)
+    }
+
+    /// The stored form split into parts: the root part, naming the parts below
+    /// it. An unchanged object or stretch of text gives the same part each
+    /// save, so a save stores only the parts on the path to what changed.
+    pub fn to_parts(&self) -> Part {
+        parts::split_document(self.to_stored())
+    }
+
+    /// Loads the document from its root part, fetching each part it names by
+    /// hash with `fetch`. A fetched part whose bytes don't match its hash is
+    /// malformed.
+    pub fn from_parts(
+        root: &[u8],
+        mut fetch: impl FnMut(be_block_store::Hash) -> Option<Vec<u8>>,
+    ) -> Result<Self, Malformed> {
+        let stored = stored::decode(root).ok_or(Malformed)?;
+        let stored = parts::join(stored, &mut fetch)?;
+        stored::load(stored, &R::kind()).map(Self::from_tree)
     }
 
     pub fn to_stored(&self) -> Stored {
