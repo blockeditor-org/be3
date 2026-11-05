@@ -28,6 +28,8 @@ env:
   # buck2 action. A pull request from a fork sees an empty value, and
   # ./scripts/buck says so rather than building.
   BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
+  # CI builds on Namespace rather than the scripts' default server.
+  BE3_BUILD_SERVER: namespace
 
 # One job does the work: ci is ./scripts/ci, which verifies and on a pull
 # request renders the paint previews, and uploads what each of those produced.

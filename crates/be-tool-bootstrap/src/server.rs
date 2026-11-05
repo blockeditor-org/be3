@@ -11,9 +11,9 @@ use be_lib_prompt::{Choice, Saved, choose, config_directory, interactive, save_p
 use crate::{Result, repository};
 
 const SERVERS: [&str; 5] = [
+    "blocks.pfg.pw",
     "namespace",
     "api.be3.pfg.pw",
-    "blocks.pfg.pw",
     "buildbuddy",
     "local",
 ];
@@ -135,7 +135,7 @@ fn server() -> Result<String> {
         server = ask_for_server(&saved).unwrap_or_default();
     }
     if server.is_empty() {
-        server = "namespace".to_owned();
+        server = SERVERS[0].to_owned();
     }
     if SERVERS.contains(&server.as_str()) {
         return Ok(server);
