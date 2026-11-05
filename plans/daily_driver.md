@@ -36,8 +36,6 @@ status indicator already do.
 - **A property whose stored value does not fit its shape** is loaded blank
   (`be-block-model/src/stored.rs`), and the stored value is lost on the next
   save. Keep the stored value and refuse writes to that property instead.
-- **The host's own databases** (`host.sqlite3`, the refs database) are not
-  frozen and have no fixture in `crates/be-block-frozen`.
 
 ## Offline and flaky connections
 

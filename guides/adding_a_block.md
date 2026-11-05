@@ -243,7 +243,7 @@ Two registrations trip agents up:
 ## Types in be-block
 
 `crates/be-block` holds only the types the host applies itself and the
-libraries every type builds on. A type a frozen format covers keeps its
-`frozen_*.rs` tests in its types crate (guides/frozen_formats.md).
+libraries every type builds on. A frozen type would keep its `frozen_*.rs`
+tests in its types crate (guides/frozen_formats.md); none is frozen yet.
 
 If the block needs a UI, continue with [adding_an_app.md](adding_an_app.md).

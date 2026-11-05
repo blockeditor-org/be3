@@ -24,13 +24,8 @@ mod a_view_hides_closed_choices_and_matches_any_of_several_values;
 mod a_view_shows_only_the_rows_every_filter_matches;
 mod cells_set_in_a_new_row_by_two_peers_at_once_share_the_row;
 mod cells_set_on_both_sides_of_one_row_merge_to_both;
-mod databases_read_every_register_without_any_one_field;
-mod databases_saved_by_the_first_tracker_build_still_load;
 mod deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it;
 mod enum_options_added_on_both_sides_merge_to_both;
-mod frozen_database;
-mod frozen_database_schema;
-mod frozen_database_view;
 mod links_added_on_both_sides_are_both_kept_and_show_on_the_rows_they_point_at;
 
 fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {

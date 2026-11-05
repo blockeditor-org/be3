@@ -30,7 +30,6 @@ impl Workspace {
 
 impl Root for Workspace {
     const CONTENT_TYPE: Uuid = be_block::WORKSPACE_TYPE;
-    const FROZEN: bool = true;
 
     fn references(&self) -> Vec<Uuid> {
         self.blocks()
