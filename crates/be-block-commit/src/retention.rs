@@ -98,7 +98,7 @@ pub fn plan(summaries: &[CommitSummary], now: i64, policy: &RetentionPolicy) -> 
 
     for (index, summary) in ordered.iter().enumerate() {
         let age = now - summary.time;
-        if summary.pinned || age <= policy.keep_all_within {
+        if summary.pinned || (policy.keep_all_within > 0 && age <= policy.keep_all_within) {
             plan.keep.push(summary.id);
             continue;
         }

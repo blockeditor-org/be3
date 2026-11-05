@@ -52,8 +52,10 @@ Notes on particular calls:
   from live updates and rejects edits from it and its nested editors. Release
   it with `release_revision`. `list_revisions` marks the head the server read
   with the list, and history keeps one state a minute (guides/blocks/server.md).
-  Restoring seals the current state as a "Before restoring" bookmark first
-  (`Replicas::bookmark`), so pruning never takes the state it replaced.
+  Restoring keeps the state it replaced: the owner seals it as a "Before
+  restoring" bookmark first (`Replicas::bookmark`); a follower, which cannot
+  seal, stashes it and publishes the restore as a merge with it, whose parents
+  history never prunes.
 - The shell-only calls (share dialog, access lists, show and dialog requests,
   `close_editor`, ...) serve the instance that draws the host's window; no
   other editor has any use for them.
