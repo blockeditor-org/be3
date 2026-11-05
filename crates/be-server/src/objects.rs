@@ -192,9 +192,7 @@ fn failed(error: ureq::Error) -> StoreError {
 impl ObjectStore for S3Store {
     fn put(&self, bytes: &[u8]) -> Result<Hash, StoreError> {
         let hash = Hash::of(bytes);
-        let presigned = self
-            .bucket
-            .presign_put(hash, bytes.len(), OWN_REQUEST_TTL);
+        let presigned = self.bucket.presign_put(hash, bytes.len(), OWN_REQUEST_TTL);
         let mut request = self.agent.put(&presigned.url);
         for (name, value) in &presigned.headers {
             request = request.set(name, value);
