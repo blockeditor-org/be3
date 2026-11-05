@@ -89,7 +89,11 @@ pub async fn read<S: ObjectStore>(
     for group in wanted.chunks(READ_GROUP) {
         let contents = peer.read_contents(group).await.map_err(explain)?;
         for ((id, _), read_block) in group.iter().zip(contents) {
-            read.push((*id, read_block.summary.head, read_block.stored.map(|stored| stored.bytes)));
+            read.push((
+                *id,
+                read_block.summary.head,
+                read_block.stored.map(|stored| stored.bytes),
+            ));
         }
     }
     Ok(read)

@@ -11,8 +11,10 @@ fn request(block: Uuid, request: Asked) -> Answered {
 
 #[test]
 fn revision_history_previews_and_restores_saved_content() {
-    let harness = Harness::start();
+    let harness = Harness::start().on_manual_clock();
     harness.connect();
+    // The server keeps one commit a minute for the last hour.
+    let a_minute_on = || harness.clock.advance(Duration::from_secs(60));
     let block = Uuid::new_v4();
     open(block, CounterContent::CONTENT_TYPE);
     wait_for_count(block, 0);
@@ -20,10 +22,12 @@ fn revision_history_previews_and_restores_saved_content() {
     wait_for_count(block, 5);
     flush();
     let first = node(block).unwrap().head.unwrap();
+    a_minute_on();
     add(block, 2);
     wait_for_count(block, 7);
     flush();
     let second = node(block).unwrap().head.unwrap();
+    a_minute_on();
     assert_ne!(first, second);
     let Answered::Listed(Ok(entries)) = request(block, Asked::List) else {
         panic!("history is listed");

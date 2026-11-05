@@ -762,9 +762,9 @@ impl Modules {
             journal,
         } = read;
         let bytes = stored.map(|stored| stored.bytes);
-        let Some(journal) = journal.filter(|journal| {
-            journal.base.commit == summary.head && !journal.entries.is_empty()
-        }) else {
+        let Some(journal) = journal
+            .filter(|journal| journal.base.commit == summary.head && !journal.entries.is_empty())
+        else {
             return bytes;
         };
         let content_type = summary.content_type;

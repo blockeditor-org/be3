@@ -749,7 +749,11 @@ impl Refs {
                 journal.head.tag = tag;
             }
             journal.head.generation = generation;
-            rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &journal.head));
+            rows.push(row(
+                Table::JournalBase,
+                block.as_bytes().to_vec(),
+                &journal.head,
+            ));
             let mut last = journal
                 .entries
                 .last_key_value()

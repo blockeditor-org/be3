@@ -28,11 +28,17 @@ fn an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner() {
             .await
             .expect("the block reads")
             .into_iter()
-            .any(|read| read.journal.is_some_and(|journal| !journal.entries.is_empty()))
+            .any(|read| {
+                read.journal
+                    .is_some_and(|journal| !journal.entries.is_empty())
+            })
         {}
     });
     assert_eq!(
-        runtime().block_on(reader.open::<CounterContent>(block)).unwrap().map(|counter| counter.root().value()),
+        runtime()
+            .block_on(reader.open::<CounterContent>(block))
+            .unwrap()
+            .map(|counter| counter.root().value()),
         Some(4),
         "the edit is in the journal, not yet in a commit"
     );

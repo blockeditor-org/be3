@@ -18,8 +18,7 @@ pub use connection::{Answer, Connection, Event, ask};
 pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::{
-    BlockRead,
-    Credentials, Drained, Peer, PeerConfig, Reconciled, Resolver, Saved, Sealed, Write,
+    BlockRead, Credentials, Drained, Peer, PeerConfig, Reconciled, Resolver, Saved, Sealed, Write,
 };
 pub use refs::{PendingCounts, RefsDb, UnsentBlock};
 

@@ -31,7 +31,10 @@ async fn contents_read_together_match_what_each_block_saved() {
     let read = reader.read_contents(&wanted).await.unwrap();
     let ids: Vec<Uuid> = read.iter().map(|read| read.summary.id).collect();
     assert_eq!(ids, wanted.iter().map(|(id, _)| *id).collect::<Vec<_>>());
-    let contents: Vec<Option<Vec<u8>>> = read.into_iter().map(|read| read.stored.map(|stored| stored.bytes)).collect();
+    let contents: Vec<Option<Vec<u8>>> = read
+        .into_iter()
+        .map(|read| read.stored.map(|stored| stored.bytes))
+        .collect();
     assert!(
         contents == expected,
         "a content read differs from what was saved"
@@ -49,7 +52,10 @@ async fn contents_read_together_match_what_each_block_saved() {
         .collect();
     let again = reader.read_contents(&heads).await.unwrap();
     assert!(
-        again.into_iter().map(|read| read.stored.map(|stored| stored.bytes)).eq(expected),
+        again
+            .into_iter()
+            .map(|read| read.stored.map(|stored| stored.bytes))
+            .eq(expected),
         "contents the reader already held read differently"
     );
 

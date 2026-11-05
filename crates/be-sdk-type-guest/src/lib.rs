@@ -9,9 +9,8 @@ use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
 use be_block_commit::MergeResult;
 use be_sdk_type_api::{
     Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Journal,
-    Merged,
-    Opening, Plain, PlainFile, PublishOutcome, ReorderChild, ReplaceChild, ReplicaId, SessionState,
-    TypeInfo,
+    Merged, Opening, Plain, PlainFile, PublishOutcome, ReorderChild, ReplaceChild, ReplicaId,
+    SessionState, TypeInfo,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, Pending, Sender},
     types::Failure,
@@ -652,9 +651,11 @@ impl replicas::Guest for Module {
         journal: Journal,
     ) -> impl Future<Output = Result<Vec<u8>, Failure>> + 'static {
         ready(
-            self.with_kind(content_type, |kind| (kind.replay)(bytes.as_deref(), &journal))
-                .ok_or(Failure::UnknownType)
-                .and_then(|replayed| replayed.map_err(Failure::Malformed)),
+            self.with_kind(content_type, |kind| {
+                (kind.replay)(bytes.as_deref(), &journal)
+            })
+            .ok_or(Failure::UnknownType)
+            .and_then(|replayed| replayed.map_err(Failure::Malformed)),
         )
     }
 

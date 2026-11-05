@@ -313,6 +313,8 @@ impl Inner {
             Call::Send { reply, .. }
             | Call::ClaimLease { reply, .. }
             | Call::ReportClean { reply, .. }
+            | Call::Append { reply, .. }
+            | Call::RebaseJournal { reply, .. }
             | Call::ReportStatus { reply, .. }
             | Call::History { reply, .. }
             | Call::Conflict { reply, .. }
@@ -356,6 +358,7 @@ impl Inner {
                 tag: TAG,
                 head,
                 session: session(),
+                journal: None,
             },
         );
         if let Some(held) = self.blocks.get_mut(&block) {

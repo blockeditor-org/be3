@@ -32,7 +32,8 @@ impl<S: ObjectStore> Peer<S> {
                 })
             })
             .collect::<Result<Vec<_>, ClientError>>()?;
-        self.refs.append_journal(block, tag, generation, sealed.clone())?;
+        self.refs
+            .append_journal(block, tag, generation, sealed.clone())?;
         Ok(online.then(|| {
             self.connection()
                 .append(block, generation, tag, sealed, relay)
@@ -54,13 +55,18 @@ impl<S: ObjectStore> Peer<S> {
             state: self.commits.vault().seal(key, &base.state)?,
             ..base
         };
-        self.refs.rebase_journal(block, tag, generation, sealed.clone())?;
-        Ok(online.then(|| self.connection().rebase_journal(block, generation, tag, sealed)))
+        self.refs
+            .rebase_journal(block, tag, generation, sealed.clone())?;
+        Ok(online.then(|| {
+            self.connection()
+                .rebase_journal(block, generation, tag, sealed)
+        }))
     }
 
     /// This device's journal of `block`, opened.
     pub fn local_journal(&self, block: Uuid) -> Result<Option<Journal>, ClientError> {
-        self.refs.journal(block)
+        self.refs
+            .journal(block)
             .map(|journal| self.open_journal(journal))
             .transpose()
     }
@@ -70,7 +76,7 @@ impl<S: ObjectStore> Peer<S> {
         let vault = self.commits.vault();
         let open = |sealed: &[u8]| -> Result<Vec<u8>, ClientError> {
             match sealed.is_empty() {
-            true => Ok(Vec::new()),
+                true => Ok(Vec::new()),
                 false => vault.open(sealed).map_err(locked),
             }
         };

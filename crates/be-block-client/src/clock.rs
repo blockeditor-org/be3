@@ -19,6 +19,7 @@ enum Kind {
 #[derive(Default)]
 struct Hand {
     now: Duration,
+    started: i64,
     sleepers: Vec<Waker>,
 }
 
@@ -28,7 +29,23 @@ impl Clock {
     }
 
     pub fn manual() -> Self {
-        Self(Kind::Manual(Arc::default()))
+        Self(Kind::Manual(Arc::new(Mutex::new(Hand {
+            started: be_block_commit::now_milliseconds(),
+            ..Hand::default()
+        }))))
+    }
+
+    /// Milliseconds since the Unix epoch, which a commit records as its time: a manual clock
+    /// counts from the moment it was made, so a test that moves it spaces commits apart.
+    pub fn wall_milliseconds(&self) -> i64 {
+        match &self.0 {
+            Kind::Real => be_block_commit::now_milliseconds(),
+            Kind::Manual(hand) => {
+                let hand = hand.lock().unwrap_or_else(PoisonError::into_inner);
+                hand.started
+                    .saturating_add(i64::try_from(hand.now.as_millis()).unwrap_or(i64::MAX))
+            }
+        }
     }
 
     pub fn same(&self, other: &Clock) -> bool {

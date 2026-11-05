@@ -598,10 +598,11 @@ impl<H: Host> Replicas<H> {
             });
             let waited = self.modules.clock().sleep(EARLY_OPEN);
             match futures_util::future::select(joining, waited).await {
-                futures_util::future::Either::Left((joined, _)) => joined
-                    .map(|(client, session, head, _, journal)| {
+                futures_util::future::Either::Left((joined, _)) => {
+                    joined.map(|(client, session, head, _, journal)| {
                         (client, session, head, false, journal)
-                    }),
+                    })
+                }
                 futures_util::future::Either::Right((_, joining)) => {
                     let head = known_head_of(peer, block);
                     if let Some(replica) = self.start(
