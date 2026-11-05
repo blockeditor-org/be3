@@ -722,7 +722,11 @@ async fn put_to(url: UploadUrl, bytes: Vec<u8>) -> u16 {
         }
         match request.send_bytes(&bytes) {
             Ok(response) => response.status(),
-            Err(ureq::Error::Status(status, _)) => status,
+            Err(ureq::Error::Status(status, response)) => {
+                let body = response.into_string().unwrap_or_default();
+                eprintln!("the upload was answered {status}: {body}");
+                status
+            }
             Err(error) => panic!("the upload failed: {error}"),
         }
     })

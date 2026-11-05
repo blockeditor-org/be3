@@ -82,10 +82,12 @@ address it listens on), `S3Endpoint::transfers`. A URL lasts
 `ServerStore::transfer_lifetime`, at most 15 minutes and under half of
 `upload_grace`.
 
-With no bucket, be-server answers S3 requests itself at `.../s3/objects/HASH` (`s3.rs`, served
+With no bucket, be-server answers S3 requests itself at `.../storage/objects/HASH` (`s3.rs`, served
 by `http/s3.rs` through the `s3s` crate; with a bucket it serves none): path-style, one bucket `objects`,
 keys the object's hash in lowercase hex, whatever path the proxy puts in
-front (`OneBucket` gives s3s the bucket, so signatures cover the full path).
+front (`OneBucket` gives s3s the bucket, so signatures cover the full path;
+s3s still checks the first path segment is a valid bucket name, so the mount,
+`s3::PATH`, is `storage/` and not `s3/`).
 Only GetObject (with Range), HeadObject and PutObject are served; PutObject
 requires `x-amz-checksum-sha256`, stores only a body whose hash is both the key
 and the checksum, and answers once the object is synced. Every request is
