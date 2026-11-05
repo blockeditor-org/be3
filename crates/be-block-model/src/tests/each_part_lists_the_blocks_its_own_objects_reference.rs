@@ -28,7 +28,10 @@ fn each_part_lists_the_blocks_its_own_objects_reference() {
     });
 
     let root = document.to_parts();
-    assert!(root.references().is_empty(), "the root holds no link itself");
+    assert!(
+        root.references().is_empty(),
+        "the root holds no link itself"
+    );
     let mut listed = Vec::new();
     for part in &root.all()[1..] {
         assert!(!part.references().is_empty());

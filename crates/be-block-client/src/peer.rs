@@ -7,9 +7,7 @@ use be_block::{
     BlockContent, BlockMetadata, Entries, OrganizationPolicies, Root, Streamed, derived_metadata,
     payload_start,
 };
-use be_block_commit::{
-    Commit, CommitId, CommitStore, now_milliseconds,
-};
+use be_block_commit::{Commit, CommitId, CommitStore, now_milliseconds};
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
@@ -750,7 +748,10 @@ impl<S: ObjectStore> Peer<S> {
         let mut held = self.objects_of(&commit.manifest).await?;
         for parent in commit.parents.iter().skip(1) {
             held.push(parent.hash());
-            held.extend(self.objects_of(&self.load_commit(*parent).await?.manifest).await?);
+            held.extend(
+                self.objects_of(&self.load_commit(*parent).await?.manifest)
+                    .await?,
+            );
         }
         Ok(held)
     }
@@ -1218,7 +1219,9 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn open_commit<C: BlockContent>(&self, commit: CommitId) -> Result<C, ClientError> {
         let commit = self.load_commit(commit).await?;
-        Ok(C::from_stored(&self.load_manifest(&commit.manifest).await?)?)
+        Ok(C::from_stored(
+            &self.load_manifest(&commit.manifest).await?,
+        )?)
     }
 
     pub async fn save<C: BlockContent>(
@@ -1350,7 +1353,10 @@ impl<S: ObjectStore> Peer<S> {
         let listed = deduplicated(listed);
         for parent in &extra_parents {
             chunks.push(parent.hash());
-            chunks.extend(self.objects_of(&self.commits.get(*parent)?.manifest).await?);
+            chunks.extend(
+                self.objects_of(&self.commits.get(*parent)?.manifest)
+                    .await?,
+            );
         }
         parents.extend(extra_parents);
         let pinned = bookmark.is_some();

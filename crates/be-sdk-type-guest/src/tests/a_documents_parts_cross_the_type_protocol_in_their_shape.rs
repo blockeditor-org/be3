@@ -9,7 +9,10 @@ fn a_documents_parts_cross_the_type_protocol_in_their_shape() {
         body: be_block_model::Text::from(body.as_str()),
     });
     let parts = content.parts();
-    let be_block_store::Part::Node { parts: children, .. } = &parts else {
+    let be_block_store::Part::Node {
+        parts: children, ..
+    } = &parts
+    else {
         panic!("a large document is saved as a node of parts");
     };
     assert!(children.len() > 5, "the body splits into parts");

@@ -25,7 +25,11 @@ async fn an_offline_edit_merges_against_the_head_it_left_after_the_server_pruned
     let offline = harness.offline(&owner, &refs, &store);
     assert!(
         offline
-            .save(note, &TextBlock::of("one\ntwo, from the laptop"), Some(base))
+            .save(
+                note,
+                &TextBlock::of("one\ntwo, from the laptop"),
+                Some(base)
+            )
             .await
             .is_err()
     );
@@ -40,7 +44,11 @@ async fn an_offline_edit_merges_against_the_head_it_left_after_the_server_pruned
         .published()
         .unwrap();
     let theirs = phone
-        .save(note, &TextBlock::of("zero, from the phone\none"), Some(first))
+        .save(
+            note,
+            &TextBlock::of("zero, from the phone\none"),
+            Some(first),
+        )
         .await
         .unwrap()
         .published()

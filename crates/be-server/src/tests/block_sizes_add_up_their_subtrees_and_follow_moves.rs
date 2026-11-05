@@ -21,7 +21,14 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
     let text = b"a line that both versions keep\n".repeat(64);
     let (first, first_chunks) = author.compose(&text, minutes_ago(2), None);
     let published = client
-        .publish(&author, child, first, first_chunks.clone(), None, minutes_ago(2))
+        .publish(
+            &author,
+            child,
+            first,
+            first_chunks.clone(),
+            None,
+            minutes_ago(2),
+        )
         .await;
     assert!(published.is_ok(), "{published:?}");
     let mut longer = text.clone();

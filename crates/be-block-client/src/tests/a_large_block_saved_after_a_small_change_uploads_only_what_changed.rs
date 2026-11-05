@@ -169,10 +169,7 @@ async fn a_large_block_saved_after_a_small_change_uploads_only_what_changed() {
         .published()
         .expect("the rename is published");
     let sent = relay.heard() - before;
-    assert!(
-        sent < 8 * 1024,
-        "renaming a 2 MiB image sent {sent} bytes"
-    );
+    assert!(sent < 8 * 1024, "renaming a 2 MiB image sent {sent} bytes");
     let read = reader
         .open::<ImageContent>(image_block)
         .await

@@ -9,7 +9,10 @@ fn a_blob_saves_its_header_and_payload_as_separate_parts() {
 
     let parts = content.parts();
     assert_eq!(parts.flatten().unwrap(), encoded);
-    let Part::Node { parts: children, .. } = &parts else {
+    let Part::Node {
+        parts: children, ..
+    } = &parts
+    else {
         panic!("a blob is saved as a node of parts");
     };
     assert_eq!(children.len(), 2);
@@ -51,7 +54,10 @@ fn a_blob_saves_its_header_and_payload_as_separate_parts() {
     let mut loaded = BytesContent::from_stored(&stored).unwrap();
     assert_eq!(loaded, content);
     loaded.apply(&BlobOp::SetHeader(header("renamed.png")));
-    let Part::Node { parts: children, .. } = loaded.parts() else {
+    let Part::Node {
+        parts: children, ..
+    } = loaded.parts()
+    else {
         panic!("a blob is saved as a node of parts");
     };
     assert_eq!(

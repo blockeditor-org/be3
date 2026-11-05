@@ -16,7 +16,10 @@ async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_
 
     let (bookmark, bookmark_chunks) = author.compose(b"a bookmarked draft\n", minute, None);
     client
-        .upload(&author.store, &author.objects_of(bookmark, &bookmark_chunks))
+        .upload(
+            &author.store,
+            &author.objects_of(bookmark, &bookmark_chunks),
+        )
         .await;
     let _ = client
         .call(|peer| {
@@ -73,10 +76,21 @@ async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_
             )
         })
         .await;
-    assert!(response.is_ok(), "the merge was not published: {response:?}");
-    let (after, after_chunks) = author.compose(b"ours\ntheirs\nafter\n", minute + 4_000, Some(merge));
+    assert!(
+        response.is_ok(),
+        "the merge was not published: {response:?}"
+    );
+    let (after, after_chunks) =
+        author.compose(b"ours\ntheirs\nafter\n", minute + 4_000, Some(merge));
     let _ = client
-        .publish(&author, block, after, after_chunks, Some(merge), minute + 4_000)
+        .publish(
+            &author,
+            block,
+            after,
+            after_chunks,
+            Some(merge),
+            minute + 4_000,
+        )
         .await;
 
     let kept = history(&mut client, block).await;

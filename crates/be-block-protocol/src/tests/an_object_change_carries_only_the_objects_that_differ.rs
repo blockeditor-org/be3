@@ -4,7 +4,9 @@ use super::*;
 
 #[test]
 fn an_object_change_carries_only_the_objects_that_differ() {
-    let hashes: Vec<Hash> = (0..100u32).map(|seed| Hash::of(&seed.to_le_bytes())).collect();
+    let hashes: Vec<Hash> = (0..100u32)
+        .map(|seed| Hash::of(&seed.to_le_bytes()))
+        .collect();
     let before = hashes[..60].to_vec();
     let mut after = hashes[..58].to_vec();
     after.extend_from_slice(&hashes[90..]);
