@@ -362,7 +362,9 @@ impl Versions {
             description,
         )
         .map_err(stored)?;
-        let held = be_block_vcs::held_objects(commit, &manifest, tree, known);
+        let mut held = vec![commit.hash()];
+        held.extend(context.peer.objects_of(&manifest).await.map_err(failed)?);
+        held.extend(tree_objects(context.peer, tree, known).await?);
         context.peer.hold(repository, &held).await.map_err(failed)?;
         self.trees.insert(commit, tree.clone());
         Ok(commit)
@@ -1251,8 +1253,9 @@ impl Versions {
             }
             let loaded = self.commit_of(peer, commit).await?;
             objects.push(commit.hash());
-            objects.extend(loaded.manifest.chunk_hashes());
-            objects.extend(self.tree(peer, Some(commit)).await?.objects());
+            objects.extend(peer.objects_of(&loaded.manifest).await.map_err(failed)?);
+            let tree = self.tree(peer, Some(commit)).await?;
+            objects.extend(tree_objects(peer, &tree, &Tree::default()).await?);
             frontier.extend(loaded.parents);
         }
         objects.sort_unstable();
@@ -2097,4 +2100,16 @@ async fn version_block(
         .collect();
     publish(context, block, manifest, references, &metadata).await?;
     Ok(Some(block))
+}
+
+/// The objects of the contents `tree` names that `known` does not name.
+async fn tree_objects(peer: &Peer<Store>, tree: &Tree, known: &Tree) -> Result<Vec<Hash>, String> {
+    let known: Vec<&Manifest> = known.manifests().collect();
+    let mut objects = Vec::new();
+    for manifest in tree.manifests() {
+        if !known.contains(&manifest) {
+            objects.extend(peer.objects_of(manifest).await.map_err(failed)?);
+        }
+    }
+    Ok(objects)
 }

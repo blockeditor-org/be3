@@ -1,6 +1,7 @@
 use std::{error::Error, fmt};
 
 use be_block_commit::MergeResult;
+pub use be_block_store::{LoadedPart, Part, PartRef, Stored};
 use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
@@ -97,6 +98,19 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     fn encode(&self) -> Vec<u8>;
 
     fn decode(bytes: &[u8]) -> Result<Self, ContentError>;
+
+    /// The stored form as parts to save: their leaves, in order, are `encode()`, and a part
+    /// unchanged since `from_stored` can be handed back as `Part::Reused`, so a save seals and
+    /// uploads only what changed. Every replica must choose the same parts for the same
+    /// content, since parts are sealed deterministically (decisions/deterministic_seal_nonce.md).
+    fn parts(&self) -> Part<'_> {
+        Part::from(self.encode())
+    }
+
+    /// Decodes stored content, keeping the refs of the parts it was saved in for `parts`.
+    fn from_stored(stored: &Stored) -> Result<Self, ContentError> {
+        Self::decode(&stored.bytes)
+    }
 
     fn references(&self) -> Vec<Uuid> {
         Vec::new()

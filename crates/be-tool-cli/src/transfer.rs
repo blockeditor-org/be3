@@ -45,7 +45,7 @@ impl<S: ObjectStore> Tracker<S> {
                 parent,
                 metadata: peer.metadata_of_summary(&summary).await.map_err(explain)?,
                 references: summary.references,
-                content,
+                content: content.map(|stored| stored.bytes),
             });
         }
         Ok((top, blocks))

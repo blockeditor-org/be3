@@ -292,16 +292,8 @@ async fn check(snapshot: &Snapshot) {
     let archive: FolderContent = owner.open(id(snapshot.archive)).await.unwrap().unwrap();
     assert_eq!(archive.root().blocks(), [id(snapshot.long)]);
     assert_eq!(text(&owner, snapshot.long).await, scene::long_text());
-    assert!(
-        owner
-            .manifest(id(snapshot.long))
-            .await
-            .unwrap()
-            .unwrap()
-            .chunks
-            .len()
-            > 1
-    );
+    let long = owner.manifest(id(snapshot.long)).await.unwrap().unwrap();
+    assert!(owner.objects_of(&long).await.unwrap().len() > 1);
 
     let view: DatabaseViewContent = owner.open(id(snapshot.view)).await.unwrap().unwrap();
     assert_eq!(view.root().kind, DatabaseViewKind::List);

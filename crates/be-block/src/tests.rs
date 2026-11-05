@@ -5,6 +5,7 @@ use crate::{
 };
 use uuid::Uuid;
 
+mod a_blob_saves_its_header_and_payload_as_separate_parts;
 mod a_block_link_is_found_by_its_fragment_whatever_its_host;
 mod a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope;
 mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;

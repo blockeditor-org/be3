@@ -17,7 +17,9 @@ use be_block_protocol::{
     Listing, OrganizationKind, OrganizationRole, PublishOutcome, ServerAccount, SessionState,
     WrappedBy, client,
 };
-use be_block_store::{ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, StoreError, Vault};
+use be_block_store::{
+    ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, Part, StoreError, Stored, Vault,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -120,7 +122,7 @@ pub enum Sealed {
 }
 
 enum Content<'a> {
-    Encoded(Uuid, &'a [u8]),
+    Encoded(Uuid, Part<'a>),
     Written(Manifest),
 }
 
@@ -135,8 +137,13 @@ pub struct Write<'a> {
 }
 
 impl<'a> Write<'a> {
-    pub fn encoded(content_type: Uuid, bytes: &'a [u8], expected: Option<CommitId>) -> Self {
-        Self::of(Content::Encoded(content_type, bytes), expected)
+    /// Content's stored form, as bytes or as `BlockContent::parts`.
+    pub fn encoded(
+        content_type: Uuid,
+        parts: impl Into<Part<'a>>,
+        expected: Option<CommitId>,
+    ) -> Self {
+        Self::of(Content::Encoded(content_type, parts.into()), expected)
     }
 
     pub fn written(manifest: Manifest, expected: Option<CommitId>) -> Self {
@@ -647,19 +654,57 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn read_manifest(&self, manifest: &Manifest) -> Result<Vec<u8>, ClientError> {
-        self.fetch(&manifest.chunk_hashes()).await?;
+        self.fetch_range(manifest, 0, u64::MAX).await?;
         self.retrying(|| Ok(self.commits.vault().read(manifest)?))
             .await
     }
 
-    pub async fn write_content(
+    /// The stored form and the parts it was saved in, for `BlockContent::from_stored`.
+    pub async fn load_manifest(&self, manifest: &Manifest) -> Result<Stored, ClientError> {
+        self.fetch_range(manifest, 0, u64::MAX).await?;
+        self.retrying(|| Ok(self.commits.vault().load(manifest)?))
+            .await
+    }
+
+    /// Fetches the objects of the manifest tree under a range of the stored form, a level of
+    /// nodes at a time.
+    async fn fetch_range(
+        &self,
+        manifest: &Manifest,
+        offset: u64,
+        length: u64,
+    ) -> Result<(), ClientError> {
+        loop {
+            let missing = self
+                .commits
+                .vault()
+                .missing_objects(manifest, offset, length)?;
+            if missing.is_empty() {
+                return Ok(());
+            }
+            self.fetch(&missing).await?;
+        }
+    }
+
+    /// Every object of a manifest tree, fetching the nodes this peer lacks but not the chunks.
+    pub async fn objects_of(&self, manifest: &Manifest) -> Result<Vec<Hash>, ClientError> {
+        loop {
+            let missing = self.commits.vault().missing_nodes(manifest)?;
+            if missing.is_empty() {
+                return Ok(self.commits.vault().objects(manifest)?);
+            }
+            self.fetch(&missing).await?;
+        }
+    }
+
+    pub async fn write_content<'a>(
         &self,
         block: Uuid,
         content_type: Uuid,
-        data: &[u8],
+        parts: impl Into<Part<'a>>,
     ) -> Result<Manifest, ClientError> {
         let key = self.sealing_key(block).await?;
-        Ok(self.commits.vault().write(key, content_type, data)?)
+        Ok(self.commits.vault().write(key, content_type, parts)?)
     }
 
     pub fn account(&self) -> Uuid {
@@ -1033,7 +1078,7 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn read_contents(
         &self,
         blocks: &[(Uuid, Option<CommitId>)],
-    ) -> Result<Vec<(BlockSummary, Option<Vec<u8>>)>, ClientError> {
+    ) -> Result<Vec<(BlockSummary, Option<Stored>)>, ClientError> {
         match self.read_contents_online(blocks).await {
             Err(ClientError::Disconnected(reason)) => {
                 self.read_contents_cached(blocks, reason).await
@@ -1045,7 +1090,7 @@ impl<S: ObjectStore> Peer<S> {
     async fn read_contents_online(
         &self,
         blocks: &[(Uuid, Option<CommitId>)],
-    ) -> Result<Vec<(BlockSummary, Option<Vec<u8>>)>, ClientError> {
+    ) -> Result<Vec<(BlockSummary, Option<Stored>)>, ClientError> {
         let mut asked = Vec::new();
         for group in blocks.chunks(CONTENTS_BLOCKS) {
             let ids: Vec<Uuid> = group.iter().map(|(id, _)| *id).collect();
@@ -1076,7 +1121,7 @@ impl<S: ObjectStore> Peer<S> {
             let content = match summary.head {
                 Some(head) => {
                     let commit = self.load_commit(head).await?;
-                    Some(self.read_manifest(&commit.manifest).await?)
+                    Some(self.load_manifest(&commit.manifest).await?)
                 }
                 None => None,
             };
@@ -1086,14 +1131,12 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     fn holds(&self, head: CommitId) -> bool {
-        let store = self.commits.vault().store();
+        let vault = self.commits.vault();
         matches!(
             self.commits.try_get(head),
-            Ok(Some(commit)) if commit
-                .manifest
-                .chunk_hashes()
-                .into_iter()
-                .all(|hash| store.has(hash).unwrap_or(false))
+            Ok(Some(commit)) if vault
+                .missing_objects(&commit.manifest, 0, u64::MAX)
+                .is_ok_and(|missing| missing.is_empty())
         )
     }
 
@@ -1101,23 +1144,23 @@ impl<S: ObjectStore> Peer<S> {
         if let Some(head) = self.local_head(block)
             && !self.pending_commits(block).is_empty()
         {
-            return Ok(Some(C::decode(&self.read_at(head).await?)?));
+            return Ok(Some(C::from_stored(&self.read_at(head).await?)?));
         }
         let read = self
             .read_contents(&[(block, self.local_head(block))])
             .await?;
-        let Some((summary, Some(bytes))) = read.into_iter().next() else {
+        let Some((summary, Some(stored))) = read.into_iter().next() else {
             return Ok(None);
         };
         if let Some(head) = summary.head {
             self.remember(block, head)?;
         }
-        Ok(Some(C::decode(&bytes)?))
+        Ok(Some(C::from_stored(&stored)?))
     }
 
     pub async fn open_commit<C: BlockContent>(&self, commit: CommitId) -> Result<C, ClientError> {
         let commit = self.load_commit(commit).await?;
-        Ok(C::decode(&self.read_manifest(&commit.manifest).await?)?)
+        Ok(C::from_stored(&self.load_manifest(&commit.manifest).await?)?)
     }
 
     pub async fn save<C: BlockContent>(
@@ -1126,8 +1169,7 @@ impl<S: ObjectStore> Peer<S> {
         content: &C,
         expected: Option<CommitId>,
     ) -> Result<Saved, ClientError> {
-        let bytes = content.encode();
-        self.write(block, self.content_write(content, &bytes, expected))
+        self.write(block, self.content_write(content, expected))
             .await
     }
 
@@ -1138,18 +1180,16 @@ impl<S: ObjectStore> Peer<S> {
         expected: Option<CommitId>,
         label: &str,
     ) -> Result<Saved, ClientError> {
-        let bytes = content.encode();
-        let write = self.content_write(content, &bytes, expected);
+        let write = self.content_write(content, expected);
         self.write(block, write.bookmark(label)).await
     }
 
     fn content_write<'a, C: BlockContent>(
         &self,
-        content: &C,
-        bytes: &'a [u8],
+        content: &'a C,
         expected: Option<CommitId>,
     ) -> Write<'a> {
-        Write::encoded(C::CONTENT_TYPE, bytes, expected).described(
+        Write::encoded(C::CONTENT_TYPE, content.parts(), expected).described(
             content.references_in(self.organization()),
             derived_metadata(content),
         )
@@ -1175,11 +1215,12 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         write: &mut Write<'_>,
     ) -> Result<(Manifest, Vec<CommitId>, BlockMetadata), ClientError> {
-        let manifest = match &write.content {
-            Content::Encoded(content_type, bytes) => {
-                self.write_content(block, *content_type, bytes).await?
+        let content = std::mem::replace(&mut write.content, Content::Written(Manifest::default()));
+        let manifest = match content {
+            Content::Encoded(content_type, parts) => {
+                self.write_content(block, content_type, parts).await?
             }
-            Content::Written(manifest) => manifest.clone(),
+            Content::Written(manifest) => manifest,
         };
         let mut parents = Vec::new();
         if let Some((base, ours)) = write.merging {
@@ -1214,7 +1255,7 @@ impl<S: ObjectStore> Peer<S> {
             .with_metadata(metadata.encode());
         let id = self.commits.put(key, &commit)?;
         let mut objects = vec![id.hash()];
-        objects.extend(commit.manifest.chunk_hashes());
+        objects.extend(self.objects_of(&commit.manifest).await?);
         match self.push(&objects).await {
             Err(error) if offline::unreachable(&error) => self.commits.vault().store().sync()?,
             pushed => pushed?,
@@ -1245,10 +1286,10 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Sealed::Unchanged(expected.expect("a previous commit")));
         }
         let mut parents: Vec<_> = expected.into_iter().collect();
-        let mut chunks = manifest.chunk_hashes();
+        let mut chunks = self.objects_of(&manifest).await?;
         for parent in &extra_parents {
             chunks.push(parent.hash());
-            chunks.extend(self.commits.get(*parent)?.manifest.chunk_hashes());
+            chunks.extend(self.objects_of(&self.commits.get(*parent)?.manifest).await?);
         }
         parents.extend(extra_parents);
         let pinned = bookmark.is_some();
@@ -1371,19 +1412,16 @@ impl<S: ObjectStore> Peer<S> {
         manifest: &Manifest,
         previous: Option<&Commit>,
     ) -> Result<Option<Vec<Vec<u8>>>, ClientError> {
-        let store = self.commits.vault().store();
+        let vault = self.commits.vault();
+        let store = vault.store();
         store.sync()?;
-        let mut sent: HashSet<Hash> = previous
-            .map(|previous| previous.manifest.chunk_hashes())
+        let sent: HashSet<Hash> = previous
+            .and_then(|previous| vault.objects(&previous.manifest).ok())
             .unwrap_or_default()
             .into_iter()
             .collect();
         let mut hashes = vec![commit.hash()];
-        for hash in manifest.chunk_hashes() {
-            if sent.insert(hash) {
-                hashes.push(hash);
-            }
-        }
+        hashes.extend(vault.objects_besides(manifest, &sent)?);
         let mut room = CARRIED_BYTES;
         let mut carried = Vec::with_capacity(hashes.len());
         for hash in hashes {
@@ -1479,14 +1517,7 @@ impl<S: ObjectStore> Peer<S> {
         offset: u64,
         length: u64,
     ) -> Result<Vec<u8>, ClientError> {
-        let needed: Vec<_> = self
-            .commits
-            .vault()
-            .chunks_in_range(manifest, offset, length)
-            .into_iter()
-            .map(|chunk| chunk.hash)
-            .collect();
-        self.fetch(&needed).await?;
+        self.fetch_range(manifest, offset, length).await?;
         self.retrying(|| Ok(self.commits.vault().read_range(manifest, offset, length)?))
             .await
     }

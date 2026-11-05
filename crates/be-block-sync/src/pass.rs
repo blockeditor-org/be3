@@ -7,7 +7,7 @@ use be_block_client::transfer::Saved;
 use be_block_client::{Peer, Saved as Published, Write};
 use be_block_commit::CommitId;
 use be_block_graph::BlockParent;
-use be_block_store::{ChunkRef, Hash, Manifest, ObjectStore};
+use be_block_store::{ChunkRef, Hash, Manifest, ObjectStore, PartRef};
 use be_block_type_host::{Modules, Plain, plain_of};
 use be_block_vcs::{ConflictKind, Entry, Tree};
 use be_sdk_type_api::{Change as Edit, ChildChange, FileChange};
@@ -99,16 +99,15 @@ struct Layout {
 fn identity(hash: Hash) -> Manifest {
     Manifest {
         content_type: Uuid::nil(),
-        length: 0,
-        chunks: vec![ChunkRef { hash, length: 0 }],
+        root: Some(PartRef::Chunk(ChunkRef { hash, length: 0 })),
     }
 }
 
 fn identity_hash(manifest: &Option<Manifest>) -> Option<Hash> {
     manifest
         .as_ref()
-        .and_then(|manifest| manifest.chunks.first())
-        .map(|chunk| chunk.hash)
+        .and_then(|manifest| manifest.root)
+        .map(PartRef::hash)
 }
 
 fn metadata(name: &str, executable: bool) -> BlockMetadata {

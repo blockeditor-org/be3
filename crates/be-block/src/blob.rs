@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 use crate::{
-    BlockContent, BlockMetadata, ContentError, LiveEdit, Merge,
+    BlockContent, BlockMetadata, ContentError, LiveEdit, Merge, Part, PartRef, Stored,
     streamed::{Streamed, decode_streamed, encode_streamed},
 };
 
@@ -33,9 +33,13 @@ pub trait BlobKind: Send + Sync + 'static {
     }
 }
 
+/// Saved as two parts, the encoded header and the payload, so a header change seals and
+/// uploads only the header. A blob loaded with `from_stored` hands its payload back as
+/// `Part::Reused`.
 pub struct Blob<K: BlobKind> {
     header: K::Header,
     data: Vec<u8>,
+    saved: Option<PartRef>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -45,7 +49,11 @@ pub enum BlobOp<H> {
 
 impl<K: BlobKind> Blob<K> {
     pub fn new(header: K::Header, data: Vec<u8>) -> Self {
-        Self { header, data }
+        Self {
+            header,
+            data,
+            saved: None,
+        }
     }
 
     pub const fn header(&self) -> &K::Header {
@@ -66,6 +74,7 @@ impl<K: BlobKind> Clone for Blob<K> {
         Self {
             header: self.header.clone(),
             data: self.data.clone(),
+            saved: self.saved,
         }
     }
 }
@@ -75,6 +84,7 @@ impl<K: BlobKind> Default for Blob<K> {
         Self {
             header: K::Header::default(),
             data: Vec::new(),
+            saved: None,
         }
     }
 }
@@ -112,7 +122,30 @@ impl<K: BlobKind> BlockContent for Blob<K> {
 
     fn decode(bytes: &[u8]) -> Result<Self, ContentError> {
         let (header, data) = decode_streamed(bytes)?;
-        Ok(Self { header, data })
+        Ok(Self::new(header, data))
+    }
+
+    fn parts(&self) -> Part<'_> {
+        let header = encode_streamed(&self.header, &[]);
+        let payload = match self.saved {
+            Some(saved) => Part::Reused(saved),
+            None => Part::from(self.data.as_slice()),
+        };
+        Part::Node(vec![Part::from(header), payload])
+    }
+
+    fn from_stored(stored: &Stored) -> Result<Self, ContentError> {
+        let mut blob = Self::decode(&stored.bytes)?;
+        let payload = stored.bytes.len() - blob.data.len();
+        blob.saved = stored
+            .root
+            .as_ref()
+            .and_then(|root| root.children.get(1))
+            .filter(|part| {
+                part.range() == (payload as u64..stored.bytes.len() as u64) && !blob.data.is_empty()
+            })
+            .map(|part| part.reference);
+        Ok(blob)
     }
 
     fn name(&self) -> Option<String> {
@@ -137,10 +170,7 @@ impl<K: BlobKind> Streamed for Blob<K> {
     }
 
     fn from_parts(header: Self::Header, payload: Vec<u8>) -> Self {
-        Self {
-            header,
-            data: payload,
-        }
+        Self::new(header, payload)
     }
 }
 
