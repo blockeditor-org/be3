@@ -167,7 +167,16 @@ rebase. The rules an agent most needs:
   follower it greets with that base and is sent no session state. A follower
   that takes over appends again what it applied since its last sealed head
   (`applied_ops`), or commits at once when it cannot number it.
-  `replay` does the same for a reader outside the session.
+  `replay` does the same for a reader outside the session. A journal by
+  another build is not handed over: `opening.unreplayable` says it held edits,
+  and the replica reports them lost (`undo-state.lost-edits`).
+- **Restarts.** At a commit, once session state passes `RESTART_STATE_BYTES`
+  (1 MiB) and the content's size, with no gesture open, the owner restarts the
+  session (`Sealed { restart }`): every replica reloads the commit, moves what
+  it has pending onto it with `LiveEdit::carry_over`, and undo stops there
+  (decisions/sessions_restart_when_their_state_outgrows_the_content.md). The
+  last owner to leave rebases the journal with no state, so the next session
+  starts fresh too.
 - An edit too large to relay (over 1 MiB) is never relayed: an owner
   publishes it, and a follower stashes it and hands the owner a `Kept`. A
   follower stays responsible for each stash until the owner answers `Saved`,

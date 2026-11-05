@@ -54,6 +54,7 @@ fn revision_history_keeps_its_list_in_place_while_a_save_reloads_it() {
             head: Some([2; 32]),
             can_undo: true,
             can_redo: false,
+            ..Default::default()
         },
     )]);
     fixture.settle();

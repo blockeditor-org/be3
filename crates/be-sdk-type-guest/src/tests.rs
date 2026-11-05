@@ -42,6 +42,7 @@ mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
 mod a_late_joiner_types_where_it_sees_the_caret;
+mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
 mod a_message_no_build_can_read_stops_a_follower_saving;
 mod a_module_answers_stateless_requests;
 mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
@@ -382,6 +383,7 @@ struct Sim<C: LiveEdit + Clone + Default> {
     part_reads: usize,
     written: u64,
     journal: Option<Journal>,
+    journal_tag: SessionTag,
     appended: usize,
     make: fn() -> Module,
 }
@@ -428,6 +430,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             part_reads: 0,
             written: 0,
             journal: None,
+            journal_tag: TAG,
             appended: 0,
             make,
         }
@@ -487,10 +490,14 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             .journal
             .clone()
             .filter(|journal| journal.base.commit == local);
+        let foreign = self.journal_tag != self.devices[device].tag;
+        let unreplayable =
+            foreign && journal.as_ref().is_some_and(|journal| !journal.entries.is_empty());
         let opening = Opening {
             content_type: C::CONTENT_TYPE,
             tag: self.devices[device].tag,
-            journal,
+            journal: journal.filter(|_| !foreign),
+            unreplayable,
             ..opening(client, local, self.lease.state().clone())
         };
         let replica = self.to(device, |host| Replica::new(host, opening));
@@ -956,6 +963,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     return;
                 }
                 self.appended += 1;
+                if self.journal_tag != self.devices[device].tag {
+                    return;
+                }
                 let journal = self.journal.get_or_insert_with(|| Journal {
                     base: JournalBase {
                         commit: None,
@@ -988,6 +998,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     base,
                     entries: Vec::new(),
                 });
+                self.journal_tag = self.devices[device].tag;
             }
             Call::ReportStatus { reply, status } => {
                 self.to(device, |host| reply.send(host, &()));

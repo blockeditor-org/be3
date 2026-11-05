@@ -60,7 +60,7 @@ pub trait Host: Sized + 'static {
         description: Description,
     );
 
-    fn history(shared: &Arc<Mutex<Self>>, block: Uuid, can_undo: bool, can_redo: bool);
+    fn history(shared: &Arc<Mutex<Self>>, block: Uuid, history: be_sdk_type_api::UndoState);
 
     fn conflict(shared: &Arc<Mutex<Self>>, block: Uuid, conflict: Conflict);
 

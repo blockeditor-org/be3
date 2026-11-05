@@ -272,4 +272,10 @@ absorb into one, and `be_host_stack::undo`/`redo` send `Change::Undo`/`Redo`.
 An editor groups a gesture into one step with `FromEditor::Gesture`
 (`ContentProjection::begin_gesture`, `commit_gesture`, `cancel_gesture`; a
 cancel reverts and leaves no step). Apps call `act(block, block-command::undo)`
-and watch `history-watch`.
+and watch `history-watch`. A session restart (guides/type_modules.md, Peers)
+drops every step, since none applies to the reloaded content: `block-history`
+says `restarted-at`, and the frame answers an undo with nothing left by saying
+"Can't undo past here" with a button that sends `block-command::history` to
+show version history at that commit (the shell gets `show-request::history`).
+`lost-edits` says this device opened the block on another build's journal,
+which it cannot replay; the frame says those edits were lost.

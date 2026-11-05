@@ -136,16 +136,20 @@ pub(crate) fn FrameChrome(
     });
     let root: Rc<Cell<Option<beui::styled::Root>>> = Rc::default();
     let rooted = Rc::clone(&root);
+    let notices = create_signal(Vec::<Toast>::new());
+    let area = NodeRef::new();
+    let block = editor.block_id();
     let frame = view! {
         <Layers>
             <PlacedHole editor />
-            <List spacing=Space::None>
+            <List @node_ref=&area spacing=Space::None>
                 <FrameMenu
                     editor
                     bar={bar.read_only()}
                     palette={opener}
                     published
                     listed
+                    notices
                     on_exit={move || exit_writer.set(true)}
                 />
                 <CommandPalette open={palette} shown_in />
@@ -162,6 +166,18 @@ pub(crate) fn FrameChrome(
                 </ListItem>
             </List>
             <Pickers editor />
+            <Toasts
+                anchor=area
+                toasts={notices}
+                on_dismiss={move |id: u64| notices.update(|shown| shown.retain(|toast| toast.id != id))}
+                on_action={move |(id, key): (u64, String)| {
+                    notices.update(|shown| shown.retain(|toast| toast.id != id));
+                    if key == VERSION_HISTORY {
+                        let history = editor.host().history(block);
+                        editor.host().show_history(block, history.restarted_at);
+                    }
+                }}
+            />
         </Layers>
     };
     root.take()
@@ -222,6 +238,7 @@ pub(crate) fn menu_entries(nodes: &[MenuNode]) -> Vec<MenuEntry> {
 #[derive(Clone, Default, PartialEq)]
 struct BarState {
     can_undo: bool,
+    undo_stopped: bool,
     can_redo: bool,
     can_rename: bool,
     can_share: bool,
@@ -231,7 +248,14 @@ struct Watched {
     editor: Editor,
     list: RefCell<Option<BlockList>>,
     watching: Cell<bool>,
+    notices: Signal<Vec<Toast>>,
 }
+
+/// The notice undo shows when it reaches a session restart.
+const UNDO_STOPPED: u64 = 1;
+/// The notice that edits made with another build of the block's type were lost.
+const EDITS_LOST: u64 = 2;
+const VERSION_HISTORY: &str = "history";
 
 impl Watched {
     fn info(&self) -> Option<BlockInfo> {
@@ -268,8 +292,10 @@ impl Watched {
             true => self.history(),
             false => (false, false),
         };
+        let undo_stopped = editable && self.stopped_at().is_some();
         BarState {
             can_undo,
+            undo_stopped,
             can_redo,
             can_rename: editable,
             can_share: self.can_manage(),
@@ -280,6 +306,25 @@ impl Watched {
         self.editor.histories().get();
         let history = self.editor.host().history(self.editor.block_id());
         (history.can_undo, history.can_redo)
+    }
+
+    /// The commit of the session restart undo stopped at, once nothing after it is left.
+    fn stopped_at(&self) -> Option<[u8; 32]> {
+        self.editor.histories().get();
+        let history = self.editor.host().history(self.editor.block_id());
+        history.restarted_at.filter(|_| !history.can_undo)
+    }
+
+    fn lost_edits(&self) -> bool {
+        self.editor.histories().get();
+        self.editor.host().history(self.editor.block_id()).lost_edits
+    }
+
+    fn tell(&self, toast: Toast) {
+        self.notices.update(|notices| {
+            notices.retain(|shown| shown.id != toast.id);
+            notices.push(toast);
+        });
     }
 
     fn finger_tap(&self, fingers: usize) -> bool {
@@ -299,6 +344,18 @@ impl Watched {
             true => can_redo,
             false => can_undo,
         };
+        if !redo && !can_undo && self.stopped_at().is_some() {
+            self.tell(Toast {
+                id: UNDO_STOPPED,
+                message: "Can't undo past here".to_owned(),
+                actions: vec![ToastAction {
+                    key: VERSION_HISTORY.to_owned(),
+                    label: "Version history".to_owned(),
+                }],
+                ..Toast::default()
+            });
+            return true;
+        }
         if !possible {
             return false;
         }
@@ -342,7 +399,7 @@ fn frame_actions(
         .glyph(ICON_UNDO_2)
         .pin(Pin::Icon)
         .shortcut(Chord::ctrl(Key::Z))
-        .enabled(can(|state| state.can_undo))
+        .enabled(can(|state| state.can_undo || state.undo_stopped))
         .register(),
         redo: Action::new("editor.redo", "Redo", move || {
             watched.with(|watched| watched.try_step(true));
@@ -387,6 +444,7 @@ pub(crate) fn FrameMenu(
     palette: Action,
     published: Rc<RefCell<Vec<MenuNode>>>,
     listed: Signal<Vec<MenuNode>>,
+    notices: Signal<Vec<Toast>>,
     on_exit: ClickCallback,
 ) -> NodeId {
     let on_phone = create_memo(move || bar.get().on_phone);
@@ -396,6 +454,24 @@ pub(crate) fn FrameMenu(
         editor,
         list: RefCell::new(None),
         watching: Cell::new(false),
+        notices,
+    });
+    let told_lost = Cell::new(false);
+    create_effect(move || {
+        let lost = watched.with(Watched::lost_edits);
+        if lost && !told_lost.replace(true) {
+            untrack(|| {
+                watched.with(|watched| {
+                    watched.tell(Toast {
+                        id: EDITS_LOST,
+                        message: "Edits made with an older version of this app were lost"
+                            .to_owned(),
+                        sticky: true,
+                        ..Toast::default()
+                    })
+                })
+            });
+        }
     });
     let docked = create_memo(move || bar.get().docked);
     let session = create_memo(move || docked.get() && watched.with(Watched::is_session));

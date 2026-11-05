@@ -13,6 +13,7 @@ fn ctrl_z_undoes_a_block_that_owns_its_frame_without_a_top_bar() {
             head: None,
             can_undo: true,
             can_redo: false,
+            ..Default::default()
         },
     )]);
     test.run();

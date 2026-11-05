@@ -130,7 +130,11 @@ with the block key; the server keeps it beside history, never in it
   with `Modules::readable`, which replays it through the type when its tag is
   the module's and its base is the head, and reads the head alone otherwise.
   Export, `be download` and the tracker's reads go through it; `be sync` reads
-  heads alone, since it records which head it synced.
+  heads alone, since it records which head it synced and what it writes to
+  disk must be that head.
+- A journal is its module tag's: an append of another tag is refused until the
+  owner rebases, and a replica of another build opens on the head alone and
+  reports the edits lost (guides/blocks/host.md, Undo).
 
 ## The refs database
 

@@ -491,6 +491,10 @@ pub struct Presence {
 pub struct History {
     pub can_undo: bool,
     pub can_redo: bool,
+    /// Undo and redo stopped at the session restart that committed this.
+    pub restarted_at: Option<be_block_commit::CommitId>,
+    /// Edits by another build of the block's type were dropped when it opened.
+    pub lost_edits: bool,
 }
 
 pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
