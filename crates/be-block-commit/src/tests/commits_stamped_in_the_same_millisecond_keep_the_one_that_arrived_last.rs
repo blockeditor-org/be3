@@ -13,6 +13,10 @@ fn commits_stamped_in_the_same_millisecond_keep_the_one_that_arrived_last() {
     let summaries: Vec<_> = ids.iter().map(|id| summary(*id, at)).collect();
 
     let plan = plan(&summaries, now, &policy);
-    assert_eq!(plan.keep, [ids[0]], "an earlier state outranked the last one");
+    assert_eq!(
+        plan.keep,
+        [ids[0]],
+        "an earlier state outranked the last one"
+    );
     assert_eq!(plan.drop.len(), 2);
 }
