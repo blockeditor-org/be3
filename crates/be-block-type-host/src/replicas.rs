@@ -356,6 +356,8 @@ pub struct Replicas<H: Host> {
     keeping: bool,
     kept: bool,
     changed: bool,
+    /// Blocks whose next publish is a bookmark, with its label (`Replicas::bookmark`).
+    bookmarks: HashMap<Uuid, String>,
     pub handled: u64,
     host: std::marker::PhantomData<fn() -> H>,
 }
@@ -387,6 +389,7 @@ impl<H: Host> Replicas<H> {
             keeping: false,
             kept: false,
             changed: false,
+            bookmarks: HashMap::new(),
             handled: 0,
             host: std::marker::PhantomData,
         }
@@ -1164,6 +1167,14 @@ impl<H: Host> Replicas<H> {
                 })
                 .await;
         }
+    }
+
+    /// Seals the block's current state as a bookmark, which history keeps whatever its age,
+    /// even when it is already saved: restoring a revision keeps the state it replaces this way.
+    pub async fn bookmark(&mut self, ctx: Ctx<'_, H>, block: Uuid, label: &str) {
+        self.bookmarks.insert(block, label.to_owned());
+        self.seal(ctx, block, true).await;
+        self.bookmarks.remove(&block);
     }
 
     pub fn seal_later(&mut self, block: Uuid, force: bool) {
@@ -2172,6 +2183,7 @@ impl<H: Host> Replicas<H> {
                 open.publishing += 1;
                 let epoch = open.epoch;
                 let local = made_up || self.keeping || !peer.pending_commits(block).is_empty();
+                let bookmark = self.bookmarks.remove(&block);
                 let publishing = Arc::new(Publishing::default());
                 self.published += 1;
                 let publish = self.published;
@@ -2198,6 +2210,9 @@ impl<H: Host> Replicas<H> {
                     .described(content.references, content.derived);
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);
+                    }
+                    if let Some(label) = &bookmark {
+                        write = write.bookmark(label);
                     }
                     let saved = commit::<H>(&peer, block, write, local, &publishing, move || {
                         let _ = sealed.send(Io::Sealed);

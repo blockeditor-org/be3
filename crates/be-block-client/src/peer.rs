@@ -1387,6 +1387,7 @@ impl<S: ObjectStore> Peer<S> {
         let time = now_milliseconds();
         let encoded = metadata.encode();
         if extra_parents.is_empty()
+            && bookmark.is_none()
             && let Some(previous) = &previous
             && previous.manifest == manifest
             && previous.references == references

@@ -50,7 +50,10 @@ Notes on particular calls:
   yet: every open fails, and the editor shows that in its place.
 - A revision preview is a temporary, read-only block id: the host isolates it
   from live updates and rejects edits from it and its nested editors. Release
-  it with `release_revision`.
+  it with `release_revision`. `list_revisions` marks the head the server read
+  with the list, and history keeps one state a minute (guides/blocks/server.md).
+  Restoring seals the current state as a "Before restoring" bookmark first
+  (`Replicas::bookmark`), so pruning never takes the state it replaced.
 - The shell-only calls (share dialog, access lists, show and dialog requests,
   `close_editor`, ...) serve the instance that draws the host's window; no
   other editor has any use for them.
