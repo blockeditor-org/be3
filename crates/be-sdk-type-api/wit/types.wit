@@ -77,8 +77,18 @@ interface types {
     /// computed. The host resolves, seals and uploads.
     record written {
         bytes: list<u8>,
+        /// The parts `bytes` is saved in, so a save uploads only the parts
+        /// that changed; empty saves it as one part.
+        parts: list<written-part>,
         references: list<block-id>,
         derived: entries,
+    }
+
+    /// One part of `written.bytes`, in pre-order: a part of the next
+    /// this-many bytes, or a node holding the next this-many parts.
+    variant written-part {
+        bytes(u32),
+        node(u32),
     }
 
     /// A publish that merges: `ours` becomes the second parent.

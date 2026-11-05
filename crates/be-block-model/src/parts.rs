@@ -17,11 +17,13 @@
 //! so an edit changes the part holding it and the parts on the path up to the
 //! root.
 
-use be_block_store::{ChunkerConfig, Hash, split};
+use std::{borrow::Cow, collections::HashMap};
+
+use be_block_store::{ChunkerConfig, Hash, LoadedPart, PartRef, split};
 
 use crate::{
     Malformed,
-    stored::{ID, Stored, decode, encode},
+    stored::{ID, Stored, encode},
 };
 
 pub const PART: u64 = 0x6265_3304;
@@ -39,6 +41,8 @@ const BYTES: ChunkerConfig = ChunkerConfig {
     average: 16 * 1024,
     maximum: MAX,
 };
+/// The most parts a `SPLICE` names before it gets an index level.
+const FANOUT: usize = 64;
 /// The encoded size of one hash in a `SPLICE` or `PART`.
 const REFERENCE: usize = 2 + Hash::LEN;
 
@@ -74,6 +78,32 @@ impl Part {
     /// The parts this one names, each once, in the order it names them.
     pub fn children(&self) -> &[Part] {
         &self.children
+    }
+
+    /// The stored bytes: this part's bytes, then each child's, so the root
+    /// comes first and every part's bytes precede the parts it names.
+    pub fn write(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&self.bytes);
+        for child in &self.children {
+            child.write(out);
+        }
+    }
+
+    /// The part as the vault saves it, whose leaves in order are `write`'s
+    /// bytes: a part with children is a node of its own bytes and then theirs.
+    /// A part in `saved` is handed back as it was saved.
+    pub(crate) fn store(self, saved: &HashMap<Hash, PartRef>) -> be_block_store::Part<'static> {
+        if let Some(reference) = saved.get(&self.hash) {
+            return be_block_store::Part::Reused(*reference);
+        }
+        let own = be_block_store::Part::Bytes(Cow::Owned(self.bytes));
+        if self.children.is_empty() {
+            return own;
+        }
+        let mut parts = Vec::with_capacity(self.children.len() + 1);
+        parts.push(own);
+        parts.extend(self.children.into_iter().map(|child| child.store(saved)));
+        be_block_store::Part::Node(parts)
     }
 
     /// This part and every part below it, depth first, parents before
@@ -259,7 +289,7 @@ fn array(items: Vec<Stored>, out: &mut Vec<Part>) -> Left {
             whole,
         };
     }
-    let level = level(size / count.max(1));
+    let level = level(whole / count.max(1));
     let mut parts = Vec::new();
     let mut values = Vec::new();
     let mut children = Vec::new();
@@ -285,13 +315,12 @@ fn array(items: Vec<Stored>, out: &mut Vec<Part>) -> Left {
     Left { value, size, whole }
 }
 
-/// A `SPLICE` naming `parts`, grouped into index parts while it is too long to
-/// hold in one.
+/// A `SPLICE` naming `parts`, grouped into index parts while it names more
+/// than `FANOUT`, so no part has more than a few dozen children.
 fn splice(mut parts: Vec<Part>, out: &mut Vec<Part>) -> (Stored, usize) {
-    let level = level(REFERENCE);
     loop {
         let size = header(SPLICE) + header_len(parts.len()) + parts.len() * REFERENCE;
-        if size <= MAX {
+        if parts.len() <= FANOUT {
             let tag = Stored::Tag(
                 SPLICE,
                 Box::new(Stored::Array(parts.iter().map(reference).collect())),
@@ -304,8 +333,8 @@ fn splice(mut parts: Vec<Part>, out: &mut Vec<Part>) -> (Stored, usize) {
         let last = parts.len() - 1;
         for (position, part) in parts.into_iter().enumerate() {
             let ends = position == last
-                || (group.len() + 1) * REFERENCE >= CAP
-                || ends_part(part.hash.as_bytes(), level);
+                || group.len() + 1 >= 4 * FANOUT
+                || ends_part(part.hash.as_bytes(), FANOUT.ilog2() - 1);
             group.push(part);
             if ends {
                 let named = Stored::Tag(
@@ -319,24 +348,18 @@ fn splice(mut parts: Vec<Part>, out: &mut Vec<Part>) -> (Stored, usize) {
     }
 }
 
-/// Puts back into `value` every part it names, fetched with `fetch`, so it
-/// reads as if it had been saved whole.
-pub(crate) fn join(
-    value: Stored,
-    fetch: &mut dyn FnMut(Hash) -> Option<Vec<u8>>,
-) -> Result<Stored, Malformed> {
+/// Puts back into `value` every part it names, from `parts`, so it reads as
+/// if it had been saved whole.
+fn join(value: Stored, parts: &HashMap<Hash, Stored>) -> Result<Stored, Malformed> {
     Ok(match value {
-        Stored::Tag(PART, inner) => {
-            let part = fetched(&inner, fetch)?;
-            join(part, fetch)?
-        }
+        Stored::Tag(PART, inner) => join(named(&inner, parts)?, parts)?,
         Stored::Tag(SPLICE, inner) => {
             let Stored::Array(names) = *inner else {
                 return Err(Malformed);
             };
             let mut joined: Option<Stored> = None;
             for name in &names {
-                let part = join(fetched(name, fetch)?, fetch)?;
+                let part = join(named(name, parts)?, parts)?;
                 joined = Some(match (joined, part) {
                     (None, part @ (Stored::Bytes(_) | Stored::Array(_))) => part,
                     (Some(Stored::Bytes(mut held)), Stored::Bytes(more)) => {
@@ -352,35 +375,82 @@ pub(crate) fn join(
             }
             joined.ok_or(Malformed)?
         }
-        Stored::Tag(tag, inner) => Stored::Tag(tag, Box::new(join(*inner, fetch)?)),
+        Stored::Tag(tag, inner) => Stored::Tag(tag, Box::new(join(*inner, parts)?)),
         Stored::Array(items) => Stored::Array(
             items
                 .into_iter()
-                .map(|item| join(item, fetch))
+                .map(|item| join(item, parts))
                 .collect::<Result<_, _>>()?,
         ),
         Stored::Map(entries) => Stored::Map(
             entries
                 .into_iter()
-                .map(|(key, value)| Ok((key, join(value, fetch)?)))
+                .map(|(key, value)| Ok((key, join(value, parts)?)))
                 .collect::<Result<_, Malformed>>()?,
         ),
         other => other,
     })
 }
 
-fn fetched(
-    name: &Stored,
-    fetch: &mut dyn FnMut(Hash) -> Option<Vec<u8>>,
-) -> Result<Stored, Malformed> {
+fn hash_in(name: &Stored) -> Result<Hash, Malformed> {
     let bytes: [u8; Hash::LEN] = name
         .as_bytes()
         .and_then(|bytes| bytes.as_slice().try_into().ok())
         .ok_or(Malformed)?;
-    let hash = Hash::from_bytes(bytes);
-    let part = fetch(hash).ok_or(Malformed)?;
-    if Hash::of(&part) != hash {
-        return Err(Malformed);
+    Ok(Hash::from_bytes(bytes))
+}
+
+fn named(name: &Stored, parts: &HashMap<Hash, Stored>) -> Result<Stored, Malformed> {
+    parts.get(&hash_in(name)?).cloned().ok_or(Malformed)
+}
+
+/// Reads stored bytes written by `Part::write`: a CBOR sequence of parts, the
+/// root first. Returns the document as if it had been saved whole.
+pub(crate) fn read(bytes: &[u8]) -> Result<Stored, Malformed> {
+    let mut rest = bytes;
+    let mut root = None;
+    let mut parts = HashMap::new();
+    while !rest.is_empty() {
+        let before = rest;
+        let value: Stored = ciborium::from_reader(&mut rest).map_err(|_| Malformed)?;
+        let read = &before[..before.len() - rest.len()];
+        if root.is_none() {
+            root = Some(value);
+        } else {
+            parts.insert(Hash::of(read), value);
+        }
     }
-    decode(&part).ok_or(Malformed)
+    join(root.ok_or(Malformed)?, &parts)
+}
+
+/// What a saved document's parts were saved as, by the hash of their bytes, so
+/// a save can hand back those that didn't change.
+pub(crate) fn saved(stored: &be_block_store::Stored) -> HashMap<Hash, PartRef> {
+    let mut saved = HashMap::new();
+    if let Some(root) = &stored.root {
+        learn(stored, root, &mut saved);
+    }
+    saved
+}
+
+/// A part with children was saved as a node of its own bytes then each child;
+/// one without, as its bytes.
+fn learn(stored: &be_block_store::Stored, loaded: &LoadedPart, saved: &mut HashMap<Hash, PartRef>) {
+    match loaded.reference {
+        PartRef::Node(_) => {
+            let Some((own, children)) = loaded.children.split_first() else {
+                return;
+            };
+            if !own.children.is_empty() || children.is_empty() {
+                return;
+            }
+            saved.insert(Hash::of(stored.bytes_of(own)), loaded.reference);
+            for child in children {
+                learn(stored, child, saved);
+            }
+        }
+        PartRef::Chunk(_) | PartRef::Chunks(_) => {
+            saved.insert(Hash::of(stored.bytes_of(loaded)), loaded.reference);
+        }
+    }
 }

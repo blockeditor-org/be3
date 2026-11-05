@@ -676,8 +676,10 @@ where
     }
 
     fn written(&self, content: &C) -> Written {
+        let (bytes, parts) = written_parts(&content.parts()).unwrap_or_else(|| (content.encode(), Vec::new()));
         Written {
-            bytes: content.encode(),
+            bytes,
+            parts,
             references: content.references_in(self.organization),
             derived: be_block::derived_metadata(content),
         }
@@ -2589,4 +2591,33 @@ where
             clean_at: Some(head),
         });
     }
+}
+
+/// The bytes of `part` and its shape in pre-order, as `Written` carries them;
+/// none when it reuses a saved part, whose bytes a replica doesn't hold.
+fn written_parts(part: &be_block::Part<'_>) -> Option<(Vec<u8>, Vec<be_sdk_type_api::WrittenPart>)> {
+    fn walk(
+        part: &be_block::Part<'_>,
+        bytes: &mut Vec<u8>,
+        shape: &mut Vec<be_sdk_type_api::WrittenPart>,
+    ) -> Option<()> {
+        match part {
+            be_block::Part::Bytes(held) => {
+                shape.push(be_sdk_type_api::WrittenPart::Bytes(u32::try_from(held.len()).ok()?));
+                bytes.extend_from_slice(held);
+            }
+            be_block::Part::Reused(_) => return None,
+            be_block::Part::Node(parts) => {
+                shape.push(be_sdk_type_api::WrittenPart::Node(u32::try_from(parts.len()).ok()?));
+                for part in parts {
+                    walk(part, bytes, shape)?;
+                }
+            }
+        }
+        Some(())
+    }
+    let mut bytes = Vec::new();
+    let mut shape = Vec::new();
+    walk(part, &mut bytes, &mut shape)?;
+    Some((bytes, shape))
 }

@@ -74,10 +74,6 @@ pub(crate) fn document(tree: &Tree, kind: &Kind) -> Stored {
     ])
 }
 
-pub(crate) fn save(tree: &Tree, kind: &Kind) -> Vec<u8> {
-    encode(&document(tree, kind))
-}
-
 fn object(tree: &Tree, id: ObjectId, kind: &Kind, with_id: bool) -> Stored {
     let Some(held) = tree.object(id) else {
         return sorted(vec![(KIND.to_owned(), text(kind.name))]);
