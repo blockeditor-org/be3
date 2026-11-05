@@ -294,7 +294,7 @@ impl Loading {
             Shape::List(child) => {
                 let child = child();
                 let mut ids = Vec::new();
-                for item in found.into_array().ok()? {
+                for (index, item) in found.into_array().ok()?.into_iter().enumerate() {
                     let Some(entries) = properties(item) else {
                         continue;
                     };
@@ -303,7 +303,7 @@ impl Loading {
                         .and_then(as_uuid)
                         .map(ObjectId::from_uuid)
                         .filter(|id| *id != ObjectId::ROOT && !self.objects.contains_key(id))
-                        .unwrap_or_else(|| self.fresh());
+                        .unwrap_or_else(|| self.derived(place, index));
                     self.objects
                         .insert(id, Object::new(Some(place), Vec::new()));
                     self.object(entries, &child, id, Some(place), false);
@@ -352,14 +352,36 @@ impl Loading {
         })
     }
 
-    fn fresh(&self) -> ObjectId {
+    /// The id for an item stored without one, or with one already taken: derived from where the
+    /// item sits, so every replica loading the same bytes gives it the same id and edits naming it
+    /// land everywhere.
+    fn derived(&self, place: Place, index: usize) -> ObjectId {
+        let mut attempt = 0_u128;
         loop {
-            let id = ObjectId::new();
-            if !self.objects.contains_key(&id) {
+            let mut state = place.object.as_uuid().as_u128()
+                ^ (u128::from(place.field) << 96)
+                ^ ((index as u128) << 32)
+                ^ attempt;
+            state = mix(state);
+            let id = ObjectId::from_uuid(Uuid::from_u128(state));
+            if id != ObjectId::ROOT && !self.objects.contains_key(&id) {
                 return id;
             }
+            attempt += 1;
         }
     }
+}
+
+/// A bijective mix of 128 bits (xorshift-multiply rounds), spreading derived ids over the space.
+fn mix(mut state: u128) -> u128 {
+    for multiplier in [
+        0x9e37_79b9_7f4a_7c15_f39c_c060_5ced_c835_u128,
+        0xbf58_476d_1ce4_e5b9_94d0_49bb_1331_11eb_u128,
+    ] {
+        state ^= state >> 67;
+        state = state.wrapping_mul(multiplier | 1);
+    }
+    state ^ (state >> 59)
 }
 
 fn rich_text(rich: &Rich) -> Stored {

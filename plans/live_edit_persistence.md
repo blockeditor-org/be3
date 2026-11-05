@@ -110,10 +110,10 @@ implemented yet.
   everyone leaves. A restart forced in the middle of a session is a sign the
   limit is too low.
 - The owner commits and drops session state, and every replica reloads from
-  that commit. That needs loading a commit to give the same positions on every
-  replica (all content from one reserved client id at offsets `0..len`, list
-  slots in stored order). Check this first: today `Snapshot` hands session
-  state over, which suggests loading doesn't.
+  that commit. Loading a commit gives the same positions and ids on every
+  replica (all content from client `LOADED` at offsets `0..len`, list slots in
+  stored order; items stored without an id get one derived from their place),
+  so this needs nothing new from loading.
 - The visible content is the same before and after, so anything in visible
   offsets carries over: cursors and selections in presence, and a follower's
   pending edit, which it re-sends as the visible splices `SeqOp` reported. Only
@@ -126,8 +126,7 @@ implemented yet.
 
 ## Order of work
 
-5's deterministic loading first, since 1 and 5 depend on how a base is
-reloaded. Then 1 and 2 together, then 3, 4 and the rest of 5.
+1 and 2 together, then 3 and the rest of 5.
 
 ## Tests
 
