@@ -1,11 +1,11 @@
 # Saving live edits less often
 
 A session owner seals a commit 750 ms after an edit, so a block edited for an
-hour makes up to 4,800 commits, and retention keeps every commit from the last
-hour. This plan keeps edits durable with a journal of operations, writes commits
-only at pauses, prunes as commits arrive, and restarts long-lived sessions so
-their state stays small. The canvas has the same problem as chat
-(plans/chat.md). Making each commit cheaper is plans/large_blocks.md. Not
+hour makes up to 4,800 commits, of which the server keeps one a minute. This
+plan keeps edits durable with a journal of operations, writes commits only at
+pauses, and restarts long-lived sessions so their state stays small. The canvas has the same problem as chat
+(plans/chat.md). Making each commit cheaper is plans/large_blocks.md. Pruning
+as commits arrive and deterministic loading are done; the rest is not
 implemented yet.
 
 ## What exists
@@ -25,13 +25,15 @@ implemented yet.
 - **Compatibility.** Each type module has a `Tag` (its hash), and an owner
   answers a different tag with `Incompatible`, so two builds of a type never
   edit one session.
-- **Retention.** `RetentionPolicy::default()` keeps everything from the last
-  hour, then one state per 10 minutes for a day, per hour for a week, per day
-  for 30 days and per week after that. `retention::plan` uses only each
-  commit's id, time and pinned flag, which the server already has.
-  `Peer::prune` calls `prune-history`, and nothing calls `Peer::prune`. An
-  organization can require every version kept for a while
-  (`history_kept_for`).
+- **Retention.** The server prunes as each publish arrives (guides/blocks/server.md):
+  `RetentionPolicy::default()` keeps one state per minute for the last hour,
+  then one per 10 minutes for a day, per hour for a week, per day for 30 days
+  and per week after that; the head, bookmarks, merges' parents and whatever
+  is inside the organization's `history_kept_for` stay. A device merging an
+  offline edit falls back to the remote head it built on when pruning cut the
+  chain between them (`Peer::reconcile`). Loading a commit gives every replica
+  the same positions and ids, so replicas that load one commit can exchange
+  operations with no `Snapshot`.
 - **Undo** is local to each device (`Undo` in `be-block`).
 - `decisions/editors_write_every_change_as_it_happens.md` puts batching in the
   client, which is where this plan puts it.
@@ -69,7 +71,7 @@ implemented yet.
     connection for a new build).
 
   Steady editing then makes about 12 commits an hour, and editing in bursts
-  at most about 120, which pruning (4) thins to one a minute.
+  at most about 120, which pruning at publish thins to one a minute.
 - **Recovery.** A new owner after a crash, or a follower joining, loads the
   base commit and session state and replays the journal. A joining follower
   then needs no `Snapshot` from the owner.
@@ -88,19 +90,6 @@ implemented yet.
   says that edits from an older version were lost. That happens only when an
   owner crashed and the type changed before anyone with the same tag recovered
   the journal.
-
-### 4. Pruning as commits arrive
-
-- The server applies retention when a publish arrives: when the new commit
-  lands in the same slot as the one before it, the earlier one is dropped in
-  the same transaction, unless it is pinned, a merge parent, the head, or
-  inside the organization's `history_kept_for`.
-- The policy keeps one state per minute for the last hour instead of all of
-  them, then the existing buckets.
-- A device keeps its last-known remote head and that head's objects locally,
-  since it is the base of an offline merge and the server may prune it.
-- With the journal, commits already fall at pauses, so this mostly covers
-  blocks saved other ways: `write-content`, `be sync`, offline drains.
 
 ### 5. Session restarts
 
@@ -132,8 +121,7 @@ implemented yet.
 
 - An owner cut off by the fault relay after edits and before a commit: the new
   owner recovers every edit from the journal.
-- With a manual clock, an hour of steady edits makes about 12 commits, and
-  pruning at publish keeps pinned commits and merge parents.
+- With a manual clock, an hour of steady edits makes about 12 commits.
 - A reader outside the session (`be`) sees edits that are in the journal but
   not yet in a commit.
 - A journal written by another module tag is dropped and the block marked.
