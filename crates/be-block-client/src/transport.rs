@@ -4,9 +4,9 @@ mod native;
 mod web;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) use native::{Reader, Writer, connect, post_once, spawn};
+pub(crate) use native::{Reader, Writer, connect, post_once, request, spawn};
 #[cfg(target_arch = "wasm32")]
-pub(crate) use web::{Reader, Writer, connect, post_once, spawn};
+pub(crate) use web::{Reader, Writer, connect, post_once, request, spawn};
 
 pub(crate) enum Frame {
     Binary(Vec<u8>),

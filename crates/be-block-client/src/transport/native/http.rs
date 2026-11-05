@@ -353,7 +353,63 @@ impl Client {
 
 struct Stale;
 
+/// How an answer's body is delimited.
+enum Framing {
+    Chunked,
+    Length(usize),
+    ToEnd,
+}
+
+/// An answer's status line and headers, and the bytes read past them.
+struct Head {
+    status: u16,
+    session: Option<String>,
+    more: bool,
+    close: bool,
+    framing: Framing,
+    rest: Vec<u8>,
+}
+
+enum BodyError {
+    /// The body is longer than the limit it was read with.
+    TooLarge,
+    Failed(String),
+}
+
+impl From<std::io::Error> for BodyError {
+    fn from(error: std::io::Error) -> Self {
+        Self::Failed(error.to_string())
+    }
+}
+
+impl BodyError {
+    fn message(self) -> String {
+        match self {
+            Self::TooLarge => "the server's answer is too long".to_owned(),
+            Self::Failed(error) => error,
+        }
+    }
+}
+
+const CLOSED_MID_ANSWER: &str = "the server closed the connection mid-answer";
+
 async fn read_response(stream: &mut Box<dyn Io>) -> Result<Result<Response, String>, Stale> {
+    let head = match read_head(stream).await? {
+        Ok(head) => head,
+        Err(error) => return Ok(Err(error)),
+    };
+    let close = head.close;
+    let body = read_body(stream, head.framing, head.rest, usize::MAX).await;
+    Ok(body.map_err(BodyError::message).map(|body| Response {
+        status: head.status,
+        session: head.session,
+        more: head.more,
+        close,
+        body,
+    }))
+}
+
+async fn read_head(stream: &mut Box<dyn Io>) -> Result<Result<Head, String>, Stale> {
     let mut buffer = Vec::new();
     let mut chunk = [0u8; 8192];
     let size = loop {
@@ -366,16 +422,13 @@ async fn read_response(stream: &mut Box<dyn Io>) -> Result<Result<Response, Stri
         }
         let read = match stream.read(&mut chunk).await {
             Ok(read) => read,
-            Err(error) if buffer.is_empty() => {
-                let _ = error;
-                return Err(Stale);
-            }
+            Err(_) if buffer.is_empty() => return Err(Stale),
             Err(error) => return Ok(Err(error.to_string())),
         };
         if read == 0 {
             return match buffer.is_empty() {
                 true => Err(Stale),
-                false => Ok(Err("the server closed the connection mid-answer".to_owned())),
+                false => Ok(Err(CLOSED_MID_ANSWER.to_owned())),
             };
         }
         buffer.extend_from_slice(&chunk[..read]);
@@ -391,41 +444,57 @@ async fn read_response(stream: &mut Box<dyn Io>) -> Result<Result<Response, Stri
             .and_then(|header| std::str::from_utf8(header.value).ok())
             .map(|value| value.trim().to_owned())
     };
-    let status = parsed.code.unwrap_or_default();
-    let session = header(SESSION_HEADER);
-    let more = header(MORE_HEADER).is_some();
-    let close = header("connection").is_some_and(|value| value.eq_ignore_ascii_case("close"));
     let chunked = header("transfer-encoding")
         .is_some_and(|value| value.to_ascii_lowercase().contains("chunked"));
-    let length = header("content-length").and_then(|value| value.parse::<usize>().ok());
-    let rest = buffer.split_off(size);
-    let body = match (chunked, length) {
-        (true, _) => dechunk(stream, rest).await,
-        (false, Some(length)) => exactly(stream, rest, length).await,
-        (false, None) => to_end(stream, rest).await,
+    let length = match header("content-length") {
+        Some(value) => match value.parse::<usize>() {
+            Ok(length) => Some(length),
+            Err(_) => return Ok(Err("the server's answer has a malformed length".to_owned())),
+        },
+        None => None,
     };
-    Ok(body.map(|body| Response {
-        status,
-        session,
-        more,
-        close: close || (!chunked && length.is_none()),
-        body,
+    let framing = match (chunked, length) {
+        (true, _) => Framing::Chunked,
+        (false, Some(length)) => Framing::Length(length),
+        (false, None) => Framing::ToEnd,
+    };
+    let close = header("connection").is_some_and(|value| value.eq_ignore_ascii_case("close"))
+        || matches!(framing, Framing::ToEnd);
+    Ok(Ok(Head {
+        status: parsed.code.unwrap_or_default(),
+        session: header(SESSION_HEADER),
+        more: header(MORE_HEADER).is_some(),
+        close,
+        framing,
+        rest: buffer.split_off(size),
     }))
+}
+
+/// Reads a body delimited by `framing`, failing with `TooLarge` once it is longer than `limit`.
+async fn read_body(
+    stream: &mut Box<dyn Io>,
+    framing: Framing,
+    rest: Vec<u8>,
+    limit: usize,
+) -> Result<Vec<u8>, BodyError> {
+    match framing {
+        Framing::Chunked => dechunk(stream, rest, limit).await,
+        Framing::Length(length) if length > limit => Err(BodyError::TooLarge),
+        Framing::Length(length) => exactly(stream, rest, length).await,
+        Framing::ToEnd => to_end(stream, rest, limit).await,
+    }
 }
 
 async fn exactly(
     stream: &mut Box<dyn Io>,
     mut body: Vec<u8>,
     length: usize,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, BodyError> {
     let mut chunk = [0u8; 8192];
     while body.len() < length {
-        let read = stream
-            .read(&mut chunk)
-            .await
-            .map_err(|error| error.to_string())?;
+        let read = stream.read(&mut chunk).await?;
         if read == 0 {
-            return Err("the server closed the connection mid-answer".to_owned());
+            return Err(BodyError::Failed(CLOSED_MID_ANSWER.to_owned()));
         }
         body.extend_from_slice(&chunk[..read]);
     }
@@ -433,39 +502,55 @@ async fn exactly(
     Ok(body)
 }
 
-async fn to_end(stream: &mut Box<dyn Io>, mut body: Vec<u8>) -> Result<Vec<u8>, String> {
-    stream
-        .read_to_end(&mut body)
-        .await
-        .map_err(|error| error.to_string())?;
-    Ok(body)
+async fn to_end(
+    stream: &mut Box<dyn Io>,
+    mut body: Vec<u8>,
+    limit: usize,
+) -> Result<Vec<u8>, BodyError> {
+    let mut chunk = [0u8; 8192];
+    loop {
+        if body.len() > limit {
+            return Err(BodyError::TooLarge);
+        }
+        let read = stream.read(&mut chunk).await?;
+        if read == 0 {
+            return Ok(body);
+        }
+        body.extend_from_slice(&chunk[..read]);
+    }
 }
 
-async fn dechunk(stream: &mut Box<dyn Io>, mut pending: Vec<u8>) -> Result<Vec<u8>, String> {
+async fn dechunk(
+    stream: &mut Box<dyn Io>,
+    mut pending: Vec<u8>,
+    limit: usize,
+) -> Result<Vec<u8>, BodyError> {
     let mut body = Vec::new();
     let mut chunk = [0u8; 8192];
     loop {
         let Some(line_end) = pending.windows(2).position(|window| window == b"\r\n") else {
-            let read = stream
-                .read(&mut chunk)
-                .await
-                .map_err(|error| error.to_string())?;
+            if pending.len() > MAX_HEAD_BYTES {
+                return Err(BodyError::Failed(
+                    "the server's answer has a malformed chunk".to_owned(),
+                ));
+            }
+            let read = stream.read(&mut chunk).await?;
             if read == 0 {
-                return Err("the server closed the connection mid-answer".to_owned());
+                return Err(BodyError::Failed(CLOSED_MID_ANSWER.to_owned()));
             }
             pending.extend_from_slice(&chunk[..read]);
             continue;
         };
         let line = String::from_utf8_lossy(&pending[..line_end]).to_string();
         let size = usize::from_str_radix(line.split(';').next().unwrap_or_default().trim(), 16)
-            .map_err(|_| "the server's answer has a malformed chunk".to_owned())?;
+            .map_err(|_| BodyError::Failed("the server's answer has a malformed chunk".to_owned()))?;
+        if size > limit.saturating_sub(body.len()) {
+            return Err(BodyError::TooLarge);
+        }
         while pending.len() < line_end + 2 + size + 2 {
-            let read = stream
-                .read(&mut chunk)
-                .await
-                .map_err(|error| error.to_string())?;
+            let read = stream.read(&mut chunk).await?;
             if read == 0 {
-                return Err("the server closed the connection mid-answer".to_owned());
+                return Err(BodyError::Failed(CLOSED_MID_ANSWER.to_owned()));
             }
             pending.extend_from_slice(&chunk[..read]);
         }
@@ -475,6 +560,88 @@ async fn dechunk(stream: &mut Box<dyn Io>, mut pending: Vec<u8>) -> Result<Vec<u
         body.extend_from_slice(&pending[line_end + 2..line_end + 2 + size]);
         pending.drain(..line_end + 2 + size + 2);
     }
+}
+
+/// The longest refusal read to describe a failed request.
+const REFUSAL_BYTES: usize = 16 * 1024;
+
+/// Sends one `method` request to `url` with `headers` and `body`, on a connection of its own,
+/// and answers the body of a 2xx answer, refusing one longer than `limit`. `Host`,
+/// `Content-Length`, `Connection` and `Transfer-Encoding` are the request's own and are dropped
+/// from `headers`. The gateway's authorization goes along when `url` is a server's that has one,
+/// as on every other request to it.
+pub(crate) async fn request(
+    method: &str,
+    url: &str,
+    headers: &[(String, String)],
+    body: &[u8],
+    limit: usize,
+) -> Result<Vec<u8>, crate::http::Error> {
+    use crate::http::Error;
+    let target = Target::parse(url).map_err(Error::Invalid)?;
+    let mut head = format!(
+        "{method} {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n",
+        target.path,
+        target.host_header()
+    );
+    if method != "GET" || !body.is_empty() {
+        head.push_str(&format!("Content-Length: {}\r\n", body.len()));
+    }
+    if let Some(authorization) = crate::authorization(url) {
+        head.push_str(&format!("Be3-Gateway-Authorization: {authorization}\r\n"));
+    }
+    for (name, value) in headers {
+        if ["host", "content-length", "connection", "transfer-encoding"]
+            .iter()
+            .any(|own| name.eq_ignore_ascii_case(own))
+        {
+            continue;
+        }
+        let token = !name.is_empty()
+            && name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte));
+        if !token || value.bytes().any(|byte| byte == b'\r' || byte == b'\n' || byte == 0) {
+            return Err(Error::Invalid(format!("the header {name:?} is not valid")));
+        }
+        head.push_str(&format!("{name}: {value}\r\n"));
+    }
+    head.push_str("\r\n");
+    let moved = Moved::new();
+    let exchange = async {
+        let mut stream: Box<dyn Io> = Box::new(Moving {
+            inner: target.open().await?,
+            moved: moved.clone(),
+        });
+        stream
+            .write_all(head.as_bytes())
+            .await
+            .map_err(|error| error.to_string())?;
+        stream
+            .write_all(body)
+            .await
+            .map_err(|error| error.to_string())?;
+        stream.flush().await.map_err(|error| error.to_string())?;
+        let head = read_head(&mut stream)
+            .await
+            .unwrap_or_else(|Stale| Err("the server closed the connection".to_owned()))?;
+        let status = head.status;
+        if (200..300).contains(&status) {
+            return Ok(match read_body(&mut stream, head.framing, head.rest, limit).await {
+                Ok(body) => Ok(body),
+                Err(BodyError::TooLarge) => Err(Error::TooLarge { limit }),
+                Err(BodyError::Failed(error)) => Err(Error::Failed(error)),
+            });
+        }
+        let message = match read_body(&mut stream, head.framing, head.rest, REFUSAL_BYTES).await {
+            Ok(body) => String::from_utf8_lossy(&body).trim().to_owned(),
+            Err(_) => String::new(),
+        };
+        Ok(Err(Error::from_status(status, message)))
+    };
+    while_moving(exchange, &moved)
+        .await
+        .unwrap_or_else(|error| Err(Error::Failed(error)))
 }
 
 #[cfg(test)]
