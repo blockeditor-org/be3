@@ -32,7 +32,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
                 head,
                 None,
                 Vec::new(),
-                held(&[], chunks),
+                objects_change(&[], chunks),
                 1_000,
                 false,
                 listing(&[], Vec::new()),

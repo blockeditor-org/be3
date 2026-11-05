@@ -650,7 +650,7 @@ impl TestClient {
                 commit,
                 expected,
                 expected.into_iter().collect(),
-                held(&before, chunks),
+                objects_change(&before, chunks),
                 time,
                 false,
                 listing(&[], Vec::new()),
@@ -726,7 +726,7 @@ impl TestClient {
                     head,
                     None,
                     Vec::new(),
-                    held(&[], chunks),
+                    objects_change(&[], chunks),
                     1_000,
                     false,
                     listing(&[], children),
@@ -760,7 +760,7 @@ impl TestClient {
     }
 }
 
-fn held(before: &[Hash], after: Vec<Hash>) -> be_block_protocol::ObjectChange {
+fn objects_change(before: &[Hash], after: Vec<Hash>) -> be_block_protocol::ObjectChange {
     be_block_protocol::ObjectChange::between(before, &after)
 }
 

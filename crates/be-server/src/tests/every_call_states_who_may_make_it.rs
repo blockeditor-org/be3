@@ -258,7 +258,7 @@ impl TestClient {
                         commit,
                         None,
                         Vec::new(),
-                        held(&[], Vec::new()),
+                        objects_change(&[], Vec::new()),
                         1_000,
                         false,
                         listing(&[], Vec::new()),

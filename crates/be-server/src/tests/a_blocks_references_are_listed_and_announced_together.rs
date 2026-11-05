@@ -41,7 +41,7 @@ async fn a_blocks_references_are_listed_and_announced_together() {
                 commit,
                 None,
                 Vec::new(),
-                held(&[], chunks),
+                objects_change(&[], chunks),
                 1_000,
                 false,
                 listing(&[], issues.clone()),

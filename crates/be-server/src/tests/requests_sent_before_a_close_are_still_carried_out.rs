@@ -37,7 +37,7 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
                 head,
                 None,
                 Vec::new(),
-                held(&[], chunks),
+                objects_change(&[], chunks),
                 1_000,
                 false,
                 listing(&[], Vec::new()),

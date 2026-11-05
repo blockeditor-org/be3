@@ -33,7 +33,7 @@ async fn references_keep_the_order_their_block_lists_them_in() {
                     commit,
                     head,
                     head.into_iter().collect(),
-                    held(&held_before, chunks.clone()),
+                    objects_change(&held_before, chunks.clone()),
                     time,
                     false,
                     listing(&listed, references.clone()),
