@@ -84,7 +84,11 @@ How the model works:
   leaves a tombstone and reuses its slot if it comes back.
 - **Session state.** Tombstones and text positions are never saved. The owner
   hands them over in `Snapshot` (as of its last seal) and `Sealed`
-  (`LiveEdit::session_state`), and they go when the session ends.
+  (`LiveEdit::session_state`), and they go when the session ends. Loading
+  needs none to agree: every replica gives loaded content the same positions
+  (all from client `LOADED` at offsets `0..len`, list slots in stored order)
+  and ids, so replicas that load the same commit exchange edits without a
+  `Snapshot`.
 - **Derived ids.** Anything two peers may create at once for the same purpose
   (a database row past the end, a canvas component for a schema) takes an id
   derived from what it is for, so the second insert is refused and its edits
@@ -144,7 +148,8 @@ copy.
 `Document::to_bytes` writes CBOR `{"format": N, "root": object}` holding
 nothing a session needs. An object is a map by field name plus `$kind`
 (`#[model(kind = "...")]` or the struct's snake-case name) and, in a `List`,
-`$id` (tag 37 UUID; a repeated id gets a fresh one on load). A register is its
+`$id` (tag 37 UUID; an item stored without one, or with a repeated one, gets
+an id derived from its place and index, so every replica agrees on it). A register is its
 serde form in CBOR, and that same CBOR is what registers hold in memory and
 what `set` sends.
 
