@@ -212,8 +212,13 @@ fn bucket(
     if values.iter().all(Option::is_none) {
         return Ok(None);
     }
-    let [Some(endpoint), Some(region), Some(name), Some(access), Some(secret)] =
-        <[Option<String>; 5]>::try_from(values).expect("five names")
+    let [
+        Some(endpoint),
+        Some(region),
+        Some(name),
+        Some(access),
+        Some(secret),
+    ] = <[Option<String>; 5]>::try_from(values).expect("five names")
     else {
         return Err(format!("set all of {} or none", NAMES.join(", ")).into());
     };

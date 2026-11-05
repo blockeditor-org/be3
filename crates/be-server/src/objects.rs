@@ -70,9 +70,8 @@ impl Bucket {
         let url = endpoint
             .parse()
             .map_err(|error| format!("the S3 endpoint {endpoint} is not a URL: {error}"))?;
-        let bucket =
-            rusty_s3::Bucket::new(url, UrlStyle::Path, name.to_owned(), region.to_owned())
-                .map_err(|error| format!("the S3 bucket {name} at {endpoint}: {error}"))?;
+        let bucket = rusty_s3::Bucket::new(url, UrlStyle::Path, name.to_owned(), region.to_owned())
+            .map_err(|error| format!("the S3 bucket {name} at {endpoint}: {error}"))?;
         Ok(Self {
             bucket,
             credentials: rusty_s3::Credentials::new(access_key, secret_key),

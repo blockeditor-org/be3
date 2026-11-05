@@ -21,7 +21,10 @@ async fn blocks_publish_and_read_back_from_a_bucket() {
     let missing = client
         .call(|peer| client::objects::missing_objects(peer, objects.clone()))
         .await;
-    assert!(matches!(&missing, Ok(missing) if *missing == objects), "{missing:?}");
+    assert!(
+        matches!(&missing, Ok(missing) if *missing == objects),
+        "{missing:?}"
+    );
     let response = client
         .publish(&author, block, head, chunks.clone(), None, 1_000)
         .await;
@@ -32,7 +35,10 @@ async fn blocks_publish_and_read_back_from_a_bucket() {
     let missing = client
         .call(|peer| client::objects::missing_objects(peer, objects.clone()))
         .await;
-    assert!(matches!(&missing, Ok(missing) if missing.is_empty()), "{missing:?}");
+    assert!(
+        matches!(&missing, Ok(missing) if missing.is_empty()),
+        "{missing:?}"
+    );
 
     for hash in &objects {
         assert!(
@@ -52,7 +58,10 @@ async fn blocks_publish_and_read_back_from_a_bucket() {
         let read = client
             .call(|peer| client::objects::get_object(peer, *chunk))
             .await;
-        assert!(matches!(&read, Ok(Some(bytes)) if Hash::of(bytes) == *chunk), "{read:?}");
+        assert!(
+            matches!(&read, Ok(Some(bytes)) if Hash::of(bytes) == *chunk),
+            "{read:?}"
+        );
     }
     let contents = client
         .call(|peer| client::blocks::read_contents(peer, vec![block], Vec::new()))

@@ -332,8 +332,8 @@ pub fn backup(
     for batch in wanted.chunks(READ_AT_ONCE) {
         for (hash, bytes) in batch.iter().zip(objects.get_many(batch)) {
             let hex = hash.to_hex();
-            let bytes =
-                bytes?.ok_or_else(|| BackupError::Missing(format!("object {hex} on this server")))?;
+            let bytes = bytes?
+                .ok_or_else(|| BackupError::Missing(format!("object {hex} on this server")))?;
             target.put(&object_path(&hex), &bytes)?;
             uploaded.insert(hex);
             sent += 1;

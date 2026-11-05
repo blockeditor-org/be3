@@ -47,7 +47,8 @@ async fn a_backup_restores_into_a_server_that_serves_the_same_blocks() {
         backup::restore(&target, &BackupKey::generate(), &restored, None, None).is_err(),
         "another key opened the backup"
     );
-    let report = backup::restore(&target, &key, &restored, None, None).expect("the backup restores");
+    let report =
+        backup::restore(&target, &key, &restored, None, None).expect("the backup restores");
     assert_eq!(
         report.snapshot, again.snapshot,
         "restore picked an older snapshot"

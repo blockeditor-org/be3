@@ -27,7 +27,10 @@ fn the_cache_in_front_of_a_bucket_keeps_only_its_limit() {
     assert_eq!(cached.cached_bytes(), 80);
     let read = objects.get_many(&[first, second, third, Hash::of(b"absent")]);
     let read: Vec<_> = read.into_iter().map(Result::unwrap).collect();
-    assert_eq!(read, vec![Some(object(1)), Some(object(2)), Some(object(3)), None]);
+    assert_eq!(
+        read,
+        vec![Some(object(1)), Some(object(2)), Some(object(3)), None]
+    );
 
     // An object larger than the whole cache goes only to the bucket.
     let large = objects.put(&[9; 200]).unwrap();

@@ -7,7 +7,10 @@ fn a_bucket_store_round_trips_objects() {
     let first = store.put(b"first object").unwrap();
     let second = store.put(b"second object, a little longer").unwrap();
     assert_eq!(first, Hash::of(b"first object"));
-    assert_eq!(store.get(first).unwrap().as_deref(), Some(&b"first object"[..]));
+    assert_eq!(
+        store.get(first).unwrap().as_deref(),
+        Some(&b"first object"[..])
+    );
     assert!(store.has(second).unwrap());
     assert_eq!(store.len(second).unwrap(), Some(30));
 
@@ -29,7 +32,10 @@ fn a_bucket_store_round_trips_objects() {
 
     let url = server.bucket().presign_get(second, Duration::from_secs(60));
     let mut read = Vec::new();
-    std::io::Read::read_to_end(&mut agent().get(&url).call().unwrap().into_reader(), &mut read)
-        .unwrap();
+    std::io::Read::read_to_end(
+        &mut agent().get(&url).call().unwrap().into_reader(),
+        &mut read,
+    )
+    .unwrap();
     assert_eq!(read, b"second object, a little longer");
 }
