@@ -1895,6 +1895,7 @@ dependencies = [
  "be-block-commit",
  "be-block-protocol",
  "be-block-session",
+ "be-block-store",
  "be-wasm-ops",
  "be-wasm-ops-bindgen",
  "serde",
