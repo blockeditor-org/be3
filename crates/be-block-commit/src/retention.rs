@@ -15,6 +15,7 @@ pub struct Bucket {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RetentionPolicy {
+    /// Every state newer than this is kept: an organization's `history_kept_for`.
     pub keep_all_within: i64,
     pub buckets: Vec<Bucket>,
 }
@@ -39,8 +40,12 @@ impl RetentionPolicy {
 impl Default for RetentionPolicy {
     fn default() -> Self {
         Self {
-            keep_all_within: HOUR,
+            keep_all_within: 0,
             buckets: vec![
+                Bucket {
+                    until_age: HOUR,
+                    interval: MINUTE,
+                },
                 Bucket {
                     until_age: DAY,
                     interval: 10 * MINUTE,
@@ -66,6 +71,7 @@ impl Default for RetentionPolicy {
 pub struct CommitSummary {
     pub id: CommitId,
     pub time: i64,
+    /// Kept whatever its age, outside any slot: a bookmark or a merge's parent.
     pub pinned: bool,
 }
 
@@ -75,10 +81,11 @@ pub struct RetentionPlan {
     pub drop: Vec<CommitId>,
 }
 
-/// Pins bookmarks, keeps everything inside `keep_all_within`, then thins by widening age
-/// buckets, preferring in each bucket the commit with the longest quiet interval after it: a
-/// state left alone for an hour outranks the keystroke bursts around it. Runs only when a
-/// client calls `Peer::prune`.
+/// Keeps pinned commits and everything inside `keep_all_within`, then one state per slot of
+/// widening age buckets. The newest commit is kept and wins its slot, so a commit arriving in the
+/// slot of the one before it replaces that one; in older slots the commit with the longest quiet
+/// interval after it wins: a state left alone for an hour outranks the keystroke bursts around
+/// it. The server runs it on each publish (guides/blocks/server.md, "History").
 pub fn plan(summaries: &[CommitSummary], now: i64, policy: &RetentionPolicy) -> RetentionPlan {
     let mut ordered: Vec<_> = summaries.to_vec();
     ordered.sort_by(|left, right| right.time.cmp(&left.time).then(right.id.cmp(&left.id)));
@@ -89,13 +96,16 @@ pub fn plan(summaries: &[CommitSummary], now: i64, policy: &RetentionPolicy) -> 
 
     for (index, summary) in ordered.iter().enumerate() {
         let age = now - summary.time;
-        if index == 0 || summary.pinned || age <= policy.keep_all_within {
+        if summary.pinned || age <= policy.keep_all_within {
             plan.keep.push(summary.id);
             continue;
         }
         let (bucket, interval) = policy.bucket_of(age);
         let slot = summary.time.div_euclid(interval.max(1));
-        let quiet = ordered[index - 1].time - summary.time;
+        let quiet = match index {
+            0 => i64::MAX,
+            _ => ordered[index - 1].time - summary.time,
+        };
         let position = undecided.len();
         undecided.push((summary.id, quiet, summary.time));
         candidates

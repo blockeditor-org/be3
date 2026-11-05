@@ -8,7 +8,7 @@ use be_block::{
     payload_start,
 };
 use be_block_commit::{
-    Commit, CommitId, CommitStore, CommitSummary, RetentionPolicy, now_milliseconds, plan_retention,
+    Commit, CommitId, CommitStore, now_milliseconds,
 };
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
@@ -1567,27 +1567,6 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn history(&self, block: Uuid) -> Result<Vec<HistoryEntry>, ClientError> {
         Ok(client::blocks::list_history(&self.connection(), block).await??)
-    }
-
-    pub async fn prune(&self, block: Uuid, policy: &RetentionPolicy) -> Result<usize, ClientError> {
-        let kept_for = self.organization_policies().await?.history_kept_for();
-        let policy = &policy.clone().keeping_all_within(kept_for);
-        let entries = self.history(block).await?;
-        let summaries: Vec<_> = entries
-            .iter()
-            .map(|entry| CommitSummary {
-                id: entry.commit,
-                time: entry.time,
-                pinned: entry.pinned,
-            })
-            .collect();
-        let plan = plan_retention(&summaries, now_milliseconds(), policy);
-        if plan.drop.is_empty() {
-            return Ok(0);
-        }
-        let objects =
-            client::blocks::prune_history(&self.connection(), block, plan.drop.clone()).await??;
-        Ok(objects as usize)
     }
 
     pub async fn set_parent(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {

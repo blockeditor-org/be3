@@ -11,7 +11,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
     let block = client.create_block(BlockParent::Root).await;
     assert_eq!(client.read_block(block).await.head, None);
 
-    let (first, chunks) = author.compose(b"first draft\n", 1_000, None);
+    let (first, chunks) = author.compose(b"first draft\n", minutes_ago(2), None);
     client
         .upload(&author.store, &author.objects_of(first, &chunks))
         .await;
@@ -23,8 +23,16 @@ async fn blocks_publish_and_read_back_through_the_server() {
                 first,
                 None,
                 Vec::new(),
+<<<<<<< HEAD
                 objects_change(&[], chunks.clone()),
                 1_000,
+||||||| parent of 1fd538f2 (feat: prune history as each publish arrives, keeping a state per minute for the last hour)
+                chunks.clone(),
+                1_000,
+=======
+                chunks.clone(),
+                minutes_ago(2),
+>>>>>>> 1fd538f2 (feat: prune history as each publish arrives, keeping a state per minute for the last hour)
                 false,
                 listing(&[], Vec::new()),
                 Vec::new(),
@@ -45,7 +53,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
         panic!("the published chunk was not readable: {response:?}");
     };
 
-    let (second, next_chunks) = author.compose(b"second draft\n", 2_000, Some(first));
+    let (second, next_chunks) = author.compose(b"second draft\n", minutes_ago(1), Some(first));
     let carried = author
         .objects_of(second, &next_chunks)
         .into_iter()
@@ -59,8 +67,16 @@ async fn blocks_publish_and_read_back_through_the_server() {
                 second,
                 Some(first),
                 Some(first).into_iter().collect(),
+<<<<<<< HEAD
                 objects_change(&chunks, next_chunks),
                 2_000,
+||||||| parent of 1fd538f2 (feat: prune history as each publish arrives, keeping a state per minute for the last hour)
+                next_chunks,
+                2_000,
+=======
+                next_chunks,
+                minutes_ago(1),
+>>>>>>> 1fd538f2 (feat: prune history as each publish arrives, keeping a state per minute for the last hour)
                 false,
                 listing(&[], Vec::new()),
                 Vec::new(),

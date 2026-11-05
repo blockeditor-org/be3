@@ -105,7 +105,7 @@ mod password_hashing_refuses_past_its_queue_and_each_addresss_share;
 mod password_reset_is_generic_and_revokes_live_sessions_and_pending_approvals;
 mod passwords_are_validated_on_the_server_without_truncation_or_echoing;
 mod proxy_account_authentication_never_discloses_the_token;
-mod pruning_history_keeps_pinned_commits;
+mod publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_parents;
 mod references_keep_the_order_their_block_lists_them_in;
 mod registering_joins_the_one_personal_organization_as_an_editor;
 mod registration_checks_its_invite_code_before_hashing_the_password;
@@ -666,6 +666,12 @@ impl TestClient {
             .await
             .expect("history failed")
     }
+}
+
+/// A commit time that many minutes ago: retention keeps one state per minute for the last hour,
+/// so commits a minute apart are all kept.
+fn minutes_ago(minutes: i64) -> i64 {
+    be_block_commit::now_milliseconds() - minutes * be_block_commit::retention::MINUTE
 }
 
 fn row(id: Uuid, block: Uuid, kind: KeyKind) -> KeyRow {

@@ -333,7 +333,10 @@ impl<S: ObjectStore> Peer<S> {
             if let Some(theirs) = remote
                 && !self.commits.is_ancestor(theirs, ours)?
             {
-                let base = self.commits.common_ancestor(ours, theirs)?;
+                let base = match self.commits.common_ancestor(ours, theirs)? {
+                    Some(base) => Some(base),
+                    None => self.left_from(&waiting)?,
+                };
                 return Ok(Reconciled::Merge { base, ours, theirs });
             }
             let Some((sequence, pending)) = waiting
@@ -358,6 +361,24 @@ impl<S: ObjectStore> Peer<S> {
             }
         }
         Err(ClientError::Contended)
+    }
+
+    /// The remote head the waiting commits were built on, which this device holds: the base of
+    /// their merge when the server pruned the history between it and the new head, so no common
+    /// ancestor can be walked to.
+    fn left_from(&self, waiting: &[(u64, Pending)]) -> Result<Option<CommitId>, ClientError> {
+        for (_, pending) in waiting.iter().rev() {
+            let Some(expected) = pending.expected else {
+                continue;
+            };
+            if waiting.iter().any(|(_, other)| other.commit == expected) {
+                continue;
+            }
+            if self.commits.has(expected)? {
+                return Ok(Some(expected));
+            }
+        }
+        Ok(None)
     }
 
     fn settle_reached(&self, block: Uuid, head: CommitId) -> Result<(), ClientError> {

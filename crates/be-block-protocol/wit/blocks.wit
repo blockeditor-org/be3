@@ -171,10 +171,6 @@ interface blocks {
 
     list-history: async func(block: block-id) -> result<list<history-entry>, error>;
 
-    /// Drops commits from a block's history; answers how many objects that
-    /// freed.
-    prune-history: async func(block: block-id, drop: list<commit-id>) -> result<u64, error>;
-
     delete-block: async func(block: block-id) -> result<_, error>;
 
     /// Deletes the detached blocks nothing reaches any more.

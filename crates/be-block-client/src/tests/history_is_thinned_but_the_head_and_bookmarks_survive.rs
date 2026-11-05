@@ -42,24 +42,13 @@ async fn history_is_thinned_but_the_head_and_bookmarks_survive() {
             .published();
     }
 
-    let before = author.history(block).await.unwrap();
-    assert_eq!(before.len(), 17);
-    assert!(before.iter().any(|entry| entry.pinned));
-
-    let policy = RetentionPolicy {
-        keep_all_within: 0,
-        buckets: vec![be_block_commit::retention::Bucket {
-            until_age: i64::MAX,
-            interval: 10 * MINUTE,
-        }],
-    };
-    author.prune(block, &policy).await.unwrap();
-
+    // Seventeen saves within a minute or two: each publish replaces the one before it in its
+    // minute, so only the head, the bookmark and a state per minute crossed are left.
     let after = author.history(block).await.unwrap();
     assert!(
-        after.len() < before.len(),
-        "pruning kept every one of {} states",
-        before.len()
+        after.len() <= 4,
+        "publishing kept {} of 17 states",
+        after.len()
     );
     assert_eq!(after[0].commit, head.unwrap(), "the head was pruned away");
     assert!(
