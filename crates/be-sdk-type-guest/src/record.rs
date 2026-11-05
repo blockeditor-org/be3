@@ -30,6 +30,16 @@ pub trait Recorder<C: LiveEdit>: Default {
 
     fn clear(&mut self) {}
 
+    fn restart(&mut self) {}
+
+    fn stopped(&self) -> bool {
+        false
+    }
+
+    fn gesture_open(&self) -> bool {
+        false
+    }
+
     fn can_undo(&self) -> bool {
         false
     }
@@ -71,6 +81,18 @@ impl<C: Undo> Recorder<C> for History<C, u64> {
 
     fn clear(&mut self) {
         History::clear(self);
+    }
+
+    fn restart(&mut self) {
+        History::restart(self);
+    }
+
+    fn stopped(&self) -> bool {
+        History::stopped(self)
+    }
+
+    fn gesture_open(&self) -> bool {
+        History::gesture_open(self)
     }
 
     fn can_undo(&self) -> bool {

@@ -8,7 +8,7 @@ use be_block_session::{
 };
 use be_sdk_type_api::{
     Change, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
-    Recipients, ReplicaId, SessionTag, Status, Written,
+    Recipients, ReplicaId, SessionTag, Status, UndoState, Written,
 };
 use uuid::Uuid;
 
@@ -35,6 +35,11 @@ pub const JOURNAL_BYTES: usize = 1024 * 1024;
 /// loses at most this much; with others there it appends each operation as it relays it.
 pub const APPEND_INTERVAL: u64 = 250;
 
+/// An owner restarts its session at a commit once the session state passes this and outgrows
+/// the visible content: tombstones and positions kept for concurrent edits, which a reload from
+/// the commit drops.
+pub const RESTART_STATE_BYTES: usize = 1024 * 1024;
+
 pub const HEARTBEAT_INTERVAL: u64 = be_block_session::LEASE_MILLISECONDS as u64 / 2;
 
 const JOURNAL_LIMIT: usize = 1024;
@@ -52,6 +57,7 @@ pub(crate) struct Opened {
     pub(crate) head: Option<CommitId>,
     pub(crate) session: SessionState,
     pub(crate) journal: Option<Journal>,
+    pub(crate) unreplayable: bool,
     pub(crate) from_file: Option<FromFileFn>,
     pub(crate) now: u64,
 }
@@ -152,6 +158,7 @@ enum Job<C> {
     },
     Keep(Keeping),
     Oversized,
+    Restart(CommitId),
     Release,
 }
 
@@ -238,6 +245,10 @@ enum Then {
         head: CommitId,
         sequence: u64,
         state: Vec<u8>,
+        restart: bool,
+    },
+    Restarted {
+        head: CommitId,
     },
     Absorb {
         head: CommitId,
@@ -320,7 +331,7 @@ enum Wait<C> {
 #[derive(Default)]
 struct Reported {
     status: Option<Status>,
-    history: Option<(bool, bool)>,
+    history: Option<UndoState>,
 }
 
 pub(crate) struct Replica<C: LiveEdit, H> {
@@ -370,6 +381,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     append_at: Option<u64>,
     appended_bytes: usize,
     applied_ops: Vec<SessionOp>,
+    restarting: bool,
+    restarted_at: Option<CommitId>,
+    lost_edits: bool,
     beaten: Option<u64>,
     active: bool,
     sealing: bool,
@@ -507,6 +521,9 @@ where
             append_at: None,
             appended_bytes: 0,
             applied_ops: Vec::new(),
+            restarting: false,
+            restarted_at: None,
+            lost_edits: opened.unreplayable,
             beaten: None,
             active: false,
             sealing: false,
@@ -714,6 +731,7 @@ where
             } => self.replace(content, reply, outright),
             Job::Keep(keeping) => self.keep(keeping),
             Job::Oversized => self.oversized(),
+            Job::Restart(head) => self.read(vec![Some(head)], Then::Restarted { head }),
             Job::Release => self.release(),
         }
     }
@@ -738,6 +756,19 @@ where
     fn release(&mut self) {
         if self.released {
             return;
+        }
+        if self.loaded && self.is_owner() && self.alone() && self.is_clean() && self.rebased {
+            // The last one out restarts the session for free: whoever opens next loads the
+            // commit afresh and numbers from zero.
+            self.out.push(Effect::Rebase {
+                replica: self.id,
+                generation: self.state.generation,
+                base: JournalBase {
+                    commit: self.base,
+                    sequence: 0,
+                    state: Vec::new(),
+                },
+            });
         }
         self.out.push(Effect::Release { replica: self.id });
         self.released = true;
@@ -952,12 +983,23 @@ where
                 head,
                 sequence,
                 state,
+                restart,
             } => {
-                self.confirmed = next();
-                if self.confirmed.adopt_session_state(&state).is_err() {
-                    self.unreadable_message();
+                let before = std::mem::replace(&mut self.confirmed, next());
+                match state.is_empty() {
+                    true => self.sealed_state = self.confirmed.session_state(),
+                    false => {
+                        if self.confirmed.adopt_session_state(&state).is_err() {
+                            self.unreadable_message();
+                        }
+                        self.sealed_state = state;
+                    }
                 }
-                self.sealed_state = state;
+                if restart {
+                    self.carry_pending(before);
+                    self.history.restart();
+                    self.restarted_at = Some(head);
+                }
                 if let Role::Follower(follower) = &mut self.role {
                     follower.set_applied(sequence);
                 }
@@ -965,8 +1007,16 @@ where
                 self.rebuild_visible();
                 self.base = Some(head);
                 self.sealed = sequence;
+                if restart && let Role::Follower(follower) = &mut self.role {
+                    let resubmit = follower.resynchronize(sequence);
+                    let owner = self.state.owner;
+                    for message in resubmit {
+                        self.send(owner, &message);
+                    }
+                }
                 self.flush();
             }
+            Then::Restarted { head } => self.restarted(head, next()),
             Then::Absorb { head } => {
                 self.replacement(head, next());
                 self.flush();
@@ -2098,13 +2148,17 @@ where
         if !self.loaded || self.released {
             return;
         }
-        let history = (self.history.can_undo(), self.history.can_redo());
-        if self.reported.history != Some(history) {
-            self.reported.history = Some(history);
+        let history = UndoState {
+            can_undo: self.history.can_undo(),
+            can_redo: self.history.can_redo(),
+            restarted_at: self.restarted_at.filter(|_| self.history.stopped()),
+            lost_edits: self.lost_edits,
+        };
+        if self.reported.history.as_ref() != Some(&history) {
+            self.reported.history = Some(history.clone());
             self.out.push(Effect::History {
                 replica: self.id,
-                can_undo: history.0,
-                can_redo: history.1,
+                history,
             });
         }
         if std::mem::take(&mut self.described) {
@@ -2343,6 +2397,7 @@ where
                 head,
                 sequence,
                 reload,
+                restart,
             } => {
                 let Role::Follower(follower) = &self.role else {
                     return;
@@ -2372,6 +2427,7 @@ where
                                 head,
                                 sequence,
                                 state,
+                                restart,
                             },
                         );
                     }
@@ -2901,6 +2957,7 @@ where
                 self.base,
             );
         }
+        self.restarting = self.restart_due();
         let content = self.written(&self.confirmed);
         self.publish(
             self.base,
@@ -2968,8 +3025,17 @@ where
         self.unappended.clear();
         self.append_at = None;
         self.appended_bytes = 0;
-        self.rebase_journal();
-        let reload = std::mem::take(&mut self.reload).then(|| self.sealed_state.clone());
+        let restart = std::mem::take(&mut self.restarting);
+        let reload = match restart {
+            true => {
+                self.reload = false;
+                Some(Vec::new())
+            }
+            false => {
+                self.rebase_journal();
+                std::mem::take(&mut self.reload).then(|| self.sealed_state.clone())
+            }
+        };
         if reload.is_some() {
             self.op_heads.clear();
         }
@@ -2981,6 +3047,7 @@ where
             head,
             sequence,
             reload,
+            restart,
         });
         self.beaten = Some(self.now);
         self.active = false;
@@ -2989,7 +3056,101 @@ where
             generation: self.state.generation,
             clean_at: Some(head),
         });
+        if restart {
+            self.replaced_at = sequence;
+            self.jobs.push_front(Job::Restart(head));
+        }
     }
+
+    /// Whether this commit should restart the session: the session state, which only
+    /// concurrent edits need, has grown past `RESTART_STATE_BYTES` and past the content it
+    /// describes, and no gesture is open.
+    fn restart_due(&self) -> bool {
+        if self.history.gesture_open() {
+            return false;
+        }
+        let state = self.confirmed.session_state().len();
+        state > restart_limit() && state > self.confirmed.encode().len()
+    }
+
+    /// The owner restarted the session at `head`: it reloads from the commit, so every replica
+    /// holds the same positions, moves what it holds back onto it, and undo stops here.
+    fn restarted(&mut self, head: CommitId, fresh: C) {
+        if self.base != Some(head) {
+            return;
+        }
+        let mut before = self.confirmed.clone();
+        let mut after = fresh.clone();
+        let mut carried = Vec::new();
+        for held in std::mem::take(&mut self.held) {
+            let moved = C::carry_over(&held, &before, &after);
+            before.apply(&held);
+            if let Some(moved) = moved {
+                after.apply(&moved);
+                carried.push(moved);
+            }
+        }
+        self.held = carried;
+        self.confirmed = fresh;
+        self.sealed_state = self.confirmed.session_state();
+        let mut visible = self.confirmed.clone();
+        for held in &self.held {
+            visible.apply(held);
+        }
+        self.replace_visible(visible);
+        self.history.restart();
+        self.restarted_at = Some(head);
+        self.op_heads = vec![Some(head)];
+        self.rebase_journal();
+    }
+
+    /// Moves a follower's pending and unsent edits from `before` onto the content it just
+    /// reloaded at a restart.
+    fn carry_pending(&mut self, before: C) {
+        let mut before = before;
+        let mut after = self.confirmed.clone();
+        if let Role::Follower(follower) = &mut self.role {
+            let pending = follower.take_pending();
+            let mut carried = Vec::with_capacity(pending.len());
+            for (id, payload) in pending {
+                let Ok(operation) = C::decode_operation(&payload) else {
+                    continue;
+                };
+                let moved = C::carry_over(&operation, &before, &after);
+                before.apply(&operation);
+                if let Some(moved) = moved {
+                    after.apply(&moved);
+                    carried.push((id, C::encode_operation(&moved)));
+                }
+            }
+            follower.restore_pending(carried);
+        }
+        let unsent = std::mem::take(&mut self.unsent);
+        for (operation, bound, weight) in unsent {
+            let moved = C::carry_over(&operation, &before, &after);
+            before.apply(&operation);
+            if let Some(moved) = moved {
+                after.apply(&moved);
+                self.unsent.push_back((moved, bound, weight));
+            }
+        }
+    }
+}
+
+#[cfg(not(test))]
+fn restart_limit() -> usize {
+    RESTART_STATE_BYTES
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static RESTART_LIMIT: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(RESTART_STATE_BYTES) };
+}
+
+#[cfg(test)]
+fn restart_limit() -> usize {
+    RESTART_LIMIT.with(std::cell::Cell::get)
 }
 
 /// Folds consecutive operations into as few as `LiveEdit::absorb_operation` allows, each

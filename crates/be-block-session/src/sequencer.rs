@@ -44,11 +44,16 @@ pub enum SessionMessage {
         #[serde(with = "serde_bytes")]
         state: Vec<u8>,
     },
+    /// The owner committed `head`, holding everything up to `sequence`. With `reload`,
+    /// followers load `head` with that session state; with `restart`, the session started over
+    /// from `head` loaded afresh, so what followers had pending moves onto it
+    /// (`LiveEdit::carry_over`) and undo stops there.
     Sealed {
         head: CommitId,
         sequence: u64,
         #[serde(with = "serde_bytes")]
         reload: Option<Vec<u8>>,
+        restart: bool,
     },
     Replaced {
         head: CommitId,
@@ -255,6 +260,11 @@ impl Follower {
             }
         }
         self.pending = kept;
+    }
+
+    /// Puts back what `take_pending` took, rewritten.
+    pub fn restore_pending(&mut self, pending: Vec<(OpId, Vec<u8>)>) {
+        self.pending = pending.into();
     }
 
     pub fn take_pending(&mut self) -> Vec<(OpId, Vec<u8>)> {

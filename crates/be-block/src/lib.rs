@@ -215,6 +215,15 @@ pub trait LiveEdit: BlockContent {
         postcard::from_bytes(bytes).map_err(|_| ContentError::Malformed("operation"))
     }
 
+    /// An operation made on `before`, as it applies to `after`: the same visible content loaded
+    /// afresh when a session restarts, so whatever names positions must move (a sequence edit
+    /// travels as the visible splices it made). None when nothing of it is left. Content that
+    /// keeps no session state carries operations over unchanged.
+    fn carry_over(operation: &Self::Op, before: &Self, after: &Self) -> Option<Self::Op> {
+        let _ = (before, after);
+        Some(operation.clone())
+    }
+
     fn session_state(&self) -> Vec<u8> {
         Vec::new()
     }

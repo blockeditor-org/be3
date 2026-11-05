@@ -24,7 +24,7 @@ be_wasm_ops_bindgen::generate!({
         "entries": ::be_wasm_ops::wire::Map<::be_wasm_ops::wire::Plain, ::be_wasm_ops::wire::Bytes>,
     },
     copy: ["uuid", "hash", "commit-id", "session-tag"],
-    default: ["plain", "description", "plain-file", "status"],
+    default: ["plain", "description", "plain-file", "status", "undo-state"],
 });
 
 pub use host::PublishOutcome;

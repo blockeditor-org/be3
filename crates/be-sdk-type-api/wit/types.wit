@@ -207,6 +207,18 @@ interface types {
         malformed(string),
     }
 
+    /// What undo and redo can do on this device, and why they cannot.
+    record undo-state {
+        can-undo: bool,
+        can-redo: bool,
+        /// Undo and redo stopped at the session restart that committed this:
+        /// steps made before it no longer apply.
+        restarted-at: option<commit-id>,
+        /// Edits written by another build of this type were dropped when the
+        /// block opened, since this build cannot replay them.
+        lost-edits: bool,
+    }
+
     /// One operation the owner sequenced: a session message the module wrote,
     /// the same bytes a peer hears relayed.
     record journal-entry {

@@ -155,6 +155,10 @@ impl<R: Root> LiveEdit for Document<R> {
         None
     }
 
+    fn carry_over(operation: &Self::Op, before: &Self, after: &Self) -> Option<Self::Op> {
+        Document::carry_over(operation, before, after)
+    }
+
     fn session_state(&self) -> Vec<u8> {
         Document::session_state(self)
     }

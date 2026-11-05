@@ -11,7 +11,7 @@ use be_block_session::{Lease, Resume};
 use be_block_store::Hash;
 use be_sdk_type_api::{
     Change, Description, EditorId, Endpoint, Journal, JournalBase, Opening, PublishOutcome,
-    Recipients, SessionTag, Status,
+    Recipients, SessionTag, Status, UndoState,
     embed::{exports::replicas::Replica, host::Call},
     ops::{Backlog, Connection, Incoming, OpId, Outcome, Outlets, Reply, Side, guest::Executor},
 };
@@ -52,6 +52,7 @@ mod a_replacement_keeps_a_followers_unconfirmed_edits_in_history;
 mod a_replacement_made_while_the_owner_is_gone_reaches_every_peer;
 mod a_replacement_made_while_the_owner_is_gone_reaches_the_owner_that_takes_over;
 mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
+mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
 mod an_abandoned_lease_is_claimed;
 mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
@@ -241,6 +242,12 @@ fn prose_module() -> Module {
     Module::new(vec![Registration::of::<ProseContent>()])
 }
 
+fn prose_with_undo_module() -> Module {
+    Module::new(vec![
+        Registration::of::<ProseContent>().undo::<ProseContent>(),
+    ])
+}
+
 fn file_module() -> Module {
     Module::new(vec![Registration::of::<FileContent>()])
 }
@@ -331,6 +338,7 @@ fn opening(
         head,
         session,
         journal: None,
+        unreplayable: false,
     }
 }
 
@@ -345,6 +353,7 @@ struct Device {
     tag: SessionTag,
     status: Status,
     history: (bool, bool),
+    undo: UndoState,
     described: Option<Description>,
     wake: Option<u64>,
     released: bool,
@@ -397,6 +406,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     tag: TAG,
                     status: Status::default(),
                     history: (false, false),
+                    undo: UndoState::default(),
                     described: None,
                     wake: None,
                     released: false,
@@ -987,13 +997,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| reply.send(host, &()));
                 self.devices[device].described = Some(description);
             }
-            Call::History {
-                reply,
-                can_undo,
-                can_redo,
-            } => {
+            Call::History { reply, history } => {
                 self.to(device, |host| reply.send(host, &()));
-                self.devices[device].history = (can_undo, can_redo);
+                self.devices[device].history = (history.can_undo, history.can_redo);
+                self.devices[device].undo = history;
             }
             Call::Conflict {
                 reply,

@@ -297,6 +297,7 @@ impl Module {
                 head: opening.head,
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),
+                unreplayable: opening.unreplayable,
                 from_file: kind.from_file,
                 now,
             })
@@ -546,11 +547,9 @@ impl Module {
                 replica,
                 description,
             } => ops::with_parent(replica, || host::described(description)).detach(),
-            Effect::History {
-                replica,
-                can_undo,
-                can_redo,
-            } => ops::with_parent(replica, || host::history(can_undo, can_redo)).detach(),
+            Effect::History { replica, history } => {
+                ops::with_parent(replica, || host::history(history)).detach();
+            }
             Effect::Conflict {
                 replica,
                 ours,

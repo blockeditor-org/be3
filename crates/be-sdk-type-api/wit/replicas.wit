@@ -21,6 +21,9 @@ interface replicas {
         /// The block's journal by this module's build, when its base is
         /// `head`: the replica loads the base and replays it.
         journal: option<journal>,
+        /// The block's journal on `head` holds edits by another build, which
+        /// this module cannot replay: they are lost once it takes the session.
+        unreplayable: bool,
     }
 
     /// The device's one replica of a block. Dropping it closes it: it seals

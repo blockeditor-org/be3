@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 mod byte_string;
+mod carry;
 mod field;
 mod grid;
 mod history;
