@@ -41,7 +41,7 @@ pub use color::{
     SchemeColors, format_hex, parse_hex,
 };
 pub use drag::DragPoint;
-pub use forward::{Aim, Forwarded, ForwardedInput, Over, Replay, Replayed};
+pub use forward::{Aim, Forwarded, ForwardedInput, Heard, Over, Replay, Replayed};
 pub use image::{CursorImage, Image, ImageFit, ImageId, Thumbhash};
 pub use input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DragGesture, ImeEvent, ImeText, Key,

@@ -268,6 +268,7 @@ fn outside_windows(mut spec: DockSpec) -> DockSpec {
         spec.windows.push(DockSpecWindow {
             key: String::new(),
             rect,
+            placed: None,
             root: Some(DockSpecNode::Pane(DockSpecPane {
                 key: String::new(),
                 entries: vec![DockSpecEntry::Tab(outside.tab)],

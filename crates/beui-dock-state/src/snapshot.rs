@@ -18,6 +18,7 @@ impl DockState {
                 (_, Some(rect)) => spec.windows.push(DockSpecWindow {
                     key: surface.key.clone().unwrap_or_default(),
                     rect,
+                    placed: surface.placed.clone(),
                     root: Some(root),
                 }),
                 (_, None) => {}
@@ -126,6 +127,7 @@ impl DockState {
                 id,
                 root,
                 window: Some(super::framed(window.rect)),
+                placed: window.placed.clone(),
                 key: named(&window.key),
             });
         }

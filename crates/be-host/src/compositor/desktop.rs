@@ -44,6 +44,8 @@ pub(crate) struct FloatedKey {
 pub(crate) struct Floated {
     pub(crate) key: FloatedKey,
     pub(crate) rect: Rect,
+    /// Where the window was last put, which keeping it in the work areas leaves alone.
+    pub(crate) wanted: Rect,
     pub(crate) panel: Option<Panel>,
     pub(crate) anchor: View,
     pub(crate) parent: Option<ViewId>,
@@ -79,7 +81,7 @@ impl Floated {
     pub(crate) fn placement(&self) -> Option<String> {
         match &self.panel {
             Some(panel) => panel.placed.clone(),
-            None => Some(be_sdk_window_stack::placement(self.rect.min)),
+            None => Some(be_sdk_window_stack::placement(self.wanted.min)),
         }
     }
 }
@@ -94,6 +96,15 @@ impl Stacked for Floated {
     }
 
     fn set_rect(&mut self, rect: Rect) {
+        self.rect = rect;
+        self.wanted = rect;
+    }
+
+    fn wanted(&self) -> Rect {
+        self.wanted
+    }
+
+    fn show_at(&mut self, rect: Rect) {
         self.rect = rect;
     }
 
@@ -246,9 +257,13 @@ fn keep_in_work_areas(
 ) -> bool {
     let moving = moving.and_then(|key| windows.iter().position(|window| window.key == *key));
     be_sdk_window_stack::keep_in_work_areas(windows, moving, |window| {
-        let display = displays[be_sdk_window_stack::home(displays, window.rect)?];
-        let work = work_area_on(&window.key.app, window.key.instance, display).unwrap_or(display);
-        Some((display, work))
+        displays
+            .iter()
+            .map(|display| {
+                let work = work_area_on(&window.key.app, window.key.instance, *display);
+                (*display, work.unwrap_or(*display))
+            })
+            .collect()
     })
 }
 
@@ -554,6 +569,7 @@ impl Host<Floated> for Opener<'_> {
                 window: open.view,
             },
             rect,
+            wanted: rect,
             panel,
             anchor,
             parent: opener.map(|opener| opener.key.window),
@@ -633,7 +649,7 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
                 .iter_mut()
                 .find(|window| key.with(|key| window.key == *key))
             {
-                window.rect = Rect::from_min_size(origin, window.rect.size());
+                window.set_rect(Rect::from_min_size(origin, window.rect.size()));
             }
         });
     };
@@ -729,7 +745,7 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
 fn carry_from(key: &FloatedKey, by: Vec2) {
     floated_signal().update(|held| {
         if let Some(window) = held.iter_mut().find(|window| window.key == *key) {
-            window.rect = window.rect.translate(by);
+            window.set_rect(window.rect.translate(by));
         }
     });
     gesture_signal().update(|gesture| {

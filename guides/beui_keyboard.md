@@ -188,6 +188,10 @@ focus, interception and the lock apply to both by one set of rules.
 raw `Input` a platform would push (positions relative to the catcher over its
 zoom, `PointersCancelled` for a press that ended unreleased); the app host
 fills its `InputBatch` with it, so an app's runner sees what a window's does.
+An app has a `Replay` per view but its runner keeps one set of modifiers, so
+the app's replays share one `Heard`: modifiers go out with a press or key only
+when they differ from what the app last heard through any view, and always
+after a view lost the keyboard, since the runner lets go of them then.
 
 An event goes through, in order:
 

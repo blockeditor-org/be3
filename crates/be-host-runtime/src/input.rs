@@ -58,13 +58,21 @@ fn read_path(path: &std::path::Path) -> Option<Vec<u8>> {
     std::fs::read(path).ok()
 }
 
-#[derive(Default)]
 pub(super) struct InputForwarder {
     replay: Replay,
     started: bool,
 }
 
 impl InputForwarder {
+    /// `heard` is what modifiers the app last heard, which every view of the app shares: the app
+    /// keeps one set of modifiers for all its views.
+    pub(super) fn new(heard: beui::Heard) -> Self {
+        Self {
+            replay: Replay::hearing(heard),
+            started: false,
+        }
+    }
+
     pub(super) fn focused(&self) -> bool {
         self.replay.focused()
     }
