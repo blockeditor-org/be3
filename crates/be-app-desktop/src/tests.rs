@@ -12,9 +12,9 @@ use be_sdk_beui::{
     IncomingNotification, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, MediaLevel,
     MediaLevels, MediaRequest, MediaWatch, MenuAsk, NotificationInbox, NotificationRequest,
     NotificationSignal, NotificationsWatch, OwnedEditor, Picture, PlayerCommand, PowerAction,
-    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, SessionEnd,
-    WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowKind,
-    WindowOrigin, WindowsWatch,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, ScreenEdge,
+    ScreenEdgeState, ScreenEdgesWatch, ScreenSide, SessionEnd, WifiLink, WifiNetwork, WifiRequest,
+    WifiSecurity, WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowsWatch,
 };
 
 use be_sdk_beui::be_block::{EditorView, EditorViewContent};
@@ -26,6 +26,7 @@ use uuid::Uuid;
 use crate::root::DesktopRoot;
 use crate::root::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
+mod a_band_over_a_full_screen_window_comes_out_only_for_a_deliberate_push;
 mod a_bar_menu_and_its_submenu_fit_the_work_area_of_a_short_window;
 mod a_bar_moved_on_one_display_stays_put_on_the_others;
 mod a_bar_panel_opens_just_past_its_bar_on_any_edge;
@@ -42,6 +43,7 @@ mod a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from;
 mod a_display_keeps_its_own_bars_when_the_displays_change_places;
 mod a_display_plugged_in_later_starts_from_the_first_displays_bars;
 mod a_dock_bar_of_the_desktops_dock_spans_it_beneath_its_windows;
+mod a_finger_swiping_in_from_a_hidden_bands_edge_brings_it_out;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_floating_bar_dragged_by_its_grip_follows_to_the_end_and_lands_where_let_go;
 mod a_fullscreen_window_covers_the_bars;
@@ -102,6 +104,7 @@ mod alt_f4_closes_the_focused_window_its_focused_dialog_or_a_block_window;
 mod alt_tab_brings_forward_only_the_window_it_ends_on;
 mod alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
+mod an_auto_hidden_band_comes_out_past_half_a_push_and_goes_once_the_pointer_leaves;
 mod arrow_keys_walk_the_status_bar_item_by_item;
 mod bars_docked_down_the_left_lay_their_parts_out_down_it;
 mod bars_of_other_displays_that_cannot_be_read_are_kept_until_reset;
@@ -120,6 +123,7 @@ mod quick_settings_offers_the_keyboard_rotation_and_refresh_the_screen_has;
 mod reopening_the_apps_panel_highlights_its_first_program_again;
 mod super_arrows_snap_maximize_and_restore_the_focused_window;
 mod super_backtick_switches_between_one_programs_windows;
+mod super_brings_out_an_auto_hidden_apps_bar_with_its_panel;
 mod super_d_hides_every_window_and_brings_them_back;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars;
@@ -164,6 +168,10 @@ mod windows_that_close_as_the_session_ends_are_kept;
 mod windows_that_closed_before_a_cancel_come_back_as_placeholders;
 mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 
+const SCREEN: Rect = Rect {
+    min: Pos2::new(0.0, 0.0),
+    max: Pos2::new(800.0, 600.0),
+};
 const PROGRAMS_BAR: u64 = 0;
 const WINDOWS_BAR: u64 = 1;
 const STATUS_BAR: u64 = 2;
@@ -740,6 +748,36 @@ impl Fixture {
             .and_then(|state| state.refs.first().copied())
     }
 
+    /// Offers the screen edges watch on one 800 by 600 display and auto-hides the bottom band.
+    fn auto_hidden(&mut self) -> Rect {
+        self.report_screens(vec![monitor("main", SCREEN, 1.0)]);
+        self.edges(&[]);
+        let band = self.test.rect_of("dock.bar.band.bottom");
+        self.bar_menu(STATUS_BAR, &["auto-hide"]);
+        self.edges(&[bottom_edge(0.0, false)]);
+        band
+    }
+
+    fn edges(&mut self, states: &[ScreenEdgeState]) {
+        self.test.set_watched::<ScreenEdgesWatch>(&states.to_vec());
+        self.settle();
+    }
+
+    fn sent_edges(&mut self) -> Vec<ScreenEdge> {
+        self.test
+            .take_host_calls(be_sdk_test::requested::set_edges)
+            .pop()
+            .expect("the desktop told the host its edges")
+    }
+
+    /// Paints frame after frame for about `millis` of the frame clock, a frame interval each.
+    fn wait(&mut self, millis: u64) {
+        for _ in 0..(millis * 3 / 50).max(1) {
+            self.test.run();
+        }
+        self.settle();
+    }
+
     fn bar_menu(&mut self, bar: u64, rows: &[&str]) {
         self.test
             .click(&format!("dock.bar.{}.grip", SHELL_BARS + bar));
@@ -1157,5 +1195,17 @@ fn tray_click(fixture: &Fixture, id: &str) -> be_sdk_beui::TrayClick {
         item: id.to_owned(),
         x: at.x.round() as i32,
         y: at.y.round() as i32,
+    }
+}
+
+fn bottom_edge(pushed: f32, near: bool) -> ScreenEdgeState {
+    ScreenEdgeState {
+        id: 1,
+        pushed,
+        near,
+        pull: None,
+        pulls: 0,
+        pulled: 0.0,
+        taps_away: 0,
     }
 }

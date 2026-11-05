@@ -42,6 +42,8 @@ A compositor in another language could implement it from the WIT alone.
   `windows` and `programs` only under `--desktop`); on Windows, under `--desktop` only, `windows`,
   `programs` and `power`. Elsewhere every watch answers `unsupported` and calls are dropped.
 - Each watch is published as soon as the service behind it runs, even empty.
+- Only the shell watches windows, contacts and screen edges, and only it calls `windows` and
+  `set-edges` (`shell_only` in `published.rs`): screen edges wall the pointer.
 - The desktop app shows a control only while the host offers what backs it
   (`editor.offered::<W>()`), so an unsupported interface simply hides its controls. Settings does
   the same at a finer grain: `InputReachWatch` says where keymap, key repeat and middle-click paste
@@ -154,7 +156,14 @@ side along their bottom edges. `DisplaysWatch` gives each `HostDisplay` its `rec
 - A display's work area is the display less its bars' bands (`DockHostLayout::area`). The shell
   reports it per view (`frame-report.work-area`), and windows are kept wholly inside it on edges a
   band insets, except a `WindowLevel::Fullscreen` window (the dock's fullscreen), which covers the
-  whole display; a window on no display (unplugged) moves to the nearest.
+  whole display; a window on no display (unplugged) moves to the nearest. Once let go, a window
+  also keeps the top of its bar (`be_sdk_window_stack::KEPT`) on some display's work area
+  (`grabbable`), so it can always be grabbed again; the rest of it may hang off any edge.
+  Keeping only changes where a window shows (`Stacked::show_at`), never where it is wanted
+  (`Stacked::wanted`, set by the user's and the app's moves): a window pushed in by a smaller or
+  unplugged display goes back once there is room. Its `host-place` is the wanted place, which
+  the dock saves with the window (`dock-window.placed`) and reopens it at, so a layout saved
+  meanwhile keeps it too.
 - A window is drawn on the display holding most of it, at that display's raster scale; while it is
   moved, on every display it overlaps.
 - The shell's view draws its surface, every child it places (the tabs docked in its own dock)

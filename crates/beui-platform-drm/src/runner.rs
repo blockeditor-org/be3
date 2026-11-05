@@ -54,6 +54,7 @@ use be_host_dmabuf::{DEVICE_EXTENSIONS, Vulkan, adapter_for};
 
 use crate::display::{DisplayConfig, DisplayControl, DisplayUse};
 use crate::displays::{Display, Displays};
+use crate::edges::ScreenEdges;
 use crate::epaper::{Change, Epaper, Panel};
 use crate::escape::{Escape, FINGERS as ESCAPE_FINGERS, HOLD as ESCAPE_HOLD};
 use crate::flips::{Flip, Flips};
@@ -63,7 +64,7 @@ use crate::input::{
     RawInput, SharedFilter,
 };
 use crate::keyboard::Keyboard;
-use crate::layout::{arrange, clamp, mirrored_scale, moved};
+use crate::layout::{arrange, clamp, mirrored_scale};
 use crate::output::{Buffers, Output, connected, wait_for};
 use crate::outputs::{DisplayRenderer, Outputs};
 use crate::pacing::{Lane, Pacer, Wait};
@@ -109,6 +110,7 @@ pub struct Session {
     platform: Seat,
     outputs: Rc<RefCell<Outputs>>,
     displays: Displays,
+    edges: ScreenEdges,
     windows: Windows,
     forced_scale: Option<f32>,
     zoom: f32,
@@ -233,6 +235,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     displays.take_screenshots_with(move || pictured.upgrade()?.try_borrow().ok()?.screenshot());
     let mut setup = Setup::new(waker.clone());
     setup.provide(displays.clone());
+    let edges = ScreenEdges::default();
+    setup.provide(edges.clone());
     setup.provide(Loop(handle.clone()));
     setup.provide(control.clone());
     setup.provide(display_control.clone());
@@ -297,6 +301,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         platform,
         outputs,
         displays,
+        edges,
         windows: Windows {
             hosted,
             ..Windows::default()
@@ -1137,9 +1142,17 @@ impl Session {
     }
 
     fn place_pointer(&mut self, pointer: Pos2) {
+        self.edges.change(|edges| edges.placed(pointer));
         let mut outputs = self.outputs.borrow_mut();
         outputs.pointer = pointer;
         outputs.moved_pointer();
+    }
+
+    /// Where relative motion takes the pointer, stopped by the screen edges' walls.
+    fn walled(&mut self, delta: beui::Vec2, time: u64) -> Pos2 {
+        let (pointer, rects) = (self.pointer(), self.rects());
+        self.edges
+            .change(|edges| edges.moved(pointer, delta, time, &rects))
     }
 
     fn gated(&mut self, event: &InputEvent<LibinputInputBackend>) -> bool {
@@ -1156,7 +1169,8 @@ impl Session {
             match event {
                 InputEvent::PointerMotion { event } if !self.platform.locked => {
                     let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
-                    self.place_pointer(moved(self.pointer(), delta, &self.rects()));
+                    let pointer = self.walled(delta, event.time());
+                    self.place_pointer(pointer);
                 }
                 InputEvent::PointerMotionAbsolute { event } => {
                     let position = self.absolute_position(event);
@@ -1333,7 +1347,8 @@ impl Session {
                     return;
                 }
                 let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
-                self.point(moved(self.pointer(), delta, &self.rects()));
+                let pointer = self.walled(delta, event.time());
+                self.point(pointer);
             }
             InputEvent::GestureSwipeBegin { event } => {
                 self.touchpad(TouchpadGesture::SwipeBegan(event.fingers()));
@@ -1412,18 +1427,40 @@ impl Session {
             InputEvent::TouchDown { event } => {
                 self.escape_touch(event.slot(), true);
                 let position = self.touch_position(&event);
+                let finger: i32 = event.slot().into();
+                if self
+                    .edges
+                    .change(|edges| edges.touch_down(finger, position))
+                {
+                    return;
+                }
                 self.touch(event.slot(), TouchPhase::Start, position);
             }
             InputEvent::TouchMotion { event } => {
                 let position = self.touch_position(&event);
+                let finger: i32 = event.slot().into();
+                if self
+                    .edges
+                    .change(|edges| edges.touch_moved(finger, position))
+                {
+                    return;
+                }
                 self.touch(event.slot(), TouchPhase::Move, position);
             }
             InputEvent::TouchUp { event } => {
                 self.escape_touch(event.slot(), false);
+                let finger: i32 = event.slot().into();
+                if self.edges.change(|edges| edges.touch_up(finger, false)) {
+                    return;
+                }
                 self.touch(event.slot(), TouchPhase::End, self.pointer());
             }
             InputEvent::TouchCancel { event } => {
                 self.escape_touch(event.slot(), false);
+                let finger: i32 = event.slot().into();
+                if self.edges.change(|edges| edges.touch_up(finger, true)) {
+                    return;
+                }
                 self.touch(event.slot(), TouchPhase::Cancel, self.pointer());
             }
             InputEvent::TabletToolProximity { event } => {

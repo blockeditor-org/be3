@@ -4,8 +4,8 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui_dock_state::{
-    DockBarPlacement, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode, DockSpecPane,
-    DockSpecWindow, DockState, TabId, joined_host, joined_key, joined_prefix,
+    DockBarPlacement, DockEdge, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
+    DockSpecPane, DockSpecWindow, DockState, TabId, joined_host, joined_key, joined_prefix,
 };
 use beui_macros::{component, view};
 use beui_view::primitives::*;
@@ -397,6 +397,10 @@ impl<K: DockKey> DockingLayout<K> {
         self.state.with(|state| state.is_bar_hidden(bar))
     }
 
+    pub fn is_edge_auto_hidden(&self, edge: DockEdge) -> bool {
+        self.state.with(|state| state.is_edge_auto_hidden(edge))
+    }
+
     pub fn hide_bar(&self, key: &K) {
         self.set_bar_hidden(key, true);
     }
@@ -753,6 +757,7 @@ impl<K: DockKey> DockingLayout<K> {
                 } => spec.windows.push(DockSpecWindow {
                     key: key.clone(),
                     rect: *rect,
+                    placed: None,
                     root: self.root(children, found),
                 }),
                 NodeKind::Dialog { .. } | NodeKind::Bar { .. } => {}
@@ -955,6 +960,7 @@ impl<K: DockKey> DockingLayout<K> {
             found.windows.push(DockSpecWindow {
                 key: format!("{}{}", joined_prefix(host), window.key),
                 rect: window.rect,
+                placed: window.placed.clone(),
                 root,
             });
         }

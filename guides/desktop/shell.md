@@ -32,7 +32,21 @@ Things that place relative to the bars:
 - Toasts gather in the corner of the windows' area nearest the Status bar (`bar::toast_corner`,
   `bar::clear_of_status`). The level display (`desktop.osd.{n}`) is centred low on each display.
 - A fullscreen window covers its display's bars (`DockHostLayout::set_covered` for further
-  displays).
+  displays), which then come out over it as hidden bands do.
+
+**Hidden bands** (`root/edges.rs`). A docked band's grip menu offers Auto-hide (every dock of the
+desktop calls `offer_hidden_bands`); an auto-hidden band, and every band over a fullscreen window,
+hides (guides/beui/docking.md, hidden bands). `HiddenBands` reports each one's edge of its display
+to the host in desktop points (`desktop::displays::set_edges`), which walls the pointer there, even
+between displays, and reports pushes and swipes (`ScreenEdgesWatch`; guides/beui/platforms.md,
+screen edges). Pushed distance brings the band out as far, draining once the pushing stops; past
+half its thickness it opens all the way and the wall lifts. Over a fullscreen window
+(`deliberate`) a push first has to cover the band's whole thickness. A swipe follows the finger and
+opens past half when let go. A band opened by the pointer goes once the pointer has been out of the
+band and a thickness around it for `GOES_AFTER`; one opened by a finger goes when a finger lands
+elsewhere. A bar's open panel (`BarPopup`) holds its band out, so Super opens Apps from an
+auto-hidden Apps bar. Without the watch (a windowed desktop) nothing reveals a band but a held
+panel.
 
 **Displays.** Bar ids are `bar::Bars::of(display)` (be-sdk-shell's `SHELL_BARS + 3 * display`).
 Display 0's bars are dock bars of the main dock. Each further display's `Display` view holds a

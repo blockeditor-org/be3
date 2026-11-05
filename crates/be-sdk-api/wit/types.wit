@@ -915,10 +915,14 @@ interface types {
     }
 
     /// A floating window of the dock, in the points of the view that
-    /// declares it; its root, if any, follows it one level deeper.
+    /// declares it; its root, if any, follows it one level deeper. `placed`
+    /// is, for a window the host shows on its own, the `host-place` it last
+    /// reported: where it was put, which `rect` may not be while the host
+    /// keeps the window on smaller displays, and where it opens again.
     record dock-window {
         key: string,
         rect: rect,
+        placed: option<string>,
     }
 
     variant dock-item-kind {
@@ -1102,6 +1106,8 @@ interface types {
     /// A dock as its holder holds it, which it hands back to `restore`.
     /// `unlocked` names the areas and pinned groups the user unlocked: their
     /// tabs may leave and, for an area, other tabs may come in.
+    /// `auto-hidden` names the edges whose band of the dock's own bars hides
+    /// until it is revealed, where the dock offers that.
     record dock-layout {
         tree: dock-tree,
         homes: list<dock-home>,
@@ -1109,6 +1115,7 @@ interface types {
         outside: list<dock-outside>,
         unlocked: list<dock-place>,
         compact: list<dock-compact>,
+        auto-hidden: list<dock-edge>,
     }
 
     /// How a compact dock arranges a tree with a bare stage pane, by the

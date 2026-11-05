@@ -245,3 +245,12 @@ window of the display under the pointer, in points, and a press focuses that
 window. `Displays::screenshot` reads every desktop display's last drawn picture
 back (`Screen::capture`) and joins them into one (`screenshot.rs`). Tests make a `Displays` of their own with `Displays::new` and change
 it with `set`.
+
+**Screen edges** (`edges.rs`, a `ScreenEdges` handle through `Setup`): the program sets edges of
+displays (`ScreenEdges::set`) and hears `EdgeState`s back (`watch`). A `wall` edge stops relative
+pointer motion even where another display begins, and counts the pointer's push on past it,
+except the motion that brought the pointer there (and, for a `deliberate` edge, anything until it
+has rested there a moment); a finger landing just inside it is the edge's (`pull`, `pulls`) and
+never reaches a window. An open edge reports whether the pointer is in its `keep` (`near`) and
+counts fingers landing outside it (`taps_away`). Absolute pointers (tablets) and a locked pointer
+pass every wall. The logic is plain (`Edges`), tested in `edges/tests/`.

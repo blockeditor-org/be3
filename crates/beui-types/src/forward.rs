@@ -1,3 +1,5 @@
+use std::cell::Cell;
+use std::rc::Rc;
 use std::time::Instant;
 
 use be_lib_geometry::{Pos2, Rect};
@@ -22,6 +24,10 @@ pub enum Forwarded {
     },
     Left,
     Focus(bool),
+    /// A key pressed while this catcher had the focus that something else took: an action that
+    /// captures it, such as the desktop's Alt+Tab. The catcher heard the keys held before it, so a
+    /// program would take their release as a lone tap (Alt alone opens Firefox's menu bar).
+    KeyTaken,
     Input(Event),
 }
 
@@ -75,15 +81,49 @@ pub enum Aim {
     Away,
 }
 
+/// What modifiers a program last heard, shared by every `Replay` that feeds it: a program fed
+/// through several sinks (an app's views) keeps one set of modifiers for all of them. It starts
+/// as none held, as a program does.
+#[derive(Clone, Debug)]
+pub struct Heard(Rc<Cell<Option<Modifiers>>>);
+
+impl Default for Heard {
+    fn default() -> Self {
+        Self(Rc::new(Cell::new(Some(Modifiers::NONE))))
+    }
+}
+
+impl Heard {
+    /// Forgets what the program heard, so the next press or key sends its modifiers again: a
+    /// program that loses the keyboard lets go of its modifiers, and a restarted one starts over.
+    pub fn forget(&self) {
+        self.0.set(None);
+    }
+
+    fn tell(&self, modifiers: Modifiers) -> bool {
+        self.0.replace(Some(modifiers)) != Some(modifiers)
+    }
+}
+
+/// Turns what one forwarding sink was given into the inputs of the program behind it. Modifiers
+/// are sent only when they change from what the program last heard (`Heard`).
 #[derive(Default)]
 pub struct Replay {
     focused: bool,
-    modifiers: Modifiers,
+    heard: Heard,
     pressed: u32,
     away: bool,
 }
 
 impl Replay {
+    /// A replay sharing with the program's other sinks what modifiers it heard.
+    pub fn hearing(heard: Heard) -> Self {
+        Self {
+            heard,
+            ..Self::default()
+        }
+    }
+
     pub fn focused(&self) -> bool {
         self.focused
     }
@@ -135,9 +175,14 @@ impl Replay {
                     }
                 }
                 Forwarded::Left => out.push(Input::PointerLeft.into()),
+                // An app's runner hears intercepted keys itself (`Input::InterceptedKey`).
+                Forwarded::KeyTaken => {}
                 Forwarded::Focus(focused) | Forwarded::Input(Event::Focus(focused)) => {
                     if self.focused != *focused {
                         self.focused = *focused;
+                        if !focused {
+                            self.heard.forget();
+                        }
                         out.push(Input::Focus(*focused).into());
                     }
                 }
@@ -273,8 +318,7 @@ impl Replay {
     }
 
     fn modifiers(&mut self, modifiers: Modifiers, out: &mut Vec<Replayed>) {
-        if self.modifiers != modifiers {
-            self.modifiers = modifiers;
+        if self.heard.tell(modifiers) {
             out.push(Input::Modifiers(modifiers).into());
         }
     }

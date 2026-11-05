@@ -511,7 +511,8 @@ impl DockLayout {
         collection(self.unlocked.len())?;
         self.unlocked.iter().try_for_each(DockPlace::validate)?;
         collection(self.compact.len())?;
-        self.compact.iter().try_for_each(DockCompact::validate)
+        self.compact.iter().try_for_each(DockCompact::validate)?;
+        collection(self.auto_hidden.len())
     }
 }
 

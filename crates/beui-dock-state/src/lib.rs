@@ -403,6 +403,8 @@ struct Surface {
     id: SurfaceId,
     root: Node,
     window: Option<Rect>,
+    /// Where the host last put this window (`DockSpecWindow::placed`).
+    placed: Option<String>,
     key: Option<String>,
 }
 
@@ -643,6 +645,7 @@ pub struct DockState {
     see_through: Vec<TabId>,
     compact: Vec<DockCompact>,
     hidden: Vec<SurfaceId>,
+    auto_hidden: Vec<DockEdge>,
 }
 
 impl Default for DockState {
@@ -673,6 +676,7 @@ impl DockState {
             see_through: Vec::new(),
             compact: Vec::new(),
             hidden: Vec::new(),
+            auto_hidden: Vec::new(),
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
         let focus = leaf.id;
@@ -681,6 +685,7 @@ impl DockState {
             id,
             root: Node::Leaf(leaf),
             window: None,
+            placed: None,
             key: None,
         });
         state.focus = Some(focus);
@@ -790,6 +795,19 @@ impl DockState {
         self.surface(surface).and_then(|surface| surface.window)
     }
 
+    /// Where the host last put this window, to open it there again (`DockSpecWindow::placed`).
+    pub fn window_placed(&self, surface: SurfaceId) -> Option<&str> {
+        self.surface(surface)?.placed.as_deref()
+    }
+
+    pub fn set_window_placed(&mut self, surface: SurfaceId, placed: String) {
+        if let Some(surface) = self.surface_mut(surface)
+            && surface.window.is_some()
+        {
+            surface.placed = Some(placed);
+        }
+    }
+
     pub fn set_window_rect(&mut self, surface: SurfaceId, rect: Rect) {
         if let Some(surface) = self.surface_mut(surface)
             && surface.window.is_some()
@@ -811,6 +829,7 @@ impl DockState {
             id,
             root: Node::Leaf(leaf),
             window: Some(framed(rect)),
+            placed: None,
             key: None,
         });
         self.focus = Some(focus);

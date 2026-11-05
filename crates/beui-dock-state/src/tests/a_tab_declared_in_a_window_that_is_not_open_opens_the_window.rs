@@ -8,6 +8,7 @@ fn a_tab_declared_in_a_window_that_is_not_open_opens_the_window() {
     later.windows.push(DockSpecWindow {
         key: "inspector".to_owned(),
         rect: Rect::from_min_size(Pos2::new(40.0, 30.0), Vec2::new(320.0, 240.0)),
+        placed: None,
         root: Some(pane("inspector", &[2])),
     });
     state.reconcile(&later);

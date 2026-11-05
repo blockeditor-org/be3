@@ -53,6 +53,14 @@ pub(crate) enum Seen {
 
 pub(crate) struct Sync;
 
+/// What a `wl_keyboard` heard, in order: `Enter` with the keys it says are held.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Heard {
+    Enter(Vec<u32>),
+    Leave,
+    Key(u32, bool),
+}
+
 #[derive(Default)]
 pub(crate) struct Received {
     pub(crate) globals: Vec<(u32, String, u32)>,
@@ -73,6 +81,7 @@ pub(crate) struct Received {
     pub(crate) serial: Option<u32>,
     pub(crate) seen: Vec<Seen>,
     pub(crate) keys: Vec<(u32, bool)>,
+    pub(crate) keyboard: Vec<Heard>,
     pub(crate) depressed: u32,
     pub(crate) group: u32,
     pub(crate) leveled: Vec<(u32, u32)>,
@@ -712,11 +721,17 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Received {
         _: &QueueHandle<Self>,
     ) {
         match event {
-            wl_keyboard::Event::Enter { surface, .. } => {
+            wl_keyboard::Event::Enter { surface, keys, .. } => {
+                let held = keys
+                    .chunks_exact(4)
+                    .map(|key| u32::from_ne_bytes([key[0], key[1], key[2], key[3]]))
+                    .collect();
+                state.keyboard.push(Heard::Enter(held));
                 state.keyboard_entered = true;
                 state.keyboard_surface = Some(surface);
             }
             wl_keyboard::Event::Leave { .. } => {
+                state.keyboard.push(Heard::Leave);
                 state.keyboard_entered = false;
                 state.keyboard_surface = None;
             }
@@ -728,6 +743,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Received {
             } => {
                 let pressed = pressed == wl_keyboard::KeyState::Pressed;
                 state.keys.push((key, pressed));
+                state.keyboard.push(Heard::Key(key, pressed));
                 if pressed {
                     state.leveled.push((key, state.depressed));
                     state.serial = Some(serial);

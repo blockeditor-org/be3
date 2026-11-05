@@ -21,6 +21,14 @@ impl Stacked for Shown {
         self.rect = rect;
     }
 
+    fn wanted(&self) -> Rect {
+        self.rect
+    }
+
+    fn show_at(&mut self, rect: Rect) {
+        self.rect = rect;
+    }
+
     fn opened_over(&self, other: &Self) -> bool {
         self.parent == Some(other.view)
     }

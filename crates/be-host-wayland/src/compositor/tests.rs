@@ -24,6 +24,7 @@ mod a_focused_window_whose_view_moves_keeps_the_keyboard;
 mod a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
+mod a_key_an_action_takes_from_a_window_makes_the_keyboard_leave_and_enter_it_again;
 mod a_launched_program_is_given_a_token_that_brings_a_window_forward;
 mod a_locked_pointer_holds_still_and_moves_by_the_platforms_raw_motion_until_the_host_loses_focus;
 mod a_locked_session_gives_no_window_the_keyboard_or_the_pointer;
@@ -126,7 +127,7 @@ use beui::styled::*;
 use beui::{Input, Key, Keystroke, NodeId, native::FrameOutput, pos2};
 use beui_host::native::testing::Stepped;
 
-use crate::test_client::{TestClient, TestWindow};
+use crate::test_client::{Heard, TestClient, TestWindow};
 use crate::view::WindowView;
 use beui::{LayerLevel, Placement};
 use beui_host::native::build;
@@ -211,6 +212,13 @@ fn Shown(windows: Windows) -> NodeId {
             });
         })
         .shortcut(beui::reactive::Chord::logo(Key::F))
+        .at(KeyAt::Window)
+        .capture()
+        .register();
+        beui::reactive::Action::new("test.switch", "Switch", || {
+            SWITCHED.with(|ran| ran.set(ran.get() + 1))
+        })
+        .shortcut(beui::reactive::Chord::key(Key::Tab).alt())
         .at(KeyAt::Window)
         .capture()
         .register();
@@ -603,12 +611,15 @@ const KEY_F: u32 = 33;
 const KEY_G: u32 = 34;
 const KEY_ESC: u32 = 1;
 const KEY_LEFTMETA: u32 = 125;
+const KEY_LEFTALT: u32 = 56;
+const KEY_TAB: u32 = 15;
 
 thread_local! {
     static LOCK: std::cell::RefCell<Option<Signal<bool>>> = const { std::cell::RefCell::new(None) };
     static DIALOG: std::cell::RefCell<Option<Signal<bool>>> = const { std::cell::RefCell::new(None) };
     static MOVES: std::cell::RefCell<Option<Signal<u32>>> = const { std::cell::RefCell::new(None) };
     static GLOBAL_RAN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    static SWITCHED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 

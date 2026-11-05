@@ -195,6 +195,7 @@ impl Mapping<'_> {
                     })
                 })
                 .collect(),
+            auto_hidden: layout.auto_hidden.clone(),
         }
     }
 }
@@ -538,6 +539,7 @@ impl DockHosted {
                 outside: Vec::new(),
                 unlocked: Vec::new(),
                 compact: Vec::new(),
+                auto_hidden: Vec::new(),
             },
             tabs: Vec::new(),
             focused: None,

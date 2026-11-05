@@ -986,6 +986,7 @@ impl HostCore {
         self.run_media();
         self.run_wifi();
         display::run_epaper();
+        display::run_edges();
         input::run_layout_requests();
     }
 

@@ -188,6 +188,7 @@ fn hosted_tabs(tabs: &[u64], visible: &[u64], focused: Option<u64>) -> be_sdk_ap
                 outside: Vec::new(),
                 unlocked: Vec::new(),
                 compact: Vec::new(),
+                auto_hidden: Vec::new(),
             },
             tabs: own(tabs),
             focused: focused.map(DockTabPath::own),

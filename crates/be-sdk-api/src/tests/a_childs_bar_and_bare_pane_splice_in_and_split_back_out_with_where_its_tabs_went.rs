@@ -61,6 +61,7 @@ fn a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_w
             homes: Vec::new(),
             unlocked: Vec::new(),
             compact: Vec::new(),
+            auto_hidden: Vec::new(),
             bars: vec![DockPlacedBar {
                 bar: tools.clone(),
                 owner: Some(side.clone()),

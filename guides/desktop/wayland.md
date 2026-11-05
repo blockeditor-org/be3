@@ -125,6 +125,10 @@ Buttons beyond beui's five are `PointerButton::Other` with their evdev code
   the pointer and its window the keyboard. A lock sets `pointer_locked` on the view, so the platform
   hides and holds the cursor (guides/beui/components.md, holding the pointer) and raw motion arrives as relative motion.
   `zwp_pointer_gestures_v1` carries touchpad gestures.
+- **Keys taken from a window**: a press a capturing action takes (Alt+Tab) arrives as
+  `Forwarded::KeyTaken`, and while the window holds keys `State::interrupt_keys` makes its keyboard
+  leave and enter again, as an X11 grab would, so their release is no lone tap (Alt alone shows
+  Firefox's menu bar).
 - **Shortcuts inhibitor** (`shortcuts_inhibit.rs`): while its window has the keyboard, the view
   sets `inhibits_shortcuts` and beui keeps window listeners from it (guides/beui_keyboard.md).
   Super+L always locks, and Super+Escape (`register_restore_shortcuts`) takes the shortcuts back and

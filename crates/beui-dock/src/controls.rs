@@ -296,6 +296,7 @@ pub trait DockBarDriver {
     fn moving(&self, bar: TabId) -> bool;
     fn place(&self, bar: TabId, placement: DockBarPlacement);
     fn pop_out(&self, bar: TabId);
+    fn hold_band(&self, bar: TabId, held: bool);
     fn begin_move(&self, bar: TabId, press: PointerPress);
 }
 
@@ -352,7 +353,7 @@ impl DockBarControl {
                 request,
                 last: create_signal(None),
             },
-            menu: bar_menu(placement, place, hide),
+            menu: bar_menu(placement, place, hide, None),
             surface: NodeRef::new(),
         }
     }
@@ -426,6 +427,14 @@ impl DockBarControl {
 
     pub fn direction(&self) -> Direction {
         self.placement().direction()
+    }
+
+    /// Keeps the bar's band out while `held`, where the band hides until revealed (an open panel
+    /// of the bar's, so it does not slide away from under it). Nothing for a hosted bar.
+    pub fn hold_band(&self, held: bool) {
+        if let Some(driver) = self.driver() {
+            driver.hold_band(self.bar, held);
+        }
     }
 
     pub fn menu(&self) -> Memo<Vec<MenuNode>> {
@@ -518,10 +527,19 @@ pub fn use_dock_bar() -> Option<DockBarControl> {
     use_context::<DockBarControl>()
 }
 
+/// The grip menu's "Auto-hide": shown while `offered`, checked while `on`.
+#[derive(Clone, Copy)]
+pub struct BarAutoHide {
+    pub offered: Memo<bool>,
+    pub on: Memo<bool>,
+    pub set: Callback<bool>,
+}
+
 pub fn bar_menu(
     placement: Memo<Option<DockBarPlacement>>,
     place: Callback<Option<DockBarPlacement>>,
     hide: Callback<()>,
+    auto_hide: Option<BarAutoHide>,
 ) -> Memo<Vec<MenuNode>> {
     let item = move |target: DockBarPlacement, label: String| {
         let id = format!("dock.bar.{}", target.name());
@@ -586,7 +604,23 @@ pub fn bar_menu(
         "Pop out into a window".to_owned(),
     ));
     nodes.push(MenuNode::Separator);
+    let auto_hidden = auto_hide.map(|auto_hide| {
+        let action = Action::new("dock.bar.auto-hide", "Auto-hide", move || {
+            auto_hide.set.call(!untrack(|| auto_hide.on.get()))
+        })
+        .checked(auto_hide.on)
+        .detached();
+        (auto_hide.offered, MenuNode::action(&action))
+    });
     let hidden = Action::new("dock.bar.hide", "Hide", move || hide.call(())).detached();
     nodes.push(MenuNode::action(&hidden));
-    create_memo(move || nodes.clone())
+    create_memo(move || {
+        let mut shown = nodes.clone();
+        if let Some((offered, item)) = &auto_hidden
+            && offered.get()
+        {
+            shown.insert(shown.len() - 1, item.clone());
+        }
+        shown
+    })
 }

@@ -77,6 +77,7 @@ pub(super) struct Instances {
     early_shows: HashMap<EditorInstanceId, Vec<be_sdk_api::blocks::ShowRequest>>,
     accepted: Vec<be_sdk_api::ops::OpId>,
     relaying: HashSet<EditorInstanceId>,
+    heard: beui::Heard,
 }
 
 struct Mail {
@@ -590,9 +591,9 @@ pub(super) enum DragKind {
 }
 
 impl Screen {
-    fn new(request: ScreenRequest, pass: u64) -> Self {
+    fn new(request: ScreenRequest, pass: u64, heard: &beui::Heard) -> Self {
         Self {
-            input: InputForwarder::default(),
+            input: InputForwarder::new(heard.clone()),
             placement: None,
             request,
             last_seen: pass,
@@ -967,6 +968,7 @@ impl Instances {
             }
         }
         let next_screen = &mut self.next_screen;
+        let heard = &self.heard;
         let screen = entry.screens.entry(shown.id).or_insert_with(|| {
             *next_screen += 1;
             Screen::new(
@@ -985,6 +987,7 @@ impl Instances {
                     fit: false,
                 },
                 pass,
+                heard,
             )
         });
         screen.request.metrics = viewport_metrics(size, visible, scale_factor, scale_factor);
@@ -1473,6 +1476,7 @@ impl Instances {
                         fit: false,
                     },
                     0,
+                    &self.heard,
                 ),
             });
         }
@@ -1904,6 +1908,7 @@ impl Instances {
     }
 
     pub(super) fn reopen(&mut self) {
+        self.heard.forget();
         self.sent_block_types = None;
         self.announced.clear();
         for entry in self.entries.values_mut() {
@@ -3017,6 +3022,7 @@ impl Instances {
                     fit: false,
                 },
                 0,
+                &self.heard,
             ),
         );
     }

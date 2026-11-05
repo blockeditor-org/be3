@@ -9,8 +9,8 @@ pub mod styled;
 
 pub use beui_dock_state::*;
 pub use controls::{
-    DockBarControl, DockBarDriver, DockMenus, DockPaneControl, DockTabControl, DockTabDriver,
-    DockTabMenu, bar_menu, dock_menu, dock_menu_items, dock_shows_through,
+    BarAutoHide, DockBarControl, DockBarDriver, DockMenus, DockPaneControl, DockTabControl,
+    DockTabDriver, DockTabMenu, bar_menu, dock_menu, dock_menu_items, dock_shows_through,
     provide_dock_shows_through, use_dock_bar, use_dock_pane, use_dock_tab,
 };
 pub use declare::{

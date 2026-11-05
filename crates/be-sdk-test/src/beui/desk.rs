@@ -25,6 +25,7 @@ struct Hosted {
     window: ViewId,
     screen: ScreenId,
     rect: Rect,
+    wanted: Rect,
     parent: Option<ViewId>,
     level: WindowLevel,
 }
@@ -124,9 +125,12 @@ impl Desk {
             .gesture
             .and_then(|(window, _)| self.windows.iter().position(|held| held.window == window));
         let displays = &self.displays;
-        be_sdk_window_stack::keep_in_work_areas(&mut self.windows, moving, |held| {
-            let display = owner(displays, held.rect);
-            Some((display.rect, display.work?))
+        be_sdk_window_stack::keep_in_work_areas(&mut self.windows, moving, |_| {
+            displays
+                .iter()
+                .map(|display| Some((display.rect, display.work?)))
+                .collect::<Option<Vec<_>>>()
+                .unwrap_or_default()
         })
     }
 
@@ -248,7 +252,7 @@ impl Desk {
                 metrics: metrics(window.rect.size(), display.scale),
                 frame: None,
                 windows: true,
-                host_place: Some(be_sdk_window_stack::placement(window.rect.min)),
+                host_place: Some(be_sdk_window_stack::placement(window.wanted.min)),
                 origin: Some(window.rect.min),
                 docked: false,
                 anchor_space: Some(AnchorSpace {
@@ -307,6 +311,15 @@ impl Stacked for Hosted {
 
     fn set_rect(&mut self, rect: Rect) {
         self.rect = rect;
+        self.wanted = rect;
+    }
+
+    fn wanted(&self) -> Rect {
+        self.wanted
+    }
+
+    fn show_at(&mut self, rect: Rect) {
+        self.rect = rect;
     }
 
     fn opened_over(&self, other: &Self) -> bool {
@@ -342,6 +355,7 @@ impl Host<Hosted> for Desk {
         if let Some(held) = held {
             return Hosted {
                 rect,
+                wanted: rect,
                 level: open.level,
                 ..held.clone()
             };
@@ -357,6 +371,7 @@ impl Host<Hosted> for Desk {
             window: open.view,
             screen,
             rect,
+            wanted: rect,
             parent: opener.map(|opener| opener.window),
             level: open.level,
         }

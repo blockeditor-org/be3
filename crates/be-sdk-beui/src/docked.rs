@@ -1110,6 +1110,7 @@ fn spec_nodes(spec: &DockSpec, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::Doc
                 window: api::DockWindow {
                     key: window.key.clone(),
                     rect: window.rect,
+                    placed: window.placed.clone(),
                 },
                 root: window
                     .root
@@ -1248,6 +1249,7 @@ fn nodes_spec(nodes: &api::DockNodes, tab: TabOf<'_>) -> DockSpec {
             .map(|window| DockSpecWindow {
                 key: window.window.key.clone(),
                 rect: window.window.rect,
+                placed: window.window.placed.clone(),
                 root: window.root.as_ref().map(|root| api_node(root, tab)),
             })
             .collect(),
@@ -1442,6 +1444,7 @@ fn spec_to_layout(spec: &DockSpec, path: PathOf<'_>) -> api::DockLayout {
                 })
             })
             .collect(),
+        auto_hidden: spec.auto_hidden.iter().copied().map(edge_to_api).collect(),
     }
 }
 
@@ -1522,6 +1525,12 @@ fn layout_to_spec(layout: &api::DockLayout, tab: TabOf<'_>) -> DockSpec {
                     folded: compact.folded,
                 })
             })
+            .collect(),
+        auto_hidden: layout
+            .auto_hidden
+            .iter()
+            .copied()
+            .map(edge_from_api)
             .collect(),
         ..spec
     }

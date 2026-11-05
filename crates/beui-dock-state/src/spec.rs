@@ -4,9 +4,9 @@ use beui_types::Direction;
 use beui_types::{Pos2, Rect};
 
 use super::{
-    Bar, DockBarPlacement, DockCompact, DockHome, DockOutside, DockState, Entry, FLOATING_SIZE,
-    Group, GroupId, Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split, SplitId, SplitSize,
-    Surface, SurfaceId, TabId, Tree,
+    Bar, DockBarPlacement, DockCompact, DockEdge, DockHome, DockOutside, DockState, Entry,
+    FLOATING_SIZE, Group, GroupId, Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split,
+    SplitId, SplitSize, Surface, SurfaceId, TabId, Tree,
 };
 
 const FLOAT_ORIGIN: Pos2 = Pos2::new(64.0, 48.0);
@@ -22,6 +22,7 @@ pub struct DockSpec {
     pub outside: Vec<DockOutside>,
     pub unlocked: Vec<DockSpecPlace>,
     pub compact: Vec<DockCompact>,
+    pub auto_hidden: Vec<DockEdge>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -48,6 +49,9 @@ pub enum DockSpecPlace {
 pub struct DockSpecWindow {
     pub key: String,
     pub rect: Rect,
+    /// Where the host last put the window when it shows it on its own (its opaque host place),
+    /// which `rect` may not be while the host keeps the window on smaller displays.
+    pub placed: Option<String>,
     pub root: Option<DockSpecNode>,
 }
 
@@ -383,7 +387,10 @@ impl DockState {
             else {
                 continue;
             };
-            self.add_window(window.rect, Some(window.key.clone()), root);
+            let id = self.add_window(window.rect, Some(window.key.clone()), root);
+            if let Some(surface) = self.surface_mut(id) {
+                surface.placed.clone_from(&window.placed);
+            }
         }
         self.settle_areas(&spec.sites());
         self.seeded = true;
@@ -410,6 +417,7 @@ impl DockState {
             id,
             root,
             window: Some(super::framed(rect)),
+            placed: None,
             key,
         });
         id

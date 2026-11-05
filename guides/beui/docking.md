@@ -212,6 +212,14 @@ alone even inside another dock's tab.
   a band past it; a bar grabbed floating over an edge must first be pulled halfway from where it
   was grabbed towards that edge. Let go at speed outside every band, it is thrown to float over
   the edge its path runs into; inside a band it docks there.
+- **Hidden bands** (`unstyled/reveal.rs`): a band of the dock's own bars along an edge the user
+  auto-hid (`DockState::is_edge_auto_hidden`, saved with the layout) takes no room and is drawn in
+  a layer of its own at `LayerLevel::Raised`, slid out from its edge by however far the owner says
+  (`DockHostLayout::reveal`). Only a dock whose owner calls `offer_hidden_bands` (the desktop)
+  shows Auto-hide in a dock bar's grip menu, and hides every band while a fullscreen tab or
+  `set_covered` covers it. The owner hears each band's rect, whether it is covered and whether a
+  bar holds it out (`hidden_bands`; `DockBarControl::hold_band`, which a bar's open panel calls), and
+  decides when to reveal it.
 - **Fullscreen**: one tab at a time (`DockState::set_fullscreen`) moves its panel into an overlay,
   or a hosted `Window`, over an area; leaving puts it back without rebuilding. The dock binds no key
   to leave: whoever enters offers the way out.

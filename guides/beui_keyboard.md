@@ -179,7 +179,8 @@ Every embedded editor - an app's view, and each Wayland program's window in
 `on_forward` (and `hit_area` for the points it takes), handed a
 `ForwardedInput` of what beui routed to it: pointer events (with `over`, the
 catcher under the event, which a drag between Wayland windows needs), `Left`,
-`Focus`, and keys, text, IME and drops. The host keeps no capture, hover or
+`Focus`, `KeyTaken` (a press an action took while it had the focus), and keys,
+text, IME and drops. The host keeps no capture, hover or
 focus of its own (`be_host_runtime::forward_view` for an app,
 `be_host_wayland::Compositor` for a window), so capture, claims, overlays,
 focus, interception and the lock apply to both by one set of rules.
@@ -187,6 +188,10 @@ focus, interception and the lock apply to both by one set of rules.
 raw `Input` a platform would push (positions relative to the catcher over its
 zoom, `PointersCancelled` for a press that ended unreleased); the app host
 fills its `InputBatch` with it, so an app's runner sees what a window's does.
+An app has a `Replay` per view but its runner keeps one set of modifiers, so
+the app's replays share one `Heard`: modifiers go out with a press or key only
+when they differ from what the app last heard through any view, and always
+after a view lost the keyboard, since the runner lets go of them then.
 
 An event goes through, in order:
 
