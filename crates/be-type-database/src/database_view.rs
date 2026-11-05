@@ -98,7 +98,6 @@ pub struct DatabaseView {
     pub database: Option<Uuid>,
     pub sort: Option<DatabaseViewSort>,
     pub kind: DatabaseViewKind,
-    #[model(rename = "kanban_field")]
     pub group_by: Option<Uuid>,
     pub scatter_x: Option<Uuid>,
     pub scatter_y: Option<Uuid>,
@@ -184,8 +183,6 @@ impl DatabaseView {
 
 impl Root for DatabaseView {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x0000_6461_7461_6261_7365_2d76_6965_7701);
-
-    const FROZEN: bool = true;
 
     fn references(&self) -> Vec<Uuid> {
         self.database.into_iter().collect()

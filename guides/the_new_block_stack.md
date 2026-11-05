@@ -69,7 +69,7 @@ guides/type_modules.md.
   device profiles and settings the host applies (block settings are
   guides/settings.md), sessions and view state.
 
-Formats every later build must read: guides/frozen_formats.md.
+Which formats are frozen (none yet): guides/frozen_formats.md.
 
 ## Not built yet
 

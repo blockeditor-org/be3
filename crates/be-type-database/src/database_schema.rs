@@ -416,8 +416,6 @@ impl DatabaseSchema {
 
 impl Root for DatabaseSchema {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6461_7461_6261_7365_2d73_6368_656d_6101);
-
-    const FROZEN: bool = true;
 }
 
 pub type DatabaseSchemaContent = Document<DatabaseSchema>;

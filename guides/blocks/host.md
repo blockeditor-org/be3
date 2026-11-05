@@ -29,7 +29,7 @@ whose type no module has has no content in the host (`be_host_stack::provided`).
 
 Every save stamps the derived `SCHEMA` metadata with `schema_fingerprint::<C>()`
 (a hash of `BlockContent::schema()`: the model's `Kind::describe`, or `blob N`
-from `BlobKind::SCHEMA`). `be_host_stack::staleness` calls an unfrozen block
+from `BlobKind::SCHEMA`). `be_host_stack::staleness` calls an unfrozen block (every block, for now)
 stale when its replica could not read it (`Status::unreadable`) or its stamp is
 another schema's; no stamp is not stale. A stale block's frame shows
 `StaleNotice` (`surfaces::StaleBlock`) with Reset (`be_host_stack::reset`, the

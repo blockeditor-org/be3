@@ -36,8 +36,6 @@ impl Folder {
 impl Root for Folder {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0xd4e3_67ab_db73_4419_bffc_b913_1288_c2e7);
 
-    const FROZEN: bool = true;
-
     fn references(&self) -> Vec<Uuid> {
         self.blocks()
     }
