@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -21,6 +22,7 @@ struct Projection<C: LiveEdit> {
     _announcing: Subscription,
     announced: OwnedSignal<u64>,
     live: LiveContent<C>,
+    payload: std::cell::RefCell<Option<(OwnedSignal<Ready<Payload>>, Subscription)>>,
 }
 
 pub struct ContentProjection<C: LiveEdit>(Stored<Projection<C>>);
@@ -60,6 +62,7 @@ impl<C: LiveEdit + Clone + Default + 'static> From<LiveContent<C>> for OwnedCont
             _announcing: live.on_revision(move |_| bumped.update(|count| *count += 1)),
             announced,
             live,
+            payload: std::cell::RefCell::new(None),
         });
         Self {
             handle: ContentProjection(state.handle()),
@@ -208,6 +211,75 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
 
     pub fn pump(&self) {
         self.inner().live.pump();
+    }
+}
+
+/// A blob's payload as `ContentProjection::payload` reads it. Two are equal only when they
+/// are the same read, so a signal holding one never compares megabytes.
+#[derive(Clone)]
+pub struct Payload(Rc<[u8]>);
+
+impl PartialEq for Payload {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl std::ops::Deref for Payload {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl<K: be_block::BlobKind> ContentProjection<be_block::Blob<K>> {
+    /// The payload, which a kind that loads only its header (`BlobKind::LOADS`) leaves in the
+    /// store: read by range once the first snapshot arrives, and again with each new one (a
+    /// replacement), never on a header edit.
+    pub fn payload(&self) -> ReadSignal<Ready<Payload>> {
+        let projection = self.inner();
+        if let Some((signal, _)) = projection.payload.borrow().as_ref() {
+            return signal.handle().read_only();
+        }
+        let owned = OwnedSignal::new(Err(Pending::Loading));
+        let payload = owned.handle();
+        let fetched = Rc::new(Cell::new(None::<u64>));
+        let this = *self;
+        let fetch = Rc::new(move || {
+            let live = this.live();
+            let Ok(length) = live.stored_length() else {
+                return;
+            };
+            let snapshot = live.snapshots();
+            if fetched.get() == Some(snapshot) {
+                return;
+            }
+            fetched.set(Some(snapshot));
+            let (start, held) = live.visible(|blob| {
+                let start = be_block::encode_streamed(blob.header(), &[]).len() as u64;
+                let whole = start + blob.data().len() as u64 == length;
+                (start, whole.then(|| Payload(blob.data().into())))
+            });
+            if let Some(held) = held {
+                payload.set(Ok(held));
+                return;
+            }
+            let current = Rc::clone(&fetched);
+            live.read_range(start, length.saturating_sub(start), move |read| {
+                if current.get() != Some(snapshot) {
+                    return;
+                }
+                payload.set(
+                    read.map(|bytes| Payload(bytes.into()))
+                        .map_err(Pending::Failed),
+                );
+            });
+        });
+        fetch();
+        let subscription = projection.live.on_revision(move |_| fetch());
+        *projection.payload.borrow_mut() = Some((owned, subscription));
+        payload.read_only()
     }
 }
 

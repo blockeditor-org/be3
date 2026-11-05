@@ -133,22 +133,6 @@ impl crate::BlobFile for Bytes {
 
 type FileContent = Blob<Bytes>;
 
-/// A blob whose replicas load only its header.
-struct Recording;
-
-impl BlobKind for Recording {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7265_636f_7264_696e_672d_626c_6f63_6b31);
-
-    const LOADS: be_block::Loads = be_block::Loads::FirstPart;
-
-    type Header = String;
-
-    fn name(header: &String) -> &str {
-        header
-    }
-}
-
-type RecordingContent = Blob<Recording>;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 struct Counter {
@@ -258,10 +242,6 @@ fn prose_module() -> Module {
 
 fn file_module() -> Module {
     Module::new(vec![Registration::of::<FileContent>()])
-}
-
-fn recording_module() -> Module {
-    Module::new(vec![Registration::of::<RecordingContent>()])
 }
 
 fn folder_module() -> Module {
