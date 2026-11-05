@@ -32,7 +32,8 @@ plans/live_edit_persistence.md. Not implemented yet.
   guides/frozen_formats.md calls frozen. No data that matters is saved yet, so
   this plan changes them freely and lifts that freeze for them.
 - `Document::to_bytes` writes the whole document as one CBOR value
-  (`stored::save`).
+  (`stored::save`). `Document::to_parts` splits the same form into a tree of
+  parts by its structure (1a), but nothing saves through it yet.
 
 ## The design
 
@@ -53,35 +54,16 @@ plans/live_edit_persistence.md. Not implemented yet.
 
 ### 1a. be-block-model splits documents itself
 
-A `Document` (`Document::to_bytes`, `stored::save`) can choose its parts from
-its own structure, so the canvas, the database, text and any later type get
-cheap saves without describing their layout:
+The model side is done: `Document::to_parts` / `from_parts`
+(guides/blocks/content_types.md, "The stored form"). Left:
 
-- **A `List` splits at object boundaries chosen by the objects' ids.** Walking
-  the list in order, a part ends after an object whose id hashes below a
-  threshold set by the target part size, as a prolly tree does. A boundary
-  depends only on the objects next to it, so inserting, removing or editing
-  one object changes only the part holding it, and moving one changes two.
-  An object larger than a part becomes a part of its own, and its own large
-  fields split the same way, so the parts form a tree that follows the
-  document's.
-- **`Text`, `RichText`, `Series` and `Grid` split their bytes** by
-  content-defined chunking, with smaller sizes than `ChunkerConfig::DEFAULT`.
-  Typing in a large text file then changes one part near the cursor. A text
-  block gets this through its `Text` field.
-- **Encoding is deterministic**: an object that didn't change encodes to the
-  same bytes, which is what lets its part be reused. The stored form already
-  writes objects as maps by field name; kept unknown data (`Object::kept`)
-  must encode the same way too.
-- The parent's encoding names each child part, and the manifest tree (2) can
-  follow the same shape, so a commit's new nodes are the parts on the path to
-  what changed.
-- **Parts are about 16–64 KiB.** Smaller means more objects and a bigger
-  manifest; larger means more re-uploaded per edit.
-- This makes saving cheap but still loads the whole document. Loading part of
-  a document is 5; the model could later offer it per field (an attribute such
-  as `#[model(lazy)]` on a `List`), with a part's objects loaded when first
-  read. Chat's segments don't need that, since they are its own layout.
+- Wire `Document`'s parts into `BlockContent`'s parts (1), reusing the loaded
+  head's `ChunkRef`s for parts whose hash didn't change, so text, canvas and
+  database blocks get cheap saves.
+- Parts still load whole. Loading part of a document is 5; the model could
+  later offer it per field (an attribute such as `#[model(lazy)]` on a
+  `List`), with a part's objects loaded when first read. Chat's segments don't
+  need that, since they are its own layout.
 
 ### 2. A manifest tree
 
@@ -130,8 +112,5 @@ needs 1–5; the canvas and text need 1, 1a, 2 and 3.
   small chunk and a few manifest nodes, and publishes a small reference change.
   Count bytes with the fault relay.
 - A manifest mixing data key epochs reads after a rotation.
-- In be-block-model: editing, inserting or removing one object in a large
-  `List` changes one part, moving one changes two, and typing in a large `Text`
-  changes one part. Saving the same document twice gives the same parts.
 - A replica that loads only the header reads a payload range on demand, and a
   follower joining it gets a snapshot without the payload.

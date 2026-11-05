@@ -20,6 +20,7 @@ mod a_column_removed_on_one_side_stays_removed_when_the_other_edits_a_card_in_it
 mod a_column_removed_on_one_side_stays_removed_when_the_other_moves_a_card_into_it;
 mod a_document_reads_back_what_it_was_built_from;
 mod a_document_round_trips_every_kind_of_field_through_bytes;
+mod a_document_split_into_parts_loads_back_whole;
 mod a_field_added_to_a_type_after_a_document_was_saved_can_be_set;
 mod a_field_changed_on_one_side_merges_to_that_change_from_either_side;
 mod a_frozen_document_keeps_loading_into_a_schema_that_only_adds;
@@ -66,6 +67,7 @@ mod cards_inserted_at_the_start_and_the_end_at_once_keep_their_ends;
 mod count_changes_made_at_once_add_up_in_either_order;
 mod counts_merge_by_adding_both_sides;
 mod counts_saturate_instead_of_wrapping;
+mod editing_inserting_or_removing_one_object_in_a_large_list_changes_one_part;
 mod formatting_and_typing_at_once_converge_in_either_order;
 mod grids_merge_cell_by_cell_and_keep_coordinates_across_a_resize;
 mod inserting_touches_the_list_and_everything_inserted;
@@ -76,6 +78,7 @@ mod map_entries_merge_key_by_key;
 mod merging_a_document_with_itself_changes_nothing;
 mod merging_a_move_on_one_side_with_an_edit_on_the_other_keeps_both;
 mod merging_restores_a_column_one_side_removed_while_the_other_filled_it;
+mod moving_one_object_in_a_large_list_changes_two_parts;
 mod nodes_moved_into_each_other_on_each_side_merge_without_a_cycle;
 mod one_field_set_on_both_sides_conflicts_and_keeps_ours;
 mod one_step_undoes_every_change_an_edit_made;
@@ -92,12 +95,14 @@ mod rereading_a_series_matches_a_fresh_read_after_any_edit;
 mod rich_text_changed_on_the_same_line_on_each_side_conflicts_with_markers;
 mod rich_text_formatted_and_typed_on_different_lines_merges_cleanly;
 mod rich_text_saves_its_formatting_as_byte_ranges_and_reloads_it;
+mod saving_the_same_document_twice_gives_the_same_parts;
 mod setting_a_field_of_a_removed_card_changes_nothing;
 mod strokes_into_different_grids_undo_separately;
 mod text_changed_on_different_lines_on_each_side_merges_cleanly;
 mod text_changed_on_the_same_line_on_each_side_conflicts_with_markers;
 mod the_same_value_put_under_a_key_on_both_sides_merges_without_a_conflict;
 mod two_inserts_after_the_same_card_at_once_both_land_after_it;
+mod typing_in_a_large_text_changes_one_part;
 mod undo_leaves_a_field_someone_else_changed_since;
 mod undo_of_map_entries_restores_only_what_nobody_changed_since;
 mod undo_puts_a_removed_column_back_with_its_cards;
@@ -441,4 +446,66 @@ fn grown(document: &Document<Trace>, points: &[f32]) -> Change {
     Trace::POINTS
         .update(ObjectId::ROOT, held, points)
         .expect("the points changed")
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+struct Deck {
+    cards: List<Card>,
+}
+
+fn prose(seed: u64, count: usize) -> String {
+    const WORDS: [&str; 16] = [
+        "alpha", "brick", "cloud", "delta", "ember", "frost", "grove", "harbor", "ink", "jolt",
+        "kiln", "lumen", "moss", "north", "orbit", "pine",
+    ];
+    let mut state = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1;
+    let mut out = Vec::with_capacity(count);
+    for _ in 0..count {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        out.push(WORDS[(state % 16) as usize]);
+    }
+    out.join(" ")
+}
+
+fn numbered(index: u64) -> ObjectId {
+    ObjectId::from_uuid(uuid::Uuid::from_u128(u128::from(index) + 1))
+}
+
+fn deck(count: u64) -> Document<Deck> {
+    Document::new(&Deck {
+        cards: List::with_ids((0..count).map(|index| {
+            (
+                numbered(index),
+                Card {
+                    text: prose(index, 12),
+                    done: false,
+                },
+            )
+        })),
+    })
+}
+
+/// How many parts `after` has that `before` doesn't, besides its root, which
+/// changes with anything.
+fn changed_parts(before: &crate::Part, after: &crate::Part) -> usize {
+    let old: std::collections::BTreeSet<_> = before.all().iter().map(|part| part.hash()).collect();
+    after
+        .all()
+        .iter()
+        .skip(1)
+        .map(|part| part.hash())
+        .filter(|hash| !old.contains(hash))
+        .collect::<std::collections::BTreeSet<_>>()
+        .len()
+}
+
+fn from_parts<R: Model>(root: &crate::Part) -> Document<R> {
+    let held: std::collections::BTreeMap<_, _> = root
+        .all()
+        .into_iter()
+        .map(|part| (part.hash(), part.bytes().to_vec()))
+        .collect();
+    Document::from_parts(root.bytes(), |hash| held.get(&hash).cloned()).expect("the parts load")
 }

@@ -124,6 +124,20 @@ nothing a session needs. An object is a map by field name plus `$kind`
 serde form in CBOR, and that same CBOR is what registers hold in memory and
 what `set` sends.
 
+`Document::to_parts` writes the same form split into a tree of `Part`s, each
+about 16–64 KiB of CBOR (`crates/be-block-model/src/parts.rs`), and
+`Document::from_parts` loads it back from the root part, fetching the rest by
+hash. A parent names its parts by the SHA-256 of their bytes: `PART(hash)`
+stands for a list object larger than a part, `SPLICE([hash, ...])` for an
+array or byte string split across parts (or an index level of a long one).
+Arrays larger than a part split after items whose key hashes below a threshold
+(a list object's key is its id, any other item's its encoding), as a prolly
+tree does; byte strings (`Text`, `RichText`, a `Grid`'s cells) split by
+content-defined chunking. Encoding is deterministic, kept data included (its
+maps are written in canonical key order), so editing, inserting or removing a
+list object changes one part plus the parts on its path to the root, moving
+one changes two, and typing in a large `Text` changes one.
+
 No type is frozen, so a type's format changes however it needs to, with no
 renames or migrations for old data. These are the tools a frozen type would use:
 
