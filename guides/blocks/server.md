@@ -29,8 +29,16 @@ the server are in guides/blocks/keys.md.
   rest in their nodes (`Node::references`), so an unchanged part shares them
   between commits. `Peer::references_of` lists them all. `merge` is diff3
   (`merge_slices`, with `merge_lines` and `render_conflicts` on top).
-  Retention (`retention::plan`) runs only when a client calls `Peer::prune`,
-  and nothing calls it on a schedule yet.
+  Retention (`retention::plan`, `RetentionPolicy::default()`: one state per
+  minute for the last hour, per 10 minutes for a day, per hour for a week, per
+  day for 30 days, per week after) runs on the server as each publish arrives,
+  in its transaction: the new head wins its slot, so the commit it replaces
+  there is dropped with whatever has aged into a wider slot. The head,
+  bookmarks, merges' parents and everything inside the organization's
+  `history_kept_for` (judged by when the server received it too) stay. A
+  pruned commit truncates a chain; a device merges an offline edit against
+  its last-known remote head, which it holds locally, so the server pruning
+  that head costs nothing (`Peer::reconcile`).
 - **be-block-session**: `Lease` (ownership), `resume` (whether a returning peer
   fast-forwards, publishes or merges, decided from history rather than from
   having been away), and `Sequencer`/`Follower`. Operations carry an `OpId`, so

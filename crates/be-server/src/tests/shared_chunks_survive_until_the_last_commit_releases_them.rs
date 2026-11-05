@@ -62,14 +62,7 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
         })
         .await;
 
-    let response = client
-        .call(|peer| client::blocks::prune_history(peer, block, vec![first]))
-        .await;
-    let Ok(objects) = response else {
-        panic!("pruning failed: {response:?}");
-    };
-    assert!(objects > 0, "pruning the first draft freed nothing");
-
+    // The second draft replaces the first in its slot, so publishing it pruned the first.
     for chunk in &shared {
         let response = client
             .call(|peer| client::objects::get_object(peer, *chunk))

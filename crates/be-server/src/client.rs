@@ -121,7 +121,6 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             blocks::Call::SetMetadata { block: of, .. }
             | blocks::Call::Publish { block: of, .. }
             | blocks::Call::SetParent { block: of, .. }
-            | blocks::Call::PruneHistory { block: of, .. }
             | blocks::Call::DeleteBlock { block: of, .. } => block(*of, Access::Edit),
             blocks::Call::SetAccess { block: of, .. } => block(*of, Access::KnowExists),
             blocks::Call::ReadContents { blocks, .. } => Rule::Blocks(blocks.clone(), Access::View),
@@ -1536,18 +1535,6 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, listed);
-            }
-            Call::PruneHistory { reply, block, drop } => {
-                let pruned = async {
-                    prelude?;
-                    let objects = connection
-                        .store
-                        .prune_history(connection.identity()?, block, drop)
-                        .await?;
-                    Ok(objects as u64)
-                }
-                .await;
-                self.reply(reply, pruned);
             }
             Call::DeleteBlock { reply, block } => {
                 let deleted = async {

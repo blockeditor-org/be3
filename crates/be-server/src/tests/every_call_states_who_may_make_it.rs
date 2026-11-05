@@ -294,10 +294,6 @@ impl TestClient {
                 answered(client::blocks::list_history(peer, block).await),
             ),
             (
-                "prune-history",
-                answered(client::blocks::prune_history(peer, block, Vec::new()).await),
-            ),
-            (
                 "collect-detached",
                 answered(client::blocks::collect_detached(peer).await),
             ),
@@ -501,7 +497,6 @@ async fn every_call_states_who_may_make_it() {
         "read-contents",
         "set-parent",
         "list-history",
-        "prune-history",
         "list-access",
         "delete-block",
         "set-access",

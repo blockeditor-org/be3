@@ -19,14 +19,14 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
     let elsewhere = client.create_block(BlockParent::Root).await;
 
     let text = b"a line that both versions keep\n".repeat(64);
-    let (first, first_chunks) = author.compose(&text, 1_000, None);
+    let (first, first_chunks) = author.compose(&text, minutes_ago(2), None);
     let published = client
-        .publish(&author, child, first, first_chunks.clone(), None, 1_000)
+        .publish(&author, child, first, first_chunks.clone(), None, minutes_ago(2))
         .await;
     assert!(published.is_ok(), "{published:?}");
     let mut longer = text.clone();
     longer.extend_from_slice(b"and one more line\n");
-    let (second, second_chunks) = author.compose(&longer, 2_000, Some(first));
+    let (second, second_chunks) = author.compose(&longer, minutes_ago(1), Some(first));
     let published = client
         .publish(
             &author,
@@ -34,7 +34,7 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
             second,
             second_chunks.clone(),
             Some(first),
-            2_000,
+            minutes_ago(1),
         )
         .await;
     assert!(published.is_ok(), "{published:?}");
