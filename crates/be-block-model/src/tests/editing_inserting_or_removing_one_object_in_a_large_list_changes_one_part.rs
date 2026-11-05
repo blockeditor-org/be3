@@ -6,7 +6,10 @@ fn editing_inserting_or_removing_one_object_in_a_large_list_changes_one_part() {
     let before = document.to_parts();
     assert!(before.children().len() > 5, "the list splits into parts");
 
-    let edited = edited_deck(&document, Card::TEXT.set(numbered(1500), &"edited".to_owned()));
+    let edited = edited_deck(
+        &document,
+        Card::TEXT.set(numbered(1500), &"edited".to_owned()),
+    );
     let parts = edited.to_parts();
     assert_eq!(changed_parts(&before, &parts), 1);
     assert_eq!(from_parts::<Deck>(&parts), edited);
@@ -17,7 +20,12 @@ fn editing_inserting_or_removing_one_object_in_a_large_list_changes_one_part() {
         .expect("some id doesn't end a part");
     let inserted = edited_deck(
         &document,
-        Deck::CARDS.insert_as(id, ObjectId::ROOT, Anchor::After(numbered(1500)), &card("new")),
+        Deck::CARDS.insert_as(
+            id,
+            ObjectId::ROOT,
+            Anchor::After(numbered(1500)),
+            &card("new"),
+        ),
     );
     let parts = inserted.to_parts();
     assert_eq!(changed_parts(&before, &parts), 1);
