@@ -8,7 +8,9 @@ use beui_core::document::Document;
 use beui_types::Key;
 use beui_types::Vec2;
 
-pub(crate) use beui_core::timer::{Timer, create_timer, now, pin_wall_clock, wall_clock, wall_clock_is_pinned};
+pub(crate) use beui_core::timer::{
+    Timer, create_timer, now, pin_wall_clock, wall_clock, wall_clock_is_pinned,
+};
 
 pub(crate) use beui_core::current::{
     close_keyboard, request_typed_paste, toggle_keyboard, try_with_document, type_events,

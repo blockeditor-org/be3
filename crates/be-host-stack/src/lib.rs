@@ -857,7 +857,10 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         let left = deadline.saturating_duration_since(std::time::Instant::now());
         if left.is_zero() {
             drop(held);
-            panic!("the stack never reached what this waits for in {} s", WAIT_LIMIT.as_secs());
+            panic!(
+                "the stack never reached what this waits for in {} s",
+                WAIT_LIMIT.as_secs()
+            );
         }
         held = changed
             .wait_timeout(held, left)

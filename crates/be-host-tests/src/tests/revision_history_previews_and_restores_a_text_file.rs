@@ -6,6 +6,9 @@ fn revision_history_previews_and_restores_a_text_file() {
     add_to_my_files(&mut host, "Text");
     host.click("#text.surface");
     host.type_text("Original revision");
+    // History keeps one state per minute, the last: read the original once its minute is over,
+    // and make the next edit a minute after that.
+    host.pause(60_000);
     host.run(&["scroll", "Tab \"Settings\"", "0", "200"]);
     host.click("Tab \"History\"");
     host.wait("UTC · Current");
@@ -17,8 +20,6 @@ fn revision_history_previews_and_restores_a_text_file() {
         .and_then(|tail| tail.split_whitespace().next())
         .map(|id| format!("#{id}"))
         .expect("the original content has a saved revision");
-    // History keeps a state per minute, so the original stays only once the next edit lands a
-    // minute later.
     host.pause(60_000);
     host.click("#text.surface");
     host.key("ctrl+a");
