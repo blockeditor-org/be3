@@ -40,7 +40,11 @@ the content wrote, a leaf the vault split over chunks still being one part.
 Keep a node's children to dozens, choose parts from the content alone (every
 replica must choose the same ones), and leave reuse to parts whose bytes did
 not change. The default is one leaf of `encode()`. Peer-level `save` and
-`open` use parts; replicas still save a type module's bytes as one leaf.
+`open` use parts. A type module's replica sends its parts' shape with the
+bytes (`written.parts`, `be_sdk_type_api::written_shape` and
+`written_parts`); it holds no `PartRef`s, so nothing is `Reused`, but sealing
+is deterministic, so unchanged parts seal to the chunks the head already has
+and only the changed ones upload.
 
 A `Node` also lists the blocks its own bytes reference (`Part::Node {
 references }`, read back as `LoadedPart::references`). A commit references
@@ -141,26 +145,33 @@ copy.
 
 ## The stored form
 
-`Document::to_bytes` writes CBOR `{"format": N, "root": object}` holding
-nothing a session needs. An object is a map by field name plus `$kind`
-(`#[model(kind = "...")]` or the struct's snake-case name) and, in a `List`,
-`$id` (tag 37 UUID; a repeated id gets a fresh one on load). A register is its
-serde form in CBOR, and that same CBOR is what registers hold in memory and
-what `set` sends.
+A document's stored form is the CBOR `{"format": N, "root": object}`
+(`Document::to_stored`) holding nothing a session needs. An object is a map by
+field name plus `$kind` (`#[model(kind = "...")]` or the struct's snake-case
+name) and, in a `List`, `$id` (tag 37 UUID; a repeated id gets a fresh one on
+load). A register is its serde form in CBOR, and that same CBOR is what
+registers hold in memory and what `set` sends.
 
-`Document::to_parts` writes the same form split into a tree of `Part`s, each
-about 16–64 KiB of CBOR (`crates/be-block-model/src/parts.rs`), and
-`Document::from_parts` loads it back from the root part, fetching the rest by
-hash. A parent names its parts by the SHA-256 of their bytes: `PART(hash)`
-stands for a list object larger than a part, `SPLICE([hash, ...])` for an
-array or byte string split across parts (or an index level of a long one).
-Arrays larger than a part split after items whose key hashes below a threshold
-(a list object's key is its id, any other item's its encoding), as a prolly
-tree does; byte strings (`Text`, `RichText`, a `Grid`'s cells) split by
-content-defined chunking. Encoding is deterministic, kept data included (its
-maps are written in canonical key order), so editing, inserting or removing a
-list object changes one part plus the parts on its path to the root, moving
-one changes two, and typing in a large `Text` changes one.
+`Document::to_bytes` writes that value split into a tree of `DocumentPart`s,
+each about 16–64 KiB of CBOR (`crates/be-block-model/src/parts.rs`): a CBOR
+sequence of the root part, then each part it names with its own parts after
+it. `from_bytes` hashes each part and joins them back
+(`be_block_model::read_stored` does that alone, for tools that show a
+document's CBOR). A parent names its parts by the SHA-256 of their bytes:
+`PART(hash)` stands for a list object larger than a part, `SPLICE([hash,
+...])` for an array or byte string split across parts (or an index level, past
+64 parts). Arrays larger than a part split after items whose key hashes below
+a threshold (a list object's key is its id, any other item's its encoding), as
+a prolly tree does; byte strings (`Text`, `RichText`, a `Grid`'s cells) split
+by content-defined chunking. Encoding is deterministic, kept data included
+(its maps are written in canonical key order), so editing, inserting or
+removing a list object changes one part plus the parts on its path to the
+root, moving one changes two, and typing in a large `Text` changes one.
+
+`Document`'s `BlockContent::parts` saves each part with children as a `Node`
+of its own bytes and then its children, and one without as `Bytes`.
+`from_stored` maps each loaded part's hash to its `PartRef`, so a part whose
+hash didn't change goes back as `Reused` with everything under it.
 
 No type is frozen, so a type's format changes however it needs to, with no
 renames or migrations for old data. These are the tools a frozen type would use:

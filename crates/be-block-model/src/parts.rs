@@ -48,14 +48,14 @@ const REFERENCE: usize = 2 + Hash::LEN;
 
 /// One part of a document's stored form, with the parts its bytes name.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Part {
+pub struct DocumentPart {
     hash: Hash,
     bytes: Vec<u8>,
-    children: Vec<Part>,
+    children: Vec<DocumentPart>,
 }
 
-impl Part {
-    fn new(value: &Stored, mut children: Vec<Part>) -> Self {
+impl DocumentPart {
+    fn new(value: &Stored, mut children: Vec<DocumentPart>) -> Self {
         let mut seen = std::collections::BTreeSet::new();
         children.retain(|child| seen.insert(child.hash));
         let bytes = encode(value);
@@ -76,7 +76,7 @@ impl Part {
     }
 
     /// The parts this one names, each once, in the order it names them.
-    pub fn children(&self) -> &[Part] {
+    pub fn children(&self) -> &[DocumentPart] {
         &self.children
     }
 
@@ -108,7 +108,7 @@ impl Part {
 
     /// This part and every part below it, depth first, parents before
     /// children. A part named from two places appears twice.
-    pub fn all(&self) -> Vec<&Part> {
+    pub fn all(&self) -> Vec<&DocumentPart> {
         let mut out = Vec::new();
         let mut stack = vec![self];
         while let Some(part) = stack.pop() {
@@ -119,13 +119,13 @@ impl Part {
     }
 }
 
-pub(crate) fn split_document(document: Stored) -> Part {
+pub(crate) fn split_document(document: Stored) -> DocumentPart {
     let mut children = Vec::new();
     let root = shrink(document, &mut children);
-    Part::new(&root.value, children)
+    DocumentPart::new(&root.value, children)
 }
 
-fn reference(part: &Part) -> Stored {
+fn reference(part: &DocumentPart) -> Stored {
     Stored::Bytes(part.hash.as_bytes().to_vec())
 }
 
@@ -193,13 +193,13 @@ fn object_id(entries: &[(Stored, Stored)]) -> Option<&[u8]> {
 
 /// Moves what is too large in `value` into parts, pushed onto `out`, and
 /// returns what is left.
-fn shrink(value: Stored, out: &mut Vec<Part>) -> Left {
+fn shrink(value: Stored, out: &mut Vec<DocumentPart>) -> Left {
     match value {
         Stored::Bytes(bytes) if bytes.len() > MAX => {
             let whole = header_len(bytes.len()) + bytes.len();
             let parts = split(&bytes, BYTES)
                 .into_iter()
-                .map(|range| Part::new(&Stored::Bytes(bytes[range].to_vec()), Vec::new()))
+                .map(|range| DocumentPart::new(&Stored::Bytes(bytes[range].to_vec()), Vec::new()))
                 .collect();
             let (value, size) = splice(parts, out);
             Left { value, size, whole }
@@ -230,7 +230,7 @@ fn shrink(value: Stored, out: &mut Vec<Part>) -> Left {
                 .collect();
             let map = Stored::Map(entries);
             if id && whole > TARGET {
-                let part = Part::new(&map, children);
+                let part = DocumentPart::new(&map, children);
                 let tag = Stored::Tag(PART, Box::new(reference(&part)));
                 out.push(part);
                 return Left {
@@ -261,7 +261,7 @@ fn shrink(value: Stored, out: &mut Vec<Part>) -> Left {
     }
 }
 
-fn array(items: Vec<Stored>, out: &mut Vec<Part>) -> Left {
+fn array(items: Vec<Stored>, out: &mut Vec<DocumentPart>) -> Left {
     let count = items.len();
     let mut size = header_len(count);
     let mut whole = size;
@@ -307,7 +307,7 @@ fn array(items: Vec<Stored>, out: &mut Vec<Part>) -> Left {
         children.extend(named);
         if ends {
             let group = Stored::Array(std::mem::take(&mut values));
-            parts.push(Part::new(&group, std::mem::take(&mut children)));
+            parts.push(DocumentPart::new(&group, std::mem::take(&mut children)));
             held = 0;
         }
     }
@@ -317,7 +317,7 @@ fn array(items: Vec<Stored>, out: &mut Vec<Part>) -> Left {
 
 /// A `SPLICE` naming `parts`, grouped into index parts while it names more
 /// than `FANOUT`, so no part has more than a few dozen children.
-fn splice(mut parts: Vec<Part>, out: &mut Vec<Part>) -> (Stored, usize) {
+fn splice(mut parts: Vec<DocumentPart>, out: &mut Vec<DocumentPart>) -> (Stored, usize) {
     loop {
         let size = header(SPLICE) + header_len(parts.len()) + parts.len() * REFERENCE;
         if parts.len() <= FANOUT {
@@ -341,7 +341,7 @@ fn splice(mut parts: Vec<Part>, out: &mut Vec<Part>) -> (Stored, usize) {
                     SPLICE,
                     Box::new(Stored::Array(group.iter().map(reference).collect())),
                 );
-                index.push(Part::new(&named, std::mem::take(&mut group)));
+                index.push(DocumentPart::new(&named, std::mem::take(&mut group)));
             }
         }
         parts = index;
@@ -404,9 +404,10 @@ fn named(name: &Stored, parts: &HashMap<Hash, Stored>) -> Result<Stored, Malform
     parts.get(&hash_in(name)?).cloned().ok_or(Malformed)
 }
 
-/// Reads stored bytes written by `Part::write`: a CBOR sequence of parts, the
-/// root first. Returns the document as if it had been saved whole.
-pub(crate) fn read(bytes: &[u8]) -> Result<Stored, Malformed> {
+/// Reads a document's stored bytes, written by `DocumentPart::write`: a CBOR
+/// sequence of parts, the root first. Returns the document as if it had been
+/// saved as one value, `{"format": N, "root": object}`.
+pub fn read(bytes: &[u8]) -> Result<Stored, Malformed> {
     let mut rest = bytes;
     let mut root = None;
     let mut parts = HashMap::new();

@@ -489,7 +489,7 @@ fn deck(count: u64) -> Document<Deck> {
 
 /// How many parts `after` has that `before` doesn't, besides its root, which
 /// changes with anything.
-fn changed_parts(before: &crate::Part, after: &crate::Part) -> usize {
+fn changed_parts(before: &crate::DocumentPart, after: &crate::DocumentPart) -> usize {
     let old: std::collections::BTreeSet<_> = before.all().iter().map(|part| part.hash()).collect();
     after
         .all()
@@ -501,7 +501,7 @@ fn changed_parts(before: &crate::Part, after: &crate::Part) -> usize {
         .len()
 }
 
-fn from_parts<R: Model>(root: &crate::Part) -> Document<R> {
+fn from_parts<R: Model>(root: &crate::DocumentPart) -> Document<R> {
     let mut bytes = Vec::new();
     root.write(&mut bytes);
     Document::from_bytes(&bytes).expect("the parts load")
