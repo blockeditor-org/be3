@@ -14,8 +14,7 @@ use crate::{
 };
 
 const BATCH_BLOCKS: usize = 64;
-const OBJECT_BATCH_BYTES: usize = 2 * 1024 * 1024;
-pub(super) const IN_FLIGHT: usize = 8;
+const IN_FLIGHT: usize = 8;
 
 pub type Imported = Result<BlockSummary, ClientError>;
 
@@ -131,28 +130,8 @@ impl<S: ObjectStore> Peer<S> {
                 .iter()
                 .flat_map(|ready| ready.objects.iter().copied())
                 .collect();
-            let groups = match self.object_groups(&objects) {
-                Ok(groups) => groups,
-                Err(error) => {
-                    finish(ids, Err(error));
-                    continue;
-                }
-            };
-            let mut failed = None;
-            for objects in groups {
-                while pending.len() >= IN_FLIGHT {
-                    let (ids, sent) = pending.pop_front().expect("more than none are pending");
-                    finish(ids, sent.await);
-                }
-                match self.send_objects(objects) {
-                    Ok(sent) => pending.push_back((Vec::new(), sent)),
-                    Err(error) => {
-                        failed = Some(error);
-                        break;
-                    }
-                }
-            }
-            if let Some(error) = failed {
+            // The batch's calls are sent as they are made, so its objects are uploaded first.
+            if let Err(error) = self.upload(&objects).await {
                 finish(ids, Err(error));
                 continue;
             }
@@ -249,37 +228,6 @@ impl<S: ObjectStore> Peer<S> {
             objects,
             queued: Vec::new(),
         })
-    }
-
-    pub(super) fn object_groups(&self, hashes: &[Hash]) -> Result<Vec<Vec<Hash>>, ClientError> {
-        let store = self.commits.vault().store();
-        let mut groups: Vec<Vec<Hash>> = Vec::new();
-        let mut bytes = OBJECT_BATCH_BYTES;
-        for hash in hashes {
-            let length = store.len(*hash)?.ok_or(ClientError::MissingObject(*hash))?;
-            if bytes + length > OBJECT_BATCH_BYTES {
-                groups.push(Vec::new());
-                bytes = 0;
-            }
-            bytes += length;
-            groups.last_mut().expect("a group was started").push(*hash);
-        }
-        Ok(groups)
-    }
-
-    pub(super) fn send_objects(&self, group: Vec<Hash>) -> Result<Sent<'_>, ClientError> {
-        let store = self.commits.vault().store();
-        let objects = group
-            .iter()
-            .map(|hash| store.get(*hash)?.ok_or(ClientError::MissingObject(*hash)))
-            .collect::<Result<Vec<Vec<u8>>, ClientError>>()?;
-        let sent = client::objects::put_objects(&self.connection(), objects);
-        Ok(Box::pin(async move {
-            match sent.await?? {
-                hashes if hashes == group => Ok(Vec::new()),
-                _ => Err(ClientError::Unexpected),
-            }
-        }))
     }
 
     fn send_batch(&self, group: Vec<Prepared>) -> Sent<'_> {

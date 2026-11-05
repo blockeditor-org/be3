@@ -23,6 +23,8 @@ pub const DEFAULT_ACCOUNT_QUOTA: u64 = 10 * 1024 * 1024 * 1024;
 pub const DEFAULT_UPLOAD_GRACE: Duration = Duration::from_secs(24 * 60 * 60);
 /// How often a running server collects uploads past their grace.
 pub(crate) const UPLOAD_SWEEP_INTERVAL: Duration = Duration::from_secs(60 * 60);
+/// The longest a presigned URL for an object's bytes stays valid (`transfer_lifetime`).
+const TRANSFER_LIFETIME: Duration = Duration::from_secs(15 * 60);
 /// Uploads collected in one transaction, so a large sweep never holds the database for long.
 const UPLOADS_SWEPT_AT_ONCE: usize = 1024;
 
@@ -176,69 +178,162 @@ impl ServerStore {
             .ok_or(ServerError::Corrupt)
     }
 
-    /// Stores uploaded objects, charging the ones no block holds to the uploader until a block
-    /// does. Refuses before writing anything when that takes the uploader past its quota or the
-    /// organization past its policy's.
-    pub async fn put_objects(
+    /// Reserves room for objects a client is about to upload (`upload-urls`), charging the ones
+    /// no block holds to the uploader until a block does. Refuses before reserving anything when
+    /// an object is too large, its length is not the one the server already has for it, or the
+    /// upload takes the uploader past its quota or the organization past its policy's. A
+    /// reserved object counts as stored only once `confirm_uploads` saw its bytes, and one the
+    /// server already had is the uploader's to hold only if it may read it already: sending
+    /// bytes the store holds proves nothing the server can see.
+    pub async fn reserve_uploads(
         &self,
         identity: Identity,
-        objects: Vec<Vec<u8>>,
-    ) -> Result<Vec<Hash>, ServerError> {
-        if objects.iter().any(|bytes| bytes.len() > MAX_OBJECT_BYTES) {
+        objects: Vec<(Hash, u64)>,
+    ) -> Result<(), ServerError> {
+        self.reserve_carried(identity, objects, false).await
+    }
+
+    async fn reserve_carried(
+        &self,
+        identity: Identity,
+        objects: Vec<(Hash, u64)>,
+        carried: bool,
+    ) -> Result<(), ServerError> {
+        if objects
+            .iter()
+            .any(|(_, bytes)| *bytes > MAX_OBJECT_BYTES as u64)
+        {
             return Err(ServerError::Refused(
                 ErrorCode::ObjectTooLarge,
                 format!("an object may not exceed {MAX_OBJECT_BYTES} bytes"),
             ));
         }
+        if objects.is_empty() {
+            return Ok(());
+        }
+        if !carried {
+            // Whether an object is stored decides whether uploading it proves anything
+            // (`reserve`), so someone else's upload that arrived but is not used yet counts.
+            let hashes = objects.iter().map(|(hash, _)| *hash).collect();
+            self.confirm_arrived(None, hashes).await?;
+        }
+        self.with_graph(identity.organization, move |store, graph, database| {
+            store.reserve(graph, database, identity, &objects, carried)
+        })
+        .await
+    }
+
+    /// Stores objects a call carries itself (`publish`'s), as `reserve_uploads` and an upload
+    /// would, and confirms them at once since the server wrote them.
+    pub async fn put_objects(
+        &self,
+        identity: Identity,
+        objects: Vec<Vec<u8>>,
+    ) -> Result<Vec<Hash>, ServerError> {
         let sized: Vec<(Hash, u64)> = objects
             .iter()
             .map(|bytes| (Hash::of(bytes), bytes.len() as u64))
             .collect();
-        let fresh = match sized.is_empty() {
-            true => Vec::new(),
-            false => {
-                self.with_graph(identity.organization, move |store, graph, database| {
-                    store.reserve_uploads(graph, database, identity, &sized)
-                })
-                .await?
-            }
-        };
+        self.reserve_carried(identity, sized.clone(), true).await?;
         // Writing and syncing 8 MiB objects would stall the runtime's threads, so the files
         // are written on the blocking pool, after the quota is reserved and outside the lock.
+        // Should the write fail, the reservations stay unconfirmed until they are collected.
         let store = self.objects().clone();
-        let written = crate::store::blocking(move || {
+        let hashes = crate::store::blocking(move || {
             let hashes = store.put_many(&objects)?;
             store.sync()?;
             Ok(hashes)
         })
-        .await;
-        if written.is_err() && !fresh.is_empty() {
-            // `object_sizes` names what the server holds (`missing_objects`), so the sizes
-            // this upload added go again, and the uploader is told to send it once more.
-            self.with_database(move |_, database| {
-                let transaction = database.unchecked_transaction()?;
-                for hash in &fresh {
-                    transaction
-                        .prepare_cached("DELETE FROM object_sizes WHERE hash = ?1")?
-                        .execute([hash.to_hex()])?;
-                }
-                transaction.commit()?;
-                Ok(())
-            })
+        .await?;
+        self.with_database(move |_, database| confirm(database, &sized))
             .await?;
-        }
-        written
+        Ok(hashes)
     }
 
-    fn reserve_uploads(
+    /// Confirms the objects among `hashes` that the caller reserved and the server has not yet
+    /// seen: asks the object store for each one's length (a HEAD on a bucket, a file's length
+    /// on disk) and records those whose length is the reserved one as stored, so later uses ask
+    /// nothing. Only the caller's own reservations are looked at, so a hash it knows tells it
+    /// nothing and costs no request to the store.
+    pub(crate) async fn confirm_uploads(
+        &self,
+        identity: Identity,
+        hashes: Vec<Hash>,
+    ) -> Result<(), ServerError> {
+        self.confirm_arrived(Some(identity), hashes).await
+    }
+
+    /// Of `hashes`, confirms those reserved and not yet confirmed (by `uploader` only, when
+    /// given) whose bytes the object store holds with the reserved length.
+    async fn confirm_arrived(
+        &self,
+        uploader: Option<Identity>,
+        hashes: Vec<Hash>,
+    ) -> Result<(), ServerError> {
+        let unconfirmed = self
+            .with_reader(move |_, reader| {
+                let mut unconfirmed = Vec::new();
+                let mut statement = reader.prepare_cached(
+                    "SELECT bytes FROM object_sizes WHERE hash = ?1 AND NOT confirmed
+                     AND (?2 IS NULL OR EXISTS(SELECT 1 FROM object_uploads
+                         WHERE organization_id = ?2 AND account_id = ?3 AND hash = ?1))",
+                )?;
+                for hash in distinct(&hashes) {
+                    let bytes: Option<i64> = statement
+                        .query_row(
+                            params![
+                                hash.to_hex(),
+                                uploader.map(|uploader| uploader.organization.to_string()),
+                                uploader.map(|uploader| uploader.account.to_string())
+                            ],
+                            |row| row.get(0),
+                        )
+                        .optional()?;
+                    if let Some(bytes) = bytes.and_then(|bytes| u64::try_from(bytes).ok()) {
+                        unconfirmed.push((hash, bytes));
+                    }
+                }
+                Ok(unconfirmed)
+            })
+            .await?;
+        if unconfirmed.is_empty() {
+            return Ok(());
+        }
+        let store = self.objects().clone();
+        let arrived = crate::store::blocking(move || {
+            let hashes: Vec<Hash> = unconfirmed.iter().map(|(hash, _)| *hash).collect();
+            let mut arrived = Vec::new();
+            for ((hash, bytes), length) in unconfirmed.iter().zip(store.len_many(&hashes)) {
+                if length?.is_some_and(|length| length as u64 == *bytes) {
+                    arrived.push((*hash, *bytes));
+                }
+            }
+            Ok(arrived)
+        })
+        .await?;
+        if arrived.is_empty() {
+            return Ok(());
+        }
+        self.with_database(move |_, database| confirm(database, &arrived))
+            .await
+    }
+
+    /// How long a presigned URL for an object's bytes stays valid: well inside
+    /// `StorageLimits::upload_grace`, so an upload can never land after the reservation it was
+    /// signed for was collected and its object deleted.
+    pub fn transfer_lifetime(&self) -> Duration {
+        TRANSFER_LIFETIME.min(self.limits.upload_grace / 2)
+    }
+
+    fn reserve(
         &self,
         graph: &BlockGraph,
         database: &Connection,
         identity: Identity,
         sized: &[(Hash, u64)],
-    ) -> Result<Vec<Hash>, ServerError> {
+        carried: bool,
+    ) -> Result<(), ServerError> {
         let transaction = database.unchecked_transaction()?;
-        let mut fresh = Vec::new();
         let payer = payer_of(&transaction, identity.account)?;
         let account = identity.account.to_string();
         let now = be_block_commit::now_milliseconds();
@@ -249,12 +344,28 @@ impl ServerStore {
             if !seen.insert(*hash) {
                 continue;
             }
-            let sized = transaction
-                .prepare_cached("INSERT OR IGNORE INTO object_sizes (hash, bytes) VALUES (?1, ?2)")?
-                .execute(params![hash.to_hex(), to_sql(*bytes)])?;
-            if sized > 0 {
-                fresh.push(*hash);
-            }
+            let known: Option<(i64, bool)> = transaction
+                .prepare_cached("SELECT bytes, confirmed FROM object_sizes WHERE hash = ?1")?
+                .query_row([hash.to_hex()], |row| Ok((row.get(0)?, row.get(1)?)))
+                .optional()?;
+            // Bytes an upload sends to an object already stored change nothing the server can
+            // see, so only carried bytes, or bytes that are the first to arrive, prove the
+            // uploader has the object; knowing its hash and length proves nothing.
+            let proven = match known {
+                Some((known, _)) if known != to_sql(*bytes) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        format!("object {hash} is {known} bytes, not {bytes}"),
+                    ));
+                }
+                Some((_, confirmed)) => carried || !confirmed,
+                None => {
+                    transaction
+                        .prepare_cached("INSERT INTO object_sizes (hash, bytes) VALUES (?1, ?2)")?
+                        .execute(params![hash.to_hex(), to_sql(*bytes)])?;
+                    true
+                }
+            };
             if !upload_charged(&transaction, payer, *hash)? {
                 pending += bytes;
             }
@@ -263,17 +374,20 @@ impl ServerStore {
             }
             transaction
                 .prepare_cached(
-                    "INSERT INTO object_uploads (organization_id, account_id, hash, payer, uploaded)
-                     VALUES (?1, ?2, ?3, ?4, ?5)
+                    "INSERT INTO object_uploads
+                         (organization_id, account_id, hash, payer, uploaded, proven)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                      ON CONFLICT (organization_id, account_id, hash)
-                     DO UPDATE SET uploaded = excluded.uploaded",
+                     DO UPDATE SET uploaded = excluded.uploaded,
+                         proven = proven OR excluded.proven",
                 )?
                 .execute(params![
                     identity.organization.to_string(),
                     account,
                     hash.to_hex(),
                     payer.to_string(),
-                    now
+                    now,
+                    proven
                 ])?;
         }
         if pending > 0
@@ -300,7 +414,7 @@ impl ServerStore {
         if pending > 0 {
             self.usage_changed(payer);
         }
-        Ok(fresh)
+        Ok(())
     }
 
     /// Deletes uploads no block took within `StorageLimits::upload_grace`, uncharging their
@@ -555,6 +669,18 @@ pub(crate) fn load_sizes(
             )?;
         }
     }
+    Ok(())
+}
+
+/// Records that the store holds `objects`, each of the length it was reserved with.
+fn confirm(connection: &Connection, objects: &[(Hash, u64)]) -> Result<(), ServerError> {
+    let transaction = connection.unchecked_transaction()?;
+    for (hash, bytes) in objects {
+        transaction
+            .prepare_cached("UPDATE object_sizes SET confirmed = 1 WHERE hash = ?1 AND bytes = ?2")?
+            .execute(params![hash.to_hex(), to_sql(*bytes)])?;
+    }
+    transaction.commit()?;
     Ok(())
 }
 

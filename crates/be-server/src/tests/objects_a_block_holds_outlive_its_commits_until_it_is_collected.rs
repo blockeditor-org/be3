@@ -46,9 +46,7 @@ async fn objects_a_block_holds_outlive_its_commits_until_it_is_collected() {
         objects.len() as u64,
         "holding an object twice counted it twice"
     );
-    let response = client
-        .call(|peer| client::objects::get_object(peer, chunks[0]))
-        .await;
+    let response = client.download(chunks[0]).await;
     assert!(matches!(response, Ok(None)), "{response:?}");
 
     harness.stop().await;

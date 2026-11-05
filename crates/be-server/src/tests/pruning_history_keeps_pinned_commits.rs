@@ -52,9 +52,7 @@ async fn pruning_history_keeps_pinned_commits() {
     assert!(kept.contains(&first), "the pinned commit was pruned");
     assert!(kept.contains(&second), "the head was pruned");
 
-    let response = client
-        .call(|peer| client::objects::get_object(peer, first.hash()))
-        .await;
+    let response = client.download(first.hash()).await;
     assert!(
         matches!(response, Ok(Some(_))),
         "the pinned commit's object was deleted"

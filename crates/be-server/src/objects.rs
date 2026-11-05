@@ -77,6 +77,15 @@ impl Bucket {
         })
     }
 
+    /// A bucket already addressed, such as the server's own S3 endpoint
+    /// (`S3Endpoint::transfers`).
+    pub(crate) fn from_parts(bucket: rusty_s3::Bucket, credentials: rusty_s3::Credentials) -> Self {
+        Self {
+            bucket,
+            credentials,
+        }
+    }
+
     /// The key an object is stored under: its hash in lowercase hex.
     pub fn key(hash: Hash) -> String {
         hash.to_hex()
@@ -289,6 +298,15 @@ impl Objects {
         match self {
             Self::Local(store) => hashes.iter().map(|hash| store.get(*hash)).collect(),
             Self::Bucket(cached) => parallel(hashes, |hash| cached.get(*hash)),
+        }
+    }
+
+    /// The lengths of `hashes`, answering each in order (`ObjectStore::len`); a bucket's are
+    /// asked `PARALLEL_READS` at a time.
+    pub fn len_many(&self, hashes: &[Hash]) -> Vec<Result<Option<usize>, StoreError>> {
+        match self {
+            Self::Local(store) => hashes.iter().map(|hash| store.len(*hash)).collect(),
+            Self::Bucket(cached) => parallel(hashes, |hash| cached.len(*hash)),
         }
     }
 

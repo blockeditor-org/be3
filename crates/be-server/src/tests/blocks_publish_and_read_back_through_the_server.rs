@@ -38,9 +38,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
     );
     assert_eq!(client.read_block(block).await.head, Some(first));
 
-    let response = client
-        .call(|peer| client::objects::get_object(peer, chunks[0]))
-        .await;
+    let response = client.download(chunks[0]).await;
     let Ok(Some(_)) = response else {
         panic!("the published chunk was not readable: {response:?}");
     };

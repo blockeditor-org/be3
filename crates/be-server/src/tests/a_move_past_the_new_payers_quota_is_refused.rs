@@ -16,9 +16,7 @@ async fn a_move_past_the_new_payers_quota_is_refused() {
         size,
     } = shared_tree(&harness).await;
     let filler = vec![9; usize::try_from(QUOTA - size / 2).unwrap()];
-    let stored = editor
-        .call(|peer| client::objects::put_objects(peer, vec![filler]))
-        .await;
+    let stored = editor.put(vec![filler]).await;
     assert!(stored.is_ok(), "{stored:?}");
 
     let moved = owner.move_to(child, BlockParent::Root).await;

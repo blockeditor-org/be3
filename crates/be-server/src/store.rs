@@ -61,7 +61,7 @@ use be_block_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, Obj
 use be_block_protocol::{
     Agent, ErrorCode, Organization, OrganizationInvitation, OrganizationKind, OrganizationRole,
 };
-use be_block_store::{Hash, ObjectStore};
+use be_block_store::Hash;
 use rand::TryRngCore;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
@@ -70,7 +70,7 @@ use uuid::Uuid;
 
 use crate::{ServerError, schema};
 
-pub const MAX_OBJECT_BYTES: usize = 8 * 1024 * 1024;
+pub use be_block_protocol::MAX_OBJECT_BYTES;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Identity {
@@ -1028,11 +1028,6 @@ impl ServerStore {
         .await
     }
 
-    pub async fn get_object(&self, hash: Hash) -> Result<Option<Vec<u8>>, ServerError> {
-        let store = self.objects.clone();
-        blocking(move || Ok(store.get(hash)?)).await
-    }
-
     /// Reads objects in order until the next would take more than `room` bytes, skipping any
     /// that are missing. They are read a batch at a time (`Objects::get_many`), so a bucket
     /// costs a round trip per batch rather than per object; a batch may read past the last
@@ -1073,14 +1068,16 @@ pub(crate) async fn blocking<R: Send + 'static>(
 }
 
 /// Whether the server holds `hash`: `object_sizes` names every object from when its upload is
-/// reserved (and, should the write fail, no longer) until it is forgotten, so this asks no
-/// object store.
+/// reserved until it is forgotten, and `confirmed` once its bytes were seen in the object store
+/// (`ServerStore::confirm_uploads`), so this asks no object store.
 pub(crate) fn stored(connection: &Connection, hash: Hash) -> Result<bool, ServerError> {
     Ok(connection
-        .prepare_cached("SELECT EXISTS(SELECT 1 FROM object_sizes WHERE hash = ?1)")?
+        .prepare_cached("SELECT EXISTS(SELECT 1 FROM object_sizes WHERE hash = ?1 AND confirmed)")?
         .query_row([hash.to_hex()], |row| row.get(0))?)
 }
 
+/// Whether `identity` uploaded `hash` in its organization and proved it has the object's bytes
+/// (`ServerStore::reserve_uploads`).
 pub(crate) fn uploaded(
     connection: &Connection,
     identity: Identity,
@@ -1089,7 +1086,7 @@ pub(crate) fn uploaded(
     Ok(connection
         .prepare_cached(
             "SELECT EXISTS(SELECT 1 FROM object_uploads
-             WHERE organization_id = ?1 AND account_id = ?2 AND hash = ?3)",
+             WHERE organization_id = ?1 AND account_id = ?2 AND hash = ?3 AND proven)",
         )?
         .query_row(
             params![

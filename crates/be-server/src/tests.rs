@@ -4,8 +4,8 @@ use be_block_commit::{Commit, CommitId, CommitStore};
 use be_block_graph::BlockParent;
 use be_block_protocol::{
     Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry,
-    KeyKind, KeyRow, KeySet, Listing, OrganizationRole, PairingMessage, SessionEvent, SessionState,
-    WrappedBy, WrappedKey, client,
+    KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, SessionEvent,
+    SessionState, UploadUrl, WrappedBy, WrappedKey, client,
 };
 use be_block_session::{Resume, resume, takeover_needs_merge};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -50,6 +50,7 @@ mod a_range_get_reads_part_of_an_s3_object;
 mod a_refused_call_keeps_the_cached_graph;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
 mod a_removed_agents_blocks_stay_charged_to_its_creator;
+mod a_reserved_object_counts_only_once_its_bytes_arrive;
 mod a_rotation_gives_every_block_below_it_a_new_key_or_nothing;
 mod a_server_without_a_portal_answers_its_pages_as_json;
 mod a_session_hands_ownership_over_without_a_merge;
@@ -616,13 +617,47 @@ impl TestClient {
             .iter()
             .map(|hash| store.get(*hash).unwrap().unwrap())
             .collect();
-        let response = self
-            .call(|peer| client::objects::put_objects(peer, objects))
-            .await;
-        assert!(
-            matches!(&response, Ok(stored) if stored == hashes),
-            "{response:?}"
-        );
+        let response = self.put(objects).await;
+        assert!(response.is_ok(), "{response:?}");
+    }
+
+    /// Asks for URLs to upload `objects` to, without sending them.
+    async fn reserve(&mut self, objects: &[Vec<u8>]) -> Result<Vec<UploadUrl>, Error> {
+        let lengths = objects
+            .iter()
+            .map(|bytes| ObjectLength {
+                hash: Hash::of(bytes),
+                length: bytes.len() as u64,
+            })
+            .collect();
+        self.call(|peer| client::objects::upload_urls(peer, lengths))
+            .await
+    }
+
+    /// Uploads `objects` as a client does: asks for URLs, then PUTs each one's bytes.
+    async fn put(&mut self, objects: Vec<Vec<u8>>) -> Result<(), Error> {
+        let urls = self.reserve(&objects).await?;
+        assert_eq!(urls.len(), objects.len());
+        for (url, bytes) in urls.into_iter().zip(objects) {
+            let status = put_to(url, bytes).await;
+            assert_eq!(status, 200, "the upload was refused");
+        }
+        Ok(())
+    }
+
+    /// Downloads an object as a client does: asks for its URL, then GETs it. None when the
+    /// server answers no URL; a URL that is not found is a failure.
+    async fn download(&mut self, hash: Hash) -> Result<Option<Vec<u8>>, Error> {
+        let mut urls = self
+            .call(|peer| client::objects::download_urls(peer, vec![hash]))
+            .await?;
+        assert_eq!(urls.len(), 1);
+        let Some(url) = urls.pop().unwrap() else {
+            return Ok(None);
+        };
+        let answer = get_from(url).await;
+        assert_eq!(answer.0, 200, "the download failed");
+        Ok(Some(answer.1))
     }
 
     async fn read_block(&mut self, block: Uuid) -> BlockSummary {
@@ -671,6 +706,45 @@ impl TestClient {
             .await
             .expect("history failed")
     }
+}
+
+/// PUTs `bytes` to an upload URL with its headers, answering the status.
+async fn put_to(url: UploadUrl, bytes: Vec<u8>) -> u16 {
+    tokio::task::spawn_blocking(move || {
+        let mut request = ureq::put(&url.url);
+        // ureq sets Content-Length from the body itself, as a browser does.
+        for header in url
+            .headers
+            .iter()
+            .filter(|header| !header.name.eq_ignore_ascii_case("content-length"))
+        {
+            request = request.set(&header.name, &header.value);
+        }
+        match request.send_bytes(&bytes) {
+            Ok(response) => response.status(),
+            Err(ureq::Error::Status(status, _)) => status,
+            Err(error) => panic!("the upload failed: {error}"),
+        }
+    })
+    .await
+    .unwrap()
+}
+
+/// GETs a download URL, answering the status and the body.
+async fn get_from(url: String) -> (u16, Vec<u8>) {
+    tokio::task::spawn_blocking(move || {
+        let response = match ureq::get(&url).call() {
+            Ok(response) => response,
+            Err(ureq::Error::Status(_, response)) => response,
+            Err(error) => panic!("the download failed: {error}"),
+        };
+        let status = response.status();
+        let mut body = Vec::new();
+        std::io::Read::read_to_end(&mut response.into_reader(), &mut body).unwrap();
+        (status, body)
+    })
+    .await
+    .unwrap()
 }
 
 fn row(id: Uuid, block: Uuid, kind: KeyKind) -> KeyRow {

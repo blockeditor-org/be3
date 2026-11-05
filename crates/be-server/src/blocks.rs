@@ -505,6 +505,7 @@ impl ServerStore {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         let mut held = vec![commit.hash()];
         held.extend(chunks.iter().copied());
+        self.confirm_uploads(identity, held.clone()).await?;
         self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let current = graph.head(block);
@@ -598,21 +599,31 @@ impl ServerStore {
         .await
     }
 
-    pub async fn may_read_object(
+    /// Which of `hashes` the caller may read, in order: those a block it may view holds. A held
+    /// object was confirmed stored before any block could take it (`holdable`), so this asks
+    /// no object store.
+    pub async fn may_read_objects(
         &self,
         identity: Identity,
-        hash: Hash,
-    ) -> Result<bool, ServerError> {
+        hashes: Vec<Hash>,
+    ) -> Result<Vec<bool>, ServerError> {
         // Downloads take neither the database lock nor the graph job's: the holders come from the
         // read-only connection and access from the cached graph, which a revocation changes
         // before its call returns. Only a graph not cached yet costs a graph job.
         let organization = identity.organization;
+        let asked = hashes.clone();
         let cached = self
             .with_reader(move |store, reader| {
-                let holders = holders_of(reader, organization, hash)?;
+                let holders = asked
+                    .iter()
+                    .map(|hash| holders_of(reader, organization, *hash))
+                    .collect::<Result<Vec<_>, _>>()?;
                 let seen = visibility(identity);
                 Ok(store.read_graph(organization, |graph| {
-                    holders.iter().any(|block| seen.can_view(graph, *block))
+                    holders
+                        .iter()
+                        .map(|holders| holders.iter().any(|block| seen.can_view(graph, *block)))
+                        .collect::<Vec<bool>>()
                 }))
             })
             .await?;
@@ -620,7 +631,10 @@ impl ServerStore {
             return Ok(readable);
         }
         self.with_graph(organization, move |_, graph, database| {
-            readable(graph, database, identity, hash)
+            hashes
+                .iter()
+                .map(|hash| readable(graph, database, identity, *hash))
+                .collect()
         })
         .await
     }
@@ -632,6 +646,7 @@ impl ServerStore {
         identity: Identity,
         hashes: Vec<Hash>,
     ) -> Result<Vec<Hash>, ServerError> {
+        self.confirm_uploads(identity, hashes.clone()).await?;
         self.with_graph(identity.organization, move |store, graph, database| {
             let mut missing = Vec::new();
             for hash in hashes {
@@ -644,7 +659,8 @@ impl ServerStore {
         .await
     }
 
-    /// Whether the caller may have a block hold `hash`: the server has it, and the caller uploaded
+    /// Whether the caller may have a block hold `hash`: the server has it (its bytes were
+    /// confirmed, `confirm_uploads`), and the caller uploaded
     /// it in this organization or may already read it. Knowing a hash proves nothing, so a hash
     /// someone else stored is not the caller's to hold, publish or then read.
     fn holdable(
@@ -684,6 +700,7 @@ impl ServerStore {
         block: Uuid,
         objects: Vec<Hash>,
     ) -> Result<(), ServerError> {
+        self.confirm_uploads(identity, objects.clone()).await?;
         self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             store.require_holdable(graph, database, identity, &objects, "held")?;

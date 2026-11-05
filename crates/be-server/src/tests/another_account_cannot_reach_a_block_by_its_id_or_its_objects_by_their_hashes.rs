@@ -50,13 +50,21 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     let joined = attacker.try_join(block).await;
     assert!(refused_as(&joined, ErrorCode::BlockNotFound), "{joined:?}");
 
-    // A hash it never uploaded is missing to it, and is not its to hold or publish.
+    // A hash it never uploaded is missing to it, and is not its to hold, publish or read.
     let mut hashes = author.objects_of(commit, &chunks);
     hashes.extend(author.objects_of(unheld, &loose));
     let missing = attacker
         .call(|peer| client::objects::missing_objects(peer, hashes.clone()))
         .await;
     assert_eq!(missing.as_ref().ok(), Some(&hashes), "{missing:?}");
+    // Asking to upload what the server already holds is not having it, even with every length
+    // right; nor is asking for an object its uploader has not used yet.
+    let known: Vec<Vec<u8>> = hashes
+        .iter()
+        .map(|hash| author.store.get(*hash).unwrap().unwrap())
+        .collect();
+    let reserved = attacker.reserve(&known).await;
+    assert!(reserved.is_ok(), "{reserved:?}");
     let decoy = attacker.create_block(BlockParent::Root).await;
     let held = attacker
         .call(|peer| client::objects::hold_objects(peer, decoy, hashes.clone()))
@@ -81,9 +89,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         .await;
     assert!(refused_as(&stolen, ErrorCode::ObjectNotFound), "{stolen:?}");
     for hash in &hashes {
-        let read = attacker
-            .call(|peer| client::objects::get_object(peer, *hash))
-            .await;
+        let read = attacker.download(*hash).await;
         assert!(
             matches!(read, Ok(None)),
             "the attacker read {hash}: {read:?}"

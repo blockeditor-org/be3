@@ -316,8 +316,10 @@ pub(crate) async fn route(
         return Ok(None);
     }
     let path = head.path.split('?').next().unwrap_or_default();
-    if s3::is_s3(path) {
-        s3::serve(stream, buffer, &services.s3).await?;
+    if let Some(service) = &services.s3
+        && s3::is_s3(path)
+    {
+        s3::serve(stream, buffer, service).await?;
         return Ok(None);
     }
     if head.method == "POST" && path.ends_with(CALL_SUFFIX) {

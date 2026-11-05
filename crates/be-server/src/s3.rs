@@ -70,6 +70,12 @@ impl S3Endpoint {
     pub fn credentials(&self) -> rusty_s3::Credentials {
         rusty_s3::Credentials::new(self.access_key.clone(), self.secret_key.clone())
     }
+
+    /// The endpoint as reached at `server`, as a `Bucket` that presigns the URLs clients move
+    /// object bytes with when the server keeps them itself.
+    pub fn transfers(&self, server: &url::Url) -> crate::objects::Bucket {
+        crate::objects::Bucket::from_parts(self.bucket(server), self.credentials())
+    }
 }
 
 /// A URL that reads the object `hash` from `bucket` until `expires` from now.

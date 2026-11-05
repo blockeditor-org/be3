@@ -19,9 +19,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
     };
 
     let big = vec![object(1), object(2)];
-    let stored = client
-        .call(|peer| client::objects::put_objects(peer, big.clone()))
-        .await;
+    let stored = client.put(big.clone()).await;
     assert!(stored.is_ok(), "two large objects fit: {stored:?}");
     let held = client
         .call(|peer| client::account::storage_usage(peer))
@@ -30,9 +28,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
     assert_eq!(held.pending, 2 * OBJECT as u64);
     assert_eq!(held.quota, Some(quota));
 
-    let again = client
-        .call(|peer| client::objects::put_objects(peer, big.clone()))
-        .await;
+    let again = client.put(big.clone()).await;
     assert!(
         again.is_ok(),
         "uploading the same objects again costs nothing: {again:?}"
@@ -46,12 +42,10 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
         held.pending
     );
 
-    let over = client
-        .call(|peer| client::objects::put_objects(peer, vec![object(3), object(4)]))
-        .await;
+    let over = client.reserve(&[object(3), object(4)]).await;
     assert!(
         matches!(&over, Err(Error { code, .. }) if *code == ErrorCode::OverQuota),
-        "{over:?}"
+        "an upload past the quota is refused before any URL is signed: {over:?}"
     );
     let missing = client
         .call(|peer| client::objects::missing_objects(peer, vec![Hash::of(&object(3))]))
@@ -88,9 +82,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
     );
     assert_eq!(client.read_block(block).await.size, held.pending);
 
-    let fits = client
-        .call(|peer| client::objects::put_objects(peer, vec![object(5)]))
-        .await;
+    let fits = client.put(vec![object(5)]).await;
     assert!(fits.is_ok(), "the last object that fits: {fits:?}");
 
     harness.stop().await;

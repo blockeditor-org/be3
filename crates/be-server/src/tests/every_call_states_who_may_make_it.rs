@@ -211,12 +211,18 @@ impl TestClient {
                 answered(client::contacts::remove_contact(peer, other).await),
             ),
             (
-                "put-objects",
-                answered(client::objects::put_objects(peer, vec![b"an object".to_vec()]).await),
+                "upload-urls",
+                answered(
+                    client::objects::upload_urls(
+                        peer,
+                        vec![be_block_protocol::ObjectLength { hash, length: 9 }],
+                    )
+                    .await,
+                ),
             ),
             (
-                "get-object",
-                answered(client::objects::get_object(peer, hash).await),
+                "download-urls",
+                answered(client::objects::download_urls(peer, vec![hash]).await),
             ),
             (
                 "missing-objects",
