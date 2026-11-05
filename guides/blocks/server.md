@@ -240,8 +240,8 @@ requests are presigned the same way and sent with `ureq`.
 
 A bucket is a round trip away, so nothing on a request's path asks it whether
 an object exists or how large it is: `object_sizes` names every object from
-when its bytes are written (`put_objects`, after the write) until
-`forget_objects`, and answers `MissingObjects` (`store::stored`) and usage's
+when its upload is reserved (`put_objects`, which deletes the rows it added
+if the write fails) until `forget_objects`, and answers `MissingObjects` (`store::stored`) and usage's
 sizes. Reads and writes of several objects go `objects::PARALLEL_READS` at a
 time (`Objects::get_many`, `put_many`). Tests run an S3 server in process:
 `objects::tests::TestBucket` (`s3s` over `s3s-fs`, on a runtime of its own).

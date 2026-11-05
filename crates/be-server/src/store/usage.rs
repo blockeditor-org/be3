@@ -194,40 +194,40 @@ impl ServerStore {
             .iter()
             .map(|bytes| (Hash::of(bytes), bytes.len() as u64))
             .collect();
-        if !sized.is_empty() {
-            let reserved = sized.clone();
-            self.with_graph(identity.organization, move |store, graph, database| {
-                store.reserve_uploads(graph, database, identity, &reserved)
-            })
-            .await?;
-        }
+        let fresh = match sized.is_empty() {
+            true => Vec::new(),
+            false => {
+                self.with_graph(identity.organization, move |store, graph, database| {
+                    store.reserve_uploads(graph, database, identity, &sized)
+                })
+                .await?
+            }
+        };
         // Writing and syncing 8 MiB objects would stall the runtime's threads, so the files
         // are written on the blocking pool, after the quota is reserved and outside the lock.
         let store = self.objects().clone();
-        let hashes = crate::store::blocking(move || {
+        let written = crate::store::blocking(move || {
             let hashes = store.put_many(&objects)?;
             store.sync()?;
             Ok(hashes)
         })
-        .await?;
-        // Only now is each object stored, so only now does `object_sizes` name it: a failed
-        // write leaves it missing (`missing_objects`), and the uploader sends it again.
-        if !sized.is_empty() {
+        .await;
+        if written.is_err() && !fresh.is_empty() {
+            // `object_sizes` names what the server holds (`missing_objects`), so the sizes
+            // this upload added go again, and the uploader is told to send it once more.
             self.with_database(move |_, database| {
                 let transaction = database.unchecked_transaction()?;
-                for (hash, bytes) in &sized {
+                for hash in &fresh {
                     transaction
-                        .prepare_cached(
-                            "INSERT OR IGNORE INTO object_sizes (hash, bytes) VALUES (?1, ?2)",
-                        )?
-                        .execute(params![hash.to_hex(), to_sql(*bytes)])?;
+                        .prepare_cached("DELETE FROM object_sizes WHERE hash = ?1")?
+                        .execute([hash.to_hex()])?;
                 }
                 transaction.commit()?;
                 Ok(())
             })
             .await?;
         }
-        Ok(hashes)
+        written
     }
 
     fn reserve_uploads(
@@ -236,8 +236,9 @@ impl ServerStore {
         database: &Connection,
         identity: Identity,
         sized: &[(Hash, u64)],
-    ) -> Result<(), ServerError> {
+    ) -> Result<Vec<Hash>, ServerError> {
         let transaction = database.unchecked_transaction()?;
+        let mut fresh = Vec::new();
         let payer = payer_of(&transaction, identity.account)?;
         let account = identity.account.to_string();
         let now = be_block_commit::now_milliseconds();
@@ -247,6 +248,12 @@ impl ServerStore {
         for (hash, bytes) in sized {
             if !seen.insert(*hash) {
                 continue;
+            }
+            let sized = transaction
+                .prepare_cached("INSERT OR IGNORE INTO object_sizes (hash, bytes) VALUES (?1, ?2)")?
+                .execute(params![hash.to_hex(), to_sql(*bytes)])?;
+            if sized > 0 {
+                fresh.push(*hash);
             }
             if !upload_charged(&transaction, payer, *hash)? {
                 pending += bytes;
@@ -293,7 +300,7 @@ impl ServerStore {
         if pending > 0 {
             self.usage_changed(payer);
         }
-        Ok(())
+        Ok(fresh)
     }
 
     /// Deletes uploads no block took within `StorageLimits::upload_grace`, uncharging their

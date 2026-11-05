@@ -1072,8 +1072,9 @@ pub(crate) async fn blocking<R: Send + 'static>(
         .map_err(|error| ServerError::Io(std::io::Error::other(error)))?
 }
 
-/// Whether the server holds `hash`: `object_sizes` names every object from when its bytes are
-/// written until it is forgotten, so this asks no object store.
+/// Whether the server holds `hash`: `object_sizes` names every object from when its upload is
+/// reserved (and, should the write fail, no longer) until it is forgotten, so this asks no
+/// object store.
 pub(crate) fn stored(connection: &Connection, hash: Hash) -> Result<bool, ServerError> {
     Ok(connection
         .prepare_cached("SELECT EXISTS(SELECT 1 FROM object_sizes WHERE hash = ?1)")?
