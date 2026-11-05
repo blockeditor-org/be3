@@ -306,13 +306,19 @@ impl<S: ObjectStore> Vault<S> {
             .get(hash)?
             .ok_or(StoreError::MissingObject(hash))?;
         let key = sealed_key(&sealed)?;
-        self.sealed.write().expect("never poisoned").insert(hash, key);
+        self.sealed
+            .write()
+            .expect("never poisoned")
+            .insert(hash, key);
         Ok(key)
     }
 
     fn put_sealed(&self, key: Uuid, sealed: &[u8]) -> Result<Hash, StoreError> {
         let hash = self.store.put(sealed)?;
-        self.sealed.write().expect("never poisoned").insert(hash, key);
+        self.sealed
+            .write()
+            .expect("never poisoned")
+            .insert(hash, key);
         Ok(hash)
     }
 
@@ -334,7 +340,9 @@ impl<S: ObjectStore> Vault<S> {
                         stale.push(*reused);
                     }
                 }
-                Part::Node { parts: children, .. } => parts.extend(children),
+                Part::Node {
+                    parts: children, ..
+                } => parts.extend(children),
             }
         }
         Ok(stale)
@@ -342,7 +350,12 @@ impl<S: ObjectStore> Vault<S> {
 
     /// Seals every object of a saved part again under `key`: after a rotation, a part kept
     /// from the head must not stay readable with the old key alone.
-    fn reseal(&self, key: Uuid, sealing: &ContentKey, part: PartRef) -> Result<PartRef, StoreError> {
+    fn reseal(
+        &self,
+        key: Uuid,
+        sealing: &ContentKey,
+        part: PartRef,
+    ) -> Result<PartRef, StoreError> {
         match part {
             PartRef::Chunk(chunk) => {
                 let sealed = self

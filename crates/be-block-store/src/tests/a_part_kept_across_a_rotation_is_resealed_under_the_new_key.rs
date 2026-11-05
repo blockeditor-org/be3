@@ -40,7 +40,11 @@ fn a_part_kept_across_a_rotation_is_resealed_under_the_new_key() {
         let sealed = vault.store().get(hash).unwrap().unwrap();
         sealed_under.insert(sealed_key(&sealed).unwrap());
     }
-    assert_eq!(sealed_under, [id(2)].into(), "nothing stays under the old key");
+    assert_eq!(
+        sealed_under,
+        [id(2)].into(),
+        "nothing stays under the old key"
+    );
 
     let without_old = Keyring::new();
     without_old.insert(id(2), ContentKey::from_bytes([2; 32]));

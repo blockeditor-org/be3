@@ -1292,8 +1292,11 @@ impl<S: ObjectStore> Peer<S> {
                 self.write_content(block, content_type, parts).await?
             }
             Content::Written(manifest) => {
-                let parts = manifest.root.map_or_else(|| Part::from(Vec::new()), Part::Reused);
-                self.write_content(block, manifest.content_type, parts).await?
+                let parts = manifest
+                    .root
+                    .map_or_else(|| Part::from(Vec::new()), Part::Reused);
+                self.write_content(block, manifest.content_type, parts)
+                    .await?
             }
         };
         let mut parents = Vec::new();
