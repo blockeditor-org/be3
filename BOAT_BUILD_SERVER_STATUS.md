@@ -83,55 +83,66 @@ Implications: cap the cache at about 40 GB, keep `cas`/`ac`/`tmp` on one filesys
 `/var/lib/nativelink`, do not rely on hard links, add the systemd restart settings above. Whether
 the waker should wait for `hydrated` is undecided (see open questions).
 
-## Spike C: real builds, root vs docker, scaling (PARTIAL)
+## Spike C: real builds, root vs docker, scaling (done, with gaps)
 
-Only part of this ran: the cold build was stopped at 72 minutes, and the docker, rebuild, restart and
-scaling tests never ran. The agent's full report is in the session scratchpad
-(`spike/c-report.md`); configs are in `spike/c/cfg/`.
+Full reports: `spike/c-report.md` and configs in `spike/c/cfg/` in the session scratchpad.
 
 What worked:
-- NativeLink v1.8.3 (musl release binary) runs on a `large` node. A single-node config (scheduler, CAS,
-  action cache, local worker) parsed on the first try, with a systemd unit.
-- The worker runs fine directly as root on the host, with no docker image. The toolchains are
-  hermetic, so the host only needed bash and coreutils.
-- buck2 on the client machine, through `boat forward` in `local` mode (plaintext), built
-  `//crates/be-tool-bootstrap:bin` in about 9 s (59 actions).
+- NativeLink v1.8.3 (musl release binary) runs on a `large` node as one systemd service (scheduler, CAS,
+  action cache, local worker). The worker runs directly as root on the host with no docker image; the
+  toolchains are hermetic, so the host only needs bash and coreutils.
+- buck2 on a client, through `boat forward` in `local` mode, built `//crates/be-tool-bootstrap:bin` in
+  about 9 s.
+- `${ENV}` expansion in `worker-only.json5` works; all three workers reach main on 50051/50061 over IPv6
+  (listener must bind `[::]`).
 
-Cold `//crates/...` build on one `large` node (8 vCPU), 72 minutes, not finished:
-- About 26.2k actions done, roughly 6 actions/s on average: about 16/s for the first 12 minutes, then
-  1-3/s. The target fans out across about 10 target platforms and the graph kept growing; buck2 still
-  showed about 842 actions remaining when it was stopped. This is not a full `./scripts/verify`.
-- CPU averaged 75%, of which 30-50% was system time, plus 10-25% iowait: the node is bound by I/O and
-  syscalls (probably input materialization), not CPU. Load average reached 32-51 on 8 vCPU.
-- Peak RAM about 9.9 GB of 16 GB; NativeLink itself used 2.8-3.3 GB. The 2 GB swap filled even though
-  memory stayed free. No OOM kills and no failed actions.
-- The CAS grew to 36 GB and the disk went from 21 GB to 57 GB used of 147 GB.
+Cached rebuild (`//crates/be-host:native`, 6385 commands, 2.2 GiB output):
+- 56 s with a fresh daemon and empty buck-out, 100% cache hits. After `systemctl restart nativelink`
+  (about 4 s to listen), 57.8 s, 100% hits: the on-disk CAS and AC survive a restart.
+- About 8 s is analysis, AC lookup and FindMissingBlobs; the rest is downloading outputs.
 
-Surprises:
-- Actions get no `PATH`: the first build failed with `/usr/bin/env: 'bash': No such file`. Fix: set
-  `PATH` in the worker's `additional_environment` (already in the saved config).
-- The listener must bind `[::]`, not `0.0.0.0`, for the IPv6-only sandbox addresses. Changed in the
-  config but never applied to the main node, so worker-to-main connectivity is still untested.
-- NativeLink has no `max_action_executions`; the knob is `max_inflight_tasks` (set to 12 on main and 6
-  on workers, untuned).
-- Sandbox-to-sandbox IPv6 ping works (about 9.8 ms round trip). Firewall rules for ports 50051 and
-  50061 were added on main.
-- Next thing to try: the worker `directory_cache` option, since input materialization looks like the
-  bottleneck.
+Scaling (`//third-party/rust/...`, 12090 commands, forced re-execution, 0% cache hits):
 
-Not tested: the docker worker variant and whether the worker runs without root; cached-rebuild time
-and cache survival across a NativeLink restart; the FindMissingBlobs-heavy phase; running the buck2
-client on the server; scaling to 16 and 20 vCPU (the worker-only config and unit are written but were
-never started, and `${ENV}` expansion in that config is untested).
+| Topology | vCPU | Wall time | Actions/s | Speedup |
+|---|---|---|---|---|
+| main alone | 8 | 555 s | 21.8 | 1.00 |
+| main + 2 workers | 16 | 441 s | 27.4 | 1.26 |
+| main + 3 workers | 20 | 533 s | 22.7 | 1.04 |
+| 3 workers, main coordinator only, disk | 12 | 1362 s | 8.9 | 0.41 |
+| same, worker data on tmpfs | 12 | 686 s | 17.6 | 0.81 |
 
-Provisional topology (a guess, not a measurement): a single 8 vCPU node is already I/O-bound, so
-matching Namespace's 5-6 x 4 vCPU probably needs a `large` coordinator plus about 4-5 `default`
-workers.
+Bottlenecks:
+- Main's NIC (0.1-6 MB/s) and CAS disk are not the limit. A coordinator-only main sits at 8-18% CPU.
+- `default` workers are limited by their own disk (about 350 IOPS, 13-20 ms await, 35-45% iowait).
+  Putting worker CAS and work dir on a 5 GB tmpfs halved the time, after which workers idle at about
+  70%, starved by input fetches over the 10 ms RTT.
+- Three disk-backed `default` workers did not beat the `large` node alone.
+- Worker `directory_cache` (30 GB) was much worse (system time 48%, 80k evictions); aborted.
+- The CAS hit a 60 GB cap during the full `//crates/...` build and evicted blobs later actions needed
+  ("action input missing from CAS"). The full closure needs more than 60 GB, so the cap is 100 GB for
+  that workload (the 40 GB advice from Spike B must be revisited against the 147 GB disk).
 
-State left behind: the four `spike-c-*` sandboxes (`bx_t9cps9kw` main with a 36 GB cache, and workers
-`bx_ss3wtr4v`, `bx_uwee6zdk`, `bx_2v35s2ee`) were deliberately NOT deleted, so the experiments can
-resume. They auto-stop on their 4 h TTL (about 05:52-05:58 UTC); a stopped sandbox keeps its disk for at
-least 14 days. Delete them when done.
+Earlier cold `//crates/...` run (72 min, stopped): about 6 actions/s, CPU 30-50% system time plus iowait,
+peak RAM 9.9 GB of 16 GB, no OOM kills.
+
+Other findings: actions get no `PATH` (set it in `additional_environment`); the knob is
+`max_inflight_tasks`, not `max_action_executions`; one test action aborted with "buffer overflow
+detected" on the host glibc (not investigated); the first `be-host:native` run showed 0% cache hits
+(unexplained).
+
+Not tested: tuning `max_inflight_tasks` and worker fetch settings, `directory_cache` on tmpfs workers,
+the docker worker with the pinned image, a non-root worker.
+
+Recommended topology: start with one `large` node alone (about 22 actions/s here; warm incremental
+builds are cache hits, 56 s for a full-output rebuild). Scaling out with plain disk-backed `default`
+workers is not worth it. Matching Namespace's 5-6 x 4 vCPU would need a `large` coordinator plus 3-4
+workers with RAM-backed data, about $0.18-0.22/h, and that was untuned and did not beat main alone. The
+`xlarge` option (16 vCPU on one node) is the better thing to test next, since the bottleneck is
+per-node disk and network round trips, which a single bigger node avoids.
+
+State left behind: the four `spike-c-*` sandboxes (`bx_t9cps9kw` main with a large cache, workers
+`bx_ss3wtr4v`, `bx_uwee6zdk`, `bx_2v35s2ee`) are running with TTL to about 08:09 UTC. Delete them when
+done.
 
 ## Cost estimate (30 days, 12 h/day = 360 h)
 
