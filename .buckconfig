@@ -42,6 +42,12 @@ digest_algorithms = SHA256
 defer_write_actions = true
 sqlite_materializer_state = true
 
+# Delete outputs no build has used for three days, once a day while the daemon
+# runs. Every change to a crate leaves its old outputs under their content hash,
+# and nothing else ever removes them.
+clean_stale_enabled = true
+clean_stale_artifact_ttl_hours = 72
+clean_stale_period_hours = 24
 
 # Where the remote execution cluster is: not here. Namespace shuts it down when
 # it has been idle, so ./scripts/buck asks the waker for its hosts and writes

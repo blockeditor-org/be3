@@ -38,6 +38,11 @@ about 20 GB of it in the content-based layout (`buck-out/v2/art/root/{crates,buc
 of which 8.5 GB was those scratch copies. The host tests share one `be-host` and one directory
 of libraries (guides/testing_a_gui.md, 6).
 
+.buckconfig has buck2 delete outputs no build used for three days (`clean_stale_*` under
+`[buck2]`). To free space sooner, `./scripts/buck clean --stale 12h` deletes what no build used
+in the last twelve hours (`--dry-run` says how much first), and `./scripts/buck clean` deletes
+everything.
+
 Everything downloads and builds here: the toolchains and sysroot (about 500 MB), then the crates.
 A first `:dev-host` build with one app took six minutes on 8 cores. `./scripts/verify` builds every
 target and needs far more, so build and test only the targets you changed. Delete the file to go back to a
