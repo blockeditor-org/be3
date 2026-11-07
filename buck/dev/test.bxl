@@ -1,4 +1,4 @@
-load("//buck/cargo:defs.bzl", "REMOVE_TMPDIR", "RemoteTestInfo", "SHORT_TMPDIR")
+load("//buck/dev:test.bzl", "TestRunInfo")
 
 # ./scripts/test, in one buck2 command: each :test it names, run as an action on
 # a worker with libtest's --nocapture and the name to filter by, so that what
@@ -15,19 +15,12 @@ load("//buck/cargo:defs.bzl", "REMOVE_TMPDIR", "RemoteTestInfo", "SHORT_TMPDIR")
 #
 #   ./scripts/buck bxl //buck/dev/test.bxl:main -- --target //crates/be-lib-geometry:test --name rotates
 #
-# The command is the test's own, from its ExternalRunnerTestInfo, unless it
-# has a RemoteTestInfo: a painting test, which also reads the crate's snapshots/, and an
-# app test, which draws through the sysroot's lavapipe on a worker. A test
-# labelled "local", such as a web_drive_test, which needs a browser, runs here.
-# A run_apart test (crates/be-host-tests) runs each file under src/tests/ whose test,
-# tests::<file>::<file>, contains the name, or every file without one, as an
-# action of its own with that file's environment, which names its own app.
-
-_RUN = (
-    SHORT_TMPDIR
-    + 'out="$1" && shift && mkdir -p "$out/changed" && CHANGED_PAINTINGS="$out/changed" && export CHANGED_PAINTINGS && { "$@" > "$out/log" 2>&1; echo "$?" > "$out/status"; }; '
-    + REMOVE_TMPDIR
-)
+# Each test runs as its TestRunInfo (buck/dev/test.bzl) says, through
+# crates/be-tool-run-test's --record. A local test, such as a web_drive_test,
+# which needs a browser, runs here. A run_apart test (crates/be-host-tests)
+# runs each part, a file under src/tests/, whose test, tests::<file>::<file>,
+# contains the name, or every part without one, as an action of its own with
+# that file's environment, which names its own app.
 
 def _impl(ctx: bxl.Context):
     args = ctx.cli_args
@@ -36,24 +29,13 @@ def _impl(ctx: bxl.Context):
     ran = []
     for label in args.target:
         target = ctx.configured_targets(label)
-        providers = ctx.analysis(target).providers()
-        local = False
-        runs = []
-        if RemoteTestInfo in providers:
-            info = providers[RemoteTestInfo]
-            apart = [test for test in info.apart if not args.name or args.name in "tests::{}::{}".format(test, test)]
-            for test in apart:
-                runs.append(("-run-" + test, info.command, info.apart[test], ["--nocapture", "tests::{}::".format(test)]))
-            if not apart:
-                runs.append(("", info.command, info.env, filters))
-            hidden = info.hidden
-        else:
-            test = providers[ExternalRunnerTestInfo]
-            runs.append(("", test.command, test.env or {}, filters))
-            hidden = []
-            local = "local" in (test.labels or [])
-        for suffix, command, env, run_filters in runs:
-            env = dict(env)
+        info = ctx.analysis(target).providers()[TestRunInfo]
+        parts = [part for part in info.parts if not args.name or args.name in "tests::{}::{}".format(part, part)]
+        runs = [("-" + part, info.parts[part], ["--nocapture"]) for part in parts]
+        if not runs:
+            runs = [("", info, filters)]
+        for suffix, run, run_filters in runs:
+            env = dict(run.env)
             if args.update:
                 env["UPDATE_SNAPSHOTS"] = "1"
             if args.nonce:
@@ -61,11 +43,11 @@ def _impl(ctx: bxl.Context):
             name = str(target.label.raw_target()) + suffix
             out = actions.declare_output("test/{}/{}{}".format(target.label.package, target.label.name, suffix), dir = True)
             actions.run(
-                cmd_args("sh", "-c", _RUN, "sh", out.as_output(), command, run_filters, hidden = hidden),
+                cmd_args(run.launcher, "--record", out.as_output(), "--", run.command, run_filters, hidden = run.hidden),
                 category = "test",
                 env = env,
                 identifier = name,
-                local_only = local,
+                local_only = run.local,
             )
             ran.append((name, out))
     paths = ctx.output.ensure_multiple([out for _, out in ran])

@@ -1,5 +1,4 @@
-load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("//buck/cargo:defs.bzl", "test_run")
+load("//buck/dev:test.bzl", "be_test")
 
 # Code that must not compile, and the errors it must fail with. Each case marks
 # the line rustc should point at with `//~ ERROR <part of the message>`. The
@@ -8,33 +7,22 @@ load("//buck/cargo:defs.bzl", "test_run")
 # so nothing is linked, and a case costs no more than the lines it adds. The
 # crates live here rather than under crates/, so that building //crates/...
 # and ./scripts/verify never ask for the output rustc cannot make.
-def _compile_fail_test_impl(ctx: AnalysisContext) -> list[Provider]:
+def _compile_fail_check_impl(ctx: AnalysisContext) -> list[Provider]:
     diagnostics = ctx.attrs.cases[DefaultInfo].sub_targets["diag.json"][DefaultInfo].default_outputs[0]
     command = cmd_args(ctx.attrs._checker[RunInfo], "compile-fail", diagnostics, ctx.attrs.srcs)
-    return inject_test_run_info(
-        ctx,
-        ExternalRunnerTestInfo(
-            command = [command],
-            labels = ctx.attrs.labels,
-            run_from_project_root = True,
-            type = "custom",
-            use_project_relative_paths = True,
-        ),
-    ) + [DefaultInfo(default_output = diagnostics)]
+    return [DefaultInfo(default_output = diagnostics), RunInfo(args = command)]
 
-_compile_fail_test = rule(
+_compile_fail_check = rule(
     attrs = {
         "cases": attrs.dep(),
-        "labels": attrs.list(attrs.string(), default = []),
         "srcs": attrs.list(attrs.source()),
         "_checker": attrs.default_only(attrs.exec_dep(default = "//crates/be-tool-buck:bin", providers = [RunInfo])),
-        "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
     },
-    impl = _compile_fail_test_impl,
+    impl = _compile_fail_check_impl,
 )
 
 # The cases in <name>/, a crate whose root is <name>/lib.rs, checked against
-# deps; the test is <name>-test, and <name>-test-run the action
+# deps; the test is <name>-test, a be_test, and <name>-test[run] the action
 # ./scripts/verify runs it as.
 def compile_fail(name, deps):
     srcs = native.glob([name + "/**/*.rs"])
@@ -48,12 +36,12 @@ def compile_fail(name, deps):
         mapped_srcs = {name + "/Cargo.toml": native.package_name() + "/" + name + "/Cargo.toml"},
         srcs = srcs,
     )
-    _compile_fail_test(
-        name = name + "-test",
+    _compile_fail_check(
+        name = name + "-check",
         cases = ":" + name,
         srcs = srcs,
     )
-    test_run(
-        name = name + "-test-run",
-        test = ":" + name + "-test",
+    be_test(
+        name = name + "-test",
+        harness = ":" + name + "-check",
     )

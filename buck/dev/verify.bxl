@@ -1,4 +1,5 @@
 load("//buck/cargo/buckify.bxl", buckify = "generate")
+load("//buck/dev:test.bzl", "TestRunInfo")
 load("//buck/dev/workspace.bxl", "rust_targets")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
@@ -42,15 +43,28 @@ def _host_output(ctx, target: str, host: str) -> Artifact:
     configured = ctx.cquery(target_platform = "root//buck/platforms:" + host).eval(target)
     return ctx.analysis(list(configured)[0]).providers()[DefaultInfo].default_outputs[0]
 
-def _outputs(ctx, kind: str, universe: str) -> list[Artifact]:
-    targets = ctx.cquery().kind(kind, ctx.cquery().eval(universe))
-    return [ctx.analysis(target).providers()[DefaultInfo].default_outputs[0] for target in targets]
+# Every test (be_test, buck/dev/test.bzl), by whether it paints, and each one's
+# [run], the action that runs it.
+def _tests(ctx) -> (list, list):
+    targets = ctx.cquery().kind("^be_test$", ctx.cquery().eval("//crates/... + //compile_fail/..."))
+    plain, painting = [], []
+    for target in targets:
+        providers = ctx.analysis(target).providers()
+        run = providers[DefaultInfo].sub_targets.get("run")
+        if run == None:
+            continue
+        output = run[DefaultInfo].default_outputs[0]
+        if providers[TestRunInfo].paints:
+            painting.append((target.label.package, output))
+        else:
+            plain.append(output)
+    return plain, painting
 
 # rustc's check pass over the first-party Rust targets no test compiles, such as
 # binaries: a warning fails a compile, so a target a test builds is already
 # checked, and checking it again would be a second rustc run for most crates.
 def _workspace_checks(ctx) -> list[Artifact]:
-    tests = ctx.cquery().kind("^(test_run|app_test_run|painting_test_run)$", ctx.cquery().eval("//crates/... + //compile_fail/..."))
+    tests = ctx.cquery().kind("^be_test$", ctx.cquery().eval("//crates/... + //compile_fail/..."))
     built = {str(target.label): True for target in ctx.cquery().deps(tests)}
     checks = []
     for target in rust_targets(ctx):
@@ -168,12 +182,13 @@ def _impl(ctx: bxl.Context):
     if args.lint:
         printed.extend([("fix", fix) for fix in _rust_fixes(ctx, actions)])
         printed.append(("fix", _starlark_fix(ctx, actions)))
-    if args.tests:
-        built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
-        built.extend(_workspace_checks(ctx))
-    if args.app_tests:
-        targets = ctx.cquery().kind("^(app_test_run|painting_test_run)$", ctx.cquery().eval("//crates/..."))
-        printed.extend([("paintings\t" + target.label.package, ctx.analysis(target).providers()[DefaultInfo].default_outputs[0]) for target in targets])
+    if args.tests or args.app_tests:
+        plain, painting = _tests(ctx)
+        if args.tests:
+            built.extend(plain)
+            built.extend(_workspace_checks(ctx))
+        if args.app_tests:
+            printed.extend([("paintings\t" + package, output) for package, output in painting])
     if args.previews:
         printed.append(("local-tools", _host_output(ctx, "root//crates/be-tool-local:release", args.host)))
         printed.append(("browser-rasterizer", _host_output(ctx, "root//crates/be-tool-browser-rasterizer:release", args.host)))

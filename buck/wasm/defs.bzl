@@ -1,7 +1,5 @@
-load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
 load(
     "@root//buck/cargo:defs.bzl",
-    "RemoteTestInfo",
     "cargo_example",
     "cargo_library",
     "cargo_library_sources",
@@ -9,8 +7,8 @@ load(
     "cargo_test",
     "cargo_test_sources",
     "cargo_wasm_facts",
-    "time_limited",
 )
+load("@root//buck/dev:test.bzl", "be_test")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "keep_profile", "opt_flags")
 load("@root//buck/program:defs.bzl", "app_data", "app_types", "program")
@@ -415,20 +413,24 @@ def app_tests(exports = [], env = {}, extra_deps = []):
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **RUST_LOCAL,
     )
-    wasi_test(
-        name = "test",
-        manifest = "Cargo.toml",
+    wasm_test_harness(
+        name = "test-harness",
         module = ":test-module",
-        paintings = native.glob(["snapshots/*.paint"]),
         precompile = per_cross_platform(True, lambda _: False),
         runner = "//crates/be-sdk-test-runner:bin",
     )
-    app_test_run(
-        name = "test-run",
+    be_test(
+        name = "test",
+        env = {
+            "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+            "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+        },
+        harness = ":test-harness",
+        labels = ["app"],
         manifest = "Cargo.toml",
-        module = ":test-module",
         paintings = native.glob(["snapshots/*.paint"]),
-        runner = "//crates/be-sdk-test-runner:bin",
+        paints = True,
+        test_type = "rust",
     )
 
 # Compiled to wasm, an app's tests paint with the FreeType and HarfBuzz it
@@ -456,97 +458,21 @@ def _precompiled(ctx: AnalysisContext, module: Artifact) -> cmd_args:
     )
     return cmd_args("--precompiled", artifact, module)
 
-def _wasi_test_impl(ctx: AnalysisContext) -> list[Provider]:
+# The app test's command: app-test-runner and the module, which draws through
+# the sysroot's lavapipe, as the renderer's tests do (the env app_tests gives
+# its be_test).
+def _wasm_test_harness_impl(ctx: AnalysisContext) -> list[Provider]:
     module = ctx.attrs.module[DefaultInfo].default_outputs[0]
-    command = cmd_args(ctx.attrs.runner[RunInfo], _precompiled(ctx, module))
-    env = dict(ctx.attrs.env)
-    env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
-    remote_command, remote_env = _on_worker(ctx, command, env)
-    remote = RemoteTestInfo(command = remote_command, env = remote_env, hidden = ctx.attrs.paintings)
-    return (
-        [remote]
-        + inject_test_run_info(
-            ctx,
-            ExternalRunnerTestInfo(
-                command = [command],
-                env = env,
-                # They run here and accept paintings, where the rest run on a
-                # worker.
-                labels = ctx.attrs.labels + ["app"],
-                run_from_project_root = True,
-                type = "rust",
-                use_project_relative_paths = False,
-            ),
-        )
-        + [DefaultInfo(default_output = module)]
-    )
+    return [
+        DefaultInfo(default_output = module),
+        RunInfo(args = cmd_args(ctx.attrs.runner[RunInfo], _precompiled(ctx, module))),
+    ]
 
-# An app test's command and environment on a worker, where it draws through
-# lavapipe, as the renderer's tests do, with LD_LIBRARY_PATH carried as
-# BE3_LD_LIBRARY_PATH for the same reason (library_path_test in
-# buck/cargo/defs.bzl).
-def _on_worker(ctx: AnalysisContext, command: cmd_args, env: dict) -> (cmd_args, dict):
-    sysroot = ctx.attrs._sysroot[DefaultInfo].default_outputs[0]
-    return cmd_args("sh", "-c", 'LD_LIBRARY_PATH="$BE3_LD_LIBRARY_PATH" && export LD_LIBRARY_PATH && exec "$@"', "sh", command), env | {
-        "BE3_LD_LIBRARY_PATH": cmd_args(sysroot, format = "{}/usr/lib/x86_64-linux-gnu"),
-        "VK_ICD_FILENAMES": ctx.attrs._lavapipe,
-    }
-
-# What an app test runs, for buck2 test and for ./scripts/verify alike.
-_app_test_attrs = {
-    "manifest": attrs.source(),
-    "module": attrs.transition_dep(cfg = wasi_transition),
-    "paintings": attrs.list(attrs.source(), default = []),
-    "precompile": attrs.bool(default = True),
-    "_lavapipe": attrs.source(default = "root//buck/sysroot:lavapipe_icd.json"),
-    "_sysroot": attrs.dep(default = "root//buck/sysroot:amd64-test"),
-}
-
-wasi_test = rule(
-    attrs = _app_test_attrs
-    | {
-        "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
-        "labels": attrs.list(attrs.string(), default = []),
+wasm_test_harness = rule(
+    attrs = {
+        "module": attrs.transition_dep(cfg = wasi_transition),
+        "precompile": attrs.bool(default = True),
         "runner": attrs.dep(providers = [RunInfo]),
-        "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
     },
-    impl = _wasi_test_impl,
-)
-
-# The app tests as an action, which is how ./scripts/verify runs them: on a
-# worker, and answered from the cache when nothing they read has changed, which
-# a test never is. They read the accepted paintings from the crate's
-# snapshots/, and no other crate's, so accepting a painting leaves every other
-# crate's tests in the cache. They accept every painting, writing the ones that
-# changed or are new to changed/ and, for each accepted painting they compared,
-# the SHA-256 of what they read to used/ (that of nothing when there was none),
-# so that the paintings themselves are never downloaded; ./scripts/verify
-# copies into the crate's snapshots/ the paintings in changed/ whose accepted
-# painting still has that hash, or under --check fails on them.
-def _app_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
-    module = ctx.attrs.module[DefaultInfo].default_outputs[0]
-    paintings = ctx.actions.declare_output("paintings", dir = True, has_content_based_path = False)
-    env = {"CARGO_MANIFEST_DIR": cmd_args(ctx.attrs.manifest, parent = 1), "UPDATE_SNAPSHOTS": "1"}
-    command, env = _on_worker(ctx, cmd_args(ctx.attrs.runner[RunInfo], _precompiled(ctx, module)), env)
-    ctx.actions.run(
-        cmd_args(
-            "sh",
-            "-c",
-            'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" && export USED_PAINTINGS CHANGED_PAINTINGS && shift && exec "$@"',
-            "sh",
-            paintings.as_output(),
-            time_limited(command),
-            hidden = ctx.attrs.paintings,
-        ),
-        category = "app_test",
-        env = env,
-    )
-    return [DefaultInfo(default_output = paintings)]
-
-app_test_run = rule(
-    attrs = _app_test_attrs
-    | {
-        "runner": attrs.exec_dep(providers = [RunInfo]),
-    },
-    impl = _app_test_run_impl,
+    impl = _wasm_test_harness_impl,
 )
