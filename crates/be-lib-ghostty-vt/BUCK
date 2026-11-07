@@ -1,9 +1,23 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
+load("@root//buck/tools:defs.bzl", "configured_once")
+
+# The Zig build-ghostty-vt.sh wants (its zig_version and sha256), a pinned
+# download, so the action finds it on PATH rather than downloading it again
+# whenever it runs.
+configured_once(
+    http_archive,
+    name = "zig",
+    sha256 = "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00",
+    size_bytes = 55478392,
+    strip_prefix = "zig-x86_64-linux-0.16.0",
+    urls = ["https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz"],
+)
 
 # libghostty-vt, be-launcher's terminal emulator: Zig, built on a worker by
-# scripts/internal/build-ghostty-vt.sh, which downloads Zig and Ghostty pinned
-# by hash and commit - the one action that needs the network. Zig
+# scripts/internal/build-ghostty-vt.sh, which fetches Ghostty and the Zig
+# packages it builds with, pinned by commit and hash - the one action that
+# needs the network. Zig
 # cross-compiles, so every platform's archive comes from the same worker;
 # Windows gets buck/tools' MSVC runtime and SDK through a libc file, and Android
 # buck/tools' NDK.
@@ -26,6 +40,8 @@ genrule(
     + per_cross_platform("", lambda name: "$(location //buck/tools:android-ndk)" if name.startswith("android") else None)
     + """
         set -eu
+        PATH="`cd $(location :zig) && pwd`:$PATH"
+        export PATH
         repository=`mktemp -d`
         # Zig keeps the packages it fetches in a global cache under $HOME,
         # which a worker need not set.
