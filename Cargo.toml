@@ -13,6 +13,7 @@ members = [
     "crates/be-block-graph",
     "crates/be-block-keys",
     "crates/be-tool-launcher",
+    "crates/be-tool-run-test",
     "crates/be-block-model",
     "crates/be-block-model-derive",
     "crates/be-wasm-ops",

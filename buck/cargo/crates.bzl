@@ -15544,6 +15544,96 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/be-tool-run-test": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "run-test",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_tool_run_test",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-tool-run-test",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/be-tool-tls-diamond-app": {
         "binaries": [],
         "edition": "2024",
