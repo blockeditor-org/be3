@@ -46,7 +46,7 @@ execution_platform = rule(
         "label": attrs.option(attrs.label(), default = None),
         "os_configuration": attrs.dep(providers = [ConfigurationInfo]),
         "remote": attrs.bool(default = True),
-        "remote_execution_properties": attrs.dict(key = attrs.string(), value = attrs.string(), default = {}),
+        "remote_execution_properties": attrs.dict(default = {}, key = attrs.string(), value = attrs.string()),
     },
     impl = _execution_platform_impl,
 )
