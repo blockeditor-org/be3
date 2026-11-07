@@ -27,8 +27,8 @@ release is built from (guides/bootstrap.md).
 directly, not through the relay. The servers share nothing, so each has its own cache.
 `./scripts/buck` writes the chosen server's addresses and header into `.buckconfig.local`. Every
 server runs actions in the one image `worker_properties` (buck/tools/defs.bzl) names; nothing in
-the rules depends on which server it is. With no server at all, buck2 builds on this machine
-(guides/running/local_buck2.md).
+the rules depends on which server it is. With no server at all, buck2 builds on this machine,
+`./scripts/verify` included (guides/running/local_buck2.md).
 
 **Keys.** Namespace's waker and `api.be3.pfg.pw` sit behind the API gateway, so
 `./scripts/buck` sends the `Be3-Gateway-Authorization` header, as `./scripts/be` does

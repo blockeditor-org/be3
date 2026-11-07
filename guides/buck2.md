@@ -17,7 +17,8 @@ through cargo's own plans. Every command and target is in guides/common_commands
   lists the cross-compiled ones, and everything else that lists platforms reads it.
 - `buck/sysroot`: the Ubuntu 24.04 packages everything is compiled against.
 - `buck/cargo`: `crates.bzl`, generated and checked in like a lockfile (every crate's
-  dependencies, features and targets from cargo's plans), and the macros that read it: `defs.bzl`
+  dependencies, features and targets from cargo's plans, and every Cargo.lock crate's download),
+  and the macros that read it: `defs.bzl`
   for workspace crates, `third_party.bzl` for the rest.
 - `buck/wasm`: apps, app tests and the wasm module rules. `buck/program`, `buck/android`: the
   native bundles, the web bundle and the APK.
@@ -220,4 +221,16 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
 - **`UNAUTHENTICATED`** from the server is a wrong or missing key, which buck2 reports as failing
   to reach it.
 - **Downloads**: every `http_archive` needs `size_bytes` as well as `sha256`, or buck2 sends a
-  HEAD request per download on every new daemon.
+  HEAD request per download on every new daemon. A download's output path is its
+  configuration's, so one that several configurations reach (the host's, its release, the HTML
+  core's, wasm's, each exec configuration) is downloaded and unpacked once for each: wrap it in
+  `configured_once` (buck/tools/defs.bzl), as the sysroots, the wasi sysroot and the Rust
+  components are, and as a crate's download is. buck2 keeps downloads across daemons but no
+  other action without a cache, so fetching inside an action (curl, `git fetch`, cargo, zig)
+  happens again on every new daemon: pin a file as a download instead where its hash is stable.
+  What still fetches in an action: pdfium's sources (`git fetch`, about 125 MB), Ghostty and the
+  Zig packages it builds with (about 65 MB) and wasm-bindgen's `cargo install` (about 35 MB).
+- **crates.bzl's `downloads`** pins every crate Cargo.lock names, for every platform, built or
+  not: `//:buckify` hands them to cargo as a vendored directory, so it needs no network while
+  Cargo.lock is up to date. A lockfile that needs a crate they lack is resolved against
+  crates.io, which downloads every crate again (about 240 MB).

@@ -44,6 +44,21 @@ in the last twelve hours (`--dry-run` says how much first), and `./scripts/buck 
 everything.
 
 Everything downloads and builds here: the toolchains and sysroot (about 500 MB), then the crates.
-A first `:dev-host` build with one app took six minutes on 8 cores. `./scripts/verify` builds every
-target and needs far more, so build and test only the targets you changed. Delete the file to go back to a
+A first `:dev-host` build with one app took six minutes on 8 cores. Delete the file to go back to a
 build server.
+
+`./scripts/verify` runs whole here, with nothing skipped: every compile, lint and test, the host
+tests, and the browser tests (`web_drive_test`, `page_test` in buck/program/drive.bzl), which run
+on this machine in any case, in Node with Playwright's Chromium from `~/.cache/ms-playwright` (or
+`BE3_CHROME`). Lavapipe, the D-Bus daemon and the XKB keymaps come from `buck/sysroot:amd64-test`.
+On 8 cores with `rustc_threads = 2`, measured:
+
+- **Nothing changed, daemon running**: 3 seconds.
+- **A few build-file changes, daemon running**: about 6 minutes (1,070 actions).
+- **A new daemon** (after `./scripts/buck kill` or a reboot), buck-out full: about 20 minutes.
+  buck2 has no local action cache, so a new daemon runs every action again (11,500 of them);
+  only downloads survive. Keep the daemon running between verifies.
+
+The slowest actions in a full run: libghostty-vt's Zig build (2 minutes), be-host's precompiled
+app libraries, wasm-bindgen's `cargo install` and cranelift-codegen (about a minute each), then
+the browser tests of beui-tests and beui-demo-html and be-host-stack's tests (40 to 50 seconds).
