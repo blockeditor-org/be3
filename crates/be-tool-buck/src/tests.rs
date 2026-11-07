@@ -1,4 +1,5 @@
 use serde_json::{Value, json};
 
+mod lint_gate_keeps_warnings_and_errors_but_not_totals;
 mod pdfium_libraries_are_the_compiled_targets_under_the_root;
 mod pdfium_repositories_are_kept_for_what_the_libraries_use;
