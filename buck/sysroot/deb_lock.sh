@@ -1,27 +1,22 @@
 #!/bin/sh
 #
-# deb_lock's action (defs.bzl): downloads the snapshot's package indexes for
-# each architecture a set names and has buck-tools resolve every set into
-# packages.bzl.
+# deb_lock's action (defs.bzl): unpacks the snapshot's package indexes for
+# each architecture and has buck-tools resolve every set into packages.bzl.
 #
-# Usage: deb_lock.sh OUT RESOLVER BASE INDEXES SET...
-#   INDEXES is the space-separated dists/<suite>/<component> list, and each SET
-#   is name:architecture:package,package,...
+# Usage: deb_lock.sh OUT RESOLVER BASE ARCHITECTURE=INDEX... -- SET...
+#   each INDEX a Packages.xz for ARCHITECTURE, and each SET
+#   name:architecture:package,package,...
 set -eu
-out="$1"; resolver="$2"; base="$3"; indexes="$4"; shift 4
+out="$1"; resolver="$2"; base="$3"; shift 3
 scratch="$(mktemp -d)"
-for set in "$@"; do
-    architecture="$(echo "$set" | cut -d: -f2)"
-    directory="$scratch/$architecture"
-    [ -d "$directory" ] && continue
-    mkdir -p "$directory"
-    number=0
-    for index in $indexes; do
-        curl --fail --silent --show-error --location --retry 5 \
-            --output "$directory/$number.xz" "$base/$index/binary-$architecture/Packages.xz"
-        xz --decompress "$directory/$number.xz"
-        number=$((number + 1))
-    done
+number=0
+while [ "$1" != "--" ]; do
+    architecture="${1%%=*}"
+    mkdir -p "$scratch/$architecture"
+    xz --decompress --stdout "${1#*=}" > "$scratch/$architecture/$number"
+    number=$((number + 1))
+    shift
 done
+shift
 "$resolver" resolve "$base" "$scratch" "$@" > "$out"
 rm -rf "$scratch"

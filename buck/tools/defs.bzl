@@ -9,6 +9,22 @@ def worker_properties():
         "container-image": "docker://docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549",
     }
 
+# A target configured for one platform whichever platform asks, for what does
+# not depend on the configuration, such as a download and what is unpacked from
+# it: without this, each configuration that names it (the host's, its release,
+# the HTML core's, wasm's and each exec configuration) downloads and unpacks it
+# again, under a path of its own. A crate's download is configured the same way
+# (buck/cargo/third_party.bzl). `rule` makes the target, named NAME-unconfigured,
+# and NAME is the alias.
+def configured_once(rule, name, visibility = None, **kwargs):
+    rule(name = name + "-unconfigured", **kwargs)
+    native.configured_alias(
+        name = name,
+        actual = ":" + name + "-unconfigured",
+        platform = "root//buck/platforms:linux_x86_64",
+        **({"visibility": visibility} if visibility != None else {})
+    )
+
 # Lays the Rust dist components over one another into the sysroot rustup would
 # have installed: rustc's bin and lib, each target's standard library under
 # lib/rustlib, and clippy-driver beside rustc so that it finds the same

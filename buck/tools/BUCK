@@ -1,6 +1,6 @@
 load("@toolchains//:defs.bzl", "script")
 load("//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple")
-load(":defs.bzl", "apple_sdk_tool", "llvm_tree", "rust_sysroot")
+load(":defs.bzl", "apple_sdk_tool", "configured_once", "llvm_tree", "rust_sysroot")
 
 # The compilers and tools the build runs. A worker is a container with nothing
 # of this project's in it (defs.bzl), so everything is downloaded here, pinned
@@ -14,7 +14,10 @@ rust_version = "1.98.0"
 
 rust_host = "x86_64-unknown-linux-gnu"
 
-http_archive(
+# The components buck/cargo's cargo shares (configured_once, defs.bzl), which
+# would otherwise be downloaded again for the exec configuration it is built in.
+configured_once(
+    http_archive,
     name = "rustc-component",
     sha256 = "0e37cb339f447fc44d6d781073bacacebfdc5612f2600e4c7e84c266f5f3aced",
     size_bytes = 79745456,
@@ -38,7 +41,8 @@ rust_std = {
 }
 
 [
-    http_archive(
+    configured_once(
+        http_archive,
         name = "rust-std-" + target,
         sha256 = sha256,
         size_bytes = size_bytes,
