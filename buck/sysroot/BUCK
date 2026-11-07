@@ -49,20 +49,23 @@ xr_runtime = test_runtime + [
 
 # The indexes :lock resolves against (deb_indexes in defs.bzl). A new snapshot
 # needs these too: its dists/SUITE/InRelease lists each one's sha256 and size.
-indexes = deb_indexes(snapshot, {
-    "noble/main/amd64": ("2a6a199e1031a5c279cb346646d594993f35b1c03dd4a82aaa0323980dd92451", 1401160),
-    "noble/main/arm64": ("4a1901e6124fb0a111f5dffc8f5c14474f449e2ecfa71f2eaf0b29917edb53f9", 1376632),
-    "noble/universe/amd64": ("ba9057fa1b91438cc8a1d26808d00c85389fe101d0c1496254df97236405599a", 15037908),
-    "noble/universe/arm64": ("6df230cf5cfebcbd59e4e2713b8eed07dc0aaed66fb471ebf046cb70ccb07275", 15313828),
-    "noble-security/main/amd64": ("a9973c67cab73d859c7af134cf02deefa29fde5cd402cfddbc64e62654ca4d6c", 1007032),
-    "noble-security/main/arm64": ("7ff82d454ff940c0efb9bd921b257e026c3a93b34bfb7b52112824c945dcc758", 1070616),
-    "noble-security/universe/amd64": ("ac9a79891fc4c493c5c3eb896cb4eb27821a4a4a35d4c6c73beae5b1aa394917", 1206664),
-    "noble-security/universe/arm64": ("cd9e0320dee9825bd4ec9d08ee54a12affce42d0ee07e12acb2f8f22ecace3e1", 1280884),
-    "noble-updates/main/amd64": ("58f51c75e69e3d8ca1bd198cac747e60b762026315728a751d70d9e260cc2067", 1263332),
-    "noble-updates/main/arm64": ("36f2bf4214e79fe66cebb34e5f35778886ca0167aab68ef1bfe39721647b0410", 1322732),
-    "noble-updates/universe/amd64": ("3fb0f8b7c39c9541b9347ed641c9ba09a8137d0e5da43b175b63724a0e9cb01e", 1690972),
-    "noble-updates/universe/arm64": ("cf074bb3590d0f95303d38ad17d4ede02c8646d02313db7d990ab2b7e3a9c417", 1731540),
-})
+indexes = deb_indexes(
+    snapshot,
+    {
+        "noble-security/main/amd64": ("a9973c67cab73d859c7af134cf02deefa29fde5cd402cfddbc64e62654ca4d6c", 1007032),
+        "noble-security/main/arm64": ("7ff82d454ff940c0efb9bd921b257e026c3a93b34bfb7b52112824c945dcc758", 1070616),
+        "noble-security/universe/amd64": ("ac9a79891fc4c493c5c3eb896cb4eb27821a4a4a35d4c6c73beae5b1aa394917", 1206664),
+        "noble-security/universe/arm64": ("cd9e0320dee9825bd4ec9d08ee54a12affce42d0ee07e12acb2f8f22ecace3e1", 1280884),
+        "noble-updates/main/amd64": ("58f51c75e69e3d8ca1bd198cac747e60b762026315728a751d70d9e260cc2067", 1263332),
+        "noble-updates/main/arm64": ("36f2bf4214e79fe66cebb34e5f35778886ca0167aab68ef1bfe39721647b0410", 1322732),
+        "noble-updates/universe/amd64": ("3fb0f8b7c39c9541b9347ed641c9ba09a8137d0e5da43b175b63724a0e9cb01e", 1690972),
+        "noble-updates/universe/arm64": ("cf074bb3590d0f95303d38ad17d4ede02c8646d02313db7d990ab2b7e3a9c417", 1731540),
+        "noble/main/amd64": ("2a6a199e1031a5c279cb346646d594993f35b1c03dd4a82aaa0323980dd92451", 1401160),
+        "noble/main/arm64": ("4a1901e6124fb0a111f5dffc8f5c14474f449e2ecfa71f2eaf0b29917edb53f9", 1376632),
+        "noble/universe/amd64": ("ba9057fa1b91438cc8a1d26808d00c85389fe101d0c1496254df97236405599a", 15037908),
+        "noble/universe/arm64": ("6df230cf5cfebcbd59e4e2713b8eed07dc0aaed66fb471ebf046cb70ccb07275", 15313828),
+    },
+)
 
 deb_lock(
     name = "lock",

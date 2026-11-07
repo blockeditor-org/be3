@@ -22,7 +22,7 @@ def configured_once(rule, name, visibility = None, **kwargs):
         name = name,
         actual = ":" + name + "-unconfigured",
         platform = "root//buck/platforms:linux_x86_64",
-        **({"visibility": visibility} if visibility != None else {})
+        **({"visibility": visibility} if visibility != None else {}),
     )
 
 # Lays the Rust dist components over one another into the sysroot rustup would
