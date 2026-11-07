@@ -4,6 +4,7 @@ load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
 load("@prelude//toolchains:python.bzl", "python_bootstrap_toolchain")
 load("@prelude//toolchains:remote_test_execution.bzl", "remote_test_execution_toolchain")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
+load("@root//buck/platforms:profile.bzl", "OPT_LEVELS")
 load("@root//buck/tools:defs.bzl", "worker_properties")
 load(":defs.bzl", "cross_tool", "host_cxx_tools", "pinned_rust_toolchain", "remote_linking_cxx_toolchain", "wasm_cxx_tools")
 
@@ -167,7 +168,9 @@ toolchain_alias(
     visibility = ["PUBLIC"],
 )
 
-_release = ["-Copt-level=3", "-Cdebuginfo=0", "-Cforce-frame-pointers=yes"]
+_host_opt, _wasm_opt, _release_opt = OPT_LEVELS["toolchain"]
+
+_release = ["-Copt-level={}".format(_release_opt), "-Cdebuginfo=0", "-Cforce-frame-pointers=yes"]
 
 pinned_rust_toolchain(
     name = "rust",
@@ -190,20 +193,17 @@ pinned_rust_toolchain(
     # then fails with E0460. third-party/rust/fixups.bzl overlays the crates that
     # did.
     nightly_features = True,
-    # Cargo's dev profile on the host, and its app profile on wasm, since
-    # cranelift is far slower at an unoptimised module; the opt level is also what
-    # tells build scripts OPT_LEVEL. rustc turns debug assertions and overflow
-    # checks off above opt-level 0, so wasm names them, as the app profile
-    # inherits them from dev. Outside a release build, buck/cargo/defs.bzl
-    # compiles workspace crates for wasm at 1 and app() in
-    # buck/wasm/defs.bzl an app's own crate at 0.
+    # Cargo's dev profile on the host, and its app profile on wasm, at the opt
+    # levels OPT_LEVELS in buck/platforms/profile.bzl gives, with why. rustc
+    # turns debug assertions and overflow checks off above opt-level 0, so wasm
+    # names them, as the app profile inherits them from dev.
     # buck/constraints:release, which `-m release` adds, is cargo's release
     # profile.
     rustc_flags = select({
         "DEFAULT": select({
-            "DEFAULT": ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
+            "DEFAULT": ["-Copt-level={}".format(_host_opt), "-Cdebuginfo=line-tables-only"],
             "prelude//cpu:wasm32": [
-                "-Copt-level=2",
+                "-Copt-level={}".format(_wasm_opt),
                 "-Cdebuginfo=0",
                 "-Cdebug-assertions=on",
                 "-Coverflow-checks=on",

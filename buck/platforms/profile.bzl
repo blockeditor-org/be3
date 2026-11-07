@@ -26,6 +26,57 @@ def dev_only(flags):
         "root//buck/constraints:release": [],
     })
 
+# Every opt level the build sets, by what is compiled: (cargo's dev profile on
+# the host, the dev profile on wasm, the release profile), None where the kind
+# keeps the toolchain's. The toolchain's applies to every crate, third-party
+# ones included; the rest are added to a first-party crate's own flags, after
+# the toolchain's, which they override.
+#
+# - toolchain: cargo's dev profile on the host, its app profile on wasm, since
+#   cranelift is far slower at an unoptimised module, and its release profile.
+#   The opt level is also what tells build scripts OPT_LEVEL.
+# - member, every workspace crate: on wasm outside a release build, 1 rather
+#   than the app profile's 2. A change under beui recompiles each of them for
+#   the apps, and at 2 that took a third of the CPU ./scripts/verify spent on a
+#   change to geometry, for modules no slower to precompile or test.
+# - app, an app's own crate (app_module in buck/wasm/defs.bzl): 0 outside a
+#   release build. Most of an app's code is beui's generics instantiated anew,
+#   so a change under beui recompiles every app, and at 2 LLVM made that the
+#   longest part of ./scripts/verify: thirty apps took 1,130 seconds of
+#   compiling at 2 and 270 at 0. The modules are about two and a half times the
+#   size and take half as long again to precompile, and the app tests ran no
+#   slower.
+# - app_test, a crate's tests compiled to wasm (app_tests): 0 in every profile.
+#   Every module instantiates beui's generics anew, so a change to beui
+#   recompiles about thirty of them at once, and at 2 LLVM is most of that: the
+#   step took twice as long, though the tests run faster and the modules are
+#   smaller to precompile.
+# - fuzz, a fuzz target and the library under it (cargo_fuzz): optimised, as
+#   cargo-fuzz builds one.
+OPT_LEVELS = {
+    "toolchain": (0, 2, 3),
+    "member": (None, 1, None),
+    "app": (None, 0, None),
+    "app_test": (None, 0, 0),
+    "fuzz": (3, 3, 3),
+}
+
+def _opt_flag(level):
+    return [] if level == None else ["-Copt-level={}".format(level)]
+
+# A kind's opt level other than the toolchain's, as flags.
+def opt_flags(kind):
+    host, wasm, release = OPT_LEVELS[kind]
+    if host == wasm and wasm == release:
+        return _opt_flag(host)
+    return select({
+        "DEFAULT": select({
+            "DEFAULT": _opt_flag(host),
+            "prelude//cpu:wasm32": _opt_flag(wasm),
+        }),
+        "root//buck/constraints:release": _opt_flag(release),
+    })
+
 # A target in cargo's release profile whatever the command asked for, for what
 # a command downloads: crates/be-tool-verify, which it runs here, and the paint review
 # page, a quarter the size of its dev build.
