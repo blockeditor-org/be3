@@ -25,7 +25,8 @@ prelude = bundled
 target_platform_detector_spec = target:root//...->root//buck/platforms:linux_x86_64
 
 # Where actions run: on our build server's worker. buck/platforms/BUCK is the
-# platform, and buck/tools the compilers it runs.
+# platform, and buck/tools the compilers it runs. A local build names
+# :execution_platforms_local instead (guides/running/local_buck2.md).
 [build]
 execution_platforms = root//buck/platforms:execution_platforms
 
@@ -40,6 +41,7 @@ digest_algorithms = SHA256
 # downloads a digest twice.
 defer_write_actions = true
 sqlite_materializer_state = true
+
 
 # Where the remote execution cluster is: not here. Namespace shuts it down when
 # it has been idle, so ./scripts/buck asks the waker for its hosts and writes

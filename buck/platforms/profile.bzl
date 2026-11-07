@@ -62,10 +62,20 @@ RELEASE_SYMBOL_FLAGS = select({
     "root//buck/constraints:release": ["-Zunstable-options", "-Csymbol-mangling-version=legacy"],
 })
 
-# What a rust target takes on a build with no build server (be3.build_server =
-# none, guides/running/local_buck2.md). The prelude's rust rules name their outputs by content,
-# which lets a build server share them, and buck2 then writes each output where the
-# action ran and copies it to the path named for its hash, leaving two copies that
-# are a third of buck-out. Spread into every rust target; empty on a build server, so
-# nothing there changes.
-RUST_LOCAL = {"use_content_based_paths": False} if read_root_config("be3", "build_server", "") == "none" else {}
+# Whether every action runs on this machine: .buckconfig.local names this list
+# of execution platforms when no build server is reachable
+# (guides/running/local_buck2.md). Nothing else tells a local build apart.
+LOCAL_BUILD = read_root_config("build", "execution_platforms", "") == "root//buck/platforms:execution_platforms_local"
+
+# The threads rustc's frontend runs on. The flag is on every first-party rustc
+# command line, so it is part of every cache key: on a build server it is eight
+# whoever asks, and be3.rustc_threads is read only when the build is local, where
+# nothing is shared.
+RUSTC_THREADS = "-Zthreads=" + (read_root_config("be3", "rustc_threads", "8") if LOCAL_BUILD else "8")
+
+# What a rust target takes on a local build. The prelude's rust rules name their
+# outputs by content, which lets a build server share them, and buck2 then writes
+# each output where the action ran and copies it to the path named for its hash,
+# leaving two copies that are a third of buck-out. Spread into every rust target;
+# empty on a build server, so nothing there changes.
+RUST_LOCAL = {"use_content_based_paths": False} if LOCAL_BUILD else {}

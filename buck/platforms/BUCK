@@ -21,6 +21,26 @@ execution_platforms(
     ],
 )
 
+# The same platform with every action run on this machine, for when no build
+# server is reachable: .buckconfig.local names this list instead of the one
+# above (guides/running/local_buck2.md). It takes :default's label, so outputs
+# land where a build server's would.
+execution_platform(
+    name = "default_local",
+    cpu_configuration = "prelude//cpu:x86_64",
+    label = ":default",
+    os_configuration = "prelude//os:linux",
+    remote = False,
+    remote_execution_properties = worker_properties(),
+)
+
+execution_platforms(
+    name = "execution_platforms_local",
+    platforms = [
+        ":default_local",
+    ],
+)
+
 # What every build is for unless it says otherwise, whatever machine asks, so a
 # Mac's or Windows machine's builds share CI's cache and its tests can run on a
 # worker. buck2's own default would follow the machine. ./scripts/buck run

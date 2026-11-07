@@ -1,6 +1,6 @@
 load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only")
+load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only")
 load(":crates.bzl", "crates")
 
 # The rules for a workspace crate, filled in from its Cargo.toml through
@@ -92,14 +92,14 @@ def _core_flags():
     })
 
 # Cargo.toml's [profile.dev.package] settings for the crate and the core's cfg,
-# ahead of the flags its BUCK file passes. rustc's frontend runs on eight
-# threads: the crates under beui are a chain, each typechecked only once the
-# one below it is, and that chain is most of what a change to one of them
-# waits on.
+# ahead of the flags its BUCK file passes. rustc's frontend runs on several
+# threads (RUSTC_THREADS): the crates under beui are a chain, each typechecked
+# only once the one below it is, and that chain is most of what a change to one
+# of them waits on.
 def _rustc_flags(crate, kwargs):
     if "srcs" in kwargs:
         fail("Rust sources are inferred; srcs is not supported")
-    return ["-Zthreads=8"] + RELEASE_SYMBOL_FLAGS + _wasm_dev() + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+    return [RUSTC_THREADS] + RELEASE_SYMBOL_FLAGS + _wasm_dev() + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
 
 # Workspace crates built for wasm outside a release build, at opt-level 1 rather
 # than the app profile's 2: a change under beui recompiles each of them for
