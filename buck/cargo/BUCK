@@ -1,3 +1,4 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
 load("//buck/tools:defs.bzl", "configured_once", "rust_sysroot")
 load(":cargo_install.bzl", "cargo_install")
 
@@ -101,3 +102,5 @@ export_file(
     name = "update.sh",
     visibility = ["PUBLIC"],
 )
+
+package_fix(exclude = ["crates.bzl"])

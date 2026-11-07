@@ -13516,6 +13516,7 @@ crates = {
                     "buck-tools": [
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
                     ],
@@ -13523,6 +13524,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
                 ],
@@ -13536,6 +13538,7 @@ crates = {
                     "buck-tools": [
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
                     ],
@@ -13543,6 +13546,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
                 ],
@@ -13556,6 +13560,7 @@ crates = {
                     "buck-tools": [
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
                     ],
@@ -13563,6 +13568,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
                 ],
@@ -13576,6 +13582,7 @@ crates = {
                     "buck-tools": [
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
                     ],
@@ -13583,6 +13590,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
                 ],
@@ -13596,6 +13604,7 @@ crates = {
                     "buck-tools": [
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
                     ],
@@ -13603,6 +13612,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
                 ],
@@ -13616,6 +13626,7 @@ crates = {
                     "buck-tools": [
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
                     ],
@@ -13623,6 +13634,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
                 ],
@@ -13636,6 +13648,7 @@ crates = {
                     "buck-tools": [
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
                     ],
@@ -13643,6 +13656,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
                 ],

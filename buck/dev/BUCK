@@ -1,1 +1,6 @@
-# The package of buck/dev's BXL and fix.sh, which verify.bxl's actions read.
+load("@root//buck/dev:verify.bzl", "package_fix")
+
+# The package of buck/dev's BXL and of the rules ./scripts/verify builds
+# (test.bzl, verify.bzl).
+
+package_fix()

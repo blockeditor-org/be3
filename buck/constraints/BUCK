@@ -1,3 +1,5 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
+
 # What a wasm build is for. be-host's web bundle and an app are both
 # wasm32-wasip1-threads, but the app links a real wgpu backend and an app only
 # the custom one, whose handles are neither Send nor Sync. cargo plans the two
@@ -62,3 +64,5 @@ constraint_value(
     constraint_setting = ":cargo_plan",
     visibility = ["PUBLIC"],
 )
+
+package_fix()

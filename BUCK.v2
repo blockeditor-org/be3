@@ -2,6 +2,18 @@
 # way, because a filesystem that ignores case - Windows', and macOS's by
 # default - cannot hold a file named BUCK beside the buck/ directory.
 
+load("//buck/dev:verify.bzl", "package_fix")
+
+# The root's own Starlark; every other package's :fix is its own.
+package_fix(starlark = ["BUCK.v2", "PACKAGE"])
+
+# The formatter's settings, for every package's :fix (buck/dev/verify.bzl).
+export_file(
+    name = "starlark_fmt.json",
+    src = "buck/starlark_fmt.json",
+    visibility = ["PUBLIC"],
+)
+
 # clippy.toml reaches the rust toolchain as a file, so it needs a target.
 export_file(
     name = "clippy.toml",

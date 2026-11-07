@@ -1,3 +1,4 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
 load("@toolchains//:defs.bzl", "script")
 load("//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple")
 load(":defs.bzl", "apple_sdk_tool", "configured_once", "llvm_tree", "rust_sysroot")
@@ -58,7 +59,7 @@ rust_sysroot(
     components = [":rustc-component", ":clippy-component"] + [":rust-std-" + target for target in sorted(rust_std)],
 )
 
-# rustfmt, for ./scripts/verify's fixes (buck/dev/fix.sh): the formatter and the
+# rustfmt, for ./scripts/verify's fixes (buck/dev/verify.bzl): the formatter and the
 # rustc libraries it loads, in a sysroot of their own so that the compiler's is
 # unchanged by it.
 http_archive(
@@ -477,3 +478,5 @@ alias(
     actual = ":caddy-" + _caddy_host,
     visibility = ["PUBLIC"],
 )
+
+package_fix()

@@ -1,3 +1,5 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
+
 # The build-info.json file a program reads beside its executable: the hash of the
 # tree it was built from, which ./scripts/buck writes here before each command
 # (write_build_id in crates/be-tool-bootstrap) and git ignores. Only the
@@ -34,11 +36,6 @@ export_file(
     visibility = ["PUBLIC"],
 )
 
-export_file(
-    name = "bundle.sh",
-    visibility = ["PUBLIC"],
-)
-
 # A web bundle served as it is, with Caddy: beui-web-demo's and
 # beui-html-spike's :web.
 export_file(
@@ -50,3 +47,5 @@ export_file(
     name = "bundle.Caddyfile",
     visibility = ["PUBLIC"],
 )
+
+package_fix()

@@ -1,3 +1,4 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
 load(":sources.bzl", "libraries", "repositories")
 
 # PDFium, which the PDF app renders pages with, built from source for the
@@ -81,3 +82,5 @@ cxx_library(
     target_compatible_with = ["prelude//os/constraints:os[wasi]"],
     visibility = ["PUBLIC"],
 )
+
+package_fix()

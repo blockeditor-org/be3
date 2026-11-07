@@ -1,3 +1,4 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
 load("//buck/platforms:cross.bzl", "per_cross_platform")
 load(":defs.bzl", "deb_downloads", "deb_indexes", "deb_lock", "pkg_config", "sysroot")
 load(":packages.bzl", "packages")
@@ -163,3 +164,5 @@ export_file(
     name = "deb_sysroot.sh",
     visibility = ["PUBLIC"],
 )
+
+package_fix(exclude = ["packages.bzl"])

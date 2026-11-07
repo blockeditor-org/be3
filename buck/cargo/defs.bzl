@@ -1,5 +1,6 @@
 load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
 load("@root//buck/dev:test.bzl", "be_test")
+load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
 load(":crates.bzl", "crates")
@@ -12,10 +13,13 @@ load(":crates.bzl", "crates")
 # selects them by plan through the prelude's apply_platform_attrs, which the
 # third-party rules use too, from the map the root PACKAGE sets.
 
+# The crate's facts, and its package's :fix (buck/dev/verify.bzl), which every
+# macro here reaches through this.
 def _crate():
     package = native.package_name()
     if package not in crates:
         fail("{} is not a workspace member cargo knows about; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(package))
+    package_fix(rust = True)
     return crates[package]
 
 # One value per platform, as a select() when they differ and a plain list when
