@@ -68,6 +68,7 @@ find_missing_blobs_batch_size = 10000
 
 # What buck2 does not watch or read as part of the workspace: git's own
 # directory, whose every fetch would otherwise be a file change, and the
-# directories cargo, the web bundle and buck2 itself write into.
+# directories cargo, the web bundle and buck2 itself write into, and the
+# worktrees Claude Code checks out under .claude.
 [project]
-ignore = .git, target, dist, buck-out
+ignore = .git, .claude, target, dist, buck-out

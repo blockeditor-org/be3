@@ -1,7 +1,3 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
 
-cargo_library()
-
-cargo_test()
-
-cargo_binary()
+cargo_crate()

@@ -1,6 +1,6 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library")
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
 
 # The block types the host applies itself (the settings types, the repository
 # and the checkout), which it runs in process: be-host hosts
 # them, and be-sdk-test hosts them for editor tests (guides/type_modules.md).
-cargo_library()
+cargo_crate(test = False)

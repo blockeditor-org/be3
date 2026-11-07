@@ -105,18 +105,18 @@ too, but builds with the checked-in copies, so a stale one is fixed by the run a
 **A crate**: add it to the workspace, write a `BUCK` beside `Cargo.toml`, run `//:buckify`:
 
 ```
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
 
-cargo_library()
-
-cargo_test()
-
-cargo_binary()
+cargo_crate()
 ```
 
-Dependencies, features, edition, roots and sources come from `crates.bzl` and globs
-(`cargo_library_sources` in buck/cargo/defs.bzl). What `Cargo.toml` cannot say is an argument:
-`env`, `extra_deps`, `resources`, or any rule attribute. An example is `cargo_example("<name>")`.
+`cargo_crate()` makes every target `Cargo.toml` has: the library and its `:test`, each `[[bin]]`
+and each example; `cargo_crate(test = False)` for a library with no tests. Dependencies,
+features, edition, roots and sources come from `crates.bzl` and globs (`cargo_library_sources` in
+buck/cargo/defs.bzl). A crate that needs to say what `Cargo.toml` cannot (`env`, `extra_deps`,
+`resources`, or any rule attribute) calls `cargo_library`, `cargo_test`, `cargo_binary` and
+`cargo_example("<name>")` itself, with those as arguments. Every target in the repository is
+visible to every other unless it says otherwise: the root `PACKAGE` sets the default.
 
 **An app**: `crates/be-app-<name>/BUCK` is one `app(module)` call (buck/wasm/defs.bzl), which
 makes `:wasm`, `:module`, `:manifest` and the wasm `:test`, linked against `DEFAULT_LIBRARIES`

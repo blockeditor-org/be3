@@ -454,6 +454,21 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         **(kwargs | RUST_LOCAL),
     )
 
+# A crate's every target from its Cargo.toml: the library, if it has one, and
+# its tests, unless test = False, every [[bin]] and every example. Most BUCK
+# files are this one line, and a new crate starts with it; one that needs
+# arguments for a target calls the macros above for that target instead.
+def cargo_crate(test = True):
+    crate = _crate()
+    if crate["library"] != None:
+        cargo_library()
+        if test:
+            cargo_test()
+    for binary in crate["binaries"]:
+        cargo_binary(bin = binary["name"])
+    for example in crate["examples"]:
+        cargo_example(example["name"])
+
 # What the wasm macros in buck/wasm/defs.bzl need from a crate's Cargo.toml:
 # the crate and its wasm dependencies, without the dev-dependencies and with.
 def cargo_wasm_facts():
