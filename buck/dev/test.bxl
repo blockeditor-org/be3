@@ -1,4 +1,4 @@
-load("//buck/cargo:defs.bzl", "RemoteTestInfo")
+load("//buck/cargo:defs.bzl", "REMOVE_TMPDIR", "RemoteTestInfo", "SHORT_TMPDIR")
 
 # ./scripts/test, in one buck2 command: each :test it names, run as an action on
 # a worker with libtest's --nocapture and the name to filter by, so that what
@@ -23,7 +23,11 @@ load("//buck/cargo:defs.bzl", "RemoteTestInfo")
 # tests::<file>::<file>, contains the name, or every file without one, as an
 # action of its own with that file's environment, which names its own app.
 
-_RUN = 'out="$1" && shift && mkdir -p "$out/changed" && CHANGED_PAINTINGS="$out/changed" && export CHANGED_PAINTINGS && { "$@" > "$out/log" 2>&1; echo "$?" > "$out/status"; }'
+_RUN = (
+    SHORT_TMPDIR
+    + 'out="$1" && shift && mkdir -p "$out/changed" && CHANGED_PAINTINGS="$out/changed" && export CHANGED_PAINTINGS && { "$@" > "$out/log" 2>&1; echo "$?" > "$out/status"; }; '
+    + REMOVE_TMPDIR
+)
 
 def _impl(ctx: bxl.Context):
     args = ctx.cli_args

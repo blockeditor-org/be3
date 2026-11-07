@@ -8,9 +8,9 @@
 # The platforms ./scripts/verify's tests compile on: the host, and apps.
 # Everything else - release copies, Android, the desktop and arm64 targets the
 # dist bundles transition to, the web's wasm, the type modules and games on
-# wasm32 - is left to CI and ./scripts/deploy, and beui's HTML core and its
-# Windows check to verify.bxl's _CROSS_CHECKS, since each is another compile
-# of most of the workspace for a change that seldom breaks only there.
+# wasm32, beui's HTML core, Windows - is left to the build helper and
+# ./scripts/deploy, since each is another compile of most of the workspace
+# for a change that seldom breaks only there.
 _PLATFORMS = ["linux_x86_64", "wasi_guest"]
 
 def _platform(target) -> str:

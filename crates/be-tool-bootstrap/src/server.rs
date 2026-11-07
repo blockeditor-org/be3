@@ -11,9 +11,9 @@ use be_lib_prompt::{Choice, Saved, choose, config_directory, interactive, save_p
 use crate::{Result, repository};
 
 const SERVERS: [&str; 5] = [
+    "api.be3.pfg.pw",
     "blocks.pfg.pw",
     "namespace",
-    "api.be3.pfg.pw",
     "buildbuddy",
     "local",
 ];

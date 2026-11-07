@@ -23,18 +23,13 @@ permissions:
   contents: read
 
 env:
-  # The Be3-Gateway-Authorization header for blocks.pfg.pw's gateway, behind
-  # which its build server (guides/build_server.md) runs every buck2 action.
-  # It is not api.be3.pfg.pw's key. A pull request from a fork sees an empty
-  # value, and ./scripts/buck says so rather than building.
-  BE3_BUILD_SERVER_KEY: ${{ secrets.BE3_BUILD_SERVER_AUTHORIZATION }}
-  # The same key again for commits whose pinned bootstrap still sends
-  # BE3_AUTHORIZATION to blocks.pfg.pw. Nothing in this workflow reaches
-  # api.be3.pfg.pw. Remove it once every open pull request pins a newer one.
-  BE3_AUTHORIZATION: ${{ secrets.BE3_BUILD_SERVER_AUTHORIZATION }}
+  # The API gateway's header, behind which api.be3.pfg.pw's build server
+  # (guides/build_server.md) runs every buck2 action. A pull request from a
+  # fork sees an empty value, and ./scripts/buck says so rather than building.
+  BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
   # Named here as well as being the default, so that a commit whose pinned
-  # bootstrap still defaults to Namespace builds there too.
-  BE3_BUILD_SERVER: blocks.pfg.pw
+  # bootstrap defaults to another server builds here too.
+  BE3_BUILD_SERVER: api.be3.pfg.pw
 
 # One job does the work: ci is ./scripts/ci, which verifies and on a pull
 # request renders the paint previews, and uploads what each of those produced.
@@ -163,6 +158,13 @@ jobs:
           PREVIEWS: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           BOOTSTRAP: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           BASE: ${{ github.event.pull_request.base.sha }}
+          # What crates/be-tool-bootstrap's release is built from. Its six
+          # release builds, four for Windows and macOS, are made only when a
+          # pull request changes one of these (guides/bootstrap.md).
+          BOOTSTRAP_INPUTS: >-
+            crates/be-tool-bootstrap crates/be-lib-prompt Cargo.lock
+            buck/cargo buck/platforms buck/sysroot buck/toolchains buck/tools
+            third-party/rust scripts/internal/pins .buckconfig
         run: |
           set --
           if [ "$CHECK" = true ]; then
@@ -171,7 +173,8 @@ jobs:
           if [ "$PREVIEWS" = true ]; then
             set -- "$@" --previews "$BASE" "$RUNNER_TEMP/previews"
           fi
-          if [ "$BOOTSTRAP" = true ]; then
+          # shellcheck disable=SC2086 # BOOTSTRAP_INPUTS is a list of paths
+          if [ "$BOOTSTRAP" = true ] && ! git diff --quiet "$(git merge-base "$BASE" HEAD)" HEAD -- $BOOTSTRAP_INPUTS; then
             set -- "$@" --bootstrap "$RUNNER_TEMP/bootstrap"
           fi
           ./scripts/ci "$@"

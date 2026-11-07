@@ -210,13 +210,27 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
 # A test run's command, stopped once it has run for TEST_TIME_LIMIT. A test
 # that hangs would otherwise hold its worker until the build server gives up
 # on it, and every later run of the same action would wait on that one.
+#
 TEST_TIME_LIMIT = "20m"
+
+# Shell that starts a test with TMPDIR a fresh directory of its own under
+# /tmp, and the test's command (in $@ with "$0" its time limit, or whatever
+# follows) removes it after. A worker's own temporary directory can sit so deep
+# that a Unix socket made in it is longer than a socket's path may be
+# (SUN_LEN), which failed every test that listens on one (a Wayland server, a
+# D-Bus daemon, an OpenXR runtime). ./scripts/test's runner (buck/dev/test.bxl)
+# uses it too.
+SHORT_TMPDIR = 'TMPDIR="$(mktemp -d /tmp/test.XXXXXX)" && export TMPDIR && '
+REMOVE_TMPDIR = 'rm -rf "$TMPDIR"'
 
 def time_limited(command):
     return cmd_args(
         "sh",
         "-c",
-        'timeout "$0" "$@"; status=$? && [ "$status" != 124 ] || echo "the test ran for over $0 and was stopped: one of its tests hangs, the one said above to have been running for over 60 seconds" >&2; exit "$status"',
+        SHORT_TMPDIR
+        + 'timeout "$0" "$@"; status=$?; '
+        + REMOVE_TMPDIR
+        + '; [ "$status" != 124 ] || echo "the test ran for over $0 and was stopped: one of its tests hangs, the one said above to have been running for over 60 seconds" >&2; exit "$status"',
         TEST_TIME_LIMIT,
         command,
     )

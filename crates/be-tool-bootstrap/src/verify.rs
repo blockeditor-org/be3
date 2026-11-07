@@ -16,7 +16,7 @@ pub fn verify(arguments: Vec<String>) -> Result<ExitCode> {
             return Err(VERIFY_USAGE.to_owned());
         }
     }
-    run(arguments, false)
+    run(arguments)
 }
 
 pub fn ci(arguments: Vec<String>) -> Result<ExitCode> {
@@ -34,10 +34,10 @@ pub fn ci(arguments: Vec<String>) -> Result<ExitCode> {
             checked.push(arguments.next().ok_or_else(|| CI_USAGE.to_owned())?);
         }
     }
-    run(checked, true)
+    run(checked)
 }
 
-fn run(arguments: Vec<String>, ci: bool) -> Result<ExitCode> {
+fn run(arguments: Vec<String>) -> Result<ExitCode> {
     let has = |flag: &str| arguments.iter().any(|argument| argument == flag);
     let (mut lint, mut tests, mut app_tests) = (has("--lint"), has("--tests"), has("--app-tests"));
     let verbose = has("--verbose") || in_ci();
@@ -79,7 +79,7 @@ fn run(arguments: Vec<String>, ci: bool) -> Result<ExitCode> {
         "--bootstrap",
         bool(has("--bootstrap")),
         "--release_bootstrap",
-        bool(ci),
+        bool(has("--bootstrap")),
     ]
     .into_iter()
     .map(str::to_owned)
