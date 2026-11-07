@@ -107,7 +107,7 @@ def _crate(key, crate, fixup):
         proc_macro = library["proc_macro"],
         rustc_flags = dev_only(crate.get("profile_flags", [])) + RELEASE_SYMBOL_FLAGS + rustc_flags + _plan_flags(fixup),
         srcs = [":" + unpacked],
-        **(proc_macro_visibility(library["proc_macro"], {}) | RUST_LOCAL)
+        **(proc_macro_visibility(library["proc_macro"], {}) | RUST_LOCAL),
     )
 
     if not build_script:

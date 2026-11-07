@@ -54,11 +54,11 @@ def dev_only(flags):
 # - fuzz, a fuzz target and the library under it (cargo_fuzz): optimised, as
 #   cargo-fuzz builds one.
 OPT_LEVELS = {
-    "toolchain": (0, 2, 3),
-    "member": (None, 1, None),
     "app": (None, 0, None),
     "app_test": (None, 0, 0),
     "fuzz": (3, 3, 3),
+    "member": (None, 1, None),
+    "toolchain": (0, 2, 3),
 }
 
 def _opt_flag(level):

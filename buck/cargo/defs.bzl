@@ -44,13 +44,11 @@ def _planned(crate):
     unplanned = [plan for plan in PLAN_SETTINGS if plan not in crate["platforms"]]
     if not unplanned:
         return []
-    return select({"DEFAULT": []} | {
-        PLAN_SETTINGS[plan]: ["root//buck/constraints:planned_by_cargo"]
-        for plan in unplanned
-    } | {
-        PLAN_SETTINGS[plan]: []
-        for plan in crate["platforms"]
-    })
+    return select(
+        {"DEFAULT": []}
+        | {PLAN_SETTINGS[plan]: ["root//buck/constraints:planned_by_cargo"] for plan in unplanned}
+        | {PLAN_SETTINGS[plan]: [] for plan in crate["platforms"]}
+    )
 
 def _compatible(crate, kwargs):
     planned = _planned(crate)
@@ -123,7 +121,9 @@ def _core_flags():
 def _rustc_flags(crate, kwargs):
     if "srcs" in kwargs:
         fail("Rust sources are inferred; srcs is not supported")
-    return [RUSTC_THREADS] + RELEASE_SYMBOL_FLAGS + opt_flags("member") + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+    return (
+        [RUSTC_THREADS] + RELEASE_SYMBOL_FLAGS + opt_flags("member") + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+    )
 
 # A proc macro's own visibility, which the root PACKAGE's default cannot give:
 # the prelude's rust_library makes it an alias of the library, and gives the
@@ -522,16 +522,20 @@ def game_packages():
 # rustc's sancov pass, which libFuzzer reads coverage and comparisons from, and
 # an optimised build that still checks for overflow and debug assertions, as
 # cargo-fuzz builds one.
-_FUZZ_FLAGS = [
-    "-Cpasses=sancov-module",
-    "-Cllvm-args=-sanitizer-coverage-level=4",
-    "-Cllvm-args=-sanitizer-coverage-inline-8bit-counters",
-    "-Cllvm-args=-sanitizer-coverage-pc-table",
-    "-Cllvm-args=-sanitizer-coverage-trace-compares",
-] + opt_flags("fuzz") + [
-    "-Cdebug-assertions=on",
-    "-Coverflow-checks=on",
-]
+_FUZZ_FLAGS = (
+    [
+        "-Cpasses=sancov-module",
+        "-Cllvm-args=-sanitizer-coverage-level=4",
+        "-Cllvm-args=-sanitizer-coverage-inline-8bit-counters",
+        "-Cllvm-args=-sanitizer-coverage-pc-table",
+        "-Cllvm-args=-sanitizer-coverage-trace-compares",
+    ]
+    + opt_flags("fuzz")
+    + [
+        "-Cdebug-assertions=on",
+        "-Coverflow-checks=on",
+    ]
+)
 
 # Every file in a crate's fuzz/ is a coverage-guided fuzz target: a
 # #![no_main] crate defining LLVMFuzzerTestOneInput over the crate's library,

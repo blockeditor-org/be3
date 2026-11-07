@@ -34,8 +34,6 @@ prerendered_page(
 
 web_program(
     name = "web",
-    module = "beui_html_spike",
-    role = "html",
     files = [
         ":index",
         "web/start.js",
@@ -44,6 +42,8 @@ web_program(
         "//crates/beui-fonts:NotoEmoji-Regular.ttf",
         "//crates/beui-fonts:lucide.ttf",
     ],
+    module = "beui_html_spike",
+    role = "html",
     serve = "127.0.0.1:8060",
 )
 

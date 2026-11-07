@@ -10,10 +10,10 @@ web_library(
 
 web_program(
     name = "web",
-    module = "beui_web_demo",
-    role = "program",
     files = [
         "//crates/be-tool-local:demo-index",
     ],
+    module = "beui_web_demo",
+    role = "program",
     serve = "127.0.0.1:8070",
 )

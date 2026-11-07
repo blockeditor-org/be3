@@ -19,8 +19,6 @@ cargo_test(
 
 web_program(
     name = "assets",
-    module = "be_portal_ui",
-    role = "html",
     files = [
         "web/start.js",
         "//crates/beui-fonts:Inter-Regular.ttf",
@@ -28,5 +26,7 @@ web_program(
         "//crates/beui-fonts:NotoEmoji-Regular.ttf",
         "//crates/beui-fonts:lucide.ttf",
     ],
+    module = "be_portal_ui",
+    role = "html",
     visibility = ["//crates/be-server-bin:"],
 )

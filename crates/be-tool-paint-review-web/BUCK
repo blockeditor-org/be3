@@ -14,11 +14,11 @@ web_library(
 
 web_program(
     name = "web",
-    module = "paint_review_web",
-    role = "program",
     files = [
         "//crates/be-tool-local:paint-review-index",
     ],
+    module = "paint_review_web",
+    role = "program",
     run_with = [
         "sh",
         "$(location :serve.sh)",

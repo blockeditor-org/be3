@@ -53,10 +53,10 @@ _program_flags = _guest_exports + [
 #   run through wasm-bindgen, such as be-host's web bundle.
 # - html, the same with the `html` constraint: a program on beui's HTML core.
 WASM_ROLES = {
-    "wasm32": struct(platform = "root//buck/platforms:wasm32", setting = "root//buck/platforms:wasm32_setting", link_flags = []),
-    "guest": struct(platform = "root//buck/platforms:wasi_guest", setting = "root//buck/platforms:wasi_guest_setting", link_flags = _guest_exports),
-    "program": struct(platform = "root//buck/platforms:wasi", setting = "root//buck/platforms:wasi_setting", link_flags = _program_flags),
-    "html": struct(platform = "root//buck/platforms:wasi_html", setting = "root//buck/platforms:wasi_html_setting", link_flags = _program_flags),
+    "guest": struct(link_flags = _guest_exports, platform = "root//buck/platforms:wasi_guest", setting = "root//buck/platforms:wasi_guest_setting"),
+    "html": struct(link_flags = _program_flags, platform = "root//buck/platforms:wasi_html", setting = "root//buck/platforms:wasi_html_setting"),
+    "program": struct(link_flags = _program_flags, platform = "root//buck/platforms:wasi", setting = "root//buck/platforms:wasi_setting"),
+    "wasm32": struct(link_flags = [], platform = "root//buck/platforms:wasm32", setting = "root//buck/platforms:wasm32_setting"),
 }
 
 # WebAssembly modules, depended on from targets that are not WebAssembly: the
@@ -170,7 +170,7 @@ def wasm32_crate(module = None, extra_features = []):
 # False, and :module, the type module the app runs it in, which only the
 # crate's `module` feature exports.
 def type_module(module, test = True):
-    wasm32_crate(module = module, extra_features = ["module"])
+    wasm32_crate(extra_features = ["module"], module = module)
     if test:
         cargo_test()
 
@@ -219,15 +219,7 @@ def web_program(name, role, module, files = [], serve = None, **kwargs):
             "$(location //buck/program:bundle.Caddyfile)",
             serve,
         ]
-    program(
-        name = name,
-        bindgen = [":web-module"],
-        files = files + _WEB_SHIMS,
-        manifests = [],
-        modules = [],
-        wasm_bindgen = "//buck/cargo:wasm-bindgen",
-        **kwargs
-    )
+    program(name = name, bindgen = [":web-module"], files = files + _WEB_SHIMS, manifests = [], modules = [], wasm_bindgen = "//buck/cargo:wasm-bindgen", **kwargs)
 
 # The libraries every editor is linked against unless it names its own
 # (guides/app_libraries.md): base, the root that holds std, wasi-libc, wgpu and
@@ -357,15 +349,9 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
         rustc_flags = _guest_exports + rustc_flags + opt_flags("app") + RELEASE_SYMBOL_FLAGS,
         srcs = cargo_library_sources() + ["manifest.json"],
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
-        **(kwargs | RUST_LOCAL)
+        **(kwargs | RUST_LOCAL),
     )
-    wasi_module(
-        name = name,
-        libraries = libraries,
-        library = ":" + library,
-        module = module,
-        **kwargs
-    )
+    wasi_module(name = name, libraries = libraries, library = ":" + library, module = module, **kwargs)
 
 # An app: the guest cdylib, :wasm (wasm32 only; an app is all behind
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
@@ -394,21 +380,9 @@ def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], ty
         module = module,
         visibility = visibility,
     )
-    native.export_file(
-        name = "manifest",
-        src = "manifest.json",
-        **kwargs
-    )
-    app_data(
-        name = "data",
-        files = data,
-        **kwargs
-    )
-    app_types(
-        name = "types",
-        module = types,
-        **kwargs
-    )
+    native.export_file(name = "manifest", src = "manifest.json", **kwargs)
+    app_data(name = "data", files = data, **kwargs)
+    app_types(name = "types", module = types, **kwargs)
     app_tests(
         env = test_env,
         exports = _guest_exports,
