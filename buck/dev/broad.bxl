@@ -1,0 +1,121 @@
+load("//buck/cargo:crates.bzl", "crates")
+load("//buck/platforms:cross.bzl", "CROSS_PLATFORMS")
+
+# What ./scripts/verify leaves out (decisions/verify_compiles_one_configuration_per_target.md),
+# in one buck2 command, for the manual broad check (.github/workflows/broad.yml):
+# rustc's check pass over every first-party Rust library and binary in each
+# configuration verify does not compile, and clippy over the two it does, which
+# fails through one lint-gate action (crates/be-tool-buck) since the prelude's
+# clippy actions always succeed. Prints "kind<TAB>path": the clippy summary.
+#
+#   ./scripts/buck bxl --keep-going //buck/dev/broad.bxl:main
+
+_RELEASE = "root//buck/constraints:release"
+
+# The configurations whose crates are the ones cargo plans there
+# (buck/cargo/buckify.sh), by plan name. Each of those plans is cargo asked
+# about a list of packages for that platform alone, so a crate in it is meant
+# to compile there.
+_PLANNED = {
+    "linux_x86_64": "linux-x86_64",
+    "linux_x86_64_html": "linux-x86_64-html",
+    "wasi": "wasi",
+    "wasi_guest": "wasi-guest",
+    "wasi_html": "wasi-html",
+    "wasm32": "wasm32",
+}
+
+# The cross platforms' plans are the host's whole workspace for each triple,
+# Linux-only crates included, so their crates are instead what these ship
+# there: be-host (as a library on Android) and the bootstrap, and on linux
+# arm64 `be` too (crates/be-tool-local:deploy).
+_DESKTOP = ["//crates/be-host:bin", "//crates/be-tool-bootstrap:bin"]
+_SHIPPED = {name: _DESKTOP for name in CROSS_PLATFORMS} | {
+    "android_arm64": ["//crates/be-host:be-host"],
+    "linux_arm64": _DESKTOP + ["//crates/be-tool-cli:bin"],
+}
+
+# (platform, release, check, clippy). verify checks linux_x86_64 and
+# wasi_guest in dev builds already.
+_JOBS = [
+    ("linux_x86_64", False, False, True),
+    ("wasi_guest", False, False, True),
+    ("linux_x86_64", True, True, False),
+    ("wasi_guest", True, True, False),
+    ("linux_x86_64_html", False, True, False),
+    ("wasi", False, True, False),
+    ("wasi_html", False, True, False),
+    ("wasm32", False, True, False),
+] + [(name, False, True, False) for name in sorted(CROSS_PLATFORMS)]
+
+def _configuration(target) -> str:
+    return str(target.label).rpartition("(")[2].partition("#")[0].rpartition(":")[2]
+
+# The libraries and binaries cargo planned on this plan, of the first-party
+# crates, as labels; a binary target is "bin" when its crate has one
+# (cargo_binary in buck/cargo/defs.bzl).
+def _planned(plan: str) -> list[str]:
+    labels = []
+    for directory, crate in crates.items():
+        if not directory.startswith("crates/") or plan not in crate["platforms"]:
+            continue
+        if crate["library"] != None:
+            labels.append("//{}:{}".format(directory, crate["name"]))
+        for binary in crate["platforms"][plan]["binaries"]:
+            labels.append("//{}:{}".format(directory, "bin" if len(crate["binaries"]) == 1 else binary))
+    return labels
+
+# The first-party Rust libraries and binaries the roots build in this
+# configuration, themselves included. A root that does not exist, or is
+# incompatible with the platform, is left out.
+def _targets(ctx: bxl.Context, existing: dict[str, bool], roots: list[str], platform: str, release: bool) -> list:
+    lazies = [
+        ctx.lazy.configured_target_node(
+            "root" + root,
+            target_platform = "root//buck/platforms:" + platform,
+            modifiers = [_RELEASE] if release else [],
+        ).catch()
+        for root in roots
+        if "root" + root in existing
+    ]
+    configured = [result.unwrap() for result in ctx.lazy.join_all(lazies).resolve() if result.is_ok()]
+    if not configured:
+        return []
+    name = platform + ("_release" if release else "")
+    closure = ctx.cquery().kind("^rust_(library|binary)$", ctx.cquery().deps(bxl.ctarget_set(configured)))
+    return [
+        target
+        for target in closure
+        if target.label.package.startswith("crates/") and not target.label.name.endswith("-harness") and _configuration(target) == name
+    ]
+
+def _subtarget(ctx: bxl.Context, target, name: str):
+    sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets
+    return sub_targets[name][DefaultInfo].default_outputs[0] if name in sub_targets else None
+
+def _impl(ctx: bxl.Context):
+    actions = ctx.bxl_actions().actions
+    existing = {str(target.label): True for target in ctx.uquery().eval("kind('^rust_(library|binary)$', //crates/...)")}
+    checks = {}
+    diagnostics = {}
+    for platform, release, check, clippy in _JOBS:
+        roots = _planned(_PLANNED[platform]) if platform in _PLANNED else _SHIPPED[platform]
+        for target in _targets(ctx, existing, roots, platform, release):
+            key = str(target.label)
+            if check and key not in checks:
+                checks[key] = _subtarget(ctx, target, "check")
+            if clippy and key not in diagnostics:
+                diagnostics[key] = _subtarget(ctx, target, "clippy.json")
+    summary = actions.declare_output("clippy.txt")
+    tools = ctx.analysis(ctx.configured_targets("root//crates/be-tool-buck:bin")).providers()[DefaultInfo].default_outputs[0]
+    actions.run(
+        cmd_args(tools, "lint-gate", summary.as_output(), [path for path in diagnostics.values() if path != None]),
+        category = "lint_gate",
+    )
+    ctx.output.ensure_multiple([path for path in checks.values() if path != None])
+    ctx.output.print("clippy", ctx.output.ensure(summary).abs_path(), sep = "\t")
+
+main = bxl_main(
+    cli_args = {},
+    impl = _impl,
+)
