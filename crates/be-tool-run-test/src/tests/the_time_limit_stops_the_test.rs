@@ -12,7 +12,13 @@ fn the_time_limit_stops_the_test() {
     options.time_limit = Some(("0s".to_owned(), Duration::ZERO));
     options.record = Some(out.clone());
     assert_eq!(run_ok(&options), 0);
-    assert_eq!(std::fs::read_to_string(out.join("status")).unwrap(), format!("{TIMED_OUT}\n"));
+    assert_eq!(
+        std::fs::read_to_string(out.join("status")).unwrap(),
+        format!("{TIMED_OUT}\n")
+    );
     let log = std::fs::read_to_string(out.join("log")).unwrap();
-    assert!(log.contains("the test ran for over 0s and was stopped"), "{log}");
+    assert!(
+        log.contains("the test ran for over 0s and was stopped"),
+        "{log}"
+    );
 }

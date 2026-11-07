@@ -91,9 +91,9 @@ pub fn parse_duration(text: &str) -> Result<Duration, String> {
         Some((at, unit @ ('s' | 'm' | 'h'))) => (&text[..at], unit),
         _ => (text, 's'),
     };
-    let number: u64 = number
-        .parse()
-        .map_err(|_| format!("a time limit is a number of seconds, or one followed by s, m or h, not {text:?}"))?;
+    let number: u64 = number.parse().map_err(|_| {
+        format!("a time limit is a number of seconds, or one followed by s, m or h, not {text:?}")
+    })?;
     let seconds = match unit {
         'h' => number * 3600,
         'm' => number * 60,
@@ -106,7 +106,9 @@ pub fn parse_duration(text: &str) -> Result<Duration, String> {
 pub fn run(options: &Options) -> Result<i32, String> {
     let temporary = TemporaryDirectory::new()?;
     let mut command = Command::new(&options.command[0]);
-    command.args(&options.command[1..]).env("TMPDIR", &temporary.0);
+    command
+        .args(&options.command[1..])
+        .env("TMPDIR", &temporary.0);
     if let Some(library_path) = &options.library_path {
         command.env("LD_LIBRARY_PATH", library_path);
     }
@@ -164,7 +166,8 @@ pub fn run(options: &Options) -> Result<i32, String> {
 }
 
 fn create_dir(path: &Path) -> Result<(), String> {
-    std::fs::create_dir_all(path).map_err(|error| format!("cannot create {}: {error}", path.display()))
+    std::fs::create_dir_all(path)
+        .map_err(|error| format!("cannot create {}: {error}", path.display()))
 }
 
 /// A message of the launcher's own, after the test's output: in the log when
@@ -182,7 +185,10 @@ fn report(log: Option<&Path>, message: &str) {
     }
 }
 
-fn run_command(mut command: Command, time_limit: Option<&(String, Duration)>) -> Result<i32, String> {
+fn run_command(
+    mut command: Command,
+    time_limit: Option<&(String, Duration)>,
+) -> Result<i32, String> {
     command.stdin(Stdio::null());
     process::own_group(&mut command);
     let program = command.get_program().to_string_lossy().into_owned();
@@ -204,7 +210,9 @@ fn run_command(mut command: Command, time_limit: Option<&(String, Duration)>) ->
     if timed_out {
         process::kill_group(id);
     }
-    let status = waiter.join().map_err(|_| "the test's waiter panicked".to_owned())??;
+    let status = waiter
+        .join()
+        .map_err(|_| "the test's waiter panicked".to_owned())??;
     Ok(if timed_out { TIMED_OUT } else { status })
 }
 
@@ -258,7 +266,10 @@ impl TemporaryDirectory {
                 Err(error) => return Err(format!("cannot create {}: {error}", path.display())),
             }
         }
-        Err(format!("cannot find a free directory name under {}", base.display()))
+        Err(format!(
+            "cannot find a free directory name under {}",
+            base.display()
+        ))
     }
 }
 

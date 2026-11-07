@@ -21,7 +21,10 @@ fn scratch(name: &str) -> PathBuf {
 }
 
 fn shell(script: &str) -> Vec<OsString> {
-    ["sh", "-c", script].into_iter().map(OsString::from).collect()
+    ["sh", "-c", script]
+        .into_iter()
+        .map(OsString::from)
+        .collect()
 }
 
 fn options(command: Vec<OsString>) -> Options {
