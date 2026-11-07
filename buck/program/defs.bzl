@@ -127,8 +127,12 @@ def _compiled(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) ->
 # bundle without one, `run_with` followed by the bundle, which is how the web
 # bundle serves itself.
 def _program_impl(ctx: AnalysisContext) -> list[Provider]:
-    out = ctx.actions.declare_output(ctx.label.name, dir = True)
+    # Not content-based: buck2 would write the directory once where the action runs and
+    # copy it to a path named for its hash, so each program would take twice the space,
+    # and a program is mostly the host's binary and the apps' modules.
+    out = ctx.actions.declare_output(ctx.label.name, dir = True, has_content_based_path = False)
     command = cmd_args("sh", ctx.attrs._stage, out.as_output())
+    only_libraries = ctx.attrs.libraries == "only"
     if ctx.attrs.compiled_only:
         command.add("--compiled-only")
     name = None
@@ -144,7 +148,7 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
         for library in info.closure if info else []:
             if library not in libraries:
                 libraries.append(library)
-    for index, library in enumerate(libraries):
+    for index, library in enumerate(libraries if ctx.attrs.libraries != "exclude" else []):
         command.add(cmd_args("--library=", library, delimiter = ""))
         if ctx.attrs.precompiler or ctx.attrs.precompiled:
             artifact = "library{}-{}".format(index, library.basename.removesuffix(".wasm"))
@@ -154,6 +158,8 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
     app_types = ctx.attrs.app_types or [None] * len(ctx.attrs.manifests)
     for manifest, module, files, types in zip(ctx.attrs.manifests, ctx.attrs.modules, data, app_types):
+        if only_libraries:
+            break
         wasm = module[DefaultInfo].default_outputs[0]
         command.add(cmd_args(manifest, wasm, delimiter = "="))
         if files:
@@ -217,6 +223,11 @@ program = rule(
         "executable_name": attrs.string(default = ""),
         "files": attrs.list(attrs.source(), default = []),
         "index": attrs.bool(default = False),
+        # Which libraries the program holds: "include" every one the modules
+        # need, "exclude" them, for a program run with the BE_BUNDLE path list
+        # (be-lib-build-id) that has them in another, or "only" them and none of
+        # the apps, which is that other directory.
+        "libraries": attrs.enum(["include", "exclude", "only"], default = "include"),
         # Modules staged as they are, like files, with every library they
         # need: a linked module that is not an app with a manifest, such as
         # a test's.

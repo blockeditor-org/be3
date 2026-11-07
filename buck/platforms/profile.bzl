@@ -61,3 +61,11 @@ RELEASE_SYMBOL_FLAGS = select({
     "DEFAULT": [],
     "root//buck/constraints:release": ["-Zunstable-options", "-Csymbol-mangling-version=legacy"],
 })
+
+# What a rust target takes on a build with no build server (be3.build_server =
+# none, guides/running/local_buck2.md). The prelude's rust rules name their outputs by content,
+# which lets a build server share them, and buck2 then writes each output where the
+# action ran and copies it to the path named for its hash, leaving two copies that
+# are a third of buck-out. Spread into every rust target; empty on a build server, so
+# nothing there changes.
+RUST_LOCAL = {"use_content_based_paths": False} if read_root_config("be3", "build_server", "") == "none" else {}

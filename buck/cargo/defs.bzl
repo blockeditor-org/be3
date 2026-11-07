@@ -1,6 +1,6 @@
 load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "dev_only")
+load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only")
 load(":crates.bzl", "crates")
 
 # The rules for a workspace crate, filled in from its Cargo.toml through
@@ -132,7 +132,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = cargo_library_sources() + extra_srcs,
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
-        **kwargs,
+        **(kwargs | RUST_LOCAL),
     )
 
 # The library's own tests, which are #[cfg(test)] modules in its sources, with
@@ -166,7 +166,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
             env = _env(crate, library["crate"], compile_env),
             rustc_flags = rustc_flags + ["--test"],
             target_compatible_with = kwargs.get("target_compatible_with", []),
-            **common,
+            **(common | RUST_LOCAL),
         )
         apart = {}
         if run_apart:
@@ -196,11 +196,11 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
             env = _env(crate, library["crate"], compile_env),
             rustc_flags = rustc_flags + ["--test"],
             target_compatible_with = kwargs.get("target_compatible_with", []),
-            **common,
+            **(common | RUST_LOCAL),
         )
         library_path_test(name = name, env = _env(crate, library["crate"], env), harness = ":" + name + "-harness", **kwargs)
     else:
-        native.rust_test(name = name, env = _env(crate, library["crate"], env), rustc_flags = rustc_flags, **(common | kwargs))
+        native.rust_test(name = name, env = _env(crate, library["crate"], env), rustc_flags = rustc_flags, **(common | kwargs | RUST_LOCAL))
     platform = {key: kwargs[key] for key in ["default_target_platform", "target_compatible_with"] if key in kwargs}
     test_run(name = name + "-run", local_only = kwargs.get("remote_execution") == "disabled", test = ":" + name, **platform)
 
@@ -424,7 +424,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, binary["crate_root"]),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
-        **kwargs,
+        **(kwargs | RUST_LOCAL),
     )
 
 # One of the crate's examples, as a binary, named example-<example>:
@@ -451,7 +451,7 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, examples[example]["crate_root"]),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
-        **kwargs,
+        **(kwargs | RUST_LOCAL),
     )
 
 # What the wasm macros in buck/wasm/defs.bzl need from a crate's Cargo.toml:
@@ -526,6 +526,7 @@ def cargo_fuzz(extra_features = []):
             rustc_flags = _FUZZ_FLAGS,
             srcs = [root],
             target_compatible_with = compatible,
+            **RUST_LOCAL,
         )
         fuzz_target(
             name = name,

@@ -11,16 +11,18 @@ def _execution_platform_impl(ctx: AnalysisContext) -> list[Provider]:
     configuration = ConfigurationInfo(constraints = constraints, values = {})
 
     name = ctx.label.raw_target()
+    # be3.build_server = none (guides/running/local_buck2.md) runs every action on this machine.
+    remote = read_root_config("be3", "build_server", "namespace") != "none"
     platform = ExecutionPlatformInfo(
         configuration = configuration,
         executor_config = CommandExecutorConfig(
             allow_cache_uploads = False,
             local_enabled = True,
-            remote_cache_enabled = True,
-            remote_enabled = True,
+            remote_cache_enabled = remote,
+            remote_enabled = remote,
             remote_execution_properties = ctx.attrs.remote_execution_properties,
             remote_execution_use_case = "buck2-default",
-            use_limited_hybrid = True,
+            use_limited_hybrid = remote,
         ),
         label = name,
     )

@@ -47,6 +47,7 @@ Guides:
 - guides/running/drive.md: how to run and test any program; read this first
 - guides/running/native.md
 - guides/running/web.md
+- guides/running/local_buck2.md: building with buck2 on this machine when no build server is reachable
 - guides/running/android.md
 - guides/settings.md: user, block and organization settings: where they live, how they resolve, who may change and read them
 - guides/sync.md: `be sync`, which keeps a folder or workspace and a directory on disk in step both ways
