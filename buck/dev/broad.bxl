@@ -72,8 +72,8 @@ def _targets(ctx: bxl.Context, existing: dict[str, bool], roots: list[str], plat
     lazies = [
         ctx.lazy.configured_target_node(
             "root" + root,
-            target_platform = "root//buck/platforms:" + platform,
             modifiers = [_RELEASE] if release else [],
+            target_platform = "root//buck/platforms:" + platform,
         ).catch()
         for root in roots
         if "root" + root in existing
