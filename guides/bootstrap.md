@@ -7,7 +7,7 @@ everything that has to happen before buck2 can build: installing buck2,
 picking and waking the build server (guides/build_server.md), the build id,
 retries, cutting buck2's output down, and finding a test's crate. Nothing can
 build it at that point, so it is a prebuilt release, and nothing is compiled
-on the machine that runs it.
+on the machine that runs it, except on the cargo route under Recovery.
 
 Where code belongs:
 
@@ -40,7 +40,8 @@ version, be's release, nsc's, and the bootstrap's: `bootstrap_sha256_<triple>`
 is the SHA-256 of each platform's binary, which is also its name at
 `https://be3-ci.b-cdn.net/bootstrap/<sha256>`.
 `scripts/internal/bootstrap.sh` downloads the one for this machine into
-`target/tools/bootstrap-<sha256>/`, checks it, and runs it.
+`target/tools/bootstrap-<sha256>/`, checks it against the pin on every run (a
+file there that does not match is downloaded again), and runs it.
 
 `//crates/be-tool-bootstrap:dist` is the release for Linux, macOS and Windows on
 x86_64 and arm64, in the release profile, laid out as
@@ -86,3 +87,29 @@ that branch's builds carry the old value, and `./scripts/deploy`, the one check
 on it, runs from main after the pin. A directory the
 release writes into needs a tracked file to keep it in a checkout until a
 release that no longer writes there is pinned.
+
+## Recovery
+
+When the release cannot be had (the CDN is down, `scripts/internal/pins` has no
+release for this machine, or curl is missing), build the crate with cargo:
+`BE3_BOOTSTRAP=cargo ./scripts/buck ...` (any script) has `bootstrap.sh` run
+`cargo build --locked --release -p be-tool-bootstrap --target-dir
+target/tools/bootstrap-cargo` and run that binary in the release's place. It
+needs rustup, which reads the toolchain from rust-toolchain.toml, and
+crates.io, and takes a few seconds once built. The workspace's Cargo.toml and
+Cargo.lock still build this one crate, though cargo builds nothing else here;
+the manual broad check (.github/workflows/broad.yml) builds it the same way to
+see that this keeps working. The binary finds the checkout from its own path,
+so `target/tools/bootstrap-cargo/release/bootstrap COMMAND ...` runs it too.
+
+A cargo build is not byte for byte the release `:dist` builds, so nothing it
+makes is a pin: pins come only from CI (above).
+
+buck2 is downloaded by the bootstrap, from GitHub's release and then the
+mirror. When both fail, fetch it by hand: download
+`https://lfs.pfg.pw/by-name/be3/<buck2_version>/buck2-<triple>.zst` (or the
+same file from `https://github.com/facebook/buck2/releases/download/<buck2_version>/`),
+check that its SHA-256 is the pin's `buck2_sha256_<triple>`, which is the hash
+of the `.zst`, and decompress it with `zstd -d` to
+`target/tools/buck2-<buck2_version>/buck2` (`buck2.exe` on Windows), executable.
+The bootstrap uses whatever executable is there without hashing it.
