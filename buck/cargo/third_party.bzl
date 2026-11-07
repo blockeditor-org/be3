@@ -1,7 +1,7 @@
 load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust:cargo_package.bzl", "cargo")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
-load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "dev_only")
+load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only")
 load(":crates.bzl", "third_party")
 
 # The rules for every third-party crate a workspace crate depends on, from
@@ -107,6 +107,7 @@ def _crate(key, crate, fixup):
         rustc_flags = dev_only(crate.get("profile_flags", [])) + RELEASE_SYMBOL_FLAGS + rustc_flags + _plan_flags(fixup),
         srcs = [":" + unpacked],
         visibility = ["PUBLIC"],
+        **RUST_LOCAL,
     )
 
     if not build_script:
@@ -125,6 +126,7 @@ def _crate(key, crate, fixup):
         platform = _platforms(crate, fixup, script = True),
         srcs = [":" + unpacked],
         visibility = [],
+        **RUST_LOCAL,
     )
     run_env = {name: value for name, value in env.items() if name != "CARGO_MANIFEST_DIR"}
     if "links" in crate:

@@ -47,6 +47,7 @@ Guides:
 - guides/running/drive.md: how to run and test any program; read this first
 - guides/running/native.md
 - guides/running/web.md
+- guides/running/local_buck2.md: building with buck2 on this machine when no build server is reachable
 - guides/running/android.md
 - guides/settings.md: user, block and organization settings: where they live, how they resolve, who may change and read them
 - guides/sync.md: `be sync`, which keeps a folder or workspace and a directory on disk in step both ways
@@ -80,6 +81,7 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 Do:
 - Use commit messages of the form `type: message`, ending with a Co-Authored-By line naming your model.
 - When done, open a pull request on GitHub. Don't watch it, subscribe to it or check on it, and don't create routines or check-in timers.
+- If a build fails because of the build server (it is down, refuses the key, or drops calls; guides/build_server.md), rerun the command once. If it fails again, stop working and ask the user how to continue.
 - To stop a process, kill its PID, or use `pkill -x NAME` to match the process name. Never `pkill -f PATTERN` or `kill $(pgrep -f PATTERN)`: each command runs as `bash -c '<the command text>'`, so the pattern also matches the shell the command runs in, and pkill kills that shell and the rest of the command with it.
 - When updating GitHub Actions workflows, remember that the new version will run on old PRs that don't have main's new changes applied.
 

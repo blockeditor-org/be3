@@ -11,7 +11,7 @@ load(
     "time_limited",
 )
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
-load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "dev_only", "keep_profile")
+load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only", "keep_profile")
 load("@root//buck/program:defs.bzl", "app_data", "app_types")
 load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
 
@@ -180,6 +180,7 @@ def wasm_library(module, libraries = [], rustc_flags = []):
             rustc_flags = rustc_flags,
             srcs = ["library.rs"],
             target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+            **RUST_LOCAL,
         )
     else:
         native.rust_library(
@@ -196,6 +197,7 @@ def wasm_library(module, libraries = [], rustc_flags = []):
             rustc_flags = rustc_flags,
             srcs = cargo_library_sources(),
             target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+            **RUST_LOCAL,
         )
     wasi_module(
         name = "module",
@@ -224,6 +226,7 @@ def linked_app(module, libraries, rustc_flags = []):
         rustc_flags = guest_exports + rustc_flags + RELEASE_SYMBOL_FLAGS,
         srcs = cargo_library_sources(),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+        **RUST_LOCAL,
     )
     wasi_module(
         name = "module",
@@ -261,6 +264,7 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = ["P
         srcs = cargo_library_sources() + ["manifest.json"],
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
         visibility = visibility,
+        **RUST_LOCAL,
     )
     wasi_module(
         name = name,
@@ -351,6 +355,7 @@ def app_tests(exports = [], env = {}, extra_deps = []):
         rustc_flags = exports + ["--test", "-Copt-level=0"],
         srcs = cargo_test_sources() + native.glob(["manifest.json"]),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+        **RUST_LOCAL,
     )
     wasi_test(
         name = "test",

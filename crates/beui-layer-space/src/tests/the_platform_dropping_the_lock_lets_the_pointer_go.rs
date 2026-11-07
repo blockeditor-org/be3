@@ -30,10 +30,11 @@ fn the_platform_dropping_the_lock_lets_the_pointer_go() {
         now,
         [button(centre(), true), button(centre(), false)],
     );
-    assert_eq!(
-        delivered(&clicked),
-        [],
-        "the click that takes it back is swallowed"
+    assert!(
+        !delivered(&clicked)
+            .iter()
+            .any(|(_, input)| matches!(input, Input::PointerButton { .. })),
+        "the click that takes it back is swallowed: {clicked:?}"
     );
     assert!(space.grabbed());
     assert!(

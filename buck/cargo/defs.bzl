@@ -1,6 +1,6 @@
 load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "dev_only")
+load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only")
 load(":crates.bzl", "crates")
 
 # The rules for a workspace crate, filled in from its Cargo.toml through
@@ -132,7 +132,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = cargo_library_sources() + extra_srcs,
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
-        **kwargs,
+        **(kwargs | RUST_LOCAL),
     )
 
 # The library's own tests, which are #[cfg(test)] modules in its sources, with
@@ -166,7 +166,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
             env = _env(crate, library["crate"], compile_env),
             rustc_flags = rustc_flags + ["--test"],
             target_compatible_with = kwargs.get("target_compatible_with", []),
-            **common,
+            **(common | RUST_LOCAL),
         )
         apart = {}
         if run_apart:
@@ -196,11 +196,11 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
             env = _env(crate, library["crate"], compile_env),
             rustc_flags = rustc_flags + ["--test"],
             target_compatible_with = kwargs.get("target_compatible_with", []),
-            **common,
+            **(common | RUST_LOCAL),
         )
         library_path_test(name = name, env = _env(crate, library["crate"], env), harness = ":" + name + "-harness", **kwargs)
     else:
-        native.rust_test(name = name, env = _env(crate, library["crate"], env), rustc_flags = rustc_flags, **(common | kwargs))
+        native.rust_test(name = name, env = _env(crate, library["crate"], env), rustc_flags = rustc_flags, **(common | kwargs | RUST_LOCAL))
     platform = {key: kwargs[key] for key in ["default_target_platform", "target_compatible_with"] if key in kwargs}
     test_run(name = name + "-run", local_only = kwargs.get("remote_execution") == "disabled", test = ":" + name, **platform)
 
@@ -210,13 +210,27 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
 # A test run's command, stopped once it has run for TEST_TIME_LIMIT. A test
 # that hangs would otherwise hold its worker until the build server gives up
 # on it, and every later run of the same action would wait on that one.
+#
 TEST_TIME_LIMIT = "20m"
+
+# Shell that starts a test with TMPDIR a fresh directory of its own under
+# /tmp, and the test's command (in $@ with "$0" its time limit, or whatever
+# follows) removes it after. A worker's own temporary directory can sit so deep
+# that a Unix socket made in it is longer than a socket's path may be
+# (SUN_LEN), which failed every test that listens on one (a Wayland server, a
+# D-Bus daemon, an OpenXR runtime). ./scripts/test's runner (buck/dev/test.bxl)
+# uses it too.
+SHORT_TMPDIR = 'TMPDIR="$(mktemp -d /tmp/test.XXXXXX)" && export TMPDIR && '
+REMOVE_TMPDIR = 'rm -rf "$TMPDIR"'
 
 def time_limited(command):
     return cmd_args(
         "sh",
         "-c",
-        'timeout "$0" "$@"; status=$? && [ "$status" != 124 ] || echo "the test ran for over $0 and was stopped: one of its tests hangs, the one said above to have been running for over 60 seconds" >&2; exit "$status"',
+        SHORT_TMPDIR
+        + 'timeout "$0" "$@"; status=$?; '
+        + REMOVE_TMPDIR
+        + '; [ "$status" != 124 ] || echo "the test ran for over $0 and was stopped: one of its tests hangs, the one said above to have been running for over 60 seconds" >&2; exit "$status"',
         TEST_TIME_LIMIT,
         command,
     )
@@ -410,7 +424,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, binary["crate_root"]),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
-        **kwargs,
+        **(kwargs | RUST_LOCAL),
     )
 
 # One of the crate's examples, as a binary, named example-<example>:
@@ -437,7 +451,7 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, examples[example]["crate_root"]),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
-        **kwargs,
+        **(kwargs | RUST_LOCAL),
     )
 
 # What the wasm macros in buck/wasm/defs.bzl need from a crate's Cargo.toml:
@@ -512,6 +526,7 @@ def cargo_fuzz(extra_features = []):
             rustc_flags = _FUZZ_FLAGS,
             srcs = [root],
             target_compatible_with = compatible,
+            **RUST_LOCAL,
         )
         fuzz_target(
             name = name,

@@ -76,7 +76,9 @@ points to it when it is out of view. An absolute position (a platform
 hits. Moving onto another panel just names the new window, so a drag goes on
 across windows; off every panel with a button held, events go on to the
 window the press began in, at points outside its rectangle, which is how a
-program tells a drop on nothing.
+program tells a drop on nothing. A panel that opens, closes, moves or resizes
+under a resting cursor sends a move to whatever the cursor is now over
+(`repoint`), so hover never waits for the next motion.
 
 **Steering.** Ctrl and Shift held together steer: mouse motion turns the head,
 W, A, S and D walk, Q and E roll. Nothing pressed while steering reaches the

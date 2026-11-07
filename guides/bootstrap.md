@@ -53,15 +53,15 @@ release is the one published.
 Edit the crate, then run it from source: `BE3_BOOTSTRAP=source
 ./scripts/buck ...` has the pinned release build `//crates/be-tool-bootstrap:bin` for
 this machine and run that in its place, so a command costs two buck2
-invocations. `./scripts/ci` builds `:dist` and compares each binary with
-its pin on a worker, which downloads nothing while they match; it says when one
-does not, and `./scripts/ci --check` fails then. `./scripts/verify` leaves the
-release to it: six release builds cost every run about 600 actions, for a
-crate that seldom changes, so after changing it run `./scripts/ci` to see
-it build for every platform.
+invocations. Only `./scripts/ci --bootstrap DIR` builds `:dist`, and compares each
+binary with its pin on a worker, which downloads nothing while they match. Six
+release builds, four of them for Windows and macOS, cost about 600 actions for a
+crate that seldom changes, so nothing else builds them; after changing it run
+`./scripts/ci --bootstrap DIR` to see it build for every platform.
 
 CI publishes the release; nothing is published by hand. On a pull request
-from this repository, CI runs
+from this repository that changes what the release is built from (the paths
+`BOOTSTRAP_INPUTS` names in .github/workflows/ci.yml), CI runs
 `./scripts/ci --bootstrap DIR`, which has that comparison keep each binary
 whose hash is not pinned, so only a changed release is downloaded;
 `crates/be-tool-verify` writes those into `DIR` under their SHA-256 and

@@ -2,28 +2,40 @@
 
 Every buck2 action runs on a remote execution server. `BE3_BUILD_SERVER` picks which, or else
 the one saved in `~/.config/be3/build-server`; at a terminal with neither, `./scripts/buck`
-asks and saves the answer (delete the file to be asked again). Otherwise it is Namespace.
+asks and saves the answer (delete the file to be asked again). Otherwise it is `api.be3.pfg.pw`.
+CI sets `BE3_BUILD_SERVER=api.be3.pfg.pw` in .github/workflows/ci.yml.
+
+`api.be3.pfg.pw` is much slower than Namespace was, so verify builds only what its tests and
+lints need: Linux, the apps' wasm, and beui's HTML core only where a test runs on it. Nothing is
+compile-checked for any other platform: not the web's be-host, the libraries planned for the
+HTML core, Windows, macOS or Android. Check one by hand when a change is likely to break it, such
+as `./scripts/buck build '//crates/be-host:be-host[check]' --target-platforms
+//buck/platforms:wasi` (or `:windows_x86_64`, `:linux_x86_64_html`). The bootstrap's six-platform release is built only
+when CI is given `--bootstrap`, which it is only on a pull request that changes what the
+release is built from (guides/bootstrap.md).
 
 | `BE3_BUILD_SERVER` | Server | Key | In a Claude Code cloud session |
 |---|---|---|---|
-| `namespace` (default, and CI's) | Namespace's remote execution | gateway header, to its waker | works with no setup |
-| `api.be3.pfg.pw` | our NativeLink server | gateway header | works with no setup |
-| `blocks.pfg.pw` | our NativeLink build VM, behind the gateway over WireGuard | gateway header | works once the proxy adds the gateway header for it |
+| `api.be3.pfg.pw` (default, and CI's) | our NativeLink server | gateway header | works with no setup |
+| `blocks.pfg.pw` | our NativeLink build VM, behind its own gateway over WireGuard | its gateway's header | works once the proxy adds the gateway header for it |
+| `namespace` | Namespace's remote execution, no longer reachable | gateway header, to its waker | not working |
 | `buildbuddy` | `remote.buildbuddy.io` | `x-buildbuddy-api-key` | not working |
 | `local` | a NativeLink server of your own at `host:port` | none, no TLS | too small to host |
 
 `local`'s address is `BE3_BUILD_SERVER_ADDRESS` or the saved file's second line; it is dialed
-directly, not through the relay. The servers share nothing but the gateway key, so each has its
-own cache. `./scripts/buck` writes the chosen server into `.buckconfig.local` as
-`be3.build_server`, which `worker_properties` (buck/tools/defs.bzl) reads to pick the workers'
-image.
+directly, not through the relay. The servers share nothing, so each has its own cache.
+`./scripts/buck` writes the chosen server into `.buckconfig.local` as `be3.build_server`, which
+`worker_properties` (buck/tools/defs.bzl) reads to pick the workers' image.
 
-**Keys.** Namespace's waker and our NativeLink servers sit behind the API gateway, so
+**Keys.** Namespace's waker and `api.be3.pfg.pw` sit behind the API gateway, so
 `./scripts/buck` sends the `Be3-Gateway-Authorization` header, as `./scripts/be` does
 (guides/tracker.md): from `BE3_AUTHORIZATION`, `.gateway-authorization` at the checkout's root,
-or `~/.config/be3/gateway-authorization`, asking at a terminal when none works. CI sets the
-variable; in an agent's cloud session the proxy adds the header itself for the hosts it has a
-rule for. BuildBuddy's key is `BE3_BUILD_SERVER_KEY`, `.build-server-key.buildbuddy` or
+or `~/.config/be3/gateway-authorization`, asking at a terminal when none works.
+`blocks.pfg.pw` has its own gateway with a different key, sent in the same header: from
+`BE3_BUILD_SERVER_KEY`, `.build-server-key.blocks.pfg.pw` or
+`~/.config/be3/build-server-key.blocks.pfg.pw`. CI sets `BE3_AUTHORIZATION` from the
+`BE3_TRACKER_AUTHORIZATION` secret; in an agent's cloud session the proxy adds the header
+itself for the hosts it has a rule for. BuildBuddy's key is `BE3_BUILD_SERVER_KEY`, `.build-server-key.buildbuddy` or
 `~/.config/be3/build-server-key.buildbuddy`; a cloud session has none.
 
 ## When a build keeps failing

@@ -6,7 +6,7 @@
 # in its registry (guides/build_server.md); the other servers pull it from
 # Docker Hub. be3.build_server is the server ./scripts/buck builds on.
 def worker_properties():
-    if read_root_config("be3", "build_server", "namespace") == "namespace":
+    if read_root_config("be3", "build_server", "api.be3.pfg.pw") == "namespace":
         image = "docker://nscr.io/nmbprh983nhl8/be3-worker@sha256:a8f4627669b71081a3f3a0db26375e35fce20b75335130b50b8526bba1d0a497"
     else:
         image = "docker://docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549"

@@ -197,9 +197,10 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   (`_wasm_dev`), so a change under beui recompiles every app quickly
   (decisions/dev_builds_compile_apps_unoptimized.md).
 - **Lints** are rustc's, and a warning fails the compile, but verify compiles only
-  `linux_x86_64`, `wasi_guest`, beui for Windows and the HTML core's libraries, and runs no
-  clippy (decisions/verify_compiles_one_configuration_per_target.md). Code behind `cfg(windows)`
-  or `cfg(target_os = "macos")` outside beui is first compiled by `./scripts/deploy`. Clippy runs
+  `linux_x86_64` and `wasi_guest`, and runs no clippy
+  (decisions/verify_compiles_one_configuration_per_target.md). Code behind `cfg(windows)`,
+  `cfg(target_os = "macos")` or the HTML core is first compiled by the build helper's device builds or
+  `./scripts/deploy`, unless checked by hand (guides/build_server.md). Clippy runs
   with `./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.txt`
   (`clippy.toml` must exist).
 - **Autofixes** are actions, one per crate (be-tool-fix-rust-source, then rustfmt); a fix that

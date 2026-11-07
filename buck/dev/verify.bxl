@@ -1,13 +1,12 @@
 load("//buck/cargo/buckify.bxl", buckify = "generate")
-load("//buck/cargo/html.bzl", "html_libraries")
 load("//buck/dev/workspace.bxl", "rust_targets")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
-# (fix.sh), every test and app test, rustc's check pass over every
-# first-party Rust target on Linux and the apps' wasm (workspace.bxl), so
-# that a target no test builds still compiles, beui checked for Windows
-# (_CROSS_CHECKS), for ./scripts/ci which of crates/be-tool-bootstrap's binaries
+# (fix.sh), every test and app test, rustc's check pass over each
+# first-party Rust target on Linux and the apps' wasm (workspace.bxl) that no
+# test builds, so that it still compiles, and nothing for any other platform
+# (guides/build_server.md), for ./scripts/ci which of crates/be-tool-bootstrap's binaries
 # scripts/internal/pins does not name (and with --bootstrap those binaries),
 # and on request the paint preview renderer; and
 # crates/be-tool-verify, for the machine that asked (--host, a platform in
@@ -47,35 +46,16 @@ def _outputs(ctx, kind: str, universe: str) -> list[Artifact]:
     targets = ctx.cquery().kind(kind, ctx.cquery().eval(universe))
     return [ctx.analysis(target).providers()[DefaultInfo].default_outputs[0] for target in targets]
 
-# rustc's check pass over beui-host for the platforms the build server's tests do not
-# run on, so that beui-layer-xr's OpenXR and the rest of beui's native stack keep
-# compiling there: Windows, where the first headset is. And over be-host for
-# the web, whose wasi code nothing else compiles before a deploy.
-_CROSS_CHECKS = {
-    "root//crates/be-host-win32-capture:be-host-win32-capture": ["windows_x86_64"],
-    "root//crates/be-host-win32-input:be-host-win32-input": ["windows_x86_64"],
-    "root//crates/be-host-win32:be-host-win32": ["windows_x86_64"],
-    "root//crates/be-host:be-host": ["wasi", "windows_x86_64"],
-    "root//crates/beui-host:beui-host": ["windows_x86_64"],
-}
-
-# And over every library planned for beui's HTML core on its platforms
-# (html.bzl), which no test builds yet.
-def _cross_checks(ctx) -> list[Artifact]:
-    configurations = []
-    for target, platforms in _CROSS_CHECKS.items():
-        configurations.extend([(target, "root//buck/platforms:" + platform) for platform in platforms])
-    configurations.extend(html_libraries())
-    checks = []
-    for target, platform in configurations:
-        for configured in ctx.cquery(target_platform = platform).eval(target):
-            sub_targets = ctx.analysis(configured).providers()[DefaultInfo].sub_targets
-            checks.append(sub_targets["check"][DefaultInfo].default_outputs[0])
-    return checks
-
+# rustc's check pass over the first-party Rust targets no test compiles, such as
+# binaries: a warning fails a compile, so a target a test builds is already
+# checked, and checking it again would be a second rustc run for most crates.
 def _workspace_checks(ctx) -> list[Artifact]:
+    tests = ctx.cquery().kind("^(test_run|app_test_run|painting_test_run)$", ctx.cquery().eval("//crates/... + //compile_fail/..."))
+    built = {str(target.label): True for target in ctx.cquery().deps(tests)}
     checks = []
     for target in rust_targets(ctx):
+        if str(target.label) in built:
+            continue
         sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets
         if "check" in sub_targets:
             checks.append(sub_targets["check"][DefaultInfo].default_outputs[0])
@@ -190,7 +170,6 @@ def _impl(ctx: bxl.Context):
         printed.append(("fix", _starlark_fix(ctx, actions)))
     if args.tests:
         built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
-        built.extend(_cross_checks(ctx))
         built.extend(_workspace_checks(ctx))
     if args.app_tests:
         targets = ctx.cquery().kind("^(app_test_run|painting_test_run)$", ctx.cquery().eval("//crates/..."))

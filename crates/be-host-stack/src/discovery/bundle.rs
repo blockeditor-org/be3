@@ -29,11 +29,7 @@ fn read(path: &str) -> Result<Vec<u8>, String> {
 
 #[cfg(not(target_os = "android"))]
 pub fn open(path: &str) -> Result<Stored, String> {
-    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
-    let root = executable
-        .parent()
-        .ok_or("the executable is in no directory")?;
-    Stored::file(root.join(path))
+    Stored::file(be_lib_build_id::bundle_file(path)?)
 }
 
 #[cfg(target_os = "android")]
