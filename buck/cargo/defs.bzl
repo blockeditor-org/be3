@@ -114,6 +114,15 @@ def _wasm_dev():
         "root//buck/constraints:release": [],
     })
 
+# A proc macro's own visibility, which the root PACKAGE's default cannot give:
+# the prelude's rust_library makes it an alias of the library, and gives the
+# alias the visibility it was passed or none at all, where the library takes
+# the package default.
+def proc_macro_visibility(proc_macro, kwargs):
+    if proc_macro and "visibility" not in kwargs:
+        return {"visibility": ["PUBLIC"]}
+    return {}
+
 # The crate's library, named after the package. Another build of it, such as
 # one for a fuzz target, takes a name and extra_features.
 def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs = [], resources = [], foreign_resources = {}, env = {}, **kwargs):
@@ -131,8 +140,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
         proc_macro = library["proc_macro"],
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = cargo_library_sources() + extra_srcs,
-        visibility = kwargs.pop("visibility", ["PUBLIC"]),
-        **(kwargs | RUST_LOCAL),
+        **(kwargs | proc_macro_visibility(library["proc_macro"], kwargs) | RUST_LOCAL),
     )
 
 # The library's own tests, which are #[cfg(test)] modules in its sources, with
@@ -423,7 +431,6 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
         mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, binary["crate_root"]),
-        visibility = kwargs.pop("visibility", ["PUBLIC"]),
         **(kwargs | RUST_LOCAL),
     )
 
@@ -450,7 +457,6 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, examples[example]["crate_root"]),
-        visibility = kwargs.pop("visibility", ["PUBLIC"]),
         **(kwargs | RUST_LOCAL),
     )
 

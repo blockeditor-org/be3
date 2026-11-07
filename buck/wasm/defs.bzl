@@ -204,7 +204,6 @@ def wasm_library(module, libraries = [], rustc_flags = []):
         libraries = libraries,
         library = ":wasm",
         module = module,
-        visibility = ["PUBLIC"],
     )
 
 # A package's crate linked against libraries, every one in its closure, and
@@ -233,7 +232,6 @@ def linked_app(module, libraries, rustc_flags = []):
         libraries = libraries,
         library = ":wasm",
         module = module,
-        visibility = ["PUBLIC"],
     )
 
 # The package's app linked as :<name>, its module named module.wasm: what
@@ -242,7 +240,8 @@ def linked_app(module, libraries, rustc_flags = []):
 # against DEFAULT_LIBRARIES; a list names every library in its closure; [] links
 # every crate it uses into it, a standalone app (guides/app_libraries.md, "The
 # raw app interface"), a WASI reactor the host instantiates as it is.
-def app_module(name, module, libraries = None, extra_deps = [], visibility = ["PUBLIC"]):
+def app_module(name, module, libraries = None, extra_deps = [], visibility = None):
+    kwargs = {"visibility": visibility} if visibility != None else {}
     facts = cargo_wasm_facts()
     if libraries == None:
         libraries = DEFAULT_LIBRARIES
@@ -263,15 +262,14 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = ["P
         rustc_flags = guest_exports + rustc_flags + dev_only(["-Copt-level=0"]) + RELEASE_SYMBOL_FLAGS,
         srcs = cargo_library_sources() + ["manifest.json"],
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
-        visibility = visibility,
-        **RUST_LOCAL,
+        **(kwargs | RUST_LOCAL)
     )
     wasi_module(
         name = name,
         libraries = libraries,
         library = ":" + library,
         module = module,
-        visibility = visibility,
+        **kwargs
     )
 
 # An app: the guest cdylib, :wasm (wasm32 only; an app is all behind
@@ -298,7 +296,8 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = ["P
 # plans it there), as the library named after its package, and each
 # examples/NAME.rs is :example-NAME on the host, such as a benchmark that
 # drives the editor through be-sdk-test.
-def app(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], types = None, libraries = None):
+def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], types = None, libraries = None):
+    kwargs = {"visibility": visibility} if visibility != None else {}
     app_module(
         name = "module",
         extra_deps = extra_deps,
@@ -309,17 +308,17 @@ def app(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = 
     native.export_file(
         name = "manifest",
         src = "manifest.json",
-        visibility = visibility,
+        **kwargs
     )
     app_data(
         name = "data",
         files = data,
-        visibility = visibility,
+        **kwargs
     )
     app_types(
         name = "types",
         module = types,
-        visibility = visibility,
+        **kwargs
     )
     app_tests(
         env = test_env,

@@ -87,5 +87,5 @@ def android_apk(name, activity, signing = "dev", visibility = None, **kwargs):
         application_id = kwargs["application_id"],
         signing = signing,
         template = ":" + name + "-template",
-        visibility = visibility or ["PUBLIC"],
+        **({"visibility": visibility} if visibility != None else {})
     )

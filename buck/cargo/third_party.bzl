@@ -3,6 +3,7 @@ load("@prelude//rust:cargo_package.bzl", "cargo")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only")
 load(":crates.bzl", "third_party")
+load(":defs.bzl", "proc_macro_visibility")
 
 # The rules for every third-party crate a workspace crate depends on, from
 # crates.bzl, which //:buckify generates from cargo's own plans: one
@@ -106,8 +107,7 @@ def _crate(key, crate, fixup):
         proc_macro = library["proc_macro"],
         rustc_flags = dev_only(crate.get("profile_flags", [])) + RELEASE_SYMBOL_FLAGS + rustc_flags + _plan_flags(fixup),
         srcs = [":" + unpacked],
-        visibility = ["PUBLIC"],
-        **RUST_LOCAL,
+        **(proc_macro_visibility(library["proc_macro"], {}) | RUST_LOCAL)
     )
 
     if not build_script:
