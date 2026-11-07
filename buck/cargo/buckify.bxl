@@ -1,3 +1,4 @@
+load("@root//buck/cargo:crates.bzl", "downloads")
 load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple", "plan_name")
 
 # Generates buck/cargo/crates.bzl (crates/be-tool-buck' generate, from cargo's
@@ -9,6 +10,11 @@ load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple", "plan
 # (_discovered). Editing or adding an ordinary source file leaves its key, and
 # the cache entry everyone shares, alone. It is BXL because a rule can only take
 # its own package's files.
+#
+# The crates are the downloads the checked-in crates.bzl pins (_vendored),
+# which buck2 keeps across daemons: cargo reads them as a vendored directory
+# rather than downloading every crate in Cargo.lock again, unless the
+# lockfile needs a crate they do not have (buckify.sh).
 
 def _files(ctx, directory: str) -> list[str]:
     found = []
@@ -35,6 +41,20 @@ def _discovered(path: str, crate_dirs: list[str]) -> bool:
     if relative.startswith("src/bin/") or relative.startswith("examples/") or relative.startswith("benches/"):
         return True
     return relative.startswith("tests/") and (relative.count("/") == 1 or relative.endswith("/main.rs"))
+
+# Every crate the checked-in crates.bzl downloads, as KEY=SHA256=SIZE=DIRECTORY,
+# the unpacked archive third_party.bzl makes for it.
+def _vendored(ctx):
+    vendored = []
+    for key in sorted(downloads):
+        target = ctx.configured_targets(
+            "root//third-party/rust:{}.crate".format(key),
+            target_platform = "root//buck/platforms:linux_x86_64",
+        )
+        directory = ctx.analysis(target).providers()[DefaultInfo].default_outputs[0]
+        download = downloads[key]
+        vendored.append(cmd_args(key, download["sha256"], str(download["size_bytes"]), directory, delimiter = "="))
+    return vendored
 
 def _output(ctx, target: str):
     configured = ctx.configured_targets(target)
@@ -72,6 +92,8 @@ def generate(ctx, actions):
             cargo,
             nightly,
             ["{}={}".format(plan_name(name), cross_triple(name)) for name in CROSS_PLATFORMS],
+            "--",
+            _vendored(ctx),
         ),
         category = "buckify",
     )
