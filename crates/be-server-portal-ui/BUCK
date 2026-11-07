@@ -1,15 +1,11 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
-load("@root//buck/program:defs.bzl", "program")
-load("@root//buck/wasm:defs.bzl", "wasi_html_module", "wasi_program_flags")
+load("@root//buck/cargo:defs.bzl", "cargo_test")
+load("@root//buck/wasm:defs.bzl", "web_library", "web_program")
 
 # be-server's account portal on beui's HTML core (guides/hosting.md): be-server
 # renders each page on the host with render(), and :assets, which be-server's
 # executable embeds and serves under /auth/assets/, hydrates it in the browser.
-cargo_library(
-    rustc_flags = select({
-        "DEFAULT": [],
-        "prelude//cpu/constraints:cpu[wasm32]": wasi_program_flags,
-    }),
+web_library(
+    role = "html",
     target_compatible_with = ["root//buck/constraints:html"],
 )
 
@@ -21,29 +17,16 @@ cargo_test(
     target_compatible_with = ["root//buck/constraints:html"],
 )
 
-wasi_html_module(
-    name = "web-module",
-    library = ":be-server-portal-ui",
-    module = "be_portal_ui",
-)
-
-program(
+web_program(
     name = "assets",
-    bindgen = [":web-module"],
+    module = "be_portal_ui",
+    role = "html",
     files = [
         "web/start.js",
         "//crates/beui-fonts:Inter-Regular.ttf",
         "//crates/beui-fonts:Hack-Regular.ttf",
         "//crates/beui-fonts:NotoEmoji-Regular.ttf",
         "//crates/beui-fonts:lucide.ttf",
-        "//crates/be-host:wasi.js",
-        "//crates/be-host:threads.js",
-        "//crates/be-host:thread.js",
-        "//crates/be-host:dylink.js",
-        "//crates/be-host:env.js",
     ],
-    manifests = [],
-    modules = [],
-    wasm_bindgen = "//buck/cargo:wasm-bindgen",
     visibility = ["//crates/be-server-bin:"],
 )

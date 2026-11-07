@@ -120,7 +120,15 @@ visible to every other unless it says otherwise: the root `PACKAGE` sets the def
 
 **An app**: `crates/be-app-<name>/BUCK` is one `app(module)` call (buck/wasm/defs.bzl), which
 makes `:wasm`, `:module`, `:manifest` and the wasm `:test`, linked against `DEFAULT_LIBRARIES`
-unless it names others (guides/app_libraries.md). be-host picks up every app by itself.
+unless it names others (guides/app_libraries.md). be-host picks up every app by itself. Its
+block types are one `type_module(module)` (guides/adding_a_block.md), a game is one
+`game_module()` (guides/adding_a_game.md), and any other wasm32 module `wasm32_crate()`.
+
+**A program in the browser**: `web_library(role)` in place of `cargo_library()`, and
+`web_program(name, role, module, files, serve)` for its bundle (buck/wasm/defs.bzl), where the
+role is `program` for beui's native core and `html` for its HTML core. `WASM_ROLES` there is
+every wasm platform a module is built for and what it is linked with; no BUCK file names those
+flags or platforms itself.
 
 **A fuzz target**: `fuzz/<name>.rs` in a crate whose BUCK calls `cargo_fuzz()`, a `#![no_main]`
 crate defining `LLVMFuzzerTestOneInput` (crates/be-lib-sequence/fuzz). It becomes
@@ -194,8 +202,12 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   and a dependent's link fails with E0460, "found possibly newer version of crate".
   `fixups.bzl` overlays the third-party crates that did.
 - **Apps compile at opt-level 0** in dev builds and workspace crates under them at 1
-  (`_wasm_dev`), so a change under beui recompiles every app quickly
-  (decisions/dev_builds_compile_apps_unoptimized.md).
+  (`OPT_LEVELS` in buck/platforms/profile.bzl, every opt level the build sets), so a change
+  under beui recompiles every app quickly (decisions/dev_builds_compile_apps_unoptimized.md).
+- **A crate is built only where cargo planned it.** Building one for a platform whose plan does
+  not include it, such as an app crate for anything but `wasi_guest`, fails when the build is
+  configured, with `root//buck/constraints:planned_by_cargo unsatisfied`; add the crate to that
+  plan in `buck/cargo/buckify.sh` and run `//:buckify`.
 - **Lints** are rustc's, and a warning fails the compile, but verify compiles only
   `linux_x86_64` and `wasi_guest`, and runs no clippy
   (decisions/verify_compiles_one_configuration_per_target.md). Code behind `cfg(windows)`,

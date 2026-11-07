@@ -48,3 +48,17 @@ constraint_value(
     constraint_setting = ":beui_core",
     visibility = ["PUBLIC"],
 )
+
+# What no platform has: buck/cargo/defs.bzl makes a workspace crate's targets
+# need it on every platform cargo did not plan the crate for, so building one
+# there is a configuration error that names this.
+constraint_setting(
+    name = "cargo_plan",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "planned_by_cargo",
+    constraint_setting = ":cargo_plan",
+    visibility = ["PUBLIC"],
+)

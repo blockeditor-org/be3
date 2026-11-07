@@ -6,53 +6,85 @@ load(
     "cargo_library",
     "cargo_library_sources",
     "cargo_manifest_sources",
+    "cargo_test",
     "cargo_test_sources",
     "cargo_wasm_facts",
     "time_limited",
 )
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
-load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only", "keep_profile")
-load("@root//buck/program:defs.bzl", "app_data", "app_types")
+load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "keep_profile", "opt_flags")
+load("@root//buck/program:defs.bzl", "app_data", "app_types", "program")
 load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
+
+# rustc links a cdylib with --no-entry, which strips the symbols a host needs to
+# lay out a thread's storage and leaves nothing to run libc's constructors; the
+# host does both itself, so a guest exports them.
+_guest_exports = [
+    "-Clink-arg=--export=__heap_base",
+    "-Clink-arg=--export=__tls_base",
+    "-Clink-arg=--export=__tls_size",
+    "-Clink-arg=--export=__tls_align",
+    "-Clink-arg=--export=__wasm_init_tls",
+    "-Clink-arg=--export=__wasm_call_ctors",
+]
+
+# A program in the browser: the same exports, which wasm-bindgen needs to
+# prepare the module for threads, and wasi-libc's setjmp and no-exceptions
+# libc++ for the C and C++ it links.
+_program_flags = _guest_exports + [
+    "-Clink-arg=-L$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/noeh",
+    "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
+]
+
+# Every role a WebAssembly module has in the build, which is the platform it is
+# built for (buck/platforms/BUCK) and how it is linked. Each has a transition
+# and a module rule below, made from its entry, and nothing else names these
+# platforms: wasm32_module, wasi_module (guest), wasi_program_module and
+# wasi_html_module. `link_flags` are what every module of the role is linked with,
+# which a crate's library takes as rustc flags in that configuration; a guest's
+# also depend on its libraries (app_module).
+#
+# - wasm32, wasm32-unknown-unknown with no WASI: block types, games, the input
+#   remaps and the browser's gpu shim, run in wasmi or by the page.
+# - guest, wasm32-wasip1-threads with the `guest` constraint: an app and its
+#   libraries (guides/app_libraries.md), linked by crates/be-wasm-link. The
+#   same triple as the next two, told apart so that each gets its own wgpu.
+# - program, the same triple: a program in the browser on beui's native core,
+#   run through wasm-bindgen, such as be-host's web bundle.
+# - html, the same with the `html` constraint: a program on beui's HTML core.
+WASM_ROLES = {
+    "wasm32": struct(platform = "root//buck/platforms:wasm32", setting = "root//buck/platforms:wasm32_setting", link_flags = []),
+    "guest": struct(platform = "root//buck/platforms:wasi_guest", setting = "root//buck/platforms:wasi_guest_setting", link_flags = _guest_exports),
+    "program": struct(platform = "root//buck/platforms:wasi", setting = "root//buck/platforms:wasi_setting", link_flags = _program_flags),
+    "html": struct(platform = "root//buck/platforms:wasi_html", setting = "root//buck/platforms:wasi_html_setting", link_flags = _program_flags),
+}
 
 # WebAssembly modules, depended on from targets that are not WebAssembly: the
 # app and the native tests only load a game or an app as a module, so the
-# module is a dependency in another configuration, which these transitions give
-# it. A game's test says `env = {"GAME_WASM": "$(location :module)"}`.
-def _wasm32_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return keep_profile(platform, refs.wasm32[PlatformInfo], refs)
+# module is a dependency in another configuration, which a role's transition
+# gives it. A game's test says `env = {"GAME_WASM": "$(location :module)"}`.
+def _role_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    return keep_profile(platform, refs.role[PlatformInfo], refs)
 
-wasm32_transition = transition(
-    impl = _wasm32_transition_impl,
-    refs = {"wasm32": "root//buck/platforms:wasm32"} | PROFILE_REFS,
-)
+def _role_transition(role):
+    return transition(impl = _role_transition_impl, refs = {"role": WASM_ROLES[role].platform} | PROFILE_REFS)
 
-# The apps' wasi. The app's is the same triple, told apart by a constraint
-# (buck/constraints/BUCK) so that each gets its own wgpu.
-def _wasi_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return keep_profile(platform, refs.wasi_guest[PlatformInfo], refs)
+wasm32_transition = _role_transition("wasm32")
 
-wasi_transition = transition(
-    impl = _wasi_transition_impl,
-    refs = {"wasi_guest": "root//buck/platforms:wasi_guest"} | PROFILE_REFS,
-)
+wasi_transition = _role_transition("guest")
 
-def _wasi_program_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return keep_profile(platform, refs.wasi[PlatformInfo], refs)
+wasi_program_transition = _role_transition("program")
 
-wasi_program_transition = transition(
-    impl = _wasi_program_transition_impl,
-    refs = {"wasi": "root//buck/platforms:wasi"} | PROFILE_REFS,
-)
+wasi_html_transition = _role_transition("html")
 
-# A crate on beui's HTML core (buck/constraints:html) in the browser.
-def _wasi_html_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return keep_profile(platform, refs.wasi_html[PlatformInfo], refs)
-
-wasi_html_transition = transition(
-    impl = _wasi_html_transition_impl,
-    refs = {"wasi_html": "root//buck/platforms:wasi_html"} | PROFILE_REFS,
-)
+# A library's flags for the role it is linked as, in that role's configuration
+# alone: the library of a program in the browser is also built for the host,
+# such as be-host's.
+def role_link_flags(role):
+    return select({
+        "DEFAULT": [],
+        WASM_ROLES[role].setting: WASM_ROLES[role].link_flags,
+    })
 
 # A cdylib's "shared" output is the .wasm; this names it as the module it is,
 # which for an app is the entry point its manifest names. A release build runs
@@ -114,25 +146,88 @@ wasi_program_module = _module_rule(wasi_program_transition)
 
 wasi_html_module = _module_rule(wasi_html_transition)
 
-# rustc links a cdylib with --no-entry, which strips the symbols a host needs to
-# lay out a thread's storage and leaves nothing to run libc's constructors; the
-# host does both itself, so a guest exports them.
-guest_exports = [
-    "-Clink-arg=--export=__heap_base",
-    "-Clink-arg=--export=__tls_base",
-    "-Clink-arg=--export=__tls_size",
-    "-Clink-arg=--export=__tls_align",
-    "-Clink-arg=--export=__wasm_init_tls",
-    "-Clink-arg=--export=__wasm_call_ctors",
+# A crate that is a wasm32 module too: the package's library, for the host,
+# and the same crate with extra_features as :wasm, built only for wasm32, so
+# asking for it on the host is a configuration error rather than a link
+# failure, and linked as :module, whatever the thing asking for it is built
+# for. module names the .wasm, which is the crate's own name without it.
+def wasm32_crate(module = None, extra_features = []):
+    cargo_library()
+    cargo_library(
+        name = "wasm",
+        extra_features = extra_features,
+        preferred_linkage = "shared",
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+    )
+    wasm32_module(
+        name = "module",
+        library = ":wasm",
+        module = module,
+    )
+
+# An app's block types (guides/type_modules.md): the content as a plain
+# library, which the editor and its tests depend on, its tests unless test =
+# False, and :module, the type module the app runs it in, which only the
+# crate's `module` feature exports.
+def type_module(module, test = True):
+    wasm32_crate(module = module, extra_features = ["module"])
+    if test:
+        cargo_test()
+
+# The rules of one game (guides/adding_a_game.md), twice: as :module, the only
+# form the app ever loads, and natively, so that the tests drive :module,
+# GAME_WASM, through the host.
+def game_module():
+    wasm32_crate()
+    cargo_test(env = {"GAME_WASM": "$(location :module)"})
+
+# The library of a program in the browser, linked as role ("program" or
+# "html") in that role's configuration (role_link_flags), and built as it is
+# everywhere else.
+def web_library(role, rustc_flags = [], **kwargs):
+    if role not in ["program", "html"]:
+        fail("a web library is a program or html, not " + role)
+    cargo_library(rustc_flags = role_link_flags(role) + rustc_flags, **kwargs)
+
+# What every program in the browser serves beside its module: be-host's shims
+# for WASI and threads, which the module's JavaScript imports.
+_WEB_SHIMS = [
+    "//crates/be-host:wasi.js",
+    "//crates/be-host:threads.js",
+    "//crates/be-host:thread.js",
+    "//crates/be-host:dylink.js",
+    "//crates/be-host:env.js",
 ]
 
-# be-host on the web: the same exports, which wasm-bindgen needs to prepare the
-# module for threads, and wasi-libc's setjmp and no-exceptions libc++ for the C
-# and C++ it links.
-wasi_program_flags = guest_exports + [
-    "-Clink-arg=-L$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/noeh",
-    "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
-]
+# A program in the browser (buck/program/defs.bzl): the package's web_library
+# linked as role into :web-module, named module.wasm, through wasm-bindgen,
+# with files and the shims. serve is the address `./scripts/buck run` serves it
+# on with Caddy, which run_with replaces for a program that serves itself
+# another way, and either can be left out for one nothing runs.
+def web_program(name, role, module, files = [], serve = None, **kwargs):
+    module_rule = {"html": wasi_html_module, "program": wasi_program_module}[role]
+    module_rule(
+        name = "web-module",
+        library = ":" + cargo_wasm_facts().name,
+        module = module,
+    )
+    if serve != None:
+        kwargs["run_with"] = [
+            "sh",
+            "$(location //buck/program:serve-bundle.sh)",
+            "$(location //buck/tools:caddy)",
+            "$(location //buck/program:bundle.Caddyfile)",
+            serve,
+        ]
+    program(
+        name = name,
+        bindgen = [":web-module"],
+        files = files + _WEB_SHIMS,
+        manifests = [],
+        modules = [],
+        wasm_bindgen = "//buck/cargo:wasm-bindgen",
+        **kwargs
+    )
 
 # The libraries every editor is linked against unless it names its own
 # (guides/app_libraries.md): base, the root that holds std, wasi-libc, wgpu and
@@ -166,7 +261,7 @@ def _needs(libraries):
 def wasm_library(module, libraries = [], rustc_flags = []):
     facts = cargo_wasm_facts()
     linker_flags = _needs(libraries) + ["--be3-library=" + module]
-    rustc_flags = guest_exports + rustc_flags + ([] if libraries else _reactor) + RELEASE_SYMBOL_FLAGS
+    rustc_flags = _guest_exports + rustc_flags + ([] if libraries else _reactor) + RELEASE_SYMBOL_FLAGS
     if native.glob(["library.rs"]):
         cargo_library(rustc_flags = rustc_flags)
         native.rust_library(
@@ -179,7 +274,7 @@ def wasm_library(module, libraries = [], rustc_flags = []):
             preferred_linkage = "shared",
             rustc_flags = rustc_flags,
             srcs = ["library.rs"],
-            target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+            target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
             **RUST_LOCAL,
         )
     else:
@@ -196,7 +291,7 @@ def wasm_library(module, libraries = [], rustc_flags = []):
             preferred_linkage = "shared",
             rustc_flags = rustc_flags,
             srcs = cargo_library_sources(),
-            target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+            target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
             **RUST_LOCAL,
         )
     wasi_module(
@@ -222,9 +317,9 @@ def linked_app(module, libraries, rustc_flags = []):
         linker_flags = _needs(libraries),
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = guest_exports + rustc_flags + RELEASE_SYMBOL_FLAGS,
+        rustc_flags = _guest_exports + rustc_flags + RELEASE_SYMBOL_FLAGS,
         srcs = cargo_library_sources(),
-        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **RUST_LOCAL,
     )
     wasi_module(
@@ -259,9 +354,9 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
         linker_flags = linker_flags,
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = guest_exports + rustc_flags + dev_only(["-Copt-level=0"]) + RELEASE_SYMBOL_FLAGS,
+        rustc_flags = _guest_exports + rustc_flags + opt_flags("app") + RELEASE_SYMBOL_FLAGS,
         srcs = cargo_library_sources() + ["manifest.json"],
-        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **(kwargs | RUST_LOCAL)
     )
     wasi_module(
@@ -282,15 +377,9 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
 # (a wasm32_module, such as checklist's //crates/be-type-checklist:module),
 # which :types names for the app to stage beside :module.
 #
-# Outside a release build the app crate itself is compiled at opt-level 0,
-# like its tests below, while its workspace dependencies are compiled at 1
-# (buck/cargo/defs.bzl) and its third-party ones keep the app profile's 2.
-# Most of an app's code is beui's generics instantiated anew, so a change
-# under beui recompiles every app, and at opt-level 2 LLVM made that the
-# longest part of ./scripts/verify: thirty apps took 1,130 seconds of
-# compiling at 2 and 270 at 0. The modules are about two and a half times the
-# size and take half as long again to precompile, and the app tests ran no
-# slower.
+# The app crate itself, its tests, its workspace dependencies and its
+# third-party ones are each compiled at their own opt level (OPT_LEVELS in
+# buck/platforms/profile.bzl).
 #
 # An app with examples/ is built for the host too (buck/cargo/buckify.sh
 # plans it there), as the library named after its package, and each
@@ -322,7 +411,7 @@ def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], ty
     )
     app_tests(
         env = test_env,
-        exports = guest_exports,
+        exports = _guest_exports,
         extra_deps = extra_deps,
     )
     examples = native.glob(["examples/*.rs"])
@@ -334,12 +423,8 @@ def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], ty
 # A crate's tests compiled to wasm and run by app-test-runner, which gives
 # the module an app's imports; an editor's, be-sdk's and
 # be-sdk-beui's.
-#
-# The test crate itself is compiled at opt-level 0 while its dependencies are
-# compiled as the app's are. Every module instantiates beui's generics anew, so a
-# change to beui recompiles about thirty of them at once, and at opt-level 2
-# LLVM is most of that: the step took twice as long, though the tests run
-# faster and the modules are smaller to precompile.
+# The test crate itself is compiled at app_test's opt level, and its
+# dependencies as the app's are.
 def app_tests(exports = [], env = {}, extra_deps = []):
     facts = cargo_wasm_facts()
     native.rust_binary(
@@ -351,9 +436,9 @@ def app_tests(exports = [], env = {}, extra_deps = []):
         env = facts.env | env,
         features = facts.test_features,
         mapped_srcs = cargo_manifest_sources(),
-        rustc_flags = exports + ["--test", "-Copt-level=0"],
+        rustc_flags = exports + ["--test"] + opt_flags("app_test"),
         srcs = cargo_test_sources() + native.glob(["manifest.json"]),
-        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **RUST_LOCAL,
     )
     wasi_test(

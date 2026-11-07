@@ -1,6 +1,7 @@
 load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only")
+load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
+load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
 load(":crates.bzl", "crates")
 
 # The rules for a workspace crate, filled in from its Cargo.toml through
@@ -18,8 +19,8 @@ def _crate():
     return crates[package]
 
 # One value per platform, as a select() when they differ and a plain list when
-# they do not. A crate cargo never builds for a platform still needs a value
-# there, and gets the first platform it is built for's.
+# they do not. A platform cargo never planned the crate for gets nothing, since
+# _compatible makes the crate's targets incompatible with it.
 def _per_platform(crate, pick, extra = []):
     values = {platform: sorted(pick(entry) + extra) for platform, entry in crate["platforms"].items()}
     if not values:
@@ -30,9 +31,31 @@ def _per_platform(crate, pick, extra = []):
             distinct.append(value)
     if len(distinct) == 1:
         return distinct[0]
-    fallback = values[sorted(values)[0]]
-    per_plan = {platform: {"value": values.get(platform, fallback)} for platform in get_reindeer_platform_names()}
+    per_plan = {platform: {"value": values.get(platform, [])} for platform in get_reindeer_platform_names()}
     return apply_platform_attrs(per_plan, {})["value"]
+
+# What makes a crate's targets incompatible with every platform cargo did not
+# plan it for (buck/cargo/buckify.sh's package lists say which), so that one
+# asked for there, such as an app crate built for anything but the guest's
+# wasi, fails when the build is configured, rather than building with no
+# dependencies. It names a constraint no platform has, which buck2's error
+# names. The settings are the ones the root PACKAGE picks a plan by.
+def _planned(crate):
+    unplanned = [plan for plan in PLAN_SETTINGS if plan not in crate["platforms"]]
+    if not unplanned:
+        return []
+    return select({"DEFAULT": []} | {
+        PLAN_SETTINGS[plan]: ["root//buck/constraints:planned_by_cargo"]
+        for plan in unplanned
+    } | {
+        PLAN_SETTINGS[plan]: []
+        for plan in crate["platforms"]
+    })
+
+def _compatible(crate, kwargs):
+    planned = _planned(crate)
+    if planned:
+        kwargs["target_compatible_with"] = kwargs.get("target_compatible_with", []) + planned
 
 def _env(crate, crate_name, env):
     base = {
@@ -92,27 +115,15 @@ def _core_flags():
     })
 
 # Cargo.toml's [profile.dev.package] settings for the crate and the core's cfg,
-# ahead of the flags its BUCK file passes. rustc's frontend runs on several
+# ahead of the flags its BUCK file passes, at a workspace crate's opt level
+# (OPT_LEVELS in buck/platforms/profile.bzl). rustc's frontend runs on several
 # threads (RUSTC_THREADS): the crates under beui are a chain, each typechecked
 # only once the one below it is, and that chain is most of what a change to one
 # of them waits on.
 def _rustc_flags(crate, kwargs):
     if "srcs" in kwargs:
         fail("Rust sources are inferred; srcs is not supported")
-    return [RUSTC_THREADS] + RELEASE_SYMBOL_FLAGS + _wasm_dev() + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
-
-# Workspace crates built for wasm outside a release build, at opt-level 1 rather
-# than the app profile's 2: a change under beui recompiles each of them for
-# the apps, and at 2 that took a third of the CPU ./scripts/verify spent on a
-# change to geometry, for modules no slower to precompile or test.
-def _wasm_dev():
-    return select({
-        "DEFAULT": select({
-            "DEFAULT": [],
-            "prelude//cpu:wasm32": ["-Copt-level=1"],
-        }),
-        "root//buck/constraints:release": [],
-    })
+    return [RUSTC_THREADS] + RELEASE_SYMBOL_FLAGS + opt_flags("member") + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
 
 # A proc macro's own visibility, which the root PACKAGE's default cannot give:
 # the prelude's rust_library makes it an alias of the library, and gives the
@@ -128,6 +139,7 @@ def proc_macro_visibility(proc_macro, kwargs):
 def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs = [], resources = [], foreign_resources = {}, env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
+    _compatible(crate, kwargs)
     native.rust_library(
         name = name or crate["name"],
         crate = library["crate"],
@@ -154,6 +166,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
 def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, apart_env = {}, resources = [], foreign_resources = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
+    _compatible(crate, kwargs)
     rustc_flags = _rustc_flags(crate, kwargs)
     if library["proc_macro"]:
         rustc_flags = rustc_flags + ["--extern", "proc_macro"]
@@ -411,6 +424,7 @@ test_run = rule(
 # binary's own name.
 def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
+    _compatible(crate, kwargs)
     binaries = {binary["name"]: binary for binary in crate["binaries"]}
     if bin == None:
         if len(binaries) != 1:
@@ -439,6 +453,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
 # builds it, with the library and the dev-dependencies.
 def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
+    _compatible(crate, kwargs)
     examples = {entry["name"]: entry for entry in crate["examples"]}
     if example not in examples:
         fail("{} has no example {}; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(crate["name"], example))
@@ -476,12 +491,14 @@ def cargo_crate(test = True):
         cargo_example(example["name"])
 
 # What the wasm macros in buck/wasm/defs.bzl need from a crate's Cargo.toml:
-# the crate and its wasm dependencies, without the dev-dependencies and with.
+# the crate and its wasm dependencies, without the dev-dependencies and with,
+# and what its targets are compatible with beyond wasm.
 def cargo_wasm_facts():
     crate = _crate()
     library = crate["library"]
     return struct(
         name = crate["name"],
+        compatible = _planned(crate),
         crate = library["crate"],
         crate_root = library["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["deps"]),
@@ -511,7 +528,7 @@ _FUZZ_FLAGS = [
     "-Cllvm-args=-sanitizer-coverage-inline-8bit-counters",
     "-Cllvm-args=-sanitizer-coverage-pc-table",
     "-Cllvm-args=-sanitizer-coverage-trace-compares",
-    "-Copt-level=3",
+] + opt_flags("fuzz") + [
     "-Cdebug-assertions=on",
     "-Coverflow-checks=on",
 ]
