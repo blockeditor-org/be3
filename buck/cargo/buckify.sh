@@ -63,6 +63,12 @@ games=""
 for manifest in crates/tabletop-rules-*/Cargo.toml; do
     games="$games -p $(package_name "$manifest")"
 done
+# The libraries apps are linked against and the crates that test linking
+# them (wasm_library and linked_app in buck/wasm/defs.bzl), which are guests.
+libraries=""
+for manifest in crates/be-sdk-library-*/Cargo.toml crates/be-tool-tls-diamond-*/Cargo.toml; do
+    libraries="$libraries -p $(package_name "$manifest")"
+done
 types=""
 # Every app's type module; be-type-bundle runs them in process on the host.
 for manifest in crates/be-type-*/Cargo.toml; do
@@ -88,7 +94,7 @@ RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" metadata --all-features --format
 host_packages="--workspace $excluded --exclude be-sdk --exclude be-sdk-beui --exclude be-wasm-gpu-shim --exclude beui-web-demo --exclude beui-html-spike --exclude be-server-portal-ui --exclude be-server-bin --exclude beui-demo-html --exclude be-tool-paint-review-web"
 plan test --target x86_64-unknown-linux-gnu $host_packages > "$scratch/host.json"
 plan build --target wasm32-wasip1-threads -p be-host -p beui-web-demo -p be-tool-paint-review-web -p beui-html --lib > "$scratch/wasi.json"
-plan test --target wasm32-wasip1-threads $apps -p be-sdk -p be-sdk-beui -p beui-demo -p be-tool-paint-review > "$scratch/wasi-guest.json"
+plan test --target wasm32-wasip1-threads $apps $libraries -p be-sdk -p be-sdk-beui -p beui-demo -p be-tool-paint-review > "$scratch/wasi-guest.json"
 plan build --target wasm32-unknown-unknown $games $types -p be-wasm-gpu-shim -p be-host-remap-module -p be-wasm-guest-echo > "$scratch/wasm32.json"
 # beui's HTML core (buck/constraints:html): the crates that build on it, for
 # the browser and for the host, under the cfg that picks it. cargo evaluates

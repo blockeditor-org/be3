@@ -10852,6 +10852,25 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-geometry:be-lib-geometry",
+                    "//crates/be-sdk-api:be-sdk-api",
+                    "//crates/be-sdk:be-sdk",
+                    "//crates/be-wasm-gpu-guest:be-wasm-gpu-guest",
+                    "//crates/be-wasm-ops:be-wasm-ops",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -10954,6 +10973,18 @@ crates = {
                 "test_features": [],
             },
             "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-sdk-beui-platform:be-sdk-beui-platform",
+                    "//crates/be-sdk-beui:be-sdk-beui",
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-sdk-beui-platform:be-sdk-beui-platform",
@@ -15584,6 +15615,18 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-tool-tls-diamond-base:be-tool-tls-diamond-base",
+                    "//crates/be-tool-tls-diamond-left:be-tool-tls-diamond-left",
+                    "//crates/be-tool-tls-diamond-right:be-tool-tls-diamond-right",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -15656,6 +15699,14 @@ crates = {
                 "test_features": [],
             },
             "macos-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [],
                 "examples": {},
@@ -15744,6 +15795,16 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-tool-tls-diamond-base:be-tool-tls-diamond-base",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -15820,6 +15881,16 @@ crates = {
                 "test_features": [],
             },
             "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-tool-tls-diamond-base:be-tool-tls-diamond-base",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-tool-tls-diamond-base:be-tool-tls-diamond-base",

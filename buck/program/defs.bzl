@@ -112,6 +112,21 @@ def _compiled(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) ->
         fail("{} is not among {}'s modules".format(wasm, ctx.attrs.precompiled.label))
     return artifacts[wasm]
 
+# What `buck2 run` unpacks a program's archive with: built for the platform
+# the program is, as the machine that runs it is, but on beui's native core,
+# since a program on the HTML core, such as be-server's portal assets, is built
+# for linux_x86_64_html and the unpacker is no crate of that core.
+def _native_core_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    html = refs.html[ConstraintValueInfo]
+    if platform.configuration.constraints.get(html.setting.label) != html:
+        return platform
+    return keep_profile(platform, refs.linux_x86_64[PlatformInfo], refs)
+
+_native_core_transition = transition(
+    impl = _native_core_transition_impl,
+    refs = {"html": "root//buck/constraints:html", "linux_x86_64": "root//buck/platforms:linux_x86_64"} | PROFILE_REFS,
+)
+
 # The app as it runs (buck/program/stage.sh): the executable under cargo's name, and
 # beside it every app, each module precompiled for precompile_target in an
 # action of its own by the precompiler, app-test-runner as the workers run
@@ -245,7 +260,7 @@ program = rule(
         "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
         "_archiver": attrs.default_only(attrs.exec_dep(default = "root//crates/be-host-archive:bin")),
         "_stage": attrs.default_only(attrs.source(default = "root//buck/program:stage.sh")),
-        "_unpacker": attrs.default_only(attrs.dep(default = "root//crates/be-host-archive:bin")),
+        "_unpacker": attrs.default_only(attrs.transition_dep(cfg = _native_core_transition, default = "root//crates/be-host-archive:bin")),
     },
     impl = _program_impl,
 )
