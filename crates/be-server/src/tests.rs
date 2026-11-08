@@ -3,7 +3,7 @@ use std::{path::PathBuf, time::Duration};
 use be_block_commit::{Commit, CommitId, CommitStore};
 use be_block_graph::BlockParent;
 use be_block_protocol::{
-    Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry,
+    Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry, Hold,
     KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, SessionEvent,
     SessionState, UploadUrl, WrappedBy, WrappedKey, client,
 };
@@ -22,6 +22,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_block_shared_from_a_hidden_folder_is_listed_as_shared;
+mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_blocks_references_are_listed_and_announced_together;
 mod a_browser_preflight_to_the_s3_endpoint_is_answered;
 mod a_browser_sign_in_waits_on_polls_and_holds_no_connection;

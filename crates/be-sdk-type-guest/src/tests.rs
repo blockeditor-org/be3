@@ -58,6 +58,7 @@ mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
 mod an_abandoned_lease_is_claimed;
 mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
+mod an_operation_adds_a_part_by_its_hash;
 mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_owner_renews_its_lease_while_it_holds_the_session;
@@ -382,6 +383,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     deaf: BTreeSet<usize>,
     largest_relay: usize,
     part_reads: usize,
+    parts_put: usize,
+    largest_written: usize,
     written: u64,
     journal: Option<Journal>,
     journal_tag: SessionTag,
@@ -434,6 +437,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             deaf: BTreeSet::new(),
             largest_relay: 0,
             part_reads: 0,
+            parts_put: 0,
+            largest_written: 0,
             written: 0,
             journal: None,
             journal_tag: TAG,
@@ -866,6 +871,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         reply.send(host, &Ok(PublishOutcome::Rejected(head)))
                     });
                 }
+                self.largest_written = self.largest_written.max(content.bytes.len());
                 let parts = be_sdk_type_api::written_parts(&content.bytes, &content.parts);
                 let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
                 if let Some(head) = expected
@@ -926,6 +932,16 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .vault
                     .read_part(part.into(), range.offset, range.length)
                     .map_err(|error| error.to_string());
+                self.to(device, |host| reply.send(host, &result));
+            }
+            Call::PutPart { reply, bytes } => {
+                self.parts_put += 1;
+                let result = self
+                    .vault
+                    .write(SEALING, Uuid::nil(), be_block::Part::from(bytes.as_slice()))
+                    .map_err(|error| error.to_string())
+                    .and_then(|manifest| manifest.root.ok_or_else(|| "no bytes".to_owned()))
+                    .map(be_sdk_type_api::PartRef::from);
                 self.to(device, |host| reply.send(host, &result));
             }
             Call::ResumeSession { reply, local } => {

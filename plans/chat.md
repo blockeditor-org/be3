@@ -1,7 +1,7 @@
 # Chat
 
-Depends on: plans/large_blocks.md (the operation that adds a part by its hash,
-`merge3` over parts), for step 1d only; steps 1a to 1c start at once.
+Depends on: plans/large_blocks.md (`merge3` over parts), for step 1d only;
+steps 1a to 1c start at once.
 plans/owner_settings.md for step 1c. plans/notifications.md for step 2.
 
 A chat block: a group conversation that is an ordinary block, made and shared
@@ -57,7 +57,7 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
   stays in the editor until sent.
 - **Closing a segment** is an operation the session owner sequences once the
   recent messages pass a size: messages a..b become segment k, carried by its
-  hash (the operation that adds a part by its hash, plans/large_blocks.md).
+  hash (`put-part`, guides/type_modules.md, "Parts named by hash").
   Only an owner online, and only for messages already confirmed. Every replica
   encodes the segment's bytes itself and checks them against the hash; on a
   mismatch (another build encoding differently) it reads the part with

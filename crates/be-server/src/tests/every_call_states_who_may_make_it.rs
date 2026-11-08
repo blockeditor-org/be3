@@ -230,7 +230,7 @@ impl TestClient {
             ),
             (
                 "hold-objects",
-                answered(client::objects::hold_objects(peer, block, vec![hash]).await),
+                answered(client::objects::hold_objects(peer, block, vec![hash], Hold::Lasting).await),
             ),
             (
                 "create-block",

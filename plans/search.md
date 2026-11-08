@@ -1,8 +1,7 @@
 # Search
 
-Depends on: plans/search_library.md; plans/large_blocks.md steps 1 to 4 (the
-operation that adds a part by its hash, `merge3` over parts, per-type
-retention, lazy rekeying); plans/command_palette.md for step 4 only (quick
+Depends on: plans/search_library.md; plans/large_blocks.md steps 2 to 4
+(`merge3` over parts, per-type retention, lazy rekeying); plans/command_palette.md for step 4 only (quick
 open, which search fills with results).
 
 Full-text search over names and content. The server never reads content
@@ -69,7 +68,7 @@ move or a revocation).
   whole.
 - **Edited through its replica's session.** The indexer opens the index block
   like any open block (`be_block_type_host::Replicas`) and sends a batch as an
-  operation adding the segment's parts by hash (large_blocks step 1) with the
+  operation adding the segment's parts by hash (`put-part`, guides/type_modules.md, "Parts named by hash") with the
   document table entries. Two indexers online at once are sequenced by the
   session owner; offline batches merge with `merge3` over parts (large_blocks
   step 2), as `be-lib-search` merges two indexes.

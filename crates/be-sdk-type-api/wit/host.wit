@@ -26,6 +26,16 @@ interface host {
     /// its first part reads on demand.
     read-part: async func(part: part-ref, range: byte-range) -> result<list<u8>, string>;
 
+    /// Seals `bytes` under the block's current key as a part, uploads it and has
+    /// the server hold it for the block until a commit that uses it publishes
+    /// or the upload grace runs out; answers once the upload is done. An
+    /// operation then names the part by putting the answer in its own payload,
+    /// and so travels without the bytes: each replica that applies it keeps the
+    /// part as `written-part.reused`, using bytes it rebuilt itself (checked
+    /// against a hash of them the operation carries) or reading the part with
+    /// `read-part`. Fails offline, and for a block the server does not have yet.
+    put-part: async func(bytes: list<u8>) -> result<part-ref, string>;
+
     /// A compare-and-swap on `expected`, whose commit is the first parent. An
     /// unchanged save answers `published` with the same head.
     publish: async func(

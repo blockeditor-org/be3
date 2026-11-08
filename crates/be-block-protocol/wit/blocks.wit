@@ -37,8 +37,23 @@ interface objects {
     /// Which of `hashes` the server lacks.
     missing-objects: async func(hashes: list<hash>) -> result<list<hash>, error>;
 
-    /// Keeps stored objects alive for `block` until a commit takes them.
-    hold-objects: async func(block: block-id, objects: list<hash>) -> result<_, error>;
+    /// How long `hold-objects` keeps objects for a block. Either way the
+    /// block's payer is charged for them, and whoever may view the block may
+    /// read them.
+    enum hold {
+        /// For as long as the block exists: a repository's snapshots, which
+        /// no commit of it takes.
+        lasting,
+        /// Until a commit of the block that holds them publishes, or
+        /// `ServerConfig::upload_grace` passes: a part an operation names by
+        /// its hash before any commit uses it (`put-part` in
+        /// `be3:block-type`).
+        until-committed,
+    }
+
+    /// Keeps stored objects alive for `block`. Holding one again extends it,
+    /// and a lasting hold outlasts any other.
+    hold-objects: async func(block: block-id, objects: list<hash>, hold: hold) -> result<_, error>;
 }
 
 /// The blocks of the organization this connection opened.

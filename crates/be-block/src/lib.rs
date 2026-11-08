@@ -125,6 +125,14 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
         Self::decode(&stored.bytes)
     }
 
+    /// The bytes of a part this content hands back as `Part::Reused` and holds anyway, such as
+    /// one it rebuilt from an operation that named the part by its hash and found to match
+    /// (guides/type_modules.md, "Parts named by hash"), so reading it needs no `read-part`.
+    fn reused_bytes(&self, part: PartRef) -> Option<std::borrow::Cow<'_, [u8]>> {
+        let _ = part;
+        None
+    }
+
     fn references(&self) -> Vec<Uuid> {
         Vec::new()
     }

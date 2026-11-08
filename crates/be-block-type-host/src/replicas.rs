@@ -142,6 +142,10 @@ pub enum Answered {
         Reply<Result<Vec<u8>, String>, wire::Fallible<wire::Bytes, wire::Plain>>,
         Result<Vec<u8>, String>,
     ),
+    PutPart(
+        Reply<Result<be_sdk_type_api::PartRef, String>>,
+        Result<be_sdk_type_api::PartRef, String>,
+    ),
     Stash(Reply<Result<CommitId, String>>, Result<CommitId, String>),
     Resume(Reply<Result<Resume, String>>, Result<Resume, String>),
 }
@@ -155,6 +159,7 @@ impl Answered {
         match self {
             Answered::Load(reply, result) => reply.send(connection, &result),
             Answered::ReadPart(reply, result) => reply.send(connection, &result),
+            Answered::PutPart(reply, result) => reply.send(connection, &result),
             Answered::Stash(reply, result) => reply.send(connection, &result),
             Answered::Resume(reply, result) => reply.send(connection, &result),
         }
@@ -2171,6 +2176,26 @@ impl<H: Host> Replicas<H> {
                     }
                     let result = read.map_err(|error| error.to_string());
                     (Answered::ReadPart(reply, result), None)
+                });
+                false
+            }
+            Call::PutPart { reply, bytes } => {
+                let peer = Arc::clone(peer);
+                let io = self.io.clone();
+                self.answer_later(replica, module, async move {
+                    let put = match made_up {
+                        true => Err(ClientError::Disconnected(
+                            "the server does not have this block yet".to_owned(),
+                        )),
+                        false => peer.put_part(block, &bytes).await,
+                    };
+                    if let Err(ClientError::Locked(_)) = &put {
+                        let _ = io.send(Io::Locked { replica });
+                    }
+                    let result = put
+                        .map(be_sdk_type_api::PartRef::from)
+                        .map_err(|error| error.to_string());
+                    (Answered::PutPart(reply, result), None)
                 });
                 false
             }
