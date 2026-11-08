@@ -2,7 +2,7 @@
 mod exports {
     use std::cell::RefCell;
 
-    use be_host_remap::Module;
+    use be_lib_remap::Module;
 
     thread_local! {
         static MODULE: RefCell<Module> = RefCell::new(Module::default());

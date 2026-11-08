@@ -13,7 +13,7 @@ use smithay::reexports::drm::control::{
 use smithay::reexports::drm::{Device as _, DriverCapability};
 
 use super::screen::{Damage, Frame, Screen};
-use be_host_dmabuf::{Usage, Vulkan};
+use be_lib_dmabuf::{Usage, Vulkan};
 
 use crate::density::natural_scale;
 use crate::display::{DisplayConfig, DisplayMode, DisplayUse, Monitor};

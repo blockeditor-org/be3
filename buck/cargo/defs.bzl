@@ -6,6 +6,7 @@ load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
 load(":crates.bzl", "crates")
+load(":layers.bzl", "check_layers")
 
 # The rules for a workspace crate, filled in from its Cargo.toml through
 # crates.bzl, which //:buckify generates from cargo's own plans. A BUCK file
@@ -17,10 +18,14 @@ load(":crates.bzl", "crates")
 
 # The crate's facts, and its package's :fix (buck/dev/verify.bzl) and
 # :cargo-inputs (buckify.bzl), which every macro here reaches through this.
+# The first call in a package, before :cargo-inputs exists, also checks the
+# crate's dependencies against the layers in layers.bzl.
 def _crate():
     package = native.package_name()
     if package not in crates:
         fail("{} is not a workspace member cargo knows about; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(package))
+    if not native.rule_exists("cargo-inputs"):
+        check_layers(crates[package])
     package_fix(rust = True)
     cargo_inputs()
     return crates[package]

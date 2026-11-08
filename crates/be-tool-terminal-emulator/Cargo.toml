@@ -1,5 +1,5 @@
 [package]
-name = "be-lib-terminal-emulator"
+name = "be-tool-terminal-emulator"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

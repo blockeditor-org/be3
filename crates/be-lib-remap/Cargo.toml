@@ -1,5 +1,5 @@
 [package]
-name = "be-host-remap"
+name = "be-lib-remap"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

@@ -1,5 +1,5 @@
 [package]
-name = "be-host-remap-module"
+name = "be-lib-remap-module"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -8,7 +8,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-be-host-remap = { path = "../be-host-remap", features = ["text"] }
+be-lib-remap = { path = "../be-lib-remap", features = ["text"] }
 
 [lints]
 workspace = true

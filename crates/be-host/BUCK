@@ -114,7 +114,6 @@ web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:host-index"] + ["//buc
             "//crates/be-tool-tls-diamond-app:",
             "//crates/be-wasm-host:",
             "//crates/beui-demo-html:",
-            "//crates/beui-html-spike:",
             "//crates/beui-tests:",
             "//crates/beui-web-demo:",
         ],

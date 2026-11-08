@@ -1032,7 +1032,11 @@ impl Dispatch<xdg_popup::XdgPopup, ()> for Received {
     }
 }
 
-pub(crate) use be_host_dmabuf::testing::{pattern, read, vulkan_device};
+pub(crate) use be_lib_dmabuf::testing::{pattern, read};
+
+pub(crate) fn vulkan_device() -> (wgpu::Device, wgpu::Queue) {
+    be_lib_dmabuf::testing::vulkan_device(beui_host::native::open_vulkan_device)
+}
 
 wayland_client::delegate_noop!(Received: ignore xdg_activation_v1::XdgActivationV1);
 impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, ()> for Received {

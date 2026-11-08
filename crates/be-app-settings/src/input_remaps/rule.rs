@@ -1,7 +1,7 @@
 //! A rule: a row that shows it as key caps, and opens into its editor.
 
-use be_host_remap::edit::{Combo, Does, RuleEdit, RuleOutline, StepOutline, modifier_of};
-use be_host_remap::names::Modifier;
+use be_lib_remap::edit::{Combo, Does, RuleEdit, RuleOutline, StepOutline, modifier_of};
+use be_lib_remap::names::Modifier;
 use be_sdk_beui::beui::icons::{
     ICON_ARROW_RIGHT, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_COPY, ICON_PLUS, ICON_TIMER,
     ICON_TRASH, ICON_X,

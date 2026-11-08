@@ -7,7 +7,7 @@ use be_type_terminal::{
     HISTORY_LINES, Terminal, TerminalContent, TerminalLine, TerminalShell, TerminalStyle,
 };
 
-use be_lib_terminal_emulator::Shown;
+use be_tool_terminal_emulator::Shown;
 
 /// Edits are split under this size.
 const LARGEST_EDIT: usize = 256 * 1024;

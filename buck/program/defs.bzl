@@ -308,29 +308,13 @@ program = rule(
     impl = _program_impl,
 )
 
-# A page on beui's HTML core rendered at build time: the renderer, a program
-# built for the host on that core (linux_x86_64_html), run with the path it
-# writes the page to. A web bundle stages it as its index.html, which its wasm
-# module then hydrates.
+# Builds a dependency for the host on beui's HTML core (linux_x86_64_html).
 def _html_host_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return keep_profile(platform, refs.linux_x86_64_html[PlatformInfo], refs)
 
 _html_host_transition = transition(
     impl = _html_host_transition_impl,
     refs = {"linux_x86_64_html": "root//buck/platforms:linux_x86_64_html"} | PROFILE_REFS,
-)
-
-def _prerendered_page_impl(ctx: AnalysisContext) -> list[Provider]:
-    page = ctx.actions.declare_output(ctx.attrs.out)
-    ctx.actions.run(cmd_args(ctx.attrs.renderer[RunInfo], page.as_output()), category = "prerender")
-    return [DefaultInfo(default_output = page)]
-
-prerendered_page = rule(
-    attrs = {
-        "out": attrs.string(default = "index.html"),
-        "renderer": attrs.transition_dep(cfg = _html_host_transition),
-    },
-    impl = _prerendered_page_impl,
 )
 
 # A program on beui's HTML core for the host (linux_x86_64_html), from any

@@ -217,7 +217,7 @@ not the ARIA, so they read the same on both cores.
 
 **Running and server rendering.** `beui::html::run(element_id, build)` starts a
 program; `render_to_string` on the host and `hydrate` in the browser serve a
-page that shows before any script runs. crates/beui-html-spike is the worked
+page that shows before any script runs. crates/be-server-portal-ui is the worked
 example (guides/running/web.md); crates/beui-demo-html runs beui-demo on this
 core.
 
@@ -269,11 +269,7 @@ with settling off; a block editor uses `be_sdk_test::BeuiTest`.
 crates/beui-tests, run natively, natively with late measurement, and in
 Chromium (testing_a_gui.md, 7). Browser paintings come from `render_to_string`
 on `linux_x86_64_html`: `./scripts/test //crates/beui-view:html-test` for
-primitives, `//crates/beui:html-test` for components, and the spike's
-`:html-test`; build the page's style from `stylesheet("/")` so text uses the
-bundled fonts. They show layout, colour and text, not what needs browser layout
-(marks, carets). After changing the HTML core or styled, compare
-`crates/beui-html-spike/snapshots/prerendered_accounts_page_dark.browser.paint`
-with be-host-accounts-ui's
-`an_account_in_a_company_says_its_administrators_can_read_it.paint`, the same
-screen on both cores; they should differ only in text rendering.
+primitives, `//crates/beui:html-test` for components, and
+`//crates/be-server-portal-ui:test` for the portal's pages; build the page's
+style from `stylesheet("/")` so text uses the bundled fonts. They show layout,
+colour and text, not what needs browser layout (marks, carets).
