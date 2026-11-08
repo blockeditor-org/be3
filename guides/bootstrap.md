@@ -49,8 +49,9 @@ file there that does not match is downloaded again), and runs it.
 `//crates/be-tool-bootstrap:dist` is the release for Linux, macOS and Windows on
 x86_64 and arm64, in the release profile, laid out as
 `<triple>/bootstrap(.exe)`. Building it again gives the same files (lld-link
-gets `/Brepro`, buck/toolchains/BUCK), so a pin says whether the checkout's
-release is the one published.
+gets `/Brepro`, and a Windows release writes no PDB, whose paths differ on every
+link: buck/toolchains/BUCK), so a pin says whether the checkout's release is the
+one published.
 
 ## Changing it
 
