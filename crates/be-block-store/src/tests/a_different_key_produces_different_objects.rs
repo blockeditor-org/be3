@@ -7,11 +7,14 @@ fn a_different_key_produces_different_objects() {
     let second = vault(5);
     let one = first.write(id(4), CONTENT, &data).unwrap();
     let two = second.write(id(5), CONTENT, &data).unwrap();
-    assert_eq!(one.length, two.length);
+    assert_eq!(one.length(), two.length());
+    let theirs = second.objects(&two).unwrap();
     assert!(
-        one.chunk_hashes()
+        first
+            .objects(&one)
+            .unwrap()
             .iter()
-            .all(|hash| !two.chunk_hashes().contains(hash)),
+            .all(|hash| !theirs.contains(hash)),
         "two keys produced a shared ciphertext"
     );
 

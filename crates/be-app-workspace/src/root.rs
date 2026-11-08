@@ -59,6 +59,12 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
     };
     create_effect(move || shell.follow_focus());
     create_effect(move || shell.open_files());
+    let asked = workspace.history_request();
+    create_effect(move || {
+        if let Some(request) = asked.get() {
+            untrack(|| shell.show_history(request));
+        }
+    });
     view! {
         <Loaded label="Loading the workspace">|| {
             let _layout = editor.view_content();
@@ -91,6 +97,15 @@ impl Shell {
             None => focus.active,
         };
         untrack(|| self.history.follow(target));
+    }
+
+    /// Shows a block's version history, at a commit when the request names one, as the
+    /// frame's "Can't undo past here" asks.
+    fn show_history(self, request: be_sdk_beui::HistoryRequest) {
+        self.workspace.layout().show(&REVISIONS);
+        if let Some(commit) = request.commit {
+            self.history.show_at(request.block_id, commit);
+        }
     }
 
     fn open_files(self) {

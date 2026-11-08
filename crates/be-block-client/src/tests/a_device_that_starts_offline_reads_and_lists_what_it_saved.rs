@@ -68,7 +68,7 @@ async fn a_device_that_starts_offline_reads_and_lists_what_it_saved() {
         .write_content(note, TextContent::CONTENT_TYPE, b"sealed with a cached key")
         .await
         .unwrap();
-    assert!(!manifest.chunk_hashes().is_empty());
+    assert!(!manifest.is_empty());
 
     let elsewhere = refs::RefsDb::open(&path).unwrap();
     assert!(

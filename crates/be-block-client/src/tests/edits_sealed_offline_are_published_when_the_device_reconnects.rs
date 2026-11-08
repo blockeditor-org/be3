@@ -81,14 +81,11 @@ async fn edits_sealed_offline_are_published_when_the_device_reconnects() {
     let phone = harness.second(&owner).await;
     assert_eq!(text(&phone, note).await, "three");
     assert_eq!(text(&phone, added).await, "made offline");
-    let history: Vec<_> = phone
-        .history(note)
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|entry| entry.commit)
-        .collect();
-    assert!(history.contains(&two) && history.contains(&base));
+    assert_eq!(
+        phone.load_commit(three).await.unwrap().parents,
+        [two],
+        "the offline edits were not published in order"
+    );
 
     let theirs = phone
         .save(note, &TextBlock::of("four, from the phone"), Some(three))

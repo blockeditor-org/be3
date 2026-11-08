@@ -138,10 +138,17 @@ impl be_block_type_host::Host for Shared {
         held.touch(block);
     }
 
-    fn history(shared: &Arc<Mutex<Self>>, block: Uuid, can_undo: bool, can_redo: bool) {
+    fn history(shared: &Arc<Mutex<Self>>, block: Uuid, history: be_sdk_type_api::UndoState) {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        held.histories
-            .insert(block, super::History { can_undo, can_redo });
+        held.histories.insert(
+            block,
+            super::History {
+                can_undo: history.can_undo,
+                can_redo: history.can_redo,
+                restarted_at: history.restarted_at,
+                lost_edits: history.lost_edits,
+            },
+        );
         held.touch(block);
     }
 
@@ -235,6 +242,7 @@ pub fn snapshot_frame(content_type: Uuid, bytes: Vec<u8>) -> Vec<u8> {
     frame(
         ToEditor::Snapshot(be_sdk_type_guest::editor::Snapshot {
             content_type,
+            length: bytes.len() as u64,
             bytes,
             session: Vec::new(),
             unsettled: Vec::new(),

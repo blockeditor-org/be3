@@ -183,8 +183,13 @@ impl HostTest {
         self.run(&["key", chord])
     }
 
+    /// Moves the stopped clock on, a frame at a time. A long pause runs many frames, so it may take
+    /// as long as it names on top of the usual timeout.
     pub fn pause(&mut self, milliseconds: u32) {
-        self.run(&["pause", &milliseconds.to_string()]);
+        let words = ["pause", &milliseconds.to_string()];
+        let timeout = be_tool_drive::TIMEOUT + Duration::from_millis(milliseconds.into());
+        let answered = self.within(timeout, &words);
+        self.answered(&words, answered);
     }
 
     pub fn tree(&mut self) -> String {

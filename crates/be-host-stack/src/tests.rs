@@ -37,6 +37,7 @@ mod a_paste_too_large_to_relay_is_acknowledged_to_its_editor;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_picked_file_becomes_a_block_of_the_type_that_claims_it;
+mod a_restore_on_a_follower_keeps_the_state_it_replaced;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_seal_the_connection_loses_is_kept_and_published_after_reconnect;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
@@ -55,6 +56,7 @@ mod an_idle_peer_never_wakes_its_worker;
 mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
 mod an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes;
+mod an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
 mod backing_off_waits_longer_after_each_failure_up_to_a_ceiling;
 mod blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect;
@@ -363,6 +365,7 @@ async fn outside_peer(
 
 impl Drop for Harness {
     fn drop(&mut self) {
+        be_block_commit::pin_now(None);
         if std::thread::panicking() {
             abandon();
         } else {
@@ -536,6 +539,7 @@ fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
         .map(|counter| counter.root().value())
 }
 
+#[track_caller]
 fn wait_for_count(block: Uuid, expected: i64) {
     crate::wait_until(|shared| (counted(shared, block) == Some(expected)).then_some(()));
 }
@@ -547,6 +551,7 @@ fn ask_for(queries: Vec<Query>) {
     want(owner, wanted);
 }
 
+#[track_caller]
 fn wait_until(_what: &str, ready: impl Fn(&Shared) -> bool) {
     crate::wait_until(|shared| ready(shared).then_some(()));
 }

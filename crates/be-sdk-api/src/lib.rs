@@ -36,7 +36,7 @@ be_wasm_ops_bindgen::generate!({
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "program-catalog", "tray-toggle", "tray-menu-item", "host-tray-item",
-        "dialog-status", "dialog-frame", "window-kind", "insets", "picture",
+        "dialog-status", "dialog-frame", "window-kind", "insets", "picture", "block-history",
     ],
     inline: [
         "artifact-command", "unlink-command",

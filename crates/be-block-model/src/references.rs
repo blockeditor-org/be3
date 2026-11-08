@@ -231,7 +231,7 @@ impl Index {
     }
 }
 
-fn distinct(found: Vec<Uuid>) -> Vec<Uuid> {
+pub(crate) fn distinct(found: Vec<Uuid>) -> Vec<Uuid> {
     let mut seen = HashSet::new();
     found.into_iter().filter(|id| seen.insert(*id)).collect()
 }

@@ -24,6 +24,41 @@ organization is a link, not a reference. The URL format (`be_block::block_url`,
 `<base>#block/<organization>/<block>`) is stored in text and so is read
 forever: a reference is found by its fragment alone, whatever host precedes it.
 
+### Parts
+
+`BlockContent::parts` returns the stored form as a tree of `Part`s
+(`be_block_store::manifest`): new bytes, a `Reused` part of the head the
+content was loaded from, or a `Node` of child parts. The leaves in order are
+`encode()` exactly, so everything that reads bytes (`decode`, merge, type
+modules, export) is unaffected; parts only decide what a save seals and
+uploads. Each `Bytes` leaf is sealed on its own (split by the chunker only
+past its minimum, 256 KiB by default) and each `Node` becomes a node of the
+manifest tree (guides/blocks/server.md), so an edit costs the changed leaf and
+the nodes above it. `from_stored(&Stored)` decodes and keeps the `PartRef` of
+each `LoadedPart` it may hand back as `Reused`; the tree it gets has the shape
+the content wrote, a leaf the vault split over chunks still being one part.
+Keep a node's children to dozens, choose parts from the content alone (every
+replica must choose the same ones), and leave reuse to parts whose bytes did
+not change. The default is one leaf of `encode()`. Peer-level `save` and
+`open` use parts. A type module's replica sends its parts' shape with the
+bytes (`written.parts`, `be_sdk_type_api::written_shape` and
+`written_parts`); it holds no `PartRef`s, so nothing is `Reused`, but sealing
+is deterministic, so unchanged parts seal to the chunks the head already has
+and only the changed ones upload.
+
+A `Node` also lists the blocks its own bytes reference (`Part::Node {
+references }`, read back as `LoadedPart::references`). A commit references
+`references_in` and then every node's references in tree order, so content
+that keeps references per part reports only the rest from `references_in`,
+and a part it reuses keeps its references without being read or encoded.
+
+A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads only the root's
+first part (a file's header): `from_stored` gets a `Stored` whose `bytes` hold
+that part (`Stored::holds` says which parts it has), `parts` hands the others
+back as `Reused`, and `encode` gives only the loaded bytes, which is what its
+replica's followers and editors are sent. Its editors read the rest by range
+(guides/blocks/apps.md, "Reading a range").
+
 ## Documents: `be_block_model`
 
 Almost every type is a `Document<R>`: structs deriving `be_block_model::Model`
@@ -60,7 +95,11 @@ How the model works:
   leaves a tombstone and reuses its slot if it comes back.
 - **Session state.** Tombstones and text positions are never saved. The owner
   hands them over in `Snapshot` (as of its last seal) and `Sealed`
-  (`LiveEdit::session_state`), and they go when the session ends.
+  (`LiveEdit::session_state`), and they go when the session ends. Loading
+  needs none to agree: every replica gives loaded content the same positions
+  (all from client `LOADED` at offsets `0..len`, list slots in stored order)
+  and ids, so replicas that load the same commit exchange edits without a
+  `Snapshot`.
 - **Derived ids.** Anything two peers may create at once for the same purpose
   (a database row past the end, a canvas component for a schema) takes an id
   derived from what it is for, so the second insert is refused and its edits
@@ -117,12 +156,38 @@ copy.
 
 ## The stored form
 
-`Document::to_bytes` writes CBOR `{"format": N, "root": object}` holding
-nothing a session needs. An object is a map by field name plus `$kind`
-(`#[model(kind = "...")]` or the struct's snake-case name) and, in a `List`,
-`$id` (tag 37 UUID; a repeated id gets a fresh one on load). A register is its
-serde form in CBOR, and that same CBOR is what registers hold in memory and
-what `set` sends.
+A document's stored form is the CBOR `{"format": N, "root": object}`
+(`Document::to_stored`) holding nothing a session needs. An object is a map by
+field name plus `$kind` (`#[model(kind = "...")]` or the struct's snake-case
+name) and, in a `List`, `$id` (tag 37 UUID; an item stored without one, or
+with a repeated one, gets an id derived from its place and index, so every
+replica agrees on it). A register is its serde form in CBOR, and that same
+CBOR is what registers hold in memory and what `set` sends.
+
+`Document::to_bytes` writes that value split into a tree of `DocumentPart`s,
+each about 16–64 KiB of CBOR (`crates/be-block-model/src/parts.rs`): a CBOR
+sequence of the root part, then each part it names with its own parts after
+it. `from_bytes` hashes each part and joins them back
+(`be_block_model::read_stored` does that alone, for tools that show a
+document's CBOR). A parent names its parts by the SHA-256 of their bytes:
+`PART(hash)` stands for a list object larger than a part, `SPLICE([hash,
+...])` for an array or byte string split across parts (or an index level, past
+64 parts). Arrays larger than a part split after items whose key hashes below
+a threshold (a list object's key is its id, any other item's its encoding), as
+a prolly tree does; byte strings (`Text`, `RichText`, a `Grid`'s cells) split
+by content-defined chunking. Encoding is deterministic, kept data included
+(its maps are written in canonical key order), so editing, inserting or
+removing a list object changes one part plus the parts on its path to the
+root, moving one changes two, and typing in a large `Text` changes one.
+
+`Document`'s `BlockContent::parts` saves each part with children or block
+references as a `Node` of its own bytes and then its children, listing the
+blocks its own bytes reference (`DocumentPart::references`), and any other as
+`Bytes`. `from_stored` maps each loaded part's hash to its `PartRef`, so a
+part whose hash didn't change goes back as `Reused` with everything under it,
+references included. `references_in` still lists every block reference too
+(`Document::block_refs`), since describing a block for the graph mirror reads
+only `references_in`; the commit lists each once.
 
 No type is frozen, so a type's format changes however it needs to, with no
 renames or migrations for old data. These are the tools a frozen type would use:
@@ -153,7 +218,13 @@ A block saved by another schema is offered for reset (guides/blocks/host.md,
 
 A small header plus a payload that can be megabytes: `Blob<K>` for any
 `BlobKind` (`ImageContent`, `AudioContent`, `PdfContent`,
-`GameModuleContent`). It is `Streamed`, its only live edit is
+`GameModuleContent`). It saves its header and payload as two parts and keeps
+the payload's ref when loaded, so a rename uploads only the header. Its
+replicas load only the header (`Loads::FirstPart`): the payload stays in the
+store (`Blob::is_loaded`, `payload_length`), and an editor reads it with
+`ContentProjection::payload`, a signal that reads it by range with each
+snapshot and holds it. It is
+`Streamed`, its only live edit is
 `BlobOp::SetHeader`, and an offline merge takes whichever side changed. The
 payload never travels as an operation (session frames are at most 8 MB): it
 arrives as a commit, from `write-content` seeding a new block or replacing an

@@ -57,3 +57,14 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   and read back into them. Marks travel as byte ranges within each chunk; keys
   mean something only under the same schema; embeds bring block references.
 
+
+## 6. Loading part of a document
+
+Documents save as parts chosen by their structure but still load whole
+(guides/blocks/content_types.md, "The stored form"). Let the model load part
+of one: an attribute such as `#[model(lazy)]` on a `List` whose parts' objects
+load when first read, through the `read-part` path a `Loads::FirstPart` type
+already uses. Such a document drops the references of parts it didn't load
+from `references_in`, and `describe` (the graph mirror) adds each part's own
+(`Part::Node { references }`). Done: a document with a lazy list opens without
+reading that list's parts, and saving it reuses them.

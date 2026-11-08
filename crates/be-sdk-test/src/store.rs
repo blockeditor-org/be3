@@ -273,13 +273,23 @@ impl Inner {
                 let commit = self.write(content.bytes);
                 reply.send(&mut self.host, &Ok(commit));
             }
-            Call::Read { reply, commit, .. } => {
+            Call::Load { reply, commit, .. } => {
+                // Commits are kept whole, with no parts, so content loads all of itself.
                 let result = self
                     .commits
                     .get(&commit)
-                    .cloned()
+                    .map(|bytes| be_sdk_type_guest::api::Loaded {
+                        bytes: bytes.clone(),
+                        parts: Vec::new(),
+                    })
                     .ok_or_else(|| "no such commit".to_owned());
                 reply.send(&mut self.host, &result);
+            }
+            Call::ReadPart { reply, .. } => {
+                reply.send(
+                    &mut self.host,
+                    &Err("commits here have no parts".to_owned()),
+                );
             }
             Call::ResumeSession { reply, local } => {
                 let head = block
@@ -303,6 +313,8 @@ impl Inner {
             Call::Send { reply, .. }
             | Call::ClaimLease { reply, .. }
             | Call::ReportClean { reply, .. }
+            | Call::Append { reply, .. }
+            | Call::RebaseJournal { reply, .. }
             | Call::ReportStatus { reply, .. }
             | Call::History { reply, .. }
             | Call::Conflict { reply, .. }
@@ -346,6 +358,8 @@ impl Inner {
                 tag: TAG,
                 head,
                 session: session(),
+                journal: None,
+                lost_edits: false,
             },
         );
         if let Some(held) = self.blocks.get_mut(&block) {

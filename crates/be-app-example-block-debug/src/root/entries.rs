@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 use std::fmt::Write as _;
 
-use be_sdk_beui::be_block::be_block_model::{BLOB_REF, BLOCK_REF, CRITICAL, Stored, from_cbor};
+use be_sdk_beui::be_block::be_block_model::{
+    BLOB_REF, BLOCK_REF, CRITICAL, Stored, from_cbor, read_stored,
+};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::{BlockInfo, BlockParent, HeadRead};
 use uuid::Uuid;
@@ -112,7 +114,10 @@ pub(crate) fn content(head: &HeadRead, types: &dyn BlockTypes) -> Entry {
         ),
         Entry::leaf("size", format!("{} bytes", content.bytes.len())),
     ];
-    match from_cbor::<Stored>(&content.bytes) {
+    let read = read_stored(&content.bytes)
+        .ok()
+        .or_else(|| from_cbor::<Stored>(&content.bytes));
+    match read {
         Some(Stored::Map(fields)) => children.extend(
             fields
                 .iter()

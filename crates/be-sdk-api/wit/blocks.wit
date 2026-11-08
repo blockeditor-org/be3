@@ -103,10 +103,12 @@ interface blocks {
     }
 
     /// What an editor asks the host to do with a block it draws: undo or redo
-    /// it, act on its artifact, unlink, delete, move, reorder, place or restore it.
+    /// it, show its version history (at a commit when named), act on its
+    /// artifact, unlink, delete, move, reorder, place or restore it.
     variant block-command {
         undo,
         redo,
+        history(option<commit-id>),
         artifact(artifact-command),
         unlink(unlink-command),
         delete(delete-command),
@@ -217,6 +219,12 @@ interface blocks {
         head: option<commit-id>,
         can-undo: bool,
         can-redo: bool,
+        /// Undo stopped at the session restart that committed this: steps made
+        /// before it no longer apply, and version history holds what they did.
+        restarted-at: option<commit-id>,
+        /// Edits made with another build of the block's type were lost when
+        /// it opened, since this build cannot replay them.
+        lost-edits: bool,
     }
 
     /// A block to open or show, and through which block and with which
@@ -228,10 +236,17 @@ interface blocks {
         editor: option<editor-id>,
     }
 
+    /// A block's version history, at a commit when named.
+    record history-request {
+        block-id: block-id,
+        commit: option<commit-id>,
+    }
+
     /// What the host asks a shell editor to show.
     variant show-request {
         block(open-request),
         panel(host-panel),
+        history(history-request),
     }
 
     /// Asks the host to open a block for the user.

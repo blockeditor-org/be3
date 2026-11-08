@@ -77,8 +77,27 @@ interface types {
     /// computed. The host resolves, seals and uploads.
     record written {
         bytes: list<u8>,
+        /// The parts `bytes` is saved in, so a save uploads only the parts
+        /// that changed; empty saves it as one part.
+        parts: list<written-part>,
         references: list<block-id>,
         derived: entries,
+    }
+
+    /// One part of `written.bytes`, in pre-order: a part of the next
+    /// this-many bytes, a node, or a saved part kept as it is, whose bytes
+    /// `written.bytes` leaves out (`be_block::Loads::FirstPart`).
+    variant written-part {
+        bytes(u32),
+        node(written-node),
+        reused(part-ref),
+    }
+
+    /// A node holding the next this-many parts, and the blocks it references
+    /// itself (not its parts').
+    record written-node {
+        parts: u32,
+        references: list<block-id>,
     }
 
     /// A publish that merges: `ours` becomes the second parent.
@@ -92,10 +111,46 @@ interface types {
         length: u64,
     }
 
+    record chunk-ref {
+        hash: hash,
+        length: u32,
+    }
+
+    record node-ref {
+        hash: hash,
+        length: u64,
+    }
+
+    /// A saved part of a block's stored form (`be_block_store::PartRef`).
+    variant part-ref {
+        chunk(chunk-ref),
+        chunks(node-ref),
+        node(node-ref),
+    }
+
+    /// One part of a loaded stored form, in pre-order: the part, how many
+    /// child parts follow it, and the blocks it references itself.
+    record loaded-part {
+        part: part-ref,
+        children: u32,
+        references: list<block-id>,
+    }
+
+    /// A commit's stored form as a replica loads it (`be_block_store::Stored`):
+    /// its bytes from the start, all of them or only its first part, and the
+    /// parts it was saved in.
+    record loaded {
+        bytes: list<u8>,
+        parts: list<loaded-part>,
+    }
+
     record status {
         head: option<commit-id>,
         owner: bool,
         clean: bool,
+        /// Whatever is not clean is in the journal: an owner appended all it
+        /// sequenced.
+        journaled: bool,
         owes-seal: bool,
         incompatible: bool,
         diverged: bool,
@@ -150,6 +205,40 @@ interface types {
     variant failure {
         unknown-type,
         malformed(string),
+    }
+
+    /// What undo and redo can do on this device, and why they cannot.
+    record undo-state {
+        can-undo: bool,
+        can-redo: bool,
+        /// Undo and redo stopped at the session restart that committed this:
+        /// steps made before it no longer apply.
+        restarted-at: option<commit-id>,
+        /// Edits written by another build of this type were dropped when the
+        /// block opened, since this build cannot replay them.
+        lost-edits: bool,
+    }
+
+    /// One operation the owner sequenced: a session message the module wrote,
+    /// the same bytes a peer hears relayed.
+    record journal-entry {
+        sequence: u64,
+        payload: list<u8>,
+    }
+
+    /// Where a journal starts: a commit (none for no content), the last
+    /// sequence number it holds and the session state as of it.
+    record journal-base {
+        commit: option<commit-id>,
+        sequence: u64,
+        state: list<u8>,
+    }
+
+    /// What a block's session owners sequenced since `base` and did not
+    /// commit, by this module's build.
+    record journal {
+        base: journal-base,
+        entries: list<journal-entry>,
     }
 
     record merged {

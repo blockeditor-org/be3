@@ -190,6 +190,8 @@ impl Link {
                                 head: history.head,
                                 can_undo: history.can_undo,
                                 can_redo: history.can_redo,
+                                restarted_at: history.restarted_at,
+                                lost_edits: history.lost_edits,
                             },
                         );
                     },
@@ -275,6 +277,12 @@ impl Link {
                                 editor: open.editor.map(Uuid::from_bytes),
                             }),
                             ShowRequest::Panel(panel) => host.show_panel(panel),
+                            ShowRequest::History(history) => {
+                                host.history_requested(crate::HistoryRequest {
+                                    block_id: Uuid::from_bytes(history.block_id),
+                                    commit: history.commit,
+                                });
+                            }
                         }
                     }
                 },

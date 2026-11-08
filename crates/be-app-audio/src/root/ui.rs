@@ -114,6 +114,7 @@ fn Track(editor: Editor) -> NodeId {
         create_memo(move || status.with(|status| status.error.clone().unwrap_or_default()));
 
     let host = editor.host();
+    let payload = audio.payload();
     let loaded = Rc::new(Cell::new(None::<u64>));
     create_effect({
         let host = host.clone();
@@ -131,12 +132,13 @@ fn Track(editor: Editor) -> NodeId {
             return;
         };
         if loaded.get() != Some(revision) {
-            let Ok((media_type, bytes)) =
-                audio.read(|audio| (audio.header().media_type.clone(), audio.data().to_vec()))
-            else {
+            let Ok(media_type) = audio.read(|audio| audio.header().media_type.clone()) else {
                 return;
             };
-            host.load_audio(media_type, bytes);
+            let Ok(bytes) = payload.get_untracked() else {
+                return;
+            };
+            host.load_audio(media_type, bytes.to_vec());
             loaded.set(Some(revision));
         }
         host.play_audio();

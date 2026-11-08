@@ -14,7 +14,7 @@ fn a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined() {
         sim.operate(0, 1, edit);
     }
     sim.operate(0, 1, Checklist::remove(removed));
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     sim.open(1);
     sim.attach(1, 1, true);
     assert_eq!(texts(sim.mirror(1, 1)), ["a", "c"]);

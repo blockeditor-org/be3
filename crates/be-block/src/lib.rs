@@ -1,6 +1,7 @@
 use std::{error::Error, fmt};
 
 use be_block_commit::MergeResult;
+pub use be_block_store::{LoadedPart, Part, PartRef, Stored};
 use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
@@ -85,8 +86,21 @@ impl fmt::Display for ContentError {
 
 impl Error for ContentError {}
 
+/// How much of its stored form a replica of a type loads.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Loads {
+    Whole,
+    /// Only the root's first part (`Part::Node`'s first child), such as a file's header; the
+    /// rest stays in the store. `from_stored` gets a `Stored` holding only that part's bytes,
+    /// `parts` hands the rest back as `Part::Reused`, and editors read it a range at a time
+    /// (guides/blocks/apps.md, "Reading a range").
+    FirstPart,
+}
+
 pub trait BlockContent: Sized + Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
+
+    const LOADS: Loads = Loads::Whole;
 
     const FROZEN: bool = false;
 
@@ -97,6 +111,19 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     fn encode(&self) -> Vec<u8>;
 
     fn decode(bytes: &[u8]) -> Result<Self, ContentError>;
+
+    /// The stored form as parts to save: their leaves, in order, are `encode()`, and a part
+    /// unchanged since `from_stored` can be handed back as `Part::Reused`, so a save seals and
+    /// uploads only what changed. Every replica must choose the same parts for the same
+    /// content, since parts are sealed deterministically (decisions/deterministic_seal_nonce.md).
+    fn parts(&self) -> Part<'_> {
+        Part::from(self.encode())
+    }
+
+    /// Decodes stored content, keeping the refs of the parts it was saved in for `parts`.
+    fn from_stored(stored: &Stored) -> Result<Self, ContentError> {
+        Self::decode(&stored.bytes)
+    }
 
     fn references(&self) -> Vec<Uuid> {
         Vec::new()
@@ -186,6 +213,20 @@ pub trait LiveEdit: BlockContent {
 
     fn decode_operation(bytes: &[u8]) -> Result<Self::Op, ContentError> {
         postcard::from_bytes(bytes).map_err(|_| ContentError::Malformed("operation"))
+    }
+
+    /// An operation made on `before`, as `client` applies it to `after`: the same visible
+    /// content loaded afresh when a session restarts, so whatever names positions must move (a
+    /// sequence edit travels as the visible splices it made). None when nothing of it is left.
+    /// Content that keeps no session state carries operations over unchanged.
+    fn carry_over(
+        operation: &Self::Op,
+        before: &Self,
+        after: &Self,
+        client: u64,
+    ) -> Option<Self::Op> {
+        let _ = (before, after, client);
+        Some(operation.clone())
     }
 
     fn session_state(&self) -> Vec<u8> {

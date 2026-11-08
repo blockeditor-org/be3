@@ -2,15 +2,19 @@
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
-(plans/large_blocks.md), and it is edited by many people at once, so it saves
-less often than it is edited (plans/live_edit_persistence.md). Not implemented
+(a type can load only its first part, guides/blocks/content_types.md "Parts"),
+and it is edited by many people at once, so it saves less often than it is
+edited (the journal, guides/blocks/client.md). Not implemented
 yet.
 
 ## What exists
 
 - VISION.md lists chat as planned and not designed.
-- **Loading.** A block loads whole (plans/large_blocks.md, What exists). The
-  database block keeps every row in one document, so no type loads lazily yet.
+- **Loading.** A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads
+  only its first part, and its editors read the rest by range
+  (`LiveContent::read_range`; guides/blocks/apps.md, "Reading a range"). Every
+  `Blob` loads that way. A save reuses the parts it never loaded, and
+  publishing sends only what changed. Documents save as parts but load whole.
 - **Authorship.** `Commit::author` is whatever the client wrote. A session
   names participants by connection (`client-id`), and presence says who a
   connection is. Anyone holding a block's data key can write anything,
@@ -41,7 +45,9 @@ yet.
   is its `ObjectId`. A draft stays in the editor until sent.
 - **Closing a segment** is an operation the session owner sequences once the
   recent messages pass a size: messages a..b become segment k, with its hash.
-  Only an owner online, and only for messages already confirmed.
+  Only an owner online, and only for messages already confirmed. Every replica
+  encodes the segment's bytes itself and checks them against the hash; the
+  operation carrying a part's hash is new, and chat is its first user.
 - **Rewriting a segment** folds its pending edits, deletions and reactions in
   as one new chunk.
 - **The editor** opens the header and reads segments as the person scrolls
@@ -132,13 +138,12 @@ A host feature any type can use; chat is the first.
 
 ## Order of work
 
-1. plans/large_blocks.md and plans/live_edit_persistence.md.
-2. The chat type and editor: the block, `merge_appends`, sending state, unread
+1. The chat type and editor: the block, `merge_appends`, sending state, unread
    counts.
-3. Notifications.
-4. Authorship: signing, verifying, server arrival times.
-5. Message keys for deleting.
-6. A "post" access level.
+2. Notifications.
+3. Authorship: signing, verifying, server arrival times.
+4. Message keys for deleting.
+5. A "post" access level.
 
 ## Not planned here
 

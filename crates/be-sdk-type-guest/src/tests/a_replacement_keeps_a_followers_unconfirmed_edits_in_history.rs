@@ -24,7 +24,7 @@ fn a_replacement_keeps_a_followers_unconfirmed_edits_in_history() {
     assert!(sim.kept(|content| texts(content).contains(&"follower's".to_owned())));
     sim.operate(1, 1, add("afterwards"));
     sim.settle();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(texts(&sim.head_content()), ["replacement", "afterwards"]);
     assert_eq!(texts(sim.mirror(0, 1)), ["replacement", "afterwards"]);
 }

@@ -231,7 +231,7 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         blocks: &[(Uuid, Option<CommitId>)],
         reason: String,
-    ) -> Result<Vec<(BlockSummary, Option<Vec<u8>>)>, ClientError> {
+    ) -> Result<Vec<super::BlockRead>, ClientError> {
         let mut read = Vec::with_capacity(blocks.len());
         for (block, _) in blocks {
             let mut summary = self
@@ -243,14 +243,22 @@ impl<S: ObjectStore> Peer<S> {
                 Some(head) => Some(self.read_at(head).await?),
                 None => None,
             };
-            read.push((summary, content));
+            let journal = self.local_journal(*block).ok().flatten();
+            read.push(super::BlockRead {
+                summary,
+                stored: content,
+                journal,
+            });
         }
         Ok(read)
     }
 
-    pub(super) async fn read_at(&self, head: CommitId) -> Result<Vec<u8>, ClientError> {
+    pub(super) async fn read_at(
+        &self,
+        head: CommitId,
+    ) -> Result<be_block_store::Stored, ClientError> {
         let commit = self.load_commit(head).await?;
-        self.read_manifest(&commit.manifest).await
+        self.load_manifest(&commit.manifest).await
     }
 
     pub async fn drain(&self, skip: impl Fn(Uuid) -> bool) -> Result<Vec<Drained>, ClientError> {
@@ -330,7 +338,10 @@ impl<S: ObjectStore> Peer<S> {
             if let Some(theirs) = remote
                 && !self.commits.is_ancestor(theirs, ours)?
             {
-                let base = self.commits.common_ancestor(ours, theirs)?;
+                let base = match self.commits.common_ancestor(ours, theirs)? {
+                    Some(base) => Some(base),
+                    None => self.left_from(&waiting)?,
+                };
                 return Ok(Reconciled::Merge { base, ours, theirs });
             }
             let Some((sequence, pending)) = waiting
@@ -355,6 +366,24 @@ impl<S: ObjectStore> Peer<S> {
             }
         }
         Err(ClientError::Contended)
+    }
+
+    /// The remote head the waiting commits were built on, which this device holds: the base of
+    /// their merge when the server pruned the history between it and the new head, so no common
+    /// ancestor can be walked to.
+    fn left_from(&self, waiting: &[(u64, Pending)]) -> Result<Option<CommitId>, ClientError> {
+        for (_, pending) in waiting.iter().rev() {
+            let Some(expected) = pending.expected else {
+                continue;
+            };
+            if waiting.iter().any(|(_, other)| other.commit == expected) {
+                continue;
+            }
+            if self.commits.has(expected)? {
+                return Ok(Some(expected));
+            }
+        }
+        Ok(None)
     }
 
     fn settle_reached(&self, block: Uuid, head: CommitId) -> Result<(), ClientError> {

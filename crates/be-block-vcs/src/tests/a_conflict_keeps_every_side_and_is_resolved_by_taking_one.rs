@@ -26,7 +26,8 @@ fn a_conflict_keeps_every_side_and_is_resolved_by_taking_one() {
     assert_eq!(conflict.ours.as_ref(), ours.entries.get(&note));
     assert_eq!(conflict.theirs.as_ref(), theirs.entries.get(&note));
     assert!(
-        merged.objects().is_superset(&base.objects()),
+        base.manifests()
+            .all(|manifest| merged.manifests().any(|kept| kept == manifest)),
         "the sides' contents are held with the tree"
     );
 

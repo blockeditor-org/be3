@@ -235,7 +235,7 @@ pub(super) async fn list(peer: &Arc<Peer<Store>>, block: Uuid) -> Result<Vec<Rev
         .map(|entry| Revision {
             commit: *entry.commit.hash().as_bytes(),
             time: entry.time,
-            current: Some(entry.commit) == summary.head,
+            current: entry.head,
         })
         .collect();
     revisions.sort_by(|a, b| {
@@ -313,7 +313,10 @@ async fn perform(
     if !replicas.is_open(block) {
         return Err("Open this file before restoring a revision.".into());
     }
-    replicas.seal((peer, shared), block, false).await;
+    // The state being replaced is kept as a bookmark, so pruning never takes it.
+    replicas
+        .bookmark((peer, shared), block, "Before restoring")
+        .await;
     if !replicas.status(block).is_some_and(|status| status.clean) {
         return Err(
             "The current edits are still being saved. Try restoring again once they are saved."

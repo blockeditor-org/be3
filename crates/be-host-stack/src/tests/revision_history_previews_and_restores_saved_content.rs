@@ -12,6 +12,12 @@ fn request(block: Uuid, request: Asked) -> Answered {
 #[test]
 fn revision_history_previews_and_restores_saved_content() {
     let harness = Harness::start();
+    // History keeps a state per minute, so each saved state below is a minute after the last.
+    let start = be_block_commit::now_milliseconds();
+    let minutes = |minutes: i64| {
+        be_block_commit::pin_now(Some(start + minutes * be_block_commit::retention::MINUTE));
+    };
+    minutes(0);
     harness.connect();
     let block = Uuid::new_v4();
     open(block, CounterContent::CONTENT_TYPE);
@@ -20,6 +26,7 @@ fn revision_history_previews_and_restores_saved_content() {
     wait_for_count(block, 5);
     flush();
     let first = node(block).unwrap().head.unwrap();
+    minutes(1);
     add(block, 2);
     wait_for_count(block, 7);
     flush();
@@ -50,6 +57,7 @@ fn revision_history_previews_and_restores_saved_content() {
         5
     );
     assert!(!access(preview).can_edit());
+    minutes(2);
     add(block, 3);
     wait_for_count(block, 10);
     assert_eq!(

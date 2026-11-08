@@ -10,8 +10,8 @@ use be_block_protocol::ClientId;
 use be_block_session::{Lease, Resume};
 use be_block_store::Hash;
 use be_sdk_type_api::{
-    Change, Description, EditorId, Endpoint, Opening, PublishOutcome, Recipients, SessionTag,
-    Status,
+    Change, Description, EditorId, Endpoint, Journal, JournalBase, Opening, PublishOutcome,
+    Recipients, SessionTag, Status, UndoState,
     embed::{exports::replicas::Replica, host::Call},
     ops::{Backlog, Connection, Incoming, OpId, Outcome, Outlets, Reply, Side, guest::Executor},
 };
@@ -23,6 +23,7 @@ use crate::{
 };
 
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
+mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_file_maps_to_a_block_and_back;
 mod a_follower_edit_goes_beneath_a_peer_edit_the_owner_ordered_first;
 mod a_follower_keeps_its_unconfirmed_edit_through_a_reload;
@@ -39,26 +40,32 @@ mod a_followers_kept_edits_reach_the_owner_that_takes_over;
 mod a_followers_kept_edits_survive_the_owner_leaving_before_saving_them;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
+mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
 mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
 mod a_late_joiner_types_where_it_sees_the_caret;
 mod a_message_no_build_can_read_stops_a_follower_saving;
 mod a_module_answers_stateless_requests;
+mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
 mod a_peer_running_another_build_is_refused;
 mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod a_replaced_file_takes_none_of_the_old_files_header;
 mod a_replacement_keeps_a_followers_unconfirmed_edits_in_history;
 mod a_replacement_made_while_the_owner_is_gone_reaches_every_peer;
 mod a_replacement_made_while_the_owner_is_gone_reaches_the_owner_that_takes_over;
+mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
+mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
+mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
 mod an_abandoned_lease_is_claimed;
 mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
+mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_owner_renews_its_lease_while_it_holds_the_session;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
-mod edits_are_sealed_once_they_rest_for_the_seal_interval;
+mod edits_are_committed_once_they_rest_for_the_quiet_interval;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
@@ -237,6 +244,12 @@ fn prose_module() -> Module {
     Module::new(vec![Registration::of::<ProseContent>()])
 }
 
+fn prose_with_undo_module() -> Module {
+    Module::new(vec![
+        Registration::of::<ProseContent>().undo::<ProseContent>(),
+    ])
+}
+
 fn file_module() -> Module {
     Module::new(vec![Registration::of::<FileContent>()])
 }
@@ -265,6 +278,16 @@ fn count(content: &CounterContent) -> i64 {
 struct Stored {
     parents: Vec<CommitId>,
     bytes: Vec<u8>,
+    manifest: be_block_store::Manifest,
+}
+
+const SEALING: Uuid = Uuid::from_u128(0x5ea1);
+
+fn vault() -> be_block_store::Vault<be_block_store::MemoryStore> {
+    let keys = be_block_store::Keyring::new();
+    keys.insert(SEALING, be_block_store::ContentKey::from_bytes([7; 32]));
+    be_block_store::Vault::new(be_block_store::MemoryStore::new(), keys)
+        .with_chunker(be_block_store::ChunkerConfig::SMALL)
 }
 
 struct Lone {
@@ -316,6 +339,8 @@ fn opening(
         tag: TAG,
         head,
         session,
+        journal: None,
+        lost_edits: false,
     }
 }
 
@@ -330,6 +355,7 @@ struct Device {
     tag: SessionTag,
     status: Status,
     history: (bool, bool),
+    undo: UndoState,
     described: Option<Description>,
     wake: Option<u64>,
     released: bool,
@@ -338,6 +364,7 @@ struct Device {
 struct Sim<C: LiveEdit + Clone + Default> {
     now: u64,
     commits: BTreeMap<CommitId, Stored>,
+    vault: be_block_store::Vault<be_block_store::MemoryStore>,
     head: Option<CommitId>,
     lease: Lease,
     devices: Vec<Device>,
@@ -354,7 +381,11 @@ struct Sim<C: LiveEdit + Clone + Default> {
     held: Vec<(usize, Call)>,
     deaf: BTreeSet<usize>,
     largest_relay: usize,
+    part_reads: usize,
     written: u64,
+    journal: Option<Journal>,
+    journal_tag: SessionTag,
+    appended: usize,
     make: fn() -> Module,
 }
 
@@ -363,6 +394,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         Self {
             now: 1_000,
             commits: BTreeMap::new(),
+            vault: vault(),
             head: None,
             lease: Lease::new(),
             devices: (0..devices)
@@ -377,6 +409,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     tag: TAG,
                     status: Status::default(),
                     history: (false, false),
+                    undo: UndoState {
+                        can_undo: false,
+                        can_redo: false,
+                        restarted_at: None,
+                        lost_edits: false,
+                    },
                     described: None,
                     wake: None,
                     released: false,
@@ -395,7 +433,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             held: Vec::new(),
             deaf: BTreeSet::new(),
             largest_relay: 0,
+            part_reads: 0,
             written: 0,
+            journal: None,
+            journal_tag: TAG,
+            appended: 0,
             make,
         }
     }
@@ -450,9 +492,20 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             be_sdk_type_api::embed::exports::replicas::start(host, vec![0; 32])
         });
         self.settle();
+        let journal = self
+            .journal
+            .clone()
+            .filter(|journal| journal.base.commit == local);
+        let foreign = self.journal_tag != self.devices[device].tag;
+        let lost_edits = foreign
+            && journal
+                .as_ref()
+                .is_some_and(|journal| !journal.entries.is_empty());
         let opening = Opening {
             content_type: C::CONTENT_TYPE,
             tag: self.devices[device].tag,
+            journal: journal.filter(|_| !foreign),
+            lost_edits,
             ..opening(client, local, self.lease.state().clone())
         };
         let replica = self.to(device, |host| Replica::new(host, opening));
@@ -586,14 +639,31 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn write(&mut self, bytes: Vec<u8>, parents: Vec<CommitId>) -> CommitId {
+        self.write_parts(be_block::Part::from(bytes), parents)
+    }
+
+    fn write_parts(&mut self, parts: be_block::Part<'_>, parents: Vec<CommitId>) -> CommitId {
+        let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
+        self.commit(manifest, parents)
+    }
+
+    fn commit(&mut self, manifest: be_block_store::Manifest, parents: Vec<CommitId>) -> CommitId {
         self.written += 1;
+        let bytes = self.vault.read(&manifest).unwrap();
         let id = CommitId::from_hash(Hash::of_parts(&[&bytes, &self.written.to_be_bytes()]));
-        self.commits.insert(id, Stored { parents, bytes });
+        self.commits.insert(
+            id,
+            Stored {
+                parents,
+                bytes,
+                manifest,
+            },
+        );
         id
     }
 
     fn publish_elsewhere(&mut self, content: &C) -> CommitId {
-        let head = self.write(content.encode(), self.head.into_iter().collect());
+        let head = self.write_parts(content.parts(), self.head.into_iter().collect());
         self.head = Some(head);
         if !self.quiet {
             self.moved(head, None);
@@ -796,9 +866,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         reply.send(host, &Ok(PublishOutcome::Rejected(head)))
                     });
                 }
+                let parts = be_sdk_type_api::written_parts(&content.bytes, &content.parts);
+                let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
                 if let Some(head) = expected
                     && merging.is_none()
-                    && self.commits[&head].bytes == content.bytes
+                    && self.commits[&head].manifest == manifest
                 {
                     return self.to(device, |host| {
                         reply.send(host, &Ok(PublishOutcome::Published(head)))
@@ -808,7 +880,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .into_iter()
                     .chain(merging.map(|merging| merging.ours))
                     .collect();
-                let head = self.write(content.bytes, parents);
+                let head = self.commit(manifest, parents);
                 self.head = Some(head);
                 self.publishes += 1;
                 self.to(device, |host| {
@@ -824,15 +896,36 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 parent,
                 content,
             } => {
-                let commit = self.write(content.bytes, parent.into_iter().collect());
+                let parts = be_sdk_type_api::written_parts(&content.bytes, &content.parts);
+                let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
+                let commit = self.commit(manifest, parent.into_iter().collect());
                 self.to(device, |host| reply.send(host, &Ok(commit)));
             }
-            Call::Read { reply, commit, .. } => {
+            Call::Load {
+                reply,
+                commit,
+                first_part,
+            } => {
+                let result = match self.commits.get(&commit) {
+                    Some(stored) => {
+                        let loaded = match first_part {
+                            true => self.vault.load_first(&stored.manifest),
+                            false => self.vault.load(&stored.manifest),
+                        };
+                        loaded
+                            .map(be_sdk_type_api::Loaded::of)
+                            .map_err(|error| error.to_string())
+                    }
+                    None => Err("no such commit".to_owned()),
+                };
+                self.to(device, |host| reply.send(host, &result));
+            }
+            Call::ReadPart { reply, part, range } => {
+                self.part_reads += 1;
                 let result = self
-                    .commits
-                    .get(&commit)
-                    .map(|stored| stored.bytes.clone())
-                    .ok_or_else(|| "no such commit".to_owned());
+                    .vault
+                    .read_part(part.into(), range.offset, range.length)
+                    .map_err(|error| error.to_string());
                 self.to(device, |host| reply.send(host, &result));
             }
             Call::ResumeSession { reply, local } => {
@@ -853,6 +946,68 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.lease
                     .heartbeat(client, generation, clean_at, self.now as i64);
             }
+            Call::Append {
+                reply,
+                generation,
+                entries,
+                relay,
+            } => {
+                self.to(device, |host| reply.send(host, &()));
+                if relay {
+                    let participants = self.lease.state().participants.clone();
+                    for entry in &entries {
+                        for peer in &participants {
+                            if *peer == client {
+                                continue;
+                            }
+                            if let Some(to) = self.device_of(*peer) {
+                                self.relay(to, client, entry.payload.clone());
+                            }
+                        }
+                    }
+                }
+                let state = self.lease.state();
+                if !state.is_owner(client) || state.generation != generation {
+                    return;
+                }
+                self.appended += 1;
+                if self.journal_tag != self.devices[device].tag {
+                    return;
+                }
+                let journal = self.journal.get_or_insert_with(|| Journal {
+                    base: JournalBase {
+                        commit: None,
+                        sequence: 0,
+                        state: Vec::new(),
+                    },
+                    entries: Vec::new(),
+                });
+                for entry in entries {
+                    let last = journal
+                        .entries
+                        .last()
+                        .map_or(journal.base.sequence, |entry| entry.sequence);
+                    if entry.sequence > last {
+                        journal.entries.push(entry);
+                    }
+                }
+            }
+            Call::RebaseJournal {
+                reply,
+                generation,
+                base,
+            } => {
+                self.to(device, |host| reply.send(host, &()));
+                let state = self.lease.state();
+                if !state.is_owner(client) || state.generation != generation {
+                    return;
+                }
+                self.journal = Some(Journal {
+                    base,
+                    entries: Vec::new(),
+                });
+                self.journal_tag = self.devices[device].tag;
+            }
             Call::ReportStatus { reply, status } => {
                 self.to(device, |host| reply.send(host, &()));
                 self.devices[device].status = status;
@@ -861,13 +1016,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| reply.send(host, &()));
                 self.devices[device].described = Some(description);
             }
-            Call::History {
-                reply,
-                can_undo,
-                can_redo,
-            } => {
+            Call::History { reply, history } => {
                 self.to(device, |host| reply.send(host, &()));
-                self.devices[device].history = (can_undo, can_redo);
+                self.devices[device].history = (history.can_undo, history.can_redo);
+                self.devices[device].undo = history;
             }
             Call::Conflict {
                 reply,
