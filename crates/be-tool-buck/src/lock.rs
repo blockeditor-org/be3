@@ -2,8 +2,8 @@
 //! network. It brings Cargo.lock up to date with the Cargo.toml files, as the
 //! cargo a developer runs would, and pins every crate the lockfile names in
 //! buck/cargo/crates.bzl's downloads, the crates the action hands cargo
-//! (buck/cargo/buckify.sh). //:buckify and ./scripts/verify run it when the
-//! action says it is out of date, then build the action again.
+//! (buck/cargo/buckify.sh). //:buckify runs it, built by cargo, when the
+//! action says it is out of date, then builds the action again.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

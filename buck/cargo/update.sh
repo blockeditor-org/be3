@@ -6,15 +6,15 @@
 # changing a manifest to build with the change before then. When the action
 # says Cargo.lock needs crates crates.bzl does not download yet, this brings
 # the lockfile up to date and pins them with the network (buck-tools lock), and
-# generates again. With --check it writes nothing and fails if either file is
+# generates again. cargo builds buck-tools for that, into target/, since
+# buck2 builds it from the crates.bzl that is out of date. With --check it writes nothing and fails if either file is
 # out of date.
 #
 # Usage: ./scripts/buck run //:buckify [-- --check]
-#   (BUCK.v2 passes this buck-tools and the cargo to lock with first)
+#   (BUCK.v2 passes this the cargo to lock with first)
 set -eu
-tools="$1"
-cargo="$2"
-shift 2
+cargo="$1"
+shift
 check=false
 [ "${1:-}" = --check ] && check=true
 generate() {
@@ -32,7 +32,7 @@ if [ -f "$generated/stale" ]; then
         echo "Out of date with the Cargo.toml files: Cargo.lock, and updating it needs the network; run ./scripts/buck run //:buckify."
         exit 1
     fi
-    "$tools" lock "$cargo"
+    PATH="$cargo/bin:$PATH" "$cargo/bin/cargo" run --quiet --release -p be-tool-buck -- lock "$cargo"
     generate
     if [ -f "$generated/stale" ]; then
         cat "$generated/stale"

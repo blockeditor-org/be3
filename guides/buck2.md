@@ -247,6 +247,7 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   It brings Cargo.lock up to date from them when it can, so a dependency already in the
   lockfile needs nothing else. A lockfile that needs a crate they lack makes the action write
   why into `stale` beside where crates.bzl would be: `./scripts/verify` then fails, and
-  `//:buckify` runs `buck-tools lock` (crates/be-tool-buck/src/lock.rs) on this machine, which
+  `//:buckify` runs `buck-tools lock` (crates/be-tool-buck/src/lock.rs) on this machine, built
+  by cargo since buck2 would build it from the stale crates.bzl, which
   brings Cargo.lock up to date with the network, pins each new crate's hash and size in
   `downloads`, and generates again.
