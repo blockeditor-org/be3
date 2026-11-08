@@ -2,7 +2,7 @@
 
 The infinite canvas is a 2D vector and raster editor. Its camera is the host's
 (guides/pan_and_zoom.md). Like every format, its format is
-not frozen (guides/frozen_formats.md). plans/canvas.md has the work left.
+not frozen (guides/frozen_formats.md). plans/deferred/canvas.md has the work left.
 
 ## Where the code lives
 

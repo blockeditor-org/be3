@@ -8,7 +8,7 @@ the simulator over any native or headless (`:dev`) run; `BEUI_LAYERS=xr` uses a
 headset instead and falls back to the simulator while there is none. Layers in
 general, `LayerView` and `RunOptions` are in [programs](programs.md); windows,
 `WindowRequest` and `WindowReport` in [docking](docking.md). What remains to
-build is in plans/vr.md.
+build is in plans/deferred/vr.md.
 
 No platform knows about space, and all its 3D math (`glam`) stays in its crate.
 It works entirely through the `Layer` hooks: it opens every window itself

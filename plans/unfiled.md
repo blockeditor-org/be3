@@ -24,22 +24,33 @@ ever holds what they put there themselves. Not implemented yet.
 
 - **The block.** A second derived root per account per organization,
   `be_block::unfiled(organization, account)`, made and kept like My files, in
-  a scope of its own. Administrators of a company organization see it as they
-  see My files.
-- **Liveness.** Unfiled has no content listing its blocks: like `Root`, it
-  holds every block whose parent names it (`BlockGraph::holds`), so making a
-  block there edits nothing anyone else must be able to edit. Taking one out is
-  a move; deleting one moves it to Recently Deleted.
+  a scope of its own. The server reserves the id for that account as it does
+  My files (the `my_files_of` claim check in `be-server/src/organization.rs`)
+  and lets it be made at the root as My files is (the `may_add_workspace`
+  exception). Administrators of a company organization see it as they see My
+  files.
+- **Liveness.** Unfiled has no content listing its blocks: it holds every block
+  whose parent names it, so making a block there edits nothing anyone else
+  must be able to edit. That is a new case in `BlockGraph::holds`, which today
+  treats only `BlockParent::Root` that way and otherwise needs the parent's
+  references to list the child: a parent that is a reserved Unfiled id holds
+  its children by parent alone. The graph learns which ids are Unfiled from
+  the server (a flag on the block row set when the reserved id is made), since
+  it can't derive them. Amend
+  decisions/block_reclamation_by_reference_counting.md ("every parent still
+  listing its child") to name the exception.
+- **Taking out and deleting.** Taking a block out is a move. Deleting one is
+  `SetParent(Detached)` with `DELETED_FROM` naming Unfiled, so Restore puts it
+  back, since there is no content to drop it from.
 - **Placing.** `block-location` gains `unfiled`, which the host resolves to the
-  account's own Unfiled; apps never learn its id. A connected app
-  (plans/connected_apps.md) creates there through the server, and that plan
-  covers how its keys are wrapped. Everything made without a
+  account's own Unfiled; apps never learn its id. Everything made without a
   place the person chose goes there: a pick with no place, a terminal an app
-  makes for a connection (plans/boat.md), an exported dynamic artifact, a
-  recording, a file pasted or dropped where nothing takes it, a file shared to
-  be-host on Android. Audit every call site that creates a block against this.
+  makes for a connection, an exported dynamic artifact, a recording, a file
+  pasted or dropped where nothing takes it.
 - **The files pane.** A section below My files: a flat list, newest first.
-  Each row names the app that made the block and where it is used, from its
+  Each row names the app that made the block (a new defined metadata key,
+  `CREATED_BY`, the app's manifest id, set by the host when an app creates a
+  block) and where it is used, from its
   backrefs ("boat.dev · used in Dev VMs"). No folders are made or arranged
   there; the one thing to do is move a block out, which files it. References
   are by id, so filing breaks nothing.
@@ -50,12 +61,19 @@ ever holds what they put there themselves. Not implemented yet.
 
 ## Order of work
 
-1. The derived root, its liveness, `block-location::unfiled`, and the server
-   keeping it.
+1. The derived root, the reserved id, its liveness rule in `holds`, delete and
+   restore, `block-location::unfiled`, and the server keeping it. Done: server
+   tests that a block made in Unfiled stays live with no content edit, is
+   collected only after a delete, restores to Unfiled, and that nobody else
+   can make or write to another account's Unfiled.
 2. Pickers with no place, and every other creating call site, go to Unfiled.
-3. The files pane section and leftovers.
-4. Update guides/blocks/workspaces.md (where pickers put blocks), and add a
-   decision: My files holds only what the person put there.
+   The PR lists every site that creates a block and which it changed, with a
+   test per changed site.
+3. The files pane section and leftovers, with paintings.
+4. Update guides/blocks/workspaces.md (where pickers put blocks) and
+   guides/blocks/server.md (liveness), amend
+   decisions/block_reclamation_by_reference_counting.md, and add a decision:
+   My files holds only what the person put there.
 
 ## Not planned here
 

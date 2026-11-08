@@ -8,7 +8,7 @@ Each item says what "done" looks like.
 Real notes live in one remote workspace on a server running on a single VPS
 (guides/hosting.md). Local-only workspaces (the embedded server) are permanent:
 someone who never signs in keeps their work in one. Offline support on web waits
-until before a public release (`plans/public_release.md`). Text and folder blocks
+until before a public release (`plans/deferred/public_release.md`). Text and folder blocks
 and everything under them are frozen (guides/frozen_formats.md); other block
 types may keep breaking.
 

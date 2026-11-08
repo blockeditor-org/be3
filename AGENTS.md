@@ -64,7 +64,7 @@ Guides:
 - guides/blocks/workspaces.md: organizations, workspaces and the files pane, device profiles and host-applied settings, sessions and view state
 - guides/tracker.md: the issue tracker in be-host, and `be`, the command line tool agents use to read and change it
 - guides/type_modules.md: block types as app wasm modules: the host-to-type protocol (`be-sdk-type-api`) and the replica library types link (`be-sdk-type-guest`)
-- plans/: one file per plan of work not built yet. Each starts with a `Depends on:` line naming the plans (or the steps of them) it needs first, or `none.`, so the plans form a DAG; keep it acyclic and current when a plan lands, splits or changes.
+- plans/: one file per plan of work not built yet. Each starts with a `Depends on:` line naming the plans (or the steps of them) it needs first, or `none.`, so the plans form a DAG; keep it acyclic and current when a plan lands, splits or changes. plans/deferred/ holds plans and parts of plans set aside until the user picks them up: don't start them unasked.
 - decisions/: one file per decision: what was decided, why, and what was rejected. Check it before re-proposing something it records as rejected.
 
 Commands (builds run on the build server; see guides/buck2.md and guides/build_server.md):

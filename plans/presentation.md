@@ -1,67 +1,51 @@
-# Presentation editor: feature recommendations
+# Presentation editor: duplicating slides and speaker notes
 
 Depends on: none.
 
-Recommendations only, not implemented. The deck's model is
-`crates/be-type-presentation/src/presentation.rs`, its editor
-`crates/be-app-presentation/src` (the slide templates are in
-`root/templates.rs`).
+The deck's model is `crates/be-type-presentation/src/presentation.rs`, its
+editor `crates/be-app-presentation/src` (the slide templates are in
+`root/templates.rs`). Follow-presenter mode and other ideas are in
+plans/deferred/presentation.md.
 
 Current state: a filmstrip docked beside the stage with drag-reorder,
-add-slide (template or link an existing block via the picker), detach/delete,
-fullscreen playback with arrow/space/home/end navigation and auto-hiding
-controls, and three canvas templates (Title/Regular/Blank). A slide is just
-`{id, block}`; no other per-slide metadata exists yet.
+add-slide (template or link an existing block via the picker), "Detach slide"
+(removes the entry and keeps the block), and full-screen playback with
+arrow/space/home/end navigation and controls shown on hover. A slide is
+`Slide { block: Option<Uuid> }` in a `List`; the list object is its id, and
+`block: None` shows as "Broken link". No code in be-app-presentation registers
+an `Action` today; registering Present, Next and Add slide as actions would also
+list them in the host's command palette (plans/command_palette.md), and is
+optional here.
 
-## Presenting
+## 1. Duplicate slide
 
-- **Speaker notes per slide** — biggest gap. Needs a new field on
-  `Slide`. Default to linking a `text` block for the notes, but
-  let the user replace it with any block type they choose, same as slides
-  themselves are just a block reference.
-- **Presenter view** — separate window/second-monitor mode showing current
-  slide, next slide thumbnail, notes, and an elapsed timer. The `Stage`
-  component in `root/ui.rs` already renders a slide on its own, so this is
-  mostly a second viewport reusing it.
-- **Jump to slide by number** (type digits + Enter) and **blank/black screen
-  toggle** (`B`/`.` like PowerPoint) — cheap additions to `navigate` in
-  `root/ui.rs`.
-- **Live "follow presenter" mode** — fits this codebase well since presence
-  and block sync are already first-class: broadcast the presenter's current
-  slide via presence so viewers' clients auto-advance with them. Worth
-  prioritizing given how little new infra it needs.
-- Auto-advance/timed playback, loop back to slide 1 at the end.
+- An `Action` "Duplicate slide" on Ctrl+D (Cmd+D on macOS), also in the tile's
+  menu, copies the slide's block with `host().copy_blocks(source, parent)` (the
+  block and everything inside it, for any block type) into the deck, inserts
+  the copy after the current slide, and selects it.
+- Done: a test duplicates a canvas slide and a text slide, the copy is a new
+  block after the original and selected, and editing the copy leaves the
+  original unchanged. A painting of the filmstrip after duplicating.
 
-## Slide management
+## 2. Speaker notes
 
-- **Duplicate slide** — currently there's no way to clone a slide's content;
-  `Presentation::insert` only links an existing block. This should be a shallow
-  copy: clone the `InfiniteCanvas` itself, but any sub-blocks referenced from
-  inside it (e.g. an embedded canvas entity pointing at another block) stay
-  linked to the same underlying block, with no special deep-copy behavior.
-- **Multi-select** (shift/ctrl-click in the filmstrip) for bulk delete/move.
-- **Reorder via keyboard** (move up/down) as an alternative to drag-and-drop.
-- **Section dividers / grouping** for long decks — filmstrip is a flat list
-  today.
-- **Grid/overview mode** — a multi-column thumbnail grid instead of the
-  single vertical filmstrip, useful once a deck has 20+ slides.
+- `Slide` gains `notes: Option<Uuid>`, listed in `references()` (so the notes
+  block is held, not reclaimed) and handled in `child_edit`: `Delete` clears
+  it, `Replace` swaps it.
+- The notes block is made on first use, not per slide. With a notes block, the
+  notes pane shows its text editor as a child; without one, it shows an "Add
+  notes" button that creates an empty text block by type id (`create_with`,
+  no be-type-text dependency) inside the deck, links it and moves the focus
+  into the child editor, so typing starts there and no keystroke is lost. Any block may replace it, as a slide's block may be any
+  type.
+- The notes pane sits under the stage in the deck's dock; on a phone it is a
+  pane of the stacked dock, as the filmstrip is. Notes stay hidden while
+  presenting until a presenter view exists (deferred).
+- Done: a test presses "Add notes" on a slide with none (one text block is
+  made and linked, and the focus is in its editor), deletes it (the link clears), and checks no notes block exists for
+  untouched slides. Paintings of the notes pane on desktop and phone.
 
-## Content/theming
+## Order of work
 
-- **More templates**: two-column, image+caption, section header/agenda.
-- **Per-slide transition** (cut/fade) during playback.
-- Shared theme / master slide: skipped. Depends on infrastructure work that
-  hasn't been done yet (there's no concept of a deck-level style that
-  propagates to independently-owned `InfiniteCanvas` slides).
-
-## Export/sharing
-
-- Export to PDF or images, via a dynamic artifact (the pattern the logic
-  grid's `dynamic_artifact` module uses to export generated output).
-- Print/handout view: skipped.
-
-## Priority
-
-Start with speaker notes, duplicate slide, and follow-presenter mode — they
-close the biggest functional gaps and follow-presenter leans directly on
-infra that already exists.
+1. Duplicate slide.
+2. Speaker notes.

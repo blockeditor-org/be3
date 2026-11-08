@@ -1,8 +1,8 @@
 # Public release
 
-Depends on: plans/daily_driver.md.
+Depends on: plans/deferred/daily_driver.md.
 
-What the daily driver plan (`plans/daily_driver.md`) leaves out because one
+What the daily driver plan (`plans/deferred/daily_driver.md`) leaves out because one
 person using the host on their own devices does not need it, but other people
 using it would. Each item says what "done" looks like.
 

@@ -1,6 +1,6 @@
 # Canvas
 
-Depends on: plans/public_release.md (Web offline), for step 1 only.
+Depends on: plans/deferred/public_release.md (Web offline), for step 1 only.
 
 A plan to make the infinite canvas (`crates/be-app-infinite-canvas`, model in
 `crates/be-type-infinite-canvas`) a general 2D vector and raster image editor,
@@ -38,7 +38,7 @@ can change freely until step 4.
 
 - Visiting the host on the web with no account opens a blank canvas at once, kept in a
   local-only workspace in the browser (its origin private file system; see
-  `plans/public_release.md`, Web offline). Local-only workspaces are permanent, not a testing aid.
+  `plans/deferred/public_release.md`, Web offline). Local-only workspaces are permanent, not a testing aid.
 - Signing in later can move the canvas into a remote workspace and share it by
   link.
 - Load only the canvas app to start, and let the host install to a home

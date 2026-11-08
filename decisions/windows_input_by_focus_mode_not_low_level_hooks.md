@@ -11,7 +11,7 @@ swallows physical input.
 ## Why
 
 - Elevated windows work in focus mode: UIPI blocks only injected input.
-- Hooks would bring the constraints plans/windows_input.md lists: a thread of
+- Hooks would bring the constraints plans/deferred/windows_input.md lists: a thread of
   their own that must answer every event fast (Windows silently removes a hook
   that exceeds `LowLevelHooksTimeout`), and no input while an elevated window
   is foreground unless be-host runs elevated too.
