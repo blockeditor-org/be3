@@ -3,9 +3,9 @@ use std::{path::PathBuf, time::Duration};
 use be_block_commit::{Commit, CommitId, CommitStore};
 use be_block_graph::BlockParent;
 use be_block_protocol::{
-    Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry, Hold,
-    KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, SessionEvent,
-    SessionState, UploadUrl, WrappedBy, WrappedKey, client,
+    Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry,
+    Hold, KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage,
+    SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
 };
 use be_block_session::{Resume, resume, takeover_needs_merge};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -22,7 +22,6 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_block_shared_from_a_hidden_folder_is_listed_as_shared;
-mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_blocks_references_are_listed_and_announced_together;
 mod a_browser_preflight_to_the_s3_endpoint_is_answered;
 mod a_browser_sign_in_waits_on_polls_and_holds_no_connection;
@@ -45,6 +44,7 @@ mod a_message_arriving_slowly_is_not_taken_for_silence;
 mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_move_past_the_new_payers_quota_is_refused;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
+mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
 mod a_range_get_reads_part_of_an_s3_object;

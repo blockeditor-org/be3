@@ -372,7 +372,8 @@ impl Versions {
         context
             .peer
             .hold(repository, &held, be_block_protocol::Hold::Lasting)
-            .await.map_err(failed)?;
+            .await
+            .map_err(failed)?;
         self.trees.insert(commit, tree.clone());
         Ok(commit)
     }
@@ -1154,7 +1155,8 @@ impl Versions {
         context
             .peer
             .hold(fork, &objects, be_block_protocol::Hold::Lasting)
-            .await.map_err(failed)?;
+            .await
+            .map_err(failed)?;
         let state = Repository {
             branches: held
                 .branches
@@ -1224,7 +1226,8 @@ impl Versions {
         context
             .peer
             .hold(into, &objects, be_block_protocol::Hold::Lasting)
-            .await.map_err(failed)?;
+            .await
+            .map_err(failed)?;
         if !moved.is_empty() {
             let step = Step {
                 checkout: None,

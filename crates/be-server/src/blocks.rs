@@ -897,10 +897,10 @@ impl ServerStore {
                              WHERE organization_id = ?1 AND held_since IS NOT NULL
                                AND held_since <= ?2",
                         )?;
-                        let rows = statement.query_map(
-                            params![organization.to_string(), cutoff],
-                            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-                        )?;
+                        let rows = statement
+                            .query_map(params![organization.to_string(), cutoff], |row| {
+                                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                            })?;
                         for row in rows {
                             let (block, hash) = row?;
                             expired
@@ -930,8 +930,13 @@ impl ServerStore {
                         if !graph.contains(*block) {
                             continue;
                         }
-                        let shrank =
-                            store.release_charged(&transaction, graph, organization, *block, hashes)?;
+                        let shrank = store.release_charged(
+                            &transaction,
+                            graph,
+                            organization,
+                            *block,
+                            hashes,
+                        )?;
                         graph.add_size(*block, shrank, false)?;
                         persist_sizes(&transaction, graph, organization, chain(graph, *block))?;
                     }
