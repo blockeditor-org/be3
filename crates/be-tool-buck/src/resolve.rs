@@ -64,7 +64,9 @@ fn load(files: &[&str]) -> Result<BTreeMap<String, Fields>, String> {
     for file in files {
         let mut text = String::new();
         std::fs::File::open(file)
-            .and_then(|compressed| flate2::read::GzDecoder::new(compressed).read_to_string(&mut text))
+            .and_then(|compressed| {
+                flate2::read::GzDecoder::new(compressed).read_to_string(&mut text)
+            })
             .map_err(|error| format!("{file}: {error}"))?;
         for fields in stanzas(&text) {
             let name = field(&fields, "Package").to_owned();
