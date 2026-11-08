@@ -9,15 +9,10 @@ bootstrap_unpinned(
 )
 
 # The one build script a buck2 action runs: crates/be-lib-ghostty-vt builds
-# libghostty-vt with it, on a worker, the same way cargo's build does locally.
+# libghostty-vt with it.
 export_file(
     name = "build-ghostty-vt.sh",
     src = "build-ghostty-vt.sh",
-)
-
-export_file(
-    name = "download.sh",
-    src = "download.sh",
 )
 
 export_file(
