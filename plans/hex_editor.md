@@ -1,5 +1,7 @@
 # The hex view on the text area
 
+Depends on: none.
+
 The text block's hex view (`crates/be-app-text/src/hex.rs`) is a hand-painted
 view of its own. This plan rebuilds it from beui's text area. The point is to
 make `beui-text-editor-core` keep bytes that are not valid UTF-8 intact, and to

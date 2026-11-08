@@ -1,5 +1,7 @@
 # VR
 
+Depends on: none.
+
 What remains of the plan that took the space layer (`crates/beui-layer-space`,
 `BEUI_LAYERS=space`; guides/beui/space.md covers it) from a
 simulator on a flat screen to OpenXR headsets. The first headset is the

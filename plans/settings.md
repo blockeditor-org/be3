@@ -1,5 +1,7 @@
 # Settings
 
+Depends on: none.
+
 Settings have three tiers, all built: per user (a root `Settings` block),
 per block with a workspace as the usual place (a block's `be_block::SETTINGS`
 metadata points to its settings block, one block per kind in

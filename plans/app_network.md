@@ -1,5 +1,7 @@
 # Network for apps
 
+Depends on: none.
+
 Apps get the network a browser has, plus raw sockets where the platform allows
 them. Every app is first-party and trusted today, so access is wide open; the
 manifest stays the place to restrict it later. Not implemented yet.

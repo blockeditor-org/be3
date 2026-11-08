@@ -1,5 +1,7 @@
 # Settings only their owner reads
 
+Depends on: none.
+
 A settings kind an app can mark private to its owner: synced across the
 owner's devices, readable by no one else, organization administrators and the
 server included. The first use is an app's key for an outside service

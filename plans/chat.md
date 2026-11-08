@@ -1,5 +1,8 @@
 # Chat
 
+Depends on: plans/large_blocks.md (the operation that adds a part by its hash,
+`merge3` over parts).
+
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
 (a type can load only its first part, guides/blocks/content_types.md "Parts"),
@@ -47,7 +50,8 @@ yet.
   recent messages pass a size: messages a..b become segment k, with its hash.
   Only an owner online, and only for messages already confirmed. Every replica
   encodes the segment's bytes itself and checks them against the hash; the
-  operation carrying a part's hash is new, and chat is its first user.
+  operation carrying a part's hash is new (`plans/large_blocks.md`), and chat
+  is its first user.
 - **Rewriting a segment** folds its pending edits, deletions and reactions in
   as one new chunk.
 - **The editor** opens the header and reads segments as the person scrolls

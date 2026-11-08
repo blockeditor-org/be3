@@ -1,5 +1,7 @@
 # An HTML core for beui on the web: what is left
 
+Depends on: none.
+
 beui on the web runs an HTML core (`beui-core-html`), switched in at compile time by `--cfg beui_html`; guides/beui/core.md (Cores) describes it, and decisions/beui_has_an_html_core_on_the_web.md says why. Features the native core has and the HTML core lacks or ignores:
 
 - Browser-native text editing for `TextArea` and the `TextInput`s that are

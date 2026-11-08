@@ -1,5 +1,7 @@
 # Block-bound agents
 
+Depends on: none.
+
 An agent account that can reach one block and nothing else, for a program
 that hosts a block from a machine the person trusts less than their own
 devices, such as a terminal host inside a cloud VM (plans/boat.md). Not

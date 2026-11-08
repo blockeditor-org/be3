@@ -1,5 +1,7 @@
 # App libraries: what is left
 
+Depends on: none.
+
 Apps link any set of shared libraries (guides/app_libraries.md): Rust apps link base (`//crates/be-sdk-library-base:module`, the fixed-address root) and beui (`//crates/be-sdk-library-beui:module`), and an app may link none. The framework-neutral editor state is in be-sdk (`editor_state`, and the region driver `be_sdk::driver`); beui's signals over it are in be-sdk-beui. What remains:
 
 ## Docks and overlays below beui

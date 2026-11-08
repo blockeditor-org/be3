@@ -1,5 +1,7 @@
 # Daily driver
 
+Depends on: plans/search.md, and plans/backlog.md item 1 (Push, don't poll).
+
 A plan to get the host to the point where the user keeps their own notes in it.
 Each item says what "done" looks like.
 
@@ -107,10 +109,8 @@ Needed before daily use:
 - **Move to… on touch and desktop.** The file tree's "Move to" submenu offers
   only top-level workspaces (`be-app-file-tree/src/root/menu.rs`). Add a folder
   picker sheet, and a Duplicate command (`be_host_stack::duplicate` exists).
-- **Search.** A `BlockQuery::Search` (`be-sdk/src/graph.rs`) that searches names
-  and text content on the client, over the local cache; the server cannot read
-  content. Wire it to the file tree's filter field, which today matches loaded
-  rows by name only, and to a desktop quick-open (Ctrl+P / Ctrl+K).
+- **Search** over names and content, in the file tree's filter field and a
+  desktop quick-open (Ctrl+P / Ctrl+K): plans/search.md.
 - **Trash.** Add "Delete forever" and "Empty trash". Restore already goes back
   to the original parent (`DELETED_FROM`).
 - **Export and import.** Export a folder or the whole workspace to a directory
