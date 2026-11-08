@@ -145,15 +145,11 @@ or any other origin at runtime.
 
 ## Making a file: Unfiled
 
-Each account gets an Unfiled section, a system root shown in the files pane
-beside Shared with me and Recently Deleted. An app creates a block of its type
-with no parent and it lands there; the app never learns the root's id, and
-finds its blocks by id or by listing its types. The person files them later
-with a normal move (rekeying into the destination scope). be-host can use it
-too, for a quick note or a file shared to it on Android.
+An app creates a block of its type in the account's Unfiled
+(plans/unfiled.md), never learning the root's id, and finds its blocks by id or
+by listing its types. The person files them later with a normal move (rekeying
+into the destination scope).
 
-- **Liveness** is special, like the root's: Unfiled holds every block whose
-  parent names it, without listing it in content the app can't edit.
 - **Keys.** The app can't wrap under Unfiled's scope key, so it wraps the new
   data key under G only; the person's devices open G and rewrap under the scope
   key through key work.
@@ -205,4 +201,3 @@ names, so an app shows a flat or recent list.
   name types, and how first-party types are listed as be3's.
 - Signing app grants (Keys, above).
 - How an in-host app declares network access, decided with wasm app safety.
-- Unfiled's name, and whether there is one per account or per workspace.

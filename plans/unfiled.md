@@ -26,8 +26,14 @@ ever holds what they put there themselves. Not implemented yet.
   `be_block::unfiled(organization, account)`, made and kept like My files, in
   a scope of its own. Administrators of a company organization see it as they
   see My files.
+- **Liveness.** Unfiled has no content listing its blocks: like `Root`, it
+  holds every block whose parent names it (`BlockGraph::holds`), so making a
+  block there edits nothing anyone else must be able to edit. Taking one out is
+  a move; deleting one moves it to Recently Deleted.
 - **Placing.** `block-location` gains `unfiled`, which the host resolves to the
-  account's own Unfiled; apps never learn its id. Everything made without a
+  account's own Unfiled; apps never learn its id. A connected app
+  (plans/connected_apps.md) creates there through the server, and that plan
+  covers how its keys are wrapped. Everything made without a
   place the person chose goes there: a pick with no place, a terminal an app
   makes for a connection (plans/boat.md), an exported dynamic artifact, a
   recording, a file pasted or dropped where nothing takes it, a file shared to
@@ -44,7 +50,8 @@ ever holds what they put there themselves. Not implemented yet.
 
 ## Order of work
 
-1. The derived root, `block-location::unfiled`, and the server keeping it.
+1. The derived root, its liveness, `block-location::unfiled`, and the server
+   keeping it.
 2. Pickers with no place, and every other creating call site, go to Unfiled.
 3. The files pane section and leftovers.
 4. Update guides/blocks/workspaces.md (where pickers put blocks), and add a
