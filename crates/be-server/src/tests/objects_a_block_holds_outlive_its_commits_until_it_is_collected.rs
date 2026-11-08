@@ -14,11 +14,15 @@ async fn objects_a_block_holds_outlive_its_commits_until_it_is_collected() {
     client.upload(&author.store, &objects).await;
 
     let response = client
-        .call(|peer| client::objects::hold_objects(peer, repository, objects.clone(), Hold::Lasting))
+        .call(|peer| {
+            client::objects::hold_objects(peer, repository, objects.clone(), Hold::Lasting)
+        })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let response = client
-        .call(|peer| client::objects::hold_objects(peer, repository, objects.clone(), Hold::Lasting))
+        .call(|peer| {
+            client::objects::hold_objects(peer, repository, objects.clone(), Hold::Lasting)
+        })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 

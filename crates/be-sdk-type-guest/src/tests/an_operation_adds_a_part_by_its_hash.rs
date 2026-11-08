@@ -65,7 +65,11 @@ impl BlockContent for Shelf {
 
     fn parts(&self) -> Part<'_> {
         let mut parts = vec![Part::from(self.encode())];
-        parts.extend(self.segments.iter().map(|segment| Part::Reused(segment.part)));
+        parts.extend(
+            self.segments
+                .iter()
+                .map(|segment| Part::Reused(segment.part)),
+        );
         Part::node(parts)
     }
 
@@ -98,11 +102,7 @@ fn shelf_module() -> Module {
 
 /// Puts `bytes` from device 1's editor, as a sender does before it operates.
 fn put(sim: &mut Sim<Shelf>, bytes: Vec<u8>) -> PartRef {
-    let (token, message) = sim
-        .editors
-        .get_mut(&(1, 1))
-        .unwrap()
-        .put_part(bytes);
+    let (token, message) = sim.editors.get_mut(&(1, 1)).unwrap().put_part(bytes);
     sim.send_from_editor(1, 1, message);
     sim.settle();
     let put = sim.editors.get_mut(&(1, 1)).unwrap().take_parts_put();
@@ -179,7 +179,11 @@ fn an_operation_adds_a_part_by_its_hash() {
         "a replica that rebuilt the bytes reads nothing"
     );
 
-    let (second, second_bytes) = add(&mut sim, b"from elsewhere", encoded_elsewhere(b"from elsewhere"));
+    let (second, second_bytes) = add(
+        &mut sim,
+        b"from elsewhere",
+        encoded_elsewhere(b"from elsewhere"),
+    );
     let mut expected = Shelf {
         segments: vec![
             Segment {

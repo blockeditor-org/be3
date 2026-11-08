@@ -1910,7 +1910,11 @@ where
                 be_block::Part::Reused(part) => {
                     let held = self.visible.reused_bytes(*part);
                     let span = usize::try_from(from).ok().zip(usize::try_from(to).ok());
-                    match held.as_deref().zip(span).and_then(|(held, (from, to))| held.get(from..to)) {
+                    match held
+                        .as_deref()
+                        .zip(span)
+                        .and_then(|(held, (from, to))| held.get(from..to))
+                    {
                         Some(bytes) => planned.push(Err(bytes.to_vec())),
                         None => planned.push(Ok((*part, from, to - from))),
                     }

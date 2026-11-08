@@ -1256,8 +1256,7 @@ impl EditorHost {
                     })
                     .collect(),
             ),
-            content
-            @ (ToEditor::Snapshot(_)
+            content @ (ToEditor::Snapshot(_)
             | ToEditor::Operations(_)
             | ToEditor::Range { .. }
             | ToEditor::PartPut { .. }) => {

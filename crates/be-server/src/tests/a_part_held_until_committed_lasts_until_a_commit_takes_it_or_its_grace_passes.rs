@@ -43,7 +43,10 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         .publish(&author, block, commit, taken_objects.clone(), None, 1_000)
         .await;
     assert!(
-        matches!(published, Ok(be_block_protocol::PublishOutcome::Published(_))),
+        matches!(
+            published,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{published:?}"
     );
     let directory = harness.directory.clone();
@@ -62,7 +65,6 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
     );
     drop(database);
     drop(client);
-    harness.stop().await;
 
     let identity = Identity {
         account,
@@ -73,6 +75,7 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         .iter()
         .map(|hash| author.store.len(*hash).unwrap().unwrap() as u64)
         .sum();
+    // Another store over the same directory, whose grace has passed for every hold.
     let impatient = ServerStore::open_with(
         &directory,
         crate::store::StorageLimits {
@@ -101,5 +104,5 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
     );
 
     drop(impatient);
-    let _ = std::fs::remove_dir_all(&directory);
+    harness.stop().await;
 }
