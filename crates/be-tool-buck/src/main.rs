@@ -4,7 +4,7 @@ fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let Some((command, rest)) = arguments.split_first() else {
         eprintln!(
-            "usage: buck-tools generate|compile-fail|lint-gate|rust-project|resolve|apk|archive|pdfium|fix|unpinned|bundle|unzstd ..."
+            "usage: buck-tools generate|compile-fail|lint-gate|rust-project|resolve|apk|archive|pdfium|fix|unpinned|bundle|stage|unzstd ..."
         );
         return ExitCode::FAILURE;
     };
@@ -20,6 +20,7 @@ fn main() -> ExitCode {
         "fix" => be_tool_buck::fix::run(rest),
         "unpinned" => be_tool_buck::unpinned::run(rest),
         "bundle" => be_tool_buck::bundle::run(rest),
+        "stage" => be_tool_buck::stage::run(rest),
         "unzstd" => be_tool_buck::unzstd::run(rest),
         other => Err(format!("unknown command {other}")),
     };

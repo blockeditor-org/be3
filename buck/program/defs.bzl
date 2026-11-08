@@ -127,7 +127,7 @@ _native_core_transition = transition(
     refs = {"html": "root//buck/constraints:html", "linux_x86_64": "root//buck/platforms:linux_x86_64"} | PROFILE_REFS,
 )
 
-# The app as it runs (buck/program/stage.sh): the executable under cargo's name, and
+# The app as it runs (crates/be-tool-buck's stage): the executable under cargo's name, and
 # beside it every app, each module precompiled for precompile_target in an
 # action of its own by the precompiler, app-test-runner as the workers run
 # it, whatever the app is built for, and every library in their closures
@@ -146,7 +146,7 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
     # copy it to a path named for its hash, so each program would take twice the space,
     # and a program is mostly the host's binary and the apps' modules.
     out = ctx.actions.declare_output(ctx.label.name, dir = True, has_content_based_path = False)
-    command = cmd_args("sh", ctx.attrs._stage, out.as_output())
+    command = cmd_args(ctx.attrs._tools[RunInfo], "stage", out.as_output())
     only_libraries = ctx.attrs.libraries == "only"
     if ctx.attrs.compiled_only:
         command.add("--compiled-only")
@@ -259,7 +259,7 @@ program = rule(
         "run_with": attrs.list(attrs.arg(), default = []),
         "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
         "_archiver": attrs.default_only(attrs.exec_dep(default = "root//crates/be-host-archive:bin")),
-        "_stage": attrs.default_only(attrs.source(default = "root//buck/program:stage.sh")),
+        "_tools": attrs.default_only(attrs.exec_dep(default = "root//crates/be-tool-buck:bin", providers = [RunInfo])),
         "_unpacker": attrs.default_only(attrs.transition_dep(cfg = _native_core_transition, default = "root//crates/be-host-archive:bin")),
     },
     impl = _program_impl,

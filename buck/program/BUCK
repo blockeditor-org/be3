@@ -10,11 +10,6 @@ export_file(
 )
 
 export_file(
-    name = "stage.sh",
-    visibility = ["PUBLIC"],
-)
-
-export_file(
     name = "web-dev.sh",
     visibility = ["PUBLIC"],
 )
