@@ -38,7 +38,12 @@ impl<S: ObjectStore> Tracker<S> {
             .collect();
         let read = peer.read_contents(&wanted).await.map_err(explain)?;
         let mut blocks = Vec::with_capacity(read.len());
-        for ((entry, parent), (summary, content)) in order.into_iter().zip(read) {
+        for ((entry, parent), read) in order.into_iter().zip(read) {
+            let summary = read.summary.clone();
+            let content = match read.journal {
+                Some(_) => self.types().await.readable(read).await,
+                None => read.stored.map(|stored| stored.bytes),
+            };
             blocks.push(Saved {
                 id: entry.id,
                 block_type: entry.block_type,

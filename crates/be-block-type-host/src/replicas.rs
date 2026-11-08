@@ -13,8 +13,8 @@ use be_block_graph::BlockParent;
 use be_block_protocol::{ClientId, ErrorCode, SessionState};
 use be_sdk_type_api::ops::wire::{self, Decode};
 use be_sdk_type_api::{
-    ByteRange, Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome,
-    Recipients, ReplicaId, Resume, Status,
+    Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome, Recipients,
+    ReplicaId, Resume, Status,
     embed::{
         exports::replicas::{self, Replica},
         host::Call,
@@ -56,7 +56,16 @@ fn joining_session(head: Option<CommitId>) -> SessionState {
     }
 }
 
-type Joined = Result<(ClientId, SessionState, Option<CommitId>, Option<CommitId>), ClientError>;
+type Joined = Result<
+    (
+        ClientId,
+        SessionState,
+        Option<CommitId>,
+        Option<CommitId>,
+        Option<be_block_protocol::Journal>,
+    ),
+    ClientError,
+>;
 
 type Rejoined = Result<(ClientId, SessionState, Option<CommitId>), ClientError>;
 
@@ -125,7 +134,11 @@ struct Unanswered {
 }
 
 pub enum Answered {
-    Read(
+    Load(
+        Reply<Result<be_sdk_type_api::Loaded, String>>,
+        Result<be_sdk_type_api::Loaded, String>,
+    ),
+    ReadPart(
         Reply<Result<Vec<u8>, String>, wire::Fallible<wire::Bytes, wire::Plain>>,
         Result<Vec<u8>, String>,
     ),
@@ -140,7 +153,8 @@ impl Answered {
 
     fn send(self, connection: &mut Connection) {
         match self {
-            Answered::Read(reply, result) => reply.send(connection, &result),
+            Answered::Load(reply, result) => reply.send(connection, &result),
+            Answered::ReadPart(reply, result) => reply.send(connection, &result),
             Answered::Stash(reply, result) => reply.send(connection, &result),
             Answered::Resume(reply, result) => reply.send(connection, &result),
         }
@@ -342,6 +356,8 @@ pub struct Replicas<H: Host> {
     keeping: bool,
     kept: bool,
     changed: bool,
+    /// Blocks whose next publish is a bookmark, with its label (`Replicas::bookmark`).
+    bookmarks: HashMap<Uuid, String>,
     pub handled: u64,
     host: std::marker::PhantomData<fn() -> H>,
 }
@@ -373,6 +389,7 @@ impl<H: Host> Replicas<H> {
             keeping: false,
             kept: false,
             changed: false,
+            bookmarks: HashMap::new(),
             handled: 0,
             host: std::marker::PhantomData,
         }
@@ -422,6 +439,19 @@ impl<H: Host> Replicas<H> {
             let _ = io.send(Io::Relayed);
             H::wake();
         });
+    }
+
+    fn journaled(
+        &mut self,
+        shared: &Arc<Mutex<H>>,
+        written: Result<Option<Answer<()>>, ClientError>,
+    ) {
+        match written {
+            Ok(Some(answer)) => self.relay(shared, Ok(answer)),
+            Ok(None) => {}
+            Err(error) if unreachable(&error) => {}
+            Err(error) => H::record(shared, error),
+        }
     }
 
     pub async fn woken(&mut self) {
@@ -562,16 +592,19 @@ impl<H: Host> Replicas<H> {
                 async move {
                     peer.ensure_type(block, content_type, BlockParent::Detached)
                         .await?;
-                    let (client, session) = peer.join_session(block)?.await?;
+                    let (client, session, journal) = peer.join_session(block)?.await?;
                     peer.watch(block);
                     let head = peer.remote_head(block).await?;
-                    Ok((client, session, head, ahead(&peer, block)))
+                    let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
+                    Ok((client, session, head, ahead(&peer, block), journal))
                 }
             });
             let waited = self.modules.clock().sleep(EARLY_OPEN);
             match futures_util::future::select(joining, waited).await {
                 futures_util::future::Either::Left((joined, _)) => {
-                    joined.map(|(client, session, head, _)| (client, session, head, false))
+                    joined.map(|(client, session, head, _, journal)| {
+                        (client, session, head, false, journal)
+                    })
                 }
                 futures_util::future::Either::Right((_, joining)) => {
                     let head = known_head_of(peer, block);
@@ -583,6 +616,7 @@ impl<H: Host> Replicas<H> {
                         OFFLINE_CLIENT,
                         joining_session(head),
                         head,
+                        None,
                     ) {
                         self.join_later(replica, block, joining);
                     }
@@ -596,28 +630,29 @@ impl<H: Host> Replicas<H> {
                         .await?;
                 }
                 if !peer.is_attached() {
-                    return Ok((OFFLINE_CLIENT, offline_session(None), None, true));
+                    return Ok((OFFLINE_CLIENT, offline_session(None), None, true, None));
                 }
                 if owned && H::reshaped(shared, block, &kind.schema) {
                     reset::<H>(peer, block, &kind).await?;
                 }
-                let (client, session) = peer.join_session(block)?.await?;
+                let (client, session, journal) = peer.join_session(block)?.await?;
                 peer.watch(block);
                 let head = peer.remote_head(block).await?;
-                Ok::<_, ClientError>((client, session, head, false))
+                let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
+                Ok::<_, ClientError>((client, session, head, false, journal))
             }
             .await
         };
         let joined = match joined {
             Err(error) if unreachable(&error) && peer.known_summary(block).is_some() => {
-                Ok((OFFLINE_CLIENT, offline_session(None), None, true))
+                Ok((OFFLINE_CLIENT, offline_session(None), None, true, None))
             }
             joined => joined,
         };
-        let (client, session, head, offline) = match joined {
-            Ok((client, _, _, true)) => {
+        let (client, session, head, offline, journal) = match joined {
+            Ok((client, _, _, true, _)) => {
                 let head = known_head_of(peer, block);
-                (client, offline_session(head), head, true)
+                (client, offline_session(head), head, true, None)
             }
             Ok(joined) => joined,
             Err(ClientError::Locked(_)) => {
@@ -634,8 +669,17 @@ impl<H: Host> Replicas<H> {
             true => head,
             false => ahead(peer, block).or(head),
         };
-        let Some(replica) = self.start(peer, block, content_type, reader, client, session, head)
-        else {
+        let journal = journal_for(peer, block, journal, head);
+        let Some(replica) = self.start(
+            peer,
+            block,
+            content_type,
+            reader,
+            client,
+            session,
+            head,
+            journal,
+        ) else {
             return;
         };
         if let Some(open) = self.open.get_mut(&replica) {
@@ -663,6 +707,7 @@ impl<H: Host> Replicas<H> {
         client: ClientId,
         session: SessionState,
         head: Option<CommitId>,
+        journal: Option<be_block_protocol::Journal>,
     ) -> Option<ReplicaId> {
         if self.blocks.contains_key(&block) {
             return None;
@@ -681,6 +726,8 @@ impl<H: Host> Replicas<H> {
             tag,
             head,
             session: session.clone(),
+            lost_edits: lost_edits(journal.as_ref(), tag),
+            journal: journal.and_then(|journal| replayable(journal, tag)),
         };
         let handle = self
             .modules
@@ -752,7 +799,7 @@ impl<H: Host> Replicas<H> {
             return;
         }
         let block = open.block;
-        let (client, session, head, ahead) = match joined {
+        let (client, session, head, ahead, journal) = match joined {
             Ok(joined) => joined,
             Err(error) if unreachable(&error) => return,
             Err(error) => {
@@ -782,7 +829,8 @@ impl<H: Host> Replicas<H> {
             true => open.status.head,
             false => head,
         };
-        self.reopen_joined(replica, client, session, from);
+        let journal = journal.filter(|journal| journal.base.commit == from);
+        self.reopen_joined(replica, client, session, from, journal);
         for replayed in early {
             self.replay(replica, replayed);
         }
@@ -802,6 +850,7 @@ impl<H: Host> Replicas<H> {
         client: ClientId,
         session: SessionState,
         head: Option<CommitId>,
+        journal: Option<be_block_protocol::Journal>,
     ) {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
@@ -824,6 +873,8 @@ impl<H: Host> Replicas<H> {
             tag: self.modules.tag(module),
             head,
             session,
+            lost_edits: lost_edits(journal.as_ref(), self.modules.tag(module)),
+            journal: journal.and_then(|journal| replayable(journal, self.modules.tag(module))),
         };
         let editors: Vec<(EditorId, bool)> = open
             .editors
@@ -1118,6 +1169,14 @@ impl<H: Host> Replicas<H> {
                 })
                 .await;
         }
+    }
+
+    /// Seals the block's current state as a bookmark, which history keeps whatever its age,
+    /// even when it is already saved: restoring a revision keeps the state it replaces this way.
+    pub async fn bookmark(&mut self, ctx: Ctx<'_, H>, block: Uuid, label: &str) {
+        self.bookmarks.insert(block, label.to_owned());
+        self.seal(ctx, block, true).await;
+        self.bookmarks.remove(&block);
     }
 
     pub fn seal_later(&mut self, block: Uuid, force: bool) {
@@ -1546,7 +1605,7 @@ impl<H: Host> Replicas<H> {
             };
             let io = self.io.clone();
             H::spawn(async move {
-                let joined = joining.await;
+                let joined = joining.await.map(|(client, session, _)| (client, session));
                 let _ = io.send(Io::Resynchronized {
                     replica,
                     joined: Box::new(joined),
@@ -1709,7 +1768,11 @@ impl<H: Host> Replicas<H> {
             let joining = std::mem::replace(&mut open.joining, false);
             open.rejoining = None;
             open.early.clear();
+            let block = open.block;
             self.make_up_session(replica);
+            // Reconnecting reopens the replica from its head, so what it owns is committed here
+            // first, rather than at its next pause.
+            self.seal_later(block, false);
             if joining {
                 self.close_if_asked(replica);
             }
@@ -1728,7 +1791,7 @@ impl<H: Host> Replicas<H> {
             let io = self.io.clone();
             H::spawn(async move {
                 let joined = async {
-                    let (client, session) = peer.join_session(block)?.await?;
+                    let (client, session, _) = peer.join_session(block)?.await?;
                     peer.watch(block);
                     let head = peer.remote_head(block).await?;
                     Ok::<_, ClientError>((client, session, head))
@@ -1786,7 +1849,7 @@ impl<H: Host> Replicas<H> {
             })
             .collect();
         let known = open.status.head;
-        self.reopen_joined(replica, client, session, known);
+        self.reopen_joined(replica, client, session, known, None);
         for replayed in early {
             self.replay(replica, replayed);
         }
@@ -1850,6 +1913,8 @@ impl<H: Host> Replicas<H> {
                 tag,
                 head: open.status.head,
                 session: open.session.clone(),
+                journal: None,
+                lost_edits: false,
             };
             let editors: Vec<(EditorId, bool)> = open
                 .editors
@@ -2026,26 +2091,86 @@ impl<H: Host> Replicas<H> {
                     }
                 }
             }
-            Call::Read {
+            Call::Append {
+                reply,
+                generation,
+                entries,
+                relay,
+            } => {
+                self.acknowledge(module, reply);
+                let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
+                let entries = entries
+                    .into_iter()
+                    .map(|entry| be_block_protocol::JournalEntry {
+                        generation,
+                        sequence: entry.sequence,
+                        payload: entry.payload,
+                    })
+                    .collect();
+                let online = !made_up && peer.is_attached();
+                let appended = peer
+                    .append(block, generation, tag, entries, relay, online)
+                    .await;
+                self.journaled(shared, appended);
+                false
+            }
+            Call::RebaseJournal {
+                reply,
+                generation,
+                base,
+            } => {
+                self.acknowledge(module, reply);
+                let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
+                let base = be_block_protocol::JournalBase {
+                    commit: base.commit,
+                    sequence: base.sequence,
+                    state: base.state,
+                };
+                let online = !made_up && peer.is_attached();
+                let rebased = peer
+                    .rebase_journal(block, generation, tag, base, online)
+                    .await;
+                self.journaled(shared, rebased);
+                false
+            }
+            Call::Load {
                 reply,
                 commit,
-                range,
+                first_part,
             } => {
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
                     let read = async {
                         let commit = peer.load_commit(commit).await?;
-                        peer.read_manifest(&commit.manifest).await
+                        match first_part {
+                            true => peer.load_first_part(&commit.manifest).await,
+                            false => peer.load_manifest(&commit.manifest).await,
+                        }
                     }
                     .await;
                     if let Err(ClientError::Locked(_)) = &read {
                         let _ = io.send(Io::Locked { replica });
                     }
                     let result = read
-                        .map(|bytes| slice(bytes, range))
+                        .map(be_sdk_type_api::Loaded::of)
                         .map_err(|error| error.to_string());
-                    (Answered::Read(reply, result), None)
+                    (Answered::Load(reply, result), None)
+                });
+                false
+            }
+            Call::ReadPart { reply, part, range } => {
+                let peer = Arc::clone(peer);
+                let io = self.io.clone();
+                self.answer_later(replica, module, async move {
+                    let read = peer
+                        .read_part(part.into(), range.offset, range.length)
+                        .await;
+                    if let Err(ClientError::Locked(_)) = &read {
+                        let _ = io.send(Io::Locked { replica });
+                    }
+                    let result = read.map_err(|error| error.to_string());
+                    (Answered::ReadPart(reply, result), None)
                 });
                 false
             }
@@ -2061,6 +2186,7 @@ impl<H: Host> Replicas<H> {
                 open.publishing += 1;
                 let epoch = open.epoch;
                 let local = made_up || self.keeping || !peer.pending_commits(block).is_empty();
+                let bookmark = self.bookmarks.remove(&block);
                 let publishing = Arc::new(Publishing::default());
                 self.published += 1;
                 let publish = self.published;
@@ -2079,10 +2205,17 @@ impl<H: Host> Replicas<H> {
                 let io = self.io.clone();
                 H::spawn(async move {
                     let sealed = io.clone();
-                    let mut write = Write::encoded(content_type, &content.bytes, expected)
-                        .described(content.references, content.derived);
+                    let mut write = Write::encoded(
+                        content_type,
+                        be_sdk_type_api::written_parts(&content.bytes, &content.parts),
+                        expected,
+                    )
+                    .described(content.references, content.derived);
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);
+                    }
+                    if let Some(label) = &bookmark {
+                        write = write.bookmark(label);
                     }
                     let saved = commit::<H>(&peer, block, write, local, &publishing, move || {
                         let _ = sealed.send(Io::Sealed);
@@ -2119,8 +2252,12 @@ impl<H: Host> Replicas<H> {
                 }
                 let peer = Arc::clone(peer);
                 self.answer_later(replica, module, async move {
-                    let write = Write::encoded(content_type, &content.bytes, parent)
-                        .described(content.references, content.derived);
+                    let write = Write::encoded(
+                        content_type,
+                        be_sdk_type_api::written_parts(&content.bytes, &content.parts),
+                        parent,
+                    )
+                    .described(content.references, content.derived);
                     let stashed = peer
                         .stash(block, write)
                         .await
@@ -2266,13 +2403,9 @@ impl<H: Host> Replicas<H> {
                 }
                 true
             }
-            Call::History {
-                reply,
-                can_undo,
-                can_redo,
-            } => {
+            Call::History { reply, history } => {
                 self.acknowledge(module, reply);
-                H::history(shared, block, can_undo, can_redo);
+                H::history(shared, block, history);
                 true
             }
             Call::Conflict {
@@ -2366,15 +2499,6 @@ fn ahead<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Option<
     }
 }
 
-fn slice(bytes: Vec<u8>, range: Option<ByteRange>) -> Vec<u8> {
-    let Some(range) = range else {
-        return bytes;
-    };
-    let start = (range.offset as usize).min(bytes.len());
-    let end = start.saturating_add(range.length as usize).min(bytes.len());
-    bytes[start..end].to_vec()
-}
-
 async fn reset<H: Host>(
     peer: &Peer<H::Store>,
     block: Uuid,
@@ -2398,4 +2522,67 @@ async fn reset<H: Host>(
     }
     H::reset_notice();
     Ok(())
+}
+
+/// The journal a replica opening at `head` loads: the server's (from joining, opened) or this
+/// device's, whichever holds more on that base.
+fn journal_for<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+    server: Option<be_block_protocol::Journal>,
+    head: Option<CommitId>,
+) -> Option<be_block_protocol::Journal> {
+    let on_head = |journal: &be_block_protocol::Journal| journal.base.commit == head;
+    let server = server.filter(on_head);
+    let local = peer.local_journal(block).ok().flatten().filter(on_head);
+    let last = |journal: &be_block_protocol::Journal| {
+        journal
+            .entries
+            .last()
+            .map_or(journal.base.sequence, |entry| entry.sequence)
+    };
+    match (server, local) {
+        (Some(server), Some(local))
+            if local.tag == server.tag
+                && local.base.sequence == server.base.sequence
+                && last(&local) > last(&server) =>
+        {
+            Some(local)
+        }
+        (Some(server), _) => Some(server),
+        (None, local) => local,
+    }
+}
+
+/// Whether edits of the block made with another build were lost: `journal` holds some this
+/// module cannot replay, or the server marked them lost since the last commit.
+fn lost_edits(
+    journal: Option<&be_block_protocol::Journal>,
+    tag: be_sdk_type_api::SessionTag,
+) -> bool {
+    journal.is_some_and(|journal| {
+        journal.lost || (journal.tag.as_bytes() != &tag.0 && !journal.entries.is_empty())
+    })
+}
+
+/// An opened journal as a replica of this module takes it, when the module wrote it.
+fn replayable(
+    journal: be_block_protocol::Journal,
+    tag: be_sdk_type_api::SessionTag,
+) -> Option<be_sdk_type_api::Journal> {
+    (journal.tag.as_bytes() == &tag.0).then(|| be_sdk_type_api::Journal {
+        base: be_sdk_type_api::JournalBase {
+            commit: journal.base.commit,
+            sequence: journal.base.sequence,
+            state: journal.base.state,
+        },
+        entries: journal
+            .entries
+            .into_iter()
+            .map(|entry| be_sdk_type_api::JournalEntry {
+                sequence: entry.sequence,
+                payload: entry.payload,
+            })
+            .collect(),
+    })
 }

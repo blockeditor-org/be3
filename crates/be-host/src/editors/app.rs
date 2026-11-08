@@ -506,6 +506,12 @@ impl AppEditor {
         }
     }
 
+    pub(crate) fn show_history(&self, block: Uuid, commit: Option<[u8; 32]>) {
+        if let Some(app) = self.app() {
+            be_host_runtime::show_history(&app.identity.id, self.instance, block, commit);
+        }
+    }
+
     pub(crate) fn show_panel(&self, panel: HostPanel) {
         if let Some(app) = self.app() {
             be_host_runtime::show_panel(&app.identity.id, self.instance, panel);

@@ -7,7 +7,7 @@ fn a_late_joiner_types_where_it_sees_the_caret() {
     sim.open(0);
     sim.attach(0, 1, true);
     sim.type_at(0, 1, 4, "two\n");
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     sim.type_at(0, 1, 8, "three\n");
     sim.erase(0, 1, 0..4);
     sim.settle();

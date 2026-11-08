@@ -129,9 +129,15 @@ host owes a replica (the WIT documents each call):
   one in `opening`; the replica does not reconcile on opening. After a
   reconnect, `reopen` starts the replica over and the host replays what it
   kept and re-asks what was unanswered.
-- **IO.** `read`, `publish` (a compare-and-swap on `expected`), `stash` and
+- **IO.** `load`, `publish` (a compare-and-swap on `expected`), `stash` and
   `resume-session` are async imports the host completes. A replica waits on
-  one answer at a time.
+  one answer at a time. `load` answers a commit's stored form with the parts it
+  was saved in (`loaded`, which becomes a `be_block_store::Stored`), only the
+  first part's bytes for a type that loads only that (`be_block::Loads`).
+  `read-part` reads a range of a saved part, which a replica answering an
+  editor's `Read` uses outside that one-answer rule (guides/blocks/apps.md,
+  "Reading a range"). `written` carries the parts a save keeps as they were as
+  `reused`, so such a replica saves without the bytes it never loaded.
 - **The lease, relaying and reports.** The host passes on the session's lease
   state, relays `send`s to peers or editors, and stores what the replica
   reports (status, description, history, conflicts, errors).
@@ -146,9 +152,33 @@ it, so two builds of a type never edit one session.
 The session (`crates/be-block-session`) is owner sequencing with follower
 rebase. The rules an agent most needs:
 
-- An owner seals `SEAL_INTERVAL` (750 ms) after it starts owing a seal. While
-  a seal's publish is unanswered it keeps taking edits, holding them back from
-  the sequence until the answer.
+- Every operation the owner sequences goes to the block's journal
+  (guides/blocks/client.md, "The journal") through the host's `append`: with
+  others in the session at once, relayed by the same call; alone, folded and
+  every `APPEND_INTERVAL` (250 ms). The owner commits at pauses: `QUIET_INTERVAL`
+  (30 s) with no edits, at most `COMMIT_INTERVAL` (5 min) after it started
+  owing, once it appended `JOURNAL_BYTES` (1 MiB), when it closes, and at once
+  when a peer of another build greets it or a takeover leaves it owing. Each
+  commit `rebase-journal`s, which starts the journal over. While a commit's
+  publish is unanswered it keeps taking edits, holding them back from the
+  sequence until the answer.
+- A replica opening on the journal's base (`opening.journal`) loads its session
+  state and replays it: as owner it continues the journal's numbering, as a
+  follower it greets with that base and is sent no session state. A follower
+  that takes over appends again what it applied since its last sealed head
+  (`applied_ops`), or commits at once when it cannot number it.
+  `replay` does the same for a reader outside the session. A journal by
+  another build is not handed over: `opening.lost-edits` says it held edits,
+  or that the server marked them lost since the last commit, and the replica
+  reports them lost (`undo-state.lost-edits`).
+- **Restarts.** At a commit, once session state passes `RESTART_STATE_BYTES`
+  (1 MiB) and the content's size, with no gesture open, while alone or past
+  `RESTART_CEILING` times the limit, the owner restarts the session
+  (`Sealed { restart }`): every replica reloads the commit, moves what it has
+  pending onto it with `LiveEdit::carry_over`, and undo stops there
+  (decisions/sessions_restart_when_their_state_outgrows_the_content.md). The
+  last owner to leave rebases the journal with no state, so the next session
+  starts fresh too.
 - An edit too large to relay (over 1 MiB) is never relayed: an owner
   publishes it, and a follower stashes it and hands the owner a `Kept`. A
   follower stays responsible for each stash until the owner answers `Saved`,

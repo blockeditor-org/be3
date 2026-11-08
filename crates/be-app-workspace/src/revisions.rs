@@ -31,6 +31,7 @@ pub(crate) struct RevisionHistory {
     loading: Signal<bool>,
     busy: Signal<bool>,
     confirm: Signal<bool>,
+    wanted: Signal<Option<(Uuid, [u8; 32])>>,
     state: Stored<Requests>,
 }
 
@@ -60,6 +61,7 @@ impl RevisionHistory {
             loading,
             busy,
             confirm,
+            wanted: create_signal(None),
             state: store(Requests::default()),
         };
         let changed = editor.pushed(Pushed::Histories);
@@ -134,6 +136,7 @@ impl RevisionHistory {
                 self.entries.set(entries);
                 self.listed
                     .set(self.target.get_untracked().map(|item| item.id));
+                self.choose_wanted();
             }
             Err(error) => {
                 let target = self.target.get_untracked().map(|item| item.id);
@@ -143,6 +146,28 @@ impl RevisionHistory {
                 }
                 self.error.set(Some(error.to_string()));
             }
+        }
+    }
+
+    /// Previews `commit` of `block` once the history lists it.
+    pub(crate) fn show_at(self, block: Uuid, commit: [u8; 32]) {
+        self.wanted.set(Some((block, commit)));
+        self.choose_wanted();
+    }
+
+    fn choose_wanted(self) {
+        let Some((block, commit)) = self.wanted.get_untracked() else {
+            return;
+        };
+        if self.listed.get_untracked() != Some(block) {
+            return;
+        }
+        self.wanted.set(None);
+        let revision = self
+            .entries
+            .with_untracked(|entries| entries.iter().find(|entry| entry.commit == commit).cloned());
+        if let Some(revision) = revision {
+            self.choose(revision);
         }
     }
 

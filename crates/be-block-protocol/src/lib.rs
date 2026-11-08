@@ -18,7 +18,15 @@ be_wasm_ops_bindgen::generate!({
         "escrow-key": crate::EscrowKey,
     },
     copy: ["uuid", "hash", "commit-id", "public-key", "access-level", "block-parent"],
-    default: ["key-set", "key-work", "session-state", "access-list", "organization-kind"],
+    default: [
+        "key-set",
+        "key-work",
+        "session-state",
+        "access-list",
+        "organization-kind",
+        "object-change",
+        "reference-change",
+    ],
     inline: ["block-removed", "head-moved", "joined", "relayed"],
 });
 
@@ -32,6 +40,130 @@ pub use sessions::*;
 pub use types::*;
 
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
+
+impl ObjectChange {
+    /// What turns the objects `before` holds into those `after` holds.
+    pub fn between(before: &[be_block_store::Hash], after: &[be_block_store::Hash]) -> Self {
+        let had: std::collections::HashSet<_> = before.iter().collect();
+        let has: std::collections::HashSet<_> = after.iter().collect();
+        let mut seen = std::collections::HashSet::new();
+        Self {
+            added: after
+                .iter()
+                .filter(|hash| !had.contains(hash) && seen.insert(**hash))
+                .copied()
+                .collect(),
+            removed: before
+                .iter()
+                .filter(|hash| !has.contains(hash) && seen.insert(**hash))
+                .copied()
+                .collect(),
+        }
+    }
+
+    /// `before` without what was removed, then what was added, each object once. Removing an
+    /// object `before` lacks or adding one it has changes nothing.
+    pub fn apply(&self, before: &[be_block_store::Hash]) -> Vec<be_block_store::Hash> {
+        let removed: std::collections::HashSet<_> = self.removed.iter().collect();
+        let mut seen = std::collections::HashSet::new();
+        before
+            .iter()
+            .filter(|hash| !removed.contains(hash))
+            .chain(&self.added)
+            .filter(|hash| seen.insert(**hash))
+            .copied()
+            .collect()
+    }
+}
+
+impl ReferenceChange {
+    /// What turns the references `before` into `after`: those that keep their order (the
+    /// longest run of `before` that `after` keeps in order) stay, every other one in `before`
+    /// is removed and every other one in `after` is added at its index.
+    pub fn between(before: &[Uuid], after: &[Uuid]) -> Self {
+        let position: std::collections::HashMap<Uuid, usize> = before
+            .iter()
+            .enumerate()
+            .rev()
+            .map(|(index, reference)| (*reference, index))
+            .collect();
+        let shared: Vec<(usize, usize)> = after
+            .iter()
+            .enumerate()
+            .filter_map(|(index, reference)| Some((index, *position.get(reference)?)))
+            .collect();
+        let kept: std::collections::HashSet<Uuid> = longest_increasing(&shared)
+            .into_iter()
+            .map(|index| after[index])
+            .collect();
+        let mut seen = std::collections::HashSet::new();
+        Self {
+            removed: before
+                .iter()
+                .filter(|reference| !kept.contains(reference) && seen.insert(**reference))
+                .copied()
+                .collect(),
+            added: after
+                .iter()
+                .enumerate()
+                .filter(|(_, reference)| !kept.contains(reference))
+                .map(|(index, block)| PlacedReference {
+                    index: u32::try_from(index).unwrap_or(u32::MAX),
+                    block: *block,
+                })
+                .collect(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.removed.is_empty() && self.added.is_empty()
+    }
+
+    /// `before` without what was removed, with each added reference put in at its index (or
+    /// at the end, past it), each reference once.
+    pub fn apply(&self, before: &[Uuid]) -> Vec<Uuid> {
+        let removed: std::collections::HashSet<_> = self.removed.iter().collect();
+        let mut references: Vec<Uuid> = before
+            .iter()
+            .filter(|reference| !removed.contains(reference))
+            .copied()
+            .collect();
+        for placed in &self.added {
+            references.retain(|reference| *reference != placed.block);
+            let index = usize::try_from(placed.index)
+                .unwrap_or(usize::MAX)
+                .min(references.len());
+            references.insert(index, placed.block);
+        }
+        references
+    }
+}
+
+/// The first items of the longest run of `pairs` whose second items increase, where each
+/// pair is (an index in a new list, its position in an old one) and the pairs come in new
+/// order.
+fn longest_increasing(pairs: &[(usize, usize)]) -> Vec<usize> {
+    let mut tails: Vec<usize> = Vec::new();
+    let mut before = vec![None; pairs.len()];
+    for (at, (_, old)) in pairs.iter().enumerate() {
+        let length = tails.partition_point(|tail| pairs[*tail].1 < *old);
+        if length > 0 {
+            before[at] = Some(tails[length - 1]);
+        }
+        match tails.get_mut(length) {
+            Some(tail) => *tail = at,
+            None => tails.push(at),
+        }
+    }
+    let mut run = Vec::with_capacity(tails.len());
+    let mut at = tails.last().copied();
+    while let Some(index) = at {
+        run.push(pairs[index].0);
+        at = before[index];
+    }
+    run.reverse();
+    run
+}
 
 impl OrganizationRole {
     pub fn label(self) -> &'static str {

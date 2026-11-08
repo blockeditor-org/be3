@@ -258,10 +258,10 @@ impl TestClient {
                         commit,
                         None,
                         Vec::new(),
-                        Vec::new(),
+                        objects_change(&[], Vec::new()),
                         1_000,
                         false,
-                        Vec::new(),
+                        listing(&[], Vec::new()),
                         Vec::new(),
                         vec![b"an object".to_vec()],
                     )
@@ -292,10 +292,6 @@ impl TestClient {
             (
                 "list-history",
                 answered(client::blocks::list_history(peer, block).await),
-            ),
-            (
-                "prune-history",
-                answered(client::blocks::prune_history(peer, block, Vec::new()).await),
             ),
             (
                 "collect-detached",
@@ -413,6 +409,39 @@ impl TestClient {
             "session-relay",
             answered(session.relay(None, sealed()).await),
         ));
+        answers.push((
+            "session-append",
+            answered(
+                session
+                    .append(
+                        1,
+                        be_block_store::Hash::from_bytes([0; 32]),
+                        vec![be_block_protocol::JournalEntry {
+                            generation: 1,
+                            sequence: 1,
+                            payload: sealed(),
+                        }],
+                        true,
+                    )
+                    .await,
+            ),
+        ));
+        answers.push((
+            "session-rebase-journal",
+            answered(
+                session
+                    .rebase_journal(
+                        1,
+                        be_block_store::Hash::from_bytes([0; 32]),
+                        be_block_protocol::JournalBase {
+                            commit: None,
+                            sequence: 0,
+                            state: Vec::new(),
+                        },
+                    )
+                    .await,
+            ),
+        ));
         answers.push(("logout", answered(client::account::logout(peer).await)));
         answers
     }
@@ -501,7 +530,6 @@ async fn every_call_states_who_may_make_it() {
         "read-contents",
         "set-parent",
         "list-history",
-        "prune-history",
         "list-access",
         "delete-block",
         "set-access",
@@ -511,6 +539,8 @@ async fn every_call_states_who_may_make_it() {
         "session-claim-ownership",
         "session-heartbeat",
         "session-relay",
+        "session-append",
+        "session-rebase-journal",
     ];
     for (name, answer) in &answers {
         if viewing.contains(name) {

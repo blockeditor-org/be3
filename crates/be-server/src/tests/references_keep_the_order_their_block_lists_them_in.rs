@@ -18,6 +18,8 @@ async fn references_keep_the_order_their_block_lists_them_in() {
     let moved = vec![slides[3], slides[2], slides[1], slides[0]];
 
     let mut head = None;
+    let mut listed: Vec<Uuid> = Vec::new();
+    let mut held_before: Vec<Hash> = Vec::new();
     for (time, references) in [(1_000, &first), (2_000, &moved)] {
         let (commit, chunks) = author.compose(format!("{time}").as_bytes(), time, head);
         client
@@ -31,10 +33,10 @@ async fn references_keep_the_order_their_block_lists_them_in() {
                     commit,
                     head,
                     head.into_iter().collect(),
-                    chunks,
+                    objects_change(&held_before, chunks.clone()),
                     time,
                     false,
-                    references.clone(),
+                    listing(&listed, references.clone()),
                     Vec::new(),
                     Vec::new(),
                 )
@@ -53,6 +55,8 @@ async fn references_keep_the_order_their_block_lists_them_in() {
             "the server did not keep the order the block listed its references in"
         );
         head = Some(commit);
+        listed.clone_from(references);
+        held_before = chunks;
     }
 
     let token = client.token.clone();

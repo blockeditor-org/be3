@@ -21,7 +21,7 @@ fn an_idle_peer_never_wakes_its_worker() {
     });
     let lapse = 2 * crate::worker::OUTBOX_RETRY
         .max(Duration::from_millis(be_sdk_type_guest::HEARTBEAT_INTERVAL))
-        .max(Duration::from_millis(be_sdk_type_guest::SEAL_INTERVAL));
+        .max(Duration::from_millis(be_sdk_type_guest::QUIET_INTERVAL));
     let until = harness.clock.now() + lapse;
     while harness.clock.now() < until {
         let at = *due.borrow_and_update();

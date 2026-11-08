@@ -16,7 +16,7 @@ fn a_followers_edit_too_large_to_relay_lands_once_when_the_owner_leaves() {
     sim.settle();
     sim.crash(0);
     sim.deaf.clear();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert!(sim.devices[1].status.owner);
     let expected = format!("start\ntyped\n{pasted}");
     assert!(prose(&sim.head_content()) == expected);

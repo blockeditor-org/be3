@@ -61,6 +61,13 @@ connection's broadcast, with one deadline for the autosave a dirty session is
 owed. `status().wakes` counts wakes, and a test asserts an idle peer never
 wakes.
 
+Tests wait on the stack with `be_host_stack::wait_until`, which fails at the
+caller after `WAIT_LIMIT` instead of waiting forever: tests share one stack in
+turn, so one endless wait would hang the whole target. Commit times and an
+embedded server's history follow `be_block_commit::now_milliseconds`, which a
+test pins with `pin_now` to step history a minute at a time (be-host pins it to
+its wall clock while that is pinned, so `drive pause` moves it).
+
 The host refuses an `Operate`, a replacing `write-content` and graph commands
 for a block the account may only read (`Instances::editable` asks the
 mirror's access); it does not rely on the app's `editable()`.
@@ -98,8 +105,9 @@ the socket) leaves content on screen; the worker backs off (`reconnect_delay`,
 cut short by `retry_now`), reconnects, reloads the graph and rejoins every open
 block. Meanwhile it keeps serving from the same `Peer` (the loop's `Line`:
 `Up` or `Down`), and every open replica is handed a session it owns
-(`Replicas::disconnected`), so a follower takes over what it had not confirmed
-and seals it locally.
+(`Replicas::disconnected`), so a follower takes over what it had not confirmed,
+and each is asked to seal at once, locally, since reconnecting reopens it from
+its head.
 
 - **Opening early.** A block this device knows opens from its local head as a
   follower of a placeholder owner (`JOINING_OWNER`) if joining takes longer
@@ -110,7 +118,8 @@ and seals it locally.
 - **Opening offline.** A block opened while down gets `OFFLINE_CLIENT` owning a
   made-up session (`Open::made_up`): `Publish` becomes `Peer::seal` (a local
   commit in the outbox), `Resume` treats the local head as remote, and
-  heartbeats, claims and relays are skipped. The same happens while the block
+  heartbeats, claims and relays are skipped, and the journal is the device's
+  alone. The same happens while the block
   has outbox commits, and while the host keeps (`Replicas::keep_all`, used by
   flush and stop).
 - **Draining on connect.** The worker drains the outbox in a task
@@ -223,8 +232,9 @@ is saved.
 
 A block file (`be_block_client::transfer`, what `be download` writes) holds a
 tree. host-services' `export-block` lists the tree a level at a time and fills
-each block's bytes from its open session or its head, so it works for types
-the host does not know.
+each block's bytes from its open session, or its head with the journal
+replayed (`Modules::readable`), so it works for types the host does not know
+(they read the head alone).
 
 `import-blocks(parent)` takes any file: non-`.block` files go to
 `be_host_stack::import_file`, which picks a type the way `be sync` does
@@ -262,4 +272,11 @@ absorb into one, and `be_host_stack::undo`/`redo` send `Change::Undo`/`Redo`.
 An editor groups a gesture into one step with `FromEditor::Gesture`
 (`ContentProjection::begin_gesture`, `commit_gesture`, `cancel_gesture`; a
 cancel reverts and leaves no step). Apps call `act(block, block-command::undo)`
-and watch `history-watch`.
+and watch `history-watch`. A session restart (guides/type_modules.md, Peers)
+drops every step, since none applies to the reloaded content: `block-history`
+says `restarted-at`, and the frame answers an undo with nothing left by saying
+"Can't undo past here" with a button that sends `block-command::history` to
+show version history at that commit (the shell gets `show-request::history`).
+`lost-edits` says edits of the block made with another build were lost (its
+journal held some this build cannot replay, or the server marked them lost since
+the last commit); the frame says so.

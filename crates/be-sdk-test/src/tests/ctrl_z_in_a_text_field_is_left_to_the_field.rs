@@ -23,6 +23,7 @@ fn ctrl_z_in_a_text_field_is_left_to_the_field() {
             head: None,
             can_undo: true,
             can_redo: false,
+            ..Default::default()
         },
     )]);
     test.run();

@@ -2141,6 +2141,18 @@ pub fn show_dialog(
     });
 }
 
+pub fn show_history(
+    app_id: &str,
+    instance: EditorInstanceId,
+    block: uuid::Uuid,
+    commit: Option<[u8; 32]>,
+) {
+    with(app_id, |runtime| {
+        runtime.instances.show_history(instance, block, commit);
+        runtime.answer();
+    });
+}
+
 pub fn show_panel(app_id: &str, instance: EditorInstanceId, panel: HostPanel) {
     with(app_id, |runtime| {
         runtime.instances.show_panel(instance, panel);

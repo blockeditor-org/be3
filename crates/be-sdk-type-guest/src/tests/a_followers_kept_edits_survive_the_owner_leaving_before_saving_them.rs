@@ -16,7 +16,7 @@ fn a_followers_kept_edits_survive_the_owner_leaving_before_saving_them() {
     sim.settle();
     sim.crash(0);
     sim.deaf.clear();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert!(sim.devices[1].status.owner);
     assert_eq!(texts(&sim.head_content()), ["replacement"]);
     assert_eq!(texts(&sim.content(1)), ["replacement"]);

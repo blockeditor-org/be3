@@ -48,5 +48,12 @@ fn a_new_owner_keeps_the_numbering_of_what_the_old_one_accepted_late() {
 
     let follower = Follower::continuing(1, 7);
     assert_eq!(follower.applied(), 7);
-    assert_eq!(follower.catchup(), SessionMessage::Catchup { since: 7 });
+    assert_eq!(
+        follower.catchup(None, 0),
+        SessionMessage::Catchup {
+            since: 7,
+            base: None,
+            sealed: 0
+        }
+    );
 }

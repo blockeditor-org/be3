@@ -24,6 +24,7 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
         head: None,
         can_undo: false,
         can_redo: false,
+        ..Default::default()
     };
     assert_eq!(histories(&mut instances, watch), [nothing]);
     assert!(histories(&mut instances, watch).is_empty());

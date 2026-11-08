@@ -287,5 +287,7 @@ pub(crate) fn history(history: be_sdk_beui::BlockHistory) -> BlockHistory {
         head: history.head,
         can_undo: history.can_undo,
         can_redo: history.can_redo,
+        restarted_at: history.restarted_at,
+        lost_edits: history.lost_edits,
     }
 }

@@ -16,7 +16,7 @@ fn a_follower_takes_over_with_what_the_owner_had_not_sealed() {
     assert!(sim.devices[1].status.owes_seal);
     sim.operate(2, 1, Counter::add(4));
     sim.settle();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(sim.publishes, 1);
     assert_eq!(count(&sim.head_content()), 7);
     for device in 1..3 {

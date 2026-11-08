@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{Image, Rect, Vec2};
-use be_sdk_beui::{ContentProjection, PerformanceReporter, Waker};
+use be_sdk_beui::{ContentProjection, Payload, PerformanceReporter, Waker};
 
 use crate::pane::Pane;
 
@@ -64,6 +64,7 @@ impl Pages {
     pub(crate) fn pump(
         &self,
         block: &ContentProjection<PdfContent>,
+        payload: ReadSignal<Ready<Payload>>,
         performance: &PerformanceReporter,
         waker: Waker,
         viewport: Viewport,
@@ -90,7 +91,7 @@ impl Pages {
             viewport.pixels_per_point,
             waker,
             performance,
-            || block.read(|pdf| pdf.data().to_vec()).ok(),
+            || payload.get().ok().map(|data| data.to_vec()),
         );
         shown.tiles = pane.tiles();
         shown.page = self.page.get_untracked();

@@ -330,13 +330,18 @@ impl<S: ObjectStore> Tracker<S> {
             .read_contents(&[(block, self.peer.local_head(block))])
             .await
             .map_err(explain)?;
-        let Some((summary, bytes)) = read.into_iter().next() else {
+        let Some(read) = read.into_iter().next() else {
             return Ok((None, None));
         };
-        if let Some(head) = summary.head {
+        let head = read.summary.head;
+        if let Some(head) = head {
             self.peer.remember(block, head).map_err(explain)?;
         }
-        Ok((summary.head, bytes))
+        let bytes = match read.journal {
+            Some(_) => self.types().await.readable(read).await,
+            None => read.stored.map(|stored| stored.bytes),
+        };
+        Ok((head, bytes))
     }
 
     async fn publish(

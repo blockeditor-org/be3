@@ -7,8 +7,8 @@ use be_block_session::{
     Follower, Inherited, KeptEdits, OpId, Resume, Sequencer, SessionMessage, SessionOp,
 };
 use be_sdk_type_api::{
-    Change, EditorId, Endpoint, FileChange, Merging, Recipients, ReplicaId, SessionTag, Status,
-    Written,
+    Change, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
+    Recipients, ReplicaId, SessionTag, Status, UndoState, Written,
 };
 use uuid::Uuid;
 
@@ -19,7 +19,31 @@ use crate::{
     wire::Wire,
 };
 
-pub const SEAL_INTERVAL: u64 = 750;
+/// An owner commits once its session has gone this long with no edits: a natural pause,
+/// which is the state retention prefers to keep.
+pub const QUIET_INTERVAL: u64 = 30_000;
+
+/// An owner commits at most this long after the first edit since its last commit, while edits
+/// go on, which bounds what a restore point misses and what a reader replays.
+pub const COMMIT_INTERVAL: u64 = 5 * 60_000;
+
+/// An owner commits once what it appended to the journal since its last commit passes this,
+/// so replaying a journal stays well under a second.
+pub const JOURNAL_BYTES: usize = 1024 * 1024;
+
+/// An owner alone in its session appends what it sequenced this often, folded, so a crash
+/// loses at most this much; with others there it appends each operation as it relays it.
+pub const APPEND_INTERVAL: u64 = 250;
+
+/// An owner restarts its session at a commit once the session state passes this and outgrows
+/// the visible content: tombstones and positions kept for concurrent edits, which a reload from
+/// the commit drops. It waits for a commit it makes alone, so nobody's edits need carrying over,
+/// until the state passes `RESTART_CEILING` times this.
+pub const RESTART_STATE_BYTES: usize = 1024 * 1024;
+
+/// How far past `RESTART_STATE_BYTES` session state grows before an owner with others in the
+/// session restarts anyway.
+pub const RESTART_CEILING: usize = 4;
 
 pub const HEARTBEAT_INTERVAL: u64 = be_block_session::LEASE_MILLISECONDS as u64 / 2;
 
@@ -37,6 +61,8 @@ pub(crate) struct Opened {
     pub(crate) tag: SessionTag,
     pub(crate) head: Option<CommitId>,
     pub(crate) session: SessionState,
+    pub(crate) journal: Option<Journal>,
+    pub(crate) lost_edits: bool,
     pub(crate) from_file: Option<FromFileFn>,
     pub(crate) now: u64,
 }
@@ -71,6 +97,10 @@ pub(crate) enum Input {
         resynchronize: bool,
     },
     Read {
+        token: Token,
+        result: Result<be_block::Stored, String>,
+    },
+    PartRead {
         token: Token,
         result: Result<Vec<u8>, String>,
     },
@@ -133,6 +163,7 @@ enum Job<C> {
     },
     Keep(Keeping),
     Oversized,
+    Restart(CommitId),
     Release,
 }
 
@@ -172,6 +203,24 @@ struct Keeping {
     attempts: u8,
 }
 
+/// A range read, answered once every piece is.
+struct RangeRead {
+    reader: Reader,
+    pieces: Vec<Piece>,
+}
+
+#[derive(Clone, Copy)]
+enum Reader {
+    Editor { editor: EditorId, token: u64 },
+    Content(RequestId),
+}
+
+enum Piece {
+    Ready(Vec<u8>),
+    Waiting(Token),
+    Failed(String),
+}
+
 enum Slot<C> {
     Waiting(Token),
     Ready(C),
@@ -201,6 +250,10 @@ enum Then {
         head: CommitId,
         sequence: u64,
         state: Vec<u8>,
+        restart: bool,
+    },
+    Restarted {
+        head: CommitId,
     },
     Absorb {
         head: CommitId,
@@ -283,7 +336,7 @@ enum Wait<C> {
 #[derive(Default)]
 struct Reported {
     status: Option<Status>,
-    history: Option<(bool, bool)>,
+    history: Option<UndoState>,
 }
 
 pub(crate) struct Replica<C: LiveEdit, H> {
@@ -326,6 +379,16 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     tokens: Token,
     now: u64,
     owes_since: Option<u64>,
+    last_edit: Option<u64>,
+    opened_journal: Option<Journal>,
+    rebased: bool,
+    unappended: Vec<SessionOp>,
+    append_at: Option<u64>,
+    appended_bytes: usize,
+    applied_ops: Vec<SessionOp>,
+    restarting: bool,
+    restarted_at: Option<CommitId>,
+    lost_edits: bool,
     beaten: Option<u64>,
     active: bool,
     sealing: bool,
@@ -340,6 +403,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     loaded: bool,
     released: bool,
     reported: Reported,
+    ranges: Vec<RangeRead>,
     out: Vec<Effect>,
 }
 
@@ -360,6 +424,7 @@ where
         self.now = self.now.max(now);
         match input {
             Input::Read { token, result } => self.answer_read(token, result),
+            Input::PartRead { token, result } => self.answer_part_read(token, result),
             Input::Resumed { token, result } => self.answer_resume(token, result),
             Input::Head(
                 event @ (HeadEvent::Published { .. }
@@ -374,9 +439,10 @@ where
 
     fn tick(&mut self, now: u64, out: &mut Vec<Effect>) {
         self.now = self.now.max(now);
-        let due = self
-            .owes_since
-            .is_some_and(|since| self.now >= since + SEAL_INTERVAL);
+        if self.append_at.is_some_and(|at| self.now >= at) {
+            self.append_unappended();
+        }
+        let due = self.commit_at().is_some_and(|at| self.now >= at);
         if due && !self.sealing {
             self.sealing = true;
             self.jobs.push_back(Job::Seal {
@@ -393,9 +459,12 @@ where
     fn wake_at(&self) -> Option<u64> {
         let seal = match self.sealing {
             true => None,
-            false => self.owes_since.map(|since| since + SEAL_INTERVAL),
+            false => self.commit_at(),
         };
-        seal.into_iter().chain(self.beat_at()).min()
+        seal.into_iter()
+            .chain(self.append_at)
+            .chain(self.beat_at())
+            .min()
     }
 
     fn released(&self) -> bool {
@@ -450,6 +519,16 @@ where
             tokens: 0,
             now: opened.now,
             owes_since: None,
+            last_edit: None,
+            opened_journal: opened.journal,
+            rebased: false,
+            unappended: Vec::new(),
+            append_at: None,
+            appended_bytes: 0,
+            applied_ops: Vec::new(),
+            restarting: false,
+            restarted_at: None,
+            lost_edits: opened.lost_edits,
             beaten: None,
             active: false,
             sealing: false,
@@ -464,6 +543,7 @@ where
             loaded: false,
             released: false,
             reported: Reported::default(),
+            ranges: Vec::new(),
             out: Vec::new(),
         }
     }
@@ -518,10 +598,109 @@ where
             };
             if let Some(op) = sequencer.accept(id, C::encode_operation(&operation)) {
                 self.confirmed.apply(&operation);
-                self.broadcast(&SessionMessage::Accepted { op });
+                self.sequenced(op);
             }
         }
         self.flush();
+    }
+
+    /// When the owner commits what it owes: after a quiet spell, at most `COMMIT_INTERVAL`
+    /// after it started owing, or at once when the journal grew past `JOURNAL_BYTES`.
+    fn commit_at(&self) -> Option<u64> {
+        let since = self.owes_since?;
+        if self.appended_bytes >= JOURNAL_BYTES {
+            return Some(since);
+        }
+        let quiet = self.last_edit.map_or(since, |edited| edited.max(since)) + QUIET_INTERVAL;
+        Some(quiet.min(since + COMMIT_INTERVAL))
+    }
+
+    /// Commits now rather than at the next pause: before a build that cannot replay this one's
+    /// journal reads the block, or when a follower needs a reload.
+    fn commit_now(&mut self) {
+        if self.is_owner() && !self.is_clean() && !self.sealing {
+            self.sealing = true;
+            self.jobs.push_back(Job::Seal {
+                sealing: Sealing::Due,
+                reply: None,
+            });
+        }
+    }
+
+    fn alone(&self) -> bool {
+        self.state
+            .participants
+            .iter()
+            .all(|participant| *participant == self.client)
+    }
+
+    /// The owner sequenced `op`: with others in the session it appends it to the journal and
+    /// relays it in one call; alone it appends it within `APPEND_INTERVAL`, folded.
+    fn sequenced(&mut self, op: SessionOp) {
+        self.last_edit = Some(self.now);
+        self.unappended.push(op);
+        match self.alone() {
+            true => {
+                self.append_at.get_or_insert(self.now + APPEND_INTERVAL);
+            }
+            false => self.append_unappended(),
+        }
+    }
+
+    fn append_unappended(&mut self) {
+        self.append_at = None;
+        let ops = std::mem::take(&mut self.unappended);
+        if ops.is_empty() {
+            return;
+        }
+        match self.alone() {
+            true => {
+                let folded = fold::<C>(ops);
+                self.append(folded, false);
+            }
+            false => self.append(ops, true),
+        }
+    }
+
+    fn append(&mut self, ops: Vec<SessionOp>, relay: bool) {
+        if !self.is_owner() || ops.is_empty() {
+            return;
+        }
+        if !self.rebased {
+            self.rebase_journal();
+        }
+        let entries: Vec<JournalEntry> = ops
+            .into_iter()
+            .map(|op| JournalEntry {
+                sequence: op.sequence,
+                payload: Wire::Session(SessionMessage::Accepted { op }).encode(),
+            })
+            .collect();
+        self.appended_bytes += entries
+            .iter()
+            .map(|entry| entry.payload.len())
+            .sum::<usize>();
+        self.out.push(Effect::Append {
+            replica: self.id,
+            generation: self.state.generation,
+            entries,
+            relay,
+        });
+    }
+
+    /// Starts the journal from this owner's base: its last commit, the sequence number that
+    /// commit holds, and the session state as of it.
+    fn rebase_journal(&mut self) {
+        self.rebased = true;
+        self.out.push(Effect::Rebase {
+            replica: self.id,
+            generation: self.state.generation,
+            base: JournalBase {
+                commit: self.base,
+                sequence: self.sealed,
+                state: self.sealed_state.clone(),
+            },
+        });
     }
 
     fn beat_at(&self) -> Option<u64> {
@@ -557,6 +736,7 @@ where
             } => self.replace(content, reply, outright),
             Job::Keep(keeping) => self.keep(keeping),
             Job::Oversized => self.oversized(),
+            Job::Restart(head) => self.read(vec![Some(head)], Then::Restarted { head }),
             Job::Release => self.release(),
         }
     }
@@ -581,6 +761,19 @@ where
     fn release(&mut self) {
         if self.released {
             return;
+        }
+        if self.loaded && self.is_owner() && self.alone() && self.is_clean() && self.rebased {
+            // The last one out restarts the session for free: whoever opens next loads the
+            // commit afresh and numbers from zero.
+            self.out.push(Effect::Rebase {
+                replica: self.id,
+                generation: self.state.generation,
+                base: JournalBase {
+                    commit: self.base,
+                    sequence: 0,
+                    state: Vec::new(),
+                },
+            });
         }
         self.out.push(Effect::Release { replica: self.id });
         self.released = true;
@@ -624,7 +817,10 @@ where
                 head,
                 from_this_device,
             }) => self.moved(head, from_this_device),
-            Input::Head(_) | Input::Read { .. } | Input::Resumed { .. } => {}
+            Input::Head(_)
+            | Input::Read { .. }
+            | Input::PartRead { .. }
+            | Input::Resumed { .. } => {}
             Input::Lease {
                 session,
                 resynchronize,
@@ -645,10 +841,13 @@ where
                 });
             }
             Input::Change { id, change } => self.change(id, change),
-            Input::Content { id } => {
-                let bytes = self.visible.encode();
-                self.reply(id, Answer::Content(bytes));
-            }
+            Input::Content { id } => match C::LOADS {
+                be_block::Loads::Whole => {
+                    let bytes = self.visible.encode();
+                    self.reply(id, Answer::Content(bytes));
+                }
+                be_block::Loads::FirstPart => self.read_range(Reader::Content(id), 0, u64::MAX),
+            },
             Input::Seal { id, force } => self.jobs.push_front(Job::Seal {
                 sealing: match force {
                     true => Sealing::Rekey,
@@ -676,8 +875,11 @@ where
     }
 
     fn written(&self, content: &C) -> Written {
+        let (bytes, parts) = be_sdk_type_api::written_shape(&content.parts())
+            .unwrap_or_else(|| (content.encode(), Vec::new()));
         Written {
-            bytes: content.encode(),
+            bytes,
+            parts,
             references: content.references_in(self.organization),
             derived: be_block::derived_metadata(content),
         }
@@ -689,10 +891,11 @@ where
             .map(|commit| match commit {
                 Some(commit) => {
                     let token = self.token();
-                    self.out.push(Effect::Read {
+                    self.out.push(Effect::Load {
                         replica: self.id,
                         token,
                         commit,
+                        first_part: C::LOADS == be_block::Loads::FirstPart,
                     });
                     Slot::Waiting(token)
                 }
@@ -703,7 +906,7 @@ where
         self.finish_reads();
     }
 
-    fn answer_read(&mut self, token: Token, result: Result<Vec<u8>, String>) {
+    fn answer_read(&mut self, token: Token, result: Result<be_block::Stored, String>) {
         let Some(Wait::Reads { slots, .. }) = &mut self.waiting else {
             return;
         };
@@ -713,7 +916,8 @@ where
         else {
             return;
         };
-        let decoded = result.and_then(|bytes| C::decode(&bytes).map_err(|error| error.to_string()));
+        let decoded =
+            result.and_then(|stored| C::from_stored(&stored).map_err(|error| error.to_string()));
         match decoded {
             Ok(content) => {
                 *slot = Slot::Ready(content);
@@ -766,13 +970,16 @@ where
             } => {
                 self.confirmed = next();
                 self.base = head;
-                if self.confirmed.adopt_session_state(&state).is_err() {
-                    return self.unreadable_message();
+                if !state.is_empty() {
+                    if self.confirmed.adopt_session_state(&state).is_err() {
+                        return self.unreadable_message();
+                    }
+                    self.sealed_state = state;
                 }
-                self.sealed_state = state;
                 if let Role::Follower(follower) = &mut self.role {
                     follower.set_applied(sealed);
                 }
+                self.applied_ops.clear();
                 self.rebuild_visible();
                 self.snapshot_ops(sealed, sequence, ops, applied);
                 self.flush();
@@ -781,20 +988,40 @@ where
                 head,
                 sequence,
                 state,
+                restart,
             } => {
-                self.confirmed = next();
-                if self.confirmed.adopt_session_state(&state).is_err() {
-                    self.unreadable_message();
+                let before = std::mem::replace(&mut self.confirmed, next());
+                match state.is_empty() {
+                    true => self.sealed_state = self.confirmed.session_state(),
+                    false => {
+                        if self.confirmed.adopt_session_state(&state).is_err() {
+                            self.unreadable_message();
+                        }
+                        self.sealed_state = state;
+                    }
                 }
-                self.sealed_state = state;
+                if restart {
+                    self.carry_pending(before);
+                    self.history.restart();
+                    self.restarted_at = Some(head);
+                }
                 if let Role::Follower(follower) = &mut self.role {
                     follower.set_applied(sequence);
                 }
+                self.applied_ops.clear();
                 self.rebuild_visible();
                 self.base = Some(head);
                 self.sealed = sequence;
+                if restart && let Role::Follower(follower) = &mut self.role {
+                    let resubmit = follower.resynchronize(sequence);
+                    let owner = self.state.owner;
+                    for message in resubmit {
+                        self.send(owner, &message);
+                    }
+                }
                 self.flush();
             }
+            Then::Restarted { head } => self.restarted(head, next()),
             Then::Absorb { head } => {
                 self.replacement(head, next());
                 self.flush();
@@ -1318,12 +1545,32 @@ where
 
     fn loaded(&mut self, content: C) {
         self.confirmed = content;
-        self.visible = self.confirmed.clone();
         self.sealed_state = self.confirmed.session_state();
+        let journal = self
+            .opened_journal
+            .take()
+            .filter(|journal| journal.base.commit == self.base);
+        let replayed = match journal {
+            Some(journal) => self.replay_journal(journal),
+            None => Vec::new(),
+        };
+        self.visible = self.confirmed.clone();
         self.projected = Settling::new(self.visible.clone(), Vec::new());
+        let last = replayed.last().map_or(self.sealed, |op| op.sequence);
         self.role = match self.state.is_owner(self.client) {
-            true => Role::Owner(Sequencer::new(self.base)),
-            false => Role::Follower(Follower::new(self.client)),
+            true => {
+                let mut sequencer = Sequencer::continuing(self.base, self.sealed, 0);
+                for op in replayed {
+                    sequencer.replayed(op);
+                }
+                Role::Owner(sequencer)
+            }
+            false => {
+                let mut follower = Follower::new(self.client);
+                follower.set_applied(last);
+                self.applied_ops = replayed;
+                Role::Follower(follower)
+            }
         };
         self.loaded = true;
         self.described = true;
@@ -1339,6 +1586,38 @@ where
 
     fn is_owner(&self) -> bool {
         matches!(self.role, Role::Owner(_))
+    }
+
+    /// Loads a journal on the base just read: its session state, then every operation in it,
+    /// answered in order. An owner opening with it continues from its numbering without
+    /// rebasing; one that took it over rebases first (`adopt`).
+    fn replay_journal(&mut self, journal: Journal) -> Vec<SessionOp> {
+        if !journal.base.state.is_empty() {
+            if self
+                .confirmed
+                .adopt_session_state(&journal.base.state)
+                .is_err()
+            {
+                return Vec::new();
+            }
+            self.sealed_state = journal.base.state;
+        }
+        self.sealed = journal.base.sequence;
+        self.rebased = self.state.is_owner(self.client);
+        let mut replayed = Vec::new();
+        for entry in journal.entries {
+            let Some(Wire::Session(SessionMessage::Accepted { op })) = Wire::decode(&entry.payload)
+            else {
+                continue;
+            };
+            let Ok(operation) = C::decode_operation(&op.payload) else {
+                continue;
+            };
+            self.confirmed.apply(&operation);
+            self.appended_bytes += entry.payload.len();
+            replayed.push(op);
+        }
+        replayed
     }
 
     fn is_clean(&self) -> bool {
@@ -1469,7 +1748,7 @@ where
                     return true;
                 };
                 self.confirmed.apply(&operation);
-                self.broadcast(&SessionMessage::Accepted { op });
+                self.sequenced(op);
             }
             Role::Follower(follower)
                 if oversized
@@ -1556,7 +1835,122 @@ where
                 payload,
             } => self.send(to, &SessionMessage::Channel { channel, payload }),
             FromEditor::Resend => self.snapshot_to(editor),
+            FromEditor::Read {
+                token,
+                offset,
+                length,
+            } => self.read_range(Reader::Editor { editor, token }, offset, length),
             FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_) => {}
+        }
+    }
+
+    /// Reads `length` bytes of the visible content's stored form from `offset`: the bytes it
+    /// holds, and the parts it left in the store through `read-part`. An editor of a type that
+    /// loads only its first part reads the rest this way.
+    fn read_range(&mut self, reader: Reader, offset: u64, length: u64) {
+        let end = offset.saturating_add(length);
+        let mut planned = Vec::new();
+        let parts = self.visible.parts();
+        let mut at = 0;
+        let mut leaves = vec![&parts];
+        while let Some(part) = leaves.pop() {
+            let start = at;
+            let stop = start + part.length();
+            if let be_block::Part::Node { parts, .. } = part {
+                if stop > offset && start < end {
+                    leaves.extend(parts.iter().rev());
+                } else {
+                    at = stop;
+                }
+                continue;
+            }
+            at = stop;
+            if stop <= offset || start >= end {
+                continue;
+            }
+            let from = offset.max(start) - start;
+            let to = end.min(stop) - start;
+            match part {
+                be_block::Part::Bytes(bytes) => {
+                    let from = usize::try_from(from).unwrap_or(usize::MAX);
+                    let to = usize::try_from(to).unwrap_or(usize::MAX);
+                    planned.push(Err(bytes[from..to].to_vec()));
+                }
+                be_block::Part::Reused(part) => planned.push(Ok((*part, from, to - from))),
+                be_block::Part::Node { .. } => {}
+            }
+        }
+        drop(parts);
+        let mut pieces = Vec::with_capacity(planned.len());
+        for plan in planned {
+            match plan {
+                Err(bytes) => pieces.push(Piece::Ready(bytes)),
+                Ok((part, offset, length)) => {
+                    let read = self.token();
+                    self.out.push(Effect::ReadPart {
+                        replica: self.id,
+                        token: read,
+                        part,
+                        offset,
+                        length,
+                    });
+                    pieces.push(Piece::Waiting(read));
+                }
+            }
+        }
+        self.ranges.push(RangeRead { reader, pieces });
+        self.finish_ranges();
+    }
+
+    fn answer_part_read(&mut self, token: Token, result: Result<Vec<u8>, String>) {
+        for range in &mut self.ranges {
+            for piece in &mut range.pieces {
+                if matches!(piece, Piece::Waiting(waiting) if *waiting == token) {
+                    *piece = match &result {
+                        Ok(bytes) => Piece::Ready(bytes.clone()),
+                        Err(error) => Piece::Failed(error.clone()),
+                    };
+                }
+            }
+        }
+        self.finish_ranges();
+    }
+
+    fn finish_ranges(&mut self) {
+        let (done, waiting) =
+            std::mem::take(&mut self.ranges)
+                .into_iter()
+                .partition(|range: &RangeRead| {
+                    !range
+                        .pieces
+                        .iter()
+                        .any(|piece| matches!(piece, Piece::Waiting(_)))
+                });
+        self.ranges = waiting;
+        for range in done {
+            let mut bytes = Vec::new();
+            let mut failed = None;
+            for piece in range.pieces {
+                match piece {
+                    Piece::Ready(piece) => bytes.extend(piece),
+                    Piece::Failed(error) => failed = Some(error),
+                    Piece::Waiting(_) => {}
+                }
+            }
+            let result = match failed {
+                Some(error) => Err(error),
+                None => Ok(bytes),
+            };
+            match (range.reader, result) {
+                (Reader::Editor { editor, token }, result) => {
+                    self.tell_editor(editor, &ToEditor::Range { token, result });
+                }
+                (Reader::Content(id), Ok(bytes)) => self.reply(id, Answer::Content(bytes)),
+                (Reader::Content(id), Err(error)) => {
+                    self.error(error);
+                    self.reply(id, Answer::Unknown);
+                }
+            }
         }
     }
 
@@ -1632,9 +2026,15 @@ where
 
     fn snapshot_to(&mut self, editor: EditorId) {
         let settled = self.projected.settled();
+        let bytes = settled.encode();
+        let length = match C::LOADS {
+            be_block::Loads::Whole => bytes.len() as u64,
+            be_block::Loads::FirstPart => settled.parts().length(),
+        };
         let snapshot = Snapshot {
             content_type: self.content_type,
-            bytes: settled.encode(),
+            length,
+            bytes,
             session: settled.session_state(),
             unsettled: self
                 .projected
@@ -1730,6 +2130,10 @@ where
             head: self.base,
             owner: self.is_owner(),
             clean: self.is_clean(),
+            journaled: match self.role {
+                Role::Owner(_) => self.unappended.is_empty() && self.held.is_empty(),
+                Role::Follower(_) => self.is_clean(),
+            },
             owes_seal: self.loaded && self.is_owner() && !self.is_clean(),
             incompatible: self.incompatible,
             diverged: self.diverged,
@@ -1749,13 +2153,17 @@ where
         if !self.loaded || self.released {
             return;
         }
-        let history = (self.history.can_undo(), self.history.can_redo());
-        if self.reported.history != Some(history) {
-            self.reported.history = Some(history);
+        let history = UndoState {
+            can_undo: self.history.can_undo(),
+            can_redo: self.history.can_redo(),
+            restarted_at: self.restarted_at.filter(|_| self.history.stopped()),
+            lost_edits: self.lost_edits,
+        };
+        if self.reported.history.as_ref() != Some(&history) {
+            self.reported.history = Some(history.clone());
             self.out.push(Effect::History {
                 replica: self.id,
-                can_undo: history.0,
-                can_redo: history.1,
+                history,
             });
         }
         if std::mem::take(&mut self.described) {
@@ -1821,10 +2229,10 @@ where
         let Role::Follower(follower) = &self.role else {
             return;
         };
-        let since = follower.applied();
+        let message = follower.catchup(self.base, self.sealed);
         let owner = self.state.owner;
         self.send_wire(owner, &Wire::Tag(self.tag));
-        self.send_wire(owner, &Wire::Session(SessionMessage::Catchup { since }));
+        self.send_wire(owner, &Wire::Session(message));
     }
 
     fn receive(&mut self, from: ClientId, wire: Wire) {
@@ -1839,6 +2247,7 @@ where
                     return;
                 }
                 self.other_builds.insert(from);
+                self.commit_now();
                 return self.send_wire(Some(from), &Wire::Incompatible);
             }
             Wire::Incompatible => {
@@ -1883,28 +2292,40 @@ where
                 self.confirmed.apply(&operation);
                 self.visible.apply(&operation);
                 self.journal(Journaled::Applied(operation), None);
-                self.broadcast(&SessionMessage::Accepted { op });
+                self.sequenced(op);
             }
             SessionMessage::Accepted { op } => match self.role {
                 Role::Owner(_) => self.inherit_accepted(&op),
                 Role::Follower(_) if !self.catching_up => self.apply_accepted(&op),
                 Role::Follower(_) => {}
             },
-            SessionMessage::Catchup { since } => {
+            SessionMessage::Catchup {
+                since,
+                base,
+                sealed,
+            } => {
                 let Role::Owner(sequencer) = &self.role else {
                     return;
                 };
-                if sequencer.inherited() > 0 {
+                let inherited = sequencer.inherited() > 0;
+                if inherited {
                     self.reload = true;
                 }
+                let holds = base == sequencer.head() && sealed == self.sealed && since >= sealed;
                 let message = SessionMessage::Snapshot {
                     head: sequencer.head(),
                     sealed: self.sealed,
                     sequence: sequencer.sequence(),
                     ops: sequencer.since(since.min(self.sealed)),
-                    state: self.sealed_state.clone(),
+                    state: match holds {
+                        true => Vec::new(),
+                        false => self.sealed_state.clone(),
+                    },
                 };
                 self.send(Some(from), &message);
+                if inherited {
+                    self.commit_now();
+                }
             }
             SessionMessage::Snapshot {
                 head,
@@ -1918,7 +2339,7 @@ where
                 };
                 self.catching_up = false;
                 let applied = follower.applied();
-                if head != self.base || applied < sealed {
+                if head != self.base || sealed != self.sealed || applied < sealed {
                     return self.read(
                         vec![head],
                         Then::Snapshot {
@@ -1981,6 +2402,7 @@ where
                 head,
                 sequence,
                 reload,
+                restart,
             } => {
                 let Role::Follower(follower) = &self.role else {
                     return;
@@ -2010,6 +2432,7 @@ where
                                 head,
                                 sequence,
                                 state,
+                                restart,
                             },
                         );
                     }
@@ -2017,6 +2440,7 @@ where
                 }
                 self.base = Some(head);
                 self.sealed = sequence;
+                self.applied_ops.retain(|op| op.sequence > sequence);
             }
         }
     }
@@ -2117,6 +2541,10 @@ where
         let Ok(operation) = C::decode_operation(&op.payload) else {
             return self.unreadable_message();
         };
+        if inherited == Inherited::Continued {
+            self.append_unappended();
+            self.append(vec![op.clone()], false);
+        }
         self.confirmed.apply(&operation);
         self.visible.apply(&operation);
         self.journal(Journaled::Applied(operation), None);
@@ -2132,6 +2560,7 @@ where
         let Ok(operation) = C::decode_operation(&op.payload) else {
             return self.unreadable_message();
         };
+        self.applied_ops.push(op.clone());
         let Role::Follower(follower) = &mut self.role else {
             return;
         };
@@ -2214,6 +2643,9 @@ where
             .retain(|(client, _), _| state.participants.contains(client));
         self.presence_changed |= self.presence.len() != before;
         self.state = state;
+        if !self.alone() {
+            self.append_unappended();
+        }
         for client in joined {
             self.show_presence_to(client);
         }
@@ -2226,6 +2658,7 @@ where
             Role::Owner(sequencer) => {
                 let sequence = sequencer.sequence();
                 self.role = Role::Follower(Follower::continuing(self.client, sequence));
+                self.applied_ops.clear();
                 self.reload = false;
                 return;
             }
@@ -2255,8 +2688,24 @@ where
         }
         let applied = follower.applied();
         let pending = follower.take_pending();
-        let mut sequencer =
-            Sequencer::continuing(self.base, applied, applied.saturating_sub(self.sealed));
+        let kept = std::mem::take(&mut self.applied_ops);
+        let complete = kept.iter().all(|op| op.sequence > self.sealed)
+            && kept
+                .last()
+                .map_or(applied == self.sealed, |op| op.sequence == applied);
+        let (mut sequencer, kept) = match complete {
+            true => {
+                let mut sequencer = Sequencer::continuing(self.base, self.sealed, 0);
+                for op in &kept {
+                    sequencer.replayed(op.clone());
+                }
+                (sequencer, kept)
+            }
+            false => (
+                Sequencer::continuing(self.base, applied, applied.saturating_sub(self.sealed)),
+                Vec::new(),
+            ),
+        };
         if std::mem::take(&mut self.catching_up) {
             sequencer.carry_unsealed();
             self.reload = true;
@@ -2296,7 +2745,11 @@ where
             true => vec![self.base],
             false => Vec::new(),
         };
+        let inherited = sequencer.inherited() > 0;
         self.role = Role::Owner(sequencer);
+        self.rebased = false;
+        self.appended_bytes = 0;
+        self.append(kept, false);
         self.replace_visible(self.confirmed.clone());
         for handed in self.handed.clone() {
             self.jobs.push_back(Job::Keep(Keeping {
@@ -2314,9 +2767,14 @@ where
             }
             None => {
                 for op in accepted {
-                    self.broadcast(&SessionMessage::Accepted { op });
+                    self.sequenced(op);
                 }
             }
+        }
+        // The journal started over without what this owner holds but could not number: it is
+        // durable once committed.
+        if inherited {
+            self.commit_now();
         }
     }
 
@@ -2504,6 +2962,7 @@ where
                 self.base,
             );
         }
+        self.restarting = self.restart_due();
         let content = self.written(&self.confirmed);
         self.publish(
             self.base,
@@ -2524,7 +2983,10 @@ where
             }
             return;
         }
-        if outright && self.has_unsaved() {
+        // An outright replace keeps what it replaces as its merge's second parent, which history
+        // never prunes: unsaved edits, and on a follower also the saved head, which only the
+        // owner can seal as a bookmark (`Replicas::bookmark`).
+        if outright && (self.has_unsaved() || !self.is_owner()) {
             let kept = match self.role {
                 Role::Owner(_) => self.written(&self.confirmed),
                 Role::Follower(_) => self.written(&self.visible),
@@ -2568,7 +3030,20 @@ where
         self.sealed = sequence;
         self.sealed_state = self.confirmed.session_state();
         self.owes_since = None;
-        let reload = std::mem::take(&mut self.reload).then(|| self.sealed_state.clone());
+        self.unappended.clear();
+        self.append_at = None;
+        self.appended_bytes = 0;
+        let restart = std::mem::take(&mut self.restarting);
+        let reload = match restart {
+            true => {
+                self.reload = false;
+                Some(Vec::new())
+            }
+            false => {
+                self.rebase_journal();
+                std::mem::take(&mut self.reload).then(|| self.sealed_state.clone())
+            }
+        };
         if reload.is_some() {
             self.op_heads.clear();
         }
@@ -2580,6 +3055,7 @@ where
             head,
             sequence,
             reload,
+            restart,
         });
         self.beaten = Some(self.now);
         self.active = false;
@@ -2588,5 +3064,164 @@ where
             generation: self.state.generation,
             clean_at: Some(head),
         });
+        if restart {
+            self.replaced_at = sequence;
+            self.jobs.push_front(Job::Restart(head));
+        }
     }
+
+    /// Whether this commit should restart the session: the session state, which only
+    /// concurrent edits need, has grown past `RESTART_STATE_BYTES` and past the content it
+    /// describes, no gesture is open, and the owner is alone or the state passed the ceiling.
+    fn restart_due(&self) -> bool {
+        if self.history.gesture_open() {
+            return false;
+        }
+        let state = self.confirmed.session_state().len();
+        let limit = restart_limit();
+        state > limit
+            && state > self.confirmed.encode().len()
+            && (self.alone() || state > limit.saturating_mul(RESTART_CEILING))
+    }
+
+    /// The owner restarted the session at `head`: it reloads from the commit, so every replica
+    /// holds the same positions, moves what it holds back onto it, and undo stops here.
+    fn restarted(&mut self, head: CommitId, fresh: C) {
+        if self.base != Some(head) {
+            return;
+        }
+        let mut before = self.confirmed.clone();
+        let mut after = fresh.clone();
+        let mut carried = Vec::new();
+        for held in std::mem::take(&mut self.held) {
+            let moved = C::carry_over(&held, &before, &after, self.client);
+            before.apply(&held);
+            if let Some(moved) = moved {
+                after.apply(&moved);
+                carried.push(moved);
+            }
+        }
+        self.held = carried;
+        self.confirmed = fresh;
+        self.sealed_state = self.confirmed.session_state();
+        let mut visible = self.confirmed.clone();
+        for held in &self.held {
+            visible.apply(held);
+        }
+        self.replace_visible(visible);
+        self.history.restart();
+        self.restarted_at = Some(head);
+        self.op_heads = vec![Some(head)];
+        self.rebase_journal();
+    }
+
+    /// Moves a follower's pending and unsent edits from `before` onto the content it just
+    /// reloaded at a restart.
+    fn carry_pending(&mut self, before: C) {
+        let mut before = before;
+        let mut after = self.confirmed.clone();
+        if let Role::Follower(follower) = &mut self.role {
+            let pending = follower.take_pending();
+            let mut carried = Vec::with_capacity(pending.len());
+            for (id, payload) in pending {
+                let Ok(operation) = C::decode_operation(&payload) else {
+                    continue;
+                };
+                let moved = C::carry_over(&operation, &before, &after, self.client);
+                before.apply(&operation);
+                if let Some(moved) = moved {
+                    after.apply(&moved);
+                    carried.push((id, C::encode_operation(&moved)));
+                }
+            }
+            follower.restore_pending(carried);
+        }
+        let unsent = std::mem::take(&mut self.unsent);
+        for (operation, bound, weight) in unsent {
+            let moved = C::carry_over(&operation, &before, &after, self.client);
+            before.apply(&operation);
+            if let Some(moved) = moved {
+                after.apply(&moved);
+                self.unsent.push_back((moved, bound, weight));
+            }
+        }
+    }
+}
+
+#[cfg(not(test))]
+fn restart_limit() -> usize {
+    RESTART_STATE_BYTES
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static RESTART_LIMIT: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(RESTART_STATE_BYTES) };
+}
+
+#[cfg(test)]
+fn restart_limit() -> usize {
+    RESTART_LIMIT.with(std::cell::Cell::get)
+}
+
+/// Folds consecutive operations into as few as `LiveEdit::absorb_operation` allows, each
+/// numbered as the last it absorbed and kept under the relay limit.
+fn fold<C: LiveEdit>(ops: Vec<SessionOp>) -> Vec<SessionOp> {
+    let mut folded = Vec::new();
+    let mut current: Option<(SessionOp, C::Op, usize)> = None;
+    let finish = |current: (SessionOp, C::Op, usize)| SessionOp {
+        payload: C::encode_operation(&current.1),
+        ..current.0
+    };
+    for op in ops {
+        let Ok(operation) = C::decode_operation(&op.payload) else {
+            folded.extend(current.take().map(finish));
+            folded.push(op);
+            continue;
+        };
+        let size = op.payload.len();
+        let leftover = match &mut current {
+            Some((last, into, bound)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
+                let leftover = C::absorb_operation(into, operation);
+                if leftover.is_none() {
+                    *bound += size;
+                    last.id = op.id;
+                    last.sequence = op.sequence;
+                }
+                leftover
+            }
+            _ => Some(operation),
+        };
+        if let Some(operation) = leftover {
+            folded.extend(current.replace((op, operation, size)).map(finish));
+        }
+    }
+    folded.extend(current.map(finish));
+    folded
+}
+
+/// The content of `bytes` (the type's default for none) with `journal` replayed on top, for a
+/// reader outside the session.
+pub(crate) fn replay<C: LiveEdit + Default>(
+    bytes: Option<&[u8]>,
+    journal: &Journal,
+) -> Result<Vec<u8>, String> {
+    let mut content = match bytes {
+        Some(bytes) => C::decode(bytes).map_err(|error| error.to_string())?,
+        None => C::default(),
+    };
+    if !journal.base.state.is_empty() {
+        content
+            .adopt_session_state(&journal.base.state)
+            .map_err(|error| error.to_string())?;
+    }
+    for entry in &journal.entries {
+        let Some(Wire::Session(SessionMessage::Accepted { op })) = Wire::decode(&entry.payload)
+        else {
+            return Err("a journal entry this build cannot read".into());
+        };
+        let operation = C::decode_operation(&op.payload).map_err(|error| error.to_string())?;
+        content.apply(&operation);
+    }
+    Ok(content.encode())
 }

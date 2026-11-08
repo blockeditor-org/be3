@@ -10,7 +10,7 @@ fn typing_while_a_seal_waits_for_the_server_shows_at_once() {
     sim.operate(0, 1, add("first"));
     sim.settle();
     sim.stalled = true;
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(
         sim.held.len(),
         1,
@@ -33,7 +33,7 @@ fn typing_while_a_seal_waits_for_the_server_shows_at_once() {
     sim.unstall();
     assert_eq!(texts(&sim.head_content()), ["first"]);
     assert_eq!(texts(sim.mirror(1, 1)), ["first", "second", "third"]);
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(texts(&sim.head_content()), ["first", "second", "third"]);
     for device in 0..2 {
         assert_eq!(sim.devices[device].status.head, sim.head);

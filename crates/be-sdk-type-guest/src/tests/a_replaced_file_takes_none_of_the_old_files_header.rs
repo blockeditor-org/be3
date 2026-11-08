@@ -18,12 +18,18 @@ fn a_replaced_file_takes_none_of_the_old_files_header() {
     assert_eq!(sim.head_content(), replacement);
     for device in 0..2 {
         assert_eq!(sim.content(device), replacement);
-        assert_eq!(sim.mirror(device, 1), &replacement);
+        assert_eq!(sim.mirror(device, 1).header(), replacement.header());
+        assert_eq!(
+            sim.editors[&(device, 1)].stored_length(),
+            replacement.encode().len() as u64
+        );
     }
     assert!(sim.kept(|content| content.header() == "old.png 800x600"));
-    assert!(
-        sim.take_received(0, 1)
-            .iter()
-            .any(|message| matches!(message, ToEditor::Snapshot(snapshot) if snapshot.bytes == replacement.encode()))
-    );
+    assert!(sim.take_received(0, 1).iter().any(|message| matches!(
+        message,
+        ToEditor::Snapshot(snapshot)
+            if snapshot.length == replacement.encode().len() as u64
+                && FileContent::decode(&snapshot.bytes)
+                    .is_ok_and(|shown| shown.header() == replacement.header())
+    )));
 }

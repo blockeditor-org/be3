@@ -102,6 +102,11 @@ pub fn pin_wall_clock(at: Option<(Instant, Duration)>) {
     PINNED_WALL_CLOCK.with(|held| held.set(at));
 }
 
+/// Whether `pin_wall_clock` pinned the wall clock, as a test does.
+pub fn wall_clock_is_pinned() -> bool {
+    PINNED_WALL_CLOCK.with(Cell::get).is_some()
+}
+
 pub fn wall_clock() -> Duration {
     match PINNED_WALL_CLOCK.with(Cell::get) {
         Some((at, since_epoch)) => since_epoch + now().saturating_duration_since(at),

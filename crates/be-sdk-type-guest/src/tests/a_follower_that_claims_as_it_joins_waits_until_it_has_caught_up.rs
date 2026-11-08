@@ -42,6 +42,6 @@ fn a_follower_that_claims_as_it_joins_waits_until_it_has_caught_up() {
     }
     assert!(!sim.devices[0].status.owner);
     assert!(sim.devices[2].status.clean);
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(count(&sim.head_content()), 113);
 }
