@@ -22,6 +22,7 @@ rules:
   # to a spelling that is younger than the runners some of them target.
   self-repository:
     ignore:
+      - broad.yml
       - ci.yml
       - tracker.yml
 

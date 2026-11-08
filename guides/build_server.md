@@ -11,7 +11,8 @@ compile-checked for any other platform: not the web's be-host, the libraries pla
 HTML core, Windows, macOS or Android. Check one by hand when a change is likely to break it, such
 as `./scripts/buck build '//crates/be-host:be-host[check]' --target-platforms
 //buck/platforms:wasi` (or `:windows_x86_64`; a crate on the HTML core, such as
-`//crates/beui-html:beui-html[check]`, with `:linux_x86_64_html`). The bootstrap's six-platform release is built only
+`//crates/beui-html:beui-html[check]`, with `:linux_x86_64_html`). `//buck/dev/broad.bxl:main` checks them all
+(guides/buck2.md, Traps). The bootstrap's six-platform release is built only
 when CI is given `--bootstrap`, which it is only on a pull request that changes what the
 release is built from (guides/bootstrap.md).
 

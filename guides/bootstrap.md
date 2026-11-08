@@ -122,8 +122,9 @@ release for this machine, or curl is missing), build the crate with cargo:
 target/tools/bootstrap-cargo` and run that binary in the release's place. It
 needs rustup, which reads the toolchain from rust-toolchain.toml, and
 crates.io, and takes a few seconds once built. The workspace's Cargo.toml and
-Cargo.lock still build this one crate, though cargo builds nothing else here.
-`--locked` refuses a Cargo.lock out of date with the manifests, so after
+Cargo.lock still build this one crate, though cargo builds nothing else here;
+the manual broad check (.github/workflows/broad.yml) builds it the same way to
+see that this keeps working. `--locked` refuses a Cargo.lock out of date with the manifests, so after
 changing one, run the lock step with the binary built before
 (`target/tools/bootstrap-cargo/release/bootstrap lock`). The binary finds the checkout from its own path,
 so `target/tools/bootstrap-cargo/release/bootstrap COMMAND ...` runs it too.

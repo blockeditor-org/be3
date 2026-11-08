@@ -1,0 +1,50 @@
+name: Broad check
+
+# What ./scripts/verify does not compile, in one buck2 command
+# (buck/dev/broad.bxl): rustc's check pass over every first-party crate on
+# Windows, macOS, Android, linux arm64, the web's wasm32, host wasi and beui's
+# HTML core, release copies of Linux and the apps' wasm, and clippy over Linux
+# and the apps' wasm, which fails on any warning.
+# decisions/verify_compiles_one_configuration_per_target.md says why verify
+# leaves these out. It also builds crates/be-tool-bootstrap with cargo, the
+# recovery route in guides/bootstrap.md, to see that it still works.
+#
+# Manual only for now: it runs on no push or pull request, and a ref can only
+# be dispatched if it has this file, so no older pull request runs it.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # The API gateway's header for api.be3.pfg.pw's build server, as in ci.yml.
+  BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
+  BE3_BUILD_SERVER: api.be3.pfg.pw
+
+jobs:
+  broad:
+    name: broad check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/buck2
+
+      # Not a buck2 invocation: cargo, with the toolchain rust-toolchain.toml
+      # names, then the built bootstrap run once.
+      - name: Build the bootstrap with cargo
+        env:
+          BE3_BOOTSTRAP: cargo
+        run: sh ./scripts/internal/bootstrap.sh install-buck2
+
+      - name: Compile every other configuration and run clippy
+        if: ${{ !cancelled() }}
+        run: ./scripts/buck bxl --keep-going //buck/dev/broad.bxl:main

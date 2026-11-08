@@ -253,7 +253,9 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   `cfg(target_os = "macos")` or the HTML core is first compiled by the build helper's device builds or
   `./scripts/deploy`, unless checked by hand (guides/build_server.md). Clippy runs
   with `./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.txt`
-  (`clippy.toml` must exist).
+  (`clippy.toml` must exist). `./scripts/buck bxl --keep-going //buck/dev/broad.bxl:main`
+  checks every other configuration and fails on any clippy warning, in one command; the
+  Broad check workflow runs it when dispatched by hand.
 - **Autofixes** are each package's `:fix` (`package_fix` in buck/dev/verify.bzl, which every
   `cargo_*` macro defines and a package without a crate calls itself): be-tool-buck's `fix` runs
   be-tool-fix-rust-source, then rustfmt, over its Rust files and starlark_fmt over its Starlark;
