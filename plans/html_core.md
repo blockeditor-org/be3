@@ -4,20 +4,18 @@ Depends on: none.
 
 beui on the web runs an HTML core (`beui-core-html`), switched in at compile time by `--cfg beui_html`; guides/beui/core.md (Cores) describes it, and decisions/beui_has_an_html_core_on_the_web.md says why. Features the native core has and the HTML core lacks or ignores:
 
-- Browser-native text editing for `TextArea` and the `TextInput`s that are
-  not plain (EditContext or `contenteditable`), a switch in unstyled.
 - A plain `TextInput` on HTML ignores `keyboard_on_focus`, and its
   `TextInputApi` knows no caret, selection or handles (the browser's).
 - `Form` cannot post a beui-own field: only plain `TextInput`s carry a
   `name` into the post.
-- A `Drawing` with no `size` draws nothing in a server-rendered page, since
-  the HTML core measures nothing there; so the scrollbar thumb and the colour
-  picker's areas and sliders appear only once the page runs.
 - `Sheet`'s stops as CSS scroll snap: `Sheet` still drives its `Offset`
   itself on HTML, as natively.
-- The browser's scrollbar on a styled `Scroll` is the browser's default look
-  (following `color-scheme`), not the theme's: `scrollbar-color` from the
-  theme, and `SCROLLBAR_WIDTH`, are not passed down.
+- Every `Scroll` on HTML is a browser scroll element (unstyled `scroll.rs`,
+  decisions/beui_html_scroll_uses_the_element_scroll_position.md), so every
+  styled scroll shows the browser's default scrollbar (following
+  `color-scheme`), not the theme's. Pass the theme's thumb and track colours
+  as `scrollbar-color` and a thin `scrollbar-width` down from the styled
+  `scrollbar_style`, so a styled scroll looks themed on the web.
 - `TreeNode`'s `row_offset`, `texts_within`, `set_text_selection` and
   `set_text_selection_handles` do nothing on HTML.
 - Props the HTML core ignores: `Interactive`'s `pastes`, `key_active`,
@@ -32,13 +30,16 @@ beui on the web runs an HTML core (`beui-core-html`), switched in at compile tim
 - `color_var!` is meant to be the only way to make a `ColorVar`, but
   `ColorVar::__declared_at`, which it expands to, is public (doc-hidden), so
   any code can name one by string.
-- `beui-font-browser` is still unused.
-- The inspector: it reads the native `Document`, so beui-demo's inspector
-  button shows a stand-in on HTML (`beui::open_inspector()` answers false).
+- Delete `crates/beui-font-browser` (and its entry in
+  `be-tool-fix-rust-source/src/hash_order.rs`). Nothing uses it: the HTML core
+  lays text out in the DOM with its own font faces (`beui-core-html/src/fonts.rs`),
+  and the native core on the web shapes with FreeType and HarfBuzz so it
+  matches native and its paintings stay deterministic, which measuring through
+  the browser would not.
+- The beui inspector is native only; on HTML the browser's own developer tools
+  serve. beui-demo shows its inspector button only where
+  `beui::open_inspector()` can open one, instead of a stand-in.
 - The on-screen keyboard on HTML shows only where a view places it; no keyboard
   host opens it for a focused field, and Paste as plain text reads the
   clipboard through `navigator.clipboard`, which asks for permission.
-- HTML text uses the browser's font metrics, which round a font's ascent and
-  descent to the nearest pixel where FreeType rounds them outward, so a line
-  can sit a pixel off native (a 20px title, icons).
 - `TextAreaState::lay_out_prose` and the `TextArea` rows still lay prose out through `Piece` and `RichOptions` from `beui_view::types` rather than through `measure_text` alone (the infinite canvas's export calls it too), so text layout is only partly behind the text geometry contract.
