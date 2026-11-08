@@ -66,9 +66,11 @@ Today `merge3` takes each side's whole bytes (`replicas.wit`), and the Rust
 ## 3. Per-type retention
 
 Retention (`RetentionPolicy`) is per organization. A server-side table maps a
-content type to a shorter policy (the search index keeps a few recent states),
-set when the type is registered with the server or by an administrator; the
-server runs no type modules, so it learns nothing else. A type's policy never
+content type to a shorter policy (the search index keeps a few recent states).
+The table is built into the server, next to the content-type constants it
+already knows (`SETTINGS_TYPE`, `SEARCH_INDEX_TYPE` in `be-block-graph`): the
+server runs no type modules and has no type registration, so no protocol
+call or setting fills it. A type's policy never
 keeps less than the organization's `history_kept_for`.
 
 - **Done**: a server test publishes a run of commits to a block of a type with
@@ -88,8 +90,11 @@ that per chunk).
   scope does not rewrap old data keys a device cannot open
   (guides/blocks/keys.md, "Not built yet"); today that only closes old
   history, but with lazy rekeying the head needs those keys, so a moved block
-  would become unreadable in its new scope. Rewrap every epoch the block keeps
-  first.
+  would become unreadable in its new scope. Rewrap, on a move, every epoch the
+  head's parts are sealed under (a device that can read the head holds them);
+  older epochs stay closed to the new scope, as today. Done: a test rotates a
+  block, saves without resealing, moves it into another scope, and a member
+  of the new scope reads the head.
 - Delete `Vault::stale_parts`, `reseal` and the stale-part fetch in
   `Peer::write_content`. A subtree then mixes keys, so `Vault::sealed_under`
   changes, and a rekey's forced seal writes only the parts it changes.

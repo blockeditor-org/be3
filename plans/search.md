@@ -2,8 +2,8 @@
 
 Depends on: plans/search_library.md; plans/large_blocks.md steps 1 to 4 (the
 operation that adds a part by its hash, `merge3` over parts, per-type
-retention, lazy rekeying); plans/command_palette.md (quick open, which search
-fills with results).
+retention, lazy rekeying); plans/command_palette.md for step 4 only (quick
+open, which search fills with results).
 
 Full-text search over names and content. The server never reads content
 (guides/the_new_block_stack.md, goal 5), so clients build the index, encrypt
@@ -30,7 +30,8 @@ it like any block, and search it locally. `plans/deferred/daily_driver.md`
 - **Scope**: only the open organization, never the trash.
 
 A query fans out over the indexes of every root the account can view in the
-open organization, merges by block (the newer indexed commit wins), and drops
+open organization, merges by block (where two indexes hold different commits of a block, a
+descendant wins, otherwise the later commit time), and drops
 any block the mirror says the account can no longer view (an index can lag a
 move or a revocation).
 
@@ -46,8 +47,15 @@ move or a revocation).
   index, View gives View. Its own grants and authorship never raise that.
   Never `ANYONE_INSIDE`: a block shared alone must not read the whole tree's
   text through it. `level_below` in `be-block-graph`.
-- **One per root.** The server refuses a second `SEARCH_INDEX` reference on a
-  root, and creating or dropping the reference needs Edit on the root.
+- **The server enforces it by type and parent**, since it cannot read defined
+  metadata: `SEARCH_INDEX_TYPE` is a constant in `be-block-graph` beside
+  `SETTINGS_TYPE`, a block of that type under a root takes its access from the
+  root as above, the server refuses a second one under the same root, and
+  creating, moving or dropping it needs Edit on the root (checked like
+  `require_keeping_settings`). The `SEARCH_INDEX` key is only how clients
+  find it.
+- **Never indexed itself**: the indexer skips blocks of `SEARCH_INDEX_TYPE`
+  and the other metadata-held blocks (settings, edit kinds).
 - **A large block** (guides/blocks/content_types.md, "Parts"): `LOADS` is
   `Loads::FirstPart`, and the first part is a small header (the segment list,
   each segment's top-level dictionary, the watermark: the graph revision it
@@ -107,6 +115,9 @@ worker").
   `Search { text, within }` answering hits of block, document key, snippet and
   match ranges. Plain data, nothing beui-specific. `within` limits it to a
   block's subtree.
+- **Queries run in the host**, which links `be-lib-search` and reads the
+  index's parts natively; the index's type module only writes and merges it,
+  so there is no query request in the type protocol.
 - The host reads indexes on demand, never in full: each segment's term
   dictionary, then ranges of postings with `read-part`. What it read stays in
   the object store (`be-objects/`, the origin private file system on the web),

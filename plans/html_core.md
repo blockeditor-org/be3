@@ -25,11 +25,13 @@ ignored props are in plans/deferred/html_core.md.
 - **Themed scrollbars.** Every `Scroll` on HTML is a browser scroll element
   (unstyled `scroll.rs`,
   decisions/beui_html_scroll_uses_the_element_scroll_position.md), so every
-  styled scroll shows the browser's default scrollbar. Add a base-level prop on
-  the unstyled scroll (such as `scrollbar_colors`, a thumb and a track colour,
-  and a thin width) that it sets through the platform escape as
-  `scrollbar-color` and `scrollbar-width`, and have the styled scroll fill it
-  from theme tokens. Done: a painting of a styled scroll on the HTML core shows
+  styled scroll shows the browser's default scrollbar. The unstyled scroll
+  already takes `scrollbar: ScrollbarStyle`, which styled fills through
+  `scrollbar_style()`: carry the browser bar's thumb and track colours there
+  (reactive `Prop`s, so a theme change applies), set through the platform
+  escape as `scrollbar-color` and a thin `scrollbar-width`, and have
+  `scrollbar_style()` fill them from theme tokens. No second scrollbar prop.
+  Done: a painting of a styled scroll on the HTML core shows
   the theme's colours in light and dark.
 - **`TreeNode`'s text hooks.** `row_offset`, `texts_within`,
   `set_text_selection` and `set_text_selection_handles` do nothing on HTML
@@ -57,9 +59,3 @@ ignored props are in plans/deferred/html_core.md.
   stand-in dialog (`beui-demo/src/lib.rs`). Done: on the HTML core the button
   is disabled. A component tree view may come back later, in beui or as a
   browser extension.
-- **Prose layout through `measure_text`.** `TextAreaState::lay_out_prose` and
-  the `TextArea` rows still lay prose out through `Piece` and `RichOptions` from
-  `beui_view::types`, and the infinite canvas's export calls it too. Done: the
-  `TextArea` rows and the canvas export lay text out only through
-  `measure_text`/`lay_out_text`, and `Piece` and `RichOptions` are not imported
-  outside beui-view.

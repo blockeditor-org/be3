@@ -15,6 +15,7 @@ overlapping shapes inside a faded subtree show through each other natively.
 The level OSD, the dock's drop highlight and drag preview, and the split
 button's divider use it. The HTML core already fades the group as a whole
 (CSS `opacity`). Natively, composite the faded subtree offscreen first
-(beui-renderer-wgpu, with a group in `beui-paint-format`) and fade the result.
+(beui-renderer-wgpu, with a group in `beui-paint-format`, rasterized the same way
+by beui-paint-snapshot's `raster.rs`, which draws paintings) and fade the result.
 Damage still comes from the retained tree by identity. Done: a painting of
 two overlapping shapes in a faded frame shows no show-through.

@@ -19,3 +19,11 @@ Set aside until the user picks them up.
 - `Break`'s copy test across Firefox and WebKit
   (decisions/beui_break_copies_without_a_newline.md): the shared scripts run
   only in Chromium, and only Chromium is installed.
+- **Prose layout through `measure_text`.** `TextAreaState::lay_out_prose` and
+  the `TextArea` rows still lay prose out through `Piece` and `RichOptions` from
+  `beui_view::types`, and the infinite canvas's export calls it too. Deferred:
+  the canvas export lays out mixed runs (bold, links, inline rects)
+  offscreen, which `lay_out_text` (one string, one font) cannot, so moving it
+  needs a decision on one canonical rich-layout API; and `Piece` and
+  `RichOptions` live in beui-core and are used through `beui::text` by host
+  tests, the HTML core and be-host-runtime.
