@@ -84,15 +84,7 @@ command_alias(
 
 # starlark_fmt, the BUCK files' formatter, from the buck2 release
 # scripts/internal/pins pins. The release is a bare zstd stream, which
-# http_archive does not unpack and the worker has no zstd for, so Ubuntu's own
-# zstd is taken out of its package to do it.
-http_file(
-    name = "zstd.deb",
-    sha256 = "bb14385ff3d6df723a686778dc5f87849f720a0add261b5de9bcd4915a490b2a",
-    size_bytes = 644352,
-    urls = ["https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/libz/libzstd/zstd_1.5.5+dfsg2-2build1_amd64.deb"],
-)
-
+# http_archive does not unpack, so buck-tools does.
 http_file(
     name = "starlark_fmt.zst",
     sha256 = "7235fa17c2d937da5c509a7576049239a1aca854369863075cebf9ff181033ca",
@@ -102,7 +94,7 @@ http_file(
 
 genrule(
     name = "starlark_fmt",
-    cmd = "dpkg-deb -x $(location :zstd.deb) $TMP/zstd && $TMP/zstd/usr/bin/zstd -dq $(location :starlark_fmt.zst) -o $OUT && chmod +x $OUT",
+    cmd = "$(exe //crates/be-tool-buck:bin) unzstd $(location :starlark_fmt.zst) $OUT",
     executable = True,
     out = "starlark_fmt",
     visibility = ["PUBLIC"],

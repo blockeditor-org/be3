@@ -10,6 +10,7 @@ pub mod resolve;
 pub mod rust_project;
 mod starlark;
 pub mod unpinned;
+pub mod unzstd;
 
 use std::process::Command;
 
