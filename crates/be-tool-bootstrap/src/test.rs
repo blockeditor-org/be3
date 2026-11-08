@@ -44,11 +44,7 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
         for krate in crates {
             let rules =
                 std::fs::read_to_string(repository().join(&krate).join("BUCK")).unwrap_or_default();
-            let has_test = rules.lines().any(|line| {
-                ["cargo_test(", "app(", "app_tests("]
-                    .iter()
-                    .any(|rule| line.starts_with(rule))
-            });
+            let has_test = has_test_target(&rules);
             if !has_test {
                 eprintln!(
                     "Skipping {krate}: it holds a test whose name contains '{name}' but has no :test target in its BUCK."
@@ -106,6 +102,21 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
+    })
+}
+
+/// Whether a crate's BUCK makes a :test: cargo_test, an app's or app_tests'
+/// wasm tests, or a macro that makes one unless told `test = False`
+/// (buck/cargo/defs.bzl, buck/wasm/defs.bzl).
+pub fn has_test_target(rules: &str) -> bool {
+    rules.lines().any(|line| {
+        ["cargo_test(", "app(", "app_tests(", "game_module("]
+            .iter()
+            .any(|rule| line.starts_with(rule))
+            || (["cargo_crate(", "type_module("]
+                .iter()
+                .any(|rule| line.starts_with(rule))
+                && !line.contains("test = False"))
     })
 }
 

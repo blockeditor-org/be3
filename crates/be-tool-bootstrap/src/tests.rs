@@ -1,5 +1,6 @@
 use super::*;
 
+mod a_crate_has_a_test_target_unless_its_macro_is_told_not_to;
 mod a_test_is_named_by_its_module_path;
 mod cksum_matches_posix;
 mod pins_read_shell_assignments;
