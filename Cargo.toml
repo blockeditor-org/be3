@@ -190,7 +190,7 @@ members = [
     "crates/tabletop-rules-crazy-8s",
     "crates/tabletop-rules-tic-tac-toe",
     "crates/be-tool-terminal-emulator",
-    "crates/beui-terminal-view",
+    "crates/be-sdk-terminal",
     "crates/beui-text-editor-core",
     "crates/be-tool-tls-diamond-base",
     "crates/be-tool-tls-diamond-left",

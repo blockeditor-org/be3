@@ -21,7 +21,7 @@ that need a real terminal on a real machine, such as `claude`, from inside be-ho
   build output use it; viewers never do.
 - `crates/be-lib-ghostty-vt`: the Ghostty bindings. `struct_layouts_match_the_library` checks
   every bound struct against the library's own type description.
-- `crates/beui-terminal-view`: `TerminalView`, which draws lines and maps beui keys to
+- `crates/be-sdk-terminal`: `TerminalView`, which draws lines and maps beui keys to
   `TerminalKey`, knowing nothing of where lines come from.
 - `crates/be-app-terminal`: the editor, and the setup page shown while the block is empty and no
   host is connected.

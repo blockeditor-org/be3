@@ -939,10 +939,10 @@ name = "be-app-terminal"
 version = "0.1.0"
 dependencies = [
  "be-sdk-beui",
+ "be-sdk-terminal",
  "be-sdk-test",
  "be-type-terminal",
  "beui",
- "beui-terminal-view",
  "serde_json",
  "uuid",
 ]
@@ -1841,6 +1841,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-sdk-terminal"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-type-terminal",
+ "beui",
+]
+
+[[package]]
 name = "be-sdk-test"
 version = "0.1.0"
 dependencies = [
@@ -2127,12 +2136,12 @@ name = "be-tool-launcher"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "be-sdk-terminal",
  "be-sdk-test",
  "be-tool-terminal-emulator",
  "be-type-terminal",
  "beui",
  "beui-host",
- "beui-terminal-view",
  "comrak",
  "image",
  "jni 0.22.4",
@@ -3147,15 +3156,6 @@ dependencies = [
  "beui-core",
  "beui-types",
  "raw-window-handle",
-]
-
-[[package]]
-name = "beui-terminal-view"
-version = "0.1.0"
-dependencies = [
- "be-block",
- "be-type-terminal",
- "beui",
 ]
 
 [[package]]
