@@ -210,7 +210,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
             if part not in tests:
                 fail("apart_env names {}, which is not a file under src/tests/".format(part))
         for part in tests:
-            be_test(name = "{}-{}".format(name, part), args = ["tests::{}::".format(part)], env = run_env | apart_env.get(part, {}), **test)
+            be_test(name = "{}-{}".format(name, part), args = ["--exact", "tests::{}::{}".format(part, part)], env = run_env | apart_env.get(part, {}), **test)
             parts[part] = ":{}-{}".format(name, part)
     be_test(name = name, env = run_env, parts = parts, **test)
 

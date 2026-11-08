@@ -1,6 +1,7 @@
 load("//buck/dev:test.bzl", "TestRunInfo")
 
-# ./scripts/test, in one buck2 command: each :test it names, run as an action on
+# ./scripts/test --update, in one buck2 command (a plain ./scripts/test is
+# buck2 test, crates/be-tool-bootstrap/src/test.rs): each :test it names, run as an action on
 # a worker with libtest's --nocapture and the name to filter by, so that what
 # comes back is the test's output and the paintings it accepted rather than its
 # binary and everything it reads. A test that passed and whose inputs have not

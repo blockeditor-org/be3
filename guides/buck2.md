@@ -152,10 +152,12 @@ through crates/be-tool-run-test, which gives it a short `TMPDIR` of its own, its
 `TestRunInfo` says what it runs. buck2 test runs it again every time unless a worker ran it and
 the build server caches the result (`supports_test_execution_caching`), and brings back no
 files, so each `:test` also has `[run]`, the same command as an action, cached like any other;
-`./scripts/verify` builds those. `./scripts/test` runs each `:test` as an action too, through
-`buck/dev/test.bxl` with the launcher's `--record`, and downloads only its output, exit status
-and accepted paintings (`buck2 test` would download the binary and everything it reads, and
-prints a passing test's output nowhere).
+`./scripts/verify` builds those. `./scripts/test` runs `buck2 test` with
+`-- --test-arg --nocapture NAME` (`--test-arg` takes everything after it) and an `--event-log`,
+whose `TestResult` events hold every test's whole output, a passing one's too, which the console
+leaves out; it prints each from there. Under `--update` it runs each `:test` as an action
+instead, through `buck/dev/test.bxl` with the launcher's `--record`, and copies the paintings it
+accepted from that action's output, which `buck2 test` brings back none of.
 
 - **App tests** are the crate's tests compiled to wasm and run by `be-sdk-test-runner`; they
   read and write only their crate's `snapshots/`, so one crate's paintings leave others cached.

@@ -18,9 +18,10 @@ Where code belongs:
   `./scripts/verify` and `./scripts/ci`, and `crates/be-tool-local` for the rest
   (`ci` for the Android builds and paint previews, `deploy`, `fuzz`), each built
   for this machine in that same command (guides/buck2.md), except for
-  `./scripts/test`, which only prints what each test's action kept and copies
-  the paintings it accepted, so the bootstrap does that and nothing is
-  downloaded to run it;
+  `./scripts/test`, which only prints the output `buck2 test` wrote into its
+  event log, or under `--update` what each test's action kept and the
+  paintings it accepted, so the bootstrap does that and nothing is downloaded
+  to run it;
 - inside an action on a worker: a tool the action depends on, built by buck2.
 
 A command is one buck2 invocation, which the bootstrap runs;

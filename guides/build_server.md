@@ -53,6 +53,8 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches the server through
   running action (`broke off ..., making it again` in its log), and buck2 sees nothing.
 - **`the proxy answered 401 Unauthorized`**: the session has no key for that server
   (`credentials missing`) or a refused one (`invalid token`).
+- **A test's output**: `./scripts/test` prints it from the `--event-log` buck2 test wrote to
+  `target/test-events.json-lines`; when nothing ran, what buck2 said is in `target/test.log`.
 - **A test that hangs**: a test run is stopped after `TEST_TIME_LIMIT` (buck/dev/test.bzl);
   libtest's `has been running for over 60 seconds` line names it. Build the binary with
   `./scripts/buck build //crates/X:test --show-full-output` and run it here with a name filter

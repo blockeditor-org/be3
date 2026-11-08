@@ -238,7 +238,8 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   which has every library once for all of them. Staging a host per test with its own binary and
   libraries took 800 MB each.
 - Each file under src/tests/ is its own `:test-<file>` (`run_apart`), which `./scripts/test`
-  picks by name.
+  picks by name; it runs its one test with `--exact`, so the name `./scripts/test` adds as a
+  filter runs nothing else.
 - These tests take a second or two each and run in parallel, each as its own action, so a
   failing test loses only its own paintings. Use them for what only the host shows; test an
   editor's own behaviour in its crate.

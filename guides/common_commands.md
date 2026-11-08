@@ -84,7 +84,7 @@ An agent shows a visual change with a painting (guides/testing_a_gui.md).
 | `./scripts/test //crates/be-app-desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
 | `./scripts/buck run //crates/be-host:native` | the host, with every app beside it |
 | `./scripts/test //crates/be-host-tests:test [--update]` | the host tests: be-host headless with the editors each test names, driven and painted as a whole |
-| `./scripts/buck test //crates/be-lib-geometry:test` | one crate's tests through buck2 test, which prints only a failing test's output; `build //crates/be-lib-geometry:test[run]` is the action verify runs, and `build //crates/be-lib-geometry:fix` the crate's autofixes |
+| `./scripts/buck test //crates/be-lib-geometry:test` | one crate's tests through buck2 test, which prints only a failing test's output (`./scripts/test` runs the same and prints every test's); `build //crates/be-lib-geometry:test[run]` is the action verify runs, and `build //crates/be-lib-geometry:fix` the crate's autofixes |
 | `./scripts/buck build //crates/be-host:native-dist --out DIR` | a platform's release of the host; `//crates/be-server-bin:dist` is the server's |
 | `./scripts/buck build //crates/be-host:apps --out DIR` | the apps alone, shared by every platform |
 | `./scripts/buck build //crates/be-host:web --out DIR` | the web bundle with every app (`:web-dist` without) |
