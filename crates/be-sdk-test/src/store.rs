@@ -293,6 +293,12 @@ impl Inner {
                     &Err("commits here have no parts".to_owned()),
                 );
             }
+            Call::PutPart { reply, .. } => {
+                reply.send(
+                    &mut self.host,
+                    &Err("commits here have no parts".to_owned()),
+                );
+            }
             Call::ResumeSession { reply, local } => {
                 let head = block
                     .and_then(|block| self.blocks.get(&block))

@@ -198,6 +198,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         &admin.connection(),
         image_block,
         vec![early_hash],
+        be_block_protocol::Hold::Lasting,
     ))
     .await
     .unwrap_err();

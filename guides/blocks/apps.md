@@ -64,7 +64,10 @@ editor reads the rest with `LiveContent::read_range(offset, length, done)`,
 which sends `FromEditor::Read { token, offset, length }`; the replica answers
 `ToEditor::Range { token, result }` from the parts it holds, unsaved ones
 included, and the type module's `read-part` host call for the parts it left in
-the store (guides/type_modules.md). Offsets are into the whole stored form.
+the store (guides/type_modules.md). `FromEditor::PutPart { token, bytes }`
+goes the other way: the replica puts the bytes as a part of the block and
+answers `ToEditor::PartPut { token, result }` with its ref, for an operation
+to name (guides/type_modules.md, "Parts named by hash"). Offsets are into the whole stored form.
 A blob editor uses `ContentProjection::payload()` instead, a signal of the
 payload that reads it once per snapshot (so a header edit reads nothing) and
 holds what a host-made snapshot already carried.

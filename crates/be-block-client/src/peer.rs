@@ -784,6 +784,15 @@ impl<S: ObjectStore> Peer<S> {
         let key = self.sealing_key(block).await?;
         let parts = parts.into();
         let vault = self.commits.vault();
+        // A reused part this device never read (one another device put) names its key in its
+        // top object alone: fetch those first, so only a part sealed under another key is
+        // fetched whole.
+        let tops: Vec<Hash> = vault
+            .stale_parts(key, &parts)?
+            .iter()
+            .map(|part| part.hash())
+            .collect();
+        self.fetch(&tops).await?;
         let stale = vault.stale_parts(key, &parts)?;
         for part in stale {
             let manifest = Manifest {
@@ -1515,7 +1524,10 @@ impl<S: ObjectStore> Peer<S> {
         let mut room = CARRIED_BYTES;
         let mut carried = Vec::with_capacity(hashes.len());
         for hash in hashes {
-            let bytes = store.get(hash)?.ok_or(ClientError::MissingObject(hash))?;
+            // A part another device put (`put_part`) is on the server and maybe not here.
+            let Some(bytes) = store.get(hash)? else {
+                return Ok(None);
+            };
             if bytes.len() > room {
                 return Ok(None);
             }
@@ -1525,13 +1537,39 @@ impl<S: ObjectStore> Peer<S> {
         Ok(Some(carried))
     }
 
-    pub async fn hold(&self, block: Uuid, objects: &[Hash]) -> Result<(), ClientError> {
+    /// Uploads the objects among `objects` the server lacks and has `block` hold them all.
+    pub async fn hold(
+        &self,
+        block: Uuid,
+        objects: &[Hash],
+        hold: be_block_protocol::Hold,
+    ) -> Result<(), ClientError> {
         if objects.is_empty() {
             return Ok(());
         }
         self.push(objects).await?;
-        client::objects::hold_objects(&self.connection(), block, objects.to_vec()).await??;
+        client::objects::hold_objects(&self.connection(), block, objects.to_vec(), hold).await??;
         Ok(())
+    }
+
+    /// Seals `bytes` as a part of `block` under its current key and uploads it, held for the
+    /// block until a commit that uses it publishes (`host.put-part` in be-sdk-type-api), so an
+    /// operation can name it by its ref and every replica save a commit that reuses it.
+    pub async fn put_part(
+        &self,
+        block: Uuid,
+        bytes: &[u8],
+    ) -> Result<be_block_store::PartRef, ClientError> {
+        let key = self.sealing_key(block).await?;
+        let vault = self.commits.vault();
+        let manifest = vault.write(key, Uuid::nil(), Part::from(bytes))?;
+        let part = manifest
+            .root
+            .ok_or_else(|| ClientError::Encoding("a part needs at least one byte".to_owned()))?;
+        let objects = vault.objects(&manifest)?;
+        self.hold(block, &objects, be_block_protocol::Hold::UntilCommitted)
+            .await?;
+        Ok(part)
     }
 
     pub fn watch(&self, block: Uuid) {

@@ -3,8 +3,8 @@ use be_block_graph::{
     ANYONE_INSIDE, Access, BlockGraph, BlockNode, BlockParent, ObjectRefs, SETTINGS_TYPE,
 };
 use be_block_protocol::{
-    AccessEntry, AccessList, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet, ObjectChange,
-    OrganizationRole, ReferenceChange,
+    AccessEntry, AccessList, BlockSummary, ErrorCode, HistoryEntry, Hold, KeyKind, KeySet,
+    ObjectChange, OrganizationRole, ReferenceChange,
 };
 use be_block_store::Hash;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -677,6 +677,10 @@ impl ServerStore {
                 let mut refs = store.object_refs();
                 refs.retain(&held);
                 persist_refs(&transaction, &refs, &held)?;
+                // The commit now holds what the block held until one did, so this frees and
+                // uncharges nothing.
+                release_committed(&transaction, &mut refs, identity.organization, block, &held)?;
+                std::mem::drop(refs);
                 graph.add_size(block, grew, true)?;
                 persist_sizes(
                     &transaction,
@@ -896,8 +900,13 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
         objects: Vec<Hash>,
+        hold: Hold,
     ) -> Result<(), ServerError> {
         self.confirm_uploads(identity, objects.clone()).await?;
+        let since = match hold {
+            Hold::Lasting => None,
+            Hold::UntilCommitted => Some(be_block_commit::now_milliseconds()),
+        };
         self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             store.require_holdable(graph, database, identity, &objects, "held")?;
@@ -906,13 +915,35 @@ impl ServerStore {
             let organization = identity.organization.to_string();
             let mut fresh = Vec::new();
             for hash in objects {
-                let inserted = transaction.execute(
-                    "INSERT OR IGNORE INTO block_objects (organization_id, block_id, hash)
-                     VALUES (?1, ?2, ?3)",
-                    params![organization, block.to_string(), hash.to_hex()],
-                )?;
-                if inserted > 0 {
-                    fresh.push(hash);
+                let held: Option<Option<i64>> = transaction
+                    .prepare_cached(
+                        "SELECT held_since FROM block_objects
+                         WHERE organization_id = ?1 AND block_id = ?2 AND hash = ?3",
+                    )?
+                    .query_row(
+                        params![organization, block.to_string(), hash.to_hex()],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+                match held {
+                    None => {
+                        transaction.execute(
+                            "INSERT INTO block_objects (organization_id, block_id, hash, held_since)
+                             VALUES (?1, ?2, ?3, ?4)",
+                            params![organization, block.to_string(), hash.to_hex(), since],
+                        )?;
+                        fresh.push(hash);
+                    }
+                    // A lasting hold outlasts any other, and holding again extends a hold.
+                    Some(None) => {}
+                    Some(Some(held)) => {
+                        let extended = since.map(|since| since.max(held));
+                        transaction.execute(
+                            "UPDATE block_objects SET held_since = ?4
+                             WHERE organization_id = ?1 AND block_id = ?2 AND hash = ?3",
+                            params![organization, block.to_string(), hash.to_hex(), extended],
+                        )?;
+                    }
                 }
             }
             let grew = store.charge_holding(graph, &transaction, &holding)?;
@@ -930,6 +961,80 @@ impl ServerStore {
             Ok(())
         })
         .await
+    }
+
+    /// Ends the `until-committed` holds past their grace (`hold_objects`), uncharging their
+    /// blocks, and deletes what nothing holds any more. Answers how many objects it deleted.
+    pub(crate) async fn collect_holds(&self) -> Result<usize, ServerError> {
+        let grace = i64::try_from(self.upload_grace().as_millis()).unwrap_or(i64::MAX);
+        let cutoff = be_block_commit::now_milliseconds().saturating_sub(grace);
+        let organizations: Vec<Uuid> = self
+            .with_database(move |_, database| {
+                let mut statement = database.prepare(
+                    "SELECT DISTINCT organization_id FROM block_objects
+                     WHERE held_since IS NOT NULL AND held_since <= ?1",
+                )?;
+                let rows = statement.query_map([cutoff], |row| row.get::<_, String>(0))?;
+                rows.map(|row| parse_uuid(&row?)).collect()
+            })
+            .await?;
+        let mut deleted = 0;
+        for organization in organizations {
+            deleted += self
+                .with_graph(organization, move |store, graph, database| {
+                    let mut expired: BTreeMap<Uuid, Vec<Hash>> = BTreeMap::new();
+                    {
+                        let mut statement = database.prepare(
+                            "SELECT block_id, hash FROM block_objects
+                             WHERE organization_id = ?1 AND held_since IS NOT NULL
+                               AND held_since <= ?2",
+                        )?;
+                        let rows = statement.query_map(
+                            params![organization.to_string(), cutoff],
+                            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                        )?;
+                        for row in rows {
+                            let (block, hash) = row?;
+                            expired
+                                .entry(parse_uuid(&block)?)
+                                .or_default()
+                                .push(Hash::from_hex(&hash).ok_or(ServerError::Corrupt)?);
+                        }
+                    }
+                    let transaction = database.unchecked_transaction()?;
+                    let mut refs = store.object_refs();
+                    let mut released = Vec::new();
+                    let mut freed = Vec::new();
+                    for (block, hashes) in &expired {
+                        for hash in hashes {
+                            transaction.execute(
+                                "DELETE FROM block_objects
+                                 WHERE organization_id = ?1 AND block_id = ?2 AND hash = ?3",
+                                params![organization.to_string(), block.to_string(), hash.to_hex()],
+                            )?;
+                        }
+                        freed.extend(refs.release(hashes));
+                        released.extend(hashes.iter().copied());
+                    }
+                    persist_refs(&transaction, &refs, &released)?;
+                    std::mem::drop(refs);
+                    for (block, hashes) in &expired {
+                        if !graph.contains(*block) {
+                            continue;
+                        }
+                        let shrank =
+                            store.release_charged(&transaction, graph, organization, *block, hashes)?;
+                        graph.add_size(*block, shrank, false)?;
+                        persist_sizes(&transaction, graph, organization, chain(graph, *block))?;
+                    }
+                    let freed = forget_objects(&transaction, &freed)?;
+                    transaction.commit()?;
+                    store.objects().remove_freed(&freed);
+                    Ok(freed.len())
+                })
+                .await?;
+        }
+        Ok(deleted)
     }
 
     pub async fn set_parent(
@@ -1706,6 +1811,46 @@ fn release_commit(
     let freed = refs.release(&held);
     persist_refs(connection, refs, &held)?;
     Ok((held, freed))
+}
+
+/// Ends the block's `until-committed` holds of objects among `held`, which a commit of it now
+/// holds.
+fn release_committed(
+    connection: &Connection,
+    refs: &mut ObjectRefs,
+    organization: Uuid,
+    block: Uuid,
+    held: &[Hash],
+) -> Result<(), ServerError> {
+    let pending = {
+        let mut statement = connection.prepare_cached(
+            "SELECT hash FROM block_objects
+             WHERE organization_id = ?1 AND block_id = ?2 AND held_since IS NOT NULL",
+        )?;
+        let rows = statement.query_map(
+            params![organization.to_string(), block.to_string()],
+            |row| row.get::<_, String>(0),
+        )?;
+        rows.map(|row| Hash::from_hex(&row?).ok_or(ServerError::Corrupt))
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    if pending.is_empty() {
+        return Ok(());
+    }
+    let held: HashSet<Hash> = held.iter().copied().collect();
+    let taken: Vec<Hash> = pending
+        .into_iter()
+        .filter(|hash| held.contains(hash))
+        .collect();
+    for hash in &taken {
+        connection.execute(
+            "DELETE FROM block_objects WHERE organization_id = ?1 AND block_id = ?2 AND hash = ?3",
+            params![organization.to_string(), block.to_string(), hash.to_hex()],
+        )?;
+    }
+    refs.release(&taken);
+    persist_refs(connection, refs, &taken)?;
+    Ok(())
 }
 
 fn release_held(

@@ -138,9 +138,38 @@ host owes a replica (the WIT documents each call):
   editor's `Read` uses outside that one-answer rule (guides/blocks/apps.md,
   "Reading a range"). `written` carries the parts a save keeps as they were as
   `reused`, so such a replica saves without the bytes it never loaded.
+  `put-part` uploads bytes as a part of the block before an operation names
+  it (below, "Parts named by hash").
 - **The lease, relaying and reports.** The host passes on the session's lease
   state, relays `send`s to peers or editors, and stores what the replica
   reports (status, description, history, conflicts, errors).
+
+### Parts named by hash
+
+An operation can carry a part by its ref instead of its bytes: chat closing a
+segment, the search index's writer adding one, an edit too large to relay.
+The sender calls `put-part(bytes)`, which seals the bytes under the block's
+current key, uploads them and has the server hold them for the block
+(`hold-objects` with `hold.until-committed`: until a commit of the block that
+uses them publishes, or `upload_grace` passes), and answers the `part-ref`
+once the upload is done. Only then does it send the operation, with that ref
+(a `be_block::PartRef`) in its own payload. An editor asks with
+`EditorMirror::put_part` (`FromEditor::PutPart`, answered `ToEditor::PartPut`
+under its token); a replica asks for itself with `Effect::PutPart`.
+
+Each replica that applies the operation keeps the part in its parts as
+`Part::Reused`, so whoever commits next saves a manifest reusing it, uploading
+nothing (the server holds it, so `missing-objects` names none of it) and
+downloading only its top object, to learn its key. A type that only keeps the
+part (the search index) never reads it. A type that can rebuild the bytes
+(chat) puts a hash of them in the operation, rebuilds them on applying it and
+keeps them when they match, answering reads of the part from
+`BlockContent::reused_bytes`; when its encoding differs (another build) it
+keeps nothing and reads go to `read-part`. Such a type loads only its first
+part (`Loads::FirstPart`), so `encode` never needs the bytes. Hosts:
+`Peer::put_part`; be-sdk-test's store and editors attached read-only refuse.
+`be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` is the
+flow.
 
 ## Peers
 

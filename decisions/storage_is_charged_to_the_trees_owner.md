@@ -20,7 +20,8 @@ Every block has a payer, stored on its row (`blocks.payer`):
 - An account is charged once for each distinct object across the blocks it
   pays for (`account_objects`), and for every object those blocks hold: each
   version they keep, not only the head, and what they hold with
-  `HoldObjects`.
+  `HoldObjects` (a `put-part`'s hold only until a commit takes it or the
+  upload grace passes).
 - An upload is charged to its uploader's payer until one of the uploader's own
   publishes or holds uses it, or it is collected after
   `ServerConfig::upload_grace` (with the object, when no block holds it).

@@ -1346,12 +1346,13 @@ impl Client {
                 reply,
                 block,
                 objects,
+                hold,
             } => {
                 let held = async {
                     prelude?;
                     connection
                         .store
-                        .hold_objects(connection.identity()?, block, objects)
+                        .hold_objects(connection.identity()?, block, objects, hold)
                         .await
                 }
                 .await;

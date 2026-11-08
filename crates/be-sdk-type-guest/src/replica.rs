@@ -104,6 +104,10 @@ pub(crate) enum Input {
         token: Token,
         result: Result<Vec<u8>, String>,
     },
+    PartPut {
+        token: Token,
+        result: Result<be_block::PartRef, String>,
+    },
     Resumed {
         token: Token,
         result: Result<Resume, String>,
@@ -404,6 +408,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     released: bool,
     reported: Reported,
     ranges: Vec<RangeRead>,
+    /// Parts editors asked to put, by the token of the host call: the editor and its token.
+    puts: BTreeMap<Token, (EditorId, u64)>,
     out: Vec<Effect>,
 }
 
@@ -425,6 +431,7 @@ where
         match input {
             Input::Read { token, result } => self.answer_read(token, result),
             Input::PartRead { token, result } => self.answer_part_read(token, result),
+            Input::PartPut { token, result } => self.answer_part_put(token, result),
             Input::Resumed { token, result } => self.answer_resume(token, result),
             Input::Head(
                 event @ (HeadEvent::Published { .. }
@@ -544,6 +551,7 @@ where
             released: false,
             reported: Reported::default(),
             ranges: Vec::new(),
+            puts: BTreeMap::new(),
             out: Vec::new(),
         }
     }
@@ -820,6 +828,7 @@ where
             Input::Head(_)
             | Input::Read { .. }
             | Input::PartRead { .. }
+            | Input::PartPut { .. }
             | Input::Resumed { .. } => {}
             Input::Lease {
                 session,
@@ -1840,7 +1849,29 @@ where
                 offset,
                 length,
             } => self.read_range(Reader::Editor { editor, token }, offset, length),
+            FromEditor::PutPart { token, bytes } if editable => {
+                let put = self.token();
+                self.out.push(Effect::PutPart {
+                    replica: self.id,
+                    token: put,
+                    bytes,
+                });
+                self.puts.insert(put, (editor, token));
+            }
+            FromEditor::PutPart { token, .. } => self.tell_editor(
+                editor,
+                &ToEditor::PartPut {
+                    token,
+                    result: Err("the editor is attached read-only".to_owned()),
+                },
+            ),
             FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_) => {}
+        }
+    }
+
+    fn answer_part_put(&mut self, put: Token, result: Result<be_block::PartRef, String>) {
+        if let Some((editor, token)) = self.puts.remove(&put) {
+            self.tell_editor(editor, &ToEditor::PartPut { token, result });
         }
     }
 
@@ -1876,7 +1907,14 @@ where
                     let to = usize::try_from(to).unwrap_or(usize::MAX);
                     planned.push(Err(bytes[from..to].to_vec()));
                 }
-                be_block::Part::Reused(part) => planned.push(Ok((*part, from, to - from))),
+                be_block::Part::Reused(part) => {
+                    let held = self.visible.reused_bytes(*part);
+                    let span = usize::try_from(from).ok().zip(usize::try_from(to).ok());
+                    match held.as_deref().zip(span).and_then(|(held, (from, to))| held.get(from..to)) {
+                        Some(bytes) => planned.push(Err(bytes.to_vec())),
+                        None => planned.push(Ok((*part, from, to - from))),
+                    }
+                }
                 be_block::Part::Node { .. } => {}
             }
         }
