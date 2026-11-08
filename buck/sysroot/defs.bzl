@@ -13,10 +13,9 @@ def _deb_lock_impl(ctx: AnalysisContext) -> list[Provider]:
     base = "https://snapshot.ubuntu.com/ubuntu/" + ctx.attrs.snapshot
     ctx.actions.run(
         cmd_args(
-            "sh",
-            ctx.attrs._script,
-            out.as_output(),
             ctx.attrs._resolver[RunInfo],
+            "resolve",
+            out.as_output(),
             base,
             [cmd_args(key.split("/")[-1], index, delimiter = "=") for key, index in sorted(ctx.attrs.indexes.items())],
             "--",
@@ -32,7 +31,6 @@ deb_lock = rule(
         "sets": attrs.dict(attrs.string(), attrs.tuple(attrs.string(), attrs.list(attrs.string()))),
         "snapshot": attrs.string(),
         "_resolver": attrs.default_only(attrs.exec_dep(default = "root//crates/be-tool-buck:bin", providers = [RunInfo])),
-        "_script": attrs.default_only(attrs.source(default = "root//buck/sysroot:deb_lock.sh")),
     },
     impl = _deb_lock_impl,
 )
@@ -103,7 +101,7 @@ _ARCH_PREFIXES = {
 }
 
 # The snapshot's package indexes, SUITE/COMPONENT/ARCHITECTURE to the sha256
-# and size of its Packages.xz, each a download of its own: a snapshot never
+# and size of its Packages.gz, each a download of its own: a snapshot never
 # changes, so they are pinned like everything else and downloaded once rather
 # than by every deb_lock action. The snapshot's dists/SUITE/InRelease lists
 # them, under SHA256.
@@ -114,7 +112,7 @@ def deb_indexes(snapshot, indexes):
             name = "index-{}-{}-{}".format(suite, component, architecture),
             sha256 = sha256,
             size_bytes = size_bytes,
-            urls = ["https://snapshot.ubuntu.com/ubuntu/{}/dists/{}/{}/binary-{}/Packages.xz".format(snapshot, suite, component, architecture)],
+            urls = ["https://snapshot.ubuntu.com/ubuntu/{}/dists/{}/{}/binary-{}/Packages.gz".format(snapshot, suite, component, architecture)],
         )
     return {key: ":index-" + key.replace("/", "-") for key in indexes}
 
