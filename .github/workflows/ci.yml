@@ -30,12 +30,6 @@ env:
   # Named here as well as being the default, so that a commit whose pinned
   # bootstrap defaults to another server builds here too.
   BE3_BUILD_SERVER: api.be3.pfg.pw
-  # TEMPORARY, remove in the commit after the autofix job pins the release this run
-  # publishes: this pull request changes how verify, tests, buckify and the lock
-  # step talk to the tree, which the bootstrap pinned before it cannot do, so this
-  # run builds the checkout's own bootstrap with cargo (guides/bootstrap.md,
-  # Recovery) to publish the one that can.
-  BE3_BOOTSTRAP: cargo
 
 # One job does the work: ci is ./scripts/ci, which verifies and on a pull
 # request renders the paint previews, and uploads what each of those produced.
