@@ -177,6 +177,7 @@ members = [
     "crates/be-lib-remap-module",
     "crates/be-lib-remap",
     "crates/beui-reactive-macros",
+    "crates/be-lib-search",
     "crates/be-lib-sequence",
     "crates/be-block-sqlite-schema",
     "crates/be-lib-stable-hash",

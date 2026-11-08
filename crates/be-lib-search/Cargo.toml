@@ -1,0 +1,16 @@
+[package]
+name = "be-lib-search"
+description = "A full-text index kept as immutable segments of bytes, read by range"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-lib-graphemes = { path = "../be-lib-graphemes" }
+caseless = "0.2"
+fst = "0.4"
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true

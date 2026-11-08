@@ -3,7 +3,8 @@ Extended grapheme clusters (UAX #29, https://www.unicode.org/reports/tr29/) at
 the Unicode version of icu_properties. This is the only grapheme segmenter:
 text-editor-core's cursor stops and beui-core's galley cursors both use it.
 It also holds the one word rule: text-editor-core's word stops and double
-click, and beui-view's selectable text, all use word_classes and word_around.
+click, and beui-view's selectable text, all use word_classes and word_around,
+and be-lib-search splits text into terms with words.
 
 A query is one byte offset, inside a scalar or not, and malformed UTF-8 is one
 U+FFFD per byte, as text-editor-core edits raw bytes. It reads only as far back
@@ -233,4 +234,26 @@ pub fn word_around(bytes: &[u8], index: usize, joined: impl Fn(usize) -> bool) -
         end = next;
     }
     (start, end)
+}
+
+/// The words of `bytes`, in order: maximal runs of clusters of the word class
+/// (the rule `word_around` uses), as byte ranges on cluster boundaries.
+pub fn words(bytes: &[u8]) -> impl Iterator<Item = std::ops::Range<usize>> + '_ {
+    let mut index = 0;
+    std::iter::from_fn(move || {
+        loop {
+            let (c, end) = cluster_after(bytes, index)?;
+            let start = index;
+            index = end;
+            if word_class(c) != WordClass::Word {
+                continue;
+            }
+            while let Some((c, end)) = cluster_after(bytes, index)
+                && word_class(c) == WordClass::Word
+            {
+                index = end;
+            }
+            return Some(start..index);
+        }
+    })
 }
