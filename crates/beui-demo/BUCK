@@ -1,6 +1,8 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library", "cargo_package")
 load("@root//buck/program:drive.bzl", "headless")
 load("@root//buck/wasm:defs.bzl", "app_tests")
+
+cargo_package()
 
 cargo_library()
 

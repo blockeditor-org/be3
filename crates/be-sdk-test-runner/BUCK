@@ -1,4 +1,6 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_package")
+
+cargo_package()
 
 cargo_binary()
 

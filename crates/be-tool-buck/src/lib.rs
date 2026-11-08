@@ -6,6 +6,7 @@ pub mod fix;
 pub mod generate;
 pub mod lint_gate;
 pub mod pdfium;
+pub mod plan;
 pub mod resolve;
 pub mod rust_project;
 pub mod stage;

@@ -98,7 +98,7 @@ An agent shows a visual change with a painting (guides/testing_a_gui.md).
 | `./scripts/buck run //crates/be-tool-paint-review-web:web -- 127.0.0.1:8075 DIR` | the page reviewing a pull request's paintings, serving the `HASH.json` lists and `HASH.webp` images in DIR beside it on http://127.0.0.1:8075/site/dev/index.html?changes=HASH |
 | `./scripts/buck run //:fuzz` | every fuzz target, taking turns with every core (`BE3_FUZZ_SLICE` seconds each, 600 by default), until it is stopped |
 | `./scripts/buck run //crates/be-lib-sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
-| `./scripts/buck run //:buckify` | brings `Cargo.lock` and `buck/cargo/crates.bzl` up to date with the manifests (the bootstrap's lock step, then the plans on a worker) |
+| `./scripts/buckify` | brings `Cargo.lock` and the crates' facts (each `crates/<crate>/PACKAGE`, `buck/cargo/members.bzl`, `third-party/rust/crates.bzl`) up to date with the manifests (the bootstrap's lock step, then the plans on a worker); `BE3_BOOTSTRAP=source` until a bootstrap with it is pinned |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:pdfium -- REVISION` | regenerates `third-party/pdfium/sources.bzl` from PDFium's GN build at REVISION (a commit, or a branch such as `chromium/8046`), which is how PDFium is updated; it checks PDFium and its DEPS out under `target/pdfium` and needs git, curl and python3 |
 

@@ -1,6 +1,8 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_package", "cargo_test")
 load("@root//buck/platforms:profile.bzl", "released")
 load(":defs.bzl", "deploy")
+
+cargo_package()
 
 # What runs on this machine once a buck2 command has built what it needs,
 # built for this machine in that same command: `verify` for ./scripts/verify

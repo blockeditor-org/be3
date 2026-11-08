@@ -16,7 +16,8 @@ game is written and built once for desktop, Android and the browser.
 
 ## 1. Write the crate
 
-- `crates/tabletop-rules-foo/Cargo.toml` and `BUCK`: copy tic-tac-toe's. BUCK
+- `crates/tabletop-rules-foo/Cargo.toml` and `BUCK`: copy tic-tac-toe's, and run
+  `./scripts/buckify`. BUCK
   builds the crate natively for tests and for wasm32 as `:module`, and points
   the tests' `GAME_WASM` at that module.
 - `src/lib.rs`: the game, ending in `tabletop_api::game!("Foo", foo);` (the

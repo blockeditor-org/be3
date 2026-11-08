@@ -1,6 +1,8 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_package", "cargo_test")
 load("@root//buck/program:drive.bzl", "headless", "web_drive_test")
 load("@root//buck/wasm:defs.bzl", "web_library", "web_program")
+
+cargo_package()
 
 # Screens built for both of beui's cores, and src/drive/*.drive, scripts both
 # cores must answer the same way (guides/testing_a_gui.md, 7). The script's

@@ -1,4 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
 load("@root//buck/wasm:defs.bzl", "wasm_library")
+
+cargo_package()
 
 # One side of the thread-local diamond (guides/app_libraries.md, "Thread-locals").
 wasm_library(

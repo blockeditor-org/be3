@@ -1,4 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
 load("@root//buck/wasm:defs.bzl", "type_module")
+
+cargo_package()
 
 # The Audio app's block type: the content as a plain library, which the
 # editor and tests depend on, and :module, the type module the app runs it in

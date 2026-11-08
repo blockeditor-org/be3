@@ -1,3 +1,6 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
 load("@root//buck/wasm:defs.bzl", "game_module")
+
+cargo_package()
 
 game_module()

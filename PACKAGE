@@ -5,7 +5,7 @@ load("//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("//buck/platforms:modifiers.bzl", "cfg_constructor_named")
 load("//buck/platforms:profile.bzl", "MODIFIERS")
 
-# Which platform a configuration is, by the names buck/cargo/crates.bzl keys
+# Which platform a configuration is, by the names the crates' facts key
 # cargo's plans by, which is how the third-party rules in third-party/rust pick
 # their features and dependencies.
 set_reindeer_platforms(select({"DEFAULT": None} | {setting: plan for plan, setting in PLAN_SETTINGS.items()}))

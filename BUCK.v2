@@ -3,17 +3,17 @@
 # default - cannot hold a file named BUCK beside the buck/ directory.
 
 load("//buck/cargo:buckify.bzl", "cargo_plan")
-load("//buck/cargo:crates.bzl", "crates")
+load("//buck/cargo:members.bzl", "members")
 load("//buck/dev:verify.bzl", "package_fix")
 
 # The root's own Starlark; every other package's :fix is its own.
 package_fix(starlark = ["BUCK.v2", "PACKAGE"])
 
-# buck/cargo/crates.bzl and Cargo.lock generated from the Cargo.toml files of
-# the crates it names (buck/cargo/buckify.bzl).
+# The crates' facts and Cargo.lock generated from the Cargo.toml files of the
+# crates the members index names (buck/cargo/buckify.bzl).
 cargo_plan(
     name = "cargo-plan",
-    crates = ["//{}:cargo-inputs".format(path) for path in crates],
+    crates = ["//{}:cargo-inputs".format(path) for path in members],
     lock = "Cargo.lock",
     manifest = "Cargo.toml",
 )
@@ -37,7 +37,6 @@ export_file(
 # buck/dev/verify.bxl, then crates/be-tool-verify, which reads what it built.
 #
 #   ./scripts/buck run //:fuzz
-#   ./scripts/buck run //:buckify [-- --check]
 #   ./scripts/buck run //:pdfium -- REVISION
 #   ./scripts/buck run //:rust-project
 
@@ -45,14 +44,6 @@ export_file(
 command_alias(
     name = "fuzz",
     args = ["$(location //crates/be-tool-local:bin)", "fuzz", "--all"],
-)
-
-command_alias(
-    name = "buckify",
-    args = [
-        "sh",
-        "$(location //buck/cargo:update.sh)",
-    ],
 )
 
 # third-party/pdfium/sources.bzl, from PDFium's GN build at REVISION

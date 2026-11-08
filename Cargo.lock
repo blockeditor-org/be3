@@ -2079,6 +2079,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-tool-cargo-offline"
+version = "0.1.0"
+dependencies = [
+ "be-lib-crate-pins",
+]
+
+[[package]]
 name = "be-tool-cli"
 version = "0.1.0"
 dependencies = [

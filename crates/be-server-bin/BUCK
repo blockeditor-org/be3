@@ -1,5 +1,7 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_package")
 load("@root//buck/program:defs.bzl", "html_host_program", "program")
+
+cargo_package()
 
 # The executable renders the account portal on beui's HTML core and embeds
 # be-server-portal-ui's hydration bundle, which it serves under /auth/assets/.

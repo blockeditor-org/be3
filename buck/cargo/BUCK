@@ -31,7 +31,8 @@ rust_sysroot(
     components = [":nightly-" + component for component in sorted(nightly_components)],
 )
 
-# The cargo buckify's action checks Cargo.lock with and builds buck-tools:
+# The cargo buckify's action checks Cargo.lock with, and builds be-tool-buck
+# with when buck2 cannot (buck/cargo/buckify.bzl):
 # rust-toolchain.toml's, the same one the workspace builds with and the
 # bootstrap's lock step brings Cargo.lock up to date with.
 configured_once(
@@ -98,14 +99,4 @@ cargo_install(
     visibility = ["PUBLIC"],
 )
 
-export_file(
-    name = "buckify.sh",
-    visibility = ["PUBLIC"],
-)
-
-export_file(
-    name = "update.sh",
-    visibility = ["PUBLIC"],
-)
-
-package_fix(exclude = ["crates.bzl"])
+package_fix(exclude = ["members.bzl"])

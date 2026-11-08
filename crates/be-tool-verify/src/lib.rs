@@ -28,10 +28,53 @@ struct Run {
 
 pub fn run() -> ExitCode {
     let mut arguments: Vec<String> = std::env::args().skip(1).collect();
+    if arguments.first().is_some_and(|first| first == "buckify") {
+        return buckify(&arguments[1..]);
+    }
     if arguments.first().is_some_and(|first| first == "verify") {
         arguments.remove(0);
     }
     main(arguments)
+}
+
+/// `buckify DIRECTORY [--check]`, which ./scripts/buckify runs on what
+/// buck/cargo/buckify.bxl generated: the files written into the checkout as
+/// ./scripts/verify writes them, or under --check, a failure if any differ.
+fn buckify(arguments: &[String]) -> ExitCode {
+    let (directory, check) = match arguments {
+        [directory] => (directory, false),
+        [directory, flag] if flag == "--check" => (directory, true),
+        _ => {
+            eprintln!("usage: verify buckify DIRECTORY [--check]");
+            return ExitCode::FAILURE;
+        }
+    };
+    let mut run = Run {
+        options: Options {
+            manifest: PathBuf::new(),
+            build_failed: false,
+            check,
+            lint: false,
+            app_tests: false,
+            previews: None,
+            bootstrap: None,
+            event_log: None,
+        },
+        built: Vec::new(),
+        failed: false,
+        stale_crates: false,
+    };
+    let stale = run.buckified(Path::new(directory), "./scripts/buckify");
+    if run.failed {
+        if check {
+            println!("Out of date with the Cargo.toml files; run ./scripts/buckify without --check.");
+        }
+        return ExitCode::FAILURE;
+    }
+    if !stale {
+        println!("The crates' facts and Cargo.lock were up to date.");
+    }
+    ExitCode::SUCCESS
 }
 
 fn main(arguments: Vec<String>) -> ExitCode {
@@ -75,7 +118,7 @@ fn main(arguments: Vec<String>) -> ExitCode {
             );
             if run.stale_crates {
                 println!(
-                    "buck/cargo/crates.bzl or Cargo.lock was out of date with the Cargo.toml files, so a crate may have lacked a dependency its manifest names: run ./scripts/verify{} again.",
+                    "The crates' facts or Cargo.lock were out of date with the Cargo.toml files, so a crate may have lacked a dependency its manifest names: run ./scripts/verify{} again.",
                     if run.options.check {
                         " without --check"
                     } else {
@@ -217,34 +260,62 @@ impl Run {
     }
 
     fn generated(&mut self) {
-        if let Some(generated) = self.built("buckify").first() {
-            // buckify's action has no network, so a lockfile that needs a
-            // crate crates.bzl does not download yet is left to the
-            // bootstrap's lock step, which runs before buck2 does
-            // (crates/be-tool-bootstrap/src/lock.rs).
-            if let Ok(why) = fs::read_to_string(generated.join("stale")) {
-                println!(
-                    "{}\nOut of date: Cargo.lock and buck/cargo/crates.bzl, and updating them needs the network, which the bootstrap's lock step does before buck2 runs: run ./scripts/verify{} again (a bootstrap pinned before that step has none: run it with BE3_BOOTSTRAP=cargo).",
-                    why.trim_end(),
-                    if self.options.check {
-                        " without --check"
-                    } else {
-                        ""
-                    }
-                );
-                self.failed = true;
-            } else {
-                let crates = self.update(
-                    &generated.join("crates.bzl"),
-                    Path::new("buck/cargo/crates.bzl"),
-                );
-                let lock = self.update(&generated.join("Cargo.lock"), Path::new("Cargo.lock"));
-                self.stale_crates = crates || lock;
-            }
+        if let Some(generated) = self.built("buckify").first().cloned() {
+            self.stale_crates = self.buckified(&generated, "./scripts/verify");
         }
         if let Some(lock) = self.built("sysroot").first() {
             self.update(lock, Path::new("buck/sysroot/packages.bzl"));
         }
+    }
+
+    /// Writes what buckify's action generated (buck/cargo/buckify.bzl) into
+    /// the checkout: every file under its files/ at its path, and deletes each
+    /// crate's generated PACKAGE it no longer has, a crate's that is gone. Says
+    /// whether anything was out of date. `again` is the command to run again
+    /// when the action could not generate them.
+    fn buckified(&mut self, generated: &Path, again: &str) -> bool {
+        // buckify's action has no network, so a lockfile that needs a crate
+        // the downloads do not pin yet is left to the bootstrap's lock step,
+        // which runs before buck2 does (crates/be-tool-bootstrap/src/lock.rs).
+        if let Ok(why) = fs::read_to_string(generated.join("stale")) {
+            println!(
+                "{}\nOut of date: Cargo.lock and third-party/rust/downloads.bzl, and updating them needs the network, which the bootstrap's lock step does before buck2 runs: run {again}{} again.",
+                why.trim_end(),
+                if self.options.check {
+                    " without --check"
+                } else {
+                    ""
+                }
+            );
+            self.failed = true;
+            return true;
+        }
+        let files = generated.join("files");
+        let mut stale = false;
+        let written = files_under(&files);
+        for path in &written {
+            stale |= self.update(&files.join(path), Path::new(path));
+        }
+        let crates = fs::read_dir("crates").into_iter().flatten().flatten();
+        for facts in crates.map(|entry| entry.path().join("PACKAGE")) {
+            let path = slashed(&facts);
+            let generated_here = fs::read_to_string(&facts)
+                .is_ok_and(|text| text.starts_with("# @generated by ./scripts/buckify"));
+            if !generated_here || written.contains(&path) {
+                continue;
+            }
+            stale = true;
+            if self.options.check {
+                println!("Out of date: {path}, a crate's facts with no Cargo.toml");
+                self.failed = true;
+            } else if fs::remove_file(&facts).is_ok() {
+                println!("Deleted {path}");
+            } else {
+                println!("Could not delete {path}");
+                self.failed = true;
+            }
+        }
+        stale
     }
 
     fn links(&mut self) {

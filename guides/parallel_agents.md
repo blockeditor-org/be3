@@ -27,7 +27,7 @@ the headless be-host.
   and reporting. A child whose verdict is to leave its work out pushes it anyway, for review.
 - Fast-forward when possible. Otherwise compare the files the child changed with those landed
   since its base (`git merge-base`, then `git diff --name-only` both ways); if they share none,
-  or only guides and generated files (`buck/cargo/crates.bzl`, `Cargo.lock`), and the rebase is
+  or only guides and generated files (the crates' facts, `Cargo.lock`), and the rebase is
   clean, rebase and land it yourself. Otherwise ask the child to rebase, rerun verify and push.
 - Since some landings are unverified, run verify on the integration branch every few landings,
   in its own worktree, in the background, and check `git status` afterwards: verify accepts
@@ -44,7 +44,7 @@ the headless be-host.
 
 - A cold verify can run over ten minutes with no output. Tell children to run it in the
   background with a 45-minute timeout; with less, they give up on an empty log.
-- After a `Cargo.toml` dependency change, the first verify regenerates `crates.bzl` and
+- After a `Cargo.toml` dependency change, the first verify regenerates the crates' facts and
   `Cargo.lock` and fails; rerun it.
 - `./scripts/test` caches results, so rerunning a test proves nothing about flakiness; loop it
   within one run, and say how a flake was counted.

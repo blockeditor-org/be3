@@ -1,5 +1,7 @@
-load("@root//buck/cargo:defs.bzl", "game_packages")
+load("@root//buck/cargo:defs.bzl", "cargo_package", "game_packages")
 load("@root//buck/wasm:defs.bzl", "app")
+
+cargo_package()
 
 # The tests play real games, so they are compiled against the modules those
 # games build. Every game is staged beside the app as this app's data,

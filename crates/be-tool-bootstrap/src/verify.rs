@@ -55,7 +55,7 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         unsafe { std::env::set_var("BE3_VERBOSE", "1") };
     }
 
-    // Before buck2, which reads crates.bzl's downloads from the start.
+    // Before buck2, which reads the downloads from the start.
     lock::ensure(has("--check"))?;
     lock::check_members()?;
     let buck2 = buck::prepare()?;

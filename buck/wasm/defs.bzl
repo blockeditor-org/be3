@@ -365,8 +365,8 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
 # third-party ones are each compiled at their own opt level (OPT_LEVELS in
 # buck/platforms/profile.bzl).
 #
-# An app with examples/ is built for the host too (buck/cargo/buckify.sh
-# plans it there), as the library named after its package, and each
+# An app with examples/ is built for the host too (PLANS in
+# crates/be-tool-buck/src/plan.rs plans it there), as the library named after its package, and each
 # examples/NAME.rs is :example-NAME on the host, such as a benchmark that
 # drives the editor through be-sdk-test.
 def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], types = None, libraries = None):

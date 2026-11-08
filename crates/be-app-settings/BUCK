@@ -1,4 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
 load("@root//buck/wasm:defs.bzl", "app")
+
+cargo_package()
 
 # The remapper the input remaps blocks name is this app's data, remapper.wasm,
 # which be-host runs on a Linux session's input (guides/desktop/login_session.md, Input remaps).

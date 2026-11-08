@@ -1,5 +1,7 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_package", "cargo_test")
 load(":defs.bzl", "bootstrap_dist")
+
+cargo_package()
 
 # What every script in scripts/ runs (scripts/internal/bootstrap.sh downloads
 # the release scripts/internal/pins names). :dist is that release for every

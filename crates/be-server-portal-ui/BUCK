@@ -1,5 +1,7 @@
-load("@root//buck/cargo:defs.bzl", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_package", "cargo_test")
 load("@root//buck/wasm:defs.bzl", "web_library", "web_program")
+
+cargo_package()
 
 # be-server's account portal on beui's HTML core (guides/hosting.md): be-server
 # renders each page on the host with render(), and :assets, which be-server's

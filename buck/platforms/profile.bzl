@@ -38,8 +38,8 @@ def keep_profile(incoming: PlatformInfo, target: PlatformInfo, refs: struct) -> 
     return with_modifiers(target, modifiers_of(incoming.configuration, [refs.release[ConstraintValueInfo]]))
 
 # Flags for cargo's dev profile alone, which is every build but a release one:
-# the [profile.dev.package] overrides in Cargo.toml, which crates.bzl carries
-# for each crate they name.
+# the [profile.dev.package] overrides in Cargo.toml, which the crates' facts
+# carry for each crate they name.
 def dev_only(flags):
     if not flags:
         return []

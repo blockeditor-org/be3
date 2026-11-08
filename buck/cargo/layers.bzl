@@ -1,7 +1,7 @@
 # Which crate families may depend on which (guides/repository.md), checked for
 # every workspace crate when its BUCK file loads (check_layers, which
-# buck/cargo/defs.bzl calls once per crate) from its dependencies in
-# crates.bzl, on every platform cargo planned it for. Only normal and build
+# cargo_package() in buck/cargo/defs.bzl calls) from its dependencies in its
+# facts (its PACKAGE), on every platform cargo planned it for. Only normal and build
 # dependencies are checked: dev-dependencies, which end-to-end tests use to
 # reach across the stack, are not.
 

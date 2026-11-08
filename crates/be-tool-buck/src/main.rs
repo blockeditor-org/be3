@@ -4,12 +4,12 @@ fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let Some((command, rest)) = arguments.split_first() else {
         eprintln!(
-            "usage: buck-tools generate|compile-fail|lint-gate|rust-project|resolve|apk|archive|pdfium|fix|unpinned|bundle|stage|unzstd ..."
+            "usage: buck-tools plan|compile-fail|lint-gate|rust-project|resolve|apk|archive|pdfium|fix|unpinned|bundle|stage|unzstd ..."
         );
         return ExitCode::FAILURE;
     };
     let result = match command.as_str() {
-        "generate" => be_tool_buck::generate::run(rest),
+        "plan" => be_tool_buck::plan::run(rest),
         "compile-fail" => be_tool_buck::compile_fail::run(rest),
         "lint-gate" => be_tool_buck::lint_gate::run(rest),
         "rust-project" => be_tool_buck::rust_project::run(rest),

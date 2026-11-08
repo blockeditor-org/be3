@@ -1,4 +1,6 @@
-load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_library", "cargo_package", "cargo_test")
+
+cargo_package()
 
 WIT = {
     "foreign_resources": {"//crates/be-wasm-ops:wit": "crates/be-wasm-ops"},

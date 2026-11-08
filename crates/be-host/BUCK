@@ -1,9 +1,11 @@
 load("@root//buck/android:defs.bzl", "android_apk")
-load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_package", "cargo_test")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/program:defs.bzl", "precompiled_apps", "program")
 load("@root//buck/program:drive.bzl", "headless")
 load("@root//buck/wasm:defs.bzl", "wasi_program_module", "web_library")
+
+cargo_package()
 
 # On Android be-host is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
