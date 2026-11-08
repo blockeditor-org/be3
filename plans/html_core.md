@@ -31,6 +31,9 @@ ignored props are in plans/deferred/html_core.md.
   (reactive `Prop`s, so a theme change applies), set through the platform
   escape as `scrollbar-color` and a thin `scrollbar-width`, and have
   `scrollbar_style()` fill them from theme tokens. No second scrollbar prop.
+  The browser's bar reserves a gutter, which the HTML core accepts as an
+  exception to decisions/beui_overlay_scrollbars.md; some layouts (dock and
+  window-manager tab bars) look off until that is dealt with later.
   Done: a painting of a styled scroll on the HTML core shows
   the theme's colours in light and dark.
 - **`TreeNode`'s text hooks.** `row_offset`, `texts_within`,

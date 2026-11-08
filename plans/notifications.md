@@ -80,8 +80,10 @@ block type can use; chat (plans/chat.md) is the first. Not implemented yet.
    with one AAR dependency and runs on the emulator.
 6. FCM on the server and Android. Done unattended: a server test sends to a
    fake FCM endpoint with a test service account and checks the request, and
-   the APK builds with the FCM client. Real delivery is blocked on the user's
-   Firebase project and its client config, which only the user can supply.
+   the APK builds with the FCM client. FCM stays off (the server offers only Web
+   Push without `--fcm-credentials`, the APK registers only through
+   UnifiedPush without a client config) until the user creates a Firebase
+   project and enables it later.
 7. Mute settings in the block menu, with a painting.
 
 ## Not planned here
