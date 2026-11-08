@@ -9,12 +9,8 @@ async fn objects_move_through_the_servers_own_s3_endpoint() {
     let text = large_text();
     phone.save(note, &TextBlock::of(&text), None).await.unwrap();
     let head = phone.summary(note).await.unwrap().head.unwrap();
-    let chunks = phone
-        .load_commit(head)
-        .await
-        .unwrap()
-        .manifest
-        .chunk_hashes();
+    let manifest = phone.load_commit(head).await.unwrap().manifest;
+    let chunks = phone.objects_of(&manifest).await.unwrap();
     let missing = crate::ask(be_block_protocol::client::objects::missing_objects(
         &phone.connection(),
         chunks.clone(),

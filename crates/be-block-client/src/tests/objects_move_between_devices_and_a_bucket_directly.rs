@@ -15,12 +15,8 @@ async fn objects_move_between_devices_and_a_bucket_directly() {
     let text = large_text();
     phone.save(note, &TextBlock::of(&text), None).await.unwrap();
     let head = phone.summary(note).await.unwrap().head.unwrap();
-    let chunks = phone
-        .load_commit(head)
-        .await
-        .unwrap()
-        .manifest
-        .chunk_hashes();
+    let manifest = phone.load_commit(head).await.unwrap().manifest;
+    let chunks = phone.objects_of(&manifest).await.unwrap();
     assert!(chunks.len() > 1);
     for chunk in &chunks {
         assert!(bucket.file(*chunk).exists(), "{chunk} is not in the bucket");

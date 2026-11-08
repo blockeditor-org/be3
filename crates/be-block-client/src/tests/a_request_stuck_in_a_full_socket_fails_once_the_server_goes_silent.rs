@@ -22,10 +22,10 @@ async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {
         be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"a commit")),
         None,
         Vec::new(),
-        Vec::new(),
+        be_block_protocol::ObjectChange::default(),
         0,
         false,
-        Vec::new(),
+        be_block_protocol::ReferenceChange::default(),
         Vec::new(),
         vec![vec![7; be_block_protocol::MAX_FRAME_BYTES - 1024]],
     ));
