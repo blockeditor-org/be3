@@ -1,6 +1,6 @@
 # The HTML core: larger directions
 
-Depends on: plans/html_core.md.
+Depends on: none.
 
 Set aside until the user picks them up.
 
