@@ -181,7 +181,9 @@ impl Instances {
         self.scoped(instance, true, &mut |visit| {
             call.visit_block_ids(&mut |id| visit(id))
         });
-        if self.previewing(instance) && !matches!(call, Call::ReadData { .. } | Call::ListData { .. }) {
+        if self.previewing(instance)
+            && !matches!(call, Call::ReadData { .. } | Call::ListData { .. })
+        {
             return self.refuse(call, OpError::Denied);
         }
         if !self.entries.contains_key(&instance) {

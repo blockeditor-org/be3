@@ -39,7 +39,10 @@ fn a_guest_stream_tells_a_finished_end_from_a_canceled_one() {
     let [finished, canceled] = streams[..] else {
         panic!("the guest opened two streams, not {streams:?}");
     };
-    let (finished, canceled) = (Producer::<u32>::new(finished), Producer::<u32>::new(canceled));
+    let (finished, canceled) = (
+        Producer::<u32>::new(finished),
+        Producer::<u32>::new(canceled),
+    );
     finished.send(&mut host, &1).unwrap();
     canceled.send(&mut host, &2).unwrap();
     finished.finish(&mut host);
@@ -48,8 +51,5 @@ fn a_guest_stream_tells_a_finished_end_from_a_canceled_one() {
 
     let mut ends = ends.borrow().clone();
     ends.sort_by_key(|(taken, _)| taken.clone());
-    assert_eq!(
-        ends,
-        [(vec![1], None), (vec![2], Some(OpError::Canceled))]
-    );
+    assert_eq!(ends, [(vec![1], None), (vec![2], Some(OpError::Canceled))]);
 }

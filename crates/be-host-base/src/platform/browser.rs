@@ -66,9 +66,7 @@ fn open(url: &str) -> Result<(), Unopened> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|error| {
-            Unopened::Failed(format!("Could not open a browser: {error}."))
-        })?;
+        .map_err(|error| Unopened::Failed(format!("Could not open a browser: {error}.")))?;
     std::thread::spawn(move || {
         let _ = child.wait();
     });

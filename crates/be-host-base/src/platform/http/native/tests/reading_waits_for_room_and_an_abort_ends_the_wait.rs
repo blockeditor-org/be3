@@ -14,6 +14,9 @@ fn reading_waits_for_room_and_an_abort_ends_the_wait() {
     let waiting = flow.clone();
     let reader = thread::spawn(move || waiting.take());
     flow.abort();
-    assert!(!reader.join().unwrap(), "an abort wakes the waiting read, which stops");
+    assert!(
+        !reader.join().unwrap(),
+        "an abort wakes the waiting read, which stops"
+    );
     assert!(!flow.take(), "nothing is read after an abort");
 }
