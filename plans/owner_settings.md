@@ -25,10 +25,23 @@ server included. The first use is an app's key for an outside service
 
 - **`KindVisibility::Owner`.** A kind with it is a block that is its own scope
   root, whose key is sealed only to the account's identity and never to the
-  escrow key. `mint_scope` and `Peer::tend` skip escrow for it, and tending
-  never treats the missing escrow seal as work.
-- **The server hides it.** Only its author can list, read or watch an Owner
-  kind's block; administrators cannot see that it exists. Only the author's own
+  escrow key.
+- **A scope root by rule.** `BlockGraph::is_scope_root` counts a block under
+  another only when it has a viewable grant of its own, and a kind block under
+  `Settings` has none. Add a graph rule: a block marked owner-only is a scope
+  root.
+- **The server holds the mark.** `KindVisibility` is a const on a Rust type
+  that only clients see, but the server computes escrow work itself
+  (`unescrowed` in `be-server/src/keys.rs`). So the mark is stored on the
+  block: an `owner-only` flag on the protocol's `create-block`
+  (`be-block-protocol/wit/blocks.wit`), set from the app protocol's
+  `create-block` when the kind's type says `Owner`, and kept for the block's
+  life. The server never lists such a block as `unescrowed`, and
+  `mint_scope`, `Peer::tend` and `Peer::rotate` (which mints new scope
+  epochs) skip escrow for it.
+- **The server keeps it closed.** Only its author can list, read or watch an
+  Owner kind's block; administrators cannot open it. They can see that it
+  exists, since the account's `Settings` references it. Only the author's own
   account may make, move or grant it, beside `require_keeping_settings`. If
   that were bypassed, nothing could be opened anyway, since the key is not
   escrowed.
@@ -44,10 +57,15 @@ server included. The first use is an app's key for an outside service
 
 ## Order of work
 
-1. `KindVisibility::Owner`, the escrow exceptions, and the server's rules.
-2. Tests: an administrator neither lists nor opens it; a new device of the
+1. `KindVisibility::Owner`, the `owner-only` flag on `create-block`, the
+   scope-root rule, the escrow exceptions (`mint_scope`, `tend`, `rotate`,
+   `unescrowed`) and the server's rules.
+2. Tests: an administrator neither lists nor opens it; no escrow key work is
+   ever listed for it, after creation or a rotation; a new device of the
    owner opens it; a new recovery phrase reseals it.
-3. Update guides/settings.md and guides/blocks/keys.md (Escrow), and add a
+3. The settings page's notice that losing the recovery phrase loses these
+   settings, with a painting.
+4. Update guides/settings.md and guides/blocks/keys.md (Escrow), and add a
    decision: owner-only settings are never escrowed.
 
 ## Not planned here

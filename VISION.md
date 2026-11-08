@@ -264,9 +264,9 @@ documents it talks about.
 
 ### Presentation
 
-A deck of slides, each one a canvas. `plans/presentation.md` plans speaker notes,
-duplicating slides and following the presenter live; `plans/deferred/presentation.md`
-lists later ideas.
+A deck of slides, each one a canvas. `plans/presentation.md` plans speaker notes
+and duplicating slides; `plans/deferred/presentation.md` lists later ideas,
+such as following the presenter live.
 
 ### Pixel art and video
 

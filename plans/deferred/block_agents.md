@@ -4,8 +4,9 @@ Depends on: none.
 
 An agent account that can reach one block and nothing else, for a program
 that hosts a block from a machine the person trusts less than their own
-devices, such as a terminal host inside a cloud VM (plans/boat.md). Not
-implemented yet.
+devices, such as a terminal host inside a cloud VM
+(plans/deferred/boat_terminals.md). Not implemented yet. Set aside with boat's
+terminals; the notes below are a review's, to settle before building it.
 
 ## What exists
 
@@ -44,6 +45,30 @@ implemented yet.
   with it and answers the credentials; `rotate-agent-token(agent)`, which
   issues a new token and revokes the old ones; and `remove-agent(agent)`. The
   app hands the credentials to the machine itself.
+
+## Open before building
+
+- **The allowlist.** Many calls `be terminal-host` makes on connect name no
+  block: `OpenOrganization`, `GetKeys`/`PutKeys`/`GetKeyWork`, `PinEscrow`,
+  `SessionNew`, `Changes`, `ResealKeys`, `UploadUrls`/`DownloadUrls`
+  (`Rule::Organization`/`SignedIn` in `be-server/src/client.rs`). List which a
+  bound agent may make, limited to its block where they carry keys or
+  objects. Done when the existing `a_terminal_host_*` tests pass run as a bound
+  agent, and each refused call has a test.
+- **A new connection replaces the old** rather than being refused: a VM that
+  stopped without closing its socket leaves a half-open connection, which
+  would refuse the reconnect after a resume until the server timed it out. A
+  token rotation already revokes copies.
+- **A cap of their own.** Not counting toward the creator's 16 leaves them
+  unbounded; give bound agents a separate limit per block or per creator.
+- **Deleting the block**: moving it to the trash, or collecting it? Restoring
+  from the trash would otherwise find the agent gone.
+- **The manifest field** that gates the host calls needs a name.
+- `create-block-agent` needs Manage on the block and answers the agent id,
+  which `rotate-agent-token` and `remove-agent` take.
+- **The gateway key.** The credentials an app hands to a machine need the
+  `Be3-Gateway-Authorization` key when the server is behind a gateway
+  (guides/hosting.md), and no app has it.
 
 ## Order of work
 

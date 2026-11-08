@@ -1,6 +1,6 @@
 # Presentation editor: later features
 
-Depends on: plans/presentation.md.
+Depends on: plans/presentation.md (the presenter view needs speaker notes).
 
 Recommendations only, set aside until the user picks them. The deck's model is
 `crates/be-type-presentation/src/presentation.rs`, its editor
@@ -8,6 +8,15 @@ Recommendations only, set aside until the user picks them. The deck's model is
 
 ## Presenting
 
+- **Live "follow presenter" mode**: broadcast the presenter's current slide
+  through presence so viewers' clients advance with them. Open questions for
+  the user: who counts as the presenter (whoever has `editor.presenting()`
+  on?); whether following is opt-in (a "Follow NAME" button) or always on,
+  which would move the slide under anyone editing the deck; two presenters at
+  once; whether followers go full screen; what presence turned off
+  (`presence(false)`) does; and names, since peers are keyed by client id
+  (`peers::<P>() -> Vec<(u64, P)>`). Testable headless with
+  `BeuiTest::set_peers` and `take_shown_presence`.
 - **Presenter view** — separate window/second-monitor mode showing current
   slide, next slide thumbnail, notes, and an elapsed timer. The `Stage`
   component in `root/ui.rs` already renders a slide on its own, so this is

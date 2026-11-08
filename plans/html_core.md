@@ -2,45 +2,64 @@
 
 Depends on: none.
 
-beui on the web runs an HTML core (`beui-core-html`), switched in at compile time by `--cfg beui_html`; guides/beui/core.md (Cores) describes it, and decisions/beui_has_an_html_core_on_the_web.md says why. Features the native core has and the HTML core lacks or ignores:
+beui on the web runs an HTML core (`beui-core-html`), switched in at compile
+time by `--cfg beui_html`; guides/beui/core.md (Cores) describes it, and
+decisions/beui_has_an_html_core_on_the_web.md says why. What the HTML core
+lacks, each with what "done" looks like. Larger directions and the rest of the
+ignored props are in plans/deferred/html_core.md.
 
-- A plain `TextInput` on HTML ignores `keyboard_on_focus`, and its
-  `TextInputApi` knows no caret, selection or handles (the browser's).
-- `Form` cannot post a beui-own field: only plain `TextInput`s carry a
-  `name` into the post.
-- `Sheet`'s stops as CSS scroll snap: `Sheet` still drives its `Offset`
-  itself on HTML, as natively.
-- Every `Scroll` on HTML is a browser scroll element (unstyled `scroll.rs`,
+- **A plain `TextInput`'s caret and selection.** It ignores
+  `keyboard_on_focus`, and its `TextInputApi` knows no caret or selection. The
+  browser owns the caret, selection and handles
+  (decisions/beui_html_text_input_is_a_native_input.md), so map `TextInputApi`
+  from the input's `selectionStart`/`selectionEnd` and leave the handles to the
+  browser. Done: a test on the HTML core sets and reads the selection through
+  `TextInputApi`, and `keyboard_on_focus` is honoured.
+- **`Form` posts beui-own fields.** Only plain `TextInput`s carry a `name` into
+  the post. Done: a form with a beui-own field (a checkbox, a select) posts its
+  value under its name, shown by a server-rendered form test.
+- **`Sheet`'s stops as CSS scroll snap.** `Sheet` still drives its `Offset`
+  itself on HTML, as natively. Done: on the HTML core a sheet's stops are scroll
+  snap points of its scroll element, and a sheet released between stops
+  settles on one by the browser's snapping, with no beui animation.
+- **Themed scrollbars.** Every `Scroll` on HTML is a browser scroll element
+  (unstyled `scroll.rs`,
   decisions/beui_html_scroll_uses_the_element_scroll_position.md), so every
-  styled scroll shows the browser's default scrollbar (following
-  `color-scheme`), not the theme's. Pass the theme's thumb and track colours
-  as `scrollbar-color` and a thin `scrollbar-width` down from the styled
-  `scrollbar_style`, so a styled scroll looks themed on the web.
-- `TreeNode`'s `row_offset`, `texts_within`, `set_text_selection` and
-  `set_text_selection_handles` do nothing on HTML.
-- Props the HTML core ignores: `Interactive`'s `pastes`, `key_active`,
-  `claims_touch` and most of the forwarding group (`inhibits_shortcuts`,
-  `clipboard_keys`, `forwards_wheel`; `on_forward` hears only the pointer, no
-  keys, focus or hover); `Overlay`'s `window` and `shown_in`;
-  `Root`'s `system_bars`; `Canvas`'s `scrolls_across`; `VirtualList`'s `text`;
-  `Selectable`'s colours, handles and toolbar. `on_back` never fires and
-  `use_keyboard()` is always true.
-- `Break`'s copy test across Firefox and WebKit (decisions/beui_break_copies_without_a_newline.md): the shared
-  scripts run only in Chromium.
-- `color_var!` is meant to be the only way to make a `ColorVar`, but
-  `ColorVar::__declared_at`, which it expands to, is public (doc-hidden), so
-  any code can name one by string.
-- Delete `crates/beui-font-browser` (and its entry in
-  `be-tool-fix-rust-source/src/hash_order.rs`). Nothing uses it: the HTML core
+  styled scroll shows the browser's default scrollbar. Add a base-level prop on
+  the unstyled scroll (such as `scrollbar_colors`, a thumb and a track colour,
+  and a thin width) that it sets through the platform escape as
+  `scrollbar-color` and `scrollbar-width`, and have the styled scroll fill it
+  from theme tokens. Done: a painting of a styled scroll on the HTML core shows
+  the theme's colours in light and dark.
+- **`TreeNode`'s text hooks.** `row_offset`, `texts_within`,
+  `set_text_selection` and `set_text_selection_handles` do nothing on HTML
+  (`beui-view/src/html/nodes.rs`). Done: each answers on the HTML core as
+  natively, with a test per hook.
+- **`pastes` and `on_back`.** The HTML core ignores `Interactive`'s `pastes`,
+  and `on_back` never fires. Done: a paste event reaches a `pastes` handler
+  with its typed clip, and the browser's back (a `popstate`) reaches `on_back`
+  before leaving the page, each with a test.
+- **The on-screen keyboard.** It shows only where a view places it. Done: on
+  touch, a keyboard host opens it for a focused beui-own field, as natively.
+  Paste as plain text keeps reading through `navigator.clipboard`; its
+  permission prompt is accepted.
+- **Delete `crates/beui-font-browser`**, with its entries in the root
+  `Cargo.toml`, `buck/cargo/members.bzl` and
+  `be-tool-fix-rust-source/src/hash_order.rs`. Nothing uses it: the HTML core
   lays text out in the DOM with its own font faces (`beui-core-html/src/fonts.rs`),
   and the native core on the web shapes with FreeType and HarfBuzz so it
   matches native and its paintings stay deterministic, which measuring through
   the browser would not.
-- The beui inspector is native only; on HTML the browser's own developer tools
-  serve. beui-demo disables its inspector button where
-  `beui::open_inspector()` cannot open one, instead of showing a stand-in. A
-  component tree view may come back later, in beui or as a browser extension.
-- The on-screen keyboard on HTML shows only where a view places it; no keyboard
-  host opens it for a focused field, and Paste as plain text reads the
-  clipboard through `navigator.clipboard`, which asks for permission.
-- `TextAreaState::lay_out_prose` and the `TextArea` rows still lay prose out through `Piece` and `RichOptions` from `beui_view::types` rather than through `measure_text` alone (the infinite canvas's export calls it too), so text layout is only partly behind the text geometry contract.
+- **No inspector on HTML.** The beui inspector is native only; on HTML the
+  browser's own developer tools serve. Add a way to know in advance whether one
+  can open (such as `beui::can_open_inspector()`), and have beui-demo disable
+  its inspector button where it cannot, removing the `inspector_missing`
+  stand-in dialog (`beui-demo/src/lib.rs`). Done: on the HTML core the button
+  is disabled. A component tree view may come back later, in beui or as a
+  browser extension.
+- **Prose layout through `measure_text`.** `TextAreaState::lay_out_prose` and
+  the `TextArea` rows still lay prose out through `Piece` and `RichOptions` from
+  `beui_view::types`, and the infinite canvas's export calls it too. Done: the
+  `TextArea` rows and the canvas export lay text out only through
+  `measure_text`/`lay_out_text`, and `Piece` and `RichOptions` are not imported
+  outside beui-view.

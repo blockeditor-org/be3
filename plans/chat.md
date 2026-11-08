@@ -1,14 +1,14 @@
 # Chat
 
 Depends on: plans/large_blocks.md (the operation that adds a part by its hash,
-`merge3` over parts).
+`merge3` over parts), for step 1d only; steps 1a to 1c start at once.
+plans/notifications.md for step 2.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
 (a type can load only its first part, guides/blocks/content_types.md "Parts"),
 and it is edited by many people at once, so it saves less often than it is
-edited (the journal, guides/blocks/client.md). Not implemented
-yet.
+edited (the journal, guides/blocks/client.md). Not implemented yet.
 
 ## What exists
 
@@ -16,144 +16,118 @@ yet.
 - **Loading.** A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads
   only its first part, and its editors read the rest by range
   (`LiveContent::read_range`; guides/blocks/apps.md, "Reading a range"). Every
-  `Blob` loads that way. A save reuses the parts it never loaded, and
-  publishing sends only what changed. Documents save as parts but load whole.
-- **Authorship.** `Commit::author` is whatever the client wrote. A session
-  names participants by connection (`client-id`), and presence says who a
-  connection is. Anyone holding a block's data key can write anything,
-  including as someone else. The server records when it received each commit
-  (`block_commits.received`).
-- **Identity.** A recovery phrase derives an X25519 key pair. The escrow key
-  also derives an Ed25519 signing key through HKDF (`EscrowSecret::sign` in
-  `crates/be-block-keys/src/lib.rs`). Contacts verify each other's identity
-  keys out of band (guides/blocks/keys.md).
+  `Blob` loads that way, a content type written by hand rather than derived. A
+  save reuses the parts it never loaded, and publishing sends only what
+  changed. Documents save as parts but load whole.
+- **References per part.** A part's node lists the blocks its own bytes
+  reference (`Part::Node { references }`), so a part reused unread keeps them.
+- **Authorship.** `Commit::author` is whatever the client wrote; anyone holding
+  a block's data key can write anything, including as someone else
+  (plans/authorship.md).
 - **Access.** Posting needs Edit, which also allows changing others' messages.
   A grant must name a contact, so a chat only ever reaches contacts.
 - **Merging.** A `List` merge puts an insert after the sibling it was made
-  after (guides/blocks/content_types.md).
+  after (guides/blocks/content_types.md). Publishing is a compare-and-swap on
+  the head: a device whose publish is rejected merges again on the new head,
+  so a merge never has to give the same result from both sides.
 
 ## The design
 
 ### The block
 
-- One block in the `Streamed` layout:
-  - **The header** is the only chunk that changes: a `Document` holding the
-    recent messages; edits, deletions and reactions on older messages, keyed by
-    message id; and the segment index (each segment's byte range, first and
-    last message id, time range, message count and references).
-  - **Segments** are the payload: about 64–256 KiB of encoded messages each, one
-    chunk per segment, never changed except by a rewrite.
+- **The content type is written by hand**, as `Blob` is: it wraps a header
+  `Document` and the segment parts, and forwards `LiveEdit`, `Merge` and `Undo`
+  to the header. It is not a derived `Document`, since a `Document` loads
+  whole.
+- **The header** is the first part and the only one that changes in steps 1a
+  to 1c: the recent messages; edits, deletions and reactions on older
+  messages, keyed by message id; and the segment index (each segment's first
+  and last message id, time range and message count).
+- **Segments** (step 1d) are the other parts: about 64–256 KiB of encoded
+  messages each, one part per segment, never changed except by a rewrite. Each
+  segment's references are its node's references, not a list in the header.
 - **A message** is an object of registers, not `Text`: author, claimed time,
   body, the message it replies to, attachments and an empty signature. Its id
-  is its `ObjectId`. A draft stays in the editor until sent.
+  is its `ObjectId`. The bytes a signature will cover are defined from the
+  start (plans/authorship.md), so signing later changes no format. A draft
+  stays in the editor until sent.
 - **Closing a segment** is an operation the session owner sequences once the
-  recent messages pass a size: messages a..b become segment k, with its hash.
+  recent messages pass a size: messages a..b become segment k, carried by its
+  hash (the operation that adds a part by its hash, plans/large_blocks.md).
   Only an owner online, and only for messages already confirmed. Every replica
-  encodes the segment's bytes itself and checks them against the hash; the
-  operation carrying a part's hash is new (`plans/large_blocks.md`), and chat
-  is its first user.
+  encodes the segment's bytes itself and checks them against the hash; on a
+  mismatch (another build encoding differently) it reads the part with
+  `read-part` instead.
 - **Rewriting a segment** folds its pending edits, deletions and reactions in
-  as one new chunk.
+  as one new part.
 - **The editor** opens the header and reads segments as the person scrolls
   back.
-- **Attachments** are child blocks. Each segment's references are in the
-  index, so they never need reading again.
+- **Attachments** are child blocks.
 
 ### Sending offline
 
 - A message written offline goes into the document like any edit, and goes out
-  through the ordinary three-way merge. Chat's merge puts messages only one
-  side added after all of the other side's, keeping their order: a model
-  attribute on a `List` (`merge_appends`), not a merge written for chat.
-- An offline device never closes segments, so a merge only touches the header.
+  through the ordinary three-way merge. Chat's merge puts the messages only one
+  side added after all of the other side's, ours first, keeping their order: a
+  model attribute on a `List` (`merge_appends`), not a merge written for chat.
+- An offline device never closes segments. The online side may have closed
+  one since the base, moving a message an offline edit or reaction names into
+  a segment: the merge keeps that edit in the header's edits, keyed by message
+  id, as for any older message, and the next rewrite folds it into the
+  segment. Nothing is lost and nothing conflicts.
 - **Sending state.** The editor shows a message as sending until it is in the
   published head. In a live session the replica keeps `confirmed` and
-  `visible` apart; offline, the editor also needs to know the last published
-  head, which it isn't told today.
+  `visible` apart; offline, the editor is told the last published head through
+  a new field, `published-head`, beside the head in the content frame
+  (guides/blocks/apps.md).
 - A message shows its claimed time. When it lands well after that, it says it
   was sent offline and when it arrived.
 
 ### Unread counts
 
 - Where each person has read up to is theirs, not part of the shared document,
-  where it would be a read receipt. It needs a home per account, so it matches
-  across devices; view state is per view.
-- The newest message and the counts come from the header's index, so a sidebar
-  of chats reads one small chunk per chat.
-
-### Notifications
-
-A host feature any type can use; chat is the first.
-
-- The sender seals a short notification (chat name, author, preview; about
-  1 KiB) under the block's key and calls `notify(block, sealed, mentions)`.
-- The server pushes it to members who aren't connected, skipping those who
-  muted the chat. The server stores each account's mute settings, and learns
-  who was mentioned.
-- The receiving device unwraps the key, decrypts, and optionally checks a
-  signature: no block load, no type module, no network. The keys must be
-  readable from the notification extension (the keychain on iOS). Missing a
-  key, it shows a generic "New message".
-- Limits to confirm before building: an iOS notification service extension has
-  about 30 s and little memory; an Android high-priority message has about
-  10–20 s; every web push must show a notification.
-
-### Authorship (after the first version)
-
-- First version: the author is whatever the sender wrote, so anyone with Edit
-  can post as someone else. The message keeps an empty signature, and the
-  bytes to sign are defined from the start.
-- **The signing key** is an Ed25519 key derived from the identity secret
-  through HKDF, as `EscrowSecret` derives its signing key, and its public half
-  is added to `ContactCard` and to key changes (`seal_key_change`), so a
-  contact verifies it the way it verifies the identity key. Chosen over XEdDSA
-  with the identity key itself: XEdDSA would change no format, but has no
-  well-reviewed Rust implementation, while Ed25519 is already in the tree. No
-  format is frozen, so adding the field costs nothing. Record it as a decision.
-- **Host calls.** `sign(bytes)` and `verify(account, bytes, signature)`
-  returning verified, unverified key, or bad. Apps never hold the identity
-  secret. Both are calls on the app protocol, with no framework types.
-- **What a message signs:** chat id, message id, author, claimed time, body
-  hash, reply, and the hash of the last message the author saw. That last one
-  proves a message was written after it, and shows a gap when one of an
-  author's messages is removed.
-- **Members who aren't contacts** have keys only from the server: trust them on
-  first use, show them differently from contacts, and warn when the key
-  changes.
-- **Timestamps.** A signed time is only what the author claims. The server
-  stamps when it receives a relay, as it already does for commits, so a message
-  carries an arrival time no member chose.
-- Signatures detect forgery; they don't stop someone with Edit rewriting or
-  removing messages. A "post" access level that stops that comes later.
+  where it would be a read receipt. It is kept in the account's user settings
+  (guides/settings.md), in a kind of chat's own keyed by chat id, so it matches
+  across devices.
+- The newest message and the counts come from the header, so a sidebar of
+  chats reads one small part per chat.
 
 ### Deleting
 
-- First version: deleting removes a message from the current state, and it
-  stays in version history.
-- **Later: a key per message.** Each body (and its edits) is sealed under its
-  own key. Message keys are rows on the server, keyed by block and message id
-  and wrapped under the block's data key. The author's own connection creates
-  the row, and the server records which account did. Only that account, or
-  someone with Manage, may delete it; deleting it makes every copy in history
-  unreadable without touching a commit. Someone else removing a message only
-  changes the document, so history can bring it back.
-- A segment's message keys come in one batched call beside its chunk. In a live
-  session the sender sends the key with the message. Offline, the row waits in
-  the outbox with the commit.
-- Rewriting history instead would change every later commit's id, since commits
-  name their parents inside their sealed objects.
+- Deleting removes a message from the current state, and it stays in version
+  history. Keys per message that make a deletion final are deferred
+  (plans/deferred/chat_moderation.md).
 
 ## Order of work
 
-1. The chat type and editor: the block, `merge_appends`, sending state, unread
-   counts.
-2. Notifications.
-3. Authorship: signing, verifying, server arrival times.
-4. Message keys for deleting.
-5. A "post" access level.
+Land 1a's `merge_appends` and plans/text.md's Sequence items one after the
+other: both change `Items` merges.
+
+1. **The chat type and editor.**
+   - **1a.** The hand-written type with header-only content, messages,
+     `merge_appends`, the editor, its manifest, and beui-demo pages for any new
+     components. Done: a `BeuiTest` sends, edits, reacts to and deletes
+     messages; two replicas that each add messages offline merge with neither
+     side's lost and each side's order kept; paintings of a conversation, a
+     reply and reactions. Update VISION.md (chat is designed).
+   - **1b.** Sending state and `published-head`. Done: a host test sends a
+     message while the server is unreachable and the painting shows it as
+     sending until the drain publishes it.
+   - **1c.** Unread counts in user settings. Done: reading on one device clears
+     the count on another; a painting of the count.
+   - **1d.** Segments, closing and rewriting them. Done: a chat of thousands of
+     messages opens reading only the header; scrolling back reads segments by
+     range; an offline reaction to a message moved into a segment survives the
+     merge; a forced hash mismatch reads the part instead.
+2. **Notifications** for chat, on plans/notifications.md. Done: a member who is
+   not connected gets a notification naming the chat and author, and none for
+   a muted chat.
 
 ## Not planned here
 
 - Direct messages: a chat is made and shared like any block.
-- Search: a feature of the whole app, which has to cope with large blocks.
+- Search: plans/search.md.
+- Signing messages: plans/authorship.md.
+- Message keys for deleting and a "post" access level:
+  plans/deferred/chat_moderation.md.
 - Freezing chat's format: once it has users.

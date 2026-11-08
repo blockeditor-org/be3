@@ -1,30 +1,49 @@
-# Presentation editor: speaker notes, duplicating and following
+# Presentation editor: duplicating slides and speaker notes
 
 Depends on: none.
 
-Not implemented. The deck's model is
-`crates/be-type-presentation/src/presentation.rs`, its editor
-`crates/be-app-presentation/src` (the slide templates are in
-`root/templates.rs`).
+The deck's model is `crates/be-type-presentation/src/presentation.rs`, its
+editor `crates/be-app-presentation/src` (the slide templates are in
+`root/templates.rs`). Follow-presenter mode and other ideas are in
+plans/deferred/presentation.md.
 
 Current state: a filmstrip docked beside the stage with drag-reorder,
-add-slide (template or link an existing block via the picker), detach/delete,
-fullscreen playback with arrow/space/home/end navigation and auto-hiding
-controls, and three canvas templates (Title/Regular/Blank). A slide is just
-`{id, block}`; no other per-slide metadata exists yet.
+add-slide (template or link an existing block via the picker), "Detach slide"
+(removes the entry and keeps the block), and full-screen playback with
+arrow/space/home/end navigation and controls shown on hover. A slide is
+`Slide { block: Option<Uuid> }` in a `List`; the list object is its id, and
+`block: None` shows as "Broken link". No code in be-app-presentation registers
+an `Action` today; registering Present, Next and Add slide as actions would also
+list them in the host's command palette (plans/command_palette.md), and is
+optional here.
 
-## Work
+## 1. Duplicate slide
 
-- **Speaker notes per slide** — biggest gap. Needs a new field on
-  `Slide`. Default to linking a `text` block for the notes, but
-  let the user replace it with any block type they choose, same as slides
-  themselves are just a block reference.
-- **Duplicate slide** — currently there's no way to clone a slide's content;
-  `Presentation::insert` only links an existing block. This should be a shallow
-  copy: clone the `InfiniteCanvas` itself, but any sub-blocks referenced from
-  inside it (e.g. an embedded canvas entity pointing at another block) stay
-  linked to the same underlying block, with no special deep-copy behavior.
-- **Live "follow presenter" mode** — fits this codebase well since presence
-  and block sync are already first-class: broadcast the presenter's current
-  slide via presence so viewers' clients auto-advance with them. Worth
-  prioritizing given how little new infra it needs.
+- An `Action` "Duplicate slide" on Ctrl+D (Cmd+D on macOS), also in the tile's
+  menu, copies the slide's block with `host().copy_blocks(source, parent)` (the
+  block and everything inside it, for any block type) into the deck, inserts
+  the copy after the current slide, and selects it.
+- Done: a test duplicates a canvas slide and a text slide, the copy is a new
+  block after the original and selected, and editing the copy leaves the
+  original unchanged. A painting of the filmstrip after duplicating.
+
+## 2. Speaker notes
+
+- `Slide` gains `notes: Option<Uuid>`, listed in `references()` (so the notes
+  block is held, not reclaimed) and handled in `child_edit`: `Delete` clears
+  it, `Replace` swaps it.
+- The notes block is made on first use, not per slide: the notes pane shows an
+  empty field, and the first edit creates a text block (by type id) inside the
+  deck and links it. Any block may replace it, as a slide's block may be any
+  type.
+- The notes pane sits under the stage in the deck's dock; on a phone it is a
+  pane of the stacked dock, as the filmstrip is. Notes stay hidden while
+  presenting until a presenter view exists (deferred).
+- Done: a test types notes on a slide with none (one text block is made and
+  linked), deletes it (the link clears), and checks no notes block exists for
+  untouched slides. Paintings of the notes pane on desktop and phone.
+
+## Order of work
+
+1. Duplicate slide.
+2. Speaker notes.
