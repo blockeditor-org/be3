@@ -49,18 +49,23 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
 - **Paste in the files pane.** `be-app-file-tree` copies and cuts blocks
   (`root/menu.rs`) but takes no paste. Done: Paste on a folder places a
   `be3/blocks` clip there through `paste-blocks`.
-- **Ids in pasted canvas items inside a checkout.** `be3/blocks` ids are
-  translated across the protocol, but the block ids inside canvas entities are
-  not. The type module translates them: a paste reaches the canvas's replica
-  as an edit, and only the type knows where its content holds block ids, so
-  the host hands the replica the checkout's mapping and the type rewrites the
-  ids it pastes. Done: a canvas in a checkout pastes entities whose blocks
-  resolve there.
+- **Block ids inside any clip, inside a checkout.** The host translates the
+  ids of a clip crossing the app protocol for an instance in a checkout
+  (guides/blocks/version_control.md, "Scopes and local ids"), but only for
+  `be3/blocks`, which it decodes by format (`be-host-runtime/src/calls.rs`).
+  Any other format holding block ids, such as `be3/canvas-items` or rich text
+  with embeds, crosses untranslated. Make it general: every clip item carries
+  the blocks it names as a list beside its bytes (`refs`), and its bytes
+  index into that list, as view state does (`ViewState { bytes, refs }`). The
+  host translates `refs` for every format and decodes none; `be3/blocks`
+  moves its ids there too. Done: copying canvas entities that embed blocks,
+  and blocks, from outside a checkout and pasting them into a canvas inside
+  it resolves every block there, and the reverse.
 - **Rich text marks in text fragments**, with `text/html` written from marks
   and read back into them. Marks travel as byte ranges within each chunk of
   `TextFragment` (`be-lib-ui-types/src/clipboard.rs`, a format change, which
   is fine). Marks whose keys belong to another schema are dropped on paste;
-  embeds cross as `be3/blocks` references, translated like any other. Done: a
+  embeds cross in the clip's `refs`, translated like any other. Done: a
   paste between two rich texts keeps bold, links and an embed, and pasting
   from a browser's `text/html` gives bold and links. Text editing on the
   shared sequence is plans/text.md; land this apart from its items.

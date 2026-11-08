@@ -24,14 +24,18 @@ block type can use; chat (plans/chat.md) is the first. Not implemented yet.
   skipping those who muted the block. It stores each account's mutes (per
   block, and a mentions-only mode) and learns who was mentioned; it never sees
   the text.
-- **One push protocol: Web Push** (RFC 8030, payloads encrypted with RFC 8291,
-  VAPID, RFC 8292), from the server to whatever endpoint a device registered.
-  - The web registers a push subscription from its service worker.
-  - Android registers through UnifiedPush, whose distributors take Web Push
-    payloads, so the server has one sender. A device with no distributor gets
-    no push; FCM, which needs a Google project and keys, is not used.
-  - Record the choice as a decision (Web Push everywhere, UnifiedPush on
-    Android, no FCM).
+- **Two senders.** A device registers an endpoint of one kind:
+  - **Web Push** (RFC 8030, payloads encrypted with RFC 8291, VAPID,
+    RFC 8292): the web's service worker subscription, and Android through
+    UnifiedPush, whose distributors take Web Push payloads.
+  - **FCM** (HTTP v1 API) for Android devices with Google Play services and
+    no UnifiedPush distributor. The server signs in with a service account
+    (`--fcm-credentials`, a file; a server without it offers only Web Push),
+    and the APK carries the Firebase project's client config. The payload is
+    the same sealed notification, sent as a data message.
+  - The Android host prefers a UnifiedPush distributor when one is installed
+    and falls back to FCM. Record the choice as a decision (Web Push
+    everywhere, UnifiedPush or FCM on Android).
 - **Devices** register and unregister endpoints with the server per account
   and organization, and the server drops an endpoint the push service answers
   404 or 410 for.
@@ -57,10 +61,14 @@ block type can use; chat (plans/chat.md) is the first. Not implemented yet.
    decrypted text, or "New message" without the key.
 4. Android through UnifiedPush. Done: on the emulator, with a test distributor
    app, a push shows the decrypted notification and opens the block.
-5. Mute settings in the block menu, with a painting.
+5. FCM on the server and Android. Done: a server test sends to a fake FCM
+   endpoint with a test service account and checks the request; on an
+   emulator image with Google Play services and no distributor, the host
+   registers with FCM (a manual check, since delivery needs a real Firebase
+   project).
+6. Mute settings in the block menu, with a painting.
 
 ## Not planned here
 
 - iOS: there is no iOS host. Its notification service extension (about 30 s,
   little memory, keys from the keychain) is designed when one exists.
-- FCM.
