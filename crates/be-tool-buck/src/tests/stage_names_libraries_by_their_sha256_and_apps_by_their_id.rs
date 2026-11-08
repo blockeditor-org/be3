@@ -11,7 +11,12 @@ fn stage_names_libraries_by_their_sha256_and_apps_by_their_id() {
         r#"{"id": "be3.notes", "block_types": {"note": {"module": "notes_types.wasm"}}, "entry_point": "notes.wasm"}"#,
     )
     .unwrap();
-    for name in ["notes.wasm", "notes.cwasm", "notes_types.wasm", "data/files/a.txt"] {
+    for name in [
+        "notes.wasm",
+        "notes.cwasm",
+        "notes_types.wasm",
+        "data/files/a.txt",
+    ] {
         std::fs::write(path(name), name).unwrap();
     }
     let staged = layout(&[

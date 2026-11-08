@@ -21,8 +21,14 @@ fn stage_lists_every_file_beside_an_executable() {
     assert_eq!(apps(&[]), "[]\n");
     let out = directory.join("out");
     write(&out, &staged).unwrap();
-    let mode = std::fs::metadata(out.join("be-host")).unwrap().permissions().mode();
+    let mode = std::fs::metadata(out.join("be-host"))
+        .unwrap()
+        .permissions()
+        .mode();
     assert_eq!(mode & 0o111, 0o111);
-    assert_eq!(std::fs::read_to_string(out.join("apps.json")).unwrap(), "[]\n");
+    assert_eq!(
+        std::fs::read_to_string(out.join("apps.json")).unwrap(),
+        "[]\n"
+    );
     let _ = std::fs::remove_dir_all(directory);
 }
