@@ -195,7 +195,8 @@ pub fn send(
         if let Ok(Some(entries)) = js_sys::try_iter(&response.headers()) {
             for entry in entries.flatten() {
                 let entry: js_sys::Array = entry.unchecked_into();
-                if let (Some(name), Some(value)) = (entry.get(0).as_string(), entry.get(1).as_string())
+                if let (Some(name), Some(value)) =
+                    (entry.get(0).as_string(), entry.get(1).as_string())
                 {
                     headers.push((name, value));
                 }

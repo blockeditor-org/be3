@@ -178,12 +178,7 @@ impl Instances {
             .get(&instance)
             .and_then(|entry| entry.role.block())
             .is_some_and(|block| revisions::source(block.id).is_some());
-        if previewing
-            && !matches!(
-                call,
-                Call::ReadData { .. } | Call::ListData { .. }
-            )
-        {
+        if previewing && !matches!(call, Call::ReadData { .. } | Call::ListData { .. }) {
             return self.refuse(call, OpError::Denied);
         }
         if !self.entries.contains_key(&instance) {

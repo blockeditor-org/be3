@@ -92,11 +92,8 @@ pub fn send(
             .headers_names()
             .into_iter()
             .flat_map(|name| {
-                let values: Vec<String> = response
-                    .all(&name)
-                    .into_iter()
-                    .map(str::to_owned)
-                    .collect();
+                let values: Vec<String> =
+                    response.all(&name).into_iter().map(str::to_owned).collect();
                 values.into_iter().map(move |value| (name.clone(), value))
             })
             .collect();

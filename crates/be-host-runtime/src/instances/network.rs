@@ -9,16 +9,16 @@
 
 use std::collections::VecDeque;
 
+use be_host_base::platform::{
+    self,
+    http::{self, Event, Flow},
+};
 use be_lib_stable_hash::HashMap;
 use be_sdk_api::{
     EditorInstanceId, Failure,
     embed::network::Call,
     network::{Header, ResponseHead},
     ops::{OpError, OpId, Outcome, Reply, wire},
-};
-use be_host_base::platform::{
-    self,
-    http::{self, Event, Flow},
 };
 
 use super::{Instances, allowed};

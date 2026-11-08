@@ -264,7 +264,7 @@ impl AppManifest {
             if host != ANY_HOST
                 && !host
                     .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
             {
                 return Err(ManifestError::InvalidNetworkHost);
             }

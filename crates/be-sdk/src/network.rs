@@ -69,7 +69,10 @@ impl Response {
             if !self.ok() {
                 let text = String::from_utf8_lossy(&body);
                 let status = self.status;
-                return Some(Err(Failure::Failed(format!("HTTP {status}: {}", text.trim()))));
+                return Some(Err(Failure::Failed(format!(
+                    "HTTP {status}: {}",
+                    text.trim()
+                ))));
             }
             Some(Ok(body))
         })

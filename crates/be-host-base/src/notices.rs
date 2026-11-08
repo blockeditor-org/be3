@@ -36,7 +36,11 @@ pub fn report_with(message: String, report: String) {
 /// Offers `url` for the person to open with a press, where the browser blocked a tab opened
 /// without one.
 pub fn offer_link(url: String) {
-    show(format!("The browser blocked a new tab for {url}."), None, Some(url));
+    show(
+        format!("The browser blocked a new tab for {url}."),
+        None,
+        Some(url),
+    );
 }
 
 fn show(message: String, report: Option<String>, link: Option<String>) {
