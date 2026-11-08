@@ -37,7 +37,7 @@ fn added(number: usize) -> AccountRow {
 }
 
 #[component]
-pub fn Spike() -> Root {
+pub fn AccountsPage() -> Root {
     let accounts = create_signal(fixture_accounts());
     let status = create_signal(String::new());
     let listed = create_memo(move || accounts.get());
@@ -76,7 +76,7 @@ pub fn Spike() -> Root {
                     />
                 </ListItem>
                 <Frame padding={Padding::all(Space::Md)}>
-                    <Text style=TextStyle::CAPTION @test_id="spike.status">{status}</Text>
+                    <Text style=TextStyle::CAPTION @test_id="accounts.status">{status}</Text>
                 </Frame>
             </List>
         </Root>
@@ -86,7 +86,7 @@ pub fn Spike() -> Root {
 pub fn markup() -> String {
     beui::html::render_to_string(|| {
         view! {
-            <Spike />
+            <AccountsPage />
         }
     })
 }

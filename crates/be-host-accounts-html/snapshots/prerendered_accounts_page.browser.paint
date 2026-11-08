@@ -398,7 +398,7 @@ BE3BROWSER 1
     "</div>",
     "</div>",
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); padding: 8px 8px 8px 8px; justify-items: stretch; align-items: stretch; flex: 0 0 auto;\">",
-    "<div style=\"font: 12px Inter, NotoEmoji, system-ui, sans-serif; line-height: 14px; color: var(--v-d2dd52bc); white-space: pre-wrap; overflow-wrap: break-word;\" data-testid=\"spike.status\">",
+    "<div style=\"font: 12px Inter, NotoEmoji, system-ui, sans-serif; line-height: 14px; color: var(--v-d2dd52bc); white-space: pre-wrap; overflow-wrap: break-word;\" data-testid=\"accounts.status\">",
     "</div>",
     "</div>",
     "</div>",

@@ -5,7 +5,7 @@ load("@root//buck/wasm:defs.bzl", "web_library", "web_program")
 
 # be-host's account picker (crates/be-host-accounts-ui) on beui's HTML core,
 # with fixture accounts: :ssr renders the page on the host, and :web's module
-# hydrates it in the browser. `./scripts/buck run //crates/beui-html-spike:web`
+# hydrates it in the browser. `./scripts/buck run //crates/be-host-accounts-html:web`
 # serves it with Caddy on http://127.0.0.1:8060, or on the address after `--`.
 web_library(
     role = "html",
@@ -19,7 +19,7 @@ cargo_binary(
 )
 
 # A painting of the page as :ssr renders it, before any script runs:
-# `./scripts/test //crates/beui-html-spike:html-test`.
+# `./scripts/test //crates/be-host-accounts-html:html-test`.
 cargo_test(
     name = "html-test",
     default_target_platform = "root//buck/platforms:linux_x86_64_html",
@@ -42,7 +42,7 @@ web_program(
         "//crates/beui-fonts:NotoEmoji-Regular.ttf",
         "//crates/beui-fonts:lucide.ttf",
     ],
-    module = "beui_html_spike",
+    module = "be_host_accounts_html",
     role = "html",
     serve = "127.0.0.1:8060",
 )

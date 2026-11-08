@@ -55,9 +55,9 @@ format; input comes from Playwright. crates/beui-tests' `:web-test` drives its s
 - `./scripts/buck run //crates/beui-demo:web-html` serves the demo on this core
   (crates/beui-demo-html) on http://127.0.0.1:8075; `./scripts/test //crates/beui-demo-html:web-test`
   drives every page in Chromium.
-- crates/beui-html-spike is the account picker prerendered natively (its `:ssr` program,
+- crates/be-host-accounts-html is the account picker prerendered natively (its `:ssr` program,
   `beui::html::render_to_string`) and hydrated in the browser (`beui::html::hydrate`):
-  `./scripts/buck run //crates/beui-html-spike:web` serves it on http://127.0.0.1:8060, and its
+  `./scripts/buck run //crates/be-host-accounts-html:web` serves it on http://127.0.0.1:8060, and its
   `:web-test` checks hydration kept every element and changed no colour in either scheme.
 
 ## Apps on the page

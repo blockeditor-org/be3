@@ -7,7 +7,7 @@
 // scheme's colours, so hydration changes none.
 import { bindMemory } from "./wasi.js";
 import { bindThreads } from "./threads.js";
-import init, * as spike from "./beui_html_spike.js";
+import init, * as page from "./be_host_accounts_html.js";
 
 const app = document.getElementById("app");
 const prerendered = [...app.querySelectorAll("*")];
@@ -67,10 +67,10 @@ function checks() {
 }
 
 globalThis.beuiStarted = (async () => {
-    const module = await WebAssembly.compileStreaming(fetch("./beui_html_spike_bg.wasm"));
+    const module = await WebAssembly.compileStreaming(fetch("./be_host_accounts_html_bg.wasm"));
     const wasm = await init({ module_or_path: module });
     bindMemory(wasm.memory);
     bindThreads(module, wasm.memory);
-    spike.start();
-    return { automate: spike.automate, checks };
+    page.start();
+    return { automate: page.automate, checks };
 })();

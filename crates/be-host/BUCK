@@ -109,12 +109,12 @@ web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:host-index"] + ["//buc
         name = shim,
         src = "web/" + shim,
         visibility = [
+            "//crates/be-host-accounts-html:",
             "//crates/be-server-portal-ui:",
             "//crates/be-tool-paint-review-web:",
             "//crates/be-tool-tls-diamond-app:",
             "//crates/be-wasm-host:",
             "//crates/beui-demo-html:",
-            "//crates/beui-html-spike:",
             "//crates/beui-tests:",
             "//crates/beui-web-demo:",
         ],

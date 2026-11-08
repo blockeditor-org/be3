@@ -2,7 +2,7 @@
 #
 # Serves a web bundle with Caddy (bundle.Caddyfile) on DEFAULT, or on the
 # address given after `--`: what `./scripts/buck run` of beui-web-demo's and
-# beui-html-spike's :web runs.
+# be-host-accounts-html's :web runs.
 #
 #   serve-bundle.sh CADDY CADDYFILE DEFAULT BUNDLE [HOST:PORT]
 set -eu

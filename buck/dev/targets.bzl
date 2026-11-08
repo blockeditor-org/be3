@@ -30,6 +30,7 @@ PACKAGES = [
 UNTESTED = [
     "crates/be-block-fault-relay",
     "crates/be-block-model-derive",
+    "crates/be-host-accounts-html",
     "crates/be-host-bench",
     "crates/be-host-testing",
     "crates/be-lib-remap-module",
@@ -57,7 +58,6 @@ UNTESTED = [
     "crates/beui-demo-html",
     "crates/beui-dock",
     "crates/beui-draw",
-    "crates/beui-html-spike",
     "crates/beui-layer-drive",
     "crates/beui-platform-headless",
     "crates/beui-web-demo",
@@ -69,22 +69,22 @@ TESTS = [
     "root//compile_fail:beui-html-test",
     "root//compile_fail:beui-test",
     "root//crates/be-block-model:fuzz-lists-test",
+    "root//crates/be-host-accounts-html:html-test",
+    "root//crates/be-host-accounts-html:web-test",
     "root//crates/be-lib-sequence:fuzz-sequence-test",
     "root//crates/be-tool-tls-diamond-app:web-test",
     "root//crates/be-wasm-host:standalone-web-test",
-    "root//crates/beui:html-test",
     "root//crates/beui-demo-html:web-test",
-    "root//crates/beui-html-spike:html-test",
-    "root//crates/beui-html-spike:web-test",
     "root//crates/beui-tests:web-test",
     "root//crates/beui-view:html-test",
+    "root//crates/beui:html-test",
 ]
 
 # The tests built for a platform of their own (their default_target_platform)
 # rather than linux_x86_64, which //:verify builds every other one for.
 TEST_PLATFORMS = {
+    "root//crates/be-host-accounts-html:html-test": "root//buck/platforms:linux_x86_64_html",
     "root//crates/be-server-portal-ui:test": "root//buck/platforms:linux_x86_64_html",
-    "root//crates/beui-html-spike:html-test": "root//buck/platforms:linux_x86_64_html",
     "root//crates/beui-view:html-test": "root//buck/platforms:linux_x86_64_html",
     "root//crates/beui:html-test": "root//buck/platforms:linux_x86_64_html",
 }

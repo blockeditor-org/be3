@@ -2,14 +2,14 @@ use beui::reactive::view;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::Spike;
+use crate::AccountsPage;
 
 #[wasm_bindgen]
 pub fn start() -> Result<(), JsValue> {
     be_wasm_threads::initialize_main_thread();
     beui::html::hydrate("app", || {
         view! {
-            <Spike />
+            <AccountsPage />
         }
     })
     .map_err(|error| JsValue::from_str(&error))

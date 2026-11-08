@@ -1,5 +1,5 @@
 [package]
-name = "beui-html-spike"
+name = "be-host-accounts-html"
 description = "be-host's account picker on beui's HTML core: prerendered on the host, hydrated in the browser"
 edition.workspace = true
 version.workspace = true
@@ -9,7 +9,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "beui-html-spike"
+name = "be-host-accounts-html"
 path = "src/main.rs"
 
 [dependencies]

@@ -32,7 +32,7 @@ export_file(
 )
 
 # A web bundle served as it is, with Caddy: beui-web-demo's and
-# beui-html-spike's :web.
+# be-host-accounts-html's :web.
 export_file(
     name = "serve-bundle.sh",
     visibility = ["PUBLIC"],

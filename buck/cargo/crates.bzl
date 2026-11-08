@@ -5559,6 +5559,58 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/be-host-accounts-html": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "be-host-accounts-html",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_host_accounts_html",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-host-accounts-html",
+        "platforms": {
+            "linux-x86_64-html": {
+                "binaries": {
+                    "be-host-accounts-html": [
+                        "//crates/be-host-accounts-ui:be-host-accounts-ui",
+                        "//crates/beui:beui",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-host-accounts-ui:be-host-accounts-ui",
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                ],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-host-accounts-ui:be-host-accounts-ui",
+                    "//crates/be-wasm-threads:be-wasm-threads",
+                    "//crates/beui:beui",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:wasm-bindgen-futures-0.4.72",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/be-host-accounts-ui": {
         "binaries": [],
         "edition": "2024",
@@ -25505,58 +25557,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-tree:beui-tree",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/beui-html-spike": {
-        "binaries": [
-            {
-                "crate_root": "src/main.rs",
-                "name": "beui-html-spike",
-            },
-        ],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "beui_html_spike",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "beui-html-spike",
-        "platforms": {
-            "linux-x86_64-html": {
-                "binaries": {
-                    "beui-html-spike": [
-                        "//crates/be-host-accounts-ui:be-host-accounts-ui",
-                        "//crates/beui:beui",
-                    ],
-                },
-                "deps": [
-                    "//crates/be-host-accounts-ui:be-host-accounts-ui",
-                    "//crates/beui:beui",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                ],
-                "test_features": [],
-            },
-            "wasi-html": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-accounts-ui:be-host-accounts-ui",
-                    "//crates/be-wasm-threads:be-wasm-threads",
-                    "//crates/beui:beui",
-                    "//third-party/rust:wasm-bindgen-0.2.122",
-                    "//third-party/rust:wasm-bindgen-futures-0.4.72",
                 ],
                 "examples": {},
                 "features": [],
