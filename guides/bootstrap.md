@@ -72,7 +72,10 @@ deletes them, so every commit's pins keep working.
 
 Every commit is verified with the release pinned before it, so whatever that
 release passes to, reads from or writes into the tree (verify.bxl's
-parameters, be-tool-verify's flags, the names in scripts/internal/pins,
+parameters and the manifest it prints, test.bxl's parameters and its
+`target<TAB>directory` lines, each directory holding `log`, `status` and
+`changed/` as crates/be-tool-run-test's `--record` writes them,
+be-tool-verify's flags, the names in scripts/internal/pins,
 build-info.json's path and keys, env vars) has to keep working with it, or that
 commit's verify fails. Renaming one takes steps, each landing after CI pins
 the release built from the step before: first the bootstrap speaks the new name

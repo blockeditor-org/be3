@@ -93,8 +93,8 @@ so `./scripts/verify`'s lint clears the bit outside `scripts/`; scripts are run 
 
 ## Adding things
 
-**Target names** are kebab-case, one name per role: `:bin`, `:test` and `:test-run` (the action
-that runs it), `:example-<name>`, `:fuzz-<name>`, `:wasm` (a guest library) and `:module`. A
+**Target names** are kebab-case, one name per role: `:bin`, `:test` (and `:test[run]`, the action
+that runs it), `:test-harness` (its binary), `:fix` (the package's autofixes), `:example-<name>`, `:fuzz-<name>`, `:wasm` (a guest library) and `:module`. A
 bundled program (`program()` in buck/program/defs.bzl) has `:native`, `:web`, `:android`, the
 `-dist` build CI publishes, and `:dev`, headless for an agent to drive.
 
@@ -141,20 +141,26 @@ A `-sys` crate's pkg-config is answered from the sysroot by the `_PKG_CONFIG` fi
 
 ## Tests
 
-buck2 runs a test again every time, so `cargo_test` also makes `:test-run`, an action that runs
-it on a worker and is cached like any other; `./scripts/verify` builds those.
-`./scripts/test` runs each `:test` as an action through `buck/dev/test.bxl` and downloads only
-its output, exit status and accepted paintings (`buck2 test` would download the binary and
-everything it reads).
+Every test is one rule, `be_test` (buck/dev/test.bzl): a harness (`:test-harness`, the test
+binary, or a wasm module, a fuzz target, a browser script), its arguments and environment, run
+through crates/be-tool-run-test, which gives it a short `TMPDIR` of its own, its
+`LD_LIBRARY_PATH`, a time limit (`TEST_TIME_LIMIT`) and the outputs below. Its
+`TestRunInfo` says what it runs. buck2 test runs it again every time unless a worker ran it and
+the build server caches the result (`supports_test_execution_caching`), and brings back no
+files, so each `:test` also has `[run]`, the same command as an action, cached like any other;
+`./scripts/verify` builds those. `./scripts/test` runs each `:test` as an action too, through
+`buck/dev/test.bxl` with the launcher's `--record`, and downloads only its output, exit status
+and accepted paintings (`buck2 test` would download the binary and everything it reads, and
+prints a passing test's output nowhere).
 
 - **App tests** are the crate's tests compiled to wasm and run by `be-sdk-test-runner`; they
   read and write only their crate's `snapshots/`, so one crate's paintings leave others cached.
   **Native tests that paint** are `cargo_test(paints = True, run_env = ...)` and work the same way.
-  `run_apart = True` (crates/be-host-tests) makes one action per test file, so a failing test
-  loses only its own paintings (guides/testing_a_gui.md).
+  `run_apart = True` (crates/be-host-tests) makes each test file a `be_test` of its own,
+  `:test-<file>`, so a failing test loses only its own paintings (guides/testing_a_gui.md).
 - Tests that draw (beui-renderer-wgpu, be-host-wayland, beui-platform-drm, ...) use lavapipe from
   `buck/sysroot:amd64-test` (`amd64-xr` adds Monado). The workers replace `LD_LIBRARY_PATH`, so a
-  test whose `env` names it is wrapped by `library_path_test`.
+  test's `env` that names it reaches the test through the launcher's `--library-path`.
 - **Browser tests** (`web_drive_test` and `page_test` in buck/program/drive.bzl) run on this
   machine, since workers have no browser, and need Node, `playwright` and Chromium
   (guides/testing_a_gui.md, 7).
@@ -216,8 +222,11 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   `./scripts/deploy`, unless checked by hand (guides/build_server.md). Clippy runs
   with `./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.txt`
   (`clippy.toml` must exist).
-- **Autofixes** are actions, one per crate (be-tool-fix-rust-source, then rustfmt); a fix that
-  enables another shows up on the next run.
+- **Autofixes** are each package's `:fix` (`package_fix` in buck/dev/verify.bzl, which every
+  `cargo_*` macro defines and a package without a crate calls itself): be-tool-buck's `fix` runs
+  be-tool-fix-rust-source, then rustfmt, over its Rust files and starlark_fmt over its Starlark;
+  a fix that enables another shows up on the next run. A new package outside `crates/` calls
+  `package_fix()` in its BUCK, or its files go unformatted.
 - **`UNAUTHENTICATED`** from the server is a wrong or missing key, which buck2 reports as failing
   to reach it.
 - **Downloads**: every `http_archive` needs `size_bytes` as well as `sha256`, or buck2 sends a

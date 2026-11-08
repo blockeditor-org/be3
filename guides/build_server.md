@@ -53,7 +53,7 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches the server through
   running action (`broke off ..., making it again` in its log), and buck2 sees nothing.
 - **`the proxy answered 401 Unauthorized`**: the session has no key for that server
   (`credentials missing`) or a refused one (`invalid token`).
-- **A test that hangs**: a test run is stopped after `TEST_TIME_LIMIT` (buck/cargo/defs.bzl);
+- **A test that hangs**: a test run is stopped after `TEST_TIME_LIMIT` (buck/dev/test.bzl);
   libtest's `has been running for over 60 seconds` line names it. Build the binary with
   `./scripts/buck build //crates/X:test --show-full-output` and run it here with a name filter
   and `CARGO_MANIFEST_DIR=$PWD/crates/X` (painting tests need it). A timing-dependent hang can
@@ -94,8 +94,8 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
 
 **How actions run**: as root in the image, in a fresh directory, without per-action sandboxing,
 so an action also sees the worker's environment, `NSC_TOKEN_FILE` among it. The worker replaces
-an action's `LD_LIBRARY_PATH`; tests that need their own carry it as `BE3_LD_LIBRARY_PATH`
-(`library_path_test` in buck/cargo/defs.bzl, `app_test_run` in buck/wasm/defs.bzl).
+an action's `LD_LIBRARY_PATH`; a test that needs its own gets it from crates/be-tool-run-test
+(`--library-path`, from the `LD_LIBRARY_PATH` in its `be_test`'s env).
 
 ## The build helper
 
