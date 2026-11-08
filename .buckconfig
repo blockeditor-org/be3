@@ -63,9 +63,12 @@ clean_stale_period_hours = 24
 # the sysroot and every dependency's rlib, tens of thousands of files, so at
 # buck2's default of 100 a call, be-host's first test after a daemon starts
 # waited half a minute on hundreds of round trips through the proxy before it
-# compiled.
+# compiled. The answer lists every digest the server lacks, about 72 bytes
+# each, and a gRPC message is at most 128 KiB: at 10000 a call, a cold cache's
+# first macOS SDK upload got back 183 KB and failed, so 1500 keeps the worst
+# answer under the limit.
 [buck2_re_client]
-find_missing_blobs_batch_size = 10000
+find_missing_blobs_batch_size = 1500
 
 # What buck2 does not watch or read as part of the workspace: git's own
 # directory, whose every fetch would otherwise be a file change, and the
