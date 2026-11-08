@@ -7,7 +7,7 @@ members = [
     "crates/be-tool-cli",
     "crates/be-block-client",
     "crates/be-block-commit",
-    "crates/be-host-dmabuf",
+    "crates/be-lib-dmabuf",
     "crates/be-tool-drive",
     "crates/be-block-frozen",
     "crates/be-block-graph",

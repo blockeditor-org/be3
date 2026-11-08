@@ -1,10 +1,20 @@
+use std::ffi::CStr;
 use std::io::Write as _;
 
 use smithay::backend::allocator::Fourcc;
 use smithay::backend::allocator::Modifier;
 use smithay::backend::allocator::dmabuf::{Dmabuf, DmabufFlags};
 
-pub fn vulkan_device() -> (wgpu::Device, wgpu::Queue) {
+/// A Vulkan device on the first adapter with [`crate::DEVICE_EXTENSIONS`], opened
+/// through `open`, the renderer's own opener (beui-renderer-wgpu's
+/// `present::open_vulkan_device`), which this crate cannot depend on.
+pub fn vulkan_device(
+    open: impl FnOnce(
+        &wgpu::Adapter,
+        &wgpu::DeviceDescriptor<'_>,
+        &[&'static CStr],
+    ) -> Option<(wgpu::Device, wgpu::Queue)>,
+) -> (wgpu::Device, wgpu::Queue) {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::VULKAN,
         ..wgpu::InstanceDescriptor::new_without_display_handle()
@@ -15,7 +25,7 @@ pub fn vulkan_device() -> (wgpu::Device, wgpu::Queue) {
         compatible_surface: None,
     }))
     .expect("a Vulkan adapter is available");
-    beui_renderer_wgpu::present::open_vulkan_device(
+    open(
         &adapter,
         &wgpu::DeviceDescriptor {
             label: Some("dmabuf test device"),

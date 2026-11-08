@@ -5110,12 +5110,12 @@ crates = {
                         "//crates/be-host-accounts-ui:be-host-accounts-ui",
                         "//crates/be-host-base:be-host-base",
                         "//crates/be-host-desktop:be-host-desktop",
-                        "//crates/be-host-dmabuf:be-host-dmabuf",
                         "//crates/be-host-runtime:be-host-runtime",
                         "//crates/be-host-services:be-host-services",
                         "//crates/be-host-stack:be-host-stack",
                         "//crates/be-host-wayland:be-host-wayland",
                         "//crates/be-lib-build-id:be-lib-build-id",
+                        "//crates/be-lib-dmabuf:be-lib-dmabuf",
                         "//crates/be-sdk-api:be-sdk-api",
                         "//crates/be-sdk-manifest:be-sdk-manifest",
                         "//crates/be-sdk-window-stack:be-sdk-window-stack",
@@ -5144,12 +5144,12 @@ crates = {
                     "//crates/be-host-accounts-ui:be-host-accounts-ui",
                     "//crates/be-host-base:be-host-base",
                     "//crates/be-host-desktop:be-host-desktop",
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
                     "//crates/be-host-runtime:be-host-runtime",
                     "//crates/be-host-services:be-host-services",
                     "//crates/be-host-stack:be-host-stack",
                     "//crates/be-host-wayland:be-host-wayland",
                     "//crates/be-lib-build-id:be-lib-build-id",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-sdk-api:be-sdk-api",
                     "//crates/be-sdk-manifest:be-sdk-manifest",
                     "//crates/be-sdk-window-stack:be-sdk-window-stack",
@@ -5187,12 +5187,12 @@ crates = {
                         "//crates/be-host-accounts-ui:be-host-accounts-ui",
                         "//crates/be-host-base:be-host-base",
                         "//crates/be-host-desktop:be-host-desktop",
-                        "//crates/be-host-dmabuf:be-host-dmabuf",
                         "//crates/be-host-runtime:be-host-runtime",
                         "//crates/be-host-services:be-host-services",
                         "//crates/be-host-stack:be-host-stack",
                         "//crates/be-host-wayland:be-host-wayland",
                         "//crates/be-lib-build-id:be-lib-build-id",
+                        "//crates/be-lib-dmabuf:be-lib-dmabuf",
                         "//crates/be-sdk-api:be-sdk-api",
                         "//crates/be-sdk-manifest:be-sdk-manifest",
                         "//crates/be-sdk-window-stack:be-sdk-window-stack",
@@ -5221,12 +5221,12 @@ crates = {
                     "//crates/be-host-accounts-ui:be-host-accounts-ui",
                     "//crates/be-host-base:be-host-base",
                     "//crates/be-host-desktop:be-host-desktop",
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
                     "//crates/be-host-runtime:be-host-runtime",
                     "//crates/be-host-services:be-host-services",
                     "//crates/be-host-stack:be-host-stack",
                     "//crates/be-host-wayland:be-host-wayland",
                     "//crates/be-lib-build-id:be-lib-build-id",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-sdk-api:be-sdk-api",
                     "//crates/be-sdk-manifest:be-sdk-manifest",
                     "//crates/be-sdk-window-stack:be-sdk-window-stack",
@@ -6376,126 +6376,6 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:pollster-0.4.0",
                 ],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/be-host-dmabuf": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "be_host_dmabuf",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "be-host-dmabuf",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
                 "test_features": [],
             },
         },
@@ -7664,7 +7544,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -7689,7 +7569,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -7714,7 +7594,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -7739,7 +7619,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -7764,7 +7644,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -7789,7 +7669,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -7814,7 +7694,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -8267,6 +8147,133 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-lib-dmabuf": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_lib_dmabuf",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-lib-dmabuf",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
                 "test_features": [],
             },
         },
@@ -27219,7 +27226,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -27241,7 +27248,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -27263,7 +27270,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -27285,7 +27292,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -27307,7 +27314,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -27329,7 +27336,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -27351,7 +27358,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",

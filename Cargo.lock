@@ -1285,7 +1285,6 @@ dependencies = [
  "be-host-accounts-ui",
  "be-host-base",
  "be-host-desktop",
- "be-host-dmabuf",
  "be-host-runtime",
  "be-host-services",
  "be-host-stack",
@@ -1293,6 +1292,7 @@ dependencies = [
  "be-host-wayland",
  "be-host-win32-capture",
  "be-lib-build-id",
+ "be-lib-dmabuf",
  "be-sdk-api",
  "be-sdk-manifest",
  "be-sdk-test",
@@ -1394,18 +1394,6 @@ dependencies = [
  "notify",
  "pollster",
  "uuid",
- "wgpu",
-]
-
-[[package]]
-name = "be-host-dmabuf"
-version = "0.1.0"
-dependencies = [
- "ash",
- "beui-renderer-wgpu",
- "pollster",
- "rustix 1.1.4",
- "smithay",
  "wgpu",
 ]
 
@@ -1549,7 +1537,7 @@ dependencies = [
 name = "be-host-wayland"
 version = "0.1.0"
 dependencies = [
- "be-host-dmabuf",
+ "be-lib-dmabuf",
  "beui",
  "beui-fonts",
  "beui-host",
@@ -1602,6 +1590,18 @@ dependencies = [
 [[package]]
 name = "be-lib-crate-pins"
 version = "0.1.0"
+
+[[package]]
+name = "be-lib-dmabuf"
+version = "0.1.0"
+dependencies = [
+ "ash",
+ "beui-renderer-wgpu",
+ "pollster",
+ "rustix 1.1.4",
+ "smithay",
+ "wgpu",
+]
 
 [[package]]
 name = "be-lib-geometry"
@@ -3049,7 +3049,7 @@ dependencies = [
 name = "beui-platform-drm"
 version = "0.1.0"
 dependencies = [
- "be-host-dmabuf",
+ "be-lib-dmabuf",
  "be-lib-stable-hash",
  "be-lib-ui-types",
  "beui",
