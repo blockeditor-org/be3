@@ -71,7 +71,11 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
         .await
         .unwrap();
     assert!(secret.owner_only);
-    assert_eq!(secret.scope, Some(secret.id), "an owner-only block is its own scope");
+    assert_eq!(
+        secret.scope,
+        Some(secret.id),
+        "an owner-only block is its own scope"
+    );
     let secret = secret.id;
     member
         .save(secret, &TextBlock::of("a key for elsewhere"), None)
@@ -87,10 +91,7 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
         Access::KnowExists,
         "an administrator knows the block exists and no more"
     );
-    let listed = admin
-        .children(BlockParent::Block(settings))
-        .await
-        .unwrap();
+    let listed = admin.children(BlockParent::Block(settings)).await.unwrap();
     assert!(
         listed
             .iter()
@@ -156,9 +157,14 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
         crate::ask(client::keys::get_recovery_key(&member.connection()))
             .await
             .unwrap();
-    let resealed =
-        crate::contacts::new_identity(member.account(), member.keys().identity(), &fresh, sealed, own)
-            .unwrap();
+    let resealed = crate::contacts::new_identity(
+        member.account(),
+        member.keys().identity(),
+        &fresh,
+        sealed,
+        own,
+    )
+    .unwrap();
     crate::ask(client::keys::set_recovery_key(
         &member.connection(),
         fresh.public().0,

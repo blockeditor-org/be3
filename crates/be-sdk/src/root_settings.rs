@@ -10,8 +10,13 @@ pub trait SettingsGraph {
     fn settings(&self, block: Uuid) -> Option<Settings>;
     fn settings_profile(&self, block: Uuid) -> Option<SettingsProfile>;
     /// Makes a block; `owner_only` makes one only this account reads (`KindVisibility::Owner`).
-    fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent, owner_only: bool)
-    -> Uuid;
+    fn create(
+        &self,
+        block_type: Uuid,
+        content: Vec<u8>,
+        parent: BlockParent,
+        owner_only: bool,
+    ) -> Uuid;
     fn edit_settings(&self, block: Uuid, edit: Edit);
     fn edit_settings_profile(&self, block: Uuid, edit: Edit);
 }

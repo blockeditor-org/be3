@@ -1397,12 +1397,10 @@ impl crate::root_settings::SettingsGraph for Editor {
         owner_only: bool,
     ) -> Uuid {
         match owner_only {
-            true => self.blocks().create_owner_only(
-                Uuid::now_v7(),
-                block_type,
-                Some(content),
-                parent,
-            ),
+            true => {
+                self.blocks()
+                    .create_owner_only(Uuid::now_v7(), block_type, Some(content), parent)
+            }
             false => self.blocks().create_with(
                 block_type,
                 Some(content),
