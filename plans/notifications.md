@@ -27,7 +27,8 @@ block type can use; chat (plans/chat.md) is the first. Not implemented yet.
 - **Two senders.** A device registers an endpoint of one kind:
   - **Web Push** (RFC 8030, payloads encrypted with RFC 8291, VAPID,
     RFC 8292): the web's service worker subscription, and Android through
-    UnifiedPush, whose distributors take Web Push payloads.
+    UnifiedPush, whose distributors take Web Push payloads. The server makes
+    its VAPID key pair on first start and keeps it in its data directory.
   - **FCM** (HTTP v1 API) for Android devices with Google Play services and
     no UnifiedPush distributor. The server signs in with a service account
     (`--fcm-credentials`, a file; a server without it offers only Web Push),
@@ -39,11 +40,23 @@ block type can use; chat (plans/chat.md) is the first. Not implemented yet.
 - **Devices** register and unregister endpoints with the server per account
   and organization, and the server drops an endpoint the push service answers
   404 or 410 for.
-- **Receiving.** The device unwraps the block's key from its cached key rows,
-  decrypts and shows the notification: no block load, no type module, no
-  network. Missing a key, it shows a generic "New message" naming nothing.
-  Pressing it opens the block. On the web this runs in the service worker,
-  which reads the refs database itself.
+- **Receiving.** The sealed notification names its key id (sealed bytes name
+  their key), so the device picks the right epoch, unwraps it from its cached
+  key rows, decrypts and shows the notification: no block load, no type
+  module, no network. Missing a key, it shows a generic "New message" naming
+  nothing. Pressing it opens the block.
+- **On the web** the service worker cannot open the refs or host-state
+  databases: the page holds a Web Lock and exclusive sync handles on them
+  (`crates/be-host/web/files.js`), and the identity secret is in host state.
+  With a tab open, the service worker posts the push to it, the tab decrypts
+  and answers, and the worker shows that; with none, it shows "New message"
+  naming nothing. Decrypting with no tab open is deferred
+  (plans/deferred/notifications.md).
+- **On Android** pushes arrive with the app closed, so a service receives them
+  and loads the Rust library without the activity. UnifiedPush works with
+  plain intents; the FCM client (firebase-messaging, Play services) is an AAR
+  from Maven, which the buck Android build cannot take yet
+  (`buck/android/defs.bzl` takes Java sources only).
 - **Limits.** An Android high-priority message has about 10–20 s; every web
   push must show a notification, so the service worker always shows one.
 
@@ -55,18 +68,21 @@ block type can use; chat (plans/chat.md) is the first. Not implemented yet.
    answered 410.
 2. The `notify` host call and its `be-sdk-test` double. Done: a `BeuiTest`
    records the call.
-3. The web: subscribing, the service worker decrypting and showing it, opening
-   the block. Done: a Chromium test delivers a push to the service worker
-   (DevTools `ServiceWorker.deliverPushMessage`) and the notification shows the
-   decrypted text, or "New message" without the key.
-4. Android through UnifiedPush. Done: on the emulator, with a test distributor
-   app, a push shows the decrypted notification and opens the block.
-5. FCM on the server and Android. Done: a server test sends to a fake FCM
-   endpoint with a test service account and checks the request; on an
-   emulator image with Google Play services and no distributor, the host
-   registers with FCM (a manual check, since delivery needs a real Firebase
-   project).
-6. Mute settings in the block menu, with a painting.
+3. The web: subscribing, the service worker handing the push to an open tab
+   and showing what it answers, opening the block. Done: a Chromium test
+   delivers a push to the service worker (DevTools
+   `ServiceWorker.deliverPushMessage`): with a tab open the notification shows
+   the decrypted text; with none, or without the key, "New message".
+4. Android through UnifiedPush, with the receiving service. Done: on the
+   emulator, with a test distributor app and the app closed, a push shows the
+   decrypted notification and opens the block.
+5. AAR and Maven dependencies in the buck Android build. Done: an APK builds
+   with one AAR dependency and runs on the emulator.
+6. FCM on the server and Android. Done unattended: a server test sends to a
+   fake FCM endpoint with a test service account and checks the request, and
+   the APK builds with the FCM client. Real delivery is blocked on the user's
+   Firebase project and its client config, which only the user can supply.
+7. Mute settings in the block menu, with a painting.
 
 ## Not planned here
 

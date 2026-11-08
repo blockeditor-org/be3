@@ -58,8 +58,11 @@ devices, such as a terminal host inside a cloud VM
 
 ## Order of work
 
-1. `bound_to`, the server's limit, the replacing connection, the cap and the
-   lifetime rules. Done: the `a_terminal_host_*` tests pass with the terminal
+1. `bound_to`, the server's limit, the replacing connection, the cap, the
+   lifetime rules, and a new server call that rotates an agent's token,
+   revoking every older one (`organizations.wit` has only `create-agent` and
+   `remove-agent`). Check the allowlist against every call `be terminal-host`
+   makes (`authenticate`, live sessions, relays). Done: the `a_terminal_host_*` tests pass with the terminal
    host signed in as a bound agent, and a server test per refused call, per
    trash and collect case, and for a second connection replacing the first.
 2. The host calls and their `be-sdk-test` doubles.

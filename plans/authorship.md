@@ -28,16 +28,21 @@ Chat is the first user. Not implemented yet.
 - **Host calls.** `sign(bytes)` and `verify(account, bytes, signature)`
   returning verified, unverified key, or bad. Apps never hold the identity
   secret. Both are calls on the app protocol, with no framework types.
-- **What a chat message signs:** chat id, message id, author, claimed time,
-  body hash, reply, and the hash of the last message the author saw. That last
+- **What is signed:** everything a member authors (messages, edits,
+  deletions, reactions). A chat message signs chat id, message id, author,
+  claimed time, body hash, reply, and the hash of the last message the author
+  saw (both hashes defined and stored by plans/chat.md step 1a). That last
   one proves a message was written after it, and shows a gap when one of an
   author's messages is removed.
 - **Members who aren't contacts** have keys only from the server: trust them on
-  first use, show them differently from contacts, and warn when the key
-  changes.
+  first use, keeping the pinned key in the refs database beside contacts,
+  marked unverified; show them differently from contacts, and warn when the
+  key changes.
 - **Timestamps.** A signed time is only what the author claims. The server
-  stamps when it receives a relay, as it already does for commits, so a message
-  carries an arrival time no member chose.
+  stamps each relayed operation with when it received it (plans/chat.md,
+  "Arrival time"), so a message carries an arrival time no member chose. The
+  stamp is stored in content, which a dishonest session owner could alter;
+  accepted.
 - Signatures detect forgery; they don't stop someone with Edit rewriting or
   removing messages (plans/deferred/chat_moderation.md).
 

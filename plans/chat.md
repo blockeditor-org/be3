@@ -2,7 +2,7 @@
 
 Depends on: plans/large_blocks.md (the operation that adds a part by its hash,
 `merge3` over parts), for step 1d only; steps 1a to 1c start at once.
-plans/notifications.md for step 2.
+plans/owner_settings.md for step 1c. plans/notifications.md for step 2.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
@@ -40,16 +40,20 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
   to the header. It is not a derived `Document`, since a `Document` loads
   whole.
 - **The header** is the first part and the only one that changes in steps 1a
-  to 1c: the recent messages; edits, deletions and reactions on older
-  messages, keyed by message id; and the segment index (each segment's first
+  to 1c: the recent messages; every edit, deletion and reaction, on recent and
+  older messages alike, kept apart from the messages and keyed by message id,
+  so closing a segment never drops one; and the segment index (each segment's first
   and last message id, time range and message count).
 - **Segments** (step 1d) are the other parts: about 64–256 KiB of encoded
   messages each, one part per segment, never changed except by a rewrite. Each
   segment's references are its node's references, not a list in the header.
 - **A message** is an object of registers, not `Text`: author, claimed time,
   body, the message it replies to, attachments and an empty signature. Its id
-  is its `ObjectId`. The bytes a signature will cover are defined from the
-  start (plans/authorship.md), so signing later changes no format. A draft
+  is its `ObjectId`. 1a also defines a message's hash (over its signed bytes)
+  and stores in each message the hash of the last message its author saw, and
+  the bytes a signature will cover, for messages, edits, deletions and
+  reactions alike, are defined from the start (plans/authorship.md), so
+  signing later changes no format. A draft
   stays in the editor until sent.
 - **Closing a segment** is an operation the session owner sequences once the
   recent messages pass a size: messages a..b become segment k, carried by its
@@ -72,23 +76,29 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
   model attribute on a `List` (`merge_appends`), not a merge written for chat.
 - An offline device never closes segments. The online side may have closed
   one since the base, moving a message an offline edit or reaction names into
-  a segment: the merge keeps that edit in the header's edits, keyed by message
-  id, as for any older message, and the next rewrite folds it into the
-  segment. Nothing is lost and nothing conflicts.
-- **Sending state.** The editor shows a message as sending until it is in the
-  published head. In a live session the replica keeps `confirmed` and
-  `visible` apart; offline, the editor is told the last published head through
-  a new field, `published-head`, beside the head in the content frame
-  (guides/blocks/apps.md).
-- A message shows its claimed time. When it lands well after that, it says it
-  was sent offline and when it arrived.
+  a segment. Edits, deletions and reactions are kept by message id whether the
+  message is recent or not, so the ordinary merge keeps that edit by key and
+  the next rewrite folds it into the segment. Nothing is lost and nothing
+  conflicts.
+- **Sending state.** A message shows as sending until it is confirmed: in a
+  live session, sequenced by the owner (the replica keeps `confirmed` and
+  `visible` apart); offline, published. For the offline case the editor is
+  told the last published head through a new field, `published-head`, beside
+  the head in the content frame (guides/blocks/apps.md).
+- **Arrival time.** The server stamps each relayed operation with when it
+  received it, in the relay envelope (commits already have
+  `block_commits.received`), and replicas store that time in the message. A
+  message shows its claimed time; once stamped, if it arrived well after
+  that, it says it was sent offline and when it arrived. A dishonest session
+  owner could alter stored content, which plans/authorship.md accepts.
 
 ### Unread counts
 
 - Where each person has read up to is theirs, not part of the shared document,
-  where it would be a read receipt. It is kept in the account's user settings
-  (guides/settings.md), in a kind of chat's own keyed by chat id, so it matches
-  across devices.
+  where it would be a read receipt. It is kept in an owner-only settings kind
+  of chat's own (plans/owner_settings.md), keyed by chat id, so it matches
+  across devices; ordinary user settings are escrowed, and administrators
+  could read them.
 - The newest message and the counts come from the header, so a sidebar of
   chats reads one small part per chat.
 
@@ -113,7 +123,7 @@ other: both change `Items` merges.
    - **1b.** Sending state and `published-head`. Done: a host test sends a
      message while the server is unreachable and the painting shows it as
      sending until the drain publishes it.
-   - **1c.** Unread counts in user settings. Done: reading on one device clears
+   - **1c.** Unread counts in an owner-only kind. Done: reading on one device clears
      the count on another; a painting of the count.
    - **1d.** Segments, closing and rewriting them. Done: a chat of thousands of
      messages opens reading only the header; scrolling back reads segments by

@@ -48,7 +48,9 @@ ever holds what they put there themselves. Not implemented yet.
   makes for a connection, an exported dynamic artifact, a recording, a file
   pasted or dropped where nothing takes it.
 - **The files pane.** A section below My files: a flat list, newest first.
-  Each row names the app that made the block and where it is used, from its
+  Each row names the app that made the block (a new defined metadata key,
+  `CREATED_BY`, the app's manifest id, set by the host when an app creates a
+  block) and where it is used, from its
   backrefs ("boat.dev · used in Dev VMs"). No folders are made or arranged
   there; the one thing to do is move a block out, which files it. References
   are by id, so filing breaks nothing.

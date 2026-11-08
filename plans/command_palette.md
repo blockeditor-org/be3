@@ -56,8 +56,13 @@ technology and the palette, not two.
 - **Actions flow without accessibility.** Split `actions` out of
   `description` into its own field of the frame report, sent whenever the list
   or a field in it changes, whatever `describe` says; `description` keeps the
-  tree. The list is the frame's `active_actions()`, so it follows the app's own
-  focus (`watch_focused()`), pushed, never polled.
+  tree. The list keeps today's shape (`Document::describe_actions`,
+  `Registry::describe`): the live actions plus every other registered action
+  marked `live: false`. The palette shows only live ones; `drive` and screen
+  readers keep all, and `run-action` still resolves non-live ones. "Sent when
+  it changes" is a reactive effect over the registry's version, the focus
+  (`watch_focused()`) and each action's label, enabled and checked signals,
+  read tracked (`info()` reads labels untracked today), not a per-frame diff.
 - **`described-action` gains** `glyph: option<string>` (an icon name, as
   decisions/beui_icons_are_saved_by_name.md saves icons) and `shortcut:
   option<key-chord>` in place of the string, reusing `types.wit`'s `key-chord`
@@ -67,21 +72,26 @@ technology and the palette, not two.
 - **The host draws the palette** when `open-block` carries a new
   `host-palette: bool`. Then `BeuiFrame` registers no Ctrl+Shift+P of its own,
   and its frame menu's "Command palette" entry calls a new host call
-  `shell.open-palette(instance)`. Without the flag (app tests, hosts that draw
+  `shell.open-palette(instance, mode)`, with mode `actions` or `blocks`. Without the flag (app tests, hosts that draw
   none) the frame keeps its own palette.
 
 ### Host (be-host)
 
 - Keep the last action list per instance (already in description.rs; keep
   it while describe is off).
+- The host registers Ctrl+Shift+P as `.at(KeyAt::Window).capture()`, since a
+  focused app view takes every key that reaches it (guides/beui_keyboard.md,
+  Boundaries).
 - On Ctrl+Shift+P (or `open-palette`), walk from the focused instance up
   through its parents to the root and gather each instance's list innermost
   first, grouped under the instance's block name. Two instances' "Undo" are
   both shown, the innermost first, so searching "undo" puts the focused
   editor's at the top. Deduplicate by id within one instance only.
 - Add the host's own actions: switch account (`UiCommand::SwitchAccount`,
-  `be-host/src/ui/keys.rs`), settings, the theme toggle, and the lock screen
-  where the host has one.
+  `be-host/src/ui/keys.rs`), lock screen (`UiCommand::LockScreen`) where the
+  host has one, and a theme action that cycles system, light and dark in the
+  host's preference layer (no theme toggle exists today). Settings is a
+  be-app-workspace action opening its Settings tab, not a host action.
 - Draw it with `styled::CommandPalette` and `PaletteItems::list(..)`: one item
   per action, the block name as `detail`, each key naming its instance and
   action. After a choice, give the focus back to the instance that had it, then
@@ -97,11 +107,17 @@ technology and the palette, not two.
 be-app-workspace registers ordinary actions in its own document, which reach
 the palette through the same protocol:
 
-- **Quick open** on Ctrl+P (Cmd+P on macOS): the palette in a mode that lists
-  blocks by name from the graph the host already has loaded, opening the
-  chosen one. plans/search.md later feeds its results into this mode.
+- **Quick open** on Ctrl+P (Cmd+P on macOS) calls `open-palette(instance,
+  blocks)`; the host draws block rows from its graph (what it has loaded, and
+  recents) and opens the chosen one, until plans/search.md fills the mode with
+  results. Ctrl+P works while the workspace has the focus; tests and
+  paintings don't assume it works from inside a child (ancestor shortcuts are
+  deferred, plans/deferred/command_palette_shortcuts.md).
+- Settings: an action opening the workspace's Settings tab.
 - Next and previous tab: today Ctrl+Tab is a hard-coded key handler in
-  `beui-dock-host/src/unstyled.rs`; move it to an action.
+  `beui-dock-host/src/unstyled.rs` (an `on_shortcut` in tree capture); move it
+  to an action in beui-dock-host that keeps `.capture()`, so it still works
+  from a text input in a pane.
 - Close the tab, split right and down, show or hide the files pane, new file.
 
 Desktop mode: be-app-desktop's window keys become ordinary actions too, listed

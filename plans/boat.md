@@ -68,8 +68,10 @@ From `https://boat.dev/llms.txt`, `https://boat.dev/openapi.yaml` and
   knows nothing of boat.
 - **Signing in** is the editor's own page: a link to the API Keys tab
   (`open-url`), which account or organization to choose, the actions the list,
-  start and stop need (named as the openapi spec names them; check it when
-  building), a 365-day expiry, the equivalent `boat api-key create` command,
+  start and stop need (named as the openapi spec names them: it lists
+  `sandbox.read`, `exec`, `file.read`, `snapshot.read`, `environment.read` and
+  `account.read`, so check the names for start, stop and writes when
+  building; plans/boat_terminals.md adds the commands and files actions), a 365-day expiry, the equivalent `boat api-key create` command,
   a field to paste the key and one for the expiry the person chose, checked
   with `GET /me`.
 - **Expiry** is the app's: `GET /me` doesn't report it, so the app warns two

@@ -32,15 +32,17 @@ optional here.
 - `Slide` gains `notes: Option<Uuid>`, listed in `references()` (so the notes
   block is held, not reclaimed) and handled in `child_edit`: `Delete` clears
   it, `Replace` swaps it.
-- The notes block is made on first use, not per slide: the notes pane shows an
-  empty field, and the first edit creates a text block (by type id) inside the
-  deck and links it. Any block may replace it, as a slide's block may be any
+- The notes block is made on first use, not per slide. With a notes block, the
+  notes pane shows its text editor as a child; without one, it shows an "Add
+  notes" button that creates an empty text block by type id (`create_with`,
+  no be-type-text dependency) inside the deck, links it and moves the focus
+  into the child editor, so typing starts there and no keystroke is lost. Any block may replace it, as a slide's block may be any
   type.
 - The notes pane sits under the stage in the deck's dock; on a phone it is a
   pane of the stacked dock, as the filmstrip is. Notes stay hidden while
   presenting until a presenter view exists (deferred).
-- Done: a test types notes on a slide with none (one text block is made and
-  linked), deletes it (the link clears), and checks no notes block exists for
+- Done: a test presses "Add notes" on a slide with none (one text block is
+  made and linked, and the focus is in its editor), deletes it (the link clears), and checks no notes block exists for
   untouched slides. Paintings of the notes pane on desktop and phone.
 
 ## Order of work

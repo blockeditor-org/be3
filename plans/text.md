@@ -20,8 +20,11 @@ a caret jump between typing), but `LiveText`
 (`be-sdk-text/src/live_text.rs`) ignores it, so text steps follow the clock
 alone.
 
-Add `Gesture::Break`, which closes the current step (`History::close`) without
-opening a gesture, and send it from `LiveText::finish_history_group`. Not
+Add `Gesture::Break`, which ends the current step without opening a gesture,
+and send it from `LiveText::finish_history_group`. `History::close` only
+flushes an open gesture, so Break must also stop the next edit merging into
+the last step by time: clear the last step's time, or set a flag `record`
+honours. Not
 begin and commit: a gesture left open blocks session restarts (`restart_due`,
 decisions/sessions_restart_when_their_state_outgrows_the_content.md). Done: in
 a `BeuiTest`, typing, a pause shorter than `EDIT_BURST` and a paste, with the
