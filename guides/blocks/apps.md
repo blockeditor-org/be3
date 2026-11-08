@@ -135,9 +135,11 @@ again, or for a detached block puts it back where `DELETED_FROM` metadata says
 (recorded by `be_host_stack::set_parent`), else into My files.
 
 **Graph commands.** `create-block(block, block-type, parent, defined,
-content)`, `set-parent` and `define` are sync calls with no answer: the app
-picks a new block's id, so it can use the block before the host has seen it.
-The host takes them only when the account may edit the block and the parent.
+content, owner-only)`, `set-parent` and `define` are sync calls with no answer:
+the app picks a new block's id, so it can use the block before the host has
+seen it. The host takes them only when the account may edit the block and the
+parent. `owner-only` makes a block only the account reads (guides/settings.md,
+Owner only).
 
 ## Presence
 

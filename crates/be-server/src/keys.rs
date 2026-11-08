@@ -81,6 +81,7 @@ pub(crate) fn key_row(
             block: parse_uuid(&block)?,
             kind: decode_kind(&kind)?,
             epoch: u64::try_from(epoch).map_err(|_| ServerError::Corrupt)?,
+            owner_only: false,
         })
     })
     .transpose()
@@ -112,6 +113,7 @@ pub(crate) fn keys_of_block(
             block,
             kind: decode_kind(&kind)?,
             epoch: u64::try_from(epoch).map_err(|_| ServerError::Corrupt)?,
+            owner_only: false,
         });
     }
     Ok(keys)
@@ -158,7 +160,8 @@ pub(crate) fn served_keys(
         if !seen.can_view(graph, block) {
             continue;
         }
-        for row in keys_of_block(connection, identity.organization, block)? {
+        for mut row in keys_of_block(connection, identity.organization, block)? {
+            row.owner_only = owner_only_scope(graph, &row);
             keys.insert(row.id, row);
         }
     }
@@ -183,6 +186,12 @@ pub(crate) fn served_keys(
         keys: keys.into_values().collect(),
         wrapped,
     })
+}
+
+/// Whether `row` is the scope key of an owner-only block, which is sealed to the block's author
+/// alone: never wrapped by another key, sealed to the escrow key or to anyone else.
+pub(crate) fn owner_only_scope(graph: &BlockGraph, row: &KeyRow) -> bool {
+    row.kind == KeyKind::Scope && graph.get(row.block).is_some_and(|node| node.owner_only)
 }
 
 fn passes_on(graph: &BlockGraph, seen: &Visibility, kind: Uuid) -> bool {
@@ -241,6 +250,12 @@ pub(crate) fn store_keys(
                 ),
             ));
         }
+        if row.owner_only != owner_only_scope(graph, row) {
+            return Err(refused(format!(
+                "key {} is marked owner-only exactly when it is the scope key of an owner-only block",
+                row.id
+            )));
+        }
         if fresh.insert(row.id, *row).is_some()
             || key_row(connection, organization, row.id)?.is_some()
         {
@@ -264,6 +279,18 @@ pub(crate) fn store_keys(
                 ErrorCode::PermissionDenied,
                 format!("key {} may not be wrapped by this account", row.id),
             ));
+        }
+        if owner_only_scope(graph, &row) {
+            let author = graph.get(row.block).map(|node| node.author);
+            if wrap.wrapped_by != WrappedBy::Account(caller) || author != Some(caller) {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!(
+                        "key {} belongs to a block readable by its author alone, so it is sealed only to its author",
+                        row.id
+                    ),
+                ));
+            }
         }
         match wrap.wrapped_by {
             WrappedBy::Key(by) => {
@@ -501,7 +528,9 @@ pub(crate) fn is_viewer(
     Ok(
         match crate::contacts::role_in(connection, account, organization)? {
             None => false,
-            Some(be_block_protocol::OrganizationRole::Administrator) => graph.contains(block),
+            Some(be_block_protocol::OrganizationRole::Administrator) => {
+                graph.contains(block) && !graph.closed_to(block, account)
+            }
             Some(be_block_protocol::OrganizationRole::Editor) => {
                 graph.inherited(block, account).can_view()
                     || crate::organization::in_settings(graph, organization, block)
@@ -525,7 +554,7 @@ pub(crate) fn sealed_to(
         .filter(|(_, level)| level.can_view())
         .map(|(account, _)| *account)
         .collect();
-    if !matches!(node.parent, be_block_graph::BlockParent::Block(_)) {
+    if !matches!(node.parent, be_block_graph::BlockParent::Block(_)) || node.owner_only {
         accounts.insert(node.author);
     }
     if node.is_open_inside()
@@ -852,6 +881,7 @@ impl ServerStore {
                     }
                 }
                 if editor
+                    && !graph.get(block).is_some_and(|node| node.owner_only)
                     && let Some(escrow) = escrow
                     && !wraps
                         .iter()
@@ -911,6 +941,9 @@ impl ServerStore {
                     ));
                 }
                 for block in graph.subtree(*root) {
+                    if graph.closed_to(block, identity.account) {
+                        continue;
+                    }
                     if !data.contains(&block) {
                         return Err(refused(format!(
                             "a rotation gives every block below it a new data key, and {block} has none"

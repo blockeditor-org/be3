@@ -44,6 +44,17 @@ pub enum KindVisibility {
     Inside,
     #[default]
     Members,
+    /// Only the account that made the kind's block reads it, on any of its
+    /// devices: the block is its own scope root, created `owner-only`, and its
+    /// key is sealed to that account alone, never to the organization's escrow
+    /// key (decisions/owner_only_settings_are_never_escrowed.md).
+    Owner,
+}
+
+impl KindVisibility {
+    pub const fn owner_only(self) -> bool {
+        matches!(self, Self::Owner)
+    }
 }
 
 pub fn union<K: Ord + Clone, V: Clone>(upper: &Map<K, V>, lower: &Map<K, V>) -> Map<K, V> {

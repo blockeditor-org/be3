@@ -35,9 +35,13 @@ where
     Document<R>: LiveEdit<Op = be_block::Edit> + BlockContent + Clone + Default,
 {
     pub fn new(core: EditorCore) -> Self {
+        let blocks = match R::VISIBILITY.owner_only() {
+            true => RootSetting::owner_only(),
+            false => RootSetting::default(),
+        };
         Self {
             core,
-            blocks: RefCell::default(),
+            blocks: RefCell::new(blocks),
         }
     }
 

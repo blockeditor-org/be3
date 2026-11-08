@@ -156,6 +156,10 @@ interface blocks {
         references: list<block-id>,
         key: key-id,
         keys: key-set,
+        /// Readable by its author alone, for its whole life: a scope root whose
+        /// key is sealed only to the author and never escrowed, which no one
+        /// else may open, move or grant, administrators included.
+        owner-only: bool,
     ) -> result<block-summary, error>;
 
     set-metadata: async func(block: block-id, metadata: list<u8>, references: list<block-id>) -> result<block-summary, error>;

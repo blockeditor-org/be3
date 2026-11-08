@@ -385,13 +385,21 @@ impl Editor {
                 self.create_settings_block(owner, content)?
             }
         };
-        self.blocks().create_at(
-            block,
-            kind,
-            Some(content.encode()),
-            BlockParent::Block(settings),
-            be_block::BlockMetadata::default(),
-        );
+        match R::VISIBILITY.owner_only() {
+            true => self.blocks().create_owner_only(
+                block,
+                kind,
+                Some(content.encode()),
+                BlockParent::Block(settings),
+            ),
+            false => self.blocks().create_at(
+                block,
+                kind,
+                Some(content.encode()),
+                BlockParent::Block(settings),
+                be_block::BlockMetadata::default(),
+            ),
+        };
         if R::VISIBILITY == KindVisibility::Inside {
             self.host()
                 .set_access(block, ANYONE_INSIDE, AccessLevel::View);

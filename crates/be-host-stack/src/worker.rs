@@ -159,6 +159,7 @@ pub(super) enum Command {
         parent: BlockParent,
         metadata: BlockMetadata,
         bytes: Option<Vec<u8>>,
+        owner_only: bool,
     },
     SetParent {
         block: Uuid,
@@ -2168,6 +2169,7 @@ async fn apply(
             parent,
             mut metadata,
             bytes,
+            owner_only,
         } => {
             let kind = replicas.kind(content_type).await;
             let bytes = bytes.or_else(|| kind.as_ref().map(|kind| kind.blank.clone()));
@@ -2183,9 +2185,16 @@ async fn apply(
                     None => kind.described.derived,
                 };
             }
-            let created = peer
-                .create_block(block, content_type, parent, &metadata)
-                .await;
+            let created = match owner_only {
+                true => {
+                    peer.create_owner_only(block, content_type, parent, &metadata)
+                        .await
+                }
+                false => {
+                    peer.create_block(block, content_type, parent, &metadata)
+                        .await
+                }
+            };
             if let Err(error) = settled(peer, shared, Some(tasks), block, created).await {
                 record(shared, error);
                 return false;

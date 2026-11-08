@@ -601,6 +601,7 @@ impl TestClient {
                     Vec::new(),
                     key,
                     keys,
+                    false,
                 )
             })
             .await;
@@ -765,6 +766,7 @@ fn row(id: Uuid, block: Uuid, kind: KeyKind) -> KeyRow {
         block,
         kind,
         epoch: 1,
+        owner_only: false,
     }
 }
 

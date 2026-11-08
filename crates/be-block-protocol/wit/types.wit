@@ -116,6 +116,9 @@ interface types {
         /// `size` plus the `tree-size` of each child (blocks whose parent is
         /// this one), not deduplicated across blocks.
         tree-size: u64,
+        /// Readable by its author alone, and never escrowed: made with
+        /// `create-block`'s `owner-only`. Set only when the reader may view it.
+        owner-only: bool,
     }
 
     enum key-kind {
@@ -129,6 +132,9 @@ interface types {
         block: block-id,
         kind: key-kind,
         epoch: u64,
+        /// A scope key of an owner-only block: sealed to its author alone,
+        /// never wrapped by another key nor sealed to the escrow key.
+        owner-only: bool,
     }
 
     variant wrapped-by {

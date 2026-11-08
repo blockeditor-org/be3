@@ -209,6 +209,8 @@ pub struct Creation {
     pub references: Vec<Uuid>,
     pub key: Uuid,
     pub keys: KeySet,
+    #[serde(default)]
+    pub owner_only: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

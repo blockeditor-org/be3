@@ -121,12 +121,14 @@ impl Link {
                     parent,
                     defined,
                     content,
+                    owner_only,
                 } => blocks::create_block(
                     id.into_bytes(),
                     block_type.into_bytes(),
                     parent.encode(),
                     crate::graph::wire_entries(&defined),
                     content,
+                    owner_only,
                 )
                 .detach(),
                 GraphCommand::SetParent { id, parent } => {

@@ -168,6 +168,7 @@ impl<S: ObjectStore> Peer<S> {
 
     pub(super) fn record_creation(&self, creation: &Creation) -> Result<BlockSummary, ClientError> {
         let scope = match creation.parent {
+            BlockParent::Block(_) if creation.owner_only => Some(creation.block),
             BlockParent::Block(parent) => {
                 self.refs.summary(parent).and_then(|summary| summary.scope)
             }
@@ -218,6 +219,7 @@ impl<S: ObjectStore> Peer<S> {
             sets_access: false,
             size: 0,
             tree_size: 0,
+            owner_only: creation.owner_only,
         };
         self.refs.add_keys(&creation.keys)?;
         self.recorded(&creation.keys);
@@ -427,6 +429,7 @@ impl<S: ObjectStore> Peer<S> {
             creation.references.clone(),
             creation.key,
             creation.keys.clone(),
+            creation.owner_only,
         ))
         .await;
         match response {

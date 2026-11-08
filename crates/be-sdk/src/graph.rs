@@ -251,6 +251,8 @@ pub enum GraphCommand {
         parent: BlockParent,
         defined: Entries,
         content: Option<Vec<u8>>,
+        /// Readable by this account alone (`KindVisibility::Owner`).
+        owner_only: bool,
     },
     SetParent {
         id: Uuid,
@@ -516,12 +518,44 @@ impl BlockGraph {
         parent: BlockParent,
         metadata: BlockMetadata,
     ) -> Uuid {
+        self.push_create(id, block_type, content, parent, metadata, false)
+    }
+
+    /// Creates a block only this account reads, on any of its devices: a settings kind whose
+    /// type says `KindVisibility::Owner`.
+    pub fn create_owner_only(
+        &self,
+        id: Uuid,
+        block_type: Uuid,
+        content: Option<Vec<u8>>,
+        parent: BlockParent,
+    ) -> Uuid {
+        self.push_create(
+            id,
+            block_type,
+            content,
+            parent,
+            BlockMetadata::default(),
+            true,
+        )
+    }
+
+    fn push_create(
+        &self,
+        id: Uuid,
+        block_type: Uuid,
+        content: Option<Vec<u8>>,
+        parent: BlockParent,
+        metadata: BlockMetadata,
+        owner_only: bool,
+    ) -> Uuid {
         self.graph.push(GraphCommand::Create {
             id,
             block_type,
             parent,
             defined: metadata.defined,
             content,
+            owner_only,
         });
         self.waker.wake();
         id

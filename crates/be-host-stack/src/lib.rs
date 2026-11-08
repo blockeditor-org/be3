@@ -1020,8 +1020,30 @@ pub fn create(
     block: Uuid,
     content_type: Uuid,
     parent: be_block_graph::BlockParent,
+    metadata: be_block::BlockMetadata,
+    content: Option<Vec<u8>>,
+) {
+    make(block, content_type, parent, metadata, content, false);
+}
+
+/// Makes a block only this account reads, on any of its devices (`KindVisibility::Owner`).
+pub fn create_owner_only(
+    block: Uuid,
+    content_type: Uuid,
+    parent: be_block_graph::BlockParent,
+    metadata: be_block::BlockMetadata,
+    content: Option<Vec<u8>>,
+) {
+    make(block, content_type, parent, metadata, content, true);
+}
+
+fn make(
+    block: Uuid,
+    content_type: Uuid,
+    parent: be_block_graph::BlockParent,
     mut metadata: be_block::BlockMetadata,
     content: Option<Vec<u8>>,
+    owner_only: bool,
 ) {
     if let Some(name) = PENDING_NAMES.with(|pending| pending.borrow_mut().remove(&block)) {
         metadata.insert(&be_block::NAME, &name);
@@ -1064,6 +1086,7 @@ pub fn create(
         parent,
         metadata,
         bytes: content,
+        owner_only,
     });
 }
 
