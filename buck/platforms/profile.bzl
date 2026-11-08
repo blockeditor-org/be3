@@ -3,8 +3,8 @@
 # label, in this order: linux_x86_64_release_lto. Every configuration that has
 # one is named so, whether a modifier or a transition made it (with_modifiers).
 MODIFIERS = {
-    "release": "root//buck/constraints:release",
     "lto": "root//buck/constraints:lto",
+    "release": "root//buck/constraints:release",
 }
 
 # The refs a transition that calls keep_profile or with_modifiers needs.
@@ -142,7 +142,11 @@ def _local_build() -> bool:
         "//buck/platforms:execution_platforms_local": True,
     }
     if value not in lists:
-        fail("build.execution_platforms is '{}', which is neither root//buck/platforms:execution_platforms (a build server) nor root//buck/platforms:execution_platforms_local (this machine): guides/running/local_buck2.md".format(read_root_config("build", "execution_platforms", "")))
+        fail(
+            "build.execution_platforms is '{}', which is neither root//buck/platforms:execution_platforms (a build server) nor root//buck/platforms:execution_platforms_local (this machine): guides/running/local_buck2.md".format(
+                read_root_config("build", "execution_platforms", "")
+            )
+        )
     return lists[value]
 
 LOCAL_BUILD = _local_build()

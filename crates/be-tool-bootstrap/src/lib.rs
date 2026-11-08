@@ -4,8 +4,8 @@ use std::sync::OnceLock;
 
 mod be;
 mod buck;
-mod buckify;
 mod buck2;
+mod buckify;
 mod cargo;
 mod deploy;
 mod download;

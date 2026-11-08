@@ -67,7 +67,9 @@ fn buckify(arguments: &[String]) -> ExitCode {
     let stale = run.buckified(Path::new(directory), "./scripts/buckify");
     if run.failed {
         if check {
-            println!("Out of date with the Cargo.toml files; run ./scripts/buckify without --check.");
+            println!(
+                "Out of date with the Cargo.toml files; run ./scripts/buckify without --check."
+            );
         }
         return ExitCode::FAILURE;
     }

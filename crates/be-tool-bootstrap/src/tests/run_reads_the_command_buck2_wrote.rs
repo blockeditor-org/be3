@@ -16,6 +16,9 @@ fn run_reads_the_command_buck2_wrote() {
     let environment: Vec<_> = command.get_envs().collect();
     assert_eq!(
         environment,
-        [(std::ffi::OsStr::new("HOME"), Some(std::ffi::OsStr::new("/home/a")))]
+        [(
+            std::ffi::OsStr::new("HOME"),
+            Some(std::ffi::OsStr::new("/home/a"))
+        )]
     );
 }

@@ -157,11 +157,7 @@ pub(crate) const PLANS: &[Plan] = &[
         name: "wasi-html",
         mode: Mode::Build,
         triple: "wasm32-wasip1-threads",
-        packages: Packages::Only(&[
-            All(HTML),
-            Named("beui-tests"),
-            Named("beui-demo-html"),
-        ]),
+        packages: Packages::Only(&[All(HTML), Named("beui-tests"), Named("beui-demo-html")]),
         html: true,
         lib: true,
     },
@@ -224,13 +220,17 @@ fn members(metadata: &Value) -> Result<Vec<Member>, String> {
         .filter(|package| package["id"].as_str().is_some_and(|id| ids.contains(id)))
         .map(|package| Member {
             name: package["name"].as_str().unwrap_or_default().to_owned(),
-            examples: package["targets"].as_array().into_iter().flatten().any(|target| {
-                target["kind"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .any(|kind| kind == "example")
-            }),
+            examples: package["targets"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|target| {
+                    target["kind"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .any(|kind| kind == "example")
+                }),
         })
         .collect();
     members.sort_by(|a, b| a.name.cmp(&b.name));
@@ -300,7 +300,14 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
             .map_err(|error| format!("cargo {}: {error}", arguments.join(" ")))
     };
     let metadata = cargo(
-        &["metadata", "--all-features", "--format-version", "1", "--locked"].map(str::to_owned),
+        &[
+            "metadata",
+            "--all-features",
+            "--format-version",
+            "1",
+            "--locked",
+        ]
+        .map(str::to_owned),
         false,
     )?;
     let members = members(&metadata)?;
@@ -316,7 +323,10 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
         let (name, triple) = platform
             .split_once('=')
             .ok_or_else(|| format!("{platform} is not PLAN=TRIPLE"))?;
-        plans.push((name.to_owned(), cargo(&cargo_arguments(host, triple, &members), false)?));
+        plans.push((
+            name.to_owned(),
+            cargo(&cargo_arguments(host, triple, &members), false)?,
+        ));
     }
     let inputs = Inputs {
         metadata,
@@ -332,7 +342,8 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
 
 fn write(path: &Path, text: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| format!("{}: {error}", parent.display()))?;
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("{}: {error}", parent.display()))?;
     }
     std::fs::write(path, text).map_err(|error| format!("{}: {error}", path.display()))
 }

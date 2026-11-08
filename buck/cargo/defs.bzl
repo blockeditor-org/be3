@@ -18,7 +18,11 @@ load(":members.bzl", "members")
 def _facts():
     crate = native.read_package_value("be3.cargo")
     if crate == None or crate["package"] != native.package_name():
-        fail("{} is not a workspace member cargo knows about: it has no PACKAGE of its own setting be3.cargo. Run ./scripts/buckify, which generates it from Cargo.toml.".format(native.package_name()))
+        fail(
+            "{} is not a workspace member cargo knows about: it has no PACKAGE of its own setting be3.cargo. Run ./scripts/buckify, which generates it from Cargo.toml.".format(
+                native.package_name()
+            )
+        )
     return crate
 
 # A crate package's own targets beside the ones its BUCK file asks for: :fix
@@ -28,14 +32,18 @@ def _facts():
 # here or in buck/wasm/defs.bzl, unless it calls cargo_crate(), which calls it.
 def cargo_package():
     check_layers(_facts())
-    package_fix(rust = True, exclude = ["PACKAGE"])
+    package_fix(exclude = ["PACKAGE"], rust = True)
     cargo_inputs()
 
 # The crate's facts, for a macro that defines one of its targets.
 def _crate():
     crate = _facts()
     if not native.rule_exists("cargo-inputs"):
-        fail("{}'s BUCK file defines a target before calling cargo_package(), which every crate's BUCK file calls first unless it calls cargo_crate()".format(native.package_name()))
+        fail(
+            "{}'s BUCK file defines a target before calling cargo_package(), which every crate's BUCK file calls first unless it calls cargo_crate()".format(
+                native.package_name()
+            )
+        )
     return crate
 
 # One value per platform, as a select() when they differ and a plain list when
@@ -69,9 +77,7 @@ def _planned(crate, plans = None):
     if not unplanned:
         return []
     return select(
-        {"DEFAULT": []}
-        | {PLAN_SETTINGS[plan]: ["root//buck/constraints:planned_by_cargo"] for plan in unplanned}
-        | {PLAN_SETTINGS[plan]: [] for plan in plans}
+        {"DEFAULT": []} | {PLAN_SETTINGS[plan]: ["root//buck/constraints:planned_by_cargo"] for plan in unplanned} | {PLAN_SETTINGS[plan]: [] for plan in plans}
     )
 
 def _compatible(crate, kwargs, plans = None):

@@ -20,9 +20,7 @@ const BUILD_COMMANDS: [&str; 5] = ["build", "run", "test", "bxl", "install"];
 pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
     let buck2 = prepare()?;
     let command = arguments.first().cloned().unwrap_or_default();
-    if BUILD_COMMANDS.contains(&command.as_str())
-        || !repository().join(BUILD_INFO).exists()
-    {
+    if BUILD_COMMANDS.contains(&command.as_str()) || !repository().join(BUILD_INFO).exists() {
         write_build_id()?;
     }
     let (status, output) = match command.as_str() {
@@ -307,10 +305,7 @@ pub fn write_build_id() -> Result<()> {
     } else {
         format!("{{\"id\":\"{id}\",\"program_id\":\"{program_id}\"}}\n")
     };
-    write_if_changed(
-        &repository().join(BUILD_INFO),
-        text.as_bytes(),
-    )?;
+    write_if_changed(&repository().join(BUILD_INFO), text.as_bytes())?;
     Ok(())
 }
 

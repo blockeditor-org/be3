@@ -276,11 +276,7 @@ app_names = [package.removeprefix("crates/be-app-") for package in app_packages(
     if name not in app_names
 ]
 
-dev_apps = [
-    package
-    for package in app_packages()
-    if not selected_apps or package.removeprefix("crates/be-app-") in ["workspace", "file-tree"] + selected_apps
-]
+dev_apps = [package for package in app_packages() if not selected_apps or package.removeprefix("crates/be-app-") in ["workspace", "file-tree"] + selected_apps]
 
 dev_host = "-".join(["dev-host"] + selected_apps)
 

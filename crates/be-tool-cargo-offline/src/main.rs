@@ -39,7 +39,16 @@ fn absolute(path: &str) -> Result<PathBuf> {
 }
 
 fn run(arguments: &[String]) -> Result<()> {
-    let [out, workspace, placeholders, cargo, nightly, tools, rest @ ..] = arguments else {
+    let [
+        out,
+        workspace,
+        placeholders,
+        cargo,
+        nightly,
+        tools,
+        rest @ ..,
+    ] = arguments
+    else {
         return Err(USAGE.to_owned());
     };
     let (tools, rest) = match tools.as_str() {
@@ -50,20 +59,28 @@ fn run(arguments: &[String]) -> Result<()> {
         "--cargo-build" => (Tools::CargoBuild, rest),
         _ => return Err(USAGE.to_owned()),
     };
-    let split = rest.iter().position(|argument| argument == "--").ok_or(USAGE)?;
+    let split = rest
+        .iter()
+        .position(|argument| argument == "--")
+        .ok_or(USAGE)?;
     let (cross, crates) = (&rest[..split], &rest[split + 1..]);
     let out = absolute(out)?;
     let cargo = absolute(cargo)?;
     let scratch = std::env::temp_dir().join(format!("be3-cargo-offline-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    let result = prepare_and_plan(&Paths {
-        out: &out,
-        workspace: &absolute(workspace)?,
-        placeholders: &absolute(placeholders)?,
-        cargo: &cargo,
-        nightly: &absolute(nightly)?,
-        scratch: &scratch,
-    }, &tools, cross, crates);
+    let result = prepare_and_plan(
+        &Paths {
+            out: &out,
+            workspace: &absolute(workspace)?,
+            placeholders: &absolute(placeholders)?,
+            cargo: &cargo,
+            nightly: &absolute(nightly)?,
+            scratch: &scratch,
+        },
+        &tools,
+        cross,
+        crates,
+    );
     let _ = fs::remove_dir_all(&scratch);
     result
 }
@@ -77,7 +94,12 @@ struct Paths<'a> {
     scratch: &'a Path,
 }
 
-fn prepare_and_plan(paths: &Paths, tools: &Tools, cross: &[String], crates: &[String]) -> Result<()> {
+fn prepare_and_plan(
+    paths: &Paths,
+    tools: &Tools,
+    cross: &[String],
+    crates: &[String],
+) -> Result<()> {
     let vendor = paths.scratch.join("vendor");
     let workspace = paths.scratch.join("workspace");
     let cargo_home = paths.scratch.join("cargo-home");
@@ -90,7 +112,8 @@ fn prepare_and_plan(paths: &Paths, tools: &Tools, cross: &[String], crates: &[St
     let mut vendored = std::collections::BTreeSet::new();
     for entry in crates {
         let mut parts = entry.splitn(3, '=');
-        let (Some(key), Some(sha256), Some(directory)) = (parts.next(), parts.next(), parts.next()) else {
+        let (Some(key), Some(sha256), Some(directory)) = (parts.next(), parts.next(), parts.next())
+        else {
             return Err(format!("{entry} is not KEY=SHA256=DIRECTORY"));
         };
         let into = vendor.join(key);
@@ -99,7 +122,10 @@ fn prepare_and_plan(paths: &Paths, tools: &Tools, cross: &[String], crates: &[St
         for file in read_dir(&directory)? {
             link(&file, &into.join(file.file_name().unwrap_or_default()))?;
         }
-        write(&into.join(".cargo-checksum.json"), &format!("{{\"files\":{{}},\"package\":\"{sha256}\"}}"))?;
+        write(
+            &into.join(".cargo-checksum.json"),
+            &format!("{{\"files\":{{}},\"package\":\"{sha256}\"}}"),
+        )?;
         vendored.insert(key.to_owned());
     }
 
@@ -108,7 +134,10 @@ fn prepare_and_plan(paths: &Paths, tools: &Tools, cross: &[String], crates: &[St
     // writable. Then an empty file at every path cargo discovers a target at,
     // and at every target path a Cargo.toml names.
     copy_tree(paths.workspace, &workspace)?;
-    for path in read(paths.placeholders)?.lines().filter(|line| !line.is_empty()) {
+    for path in read(paths.placeholders)?
+        .lines()
+        .filter(|line| !line.is_empty())
+    {
         write(&workspace.join(path), "")?;
     }
     let mut manifests = Vec::new();
@@ -144,13 +173,17 @@ fn prepare_and_plan(paths: &Paths, tools: &Tools, cross: &[String], crates: &[St
         .collect();
     if !missing.is_empty() {
         return stale(
-            &format!("Cargo.lock names crates {} does not download: {}", be_lib_crate_pins::DOWNLOADS_PATH, missing.join(" ")),
+            &format!(
+                "Cargo.lock names crates {} does not download: {}",
+                be_lib_crate_pins::DOWNLOADS_PATH,
+                missing.join(" ")
+            ),
             "",
         );
     }
-    let path = std::env::join_paths(
-        std::iter::once(paths.cargo.join("bin")).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())),
-    )
+    let path = std::env::join_paths(std::iter::once(paths.cargo.join("bin")).chain(
+        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
+    ))
     .map_err(|error| error.to_string())?;
     let toolchain = |arguments: &[&str]| {
         let mut command = Command::new(paths.cargo.join("bin/cargo"));
@@ -178,16 +211,24 @@ fn prepare_and_plan(paths: &Paths, tools: &Tools, cross: &[String], crates: &[St
     // Cargo.lock as cargo left it, which ./scripts/verify writes back to the checkout.
     let files = paths.out.join("files");
     create_dir(&files)?;
-    fs::copy(workspace.join("Cargo.lock"), files.join("Cargo.lock")).map_err(|error| format!("could not copy Cargo.lock: {error}"))?;
+    fs::copy(workspace.join("Cargo.lock"), files.join("Cargo.lock"))
+        .map_err(|error| format!("could not copy Cargo.lock: {error}"))?;
 
     let tools = match tools {
         Tools::Built(executable) => executable.clone(),
         Tools::CargoBuild => {
             let target = paths.scratch.join("target");
-            let status = toolchain(&["build", "--quiet", "--release", "--locked", "-p", "be-tool-buck"])
-                .env("CARGO_TARGET_DIR", &target)
-                .status()
-                .map_err(|error| format!("could not run cargo: {error}"))?;
+            let status = toolchain(&[
+                "build",
+                "--quiet",
+                "--release",
+                "--locked",
+                "-p",
+                "be-tool-buck",
+            ])
+            .env("CARGO_TARGET_DIR", &target)
+            .status()
+            .map_err(|error| format!("could not run cargo: {error}"))?;
             if !status.success() {
                 return Err("cargo could not build be-tool-buck; it says why above".to_owned());
             }
@@ -215,7 +256,12 @@ fn target_paths(manifest: &str) -> Vec<String> {
     manifest
         .lines()
         .filter_map(|line| {
-            let value = line.trim().strip_prefix("path")?.trim_start().strip_prefix('=')?.trim_start();
+            let value = line
+                .trim()
+                .strip_prefix("path")?
+                .trim_start()
+                .strip_prefix('=')?
+                .trim_start();
             let value = value.strip_prefix('"')?;
             let value = &value[..value.find('"')?];
             value.ends_with(".rs").then(|| value.to_owned())
@@ -241,11 +287,15 @@ fn copy_tree(from: &Path, to: &Path) -> Result<()> {
         if path.is_dir() {
             copy_tree(&path, &into)?;
         } else {
-            fs::copy(&path, &into).map_err(|error| format!("could not copy {}: {error}", path.display()))?;
-            let mut permissions = fs::metadata(&into).map_err(|error| format!("{}: {error}", into.display()))?.permissions();
+            fs::copy(&path, &into)
+                .map_err(|error| format!("could not copy {}: {error}", path.display()))?;
+            let mut permissions = fs::metadata(&into)
+                .map_err(|error| format!("{}: {error}", into.display()))?
+                .permissions();
             #[allow(clippy::permissions_set_readonly_false)]
             permissions.set_readonly(false);
-            fs::set_permissions(&into, permissions).map_err(|error| format!("{}: {error}", into.display()))?;
+            fs::set_permissions(&into, permissions)
+                .map_err(|error| format!("{}: {error}", into.display()))?;
         }
     }
     Ok(())
@@ -263,7 +313,8 @@ fn read_dir(directory: &Path) -> Result<Vec<PathBuf>> {
 
 #[cfg(unix)]
 fn link(from: &Path, to: &Path) -> Result<()> {
-    std::os::unix::fs::symlink(from, to).map_err(|error| format!("could not link {}: {error}", to.display()))
+    std::os::unix::fs::symlink(from, to)
+        .map_err(|error| format!("could not link {}: {error}", to.display()))
 }
 
 #[cfg(not(unix))]
@@ -271,12 +322,15 @@ fn link(from: &Path, to: &Path) -> Result<()> {
     if from.is_dir() {
         copy_tree(from, to)
     } else {
-        fs::copy(from, to).map(|_| ()).map_err(|error| format!("could not copy {}: {error}", from.display()))
+        fs::copy(from, to)
+            .map(|_| ())
+            .map_err(|error| format!("could not copy {}: {error}", from.display()))
     }
 }
 
 fn create_dir(path: &Path) -> Result<()> {
-    fs::create_dir_all(path).map_err(|error| format!("could not create {}: {error}", path.display()))
+    fs::create_dir_all(path)
+        .map_err(|error| format!("could not create {}: {error}", path.display()))
 }
 
 fn read(path: &Path) -> Result<String> {

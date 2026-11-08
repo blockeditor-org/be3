@@ -19,11 +19,20 @@ fn plans_pick_crates_by_name_and_examples() {
     };
     // The host leaves out every app but one with examples, which run there.
     let host = plan("linux-x86_64");
-    assert!(host.starts_with("test --target TRIPLE --workspace --exclude be-app-text --exclude be-sdk "));
+    assert!(
+        host.starts_with(
+            "test --target TRIPLE --workspace --exclude be-app-text --exclude be-sdk "
+        )
+    );
     assert!(!host.contains("be-app-canvas"));
     assert!(plan("wasi-guest").contains("-p be-app-canvas -p be-app-text "));
     let wasm32 = plan("wasm32");
-    assert!(wasm32.starts_with("build --target TRIPLE -p tabletop-rules-chess -p be-type-text -p be-wasm-gpu-shim"));
+    assert!(wasm32.starts_with(
+        "build --target TRIPLE -p tabletop-rules-chess -p be-type-text -p be-wasm-gpu-shim"
+    ));
     assert!(!wasm32.contains("be-type-bundle"));
-    assert!(plan("wasi-html").ends_with("-p beui-demo-html --lib --unit-graph -Z unstable-options --locked"));
+    assert!(
+        plan("wasi-html")
+            .ends_with("-p beui-demo-html --lib --unit-graph -Z unstable-options --locked")
+    );
 }

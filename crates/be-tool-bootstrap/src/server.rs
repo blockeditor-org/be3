@@ -139,7 +139,10 @@ fn builds_here(buck2: &Path) -> bool {
     };
     let values: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap_or_default();
     let value = |name: &str| values[name].as_str().unwrap_or_default().trim().to_owned();
-    is_local(&value("build.execution_platforms"), &value("buck2_re_client.enabled"))
+    is_local(
+        &value("build.execution_platforms"),
+        &value("buck2_re_client.enabled"),
+    )
 }
 
 pub fn is_local(execution_platforms: &str, remote_enabled: &str) -> bool {
