@@ -14,12 +14,21 @@ fn stage_lists_every_file_beside_an_executable() {
         Entry::Write(b"apps.json\nbe-host\ninfo.json\n".to_vec())
     );
     assert_eq!(apps(&[]), "[]\n");
+    let described: serde_json::Value = serde_json::from_str(&describe(&staged)).unwrap();
     assert_eq!(
-        describe(&staged),
-        r#"[{"path":"apps.json"},{"argument":0,"part":0,"path":"be-host","within":""},{"argument":1,"part":0,"path":"info.json","within":""},{"path":"program-files.txt"}]"#
+        described,
+        serde_json::json!([
+            {"path": "apps.json"},
+            {"path": "be-host", "argument": 0, "part": 0, "within": ""},
+            {"path": "info.json", "argument": 1, "part": 0, "within": ""},
+            {"path": "program-files.txt"},
+        ])
     );
     write(&directory, &staged).unwrap();
-    assert_eq!(std::fs::read_to_string(directory.join("apps.json")).unwrap(), "[]\n");
+    assert_eq!(
+        std::fs::read_to_string(directory.join("apps.json")).unwrap(),
+        "[]\n"
+    );
     assert!(!directory.join("be-host").exists());
     let _ = std::fs::remove_dir_all(directory);
 }

@@ -127,7 +127,10 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
                     ));
                 }
                 let tag = format!("{}.sha256", named.strip_suffix(".wasm").unwrap_or(&named));
-                layout.insert(tag, Entry::Write(format!("{}\n", sha256(value)?).into_bytes()));
+                layout.insert(
+                    tag,
+                    Entry::Write(format!("{}\n", sha256(value)?).into_bytes()),
+                );
                 layout.insert(named.clone(), input(0));
                 staged = Some(named);
             }
@@ -138,7 +141,9 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
                 let prefix = format!("data/{id}/");
                 tree(Path::new(value), position, &prefix, "", &mut layout)?;
             }
-            _ if flag.starts_with("--") => return Err(format!("unknown argument {argument}\n{USAGE}")),
+            _ if flag.starts_with("--") => {
+                return Err(format!("unknown argument {argument}\n{USAGE}"));
+            }
             _ => {
                 let (path, module) = argument
                     .split_once('=')
@@ -161,7 +166,10 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
         }
     }
     if index {
-        layout.insert("apps.json".into(), Entry::Write(apps(&manifests).into_bytes()));
+        layout.insert(
+            "apps.json".into(),
+            Entry::Write(apps(&manifests).into_bytes()),
+        );
     }
     if executable {
         layout.remove(PROGRAM_FILES);
@@ -178,7 +186,10 @@ pub fn apps(manifests: &[String]) -> String {
     if manifests.is_empty() {
         return "[]\n".into();
     }
-    let names: Vec<String> = manifests.iter().map(|name| format!("  \"{name}\"")).collect();
+    let names: Vec<String> = manifests
+        .iter()
+        .map(|name| format!("  \"{name}\""))
+        .collect();
     format!("[\n{}\n]\n", names.join(",\n"))
 }
 
@@ -228,7 +239,9 @@ fn tree(
 ) -> Result<(), String> {
     let entries = std::fs::read_dir(dir).map_err(|error| format!("{}: {error}", dir.display()))?;
     for entry in entries {
-        let path = entry.map_err(|error| format!("{}: {error}", dir.display()))?.path();
+        let path = entry
+            .map_err(|error| format!("{}: {error}", dir.display()))?
+            .path();
         let name = format!("{within}{}", file_name(&path.to_string_lossy())?);
         if path.is_dir() {
             tree(&path, argument, prefix, &format!("{name}/"), layout)?;
@@ -263,7 +276,11 @@ fn string(path: &str, manifest: &serde_json::Value, key: &str) -> Result<String,
 /// The module every block type of the manifest names.
 fn type_module(path: &str, manifest: &serde_json::Value) -> Result<String, String> {
     let mut named = None;
-    for block_type in manifest["block_types"].as_object().into_iter().flat_map(|types| types.values()) {
+    for block_type in manifest["block_types"]
+        .as_object()
+        .into_iter()
+        .flat_map(|types| types.values())
+    {
         if let Some(module) = block_type["module"].as_str() {
             if named.is_some_and(|named| named != module) {
                 return Err(format!("{path}'s block types name more than one module"));

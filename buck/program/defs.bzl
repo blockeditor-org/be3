@@ -244,9 +244,9 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name, dir = True, has_content_based_path = False)
     ctx.actions.dynamic_output(
         dynamic = [layout],
+        f = lambda ctx, artifacts, outputs: _lay_out(ctx, artifacts[layout].read_json(), arguments, generated, name, outputs[out]),
         inputs = [],
         outputs = [out.as_output()],
-        f = lambda ctx, artifacts, outputs: _lay_out(ctx, artifacts[layout].read_json(), arguments, generated, name, outputs[out]),
     )
     archive = ctx.actions.declare_output(ctx.label.name + ".programz")
     ctx.actions.run(

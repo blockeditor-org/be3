@@ -51,6 +51,9 @@ fn stage_names_libraries_by_their_sha256_and_apps_by_their_id() {
         within: within.into(),
     };
     assert_eq!(staged["notes.wasm"], input(1, 1, ""));
-    assert_eq!(staged["data/be3.notes/files/a.txt"], input(2, 0, "files/a.txt"));
+    assert_eq!(
+        staged["data/be3.notes/files/a.txt"],
+        input(2, 0, "files/a.txt")
+    );
     let _ = std::fs::remove_dir_all(directory);
 }
