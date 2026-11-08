@@ -31,8 +31,8 @@ export_file(
     visibility = ["PUBLIC"],
 )
 
-# A web bundle served as it is, with Caddy: beui-web-demo's and
-# be-host-accounts-html's :web.
+# A web bundle served as it is, with Caddy: what `./scripts/buck run` of a
+# web_program with serve (buck/wasm/defs.bzl) runs.
 export_file(
     name = "serve-bundle.sh",
     visibility = ["PUBLIC"],

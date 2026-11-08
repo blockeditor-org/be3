@@ -66,7 +66,6 @@ members = [
     "crates/beui-tree",
     "crates/beui-types",
     "crates/beui-html",
-    "crates/be-host-accounts-html",
     "crates/beui-tests",
     "crates/beui-view",
     "crates/beui-web-input",

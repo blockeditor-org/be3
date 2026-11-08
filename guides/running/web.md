@@ -55,10 +55,9 @@ format; input comes from Playwright. crates/beui-tests' `:web-test` drives its s
 - `./scripts/buck run //crates/beui-demo:web-html` serves the demo on this core
   (crates/beui-demo-html) on http://127.0.0.1:8075; `./scripts/test //crates/beui-demo-html:web-test`
   drives every page in Chromium.
-- crates/be-host-accounts-html is the account picker prerendered natively (its `:ssr` program,
-  `beui::html::render_to_string`) and hydrated in the browser (`beui::html::hydrate`):
-  `./scripts/buck run //crates/be-host-accounts-html:web` serves it on http://127.0.0.1:8060, and its
-  `:web-test` checks hydration kept every element and changed no colour in either scheme.
+- crates/be-server-portal-ui is be-server's account portal, rendered per request on the host
+  (`beui::html::render_to_string`) and hydrated in the browser (`beui::html::hydrate`) from the
+  `:assets` be-server's executable serves (guides/hosting.md).
 
 ## Apps on the page
 

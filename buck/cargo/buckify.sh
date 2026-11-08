@@ -140,7 +140,7 @@ plan() {
     RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" "$@" --unit-graph -Z unstable-options --locked
 }
 RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" metadata --all-features --format-version 1 --locked > "$scratch/metadata.json"
-host_packages="--workspace $excluded --exclude be-sdk --exclude be-sdk-beui --exclude be-wasm-gpu-shim --exclude beui-web-demo --exclude be-host-accounts-html --exclude be-server-portal-ui --exclude be-server-bin --exclude beui-demo-html --exclude be-tool-paint-review-web"
+host_packages="--workspace $excluded --exclude be-sdk --exclude be-sdk-beui --exclude be-wasm-gpu-shim --exclude beui-web-demo --exclude be-server-portal-ui --exclude be-server-bin --exclude beui-demo-html --exclude be-tool-paint-review-web"
 plan test --target x86_64-unknown-linux-gnu $host_packages > "$scratch/host.json"
 plan build --target wasm32-wasip1-threads -p be-host -p beui-web-demo -p be-tool-paint-review-web -p beui-html --lib > "$scratch/wasi.json"
 plan test --target wasm32-wasip1-threads $apps $libraries -p be-sdk -p be-sdk-beui -p beui-demo -p be-tool-paint-review > "$scratch/wasi-guest.json"
@@ -153,7 +153,7 @@ plan build --target wasm32-unknown-unknown $games $types -p be-wasm-gpu-shim -p 
 # native core, such as the shared tests' fixtures program, and beui's demo
 # in the browser (beui-demo-html). The host's adds be-server-bin, the
 # server's executable, which renders its account portal on that core.
-html_packages="-p beui -p beui-dock -p beui-dock-host -p beui-dock-state -p beui-keyboard -p beui-view -p beui-html -p beui-core-html -p beui-components-unstyled -p beui-components-styled -p be-host-accounts-ui -p be-host-accounts-html -p be-server-portal-ui"
+html_packages="-p beui -p beui-dock -p beui-dock-host -p beui-dock-state -p beui-keyboard -p beui-view -p beui-html -p beui-core-html -p beui-components-unstyled -p beui-components-styled -p be-host-accounts-ui -p be-server-portal-ui"
 browser_packages="$html_packages -p beui-tests -p beui-demo-html"
 host_html_packages="$html_packages -p be-server-bin"
 RUSTFLAGS="--cfg beui_html" plan build --target wasm32-wasip1-threads $browser_packages --lib > "$scratch/wasi-html.json"

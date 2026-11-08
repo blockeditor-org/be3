@@ -1316,18 +1316,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-host-accounts-html"
-version = "0.1.0"
-dependencies = [
- "be-host-accounts-ui",
- "be-wasm-threads",
- "beui",
- "beui-paint-snapshot",
- "wasm-bindgen",
- "wasm-bindgen-futures",
-]
-
-[[package]]
 name = "be-host-accounts-ui"
 version = "0.1.0"
 dependencies = [
