@@ -8,7 +8,7 @@ const TIC_TAC_TOE: &[u8] = include_bytes!(env!("TIC_TAC_TOE_WASM"));
 
 #[test]
 fn on_a_phone_the_replace_panel_is_gathered_beside_the_module() {
-    let (mut test, editor) = editor(TIC_TAC_TOE.to_vec());
+    let (mut test, editor) = editor(sized(TIC_TAC_TOE.to_vec(), 256 * 1024));
     test.set_size(PHONE);
     test.settle();
     let gathered = test.rect_of("dock.compact");

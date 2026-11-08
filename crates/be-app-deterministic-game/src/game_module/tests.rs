@@ -24,3 +24,44 @@ fn editor(module: Vec<u8>) -> (BeuiTest<GameModuleRoot>, Editor) {
     test.run();
     (test, editor)
 }
+
+/// `module` grown to exactly `len` bytes by a custom section, which loading
+/// ignores. The module view shows its size, and a module the build compiled
+/// changes size with the compiler, its flags, the build's configuration and
+/// every dependency, so a painting of one pins its size here to change only
+/// with the view.
+fn sized(mut module: Vec<u8>, len: usize) -> Vec<u8> {
+    const NAME: &[u8] = b"padding";
+    let header = 1 + leb128(NAME.len()).len() + NAME.len();
+    // The section is its id, its body's length as LEB128, then the body, so
+    // try each length of that LEB128 for the one that adds up to `len`.
+    let body = (1..=5)
+        .filter_map(|length_bytes| len.checked_sub(module.len() + 1 + length_bytes))
+        .find(|&body| module.len() + 1 + leb128(body).len() + body == len)
+        .filter(|&body| body >= header)
+        .unwrap_or_else(|| {
+            panic!(
+                "a module of {} bytes leaves no room for a section in {len}",
+                module.len()
+            )
+        });
+    module.push(0);
+    module.extend(leb128(body));
+    module.extend(leb128(NAME.len()));
+    module.extend(NAME);
+    module.resize(len, 0);
+    module
+}
+
+fn leb128(mut value: usize) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    loop {
+        let byte = (value & 0x7f) as u8;
+        value >>= 7;
+        if value == 0 {
+            bytes.push(byte);
+            return bytes;
+        }
+        bytes.push(byte | 0x80);
+    }
+}
