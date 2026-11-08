@@ -1,19 +1,25 @@
 # boat.dev terminals
 
-Depends on: plans/boat.md, plans/unfiled.md and
-plans/deferred/block_agents.md.
+Depends on: plans/boat.md, plans/unfiled.md and plans/block_agents.md.
 
-Opening a terminal block into a boat VM from the boat app (plans/boat.md). Set
-aside until the first constraint below, matching `be`'s build, is solved;
-the design follows them.
+Opening a terminal block into a boat VM from the boat app (plans/boat.md).
+The design follows the constraints.
 
 ## Constraints
 
 - **`be` in the VM must match the server's build.** The server refuses a `be`
   of another build (guides/tracker.md) and the terminal host and its viewers
-  need the same type-module build (guides/terminal.md). The app needs the
-  release URL and SHA-256 of `be` for the server it talks to, from a host call
-  or a data file; nothing provides it.
+  need the same type-module build (guides/terminal.md). A host call
+  `terminal-host-binary(arch)` (`x86_64` or `arm64`) answers where to get the
+  `be` of the host's own build:
+  - a deployed build answers the download URL of `be` under the deployment's
+    `data/BUILD/` and its SHA-256 (guides/hosting.md, "Deploying"; the build
+    and its pins are in `build-info.json`). The app downloads it in the VM
+    through the commands API and checks the hash.
+  - a development build answers the bytes of a `be` built locally for that
+    arch, which the app uploads to the VM through the files API. When none is
+    built, the call fails naming the buck2 target to build, and Connect shows
+    that message.
 - **The gateway key.** Credentials handed to the VM carry no
   `Be3-Gateway-Authorization` key (guides/hosting.md): no app has it, and none
   is handed out. Behind a gateway, the terminal host fails to connect and says
@@ -43,15 +49,15 @@ the design follows them.
   for that VM they can open; anyone else makes their own. A terminal reaches
   someone else only if its owner shares it or moves it into a shared place.
 - **The host runs inside the VM**: `be terminal-host` as a block-bound agent
-  (plans/deferred/block_agents.md), so the terminal block works unchanged on every
+  (plans/block_agents.md), so the terminal block works unchanged on every
   platform. Connecting:
   1. `create-block-agent(terminal, "boat VM <id>")`.
   2. Write the credentials, block id and sandbox id as in "Files and secrets"
      to `/run/be3/terminal-host-BLOCK.json` (mode 0600). `/run` is in memory,
      so no snapshot carries them.
-  3. Through the commands API, download `be` and check its SHA-256, and
-     install the `be-terminal@BLOCK` service, started by a `.path` unit when
-     its file appears.
+  3. Get `be` as `terminal-host-binary` says (download and check its SHA-256,
+     or upload it), and install the `be-terminal@BLOCK` service, started by a
+     `.path` unit when its file appears.
 - **Every resume** leaves the VM without credentials. When the app sees the VM
   running again it calls `rotate-agent-token`, which revokes the old token,
   and writes the new credentials. Until then the row says "Terminal offline,
@@ -67,8 +73,10 @@ the design follows them.
 
 ## Order of work
 
-1. Settle the blockers, then plans/deferred/block_agents.md.
-2. Connect, rotation and Disconnect, with paintings for connecting and
-   terminal offline.
+1. `terminal-host-binary`, for deployed and development builds, with tests
+   for both answers and the missing-build message.
+2. Connect, rotation and Disconnect against the mock boat API, with paintings
+   for connecting and terminal offline. Done: the end-to-end test connects,
+   types into the terminal, resumes with a rotated token and disconnects.
 3. Decision: a VM's terminal host is a block-bound agent. Update
    guides/terminal.md.

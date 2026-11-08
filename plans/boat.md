@@ -3,8 +3,8 @@
 Depends on: plans/app_network.md (step 1) and plans/owner_settings.md.
 
 An app for boat.dev cloud VMs ("sandboxes"): list your VMs and start and stop
-them. Opening a terminal block into one is deferred
-(plans/deferred/boat_terminals.md). It is the first block that mostly shows
+them. Opening a terminal block into one is
+plans/boat_terminals.md. It is the first block that mostly shows
 online data and the first that needs an outside account. Not implemented yet.
 
 ## What boat offers
