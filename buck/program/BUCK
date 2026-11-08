@@ -6,12 +6,10 @@ load("@root//buck/dev:verify.bzl", "package_fix")
 # bundles read it, so a new id rebuilds nothing else.
 export_file(
     name = "build-info.json",
-    visibility = ["PUBLIC"],
 )
 
 export_file(
     name = "web-dev.sh",
-    visibility = ["PUBLIC"],
 )
 
 # The browser's side of drive: web-drive.mjs for web-dev.sh, web-test.mjs for
@@ -23,24 +21,20 @@ filegroup(
         "web-drive.mjs",
         "web-test.mjs",
     ],
-    visibility = ["PUBLIC"],
 )
 
 export_file(
     name = "page-test.mjs",
-    visibility = ["PUBLIC"],
 )
 
 # A web bundle served as it is, with Caddy: what `./scripts/buck run` of a
 # web_program with serve (buck/wasm/defs.bzl) runs.
 export_file(
     name = "serve-bundle.sh",
-    visibility = ["PUBLIC"],
 )
 
 export_file(
     name = "bundle.Caddyfile",
-    visibility = ["PUBLIC"],
 )
 
 package_fix()

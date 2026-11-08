@@ -1,4 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
 load("@root//buck/wasm:defs.bzl", "type_module")
+
+cargo_package()
 
 # The workspace app's block types, the folder, the workspace and the file:
 # the content as a plain library, which the editors and tests depend on, and

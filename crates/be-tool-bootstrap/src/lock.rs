@@ -1,10 +1,11 @@
 //! The lock step: Cargo.lock brought up to date with the Cargo.toml files, as
 //! the cargo a developer runs would, and every crate it names pinned in
-//! buck/cargo/crates.bzl's downloads, which buck/cargo/buckify.bxl hands
-//! cargo on a worker that has no network. ./scripts/verify and ./scripts/ci run
-//! it before their buck2 command when [`STAMP`] is not the hash of what the
-//! step reads ([`inputs`]), and `//:buckify` before it generates; under
-//! `--check` it fails instead. It needs the network, and cargo (cargo.rs).
+//! third-party/rust/downloads.bzl, which buckify's action (buck/cargo/buckify.bzl)
+//! hands cargo on a worker that has no network. ./scripts/verify and
+//! ./scripts/ci run it before their buck2 command when [`STAMP`] is not the hash
+//! of what the step reads ([`inputs`]), and ./scripts/buckify before it
+//! generates; under `--check` it fails instead. It needs the network, and cargo
+//! (cargo.rs).
 
 use std::path::Path;
 use std::process::{Command, ExitCode};
@@ -19,7 +20,9 @@ use crate::{Result, cargo, repository, write_if_changed};
 /// What the step last left in step: the hash of [`inputs`] it wrote.
 pub const STAMP: &str = "buck/cargo/lock.sha256";
 
-const CRATES: &str = "buck/cargo/crates.bzl";
+const DOWNLOADS: &str = be_lib_crate_pins::DOWNLOADS_PATH;
+
+const MEMBERS: &str = be_lib_crate_pins::MEMBERS_PATH;
 
 /// The environment variable under which the bootstrap is cargo's rustc. cargo
 /// asks rustc only for its version and host to resolve a lockfile (rust-version
@@ -48,19 +51,19 @@ pub fn ensure(check: bool) -> Result<()> {
     }
     if check {
         return Err(format!(
-            "Out of date: Cargo.lock or the downloads in {CRATES}, with the Cargo.toml files ({STAMP} \
+            "Out of date: Cargo.lock or {DOWNLOADS}, with the Cargo.toml files ({STAMP} \
              is not the hash of them). Run ./scripts/verify without --check, which brings them up to date."
         ));
     }
     eprintln!(
-        "Cargo.lock and the downloads in {CRATES} may be out of date with the Cargo.toml files ({STAMP}): \
+        "Cargo.lock and {DOWNLOADS} may be out of date with the Cargo.toml files ({STAMP}): \
          bringing them up to date with cargo {version}."
     );
     let cargo = cargo::ensure(&pins)?;
     update(repository, &cargo, &version)?;
     pin(repository)?;
     let stamp = format!(
-        "# The SHA-256 of the Cargo.toml files, Cargo.lock, crates.bzl's downloads and\n\
+        "# The SHA-256 of the Cargo.toml files, Cargo.lock, third-party/rust/downloads.bzl and\n\
          # the cargo that last brought them into step (crates/be-tool-bootstrap/src/lock.rs).\n\
          # ./scripts/verify brings them up to date again when it differs.\n{}\n",
         inputs(repository, &version)?
@@ -84,27 +87,22 @@ fn members(repository: &Path) -> Result<Vec<String>> {
     Ok(members)
 }
 
-/// Fails unless crates.bzl names every workspace member and nothing else.
-/// //:verify reaches each crate through the crates it names (buck/dev/verify.bzl),
-/// and only //:buckify can plan a crate it does not name yet, since only BXL
-/// can find one (buck/cargo/buckify.bxl).
+/// Fails unless the members index names every workspace member and nothing
+/// else. Only ./scripts/buckify can plan a crate it does not name yet, since
+/// only BXL can find one (buck/cargo/buckify.bxl), and a crate without its
+/// generated facts (crates/NAME/PACKAGE) has no targets.
 pub fn check_members() -> Result<()> {
     let repository = repository();
-    let generated = read(repository, CRATES)?;
-    let named: Vec<&str> = generated
-        .lines()
-        .take_while(|line| !line.starts_with("third_party = "))
-        .filter_map(|line| line.strip_prefix("    \"")?.strip_suffix("\": {"))
-        .collect();
+    let named = be_lib_crate_pins::members(&read(repository, MEMBERS)?);
     let members = members(repository)?;
     let new: Vec<&str> = members
         .iter()
         .map(String::as_str)
-        .filter(|member| !named.contains(member))
+        .filter(|member| !named.iter().any(|name| name == member))
         .collect();
     let gone: Vec<&str> = named
         .iter()
-        .copied()
+        .map(String::as_str)
         .filter(|name| !members.iter().any(|member| member == name))
         .collect();
     if new.is_empty() && gone.is_empty() {
@@ -118,7 +116,7 @@ pub fn check_members() -> Result<()> {
         }
     };
     Err(format!(
-        "{CRATES} does not name the workspace's crates:{}{} Run ./scripts/buck run //:buckify, which plans them anew.",
+        "{MEMBERS} does not name the workspace's crates:{}{} Run ./scripts/buckify, which plans them anew.",
         list("It lacks", &new),
         list("It names, with no Cargo.toml,", &gone),
     ))
@@ -131,7 +129,7 @@ fn recorded_hash(text: &str) -> Option<&str> {
 }
 
 /// The hash of everything the step reads: the root Cargo.toml and each
-/// crates/*/Cargo.toml (every workspace member is one), Cargo.lock, crates.bzl's
+/// crates/*/Cargo.toml (every workspace member is one), Cargo.lock, the
 /// downloads and cargo's release, with paths written with / and lines ended
 /// with \n, so a checkout on Windows hashes the same.
 pub fn inputs(repository: &Path, version: &str) -> Result<String> {
@@ -152,10 +150,7 @@ pub fn inputs(repository: &Path, version: &str) -> Result<String> {
     for file in &files {
         add(file, &read(repository, file)?);
     }
-    let generated = read(repository, CRATES)?;
-    let (_, downloads) =
-        be_lib_crate_pins::split(&generated).ok_or_else(|| format!("{CRATES} has no downloads"))?;
-    add("downloads", downloads);
+    add("downloads", &read(repository, DOWNLOADS)?);
     Ok(hasher
         .finalize()
         .iter()
@@ -192,15 +187,12 @@ fn update(repository: &Path, cargo: &Path, version: &str) -> Result<()> {
     Ok(())
 }
 
-/// Rewrites crates.bzl's downloads from Cargo.lock: a crate already pinned keeps
+/// Rewrites the downloads from Cargo.lock: a crate already pinned keeps
 /// its size, and a new one is downloaded from crates.io, checked against the
 /// checksum Cargo.lock has for it, and pinned with its size.
 fn pin(repository: &Path) -> Result<()> {
     let locked = be_lib_crate_pins::locked(&read(repository, "Cargo.lock")?);
-    let generated = read(repository, CRATES)?;
-    let (rest, downloads) =
-        be_lib_crate_pins::split(&generated).ok_or_else(|| format!("{CRATES} has no downloads"))?;
-    let mut sizes = be_lib_crate_pins::pinned_sizes(downloads);
+    let mut sizes = be_lib_crate_pins::pinned_sizes(&read(repository, DOWNLOADS)?);
     let directory = repository.join("target/tools/crates");
     for (key, crate_) in &locked {
         if sizes.contains_key(key) {
@@ -217,9 +209,9 @@ fn pin(repository: &Path) -> Result<()> {
         eprintln!("Pinned {key}, {size} bytes.");
         sizes.insert(key.clone(), size);
     }
-    let updated = format!("{rest}{}", be_lib_crate_pins::render(&locked, &sizes)?);
-    if write_if_changed(&repository.join(CRATES), updated.as_bytes())? {
-        eprintln!("Updated the downloads in {CRATES}.");
+    let updated = be_lib_crate_pins::render(&locked, &sizes)?;
+    if write_if_changed(&repository.join(DOWNLOADS), updated.as_bytes())? {
+        eprintln!("Updated {DOWNLOADS}.");
     }
     Ok(())
 }

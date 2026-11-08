@@ -1,5 +1,7 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package", "cargo_test")
 load(":apps.bzl", "host_test_apps")
+
+cargo_package()
 
 # be-host headless as `:dev` runs it, driven by the same commands as `drive`
 # and painted with every app's own paint (guides/testing_a_gui.md, Testing

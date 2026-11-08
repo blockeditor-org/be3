@@ -1,27 +1,26 @@
-load("//buck/dev:test.bzl", "TestRunInfo")
+load("@root//buck/dev:test.bzl", "TestRunInfo", "run_test")
 
 # ./scripts/test --update, in one buck2 command (a plain ./scripts/test is
-# buck2 test, crates/be-tool-bootstrap/src/test.rs): each :test it names, run as an action on
-# a worker with libtest's --nocapture and the name to filter by, so that what
-# comes back is the test's output and the paintings it accepted rather than its
-# binary and everything it reads. A test that passed and whose inputs have not
-# changed comes from the cache. Each prints "<target><TAB><directory>", which
-# holds status, the test's exit status, log, its output, and changed/, the
-# paintings it accepted under --update with each one's .why
-# (crates/beui-paint-snapshot), for crates/be-tool-bootstrap to print and copy into the
-# crate's snapshots/. The action succeeds when the test fails, so that its output is
-# kept, and so a failure is cached like a pass: --nonce, which goes into every
-# test's environment, is how crates/be-tool-bootstrap runs again tests whose last run
-# failed.
+# buck2 test, crates/be-tool-bootstrap/src/test.rs): each test it names, run as
+# run_test's "record" action (buck/dev/test.bzl) with libtest's --nocapture and
+# the name to filter by, so that what comes back is the test's output and the
+# paintings it accepted rather than its binary and everything it reads. A test
+# whose inputs have not changed comes from the cache. Each prints
+# "<name><TAB><directory>", the record, for crates/be-tool-bootstrap to print
+# and to copy its paintings into the crate's snapshots/.
+#
+# A record is kept, and cached, when its test fails too. --again names the runs
+# (as printed) whose last record was a failure, and --nonce goes into those
+# runs' environment alone, so that they run again while every run that passed
+# still comes from the cache.
 #
 #   ./scripts/buck bxl //buck/dev/test.bxl:main -- --target //crates/be-lib-geometry:test --name rotates
 #
-# Each test runs as its TestRunInfo (buck/dev/test.bzl) says, through
-# crates/be-tool-run-test's --record. A local test, such as a web_drive_test,
-# which needs a browser, runs here. A run_apart test (crates/be-host-tests)
-# runs each part, a file under src/tests/, whose test, tests::<file>::<file>,
-# contains the name, or every part without one, as an action of its own with
-# that file's environment, which names its own app.
+# A local test, such as a web_drive_test, which needs a browser, runs here. A
+# run_apart test (crates/be-host-tests) runs each part, a file under
+# src/tests/, whose test, tests::<file>::<file>, contains the name, or every
+# part without one, as an action of its own with that file's environment,
+# which names its own app.
 
 def _impl(ctx: bxl.Context):
     args = ctx.cli_args
@@ -36,27 +35,26 @@ def _impl(ctx: bxl.Context):
         if not runs:
             runs = [("", info, filters)]
         for suffix, run, run_filters in runs:
-            env = dict(run.env)
-            if args.update:
-                env["UPDATE_SNAPSHOTS"] = "1"
-            if args.nonce:
-                env["BE3_TEST_NONCE"] = args.nonce
             name = str(target.label.raw_target()) + suffix
             out = actions.declare_output("test/{}/{}{}".format(target.label.package, target.label.name, suffix), dir = True)
-            actions.run(
-                cmd_args(run.launcher, "--record", out.as_output(), "--", run.command, run_filters, hidden = run.hidden),
-                category = "test",
-                env = env,
+            run_test(
+                actions,
+                run,
+                out,
+                "record",
+                env = {"BE3_TEST_NONCE": args.nonce} if name in args.again else {},
+                filters = run_filters,
                 identifier = name,
-                local_only = run.local,
+                update = args.update,
             )
             ran.append((name, out))
     paths = ctx.output.ensure_multiple([out for _, out in ran])
-    for (label, _), path in zip(ran, paths):
-        ctx.output.print(label, path.abs_path(), sep = "\t")
+    for (name, _), path in zip(ran, paths):
+        ctx.output.print(name, path.abs_path(), sep = "\t")
 
 main = bxl_main(
     cli_args = {
+        "again": cli_args.list(cli_args.string(), default = []),
         "name": cli_args.string(""),
         "nonce": cli_args.string(""),
         "target": cli_args.list(cli_args.string()),

@@ -1,10 +1,11 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package", "cargo_test")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/tools:defs.bzl", "configured_once")
 
-# The Zig build-ghostty-vt.sh wants (its zig_version and sha256), a pinned
-# download, so the action finds it on PATH rather than downloading it again
-# whenever it runs.
+cargo_package()
+
+# Zig 0.16.0, the release Ghostty's build.zig.zon asks for: Zig breaks its
+# build API between releases.
 configured_once(
     http_archive,
     name = "zig",
@@ -14,13 +15,78 @@ configured_once(
     urls = ["https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz"],
 )
 
-# libghostty-vt, be-launcher's terminal emulator: Zig, built on a worker by
-# scripts/internal/build-ghostty-vt.sh, which fetches Ghostty and the Zig
-# packages it builds with, pinned by commit and hash - the one action that
-# needs the network. Zig
-# cross-compiles, so every platform's archive comes from the same worker;
-# Windows gets buck/tools' MSVC runtime and SDK through a libc file, and Android
-# buck/tools' NDK.
+# Ghostty's source, at the commit libghostty-vt is built from: GitHub's
+# archive of it. Bump this to pick up a newer terminal emulator.
+ghostty_commit = "0c2a290d3a3e2a599be3a43435d778a5896667ee"
+
+configured_once(
+    http_file,
+    name = "ghostty.tar.gz",
+    out = "ghostty.tar.gz",
+    sha256 = "abeadd08aa8ceae1604d8af535b6f04b84dcd9ef83018f0c67dfabf9bfd64bbf",
+    size_bytes = 39554991,
+    urls = ["https://github.com/ghostty-org/ghostty/archive/{}.tar.gz".format(ghostty_commit)],
+)
+
+# The Zig packages that build asks for, for every platform here, each pinned by
+# the hash of the bytes at its URL (its .zon manifest pins it again by its
+# contents): Ghostty's build.zig.zon names them, and translate-c's names aro.
+# A newer Ghostty that asks for another fails its build naming the URL.
+zig_packages = {
+    "aro.tar.gz": (
+        "https://github.com/vancluever/arocc/archive/f97cdfc3779aec4b242299e2fc9a1c828c3547c6.tar.gz",
+        "42c8cab9135b12518e6af7dc5e461f055c78b863adca8ed7774f2fb7fe9a7784",
+        951232,
+    ),
+    "ghostty-themes.tgz": (
+        "https://deps.files.ghostty.org/ghostty-themes-release-20260831-151010-752a9c0.tgz",
+        "83653eb837baeb5bfc7d50c91b7d44772796e08c1c243134e11c5edf6c8d15c5",
+        78972,
+    ),
+    "pixels.tar.gz": (
+        "https://deps.files.ghostty.org/pixels-12207ff340169c7d40c570b4b6a97db614fe47e0d83b5801a932dcd44917424c8806.tar.gz",
+        "55e83b16d091082502bf149bf457f31f42092c5982650e3ffbae7b48871bf11a",
+        3644,
+    ),
+    "translate-c.tar.gz": (
+        "https://codeberg.org/vancluever/translate-c/archive/4e879eb8aba615de112eabd1231ea6e01920cead.tar.gz",
+        "8fb0f5c6a3e8b3bf0e35225d3abc1230bcf6f1fdf162467f1f747ec2fa5eda07",
+        154976,
+    ),
+    "uucode.tar.gz": (
+        "https://deps.files.ghostty.org/uucode-2826a37a4562284fdacd8fa029d49509cc9bffcd.tar.gz",
+        "7e76fc7fab1e7ac728c52b35bbb3e5b8c639841abfc7fe1a4bcb13050594bc9e",
+        2214904,
+    ),
+    "wuffs.tar.gz": (
+        "https://deps.files.ghostty.org/wuffs-7411f488fe2e2c205c3d3b3d28638b7356522930.tar.gz",
+        "17877d346f7988651d6c62e45b2e3b05c86809a6442c5e34612374b2a9719a1c",
+        771698,
+    ),
+    "zlib.tar.gz": (
+        "https://deps.files.ghostty.org/zlib-1220fed0c74e1019b3ee29edae2051788b080cd96e90d56836eea857b0b966742efb.tar.gz",
+        "17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c",
+        1572744,
+    ),
+}
+
+[
+    configured_once(
+        http_file,
+        name = "zig-package-" + name,
+        out = name,
+        sha256 = sha256,
+        size_bytes = size_bytes,
+        urls = [url],
+    )
+    for name, (url, sha256, size_bytes) in zig_packages.items()
+]
+
+# libghostty-vt, be-launcher's terminal emulator: Zig, built by
+# scripts/internal/build-ghostty-vt.sh from the downloads above, with no
+# network. Zig cross-compiles, so every platform's archive comes from the same
+# worker; Windows gets buck/tools' MSVC runtime and SDK through a libc file,
+# and Android buck/tools' NDK.
 genrule(
     name = "libghostty-vt.a",
     cmd = "triple="
@@ -42,13 +108,8 @@ genrule(
         set -eu
         PATH="`cd $(location :zig) && pwd`:$PATH"
         export PATH
-        repository=`mktemp -d`
-        # Zig keeps the packages it fetches in a global cache under $HOME,
-        # which a worker need not set.
-        ZIG_GLOBAL_CACHE_DIR="$repository/zig-global-cache"
-        export ZIG_GLOBAL_CACHE_DIR
         if [ -n "$android_ndk" ]; then
-            ANDROID_NDK_HOME="$repository/ndk"
+            ANDROID_NDK_HOME="$TMP/ndk"
             export ANDROID_NDK_HOME
             mkdir -p "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64"
             ln -s "`cd "$android_ndk" && pwd`/sysroot" "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
@@ -56,7 +117,7 @@ genrule(
         if [ -n "$windows_sdk" ]; then
             sdk=`cd "$windows_sdk" && pwd`
             arch="${triple%%-*}"
-            GHOSTTY_ZIG_LIBC="$repository/libc.txt"
+            GHOSTTY_ZIG_LIBC="$TMP/libc.txt"
             export GHOSTTY_ZIG_LIBC
             {
                 echo "include_dir=$sdk/sdk/include/ucrt"
@@ -67,18 +128,13 @@ genrule(
                 echo "gcc_dir="
             } > "$GHOSTTY_ZIG_LIBC"
         fi
-        cp -RL "$SRCDIR/scripts" "$repository/" || { ls -laR "$SRCDIR" >&2; exit 1; }
-        bash "$repository/scripts/internal/build-ghostty-vt.sh" \\
-            --triple "$triple" > /dev/null
-        cp "$repository/target/ghostty-vt/$triple/"*ghostty-vt*.* "$OUT"
-        rm -rf "$repository"
-    """,
+        bash $(location //scripts/internal:build-ghostty-vt.sh) --triple "$triple" \\
+            --source $(location :ghostty.tar.gz) \\
+            --patch $(location //scripts/internal:ghostty-vt.patch) \\
+            --out "$OUT" \\
+    """
+    + " ".join(["$(location :zig-package-{})".format(name) for name in zig_packages]),
     out = "libghostty-vt.a",
-    srcs = {
-        "scripts/internal/build-ghostty-vt.sh": "//scripts/internal:build-ghostty-vt.sh",
-        "scripts/internal/download.sh": "//scripts/internal:download.sh",
-        "scripts/internal/ghostty-vt.patch": "//scripts/internal:ghostty-vt.patch",
-    },
 )
 
 prebuilt_cxx_library(

@@ -55,7 +55,7 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         unsafe { std::env::set_var("BE3_VERBOSE", "1") };
     }
 
-    // Before buck2, which reads crates.bzl's downloads from the start.
+    // Before buck2, which reads the downloads from the start.
     lock::ensure(has("--check"))?;
     lock::check_members()?;
     let buck2 = buck::prepare()?;
@@ -70,7 +70,7 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         events.to_string_lossy().into_owned(),
     ]);
     let host = target_platform().unwrap_or("linux_x86_64");
-    let mut parts = vec![""];
+    let mut parts = Vec::new();
     for (flag, part) in [
         (lint, "lint"),
         (tests, "tests"),
@@ -84,12 +84,12 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
     }
     let (status, output) = buck::retrying(
         &buck2,
-        &build_arguments(host, &parts, &events),
+        &bxl_arguments(host, &parts, &events),
         false,
         true,
         (!verbose).then_some(log.as_path()),
     )?;
-    std::fs::write(&manifest, manifests(&output))
+    std::fs::write(&manifest, &output)
         .map_err(|error| format!("could not write {}: {error}", manifest.display()))?;
     if status != 0 {
         passed.push("--build-failed".to_owned());
@@ -125,55 +125,28 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
     buck::exec(command)
 }
 
-/// The buck2 command: each part of //:verify (buck/dev/verify.bzl), "" being
-/// the target itself, and the same part of //:verify-manifest, which lists
-/// what crates/be-tool-verify reads. --keep-going builds everything that can
-/// be, so that it reads what did; the tools it runs here are built for host.
-/// The event log is for crates/be-tool-verify too, which checks from it where
-/// Rust links ran (be-tool-verify's links.rs).
-fn build_arguments(host: &str, parts: &[&str], events: &std::path::Path) -> Vec<String> {
+/// The buck2 command: buck/dev/verify.bxl with the parts asked for, which
+/// prints the manifest crates/be-tool-verify reads, whole even when something
+/// fails to build. --keep-going builds everything that can be, so that it
+/// reads what did; the tools it runs here are built for host. The event log
+/// is for crates/be-tool-verify too, which checks from it where Rust links
+/// ran (be-tool-verify's links.rs).
+fn bxl_arguments(host: &str, parts: &[&str], events: &std::path::Path) -> Vec<String> {
     let mut arguments: Vec<String> = [
-        "build",
+        "bxl",
         "--keep-going",
-        "--show-full-output",
         "--event-log",
         &events.to_string_lossy(),
-        "--target-platforms",
-        &format!("root//buck/platforms:{host}"),
+        "//buck/dev/verify.bxl:main",
+        "--",
+        "--host",
+        host,
     ]
     .into_iter()
     .map(str::to_owned)
     .collect();
-    for target in ["//:verify", "//:verify-manifest"] {
-        for part in parts {
-            arguments.push(if part.is_empty() {
-                target.to_owned()
-            } else {
-                format!("{target}[{part}]")
-            });
-        }
+    for part in parts {
+        arguments.extend(["--part".to_owned(), (*part).to_owned()]);
     }
     arguments
-}
-
-/// The manifest crates/be-tool-verify reads: every part's, from the paths
-/// --show-full-output printed for //:verify-manifest, each a "LABEL PATH" line.
-fn manifests(output: &[u8]) -> String {
-    let mut manifest = String::new();
-    for line in String::from_utf8_lossy(output).lines() {
-        let Some((label, path)) = line.split_once(' ') else {
-            continue;
-        };
-        if !label.starts_with("root//:verify-manifest") {
-            continue;
-        }
-        let path = path.trim_end_matches('\r');
-        if let Ok(text) = std::fs::read_to_string(path) {
-            manifest.push_str(&text);
-            if !text.is_empty() && !text.ends_with('\n') {
-                manifest.push('\n');
-            }
-        }
-    }
-    manifest
 }

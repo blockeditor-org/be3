@@ -29,13 +29,24 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
 
     println!("Reading the build graph...");
     let mut project = develop(&["//crates/..."])?;
-    let guest = develop(&[
+    // Each app's guest library, by its directory: a target pattern cannot
+    // match a prefix of a package name, and an app's other targets, such as
+    // its :test, run natively.
+    let mut apps: Vec<String> = std::fs::read_dir("crates")
+        .map_err(|error| format!("could not list crates/: {error}"))?
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .filter(|name| name.starts_with("be-app-"))
+        .map(|name| format!("//crates/{name}:wasm"))
+        .collect();
+    apps.sort();
+    let mut guest_arguments: Vec<&str> = vec![
         "--mode=--target-platforms=root//buck/platforms:wasi_guest",
         "--rustc-target",
         "wasm32-wasip1-threads",
-        "//crates/be-app-...",
-        "//crates/be-sdk:",
-    ])?;
+    ];
+    guest_arguments.extend(apps.iter().map(String::as_str));
+    guest_arguments.push("//crates/be-sdk:be-sdk");
+    let guest = develop(&guest_arguments)?;
 
     let crates = project["crates"]
         .as_array_mut()

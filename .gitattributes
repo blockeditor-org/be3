@@ -5,9 +5,13 @@
 * text=auto eol=lf
 
 
-# Generated lockfiles, which a diff on GitHub collapses: //:buckify writes the
-# first and //:lock-sysroot the second.
-buck/cargo/crates.bzl linguist-generated=true
+# Generated lockfiles, which a diff on GitHub collapses: ./scripts/buckify writes
+# the crates' facts, the bootstrap's lock step the downloads, and
+# //:lock-sysroot the sysroot's packages.
+crates/*/PACKAGE linguist-generated=true
+buck/cargo/members.bzl linguist-generated=true
+third-party/rust/crates.bzl linguist-generated=true
+third-party/rust/downloads.bzl linguist-generated=true
 buck/sysroot/packages.bzl linguist-generated=true
 
 # Paintings (each crate's snapshots/*.paint) are binary recordings. Git guesses

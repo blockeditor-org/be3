@@ -1,4 +1,4 @@
-load("//buck/dev:test.bzl", "be_test")
+load("@root//buck/dev:test.bzl", "be_test")
 
 # Code that must not compile, and the errors it must fail with. Each case marks
 # the line rustc should point at with `//~ ERROR <part of the message>`. The

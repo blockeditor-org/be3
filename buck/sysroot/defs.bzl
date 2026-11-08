@@ -4,7 +4,7 @@ load("@root//buck/tools:defs.bzl", "configured_once")
 
 # Resolves the package closure: buck-tools resolves what each set asks for
 # against the snapshot's package indexes for its architecture (deb_indexes)
-# into packages.bzl, which ./scripts/buck run //:lock-sysroot copies into place.
+# into packages.bzl, which ./scripts/verify copies into place.
 # Every architecture comes from the one archive: the snapshot of ubuntu-ports
 # refuses anonymous requests, and the main archive's has the same packages at
 # the same versions.
@@ -143,6 +143,5 @@ def sysroot(name, set_name, packages, **kwargs):
         deb_sysroot,
         name = name,
         packages = [":" + _deb_name(set_name, package) for package, _, _, _ in packages.get(set_name, [])],
-        visibility = ["PUBLIC"],
         **kwargs,
     )

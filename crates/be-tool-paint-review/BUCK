@@ -1,5 +1,7 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library")
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package")
 load("@root//buck/wasm:defs.bzl", "app_tests")
+
+cargo_package()
 
 # The page that reviews a pull request's paintings, knowing nothing about how
 # they are fetched: crates/be-tool-paint-review-web runs it in a browser.

@@ -1,34 +1,50 @@
-load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
-load("@root//buck/cargo:buckify.bzl", "cargo_inputs")
-load("@root//buck/dev:targets.bzl", "BINARY_NAMES")
 load("@root//buck/dev:test.bzl", "be_test")
 load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
-load(":crates.bzl", "crates")
+load(":inputs.bzl", "cargo_inputs")
 load(":layers.bzl", "check_layers")
+load(":members.bzl", "members")
 
-# The rules for a workspace crate, filled in from its Cargo.toml through
-# crates.bzl, which //:buckify generates from cargo's own plans. A BUCK file
-# passes what Cargo.toml cannot say as arguments: extra_deps and env are added
-# to what the macro works out, and anything else goes to the rule as it is.
-# Where a crate's dependencies or features differ between platforms, the macro
-# selects them by plan through the prelude's apply_platform_attrs, which the
-# third-party rules use too, from the map the root PACKAGE sets.
+# The rules for a workspace crate, filled in from its Cargo.toml through the
+# crate's facts: its PACKAGE file, which ./scripts/buckify generates from
+# cargo's own plans and which sets them as the package value be3.cargo, so a
+# change to one crate's dependencies re-evaluates that crate's package alone. A
+# BUCK file passes what Cargo.toml cannot say as arguments: extra_deps and env
+# are added to what the macro works out, and anything else goes to the rule as
+# it is. Where a crate's dependencies or features differ between platforms, the
+# macro selects them by plan, with the settings in PLAN_SETTINGS.
 
-# The crate's facts, and its package's :fix (buck/dev/verify.bzl) and
-# :cargo-inputs (buckify.bzl), which every macro here reaches through this.
-# The first call in a package, before :cargo-inputs exists, also checks the
-# crate's dependencies against the layers in layers.bzl.
-def _crate():
-    package = native.package_name()
-    if package not in crates:
-        fail("{} is not a workspace member cargo knows about; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(package))
-    if not native.rule_exists("cargo-inputs"):
-        check_layers(crates[package])
-    package_fix(rust = True)
+def _facts():
+    crate = native.read_package_value("be3.cargo")
+    if crate == None or crate["package"] != native.package_name():
+        fail(
+            "{} is not a workspace member cargo knows about: it has no PACKAGE of its own setting be3.cargo. Run ./scripts/buckify, which generates it from Cargo.toml.".format(
+                native.package_name()
+            )
+        )
+    return crate
+
+# A crate package's own targets beside the ones its BUCK file asks for: :fix
+# (buck/dev/verify.bzl) and :cargo-inputs (inputs.bzl, what buckify plans the
+# crate from), after checking the crate's dependencies against the layers in
+# layers.bzl. Every crate's BUCK file calls it once, before any other macro
+# here or in buck/wasm/defs.bzl, unless it calls cargo_crate(), which calls it.
+def cargo_package():
+    check_layers(_facts())
+    package_fix(exclude = ["PACKAGE"], rust = True)
     cargo_inputs()
-    return crates[package]
+
+# The crate's facts, for a macro that defines one of its targets.
+def _crate():
+    crate = _facts()
+    if not native.rule_exists("cargo-inputs"):
+        fail(
+            "{}'s BUCK file defines a target before calling cargo_package(), which every crate's BUCK file calls first unless it calls cargo_crate()".format(
+                native.package_name()
+            )
+        )
+    return crate
 
 # One value per platform, as a select() when they differ and a plain list when
 # they do not. A platform cargo never planned the crate for gets nothing, since
@@ -43,27 +59,29 @@ def _per_platform(crate, pick, extra = []):
             distinct.append(value)
     if len(distinct) == 1:
         return distinct[0]
-    per_plan = {platform: {"value": values.get(platform, [])} for platform in get_reindeer_platform_names()}
-    return apply_platform_attrs(per_plan, {})["value"]
+    return select({"DEFAULT": []} | {setting: values.get(plan, []) for plan, setting in PLAN_SETTINGS.items()})
 
 # What makes a crate's targets incompatible with every platform cargo did not
-# plan it for (buck/cargo/buckify.sh's package lists say which), so that one
+# plan it for (PLANS in crates/be-tool-buck/src/plan.rs says which), so that one
 # asked for there, such as an app crate built for anything but the guest's
 # wasi, fails when the build is configured, rather than building with no
 # dependencies. It names a constraint no platform has, which buck2's error
-# names. The settings are the ones the root PACKAGE picks a plan by.
-def _planned(crate):
-    unplanned = [plan for plan in PLAN_SETTINGS if plan not in crate["platforms"]]
+# names. The settings are the ones the root PACKAGE picks a plan by. A binary
+# or an example is compatible only with the plans that build it, which may be
+# fewer than the crate's (`cargo build --lib` builds none), as `plans` names
+# them.
+def _planned(crate, plans = None):
+    if plans == None:
+        plans = crate["platforms"].keys()
+    unplanned = [plan for plan in PLAN_SETTINGS if plan not in plans]
     if not unplanned:
         return []
     return select(
-        {"DEFAULT": []}
-        | {PLAN_SETTINGS[plan]: ["root//buck/constraints:planned_by_cargo"] for plan in unplanned}
-        | {PLAN_SETTINGS[plan]: [] for plan in crate["platforms"]}
+        {"DEFAULT": []} | {PLAN_SETTINGS[plan]: ["root//buck/constraints:planned_by_cargo"] for plan in unplanned} | {PLAN_SETTINGS[plan]: [] for plan in plans}
     )
 
-def _compatible(crate, kwargs):
-    planned = _planned(crate)
+def _compatible(crate, kwargs, plans = None):
+    planned = _planned(crate, plans)
     if planned:
         kwargs["target_compatible_with"] = kwargs.get("target_compatible_with", []) + planned
 
@@ -232,16 +250,14 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
 # binary's own name.
 def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
-    _compatible(crate, kwargs)
     binaries = {binary["name"]: binary for binary in crate["binaries"]}
     if bin == None:
         if len(binaries) != 1:
             fail("{} has {} binaries; name the one this is with bin".format(crate["name"], len(binaries)))
         bin = binaries.keys()[0]
+    _compatible(crate, kwargs, [plan for plan, entry in crate["platforms"].items() if bin in entry["binaries"]])
     binary = binaries[bin]
     default = "bin" if len(binaries) == 1 else bin
-    if "linux-x86_64" in crate["platforms"] and (name or default) != BINARY_NAMES.get(native.package_name(), {}).get(bin, default):
-        fail("{}'s binary {} is not named what //:verify checks: name it in BINARY_NAMES in buck/dev/targets.bzl".format(crate["name"], bin))
     crate_name = bin.replace("-", "_")
     own = []
     if crate["library"] != None:
@@ -264,10 +280,10 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
 # builds it, with the library and the dev-dependencies.
 def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
-    _compatible(crate, kwargs)
     examples = {entry["name"]: entry for entry in crate["examples"]}
     if example not in examples:
-        fail("{} has no example {}; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(crate["name"], example))
+        fail("{} has no example {}; run ./scripts/buckify, which regenerates the crate's PACKAGE".format(crate["name"], example))
+    _compatible(crate, kwargs, [plan for plan, entry in crate["platforms"].items() if example in entry["examples"]])
     crate_name = example.replace("-", "_")
     own = []
     if crate["library"] != None:
@@ -287,10 +303,12 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     )
 
 # A crate's every target from its Cargo.toml: the library, if it has one, and
-# its tests, unless test = False, every [[bin]] and every example. Most BUCK
-# files are this one line, and a new crate starts with it; one that needs
-# arguments for a target calls the macros above for that target instead.
+# its tests, unless test = False, every [[bin]] and every example, and
+# cargo_package()'s. Most BUCK files are this one line, and a new crate starts
+# with it; one that needs arguments for a target calls cargo_package() and then
+# the macros above for each target instead.
 def cargo_crate(test = True):
+    cargo_package()
     crate = _crate()
     if crate["library"] != None:
         cargo_library()
@@ -323,12 +341,12 @@ def cargo_wasm_facts():
 # Every app's package, which is every workspace crate named be-app-*: what
 # the host stages as its apps.
 def app_packages():
-    return sorted([package for package in crates if package.startswith("crates/be-app-")])
+    return sorted([package for package in members if package.startswith("crates/be-app-")])
 
 # Every game's package, which is every workspace crate named tabletop-rules-*:
 # what the games app stages as its data.
 def game_packages():
-    return sorted([package for package in crates if package.startswith("crates/tabletop-rules-")])
+    return sorted([package for package in members if package.startswith("crates/tabletop-rules-")])
 
 # rustc's sancov pass, which libFuzzer reads coverage and comparisons from, and
 # an optimised build that still checks for overflow and debug assertions, as

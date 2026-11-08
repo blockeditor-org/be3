@@ -20,7 +20,8 @@ buck = none
 [external_cells]
 prelude = bundled
 
-# Linux on x86_64, whichever machine asks: buck/platforms/BUCK says why.
+# Linux on x86_64, whichever machine asks: buck/platforms/BUCK says why. The
+# root PACKAGE says why this is not a modifier.
 [parser]
 target_platform_detector_spec = target:root//...->root//buck/platforms:linux_x86_64
 
@@ -49,10 +50,10 @@ clean_stale_enabled = true
 clean_stale_artifact_ttl_hours = 72
 clean_stale_period_hours = 24
 
-# Where the remote execution cluster is: not here. Namespace shuts it down when
-# it has been idle, so ./scripts/buck asks the waker for its hosts and writes
-# them, with the header that authenticates to them, into .buckconfig.local
-# (crates/be-tool-bootstrap/src/server.rs). The address is a bare
+# Where the remote execution cluster is: not here, but in the file included at
+# the end. Namespace shuts it down when it has been idle, so ./scripts/buck asks
+# the waker for its hosts and writes them, with the header that authenticates to
+# them, into that file (crates/be-tool-bootstrap/src/server.rs). The address is a bare
 # host:port (buck2 rejects grpcs:// and https://), http_headers uses a colon,
 # and there is no instance name.
 #
@@ -62,9 +63,12 @@ clean_stale_period_hours = 24
 # the sysroot and every dependency's rlib, tens of thousands of files, so at
 # buck2's default of 100 a call, be-host's first test after a daemon starts
 # waited half a minute on hundreds of round trips through the proxy before it
-# compiled.
+# compiled. The answer lists every digest the server lacks, about 72 bytes
+# each, and a gRPC message is at most 128 KiB: at 10000 a call, a cold cache's
+# first macOS SDK upload got back 183 KB and failed, so 1500 keeps the worst
+# answer under the limit.
 [buck2_re_client]
-find_missing_blobs_batch_size = 10000
+find_missing_blobs_batch_size = 1500
 
 # What buck2 does not watch or read as part of the workspace: git's own
 # directory, whose every fetch would otherwise be a file change, and the
@@ -72,3 +76,8 @@ find_missing_blobs_batch_size = 10000
 # worktrees Claude Code checks out under .claude.
 [project]
 ignore = .git, .claude, target, dist, buck-out
+
+# What ./scripts/buck generates: the build server's hosts and key, above. It is
+# not written when buck2 builds on this machine (guides/running/local_buck2.md),
+# and .buckconfig.local, a person's own, is read after it.
+<?file:target/build-server.buckconfig>

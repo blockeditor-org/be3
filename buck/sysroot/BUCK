@@ -1,5 +1,5 @@
 load("@root//buck/dev:verify.bzl", "package_fix")
-load("//buck/platforms:cross.bzl", "per_cross_platform")
+load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load(":defs.bzl", "deb_downloads", "deb_indexes", "deb_lock", "pkg_config", "sysroot")
 load(":packages.bzl", "packages")
 
@@ -7,8 +7,8 @@ load(":packages.bzl", "packages")
 # glibc, libstdc++ and every system library a crate links - unpacked into a
 # sysroot the toolchain passes with --sysroot, so a worker's image is only what
 # runs the tools. They come from a snapshot of the archive, which pins every
-# index; ./scripts/buck run //:lock-sysroot resolves the list below into
-# packages.bzl.
+# index; ./scripts/verify resolves the list below into packages.bzl
+# (buck/sysroot:lock, which crates/be-tool-verify copies into place).
 
 snapshot = "20260915T000000Z"
 
@@ -110,7 +110,6 @@ sysroot(
 # lavapipe_icd.json does, so the smoke test loads it from :amd64-xr.
 export_file(
     name = "monado_runtime.json",
-    visibility = ["PUBLIC"],
 )
 
 # What a program run here from :amd64 loads, for `:dev` (buck/program/drive.bzl) to
@@ -127,7 +126,6 @@ genrule(
         rm -f $OUT/libasan.so* $OUT/libtsan.so* $OUT/liblsan.so* $OUT/libubsan.so* $OUT/libhwasan.so*
     """,
     out = "lib",
-    visibility = ["PUBLIC"],
 )
 
 sysroot(name = "arm64", packages = packages, set_name = "arm64")
@@ -139,7 +137,6 @@ pkg_config(
     name = "pkg-config",
     sysroot = per_cross_platform(":amd64", lambda name: ":arm64" if name == "linux_arm64" else None),
     triple = per_cross_platform("x86_64-linux-gnu", lambda name: "aarch64-linux-gnu" if name == "linux_arm64" else None),
-    visibility = ["PUBLIC"],
 )
 
 # Lavapipe's Vulkan driver manifest, naming its library by file name rather than
@@ -147,17 +144,10 @@ pkg_config(
 # LD_LIBRARY_PATH loads it from there.
 export_file(
     name = "lavapipe_icd.json",
-    visibility = ["PUBLIC"],
-)
-
-export_file(
-    name = "lock.sh",
-    visibility = ["PUBLIC"],
 )
 
 export_file(
     name = "deb_sysroot.sh",
-    visibility = ["PUBLIC"],
 )
 
 package_fix(exclude = ["packages.bzl"])

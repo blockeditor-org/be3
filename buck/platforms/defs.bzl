@@ -66,3 +66,16 @@ execution_platforms = rule(
     attrs = {"platforms": attrs.list(attrs.dep(providers = [ExecutionPlatformInfo]))},
     impl = _execution_platforms_impl,
 )
+
+# A target platform and its config_setting, <name>_setting, from one list of
+# constraints: a select key is one setting, and a platform is several
+# constraints.
+def target_platform(name: str, constraint_values: list[str]):
+    native.platform(
+        name = name,
+        constraint_values = constraint_values,
+    )
+    native.config_setting(
+        name = name + "_setting",
+        constraint_values = constraint_values,
+    )

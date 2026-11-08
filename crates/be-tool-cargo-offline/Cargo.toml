@@ -1,0 +1,16 @@
+[package]
+name = "be-tool-cargo-offline"
+description = "buckify's action: a copy of the workspace cargo plans with no network, from the crates third-party/rust/downloads.bzl pins, handed to be-tool-buck's plan"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "cargo-offline"
+path = "src/main.rs"
+
+[dependencies]
+be-lib-crate-pins = { path = "../be-lib-crate-pins" }
+
+[lints]
+workspace = true

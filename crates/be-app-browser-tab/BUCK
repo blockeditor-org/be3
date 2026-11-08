@@ -1,4 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
 load("@root//buck/wasm:defs.bzl", "app")
+
+cargo_package()
 
 app(
     module = "browser_tab",

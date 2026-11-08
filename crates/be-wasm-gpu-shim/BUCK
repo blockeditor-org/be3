@@ -1,5 +1,7 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library")
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package")
 load("@root//buck/wasm:defs.bzl", "wasm32_module")
+
+cargo_package()
 
 # The browser's half of the app protocol's gpu abi: a real wgpu device in the
 # app's worker, which draws what the app shows into canvases the page
@@ -14,5 +16,4 @@ wasm32_module(
     name = "module",
     library = ":be-wasm-gpu-shim",
     module = "block_gpu_shim",
-    visibility = ["PUBLIC"],
 )

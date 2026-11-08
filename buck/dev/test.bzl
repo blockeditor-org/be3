@@ -1,17 +1,15 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/cargo:crates.bzl", "crates")
 load("@root//buck/platforms:profile.bzl", "LOCAL_BUILD")
 load("@root//buck/tools:defs.bzl", "worker_properties")
-load(":targets.bzl", "TESTS", "TEST_PLATFORMS", "UNTESTED")
 
 # How long a test may run before crates/be-tool-run-test stops it. A test that
 # hangs would otherwise hold its worker until the build server gives up on it,
 # and every later run of the same action would wait on that one.
 TEST_TIME_LIMIT = "20m"
 
-# What a test runs, for ./scripts/verify and ./scripts/test (//:verify,
-# buck/dev/verify.bzl, and buck/dev/test.bxl), which run it as an action rather
-# than through buck2 test: `launcher` is crates/be-tool-run-test with the test's
+# What a test runs, for ./scripts/verify and ./scripts/test --update
+# (buck/dev/verify.bxl and buck/dev/test.bxl), which run it as an action
+# (run_test) rather than through buck2 test: `launcher` is crates/be-tool-run-test with the test's
 # own flags, to which a runner adds its output flags, then "--" and `command`.
 # `hidden` is what the test reads that the command does not name, such as the
 # accepted paintings. A test that `paints` accepts paintings under
@@ -45,31 +43,48 @@ def _executor(local: bool):
         remote_execution_use_case = "buck2-default",
     )
 
-# The test as the action [run] is, which is how ./scripts/verify runs it: an
-# action whose inputs have not changed comes from the cache, where buck2 test
-# runs a test again unless a worker ran it. It fails, with the test's output,
-# when the test does, and is not cached then. A test that does not paint
-# outputs `passed`. One that paints accepts every painting, writing the ones
-# that changed or are new to paintings/changed/ and, for each accepted painting
-# it compared, the SHA-256 of what it read to paintings/used/ (that of nothing
-# when there was none), so that the paintings themselves are never downloaded;
-# ./scripts/verify copies into the crate's snapshots/ the paintings in changed/
-# whose accepted painting still has that hash, or under --check fails on them.
+# The one action that runs a test, through crates/be-tool-run-test, for :test's
+# [run] (what ./scripts/verify builds, buck/dev/verify.bxl) and for
+# ./scripts/test --update (buck/dev/test.bxl) alike: an action whose inputs have
+# not changed comes from the cache, where buck2 test runs a test again unless a
+# worker ran it. `out` is what the launcher writes, by `mode`:
+#
+# - "passed": a file, written when the test passes. The action fails, with the
+#   test's output, when the test does, and is not cached then.
+# - "paintings": a directory, for a test that paints, which accepts every
+#   painting (UPDATE_SNAPSHOTS), writing the ones that changed or are new to
+#   paintings/changed/ and, for each accepted painting it compared, the SHA-256
+#   of what it read to paintings/used/ (that of nothing when there was none),
+#   so that the paintings themselves are never downloaded; ./scripts/verify
+#   copies into the crate's snapshots/ the paintings in changed/ whose accepted
+#   painting still has that hash, or under --check fails on them. It fails as
+#   "passed" does.
+# - "record": a directory holding status, the test's exit status, log, its
+#   output, and changed/, the paintings it accepted when `update` is set. The
+#   action succeeds when the test fails, so that its output is kept, and so a
+#   failure is cached like a pass: env is where a caller puts what makes a run
+#   asked for again a new action (test.bxl's --again).
+#
+# filters go to the test after the command, such as libtest's name filters.
+def run_test(actions, info: TestRunInfo, out: Artifact, mode: str, filters: list = [], update: bool = False, env: dict = {}, identifier: str | None = None):
+    flag = {"paintings": "--paintings", "passed": "--passed", "record": "--record"}[mode]
+    env = info.env | env
+    if mode == "paintings" or update:
+        env["UPDATE_SNAPSHOTS"] = "1"
+    actions.run(
+        cmd_args(info.launcher, flag, out.as_output(), "--", info.command, filters, hidden = info.hidden),
+        category = {"paintings": "painting_test", "passed": "test_run", "record": "test"}[mode],
+        env = env,
+        identifier = identifier,
+        local_only = info.local,
+    )
+
 def _run(ctx: AnalysisContext, info: TestRunInfo) -> Artifact:
     if info.paints:
         out = ctx.actions.declare_output("paintings", dir = True, has_content_based_path = False)
-        flag = "--paintings"
-        env = info.env | {"UPDATE_SNAPSHOTS": "1"}
     else:
         out = ctx.actions.declare_output("passed")
-        flag = "--passed"
-        env = info.env
-    ctx.actions.run(
-        cmd_args(info.launcher, flag, out.as_output(), "--", info.command, hidden = info.hidden),
-        category = "painting_test" if info.paints else "test_run",
-        env = env,
-        local_only = info.local,
-    )
+    run_test(ctx.actions, info, out, "paintings" if info.paints else "passed")
     return out
 
 # Every test: harness, a RunInfo, run with args and env through
@@ -143,18 +158,8 @@ _be_test = rule(
     impl = _be_test_impl,
 )
 
-# A test, which //:verify runs ([tests] or [app-tests]): a crate's :test, or a
-# part of one (part_of, its :test), or one buck/dev/targets.bzl names in TESTS,
-# built for its TEST_PLATFORMS platform if it names one (default_target_platform).
+# A test, which ./scripts/verify runs ([tests] or [app-tests],
+# buck/dev/verify.bxl) wherever it is, on its default_target_platform if it
+# names one: a crate's :test, a part of one (part_of, its :test), or any other.
 def be_test(name, part_of = None, **kwargs):
-    package = native.package_name()
-    label = "root//{}:{}".format(package, name)
-    if part_of == None:
-        if name == "test" and package in crates:
-            if package in UNTESTED:
-                fail("{} has a :test, so buck/dev/targets.bzl's UNTESTED should not name it".format(package))
-        elif label not in TESTS:
-            fail("{} is a test //:verify would not run: name it in TESTS in buck/dev/targets.bzl".format(label))
-        if kwargs.get("default_target_platform") != TEST_PLATFORMS.get(label):
-            fail("{}'s default_target_platform is not what buck/dev/targets.bzl's TEST_PLATFORMS has for it".format(label))
     _be_test(name = name, **kwargs)

@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
 use serde_json::{Map, Value, json};
+use sha2::{Digest, Sha256};
 
 use crate::starlark::{quote, render};
 
@@ -9,6 +10,7 @@ const PDFIUM: &str = "https://pdfium.googlesource.com/pdfium";
 const ROOT_TARGET: &str = "//:pdfium";
 const OUTPUT: &str = "third-party/pdfium/sources.bzl";
 const CHECKOUT: &str = "target/pdfium";
+const ARCHIVES: &str = "target/pdfium/archives";
 
 const READ_BY_GN: [&str; 12] = [
     "build",
@@ -141,6 +143,7 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
     let project = crate::json(&checkout.join("out/project.json").display().to_string())?;
     let libraries = libraries(&project)?;
     repositories.retain(|path, _| path.is_empty() || used(&libraries, path));
+    pin_archives(&root.join(ARCHIVES), &mut repositories)?;
     write(
         &root.join(OUTPUT),
         &sources(revision, &repositories, &libraries),
@@ -245,6 +248,85 @@ pub fn sources(
         render(&Value::Object(repositories.clone()), 0),
         render(&Value::Object(libraries.clone()), 0)
     )
+}
+
+/// Where a repository's tarball at a commit is downloaded from, and the
+/// directory it unpacks into. Googlesource makes its tarballs afresh on every
+/// download, with new timestamps, so no hash pins them; GitHub's archives of a
+/// commit keep their bytes. PDFium is mirrored at chromium/pdfium, an
+/// `external/github.com/` repository is the GitHub one it mirrors, and every
+/// other Chromium repository is under chromium-full-mirror, named by its path.
+pub fn archive(url: &str, commit: &str) -> Result<[String; 2], String> {
+    let url = url.trim_end_matches(".git");
+    let (owner, name) = if url == PDFIUM {
+        ("chromium".to_owned(), "pdfium".to_owned())
+    } else if let Some(path) =
+        url.strip_prefix("https://chromium.googlesource.com/external/github.com/")
+    {
+        match path.split_once('/') {
+            Some((owner, name)) if !name.contains('/') => (owner.to_owned(), name.to_owned()),
+            _ => return Err(format!("{url} names no GitHub repository")),
+        }
+    } else if let Some(path) = url.strip_prefix("https://chromium.googlesource.com/") {
+        ("chromium-full-mirror".to_owned(), path.replace('/', "_"))
+    } else {
+        return Err(format!("no archive of {url} is known"));
+    };
+    Ok([
+        format!("https://github.com/{owner}/{name}/archive/{commit}.tar.gz"),
+        format!("{name}-{commit}"),
+    ])
+}
+
+/// Downloads each repository's archive once and pins it in its entry by
+/// SHA-256 and size, which is what third-party/pdfium/BUCK downloads.
+fn pin_archives(directory: &Path, repositories: &mut Map<String, Value>) -> Result<(), String> {
+    std::fs::create_dir_all(directory)
+        .map_err(|error| format!("{}: {error}", directory.display()))?;
+    for repository in repositories.values_mut() {
+        let commit = repository["commit"]
+            .as_str()
+            .ok_or("a repository has no commit")?;
+        let url = repository["url"]
+            .as_str()
+            .ok_or("a repository has no url")?;
+        let [archive, strip_prefix] = archive(url, commit)?;
+        let file = directory.join(format!("{commit}.tar.gz"));
+        if !file.is_file() {
+            eprintln!("Downloading {archive}...");
+            let partial = file.with_extension("partial");
+            crate::status(
+                Command::new("curl")
+                    .args([
+                        "--fail",
+                        "--location",
+                        "--silent",
+                        "--show-error",
+                        "--proto",
+                        "=https",
+                    ])
+                    .arg("--output")
+                    .arg(&partial)
+                    .arg(&archive),
+            )?;
+            std::fs::rename(&partial, &file)
+                .map_err(|error| format!("{}: {error}", file.display()))?;
+        }
+        let contents =
+            std::fs::read(&file).map_err(|error| format!("{}: {error}", file.display()))?;
+        let sha256 = Sha256::digest(&contents)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let entry = repository
+            .as_object_mut()
+            .ok_or("a repository is not an object")?;
+        entry.insert("archive".to_owned(), json!(archive));
+        entry.insert("strip_prefix".to_owned(), json!(strip_prefix));
+        entry.insert("sha256".to_owned(), json!(sha256));
+        entry.insert("size_bytes".to_owned(), json!(contents.len()));
+    }
+    Ok(())
 }
 
 fn name(label: &str) -> String {

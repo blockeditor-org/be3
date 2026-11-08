@@ -5,6 +5,7 @@ use std::sync::OnceLock;
 mod be;
 mod buck;
 mod buck2;
+mod buckify;
 mod cargo;
 mod deploy;
 mod download;
@@ -28,7 +29,7 @@ pub use test::crate_of_function;
 
 pub type Result<T> = std::result::Result<T, String>;
 
-const USAGE: &str = "usage: bootstrap buck|test|verify|ci|lock|be|deploy|setup|switch|install-buck2|install-nsc ...";
+const USAGE: &str = "usage: bootstrap buck|test|verify|ci|lock|buckify|be|deploy|setup|switch|install-buck2|install-nsc ...";
 
 pub fn run() -> ExitCode {
     let mut arguments = std::env::args().skip(1);
@@ -46,6 +47,7 @@ pub fn run() -> ExitCode {
         "verify" => verify::verify(rest),
         "ci" => verify::ci(rest),
         "lock" => lock::main(rest),
+        "buckify" => buckify::main(rest),
         "be" => be::main(rest),
         "deploy" => deploy::main(rest),
         "setup" => setup::main(rest),

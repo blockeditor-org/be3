@@ -1,7 +1,7 @@
 load("@root//buck/cargo:defs.bzl", "cargo_crate")
 
-# The build's own tools: generate (crates.bzl, which buck/cargo/buckify.bxl
-# builds with cargo, since it runs before the rules exist), rust-project (for //:rust-project), compile-fail (the tests in
+# The build's own tools: plan (the crates' facts, from cargo's plans, for
+# buck/cargo/buckify.bzl), rust-project (for //:rust-project), compile-fail (the tests in
 # compile_fail/), lint-gate (clippy's findings, for buck/dev/broad.bxl), resolve (the sysroot's lockfile), apk and archive (the zips
 # ./scripts/deploy uploads), stage (a program's directory, buck/program/defs.bzl), bundle (its type_bundle), unzstd (buck/tools' starlark_fmt), and pdfium (third-party/pdfium/sources.bzl, for
 # //:pdfium).

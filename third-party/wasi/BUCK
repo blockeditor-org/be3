@@ -1,4 +1,4 @@
-load("//buck/tools:defs.bzl", "configured_once")
+load("@root//buck/tools:defs.bzl", "configured_once")
 
 # The WASI sysroot the apps' C (freetype, harfbuzz) and be-host's web build
 # are compiled and linked against. Rust needs none of it.
@@ -14,5 +14,4 @@ configured_once(
     # https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sysroot-33.0+m.tar.gz,
     # whose GitHub download has failed on us before; the hash says they are the same.
     urls = ["https://lfs.pfg.pw/by-name/be3/wasi-sysroot-33.0+m.tar.gz"],
-    visibility = ["PUBLIC"],
 )

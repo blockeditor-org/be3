@@ -1,5 +1,8 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
 load("@root//buck/program:drive.bzl", "web_drive_test")
 load("@root//buck/wasm:defs.bzl", "web_library", "web_program")
+
+cargo_package()
 
 # beui's demo (crates/beui-demo) on beui's
 # HTML core: `./scripts/buck run //crates/beui-demo:web-html` serves it with
@@ -21,7 +24,6 @@ web_program(
     module = "beui_demo_html",
     role = "html",
     serve = "127.0.0.1:8075",
-    visibility = ["PUBLIC"],
 )
 
 # src/drive/*.drive in Chromium against :web: every page opens, the long modal

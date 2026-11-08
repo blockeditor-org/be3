@@ -1,7 +1,7 @@
 # One subtarget of every first-party Rust target in the configurations the
 # tests build, the wasm ones included through transitions; prints
 # "label<TAB>path" per target, such as clippy.txt's, which ./scripts/verify
-# does not build (its check pass is _checks in buck/dev/verify.bzl).
+# does not build (its check pass is _checks in buck/dev/verify.bxl).
 #
 #   ./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.txt
 
@@ -13,15 +13,21 @@
 # for a change that seldom breaks only there.
 _PLATFORMS = ["linux_x86_64", "wasi_guest"]
 
-def _platform(target) -> str:
-    return str(target.label).rpartition("(")[2].partition("#")[0].rpartition(":")[2]
+# Each platform's configuration, as a target with no transition of its own
+# has it there, by name: a configuration's name is its platform's label and
+# the hash of its constraints, and Configuration itself has no equality.
+def _configurations(ctx: bxl.Context) -> dict[str, bool]:
+    return {
+        str(ctx.configured_targets("root//:clippy.toml", target_platform = "root//buck/platforms:" + platform).label.config()): True for platform in _PLATFORMS
+    }
 
 # Every first-party Rust target on those platforms. ./scripts/deploy's target is
 # left out of the universe: it configures be-host for every desktop platform.
 def _rust_targets(ctx: bxl.Context) -> list:
+    configurations = _configurations(ctx)
     universe = ctx.target_universe(ctx.uquery().eval("//crates/... - //crates/be-tool-local:deploy"))
-    targets = ctx.cquery().kind("^rust_(library|binary|test)$", universe.lookup("//crates/..."))
-    return [target for target in targets if _platform(target) in _PLATFORMS]
+    targets = ctx.cquery().kind("^rust_(library|binary)$", universe.lookup("//crates/..."))
+    return [target for target in targets if str(target.label.config()) in configurations]
 
 def _impl(ctx: bxl.Context):
     name = ctx.cli_args.subtarget

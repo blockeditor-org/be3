@@ -1,4 +1,4 @@
-//! What starts every test (be_test in buck/test/defs.bzl), the same under
+//! What starts every test (be_test in buck/dev/test.bzl), the same under
 //! `buck2 test`, as ./scripts/verify's action and as ./scripts/test's:
 //!
 //! ```text

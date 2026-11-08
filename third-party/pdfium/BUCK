@@ -1,4 +1,5 @@
 load("@root//buck/dev:verify.bzl", "package_fix")
+load("@root//buck/tools:defs.bzl", "configured_once")
 load(":sources.bzl", "libraries", "repositories")
 
 # PDFium, which the PDF app renders pages with, built from source for the
@@ -10,36 +11,38 @@ load(":sources.bzl", "libraries", "repositories")
 # with its sources, defines and include directories. Everything else about how
 # they compile is the apps' toolchain's.
 #
-# Googlesource makes its tarballs afresh on every download, so no hash can pin
-# them: :source fetches each repository by commit on a worker, the one action
-# here that needs the network, and keeps only what compiles or is included.
-
+# Each repository is a GitHub archive of its commit, pinned by hash and size
+# (pdfium.rs says why GitHub's), and :source lays them out as PDFium's
+# checkout does, keeping only what compiles or is included. Both are configured
+# once: every configuration that builds PDFium reads the same files.
 _KEPT = ["c", "cc", "cpp", "def", "h", "hh", "hpp", "inc", "inl", "ipp"]
 
-genrule(
+_ARCHIVES = {path: "archive-" + (path.replace("/", "-") if path else "pdfium") for path in repositories}
+
+[
+    configured_once(
+        http_archive,
+        name = _ARCHIVES[path],
+        sha256 = repository["sha256"],
+        size_bytes = repository["size_bytes"],
+        strip_prefix = repository["strip_prefix"],
+        urls = [repository["archive"]],
+    )
+    for path, repository in repositories.items()
+]
+
+configured_once(
+    genrule,
     name = "source",
     cmd = """
         set -eu
-        fetch() {
-            mkdir -p "$OUT/$1"
-            git -C "$OUT/$1" init --quiet
-            for attempt in 1 2 3; do
-                if git -C "$OUT/$1" fetch --quiet --depth 1 "$2" "$3"; then
-                    git -C "$OUT/$1" checkout --quiet FETCH_HEAD
-                    rm -rf "$OUT/$1/.git"
-                    return
-                fi
-                sleep "$attempt"
-            done
-            echo "could not fetch $2 at $3" >&2
-            exit 1
+        lay() {
+            mkdir -p "$OUT/$2"
+            (cd "$1" && find . -type f \\( %s \\) -print0 | tar --null -cf - -T -) | tar -xf - -C "$OUT/$2"
         }
     """
-    + "".join(["fetch './{}' '{}' '{}'\n".format(path, repository["url"], repository["commit"]) for path, repository in repositories.items()])
-    + """
-        find "$OUT" -type f ! \\( {} \\) -delete
-        find "$OUT" -type d -empty -delete
-    """.format(" -o ".join(["-name '*.{}'".format(extension) for extension in _KEPT])),
+    % " -o ".join(["-name '*.{}'".format(extension) for extension in _KEPT])
+    + "".join(["lay $(location :{}) './{}'\n".format(_ARCHIVES[path], path) for path in repositories]),
     default_outs = ["."],
     outs = {source: [source] for library in libraries.values() for source in library["srcs"]},
 )
@@ -80,7 +83,6 @@ cxx_library(
     ],
     preferred_linkage = "static",
     target_compatible_with = ["prelude//os/constraints:os[wasi]"],
-    visibility = ["PUBLIC"],
 )
 
 package_fix()

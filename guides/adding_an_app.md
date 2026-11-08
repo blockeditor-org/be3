@@ -51,11 +51,11 @@ learns about the type except through the manifest.
   editors.
 - `src/root.rs`: `impl be_sdk_beui::BeuiRoot`.
 - `manifest.json`: section 4.
-- `BUCK`: one `app()` call naming the module the manifest's `entry_point`
+- `BUCK`: `cargo_package()` and one `app()` call naming the module the manifest's `entry_point`
   names and `types = "//crates/be-type-foo:module"` (copy
   `crates/be-app-checklist/BUCK`).
 - Root `Cargo.toml`: add both crates to `members`, then
-  `./scripts/buck run //:buckify`.
+  `./scripts/buckify`.
 
 Every crate named `be-app-*` is staged as an app; nothing in be-host changes.
 One app may hold several editors (`crates/be-app-logic-grid` has a grid, a

@@ -1,5 +1,8 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
 load("@root//buck/platforms:profile.bzl", "released")
 load("@root//buck/wasm:defs.bzl", "web_library", "web_program")
+
+cargo_package()
 
 # The paintings a pull request changed (crates/be-tool-paint-review) in a browser,
 # drawn with wgpu like beui's web demo. The page lives at
@@ -37,9 +40,8 @@ export_file(
     src = "web/Caddyfile",
 )
 
-# What CI uploads for a pull request's paint previews (//:verify[previews], buck/dev/verify.bzl).
+# What CI uploads for a pull request's paint previews (the previews part of buck/dev/verify.bxl).
 released(
     name = "web-release",
     actual = ":web",
-    visibility = ["PUBLIC"],
 )

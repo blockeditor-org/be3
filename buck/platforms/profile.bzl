@@ -1,23 +1,45 @@
-# What every transition in the build does with the platform it replaces: the
-# target platform changes, the profile (buck/constraints:release) does not, so
-# a release build's apps and Android library are release builds too.
-PROFILE_REFS = {"release": "root//buck/constraints:release"}
+# The constraints the root PACKAGE's modifiers add to a command's platform
+# (`-m release`, `-m lto`), each named by what it appends to a configuration's
+# label, in this order: linux_x86_64_release_lto. Every configuration that has
+# one is named so, whether a modifier or a transition made it (with_modifiers).
+MODIFIERS = {
+    "lto": "root//buck/constraints:lto",
+    "release": "root//buck/constraints:release",
+}
 
-def keep_profile(incoming: PlatformInfo, target: PlatformInfo, refs: struct) -> PlatformInfo:
-    setting = refs.release[ConstraintValueInfo].setting.label
-    value = incoming.configuration.constraints.get(setting)
-    if value == None:
+# The refs a transition that calls keep_profile or with_modifiers needs.
+PROFILE_REFS = MODIFIERS
+
+# `target` with each of `values` (ConstraintValueInfo, in MODIFIERS' order)
+# added, and its label named after them.
+def with_modifiers(target: PlatformInfo, values: list) -> PlatformInfo:
+    if not values:
         return target
     constraints = dict(target.configuration.constraints)
-    constraints[setting] = value
+    label = target.label
+    for value in values:
+        constraints[value.setting.label] = value
+        label += "_" + value.label.name
     return PlatformInfo(
         configuration = ConfigurationInfo(constraints = constraints, values = target.configuration.values),
-        label = target.label + "_release",
+        label = label,
     )
 
+# Which of `values` (ConstraintValueInfo) a configuration has.
+def modifiers_of(configuration: ConfigurationInfo, values: list) -> list:
+    return [value for value in values if configuration.constraints.get(value.setting.label) == value]
+
+# What every transition in the build does with the platform it replaces: the
+# target platform changes, the profile (buck/constraints:release) does not, so
+# a release build's apps and Android library are release builds too. LTO is
+# dropped: only be-host's binary selects on it, and what deploys that adds it
+# itself (crates/be-tool-local/defs.bzl).
+def keep_profile(incoming: PlatformInfo, target: PlatformInfo, refs: struct) -> PlatformInfo:
+    return with_modifiers(target, modifiers_of(incoming.configuration, [refs.release[ConstraintValueInfo]]))
+
 # Flags for cargo's dev profile alone, which is every build but a release one:
-# the [profile.dev.package] overrides in Cargo.toml, which crates.bzl carries
-# for each crate they name.
+# the [profile.dev.package] overrides in Cargo.toml, which the crates' facts
+# carry for each crate they name.
 def dev_only(flags):
     if not flags:
         return []
@@ -82,14 +104,7 @@ def opt_flags(kind):
 # page, a quarter the size of its dev build.
 def _release_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     release = refs.release[ConstraintValueInfo]
-    if platform.configuration.constraints.get(release.setting.label) == release:
-        return platform
-    constraints = dict(platform.configuration.constraints)
-    constraints[release.setting.label] = release
-    return PlatformInfo(
-        configuration = ConfigurationInfo(constraints = constraints, values = platform.configuration.values),
-        label = platform.label + "_release",
-    )
+    return with_modifiers(platform, [] if modifiers_of(platform.configuration, [release]) else [release])
 
 _release = transition(impl = _release_impl, refs = PROFILE_REFS)
 
@@ -113,10 +128,28 @@ RELEASE_SYMBOL_FLAGS = select({
     "root//buck/constraints:release": ["-Zunstable-options", "-Csymbol-mangling-version=legacy"],
 })
 
-# Whether every action runs on this machine: .buckconfig.local names this list
-# of execution platforms when no build server is reachable
-# (guides/running/local_buck2.md). Nothing else tells a local build apart.
-LOCAL_BUILD = read_root_config("build", "execution_platforms", "") == "root//buck/platforms:execution_platforms_local"
+# Whether every action runs on this machine: .buckconfig.local names
+# :execution_platforms_local when no build server is reachable
+# (guides/running/local_buck2.md). A rule cannot ask whether its execution
+# platform runs remotely (ExecutionPlatformInfo is not handed to analysis), and
+# nothing else tells a local build apart, so this reads build.execution_platforms
+# in any spelling of either list and fails on anything else, rather than
+# taking a misspelling of the local list for the build server.
+def _local_build() -> bool:
+    value = read_root_config("build", "execution_platforms", "").strip().removeprefix("@").removeprefix("root")
+    lists = {
+        "//buck/platforms:execution_platforms": False,
+        "//buck/platforms:execution_platforms_local": True,
+    }
+    if value not in lists:
+        fail(
+            "build.execution_platforms is '{}', which is neither root//buck/platforms:execution_platforms (a build server) nor root//buck/platforms:execution_platforms_local (this machine): guides/running/local_buck2.md".format(
+                read_root_config("build", "execution_platforms", "")
+            )
+        )
+    return lists[value]
+
+LOCAL_BUILD = _local_build()
 
 # The threads rustc's frontend runs on. The flag is on every first-party rustc
 # command line, so it is part of every cache key: on a build server it is eight

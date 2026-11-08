@@ -36,7 +36,7 @@ def per_cross_platform(default, value, extra = {}):
             branches[cross_setting(name)] = chosen
     return select(branches)
 
-# The name cargo's plan for a platform has in buck/cargo/crates.bzl.
+# The name cargo's plan for a platform has in the crates' facts.
 def plan_name(platform: str) -> str:
     return platform.replace("_", "-", 1)
 

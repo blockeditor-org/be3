@@ -2,14 +2,14 @@ load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust:cargo_package.bzl", "cargo")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only")
-load(":crates.bzl", "downloads", "third_party")
 load(":defs.bzl", "proc_macro_visibility")
 
 # The rules for every third-party crate a workspace crate depends on, from
-# crates.bzl, which //:buckify generates from cargo's own plans: its
-# download, <name>-<version>.crate (one for every crate in Cargo.lock, which
-# buckify hands to cargo), its library, and its build script with the action that
-# runs it, named <name>-<version>. Features and dependencies are cargo's for
+# third-party/rust/crates.bzl, which ./scripts/buckify generates from cargo's
+# own plans: its download, <name>-<version>.crate (one for every crate in
+# Cargo.lock, which third-party/rust/downloads.bzl pins and buckify hands to
+# cargo), its library, and its build script with the action that runs it,
+# named <name>-<version>. Features and dependencies are cargo's for
 # each platform, keyed by the platform names the root PACKAGE maps a
 # configuration to. What cargo's plans cannot say comes from
 # third-party/rust/fixups.bzl.
@@ -137,7 +137,7 @@ def _crate(key, crate, fixup):
         version = crate["version"],
     )
 
-def third_party_crates(fixups):
+def third_party_crates(third_party, downloads, fixups):
     for key, download in downloads.items():
         native.http_archive(
             name = key + ".crate",

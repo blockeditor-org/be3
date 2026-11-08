@@ -99,6 +99,7 @@ members = [
     "crates/be-sdk-test",
     "crates/be-wasm-host",
     "crates/be-tool-buck",
+    "crates/be-tool-cargo-offline",
     "crates/be-tool-build-helper",
     "crates/be-lib-build-id",
     "crates/be-tool-bootstrap",

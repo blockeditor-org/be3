@@ -14,10 +14,5 @@ fn downloads_are_rendered_as_they_are_read() {
     sizes.insert("b-0.2.0".to_owned(), 20);
     let rendered = render(&locked, &sizes).unwrap();
     assert_eq!(pinned_sizes(&rendered), sizes);
-    assert!(rendered.starts_with("downloads = {\n    \"a-1.0.0\": {\n        \"name\": \"a\",\n"));
-    let crates_bzl = format!("crates = {{}}\n\n{rendered}");
-    assert_eq!(
-        split(&crates_bzl),
-        Some(("crates = {}\n\n", rendered.as_str()))
-    );
+    assert!(rendered.contains("\ndownloads = {\n    \"a-1.0.0\": {\n        \"name\": \"a\",\n"));
 }

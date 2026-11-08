@@ -1,6 +1,6 @@
 # The deployed bundle uses fat LTO and keeps symbols and precompiled code
 
-`./scripts/deploy` builds with fat LTO and one codegen unit (`be3.lto`, a ten-minute link),
+`./scripts/deploy` builds with fat LTO and one codegen unit (`buck/constraints:lto`, a ten-minute link),
 release builds use legacy symbol mangling (buck/platforms/profile.bzl), linked modules use
 hashed export names (guides/app_libraries.md), and the bundle ships a `.cwasm` of every
 module with be-host's symbols and the modules' name sections kept.

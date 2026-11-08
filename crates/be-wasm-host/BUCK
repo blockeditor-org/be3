@@ -1,6 +1,8 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library", "cargo_package", "cargo_test")
 load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/program:drive.bzl", "page_test")
+
+cargo_package()
 
 cargo_library()
 

@@ -1,9 +1,16 @@
 load("@root//buck/cargo:buckify.bzl", "TOOLS", "VENDORED", "buckify_action")
 
-# //:buckify's half of buck/cargo/buckify.bzl: the action over every crate
-# below crates/, found by listing the directory, which a rule cannot do, so
-# that a crate crates.bzl does not name yet is planned too. Prints the
-# directory it generated into, for update.sh to copy from.
+# ./scripts/buckify's buck2 command (crates/be-tool-bootstrap/src/buckify.rs):
+# buckify.bzl's action over every crate below crates/, found by listing the
+# directory, which a rule cannot do, so that a crate the members index does
+# not name yet is planned too, and crates/be-tool-verify built for this
+# machine (platform). Prints a "generated<TAB>DIRECTORY" and a
+# "verify<TAB>EXECUTABLE" line, and the bootstrap runs `EXECUTABLE buckify
+# DIRECTORY`, which writes the generated files into the checkout.
+#
+# With cargo_built, be-tool-buck is built by cargo inside the action rather
+# than by buck2 from the checked-in facts, which the bootstrap retries with when
+# those cannot build it.
 
 def _files(ctx, directory: str) -> list[str]:
     found = []
@@ -16,7 +23,7 @@ def _files(ctx, directory: str) -> list[str]:
     return found
 
 # Whether cargo looks for this file when discovering a crate's targets
-# (DISCOVERED, as the crate's own package globs it).
+# (DISCOVERED in inputs.bzl, as the crate's own package globs it).
 def _discovered(path: str, crate_dirs: list[str]) -> bool:
     owner = ""
     for directory in crate_dirs:
@@ -31,29 +38,44 @@ def _discovered(path: str, crate_dirs: list[str]) -> bool:
         return True
     return relative.startswith("tests/") and (relative.count("/") == 1 or relative.endswith("/main.rs"))
 
+def _analysis(ctx, target: str, platform: str = "root//buck/platforms:linux_x86_64"):
+    configured = ctx.configured_targets(target, target_platform = platform)
+    return ctx.analysis(configured).providers()
+
 def _output(ctx, target: str):
-    configured = ctx.configured_targets(target, target_platform = "root//buck/platforms:linux_x86_64")
-    return ctx.analysis(configured).providers()[DefaultInfo].default_outputs[0]
+    return _analysis(ctx, target)[DefaultInfo].default_outputs[0]
 
 # The action, over every crate below crates/ there is a Cargo.toml for.
-def _generate(ctx, actions):
+def _generate(ctx, actions, cargo_built: bool):
     files = _files(ctx, "crates")
     crate_dirs = [path.removesuffix("/Cargo.toml") for path in files if path.endswith("/Cargo.toml")]
     real = ["Cargo.toml", "Cargo.lock"] + [directory + "/Cargo.toml" for directory in crate_dirs]
-    tools = [path for path in files if [tool for tool in TOOLS if path.startswith(tool + "/src/")]]
+    tools = []
+    if cargo_built:
+        tools = [path for path in files if [tool for tool in TOOLS if path.startswith(tool + "/src/")]]
     real.extend(tools)
     placeholders = [path for path in files if _discovered(path, crate_dirs) and path not in tools]
     return buckify_action(
         actions,
+        _analysis(ctx, "root//crates/be-tool-cargo-offline:bin")[RunInfo],
         {path: ctx.fs.source(path) for path in sorted(real)},
         placeholders,
         _output(ctx, "root//buck/cargo:cargo"),
         _output(ctx, "root//buck/cargo:nightly"),
-        ctx.fs.source("buck/cargo/buckify.sh"),
+        None if cargo_built else _analysis(ctx, "root//crates/be-tool-buck:bin")[RunInfo],
         {key: _output(ctx, target) for key, target in VENDORED.items()},
     )
 
 def _impl(ctx):
-    ctx.output.print(ctx.output.ensure(_generate(ctx, ctx.bxl_actions().actions)).abs_path())
+    generated = _generate(ctx, ctx.bxl_actions().actions, ctx.cli_args.cargo_built)
+    verify = _analysis(ctx, "root//crates/be-tool-verify:release", ctx.cli_args.platform)[DefaultInfo].default_outputs[0]
+    ctx.output.print("generated", ctx.output.ensure(generated).abs_path(), sep = "\t")
+    ctx.output.print("verify", ctx.output.ensure(verify).abs_path(), sep = "\t")
 
-main = bxl_main(cli_args = {}, impl = _impl)
+main = bxl_main(
+    cli_args = {
+        "cargo_built": cli_args.bool(False),
+        "platform": cli_args.string(),
+    },
+    impl = _impl,
+)
