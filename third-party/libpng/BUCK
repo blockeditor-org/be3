@@ -1,7 +1,10 @@
+load("//buck/tools:defs.bzl", "configured_once")
+
 # libpng's source, which freetype-sys's build script compiles beside FreeType
 # (third-party/rust/fixups.bzl) for the colour emoji fonts that keep their
 # glyphs as PNG images.
-http_archive(
+configured_once(
+    http_archive,
     name = "source",
     sha256 = "4df396518620a7aa3651443e87d1b2862e4e88cad135a8b93423e01706232307",
     size_bytes = 1060992,

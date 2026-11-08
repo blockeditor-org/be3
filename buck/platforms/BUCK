@@ -1,3 +1,4 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
 load("//buck/tools:defs.bzl", "worker_properties")
 load(":cross.bzl", "CROSS_PLATFORMS")
 load(":defs.bzl", "execution_platform", "execution_platforms")
@@ -18,6 +19,26 @@ execution_platforms(
     name = "execution_platforms",
     platforms = [
         ":default",
+    ],
+)
+
+# The same platform with every action run on this machine, for when no build
+# server is reachable: .buckconfig.local names this list instead of the one
+# above (guides/running/local_buck2.md). It takes :default's label, so outputs
+# land where a build server's would.
+execution_platform(
+    name = "default_local",
+    cpu_configuration = "prelude//cpu:x86_64",
+    label = ":default",
+    os_configuration = "prelude//os:linux",
+    remote = False,
+    remote_execution_properties = worker_properties(),
+)
+
+execution_platforms(
+    name = "execution_platforms_local",
+    platforms = [
+        ":default_local",
     ],
 )
 
@@ -172,3 +193,5 @@ config_setting(
     ]
     for name, (cpu, os, _) in CROSS_PLATFORMS.items()
 ]
+
+package_fix()

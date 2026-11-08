@@ -1,6 +1,9 @@
+load("//buck/tools:defs.bzl", "configured_once")
+
 # The WASI sysroot the apps' C (freetype, harfbuzz) and be-host's web build
 # are compiled and linked against. Rust needs none of it.
-http_archive(
+configured_once(
+    http_archive,
     name = "sysroot",
     sha256 = "063bc1b56582b9923e08ac9b89e58789618d851763f01530b3ff20b9e5df0ca3",
     # With the size as well as the hash, buck2 knows the digest without asking

@@ -20,7 +20,7 @@ one is there, and the screenshot portal's `be-host.portal` and `be-host-portals.
 `/usr/share/xdg-desktop-portal` (guides/desktop/linux_services.md, Screenshots). `PREFIX/bin/be-host --uninstall-login-session [PREFIX]` removes exactly what
 `PREFIX/lib/be-host/installed.json` records, leaving anything someone changed since.
 
-- It installs exactly the files `buck/program/stage.sh` listed in `program-files.txt`, and refuses
+- It installs exactly the files the program's stage (crates/be-tool-buck) listed in `program-files.txt`, and refuses
   a directory without that list or `apps.json`.
 - `src/login_session/install.rs` plans every change and `install/changes.rs` checks each
   destination can be written before anything is. Without root it reruns under sudo; with a prefix

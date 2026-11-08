@@ -1,3 +1,4 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
 load(":defs.bzl", "compile_fail")
 
 # ./scripts/buck test //compile_fail/...
@@ -11,3 +12,5 @@ compile_fail(
     name = "beui-html",
     deps = ["//crates/beui-html:beui-html"],
 )
+
+package_fix()

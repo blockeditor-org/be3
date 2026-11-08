@@ -1,6 +1,7 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
 load("@toolchains//:defs.bzl", "script")
 load("//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple")
-load(":defs.bzl", "apple_sdk_tool", "llvm_tree", "rust_sysroot")
+load(":defs.bzl", "apple_sdk_tool", "configured_once", "llvm_tree", "rust_sysroot")
 
 # The compilers and tools the build runs. A worker is a container with nothing
 # of this project's in it (defs.bzl), so everything is downloaded here, pinned
@@ -14,7 +15,10 @@ rust_version = "1.98.0"
 
 rust_host = "x86_64-unknown-linux-gnu"
 
-http_archive(
+# The components buck/cargo's cargo shares (configured_once, defs.bzl), which
+# would otherwise be downloaded again for the exec configuration it is built in.
+configured_once(
+    http_archive,
     name = "rustc-component",
     sha256 = "0e37cb339f447fc44d6d781073bacacebfdc5612f2600e4c7e84c266f5f3aced",
     size_bytes = 79745456,
@@ -38,7 +42,8 @@ rust_std = {
 }
 
 [
-    http_archive(
+    configured_once(
+        http_archive,
         name = "rust-std-" + target,
         sha256 = sha256,
         size_bytes = size_bytes,
@@ -54,7 +59,7 @@ rust_sysroot(
     components = [":rustc-component", ":clippy-component"] + [":rust-std-" + target for target in sorted(rust_std)],
 )
 
-# rustfmt, for ./scripts/verify's fixes (buck/dev/fix.sh): the formatter and the
+# rustfmt, for ./scripts/verify's fixes (buck/dev/verify.bzl): the formatter and the
 # rustc libraries it loads, in a sysroot of their own so that the compiler's is
 # unchanged by it.
 http_archive(
@@ -79,15 +84,7 @@ command_alias(
 
 # starlark_fmt, the BUCK files' formatter, from the buck2 release
 # scripts/internal/pins pins. The release is a bare zstd stream, which
-# http_archive does not unpack and the worker has no zstd for, so Ubuntu's own
-# zstd is taken out of its package to do it.
-http_file(
-    name = "zstd.deb",
-    sha256 = "bb14385ff3d6df723a686778dc5f87849f720a0add261b5de9bcd4915a490b2a",
-    size_bytes = 644352,
-    urls = ["https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/libz/libzstd/zstd_1.5.5+dfsg2-2build1_amd64.deb"],
-)
-
+# http_archive does not unpack, so buck-tools does.
 http_file(
     name = "starlark_fmt.zst",
     sha256 = "7235fa17c2d937da5c509a7576049239a1aca854369863075cebf9ff181033ca",
@@ -97,7 +94,7 @@ http_file(
 
 genrule(
     name = "starlark_fmt",
-    cmd = "dpkg-deb -x $(location :zstd.deb) $TMP/zstd && $TMP/zstd/usr/bin/zstd -dq $(location :starlark_fmt.zst) -o $OUT && chmod +x $OUT",
+    cmd = "$(exe //crates/be-tool-buck:bin) unzstd $(location :starlark_fmt.zst) $OUT",
     executable = True,
     out = "starlark_fmt",
     visibility = ["PUBLIC"],
@@ -353,12 +350,13 @@ http_file(
 ]
 
 # Android's NDK r29, pruned on a worker to the aarch64 sysroot and the compiler
-# runtime (86 of its 780 MB), so no action takes the whole zip as an input.
+# runtime (86 of its 780 MB), so no action takes the whole zip as an input. It
+# is fetched in the action, by hash and size like a download.
 genrule(
     name = "android-ndk",
     cmd = "sh $(location :android-ndk.sh) "
     + "https://dl.google.com/android/repository/android-ndk-r29-linux.zip "
-    + "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf $OUT",
+    + "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf 783549481 $OUT",
     out = "ndk",
     visibility = ["PUBLIC"],
 )
@@ -473,3 +471,5 @@ alias(
     actual = ":caddy-" + _caddy_host,
     visibility = ["PUBLIC"],
 )
+
+package_fix()

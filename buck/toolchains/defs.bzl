@@ -95,28 +95,27 @@ wasm_cxx_tools = rule(
 # prelude//toolchains:rust.bzl's system_rust_toolchain, with its tools as
 # artifacts, so a different rustc is a different action key.
 def _pinned_rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
-    return [
-        DefaultInfo(),
-        RustToolchainInfo(
-            allow_lints = ctx.attrs.allow_lints,
-            clippy_driver = ctx.attrs.clippy_driver[RunInfo],
-            clippy_toml = ctx.attrs.clippy_toml,
-            compiler = ctx.attrs.compiler[RunInfo],
-            default_edition = ctx.attrs.default_edition,
-            deny_lints = ctx.attrs.deny_lints,
-            doctests = ctx.attrs.doctests,
-            nightly_features = ctx.attrs.nightly_features,
-            panic_runtime = PanicRuntime("unwind"),
-            report_unused_deps = ctx.attrs.report_unused_deps,
-            rustc_binary_flags = ctx.attrs.rustc_binary_flags,
-            rustc_flags = ctx.attrs.rustc_flags,
-            rustc_target_triple = ctx.attrs.rustc_target_triple,
-            rustc_test_flags = ctx.attrs.rustc_test_flags,
-            rustdoc = ctx.attrs.rustdoc[RunInfo],
-            rustdoc_flags = ctx.attrs.rustdoc_flags,
-            warn_lints = ctx.attrs.warn_lints,
-        ),
-    ]
+    info = RustToolchainInfo(
+        allow_lints = ctx.attrs.allow_lints,
+        clippy_driver = ctx.attrs.clippy_driver[RunInfo],
+        clippy_toml = ctx.attrs.clippy_toml,
+        compiler = ctx.attrs.compiler[RunInfo],
+        default_edition = ctx.attrs.default_edition,
+        deny_lints = ctx.attrs.deny_lints,
+        doctests = ctx.attrs.doctests,
+        nightly_features = ctx.attrs.nightly_features,
+        panic_runtime = PanicRuntime("unwind"),
+        report_unused_deps = ctx.attrs.report_unused_deps,
+        rustc_binary_flags = ctx.attrs.rustc_binary_flags,
+        rustc_flags = ctx.attrs.rustc_flags,
+        rustc_target_triple = ctx.attrs.rustc_target_triple,
+        rustc_test_flags = ctx.attrs.rustc_test_flags,
+        rustdoc = ctx.attrs.rustdoc[RunInfo],
+        rustdoc_flags = ctx.attrs.rustdoc_flags,
+        warn_lints = ctx.attrs.warn_lints,
+    )
+    _check_fields("RustToolchainInfo", info, _RUST_TOOLCHAIN_FIELDS)
+    return [DefaultInfo(), info]
 
 pinned_rust_toolchain = rule(
     attrs = {
@@ -141,6 +140,169 @@ pinned_rust_toolchain = rule(
     is_toolchain_rule = True,
 )
 
+# The fields of the prelude's providers the rules here were written against.
+# pinned_rust_toolchain sets some by name and leaves the rest to defaults, and
+# remote_linking_cxx_toolchain copies them all and changes a few, so a buck2
+# release that adds, drops or renames one stops every build here at analysis,
+# with what changed, rather than changing what builds do unseen.
+_CXX_TOOLCHAIN_FIELDS = [
+    "as_compiler_info",
+    "asm_compiler_info",
+    "binary_utilities_info",
+    "bolt_enabled",
+    "c_compiler_info",
+    "cell_to_path_prefix_map",
+    "clang_llvm_statistics",
+    "clang_remarks",
+    "clang_trace",
+    "compiler_flavor_flags",
+    "cpp_dep_tracking_mode",
+    "cuda_compiler_info",
+    "cuda_dep_tracking_mode",
+    "cvtres_compiler_info",
+    "cxx_compiler_info",
+    "cxx_error_handler",
+    "default_deps",
+    "dumpbin_toolchain_path",
+    "gcno_files",
+    "header_mode",
+    "headers_as_raw_headers_mode",
+    "hip_compiler_info",
+    "hip_debug_extract",
+    "hip_device_debug_extract",
+    "hip_gpu_archs",
+    "internal_tools",
+    "libclang",
+    "linker_info",
+    "lipo",
+    "llvm_cgdata",
+    "llvm_link",
+    "materialize_external_debug_info",
+    "minimum_os_version",
+    "objc_compiler_info",
+    "objcxx_compiler_info",
+    "object_format",
+    "pass_plugin",
+    "pic_behavior",
+    "raw_headers_as_headers_mode",
+    "rc_compiler_info",
+    "remap_cwd",
+    "runtime_dependency_handling",
+    "split_debug_mode",
+    "strip_flags_info",
+    "supported_compile_flavors",
+    "target_stats_tools",
+    "use_dep_files",
+    "use_distributed_thinlto",
+]
+
+_LINKER_FIELDS = [
+    "archive_contents",
+    "archive_objects_locally",
+    "archive_symbol_table",
+    "archiver",
+    "archiver_flags",
+    "archiver_reads_inputs",
+    "archiver_supports_argfiles",
+    "archiver_type",
+    "binary_extension",
+    "binary_linker_flags",
+    "dist_thin_lto_codegen_flags",
+    "executable_linker_flags",
+    "extra_outputs",
+    "force_full_hybrid_if_capable",
+    "generate_gc_sections",
+    "generate_linker_maps",
+    "incremental_linking",
+    "independent_shlib_interface_linker_flags",
+    "is_pdb_generated",
+    "link_binaries_locally",
+    "link_libraries_locally",
+    "link_metadata_flag",
+    "link_ordering",
+    "link_style",
+    "link_weight",
+    "linker",
+    "linker_flags",
+    "lto_mode",
+    "mk_shlib_intf",
+    "object_file_extension",
+    "post_linker_flags",
+    "push_pop_state_flags",
+    "requires_archives",
+    "requires_objects",
+    "runtime_library_files",
+    "sanitizer_runtime_enabled",
+    "sanitizer_runtime_files",
+    "shared_dep_runtime_ld_flags",
+    "shared_library_name_default_prefix",
+    "shared_library_name_format",
+    "shared_library_versioned_name_format",
+    "shlib_interfaces",
+    "static_dep_runtime_ld_flags",
+    "static_library_extension",
+    "static_pic_dep_runtime_ld_flags",
+    "supports_content_based_paths_for_archiving",
+    "supports_distributed_thinlto",
+    "supports_shared_libraries",
+    "thin_lto_double_codegen_enabled",
+    "thin_lto_premerger_enabled",
+    "type",
+    "use_archiver_flags",
+]
+
+_RUST_TOOLCHAIN_FIELDS = [
+    "advanced_unstable_linking",
+    "allow_lints",
+    "clippy_driver",
+    "clippy_toml",
+    "compiler",
+    "configuration_hash",
+    "default_edition",
+    "deny_lints",
+    "deny_on_check_lints",
+    "dist_thin_lto_codegen_flags",
+    "doctests",
+    "explicit_sysroot_deps",
+    "extra_rustc_flags",
+    "linker_flags",
+    "llvm_lines_tool",
+    "make_trace_upload",
+    "measureme_crox",
+    "nightly_features",
+    "panic_runtime",
+    "pgo_generate_dir",
+    "pgo_profile",
+    "remarks",
+    "report_unused_deps",
+    "restricted_rustc_flags",
+    "rust_error_handler",
+    "rust_target_path",
+    "rustc_binary_flags",
+    "rustc_check_flags",
+    "rustc_coverage_flags",
+    "rustc_env",
+    "rustc_flags",
+    "rustc_target_triple",
+    "rustc_test_flags",
+    "rustdoc",
+    "rustdoc_env",
+    "rustdoc_flags",
+    "sanitizer",
+    "strip_dwo_from_rlibs",
+    "sysroot_path",
+    "warn_lints",
+]
+
+def _check_fields(provider: str, value, expected: list[str]):
+    fields = sorted(dir(value))
+    if fields != expected:
+        fail(
+            "buck2's prelude changed {}: buck/toolchains/defs.bzl was written against\n  {}\nand it now has\n  {}\nCheck what each field added or dropped does to the toolchains, then update the list.".format(
+                provider, expected, fields
+            )
+        )
+
 # A cxx toolchain whose links run on a worker, where the prelude's forces them
 # local, and which puts a binary's shared libraries in a tree beside it with an
 # $ORIGIN rpath, since a worker's container does not have them. Providers have
@@ -150,9 +312,17 @@ def _replace(constructor, value, **changes):
     fields.update(changes)
     return constructor(**fields)
 
+#
+# The prelude's cxx_toolchain_override does the same for the locality flags, but
+# not for runtime_dependency_handling, and it cannot take this base: it builds
+# Objective-C compiler infos from the base's, which cxx_tools_info_toolchain
+# leaves None, and its macro selects on config//linker/constraints, which the
+# bundled prelude does not have.
 def _remote_linking_cxx_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
     toolchain = ctx.attrs.toolchain
     info = toolchain[CxxToolchainInfo]
+    _check_fields("CxxToolchainInfo", info, _CXX_TOOLCHAIN_FIELDS)
+    _check_fields("LinkerInfo", info.linker_info, _LINKER_FIELDS)
     linker_info = _replace(
         LinkerInfo,
         info.linker_info,

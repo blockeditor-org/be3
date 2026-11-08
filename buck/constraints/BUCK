@@ -1,3 +1,5 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
+
 # What a wasm build is for. be-host's web bundle and an app are both
 # wasm32-wasip1-threads, but the app links a real wgpu backend and an app only
 # the custom one, whose handles are neither Send nor Sync. cargo plans the two
@@ -48,3 +50,19 @@ constraint_value(
     constraint_setting = ":beui_core",
     visibility = ["PUBLIC"],
 )
+
+# What no platform has: buck/cargo/defs.bzl makes a workspace crate's targets
+# need it on every platform cargo did not plan the crate for, so building one
+# there is a configuration error that names this.
+constraint_setting(
+    name = "cargo_plan",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "planned_by_cargo",
+    constraint_setting = ":cargo_plan",
+    visibility = ["PUBLIC"],
+)
+
+package_fix()

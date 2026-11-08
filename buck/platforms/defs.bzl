@@ -1,7 +1,10 @@
 load("@prelude//cfg/exec_platform:marker.bzl", "get_exec_platform_marker")
 
-# prelude//platforms:defs.bzl's execution_platform, pointed at a remote executor.
-# Actions run on the build server unless their rule asks to run locally.
+# prelude//platforms:defs.bzl's execution_platform. With `remote`, actions run on
+# the build server unless their rule asks to run locally; without it, every action
+# runs on this machine (guides/running/local_buck2.md). `label` names the platform,
+# and with it the exec configurations (`<label>#<hash>`) and so every output path,
+# so a local platform that gives the remote one's label builds into the same paths.
 def _execution_platform_impl(ctx: AnalysisContext) -> list[Provider]:
     constraints = dict()
     constraints.update(ctx.attrs.cpu_configuration[ConfigurationInfo].constraints)
@@ -10,9 +13,8 @@ def _execution_platform_impl(ctx: AnalysisContext) -> list[Provider]:
         constraints[value[ConstraintValueInfo].setting.label] = value[ConstraintValueInfo]
     configuration = ConfigurationInfo(constraints = constraints, values = {})
 
-    name = ctx.label.raw_target()
-    # be3.build_server = none (guides/running/local_buck2.md) runs every action on this machine.
-    remote = read_root_config("be3", "build_server", "namespace") != "none"
+    name = (ctx.attrs.label or ctx.label).raw_target()
+    remote = ctx.attrs.remote
     platform = ExecutionPlatformInfo(
         configuration = configuration,
         executor_config = CommandExecutorConfig(
@@ -41,8 +43,10 @@ execution_platform = rule(
     attrs = {
         "constraints": attrs.list(attrs.dep(providers = [ConstraintValueInfo]), default = []),
         "cpu_configuration": attrs.dep(providers = [ConfigurationInfo]),
+        "label": attrs.option(attrs.label(), default = None),
         "os_configuration": attrs.dep(providers = [ConfigurationInfo]),
-        "remote_execution_properties": attrs.dict(key = attrs.string(), value = attrs.string()),
+        "remote": attrs.bool(default = True),
+        "remote_execution_properties": attrs.dict(default = {}, key = attrs.string(), value = attrs.string()),
     },
     impl = _execution_platform_impl,
 )

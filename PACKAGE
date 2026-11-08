@@ -9,6 +9,10 @@ load("//buck/platforms:modifiers.bzl", "cfg_constructor_named")
 # their features and dependencies.
 set_reindeer_platforms(select({"DEFAULT": None} | {setting: plan for plan, setting in PLAN_SETTINGS.items()}))
 
+# Every target is visible to every other unless it says otherwise; the macros
+# in buck/ leave visibility to this.
+package(visibility = ["PUBLIC"])
+
 # Configuration modifiers: `-m release` adds buck/constraints:release, cargo's
 # release profile, to whatever platform a command builds for.
 native.set_cfg_constructor(

@@ -10,7 +10,9 @@ lints need: Linux, the apps' wasm, and beui's HTML core only where a test runs o
 compile-checked for any other platform: not the web's be-host, the libraries planned for the
 HTML core, Windows, macOS or Android. Check one by hand when a change is likely to break it, such
 as `./scripts/buck build '//crates/be-host:be-host[check]' --target-platforms
-//buck/platforms:wasi` (or `:windows_x86_64`, `:linux_x86_64_html`). The bootstrap's six-platform release is built only
+//buck/platforms:wasi` (or `:windows_x86_64`; a crate on the HTML core, such as
+`//crates/beui-html:beui-html[check]`, with `:linux_x86_64_html`). `//buck/dev/broad.bxl:main` checks them all
+(guides/buck2.md, Traps). The bootstrap's six-platform release is built only
 when CI is given `--bootstrap`, which it is only on a pull request that changes what the
 release is built from (guides/bootstrap.md).
 
@@ -24,8 +26,10 @@ release is built from (guides/bootstrap.md).
 
 `local`'s address is `BE3_BUILD_SERVER_ADDRESS` or the saved file's second line; it is dialed
 directly, not through the relay. The servers share nothing, so each has its own cache.
-`./scripts/buck` writes the chosen server into `.buckconfig.local` as `be3.build_server`, which
-`worker_properties` (buck/tools/defs.bzl) reads to pick the workers' image.
+`./scripts/buck` writes the chosen server's addresses and header into `.buckconfig.local`. Every
+server runs actions in the one image `worker_properties` (buck/tools/defs.bzl) names; nothing in
+the rules depends on which server it is. With no server at all, buck2 builds on this machine,
+`./scripts/verify` included (guides/running/local_buck2.md).
 
 **Keys.** Namespace's waker and `api.be3.pfg.pw` sit behind the API gateway, so
 `./scripts/buck` sends the `Be3-Gateway-Authorization` header, as `./scripts/be` does
@@ -50,7 +54,9 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches the server through
   running action (`broke off ..., making it again` in its log), and buck2 sees nothing.
 - **`the proxy answered 401 Unauthorized`**: the session has no key for that server
   (`credentials missing`) or a refused one (`invalid token`).
-- **A test that hangs**: a test run is stopped after `TEST_TIME_LIMIT` (buck/cargo/defs.bzl);
+- **A test's output**: `./scripts/test` prints it from the `--event-log` buck2 test wrote to
+  `target/test-events.json-lines`; when nothing ran, what buck2 said is in `target/test.log`.
+- **A test that hangs**: a test run is stopped after `TEST_TIME_LIMIT` (buck/dev/test.bzl);
   libtest's `has been running for over 60 seconds` line names it. Build the binary with
   `./scripts/buck build //crates/X:test --show-full-output` and run it here with a name filter
   and `CARGO_MANIFEST_DIR=$PWD/crates/X` (painting tests need it). A timing-dependent hang can
@@ -91,8 +97,8 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
 
 **How actions run**: as root in the image, in a fresh directory, without per-action sandboxing,
 so an action also sees the worker's environment, `NSC_TOKEN_FILE` among it. The worker replaces
-an action's `LD_LIBRARY_PATH`; tests that need their own carry it as `BE3_LD_LIBRARY_PATH`
-(`library_path_test` in buck/cargo/defs.bzl, `app_test_run` in buck/wasm/defs.bzl).
+an action's `LD_LIBRARY_PATH`; a test that needs its own gets it from crates/be-tool-run-test
+(`--library-path`, from the `LD_LIBRARY_PATH` in its `be_test`'s env).
 
 ## The build helper
 

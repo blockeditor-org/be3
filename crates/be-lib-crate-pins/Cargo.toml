@@ -1,0 +1,9 @@
+[package]
+name = "be-lib-crate-pins"
+description = "The crates Cargo.lock names and buck/cargo/crates.bzl's downloads, which pin each by hash and size"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

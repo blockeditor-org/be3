@@ -2,7 +2,7 @@ use std::process::{Command, ExitCode};
 
 use crate::platform::target_platform;
 use crate::quiet::Quiet;
-use crate::{Result, buck, in_ci, repository};
+use crate::{Result, buck, in_ci, lock, repository};
 
 const VERIFY_USAGE: &str =
     "Usage: ./scripts/verify [--check] [--lint] [--tests] [--app-tests] [--verbose]";
@@ -55,43 +55,41 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         unsafe { std::env::set_var("BE3_VERBOSE", "1") };
     }
 
+    // Before buck2, which reads crates.bzl's downloads from the start.
+    lock::ensure(has("--check"))?;
+    lock::check_members()?;
     let buck2 = buck::prepare()?;
     buck::write_build_id()?;
     let target = repository().join("target");
     let manifest = target.join("verify-manifest.txt");
     let log = target.join("verify.log");
+    let events = target.join("verify-events.json-lines");
+    let _ = std::fs::remove_file(&events);
+    passed.extend([
+        "--event-log".to_owned(),
+        events.to_string_lossy().into_owned(),
+    ]);
     let host = target_platform().unwrap_or("linux_x86_64");
-    let bxl: Vec<String> = [
-        "bxl",
-        "--keep-going",
-        "//buck/dev/verify.bxl:main",
-        "--",
-        "--host",
-        host,
-        "--lint",
-        bool(lint),
-        "--tests",
-        bool(tests),
-        "--app_tests",
-        bool(app_tests),
-        "--previews",
-        bool(has("--previews")),
-        "--bootstrap",
-        bool(has("--bootstrap")),
-        "--release_bootstrap",
-        bool(has("--bootstrap")),
-    ]
-    .into_iter()
-    .map(str::to_owned)
-    .collect();
+    let mut parts = vec![""];
+    for (flag, part) in [
+        (lint, "lint"),
+        (tests, "tests"),
+        (app_tests, "app-tests"),
+        (has("--previews"), "previews"),
+        (has("--bootstrap"), "bootstrap"),
+    ] {
+        if flag {
+            parts.push(part);
+        }
+    }
     let (status, output) = buck::retrying(
         &buck2,
-        &bxl,
+        &build_arguments(host, &parts, &events),
         false,
         true,
         (!verbose).then_some(log.as_path()),
     )?;
-    std::fs::write(&manifest, &output)
+    std::fs::write(&manifest, manifests(&output))
         .map_err(|error| format!("could not write {}: {error}", manifest.display()))?;
     if status != 0 {
         passed.push("--build-failed".to_owned());
@@ -106,7 +104,8 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         }
     }
 
-    let verify = String::from_utf8_lossy(&output)
+    let written = std::fs::read_to_string(&manifest).unwrap_or_default();
+    let verify = written
         .lines()
         .filter_map(|line| line.split_once('\t'))
         .filter(|(kind, _)| *kind == "verify")
@@ -126,6 +125,55 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
     buck::exec(command)
 }
 
-fn bool(value: bool) -> &'static str {
-    if value { "true" } else { "false" }
+/// The buck2 command: each part of //:verify (buck/dev/verify.bzl), "" being
+/// the target itself, and the same part of //:verify-manifest, which lists
+/// what crates/be-tool-verify reads. --keep-going builds everything that can
+/// be, so that it reads what did; the tools it runs here are built for host.
+/// The event log is for crates/be-tool-verify too, which checks from it where
+/// Rust links ran (be-tool-verify's links.rs).
+fn build_arguments(host: &str, parts: &[&str], events: &std::path::Path) -> Vec<String> {
+    let mut arguments: Vec<String> = [
+        "build",
+        "--keep-going",
+        "--show-full-output",
+        "--event-log",
+        &events.to_string_lossy(),
+        "--target-platforms",
+        &format!("root//buck/platforms:{host}"),
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    for target in ["//:verify", "//:verify-manifest"] {
+        for part in parts {
+            arguments.push(if part.is_empty() {
+                target.to_owned()
+            } else {
+                format!("{target}[{part}]")
+            });
+        }
+    }
+    arguments
+}
+
+/// The manifest crates/be-tool-verify reads: every part's, from the paths
+/// --show-full-output printed for //:verify-manifest, each a "LABEL PATH" line.
+fn manifests(output: &[u8]) -> String {
+    let mut manifest = String::new();
+    for line in String::from_utf8_lossy(output).lines() {
+        let Some((label, path)) = line.split_once(' ') else {
+            continue;
+        };
+        if !label.starts_with("root//:verify-manifest") {
+            continue;
+        }
+        let path = path.trim_end_matches('\r');
+        if let Ok(text) = std::fs::read_to_string(path) {
+            manifest.push_str(&text);
+            if !text.is_empty() && !text.ends_with('\n') {
+                manifest.push('\n');
+            }
+        }
+    }
+    manifest
 }

@@ -1,18 +1,5 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library")
-load("@root//buck/wasm:defs.bzl", "wasm32_module")
+load("@root//buck/wasm:defs.bzl", "wasm32_crate")
 
 # The remaps be-host runs on the input of a Linux session, as a WebAssembly
 # module (guides/desktop/login_session.md, Input remaps). The host is be-host-remap-host.
-cargo_library()
-
-cargo_library(
-    name = "wasm",
-    preferred_linkage = "shared",
-    target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
-)
-
-wasm32_module(
-    name = "module",
-    library = ":wasm",
-    visibility = ["PUBLIC"],
-)
+wasm32_crate()

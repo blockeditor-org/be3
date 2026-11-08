@@ -2,11 +2,13 @@ load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust:cargo_package.bzl", "cargo")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only")
-load(":crates.bzl", "third_party")
+load(":crates.bzl", "downloads", "third_party")
+load(":defs.bzl", "proc_macro_visibility")
 
 # The rules for every third-party crate a workspace crate depends on, from
-# crates.bzl, which //:buckify generates from cargo's own plans: one
-# download of the crate, its library, and its build script with the action that
+# crates.bzl, which //:buckify generates from cargo's own plans: its
+# download, <name>-<version>.crate (one for every crate in Cargo.lock, which
+# buckify hands to cargo), its library, and its build script with the action that
 # runs it, named <name>-<version>. Features and dependencies are cargo's for
 # each platform, keyed by the platform names the root PACKAGE maps a
 # configuration to. What cargo's plans cannot say comes from
@@ -60,14 +62,6 @@ def _plan_flags(fixup):
 
 def _crate(key, crate, fixup):
     archive = key + ".crate"
-    native.http_archive(
-        name = archive,
-        sha256 = crate["sha256"],
-        size_bytes = crate["size_bytes"],
-        strip_prefix = key,
-        urls = ["https://static.crates.io/crates/{}/{}/download".format(crate["name"], crate["version"])],
-        visibility = [],
-    )
     # The download, configured for one platform whichever platform asks, so a
     # crate built for several unpacks once rather than once for each. Its
     # output is still named after the archive, which is where the crate's
@@ -106,8 +100,7 @@ def _crate(key, crate, fixup):
         proc_macro = library["proc_macro"],
         rustc_flags = dev_only(crate.get("profile_flags", [])) + RELEASE_SYMBOL_FLAGS + rustc_flags + _plan_flags(fixup),
         srcs = [":" + unpacked],
-        visibility = ["PUBLIC"],
-        **RUST_LOCAL,
+        **(proc_macro_visibility(library["proc_macro"], {}) | RUST_LOCAL),
     )
 
     if not build_script:
@@ -145,5 +138,13 @@ def _crate(key, crate, fixup):
     )
 
 def third_party_crates(fixups):
+    for key, download in downloads.items():
+        native.http_archive(
+            name = key + ".crate",
+            sha256 = download["sha256"],
+            size_bytes = download["size_bytes"],
+            strip_prefix = key,
+            urls = ["https://static.crates.io/crates/{}/{}/download".format(download["name"], download["version"])],
+        )
     for key, crate in third_party.items():
         _crate(key, crate, fixups.get(crate["name"], {}))
