@@ -37,8 +37,9 @@ beui on the web runs an HTML core (`beui-core-html`), switched in at compile tim
   matches native and its paintings stay deterministic, which measuring through
   the browser would not.
 - The beui inspector is native only; on HTML the browser's own developer tools
-  serve. beui-demo shows its inspector button only where
-  `beui::open_inspector()` can open one, instead of a stand-in.
+  serve. beui-demo disables its inspector button where
+  `beui::open_inspector()` cannot open one, instead of showing a stand-in. A
+  component tree view may come back later, in beui or as a browser extension.
 - The on-screen keyboard on HTML shows only where a view places it; no keyboard
   host opens it for a focused field, and Paste as plain text reads the
   clipboard through `navigator.clipboard`, which asks for permission.
