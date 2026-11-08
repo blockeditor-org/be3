@@ -54,8 +54,10 @@ impl Request {
     }
 
     /// Sends `value` as a JSON body, and asks for JSON back.
-    pub fn json(self, value: &impl Serialize) -> Result<Self, serde_json::Error> {
-        let body = serde_json::to_vec(value)?;
+    pub fn json(self, value: &impl Serialize) -> Result<Self, crate::Failure> {
+        let body = serde_json::to_vec(value).map_err(|error| {
+            crate::Failure::Failed(format!("the request's JSON body did not encode: {error}"))
+        })?;
         Ok(self
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")

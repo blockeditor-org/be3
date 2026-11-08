@@ -203,6 +203,7 @@ pub fn send(
             }
         }
         deliver(Event::Head(super::Head {
+            url: response.url(),
             status: response.status(),
             headers,
         }));

@@ -540,6 +540,7 @@ impl Runtime {
             self.backend.ask_to_shut_down();
         }
         self.backend.shutdown();
+        self.instances.forget_fetches(None);
         previews::forget(&self.app.identity.id);
     }
 
@@ -905,6 +906,7 @@ impl Runtime {
         }
         self.error = Some(error);
         let _ = be_host_base::panic_guard::contain(|| self.backend.shutdown());
+        self.instances.forget_fetches(None);
         previews::forget(&self.app.identity.id);
         heard_stop(&self.app.identity.id);
         super::forget_windows(&self.app.identity.id);

@@ -49,9 +49,11 @@ pub struct Request {
     pub body: Vec<u8>,
 }
 
-/// A response's status and headers, whatever the status.
+/// A response's status and headers, whatever the status, and the URL it came from after
+/// any redirects, which the caller checks as it checked the request's.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Head {
+    pub url: String,
     pub status: u16,
     pub headers: Vec<(String, String)>,
 }

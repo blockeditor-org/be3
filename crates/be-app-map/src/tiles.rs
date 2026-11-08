@@ -176,7 +176,10 @@ impl TileWorker {
             };
             let fetched = Rc::clone(&self.fetched);
             let waker = self.waker.clone();
-            let tile = host.fetch(Request::get(id.url())).and_then(Response::bytes);
+            let tile = host
+                .fetch(Request::get(id.url()))
+                .map(|answer| answer.and_then(Response::success))
+                .and_then(Response::bytes);
             let task = host.then(tile, move |result| {
                 fetched
                     .borrow_mut()

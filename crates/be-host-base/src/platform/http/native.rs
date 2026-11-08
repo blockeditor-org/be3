@@ -98,6 +98,7 @@ pub fn send(
             })
             .collect();
         deliver(Event::Head(super::Head {
+            url: response.get_url().to_owned(),
             status: response.status(),
             headers,
         }));
@@ -124,6 +125,7 @@ pub fn send(
 
 fn exchange(request: &super::Request) -> Result<ureq::Response, String> {
     let agent = ureq::AgentBuilder::new()
+        .https_only(true)
         .timeout_connect(TIMEOUT)
         .timeout_read(TIMEOUT)
         .timeout_write(TIMEOUT)
@@ -132,8 +134,12 @@ fn exchange(request: &super::Request) -> Result<ureq::Response, String> {
     for (name, value) in &request.headers {
         call = call.set(name, value);
     }
-    let sent = match request.body.is_empty() {
+    let bodiless = ["GET", "HEAD"]
+        .iter()
+        .any(|method| request.method.eq_ignore_ascii_case(method));
+    let sent = match bodiless && request.body.is_empty() {
         true => call.call(),
+        // A POST without a body still says so (`Content-Length: 0`), as servers expect.
         false => call.send_bytes(&request.body),
     };
     match sent {
@@ -141,3 +147,6 @@ fn exchange(request: &super::Request) -> Result<ureq::Response, String> {
         Err(error) => Err(error.to_string()),
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -138,7 +138,28 @@ impl Fetches {
 
     /// The editor dropped a fetch, or gave up on its response or body.
     pub(crate) fn ended(&mut self, op: OpId, connection: &mut Connection) {
-        if let Some(held) = self.held.remove(&op) {
+        self.stop(op, connection);
+        connection.complete(op, Outcome::Err(OpError::Canceled));
+    }
+
+    /// Whether `op` is a fetch's response or body the editor gave up on, which stops the
+    /// whole fetch, as the host stops it.
+    pub(crate) fn withdrawn(&mut self, op: OpId, connection: &mut Connection) -> bool {
+        let fetch = self.held.iter().find_map(|(fetch, held)| {
+            let asked = held.asked.as_ref().is_some_and(|reply| reply.op() == op);
+            let body = held.body.as_ref().is_some_and(|body| body.op() == op);
+            (asked || body).then_some(*fetch)
+        });
+        let Some(fetch) = fetch else {
+            return false;
+        };
+        self.stop(fetch, connection);
+        true
+    }
+
+    /// Forgets the fetch whose resource is `fetch`, ending what the editor still waits on.
+    fn stop(&mut self, fetch: OpId, connection: &mut Connection) {
+        if let Some(held) = self.held.remove(&fetch) {
             if let Some(reply) = held.asked {
                 reply.fail(connection, OpError::Canceled);
             }
@@ -146,23 +167,6 @@ impl Fetches {
                 body.fail(connection, OpError::Canceled);
             }
         }
-        self.sent.retain(|fetch| fetch.op != op);
-        connection.complete(op, Outcome::Err(OpError::Canceled));
-    }
-
-    /// Whether `op` is a fetch's response or body the editor gave up on.
-    pub(crate) fn withdrawn(&mut self, op: OpId, connection: &mut Connection) -> bool {
-        for held in self.held.values_mut() {
-            if held.asked.as_ref().is_some_and(|reply| reply.op() == op) {
-                let _ = held.asked.take().map(Reply::into_op);
-            } else if held.body.as_ref().is_some_and(|body| body.op() == op) {
-                held.body = None;
-            } else {
-                continue;
-            }
-            connection.complete(op, Outcome::Err(OpError::Canceled));
-            return true;
-        }
-        false
+        self.sent.retain(|sent| sent.op != fetch);
     }
 }

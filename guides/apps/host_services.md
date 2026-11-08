@@ -36,18 +36,26 @@ Notes on particular calls:
 
 - `fetch(request)` is the app's only network, on every platform: a
   `be_sdk::network::Request` (`Request::get(url).bearer(token)`,
-  `Request::post(url).json(&value)?`) answered with a `Response`, its status
-  and headers whatever the status, then its body as it arrives: `chunk()` a
-  piece at a time, or `bytes()`, `text()`, `json::<T>()` whole, which fail on
-  a status that is not a success, so read `status` first to tell a 401 apart.
-  Dropping the `Response` aborts the request. The host refuses `http://`, and
-  a host name the manifest's `network` does not list (`"*"` lists every one),
-  and adds no credentials: tokens, their expiry and rotation are the app's.
-  In a browser CORS applies. Natively the host reads the response with ureq
-  on a thread per request, which reads at most `http::CHUNKS_AHEAD` chunks
-  ahead of what the app's stream credit has taken, so a slow app holds the
-  download back rather than the host holding the body
-  (`be-host-runtime/src/instances/network.rs`).
+  `Request::post(url).json(&value)?`) answered with a `Response`: its `head`
+  (status and headers, whatever the status), then its body as it arrives,
+  `chunk()` a piece at a time or `bytes()`, `text()`, `json::<T>()` whole,
+  also whatever the status, so an API's JSON error body reads like any other.
+  To want only a success, chain `Response::success`, which turns any other
+  status into a failure: `host.fetch(request).map(|answer|
+  answer.and_then(Response::success)).and_then(Response::json::<T>)`. A body
+  the host stopped sending ends with a failure, never as if it were whole.
+  Dropping the `Response` aborts the request. The host refuses `http://`
+  (redirects too), and a host name the manifest's `network` does not list
+  (`"*"` lists every one), checking the URL a redirect ended at as well; a
+  revision preview may only `GET` and `HEAD`, and opens no links. The host
+  adds no credentials: tokens, their expiry and rotation are the app's. In a
+  browser CORS applies. Natively the host reads the response with ureq on a
+  thread per request, which reads at most `http::CHUNKS_AHEAD` chunks ahead of
+  what the app's stream credit has taken, so a slow app holds the download
+  back rather than the host holding the body
+  (`be-host-runtime/src/instances/network.rs`); a connection, and each read
+  and write on it, times out after 30 seconds of silence, not the whole
+  download.
 - `open_url(url)` opens an `http(s)` link in the system browser, or a new tab
   on the web; where the browser blocks a tab opened that long after the press
   that led to it, the host shows a notice whose Open button opens it.

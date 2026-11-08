@@ -1,37 +1,54 @@
+/// Why a link did not open.
+enum Unopened {
+    /// The browser blocked the tab: it was opened too long after the press that led to it.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    Blocked,
+    Failed(String),
+}
+
+/// Opens the sign-in link, which the account screen also shows with its code.
 pub fn open_browser(url: &str) -> Result<(), String> {
+    opening(url).map_err(|unopened| match unopened {
+        Unopened::Blocked => "The browser blocked the new tab. Use the link and code below.".into(),
+        Unopened::Failed(error) => format!("{error} Use the link and code below."),
+    })
+}
+
+/// Opens a link an app asked for (`network.open-url`); where the browser blocks the tab, it
+/// shows a notice whose own press opens it.
+pub fn open_link(url: &str) -> Result<(), String> {
+    match opening(url) {
+        Ok(()) => Ok(()),
+        Err(Unopened::Blocked) => {
+            crate::notices::offer_link(url.to_owned());
+            Ok(())
+        }
+        Err(Unopened::Failed(error)) => Err(error),
+    }
+}
+
+fn opening(url: &str) -> Result<(), Unopened> {
     if !url.starts_with("https://") && !url.starts_with("http://") {
-        return Err("The browser link must use HTTP or HTTPS.".into());
+        return Err(Unopened::Failed(
+            "The link must use HTTP or HTTPS.".to_owned(),
+        ));
     }
     open(url)
 }
 
-/// Opens a link an app asked for (`network.open-url`) as `open_browser` does; where the
-/// browser blocks the tab, which it does once the press that led to it is too long ago, it
-/// shows a notice whose own press opens it.
-pub fn open_link(url: &str) -> Result<(), String> {
-    match open_browser(url) {
-        Err(error) if error == BLOCKED => {
-            crate::notices::offer_link(url.to_owned());
-            Ok(())
-        }
-        opened => opened,
-    }
-}
-
-const BLOCKED: &str = "The browser blocked the new tab. Use the link and code below.";
-
 #[cfg(target_arch = "wasm32")]
-fn open(url: &str) -> Result<(), String> {
+fn open(url: &str) -> Result<(), Unopened> {
+    let failed = |error: &str| Unopened::Failed(error.to_owned());
     web_sys::window()
-        .ok_or("No browser window is available")?
+        .ok_or_else(|| failed("No browser window is available."))?
         .open_with_url_and_target(url, "_blank")
-        .map_err(|_| "Could not open a browser tab")?
-        .ok_or(BLOCKED)?;
+        .map_err(|_| failed("Could not open a browser tab."))?
+        .ok_or(Unopened::Blocked)?;
     Ok(())
 }
 
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-fn open(url: &str) -> Result<(), String> {
+fn open(url: &str) -> Result<(), Unopened> {
     use std::process::{Command, Stdio};
     #[cfg(target_os = "macos")]
     let mut command = Command::new("open");
@@ -50,7 +67,7 @@ fn open(url: &str) -> Result<(), String> {
         .stderr(Stdio::null())
         .spawn()
         .map_err(|error| {
-            format!("Could not open a browser: {error}. Use the link and code below.")
+            Unopened::Failed(format!("Could not open a browser: {error}."))
         })?;
     std::thread::spawn(move || {
         let _ = child.wait();
@@ -59,7 +76,7 @@ fn open(url: &str) -> Result<(), String> {
 }
 
 #[cfg(target_os = "android")]
-fn open(url: &str) -> Result<(), String> {
+fn open(url: &str) -> Result<(), Unopened> {
     use jni::{
         jni_sig, jni_str,
         objects::{JObject, JValue},
@@ -95,6 +112,6 @@ fn open(url: &str) -> Result<(), String> {
         Ok(())
     })
     .map_err(|error: jni::errors::Error| {
-        format!("Could not open a browser: {error}. Use the link and code below.")
+        Unopened::Failed(format!("Could not open a browser: {error}."))
     })
 }

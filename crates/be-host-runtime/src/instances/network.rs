@@ -87,14 +87,22 @@ impl Fetching {
     }
 
     /// Ends whatever the app still waits on, as canceled.
-    fn cancel(self, answers: &mut Vec<(OpId, Outcome)>) {
-        self.flow.abort();
-        if let Some(reply) = self.asked {
+    fn cancel(mut self, answers: &mut Vec<(OpId, Outcome)>) {
+        if let Some(reply) = self.asked.take() {
             answers.push((reply.into_op(), Outcome::Err(OpError::Canceled)));
         }
-        if let Some(body) = self.body {
+        if let Some(body) = self.body.take() {
             answers.push((body, Outcome::Err(OpError::Canceled)));
         }
+    }
+}
+
+/// However a fetch goes (the app dropped it, its editor closed, the app stopped, or the
+/// runtime itself was dropped), its reading stops: natively the thread waiting for room
+/// wakes and ends, on the web the reading future ends and lets go of its waker.
+impl Drop for Fetching {
+    fn drop(&mut self) {
+        self.flow.abort();
     }
 }
 
@@ -113,10 +121,19 @@ impl Instances {
             return;
         }
         match call {
+            Call::OpenUrl { reply, .. } if self.previewing(instance) => {
+                self.services
+                    .answers
+                    .push(reply.answer(&Err(Failure::Denied)));
+            }
             Call::FetchNew { resource, request } => {
                 let op = resource.op();
                 let mut fetching = Fetching::new(instance);
-                if !allowed(&request.url, &self.network) {
+                let reads = ["GET", "HEAD"]
+                    .iter()
+                    .any(|method| request.method.eq_ignore_ascii_case(method));
+                let refused = self.previewing(instance) && !reads;
+                if refused || !allowed(&request.url, &self.network) {
                     fetching.fail(Failure::Denied);
                     self.fetches.held.insert(op, fetching);
                     return;
@@ -184,6 +201,10 @@ impl Instances {
             return;
         };
         match arrived.event {
+            Event::Head(head) if !allowed(&head.url, &self.network) => {
+                fetching.flow.abort();
+                fetching.fail(Failure::Denied);
+            }
             Event::Head(head) => {
                 fetching.head = Some(Ok(ResponseHead {
                     status: head.status,
@@ -239,7 +260,7 @@ impl Instances {
         true
     }
 
-    pub(super) fn forget_fetches(&mut self, instance: Option<EditorInstanceId>) {
+    pub fn forget_fetches(&mut self, instance: Option<EditorInstanceId>) {
         let ended: Vec<OpId> = self
             .fetches
             .held

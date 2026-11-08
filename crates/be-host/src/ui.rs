@@ -657,7 +657,7 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
                     if key == OPEN_LINK
                         && let Some(link) = be_host_base::notices::link_of(id)
                     {
-                        if let Err(error) = be_host_base::platform::open_browser(&link) {
+                        if let Err(error) = be_host_base::platform::open_link(&link) {
                             be_host_base::notices::report(error);
                         }
                         send(UiCommand::DismissToast(id));

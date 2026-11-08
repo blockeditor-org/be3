@@ -168,17 +168,20 @@ impl Instances {
         id
     }
 
+    /// Whether `instance` shows a revision preview, which may read but change nothing.
+    pub(super) fn previewing(&self, instance: EditorInstanceId) -> bool {
+        self.entries
+            .get(&instance)
+            .and_then(|entry| entry.role.block())
+            .is_some_and(|block| revisions::source(block.id).is_some())
+    }
+
     pub fn serve(&mut self, service: Service) {
         let Service { instance, mut call } = service;
         self.scoped(instance, true, &mut |visit| {
             call.visit_block_ids(&mut |id| visit(id))
         });
-        let previewing = self
-            .entries
-            .get(&instance)
-            .and_then(|entry| entry.role.block())
-            .is_some_and(|block| revisions::source(block.id).is_some());
-        if previewing && !matches!(call, Call::ReadData { .. } | Call::ListData { .. }) {
+        if self.previewing(instance) && !matches!(call, Call::ReadData { .. } | Call::ListData { .. }) {
             return self.refuse(call, OpError::Denied);
         }
         if !self.entries.contains_key(&instance) {

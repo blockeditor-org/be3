@@ -402,6 +402,7 @@ pub fn stream<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Stre
         op,
         inner,
         finished: false,
+        failed: None,
         item: PhantomData,
     }
 }
@@ -498,6 +499,7 @@ pub struct Stream<T, S = Plain> {
     op: OpId,
     inner: Rc<Inner>,
     finished: bool,
+    failed: Option<OpError>,
     item: PhantomData<fn() -> (T, S)>,
 }
 
@@ -510,6 +512,12 @@ impl<T, S: Decode<T>> Stream<T, S> {
         Next { stream: self }
     }
 
+    /// Why the stream ended without finishing (canceled, refused), once `recv` answered
+    /// `None`; `None` for a stream the other side finished, or one still open.
+    pub fn failed(&self) -> Option<OpError> {
+        self.failed
+    }
+
     fn poll_next(&mut self, context: &mut Context<'_>) -> Poll<Option<T>> {
         if self.finished {
             return Poll::Ready(None);
@@ -518,6 +526,7 @@ impl<T, S: Decode<T>> Stream<T, S> {
         let Some(call) = calls.get_mut(&self.op) else {
             drop(calls);
             self.finished = true;
+            self.failed = Some(OpError::Canceled);
             return Poll::Ready(None);
         };
         if let Some(item) = call.items.pop_front() {
@@ -539,10 +548,13 @@ impl<T, S: Decode<T>> Stream<T, S> {
                 .credit(self.op, granted.0, granted.1);
             return Poll::Ready(crate::wire::decode::<S, T>(&item));
         }
-        if call.outcome.is_some() {
+        if let Some(outcome) = call.outcome.take() {
             calls.remove(&self.op);
             drop(calls);
             self.finished = true;
+            if let Outcome::Err(error) = outcome {
+                self.failed = Some(error);
+            }
             return Poll::Ready(None);
         }
         call.waker = Some(context.waker().clone());

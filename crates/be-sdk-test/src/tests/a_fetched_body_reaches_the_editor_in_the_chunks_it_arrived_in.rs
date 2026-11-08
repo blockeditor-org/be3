@@ -36,7 +36,7 @@ fn Fetched(editor: Editor) -> NodeId {
                     Err(failure) => return Some(failure.to_string()),
                 }
             }
-            Some(format!("{} {}", response.status, chunks.join("|")))
+            Some(format!("{} {}", response.head.status, chunks.join("|")))
         },
         move |text| shown.set(text),
     );
