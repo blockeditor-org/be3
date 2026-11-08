@@ -99,6 +99,11 @@ cargo_install(
 )
 
 export_file(
+    name = "buckify.sh",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
     name = "update.sh",
     visibility = ["PUBLIC"],
 )

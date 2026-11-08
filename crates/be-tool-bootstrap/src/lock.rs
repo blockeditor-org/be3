@@ -69,6 +69,61 @@ pub fn ensure(check: bool) -> Result<()> {
     Ok(())
 }
 
+/// Every workspace member, `crates/NAME`, sorted: each directory under
+/// crates/ with a Cargo.toml.
+fn members(repository: &Path) -> Result<Vec<String>> {
+    let crates = repository.join("crates");
+    let mut members: Vec<String> = std::fs::read_dir(&crates)
+        .map_err(|error| format!("could not read {}: {error}", crates.display()))?
+        .flatten()
+        .filter(|entry| entry.path().join("Cargo.toml").is_file())
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .map(|name| format!("crates/{name}"))
+        .collect();
+    members.sort();
+    Ok(members)
+}
+
+/// Fails unless crates.bzl names every workspace member and nothing else.
+/// //:verify reaches each crate through the crates it names (buck/dev/verify.bzl),
+/// and only //:buckify can plan a crate it does not name yet, since only BXL
+/// can find one (buck/cargo/buckify.bxl).
+pub fn check_members() -> Result<()> {
+    let repository = repository();
+    let generated = read(repository, CRATES)?;
+    let named: Vec<&str> = generated
+        .lines()
+        .take_while(|line| !line.starts_with("third_party = "))
+        .filter_map(|line| line.strip_prefix("    \"")?.strip_suffix("\": {"))
+        .collect();
+    let members = members(repository)?;
+    let new: Vec<&str> = members
+        .iter()
+        .map(String::as_str)
+        .filter(|member| !named.contains(member))
+        .collect();
+    let gone: Vec<&str> = named
+        .iter()
+        .copied()
+        .filter(|name| !members.iter().any(|member| member == name))
+        .collect();
+    if new.is_empty() && gone.is_empty() {
+        return Ok(());
+    }
+    let list = |label: &str, paths: &[&str]| {
+        if paths.is_empty() {
+            String::new()
+        } else {
+            format!(" {label} {}.", paths.join(", "))
+        }
+    };
+    Err(format!(
+        "{CRATES} does not name the workspace's crates:{}{} Run ./scripts/buck run //:buckify, which plans them anew.",
+        list("It lacks", &new),
+        list("It names, with no Cargo.toml,", &gone),
+    ))
+}
+
 fn recorded_hash(text: &str) -> Option<&str> {
     text.lines()
         .map(str::trim)
@@ -81,16 +136,12 @@ fn recorded_hash(text: &str) -> Option<&str> {
 /// with \n, so a checkout on Windows hashes the same.
 pub fn inputs(repository: &Path, version: &str) -> Result<String> {
     let mut files = vec!["Cargo.toml".to_owned(), "Cargo.lock".to_owned()];
-    let crates = repository.join("crates");
-    let mut members: Vec<String> = std::fs::read_dir(&crates)
-        .map_err(|error| format!("could not read {}: {error}", crates.display()))?
-        .flatten()
-        .filter(|entry| entry.path().join("Cargo.toml").is_file())
-        .filter_map(|entry| entry.file_name().into_string().ok())
-        .map(|name| format!("crates/{name}/Cargo.toml"))
+    let mut manifests: Vec<String> = members(repository)?
+        .iter()
+        .map(|member| format!("{member}/Cargo.toml"))
         .collect();
-    members.sort();
-    files.extend(members);
+    manifests.sort();
+    files.extend(manifests);
     let mut hasher = Sha256::new();
     hasher.update(format!("cargo {version}\n"));
     let mut add = |name: &str, text: &str| {

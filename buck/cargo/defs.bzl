@@ -1,4 +1,6 @@
 load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
+load("@root//buck/cargo:buckify.bzl", "cargo_inputs")
+load("@root//buck/dev:targets.bzl", "BINARY_NAMES")
 load("@root//buck/dev:test.bzl", "be_test")
 load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
@@ -13,13 +15,14 @@ load(":crates.bzl", "crates")
 # selects them by plan through the prelude's apply_platform_attrs, which the
 # third-party rules use too, from the map the root PACKAGE sets.
 
-# The crate's facts, and its package's :fix (buck/dev/verify.bzl), which every
-# macro here reaches through this.
+# The crate's facts, and its package's :fix (buck/dev/verify.bzl) and
+# :cargo-inputs (buckify.bzl), which every macro here reaches through this.
 def _crate():
     package = native.package_name()
     if package not in crates:
         fail("{} is not a workspace member cargo knows about; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(package))
     package_fix(rust = True)
+    cargo_inputs()
     return crates[package]
 
 # One value per platform, as a select() when they differ and a plain list when
@@ -210,7 +213,13 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
             if part not in tests:
                 fail("apart_env names {}, which is not a file under src/tests/".format(part))
         for part in tests:
-            be_test(name = "{}-{}".format(name, part), args = ["--exact", "tests::{}::{}".format(part, part)], env = run_env | apart_env.get(part, {}), **test)
+            be_test(
+                name = "{}-{}".format(name, part),
+                args = ["--exact", "tests::{}::{}".format(part, part)],
+                env = run_env | apart_env.get(part, {}),
+                part_of = ":" + name,
+                **test,
+            )
             parts[part] = ":{}-{}".format(name, part)
     be_test(name = name, env = run_env, parts = parts, **test)
 
@@ -225,12 +234,15 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
             fail("{} has {} binaries; name the one this is with bin".format(crate["name"], len(binaries)))
         bin = binaries.keys()[0]
     binary = binaries[bin]
+    default = "bin" if len(binaries) == 1 else bin
+    if "linux-x86_64" in crate["platforms"] and (name or default) != BINARY_NAMES.get(native.package_name(), {}).get(bin, default):
+        fail("{}'s binary {} is not named what //:verify checks: name it in BINARY_NAMES in buck/dev/targets.bzl".format(crate["name"], bin))
     crate_name = bin.replace("-", "_")
     own = []
     if crate["library"] != None:
         own = [":" + crate["name"]]
     native.rust_binary(
-        name = name or ("bin" if len(binaries) == 1 else bin),
+        name = name or default,
         crate = crate_name,
         crate_root = binary["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["binaries"].get(bin, []), own + extra_deps),

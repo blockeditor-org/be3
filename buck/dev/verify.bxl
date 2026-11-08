@@ -40,7 +40,7 @@ def _host_output(ctx, target: str, host: str) -> Artifact:
 # Every test (be_test, buck/dev/test.bzl), by whether it paints, and each one's
 # [run], the action that runs it.
 def _tests(ctx) -> (list, list):
-    targets = ctx.cquery().kind("^be_test$", ctx.cquery().eval(_TESTS))
+    targets = ctx.cquery().kind("^_be_test$", ctx.cquery().eval(_TESTS))
     plain, painting = [], []
     for target in targets:
         providers = ctx.analysis(target).providers()
@@ -58,7 +58,7 @@ def _tests(ctx) -> (list, list):
 # binaries: a warning fails a compile, so a target a test builds is already
 # checked, and checking it again would be a second rustc run for most crates.
 def _workspace_checks(ctx) -> list[Artifact]:
-    tests = ctx.cquery().kind("^be_test$", ctx.cquery().eval(_TESTS))
+    tests = ctx.cquery().kind("^_be_test$", ctx.cquery().eval(_TESTS))
     built = {str(target.label): True for target in ctx.cquery().deps(tests)}
     checks = []
     for target in rust_targets(ctx):

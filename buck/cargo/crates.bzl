@@ -16188,10 +16188,12 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -16202,10 +16204,12 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -16216,10 +16220,12 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -16230,10 +16236,12 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -16244,10 +16252,12 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -16258,10 +16268,12 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -16272,10 +16284,12 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},

@@ -1,21 +1,9 @@
-load("@root//buck/cargo:crates.bzl", "downloads")
-load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple", "plan_name")
+load("@root//buck/cargo:buckify.bzl", "TOOLS", "VENDORED", "buckify_action")
 
-# Generates buck/cargo/crates.bzl (crates/be-tool-buck' generate, from cargo's
-# plans) on a worker and prints its directory; //:buckify (update.sh) and
-# ./scripts/verify copy it into place. Beside it is the Cargo.lock it was generated from.
-#
-# The action's inputs are the manifests, Cargo.lock and buck-tools' sources,
-# plus empty files at the paths cargo discovers targets at
-# (_discovered). Editing or adding an ordinary source file leaves its key, and
-# the cache entry everyone shares, alone. It is BXL because a rule can only take
-# its own package's files.
-#
-# The crates are the downloads the checked-in crates.bzl pins (_vendored),
-# which buck2 keeps across daemons: cargo reads them as a vendored directory,
-# and the action has no network. When the lockfile needs a crate they do not
-# have, the action says so in OUT/stale (buckify.sh): the bootstrap's lock step
-# pins it before buck2 runs (crates/be-tool-bootstrap/src/lock.rs).
+# //:buckify's half of buck/cargo/buckify.bzl: the action over every crate
+# below crates/, found by listing the directory, which a rule cannot do, so
+# that a crate crates.bzl does not name yet is planned too. Prints the
+# directory it generated into, for update.sh to copy from.
 
 def _files(ctx, directory: str) -> list[str]:
     found = []
@@ -27,8 +15,8 @@ def _files(ctx, directory: str) -> list[str]:
             found.append(path)
     return found
 
-# Whether cargo looks for this file when discovering a crate's targets. Paths a
-# Cargo.toml names are recreated by the script, which can read it.
+# Whether cargo looks for this file when discovering a crate's targets
+# (DISCOVERED, as the crate's own package globs it).
 def _discovered(path: str, crate_dirs: list[str]) -> bool:
     owner = ""
     for directory in crate_dirs:
@@ -43,62 +31,27 @@ def _discovered(path: str, crate_dirs: list[str]) -> bool:
         return True
     return relative.startswith("tests/") and (relative.count("/") == 1 or relative.endswith("/main.rs"))
 
-# Every crate the checked-in crates.bzl downloads, as KEY=SHA256=SIZE=DIRECTORY,
-# the unpacked archive third_party.bzl makes for it.
-def _vendored(ctx):
-    vendored = []
-    for key in sorted(downloads):
-        target = ctx.configured_targets(
-            "root//third-party/rust:{}.crate".format(key),
-            target_platform = "root//buck/platforms:linux_x86_64",
-        )
-        directory = ctx.analysis(target).providers()[DefaultInfo].default_outputs[0]
-        download = downloads[key]
-        vendored.append(cmd_args(key, download["sha256"], str(download["size_bytes"]), directory, delimiter = "="))
-    return vendored
-
 def _output(ctx, target: str):
-    configured = ctx.configured_targets(target)
+    configured = ctx.configured_targets(target, target_platform = "root//buck/platforms:linux_x86_64")
     return ctx.analysis(configured).providers()[DefaultInfo].default_outputs[0]
 
-# The action, for ./scripts/verify to build alongside everything else.
+# The action, over every crate below crates/ there is a Cargo.toml for.
 def generate(ctx, actions):
-
-    real = ["Cargo.toml", "Cargo.lock"]
     files = _files(ctx, "crates")
     crate_dirs = [path.removesuffix("/Cargo.toml") for path in files if path.endswith("/Cargo.toml")]
-    real.extend([directory + "/Cargo.toml" for directory in crate_dirs])
-    tools = [path for path in files if path.startswith("crates/be-tool-buck/src/") or path.startswith("crates/be-lib-crate-pins/src/")]
+    real = ["Cargo.toml", "Cargo.lock"] + [directory + "/Cargo.toml" for directory in crate_dirs]
+    tools = [path for path in files if [tool for tool in TOOLS if path.startswith(tool + "/src/")]]
     real.extend(tools)
     placeholders = [path for path in files if _discovered(path, crate_dirs) and path not in tools]
-
-    workspace = actions.copied_dir(
-        "workspace",
+    return buckify_action(
+        actions,
         {path: ctx.fs.source(path) for path in sorted(real)},
+        placeholders,
+        _output(ctx, "root//buck/cargo:cargo"),
+        _output(ctx, "root//buck/cargo:nightly"),
+        ctx.fs.source("buck/cargo/buckify.sh"),
+        {key: _output(ctx, target) for key, target in VENDORED.items()},
     )
-    layout = actions.write("placeholders.txt", sorted(placeholders))
-
-    cargo = _output(ctx, "root//buck/cargo:cargo")
-    nightly = _output(ctx, "root//buck/cargo:nightly")
-
-    out = actions.declare_output("generated", dir = True)
-
-    actions.run(
-        cmd_args(
-            "sh",
-            ctx.fs.source("buck/cargo/buckify.sh"),
-            out.as_output(),
-            workspace,
-            layout,
-            cargo,
-            nightly,
-            ["{}={}".format(plan_name(name), cross_triple(name)) for name in CROSS_PLATFORMS],
-            "--",
-            _vendored(ctx),
-        ),
-        category = "buckify",
-    )
-    return out
 
 def _impl(ctx):
     ctx.output.print(ctx.output.ensure(generate(ctx, ctx.bxl_actions().actions)).abs_path())

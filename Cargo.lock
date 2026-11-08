@@ -2243,6 +2243,7 @@ dependencies = [
 name = "be-tool-verify"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "sha2 0.10.9",
 ]
 

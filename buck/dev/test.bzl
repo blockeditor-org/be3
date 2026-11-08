@@ -1,20 +1,23 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
+load("@root//buck/cargo:crates.bzl", "crates")
 load("@root//buck/platforms:profile.bzl", "LOCAL_BUILD")
 load("@root//buck/tools:defs.bzl", "worker_properties")
+load(":targets.bzl", "TESTS", "TEST_PLATFORMS", "UNTESTED")
 
 # How long a test may run before crates/be-tool-run-test stops it. A test that
 # hangs would otherwise hold its worker until the build server gives up on it,
 # and every later run of the same action would wait on that one.
 TEST_TIME_LIMIT = "20m"
 
-# What a test runs, for ./scripts/verify and ./scripts/test (buck/dev/verify.bxl,
-# buck/dev/test.bxl), which run it as an action rather than through buck2 test:
-# `launcher` is crates/be-tool-run-test with the test's own flags, to which a
-# runner adds its output flags, then "--" and `command`. `hidden` is what the
-# test reads that the command does not name, such as the accepted paintings.
-# A test that `paints` accepts paintings under UPDATE_SNAPSHOTS. `parts` is a
-# run_apart test's tests, one be_test a file under src/tests/, by the file's
-# name; such a test has no [run] of its own.
+# What a test runs, for ./scripts/verify and ./scripts/test (//:verify,
+# buck/dev/verify.bzl, and buck/dev/test.bxl), which run it as an action rather
+# than through buck2 test: `launcher` is crates/be-tool-run-test with the test's
+# own flags, to which a runner adds its output flags, then "--" and `command`.
+# `hidden` is what the test reads that the command does not name, such as the
+# accepted paintings. A test that `paints` accepts paintings under
+# UPDATE_SNAPSHOTS. `parts` is a run_apart test's tests, one be_test a file
+# under src/tests/, by the file's name; such a test has no [run] of its own, and
+# `runs` is each part's [run], where any other test's is its own.
 TestRunInfo = provider(
     fields = {
         "command": provider_field(typing.Any),
@@ -24,6 +27,7 @@ TestRunInfo = provider(
         "local": provider_field(bool),
         "paints": provider_field(bool),
         "parts": provider_field(dict),
+        "runs": provider_field(list),
     },
 )
 
@@ -85,7 +89,7 @@ def _be_test_impl(ctx: AnalysisContext) -> list[Provider]:
         ["--library-path", library_path] if library_path != None else [],
         [] if ctx.attrs.local else ["--time-limit", TEST_TIME_LIMIT],
     )
-    info = TestRunInfo(
+    fields = dict(
         command = cmd_args(ctx.attrs.harness[RunInfo], ctx.attrs.args),
         env = env,
         hidden = ctx.attrs.paintings,
@@ -94,10 +98,15 @@ def _be_test_impl(ctx: AnalysisContext) -> list[Provider]:
         paints = ctx.attrs.paints,
         parts = {name: part[TestRunInfo] for name, part in ctx.attrs.parts.items()},
     )
-    command = cmd_args(launcher, "--", info.command, hidden = info.hidden)
     sub_targets = {}
-    if not ctx.attrs.parts:
-        sub_targets["run"] = [DefaultInfo(default_output = _run(ctx, info))]
+    if ctx.attrs.parts:
+        runs = [part[DefaultInfo].sub_targets["run"][DefaultInfo].default_outputs[0] for part in ctx.attrs.parts.values()]
+    else:
+        run = _run(ctx, TestRunInfo(runs = [], **fields))
+        sub_targets["run"] = [DefaultInfo(default_output = run)]
+        runs = [run]
+    info = TestRunInfo(runs = runs, **fields)
+    command = cmd_args(launcher, "--", info.command, hidden = info.hidden)
     remote = not (ctx.attrs.local or LOCAL_BUILD)
     return [
         info,
@@ -116,7 +125,7 @@ def _be_test_impl(ctx: AnalysisContext) -> list[Provider]:
         ),
     )
 
-be_test = rule(
+_be_test = rule(
     attrs = {
         "args": attrs.list(attrs.arg(), default = []),
         "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
@@ -133,3 +142,19 @@ be_test = rule(
     },
     impl = _be_test_impl,
 )
+
+# A test, which //:verify runs ([tests] or [app-tests]): a crate's :test, or a
+# part of one (part_of, its :test), or one buck/dev/targets.bzl names in TESTS,
+# built for its TEST_PLATFORMS platform if it names one (default_target_platform).
+def be_test(name, part_of = None, **kwargs):
+    package = native.package_name()
+    label = "root//{}:{}".format(package, name)
+    if part_of == None:
+        if name == "test" and package in crates:
+            if package in UNTESTED:
+                fail("{} has a :test, so buck/dev/targets.bzl's UNTESTED should not name it".format(package))
+        elif label not in TESTS:
+            fail("{} is a test //:verify would not run: name it in TESTS in buck/dev/targets.bzl".format(label))
+        if kwargs.get("default_target_platform") != TEST_PLATFORMS.get(label):
+            fail("{}'s default_target_platform is not what buck/dev/targets.bzl's TEST_PLATFORMS has for it".format(label))
+    _be_test(name = name, **kwargs)
