@@ -1624,8 +1624,18 @@ pub(crate) fn load_graph(
             nodes.push(row?);
         }
     }
-    for (id, content_type, author, parent_kind, parent_id, head, metadata, version, key, owner_only) in
-        &nodes
+    for (
+        id,
+        content_type,
+        author,
+        parent_kind,
+        parent_id,
+        head,
+        metadata,
+        version,
+        key,
+        owner_only,
+    ) in &nodes
     {
         let mut node = BlockNode::new(
             parse_uuid(content_type)?,

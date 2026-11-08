@@ -993,7 +993,10 @@ impl BlockGraph {
     }
 
     pub fn viewers(&self, id: Uuid) -> BTreeSet<Uuid> {
-        if let Some(root) = self.owner_only_root(id).and_then(|root| self.blocks.get(&root)) {
+        if let Some(root) = self
+            .owner_only_root(id)
+            .and_then(|root| self.blocks.get(&root))
+        {
             return BTreeSet::from([root.author]);
         }
         let mut viewers = BTreeSet::new();
