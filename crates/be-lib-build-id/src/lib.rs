@@ -1,4 +1,7 @@
-use std::{path::Path, sync::OnceLock};
+use std::{
+    path::{Path, PathBuf},
+    sync::OnceLock,
+};
 
 pub const FILE: &str = "build-info.json";
 
@@ -66,10 +69,39 @@ pub fn compatible(ours: &str, theirs: &str) -> bool {
     ours == theirs
 }
 
-fn beside_executable() -> Result<Metadata, String> {
+/// The directories a program finds its bundle's files in, nearest first: those of `BE_BUNDLE`
+/// (a path list, as `PATH` is) when it is set, else the one its executable is in. A test's host
+/// uses the list to stage only the apps it names in one directory and every library in
+/// another that all the tests share, beside a `be-host` they all share.
+pub fn bundle_directories() -> Result<Vec<PathBuf>, String> {
+    if let Some(list) = std::env::var_os("BE_BUNDLE").filter(|list| !list.is_empty()) {
+        return Ok(std::env::split_paths(&list).collect());
+    }
     let executable = std::env::current_exe()
         .map_err(|error| format!("cannot find this program's own path: {error}"))?;
-    let path = executable.with_file_name(FILE);
+    let directory = executable
+        .parent()
+        .ok_or("the executable is in no directory")?;
+    Ok(vec![directory.to_path_buf()])
+}
+
+/// The path of `file` in the first of `bundle_directories` that has it, or in the first when none
+/// does, which is the one whose error says where it looked.
+pub fn bundle_file(file: &str) -> Result<PathBuf, String> {
+    find_in(&bundle_directories()?, file)
+}
+
+fn find_in(directories: &[PathBuf], file: &str) -> Result<PathBuf, String> {
+    let first = directories.first().ok_or("BE_BUNDLE names no directory")?;
+    Ok(directories
+        .iter()
+        .map(|directory| directory.join(file))
+        .find(|path| path.exists())
+        .unwrap_or_else(|| first.join(file)))
+}
+
+fn beside_executable() -> Result<Metadata, String> {
+    let path = bundle_file(FILE)?;
     let json = std::fs::read_to_string(&path).map_err(|error| {
         format!(
             "cannot read {}: {error}; run this program from its bundle",

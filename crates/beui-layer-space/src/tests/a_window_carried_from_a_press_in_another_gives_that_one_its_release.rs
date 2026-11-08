@@ -28,7 +28,10 @@ fn a_window_carried_from_a_press_in_another_gives_that_one_its_release() {
     send(&mut space, now, [Input::PointerMoved(moved)]);
     let released = send(&mut space, now, [button(moved, false)]);
     assert_eq!(space.mouse.carry, None, "letting go ends the carry");
-    let got = delivered(&released);
+    let got: Vec<_> = delivered(&released)
+        .into_iter()
+        .filter(|(_, input)| matches!(input, Input::PointerButton { .. }))
+        .collect();
     let [(to, Input::PointerButton { pressed: false, .. })] = got.as_slice() else {
         panic!("the release reaches the program once, not {got:?}");
     };

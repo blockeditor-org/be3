@@ -2,11 +2,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use be_block::ObjectId;
-use be_lib_terminal_emulator::Emulator;
+use be_sdk_terminal::{Fit, Lines, TerminalInput, TerminalView};
+use be_tool_terminal_emulator::Emulator;
 use be_type_terminal::{HISTORY_LINES, TerminalColors, TerminalLine, TerminalSize};
 use beui::NodeId;
 use beui::reactive::*;
-use beui_terminal_view::{Fit, Lines, TerminalInput, TerminalView};
 
 const FIRST_SIZE: TerminalSize = TerminalSize {
     cols: 100,

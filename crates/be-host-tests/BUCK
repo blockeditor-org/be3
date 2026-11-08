@@ -107,8 +107,8 @@ APPS = {
 cargo_library()
 
 # To reproduce a flake that shows only under load, run the harness here, all
-# the tests at once and as often as needed: build :test-harness, :host-with-all
-# and the sysroot targets run_env names, then run
+# the tests at once and as often as needed: build :test-harness, :host-with-all,
+# //crates/be-host:bin and the sysroot targets run_env names, then run
 # buck-out/v2/art/root/*/crates/be-host-tests/__test-harness__/app_tests with
 # each run_env variable set to its output under buck-out and
 # CARGO_MANIFEST_DIR set to crates/be-host-tests.
@@ -117,7 +117,8 @@ cargo_test(
     paints = True,
     run_apart = True,
     run_env = {
-        "BE_HOST": "$(location :host-with-all)/be-host",
+        "BE_BUNDLE": "$(location :host-with-all)",
+        "BE_HOST": "$(location //crates/be-host:bin)",
         "HOST_LIBRARIES": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
         "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
         "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",

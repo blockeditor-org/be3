@@ -18,7 +18,7 @@ use smithay::wayland::shm::with_buffer_contents;
 use smithay::utils::{Logical, Rectangle, Size};
 
 use crate::state::Layer;
-use be_host_dmabuf::{Usage, Vulkan};
+use be_lib_dmabuf::{Usage, Vulkan};
 
 pub struct Gpu {
     device: wgpu::Device,

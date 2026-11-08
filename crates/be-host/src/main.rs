@@ -139,7 +139,7 @@ fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     }
     let options = beui_host::native::RunOptions {
         #[cfg(target_os = "linux")]
-        device_extensions: &be_host_dmabuf::DEVICE_EXTENSIONS,
+        device_extensions: &be_lib_dmabuf::DEVICE_EXTENSIONS,
         #[cfg(target_os = "linux")]
         platforms: vec![Box::new(beui_platform_drm::Drm)],
         #[cfg(windows)]

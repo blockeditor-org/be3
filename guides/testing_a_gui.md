@@ -232,6 +232,14 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   says how), so it builds and reruns only for those. A block whose app is missing fails within
   seconds, naming the app. A painting that changes when only the staged apps changed means the
   test needs another editor (a row offers "Opens in" only for a type two editors edit).
+- Every test runs the one `//crates/be-host:bin` (`BE_HOST`), with `BE_BUNDLE`, a path list as
+  `PATH` is (`be_lib_build_id::bundle_directories`), naming where it finds its apps: the
+  `:host-with-<apps>` directory, which holds only the apps the test names, then `:host-libraries`,
+  which has every library once for all of them. Staging a host per test with its own binary and
+  libraries took 800 MB each.
+- Each file under src/tests/ is its own `:test-<file>` (`run_apart`), which `./scripts/test`
+  picks by name; it runs its one test with `--exact`, so the name `./scripts/test` adds as a
+  filter runs nothing else.
 - These tests take a second or two each and run in parallel, each as its own action, so a
   failing test loses only its own paintings. Use them for what only the host shows; test an
   editor's own behaviour in its crate.
@@ -266,7 +274,7 @@ it `measure`s in a `Text` (`wait 'Inner 50x20 at 140,50'`). To cross a timeout, 
   screen that relies on synchronous measurement fails.
 - In a browser, `./scripts/test //crates/beui-tests:web-test [NAME]` serves the screens built
   for `wasi_html` and runs every script in Chromium through Playwright (buck/program/web-test.mjs,
-  `web_drive_test` in buck/program/drive.bzl); verify runs it as `:web-test-run`. Reading
+  `web_drive_test` in buck/program/drive.bzl); verify runs it as `:web-test[run]`. Reading
   commands go to beui-core-html's `automate`; input is real Playwright input aimed where
   `reveal` says, so the browser's own focus, key and IME paths run. It also runs the page's
   `checks()` (src/web/live.rs). It runs on this machine, not a worker, and needs `BE3_CHROME`

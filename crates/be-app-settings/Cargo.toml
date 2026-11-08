@@ -8,7 +8,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-be-host-remap = { path = "../be-host-remap", features = ["text"] }
+be-lib-remap = { path = "../be-lib-remap", features = ["text"] }
 beui = { path = "../beui" }
 be-sdk-beui = { path = "../be-sdk-beui" }
 be-sdk-database = { path = "../be-sdk-database" }

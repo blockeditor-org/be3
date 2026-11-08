@@ -1,5 +1,6 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
 load("//buck/platforms:cross.bzl", "per_cross_platform")
-load(":defs.bzl", "deb_lock", "deb_sysroot", "pkg_config")
+load(":defs.bzl", "deb_downloads", "deb_indexes", "deb_lock", "pkg_config", "sysroot")
 load(":packages.bzl", "packages")
 
 # The Linux the build compiles and links against: Ubuntu 24.04's own packages -
@@ -47,8 +48,29 @@ xr_runtime = test_runtime + [
     "monado-service",
 ]
 
+# The indexes :lock resolves against (deb_indexes in defs.bzl). A new snapshot
+# needs these too: its dists/SUITE/InRelease lists each one's sha256 and size.
+indexes = deb_indexes(
+    snapshot,
+    {
+        "noble-security/main/amd64": ("b4a1a0de202d0d25fae2c30e5e8e8324a4d4f7736195fc6bf749cadeaa87a20b", 1242473),
+        "noble-security/main/arm64": ("68a0aa1cf3eb0cc6759b3d18c706b70ae597b626bf32b832bf9882beed2bf2f2", 1312345),
+        "noble-security/universe/amd64": ("00062bc4c32071615e860f3e8954031799a38b698e7ed2936bf2abf9a3a9f239", 1531124),
+        "noble-security/universe/arm64": ("7de8946498b2af91b4baee3064edb63da1dc42a766157b07efccbad016a10472", 1617670),
+        "noble-updates/main/amd64": ("a18cd6450a937dc349ef1f79536fe9e87a94f72bf0012a5686008cf6159f165a", 1565391),
+        "noble-updates/main/arm64": ("7e9c208683f116294f97aa1635a545d5d9cc2817ce30d7931d6f5ae606326ef7", 1630310),
+        "noble-updates/universe/amd64": ("6296a6cecd604dacb9f39593289d8bdb4978df9251263071fd6362f693e55221", 2151668),
+        "noble-updates/universe/arm64": ("0d7cffac20dd44095ce3a501768e31b5eef84146a4a1ee0088f0da54ddf28ed4", 2195359),
+        "noble/main/amd64": ("e0d7e4cbb09d2aa7f9e104a1488817417bc9d85f3e5d9a21156a52ec641ae531", 1808488),
+        "noble/main/arm64": ("86d8c27108110e8ebceb4b8548e2995c422cff642666b4ca0307be7358c68b21", 1775784),
+        "noble/universe/amd64": ("ce57756edcce0a5f7993ceb89057e1510148e04e3b85a066d780e4bc00485c8a", 19315644),
+        "noble/universe/arm64": ("b8408fe3d33d80c5f9b958ae19dc20f2a19ff65b0d1522e1e86d44316f552307", 19026623),
+    },
+)
+
 deb_lock(
     name = "lock",
+    indexes = indexes,
     sets = {
         "amd64": ("amd64", wanted),
         "amd64-test": ("amd64", test_runtime),
@@ -58,51 +80,30 @@ deb_lock(
     snapshot = snapshot,
 )
 
-# The amd64 packages keep the names they had before there was a second set;
-# the others' are prefixed. A package two sets share is downloaded once,
-# whichever name asks for it.
-set_prefixes = {
-    "amd64": "",
-    "amd64-test": "test-",
-    "amd64-xr": "xr-",
-    "arm64": "arm64-",
-}
+# One download for each package of each architecture, whichever sets name it
+# (deb_downloads), and each set's sysroot configured once (sysroot).
+deb_downloads(packages)
 
-[
-    http_file(
-        name = set_prefixes[set_name] + name.replace("+", "p") + ".deb",
-        sha256 = sha256,
-        size_bytes = size_bytes,
-        urls = [url],
-    )
-    for set_name in sorted(packages)
-    for name, url, sha256, size_bytes in packages[set_name]
-]
+sysroot(name = "amd64", packages = packages, set_name = "amd64")
 
-deb_sysroot(
-    name = "amd64",
-    packages = [":" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages["amd64"]],
-    visibility = ["PUBLIC"],
-)
-
-deb_sysroot(
+sysroot(
     name = "amd64-test",
     keep_xkb = True,
-    packages = [":test-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages.get("amd64-test", [])],
+    packages = packages,
     programs = ["usr/bin/dbus-daemon"],
-    visibility = ["PUBLIC"],
+    set_name = "amd64-test",
 )
 
-deb_sysroot(
+sysroot(
     name = "amd64-xr",
     keep_xkb = True,
-    packages = [":xr-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages.get("amd64-xr", [])],
+    packages = packages,
     programs = [
         "usr/bin/monado-service",
         "usr/lib/libarmadillo.so.12",
         "usr/lib/libarmadillo.so.12.6.7",
     ],
-    visibility = ["PUBLIC"],
+    set_name = "amd64-xr",
 )
 
 # Monado's runtime manifest, naming its library by file name, as
@@ -129,11 +130,7 @@ genrule(
     visibility = ["PUBLIC"],
 )
 
-deb_sysroot(
-    name = "arm64",
-    packages = [":arm64-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages["arm64"]],
-    visibility = ["PUBLIC"],
-)
+sysroot(name = "arm64", packages = packages, set_name = "arm64")
 
 # What a -sys crate's build script asks, for the platform it is building for.
 # The fixups name it with $(exe_target), which is that platform's, rather than
@@ -159,11 +156,8 @@ export_file(
 )
 
 export_file(
-    name = "deb_lock.sh",
-    visibility = ["PUBLIC"],
-)
-
-export_file(
     name = "deb_sysroot.sh",
     visibility = ["PUBLIC"],
 )
+
+package_fix(exclude = ["packages.bzl"])

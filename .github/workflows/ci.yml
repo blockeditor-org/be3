@@ -23,11 +23,13 @@ permissions:
   contents: read
 
 env:
-  # The API gateway's header, behind which the waker names the hosts of
-  # Namespace's remote execution (guides/build_server.md), which runs every
-  # buck2 action. A pull request from a fork sees an empty value, and
-  # ./scripts/buck says so rather than building.
+  # The API gateway's header, behind which api.be3.pfg.pw's build server
+  # (guides/build_server.md) runs every buck2 action. A pull request from a
+  # fork sees an empty value, and ./scripts/buck says so rather than building.
   BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
+  # Named here as well as being the default, so that a commit whose pinned
+  # bootstrap defaults to another server builds here too.
+  BE3_BUILD_SERVER: api.be3.pfg.pw
 
 # One job does the work: ci is ./scripts/ci, which verifies and on a pull
 # request renders the paint previews, and uploads what each of those produced.
@@ -66,7 +68,7 @@ jobs:
   # request that each run edits rather than adding to, which also counts the
   # lines of Rust the pull request adds and removes outside its tests. The paintings
   # compared are the ones committed on the head, so a painting the autofix job
-  # accepts shows up in the run its commit starts. A fork's run has no Namespace
+  # accepts shows up in the run its commit starts. A fork's run has no gateway
   # token to build with and no token to comment with, so it has no previews.
   ci:
     name: ci
@@ -156,6 +158,13 @@ jobs:
           PREVIEWS: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           BOOTSTRAP: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           BASE: ${{ github.event.pull_request.base.sha }}
+          # What crates/be-tool-bootstrap's release is built from. Its six
+          # release builds, four for Windows and macOS, are made only when a
+          # pull request changes one of these (guides/bootstrap.md).
+          BOOTSTRAP_INPUTS: >-
+            crates/be-tool-bootstrap crates/be-lib-prompt crates/be-lib-crate-pins Cargo.lock
+            buck/cargo buck/platforms buck/sysroot buck/toolchains buck/tools
+            third-party/rust scripts/internal/pins .buckconfig
         run: |
           set --
           if [ "$CHECK" = true ]; then
@@ -164,7 +173,8 @@ jobs:
           if [ "$PREVIEWS" = true ]; then
             set -- "$@" --previews "$BASE" "$RUNNER_TEMP/previews"
           fi
-          if [ "$BOOTSTRAP" = true ]; then
+          # shellcheck disable=SC2086 # BOOTSTRAP_INPUTS is a list of paths
+          if [ "$BOOTSTRAP" = true ] && ! git diff --quiet "$(git merge-base "$BASE" HEAD)" HEAD -- $BOOTSTRAP_INPUTS; then
             set -- "$@" --bootstrap "$RUNNER_TEMP/bootstrap"
           fi
           ./scripts/ci "$@"

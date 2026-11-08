@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 beui = { path = "../beui" }
 be-sdk-beui = { path = "../be-sdk-beui" }
 be-type-terminal = { path = "../be-type-terminal" }
-beui-terminal-view = { path = "../beui-terminal-view" }
+be-sdk-terminal = { path = "../be-sdk-terminal" }
 uuid = "1"
 
 [dev-dependencies]

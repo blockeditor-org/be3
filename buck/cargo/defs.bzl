@@ -1,7 +1,12 @@
 load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
-load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "dev_only")
+load("@root//buck/cargo:buckify.bzl", "cargo_inputs")
+load("@root//buck/dev:targets.bzl", "BINARY_NAMES")
+load("@root//buck/dev:test.bzl", "be_test")
+load("@root//buck/dev:verify.bzl", "package_fix")
+load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
+load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
 load(":crates.bzl", "crates")
+load(":layers.bzl", "check_layers")
 
 # The rules for a workspace crate, filled in from its Cargo.toml through
 # crates.bzl, which //:buckify generates from cargo's own plans. A BUCK file
@@ -11,15 +16,23 @@ load(":crates.bzl", "crates")
 # selects them by plan through the prelude's apply_platform_attrs, which the
 # third-party rules use too, from the map the root PACKAGE sets.
 
+# The crate's facts, and its package's :fix (buck/dev/verify.bzl) and
+# :cargo-inputs (buckify.bzl), which every macro here reaches through this.
+# The first call in a package, before :cargo-inputs exists, also checks the
+# crate's dependencies against the layers in layers.bzl.
 def _crate():
     package = native.package_name()
     if package not in crates:
         fail("{} is not a workspace member cargo knows about; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(package))
+    if not native.rule_exists("cargo-inputs"):
+        check_layers(crates[package])
+    package_fix(rust = True)
+    cargo_inputs()
     return crates[package]
 
 # One value per platform, as a select() when they differ and a plain list when
-# they do not. A crate cargo never builds for a platform still needs a value
-# there, and gets the first platform it is built for's.
+# they do not. A platform cargo never planned the crate for gets nothing, since
+# _compatible makes the crate's targets incompatible with it.
 def _per_platform(crate, pick, extra = []):
     values = {platform: sorted(pick(entry) + extra) for platform, entry in crate["platforms"].items()}
     if not values:
@@ -30,9 +43,29 @@ def _per_platform(crate, pick, extra = []):
             distinct.append(value)
     if len(distinct) == 1:
         return distinct[0]
-    fallback = values[sorted(values)[0]]
-    per_plan = {platform: {"value": values.get(platform, fallback)} for platform in get_reindeer_platform_names()}
+    per_plan = {platform: {"value": values.get(platform, [])} for platform in get_reindeer_platform_names()}
     return apply_platform_attrs(per_plan, {})["value"]
+
+# What makes a crate's targets incompatible with every platform cargo did not
+# plan it for (buck/cargo/buckify.sh's package lists say which), so that one
+# asked for there, such as an app crate built for anything but the guest's
+# wasi, fails when the build is configured, rather than building with no
+# dependencies. It names a constraint no platform has, which buck2's error
+# names. The settings are the ones the root PACKAGE picks a plan by.
+def _planned(crate):
+    unplanned = [plan for plan in PLAN_SETTINGS if plan not in crate["platforms"]]
+    if not unplanned:
+        return []
+    return select(
+        {"DEFAULT": []}
+        | {PLAN_SETTINGS[plan]: ["root//buck/constraints:planned_by_cargo"] for plan in unplanned}
+        | {PLAN_SETTINGS[plan]: [] for plan in crate["platforms"]}
+    )
+
+def _compatible(crate, kwargs):
+    planned = _planned(crate)
+    if planned:
+        kwargs["target_compatible_with"] = kwargs.get("target_compatible_with", []) + planned
 
 def _env(crate, crate_name, env):
     base = {
@@ -92,33 +125,33 @@ def _core_flags():
     })
 
 # Cargo.toml's [profile.dev.package] settings for the crate and the core's cfg,
-# ahead of the flags its BUCK file passes. rustc's frontend runs on eight
-# threads: the crates under beui are a chain, each typechecked only once the
-# one below it is, and that chain is most of what a change to one of them
-# waits on.
+# ahead of the flags its BUCK file passes, at a workspace crate's opt level
+# (OPT_LEVELS in buck/platforms/profile.bzl). rustc's frontend runs on several
+# threads (RUSTC_THREADS): the crates under beui are a chain, each typechecked
+# only once the one below it is, and that chain is most of what a change to one
+# of them waits on.
 def _rustc_flags(crate, kwargs):
     if "srcs" in kwargs:
         fail("Rust sources are inferred; srcs is not supported")
-    return ["-Zthreads=8"] + RELEASE_SYMBOL_FLAGS + _wasm_dev() + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+    return (
+        [RUSTC_THREADS] + RELEASE_SYMBOL_FLAGS + opt_flags("member") + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+    )
 
-# Workspace crates built for wasm outside a release build, at opt-level 1 rather
-# than the app profile's 2: a change under beui recompiles each of them for
-# the apps, and at 2 that took a third of the CPU ./scripts/verify spent on a
-# change to geometry, for modules no slower to precompile or test.
-def _wasm_dev():
-    return select({
-        "DEFAULT": select({
-            "DEFAULT": [],
-            "prelude//cpu:wasm32": ["-Copt-level=1"],
-        }),
-        "root//buck/constraints:release": [],
-    })
+# A proc macro's own visibility, which the root PACKAGE's default cannot give:
+# the prelude's rust_library makes it an alias of the library, and gives the
+# alias the visibility it was passed or none at all, where the library takes
+# the package default.
+def proc_macro_visibility(proc_macro, kwargs):
+    if proc_macro and "visibility" not in kwargs:
+        return {"visibility": ["PUBLIC"]}
+    return {}
 
 # The crate's library, named after the package. Another build of it, such as
 # one for a fuzz target, takes a name and extra_features.
 def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs = [], resources = [], foreign_resources = {}, env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
+    _compatible(crate, kwargs)
     native.rust_library(
         name = name or crate["name"],
         crate = library["crate"],
@@ -131,276 +164,90 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
         proc_macro = library["proc_macro"],
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = cargo_library_sources() + extra_srcs,
-        visibility = kwargs.pop("visibility", ["PUBLIC"]),
-        **kwargs,
+        **(kwargs | proc_macro_visibility(library["proc_macro"], kwargs) | RUST_LOCAL),
     )
 
 # The library's own tests, which are #[cfg(test)] modules in its sources, with
-# the dev-dependencies added. A proc macro's tests need proc_macro named, since
-# rust_test has no attribute for it.
+# the dev-dependencies added, compiled as :test-harness and run as :test, a
+# be_test (buck/dev/test.bzl), with env at compile time and run time and run_env
+# at run time alone. A proc macro's tests need proc_macro named, since rustc
+# takes no --extern for it by itself. LD_LIBRARY_PATH is the test's at run time
+# alone: a sysroot's libc in it would load into the compiler.
 #
-# A test whose env names LD_LIBRARY_PATH is a library_path_test around the
-# test harness, built as a binary, since Namespace's workers replace an
-# action's LD_LIBRARY_PATH with their own. Its compile never takes the
-# variable: a sysroot's libc in it would load into the compiler.
+# A test that paints (guides/testing_a_gui.md) reads and accepts the paintings
+# in the crate's snapshots/, as app tests do (buck/wasm/defs.bzl).
+# crates/be-host-tests is one: be-host with its apps, driven headless. With
+# run_apart, each file under src/tests/ is a :test-<file> of its own, so a test
+# that fails costs only its own paintings rather than every one the crate
+# accepts, since a failed action keeps no outputs, and :test runs them all;
+# apart_env adds to run_env for the files it names, as crates/be-host-tests
+# names each test's own app.
 def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, apart_env = {}, resources = [], foreign_resources = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
+    _compatible(crate, kwargs)
     rustc_flags = _rustc_flags(crate, kwargs)
     if library["proc_macro"]:
         rustc_flags = rustc_flags + ["--extern", "proc_macro"]
-    common = dict(
+    compile_env = _env(crate, library["crate"], {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"})
+    native.rust_binary(
+        name = name + "-harness",
         crate = library["crate"],
         crate_root = library["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["deps"] + entry["test_deps"], extra_deps),
         edition = crate["edition"],
+        env = compile_env,
         features = _per_platform(crate, lambda entry: entry["test_features"]),
         mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
+        rustc_flags = rustc_flags + ["--test"],
         srcs = cargo_test_sources(),
+        **(kwargs | RUST_LOCAL),
     )
-    compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
+    test = dict(
+        harness = ":" + name + "-harness",
+        test_type = "rust",
+        **{key: kwargs[key] for key in ["default_target_platform", "target_compatible_with", "visibility"] if key in kwargs},
+    )
     if paints:
-        paintings = native.glob(["snapshots/*.paint"])
-        native.rust_binary(
-            name = name + "-harness",
-            env = _env(crate, library["crate"], compile_env),
-            rustc_flags = rustc_flags + ["--test"],
-            target_compatible_with = kwargs.get("target_compatible_with", []),
-            **common,
-        )
-        apart = {}
-        if run_apart:
-            tests = [path.removeprefix("src/tests/").removesuffix(".rs") for path in native.glob(["src/tests/*.rs"])]
-            for test in apart_env:
-                if test not in tests:
-                    fail("apart_env names {}, which is not a file under src/tests/".format(test))
-            apart = {test: run_env | apart_env.get(test, {}) for test in tests}
-        painting_test(name = name, apart = apart, env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", paintings = paintings, **kwargs)
-        if not run_apart:
-            painting_test_run(name = name + "-run", env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", paintings = paintings, **kwargs)
-            return
-        for test, test_env in apart.items():
-            painting_test_run(
-                name = "{}-run-{}".format(name, test),
-                args = ["tests::{}::".format(test)],
-                env = test_env,
-                harness = ":" + name + "-harness",
-                manifest = "Cargo.toml",
-                paintings = paintings,
-                **kwargs,
+        test.update(manifest = "Cargo.toml", paintings = native.glob(["snapshots/*.paint"]), paints = True)
+    run_env = compile_env | env | run_env
+    parts = {}
+    if run_apart:
+        tests = [path.removeprefix("src/tests/").removesuffix(".rs") for path in native.glob(["src/tests/*.rs"])]
+        for part in apart_env:
+            if part not in tests:
+                fail("apart_env names {}, which is not a file under src/tests/".format(part))
+        for part in tests:
+            be_test(
+                name = "{}-{}".format(name, part),
+                args = ["--exact", "tests::{}::{}".format(part, part)],
+                env = run_env | apart_env.get(part, {}),
+                part_of = ":" + name,
+                **test,
             )
-        return
-    if "LD_LIBRARY_PATH" in env:
-        native.rust_binary(
-            name = name + "-harness",
-            env = _env(crate, library["crate"], compile_env),
-            rustc_flags = rustc_flags + ["--test"],
-            target_compatible_with = kwargs.get("target_compatible_with", []),
-            **common,
-        )
-        library_path_test(name = name, env = _env(crate, library["crate"], env), harness = ":" + name + "-harness", **kwargs)
-    else:
-        native.rust_test(name = name, env = _env(crate, library["crate"], env), rustc_flags = rustc_flags, **(common | kwargs))
-    platform = {key: kwargs[key] for key in ["default_target_platform", "target_compatible_with"] if key in kwargs}
-    test_run(name = name + "-run", local_only = kwargs.get("remote_execution") == "disabled", test = ":" + name, **platform)
-
-# A Rust test harness run with its LD_LIBRARY_PATH carried as
-# BE3_LD_LIBRARY_PATH and put back by the shell that starts it, so it survives
-# a worker that sets its own.
-# A test run's command, stopped once it has run for TEST_TIME_LIMIT. A test
-# that hangs would otherwise hold its worker until the build server gives up
-# on it, and every later run of the same action would wait on that one.
-TEST_TIME_LIMIT = "20m"
-
-def time_limited(command):
-    return cmd_args(
-        "sh",
-        "-c",
-        'timeout "$0" "$@"; status=$? && [ "$status" != 124 ] || echo "the test ran for over $0 and was stopped: one of its tests hangs, the one said above to have been running for over 60 seconds" >&2; exit "$status"',
-        TEST_TIME_LIMIT,
-        command,
-    )
-
-_restore_library_path = 'LD_LIBRARY_PATH="$BE3_LD_LIBRARY_PATH" && export LD_LIBRARY_PATH && exec "$@"'
-
-def _library_path_test_impl(ctx: AnalysisContext) -> list[Provider]:
-    env = {key: value for key, value in ctx.attrs.env.items() if key != "LD_LIBRARY_PATH"}
-    env["BE3_LD_LIBRARY_PATH"] = ctx.attrs.env["LD_LIBRARY_PATH"]
-    command = cmd_args("sh", "-c", _restore_library_path, "sh", ctx.attrs.harness[RunInfo])
-    return [
-        DefaultInfo(default_outputs = ctx.attrs.harness[DefaultInfo].default_outputs),
-        RunInfo(args = command),
-        ExternalRunnerTestInfo(
-            command = [command],
-            env = env,
-            labels = ctx.attrs.labels,
-            run_from_project_root = True,
-            type = "rust",
-            use_project_relative_paths = True,
-        ),
-    ]
-
-library_path_test = rule(
-    attrs = {
-        "env": attrs.dict(key = attrs.string(), value = attrs.arg()),
-        "harness": attrs.dep(providers = [RunInfo]),
-        "labels": attrs.list(attrs.string(), default = []),
-    },
-    impl = _library_path_test_impl,
-)
-
-# A native test that compares paintings, as app tests do (buck/wasm/defs.bzl):
-# :test runs here, so that UPDATE_SNAPSHOTS=1 writes into the crate's snapshots/, and
-# :test-run is the action ./scripts/verify builds on a worker, which accepts
-# every painting and outputs the ones that changed and the ones it compared.
-# crates/be-host-tests is one: be-host with its apps, driven headless. With
-# run_apart, each file under src/tests/ is a :test-run-<file> of its own, so a
-# test that fails costs only its own paintings rather than every one the crate
-# accepts, since a failed action keeps no outputs; apart_env adds to run_env
-# for the files it names, as crates/be-host-tests names each test's own app, and
-# ./scripts/test runs each file apart with its own environment too.
-def _painting_command(ctx, env):
-    command = cmd_args(ctx.attrs.harness[RunInfo], getattr(ctx.attrs, "args", []))
-    if "LD_LIBRARY_PATH" in env:
-        env["BE3_LD_LIBRARY_PATH"] = env.pop("LD_LIBRARY_PATH")
-        command = cmd_args("sh", "-c", _restore_library_path, "sh", command)
-    return command
-
-# What ./scripts/test runs on a worker for a :test (buck/dev/test.bxl) when its
-# ExternalRunnerTestInfo is not enough: the command and environment, and the
-# files it reads that the command does not name, such as the accepted
-# paintings.
-# `apart` is a run_apart test's environment for each file under src/tests/, by
-# the file's name.
-RemoteTestInfo = provider(
-    fields = {
-        "apart": provider_field(dict, default = {}),
-        "command": provider_field(typing.Any),
-        "env": provider_field(dict),
-        "hidden": provider_field(list),
-    }
-)
-
-def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
-    env = dict(ctx.attrs.env)
-    env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
-    command = _painting_command(ctx, env)
-    apart = {}
-    for test, test_env in ctx.attrs.apart.items():
-        test_env = dict(test_env)
-        test_env["CARGO_MANIFEST_DIR"] = env["CARGO_MANIFEST_DIR"]
-        if "LD_LIBRARY_PATH" in test_env:
-            test_env["BE3_LD_LIBRARY_PATH"] = test_env.pop("LD_LIBRARY_PATH")
-        apart[test] = test_env
-    remote = RemoteTestInfo(apart = apart, command = command, env = env, hidden = ctx.attrs.paintings)
-    return (
-        [remote]
-        + inject_test_run_info(
-            ctx,
-            ExternalRunnerTestInfo(
-                command = [command],
-                env = env,
-                labels = ctx.attrs.labels,
-                run_from_project_root = True,
-                type = "rust",
-                use_project_relative_paths = False,
-            ),
-        )
-        + [DefaultInfo(default_outputs = ctx.attrs.harness[DefaultInfo].default_outputs)]
-    )
-
-painting_test = rule(
-    attrs = {
-        "apart": attrs.dict(attrs.string(), attrs.dict(attrs.string(), attrs.arg()), default = {}),
-        "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
-        "harness": attrs.dep(providers = [RunInfo]),
-        "labels": attrs.list(attrs.string(), default = []),
-        "manifest": attrs.source(),
-        "paintings": attrs.list(attrs.source(), default = []),
-        "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
-    },
-    impl = _painting_test_impl,
-)
-
-def _painting_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
-    paintings = ctx.actions.declare_output("paintings", dir = True, has_content_based_path = False)
-    env = dict(ctx.attrs.env)
-    env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
-    env["UPDATE_SNAPSHOTS"] = "1"
-    command = _painting_command(ctx, env)
-    ctx.actions.run(
-        cmd_args(
-            "sh",
-            "-c",
-            'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" && export USED_PAINTINGS CHANGED_PAINTINGS && shift && exec "$@"',
-            "sh",
-            paintings.as_output(),
-            time_limited(command),
-            hidden = ctx.attrs.paintings,
-        ),
-        category = "painting_test",
-        env = env,
-    )
-    return [DefaultInfo(default_output = paintings)]
-
-painting_test_run = rule(
-    attrs = {
-        "args": attrs.list(attrs.string(), default = []),
-        "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
-        "harness": attrs.dep(providers = [RunInfo]),
-        "manifest": attrs.source(),
-        "paintings": attrs.list(attrs.source(), default = []),
-    },
-    impl = _painting_test_run_impl,
-)
-
-# A test as an action, which is how ./scripts/verify runs it: buck2 runs a test
-# again every time, where an action whose binary and inputs have not changed
-# comes from the cache. It runs the test's own command and environment on a
-# worker, or here for a test that must stay local, and fails, with the test's
-# output, when the test does.
-def _test_run_impl(ctx: AnalysisContext) -> list[Provider]:
-    test = ctx.attrs.test[ExternalRunnerTestInfo]
-    passed = ctx.actions.declare_output("passed")
-    ctx.actions.run(
-        cmd_args(
-            "sh",
-            "-c",
-            'passed="$1" && shift && "$@" && : > "$passed"',
-            "sh",
-            passed.as_output(),
-            test.command if ctx.attrs.local_only else time_limited(test.command),
-        ),
-        category = "test_run",
-        env = test.env or {},
-        local_only = ctx.attrs.local_only,
-    )
-    return [DefaultInfo(default_output = passed)]
-
-test_run = rule(
-    attrs = {
-        "local_only": attrs.bool(default = False),
-        "test": attrs.dep(providers = [ExternalRunnerTestInfo]),
-    },
-    impl = _test_run_impl,
-)
+            parts[part] = ":{}-{}".format(name, part)
+    be_test(name = name, env = run_env, parts = parts, **test)
 
 # One of the crate's [[bin]] targets: :bin, or, in a crate with several, the
 # binary's own name.
 def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
+    _compatible(crate, kwargs)
     binaries = {binary["name"]: binary for binary in crate["binaries"]}
     if bin == None:
         if len(binaries) != 1:
             fail("{} has {} binaries; name the one this is with bin".format(crate["name"], len(binaries)))
         bin = binaries.keys()[0]
     binary = binaries[bin]
+    default = "bin" if len(binaries) == 1 else bin
+    if "linux-x86_64" in crate["platforms"] and (name or default) != BINARY_NAMES.get(native.package_name(), {}).get(bin, default):
+        fail("{}'s binary {} is not named what //:verify checks: name it in BINARY_NAMES in buck/dev/targets.bzl".format(crate["name"], bin))
     crate_name = bin.replace("-", "_")
     own = []
     if crate["library"] != None:
         own = [":" + crate["name"]]
     native.rust_binary(
-        name = name or ("bin" if len(binaries) == 1 else bin),
+        name = name or default,
         crate = crate_name,
         crate_root = binary["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["binaries"].get(bin, []), own + extra_deps),
@@ -409,8 +256,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
         mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, binary["crate_root"]),
-        visibility = kwargs.pop("visibility", ["PUBLIC"]),
-        **kwargs,
+        **(kwargs | RUST_LOCAL),
     )
 
 # One of the crate's examples, as a binary, named example-<example>:
@@ -418,6 +264,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
 # builds it, with the library and the dev-dependencies.
 def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
+    _compatible(crate, kwargs)
     examples = {entry["name"]: entry for entry in crate["examples"]}
     if example not in examples:
         fail("{} has no example {}; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(crate["name"], example))
@@ -436,17 +283,33 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, examples[example]["crate_root"]),
-        visibility = kwargs.pop("visibility", ["PUBLIC"]),
-        **kwargs,
+        **(kwargs | RUST_LOCAL),
     )
 
+# A crate's every target from its Cargo.toml: the library, if it has one, and
+# its tests, unless test = False, every [[bin]] and every example. Most BUCK
+# files are this one line, and a new crate starts with it; one that needs
+# arguments for a target calls the macros above for that target instead.
+def cargo_crate(test = True):
+    crate = _crate()
+    if crate["library"] != None:
+        cargo_library()
+        if test:
+            cargo_test()
+    for binary in crate["binaries"]:
+        cargo_binary(bin = binary["name"])
+    for example in crate["examples"]:
+        cargo_example(example["name"])
+
 # What the wasm macros in buck/wasm/defs.bzl need from a crate's Cargo.toml:
-# the crate and its wasm dependencies, without the dev-dependencies and with.
+# the crate and its wasm dependencies, without the dev-dependencies and with,
+# and what its targets are compatible with beyond wasm.
 def cargo_wasm_facts():
     crate = _crate()
     library = crate["library"]
     return struct(
         name = crate["name"],
+        compatible = _planned(crate),
         crate = library["crate"],
         crate_root = library["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["deps"]),
@@ -470,16 +333,20 @@ def game_packages():
 # rustc's sancov pass, which libFuzzer reads coverage and comparisons from, and
 # an optimised build that still checks for overflow and debug assertions, as
 # cargo-fuzz builds one.
-_FUZZ_FLAGS = [
-    "-Cpasses=sancov-module",
-    "-Cllvm-args=-sanitizer-coverage-level=4",
-    "-Cllvm-args=-sanitizer-coverage-inline-8bit-counters",
-    "-Cllvm-args=-sanitizer-coverage-pc-table",
-    "-Cllvm-args=-sanitizer-coverage-trace-compares",
-    "-Copt-level=3",
-    "-Cdebug-assertions=on",
-    "-Coverflow-checks=on",
-]
+_FUZZ_FLAGS = (
+    [
+        "-Cpasses=sancov-module",
+        "-Cllvm-args=-sanitizer-coverage-level=4",
+        "-Cllvm-args=-sanitizer-coverage-inline-8bit-counters",
+        "-Cllvm-args=-sanitizer-coverage-pc-table",
+        "-Cllvm-args=-sanitizer-coverage-trace-compares",
+    ]
+    + opt_flags("fuzz")
+    + [
+        "-Cdebug-assertions=on",
+        "-Coverflow-checks=on",
+    ]
+)
 
 # Every file in a crate's fuzz/ is a coverage-guided fuzz target: a
 # #![no_main] crate defining LLVMFuzzerTestOneInput over the crate's library,
@@ -512,6 +379,7 @@ def cargo_fuzz(extra_features = []):
             rustc_flags = _FUZZ_FLAGS,
             srcs = [root],
             target_compatible_with = compatible,
+            **RUST_LOCAL,
         )
         fuzz_target(
             name = name,
@@ -519,13 +387,12 @@ def cargo_fuzz(extra_features = []):
             id = crate["name"] + "/" + stem,
             target_compatible_with = compatible,
         )
-        native.sh_test(
+        be_test(
             name = name + "-test",
             args = ["-runs=20000", "-seed=1"],
+            harness = ":{}-bin".format(name),
             target_compatible_with = compatible,
-            test = ":{}-bin".format(name),
         )
-        test_run(name = name + "-test-run", target_compatible_with = compatible, test = ":{}-test".format(name))
 
 # What //buck/dev/fuzz.bxl finds every fuzz target by.
 FuzzTargetInfo = provider(fields = {"binary": Artifact, "id": str})

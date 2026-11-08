@@ -10,7 +10,10 @@ name = "bootstrap"
 path = "src/main.rs"
 
 [dependencies]
+be-lib-crate-pins = { path = "../be-lib-crate-pins" }
 be-lib-prompt = { path = "../be-lib-prompt" }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+serde_json = "1"
 sha2 = "0.10"
 zstd = { version = "0.13", default-features = false }
 

@@ -2,8 +2,8 @@ use be_sdk_beui::Editor;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, icons::*};
+use be_sdk_terminal::{Fit, Lines, TerminalInput, TerminalView};
 use be_type_terminal::TerminalWheel;
-use beui_terminal_view::{Fit, Lines, TerminalInput, TerminalView};
 
 use super::offline::{Offline, SetupSteps};
 use super::session::Session;

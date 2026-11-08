@@ -1,4 +1,5 @@
-load("//buck/tools:defs.bzl", "rust_sysroot")
+load("@root//buck/dev:verify.bzl", "package_fix")
+load("//buck/tools:defs.bzl", "configured_once", "rust_sysroot")
 load(":cargo_install.bzl", "cargo_install")
 
 # The cargo and nightly buckify.bxl plans the workspace with (--unit-graph is
@@ -30,10 +31,11 @@ rust_sysroot(
     components = [":nightly-" + component for component in sorted(nightly_components)],
 )
 
-# The cargo that brings Cargo.lock up to date and builds buck-tools:
-# rust-toolchain.toml's, the same one the workspace builds with, so the
-# lockfile is the one a developer's cargo leaves.
-http_archive(
+# The cargo buckify's action checks Cargo.lock with and builds buck-tools:
+# rust-toolchain.toml's, the same one the workspace builds with and the
+# bootstrap's lock step brings Cargo.lock up to date with.
+configured_once(
+    http_archive,
     name = "cargo-component",
     sha256 = "2f512d170d3dd23e16ababcda32ee2e6d5172d861a7af1f504e0b1e270cafab9",
     size_bytes = 11669560,
@@ -97,6 +99,13 @@ cargo_install(
 )
 
 export_file(
+    name = "buckify.sh",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
     name = "update.sh",
     visibility = ["PUBLIC"],
 )
+
+package_fix(exclude = ["crates.bzl"])

@@ -1,8 +1,8 @@
 #!/bin/sh
 #
 # Serves a web bundle with Caddy (bundle.Caddyfile) on DEFAULT, or on the
-# address given after `--`: what `./scripts/buck run` of beui-web-demo's and
-# beui-html-spike's :web runs.
+# address given after `--`: what `./scripts/buck run` of a web_program with
+# serve (buck/wasm/defs.bzl) runs.
 #
 #   serve-bundle.sh CADDY CADDYFILE DEFAULT BUNDLE [HOST:PORT]
 set -eu

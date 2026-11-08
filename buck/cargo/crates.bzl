@@ -995,7 +995,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//crates/be-sdk-beui:be-sdk-beui",
                     "//crates/be-sdk-database:be-sdk-database",
                     "//crates/be-type-settings:be-type-settings",
@@ -1029,8 +1029,8 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-sdk-beui:be-sdk-beui",
+                    "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-type-terminal:be-type-terminal",
-                    "//crates/beui-terminal-view:beui-terminal-view",
                     "//crates/beui:beui",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -5110,12 +5110,12 @@ crates = {
                         "//crates/be-host-accounts-ui:be-host-accounts-ui",
                         "//crates/be-host-base:be-host-base",
                         "//crates/be-host-desktop:be-host-desktop",
-                        "//crates/be-host-dmabuf:be-host-dmabuf",
                         "//crates/be-host-runtime:be-host-runtime",
                         "//crates/be-host-services:be-host-services",
                         "//crates/be-host-stack:be-host-stack",
                         "//crates/be-host-wayland:be-host-wayland",
                         "//crates/be-lib-build-id:be-lib-build-id",
+                        "//crates/be-lib-dmabuf:be-lib-dmabuf",
                         "//crates/be-sdk-api:be-sdk-api",
                         "//crates/be-sdk-manifest:be-sdk-manifest",
                         "//crates/be-sdk-window-stack:be-sdk-window-stack",
@@ -5144,12 +5144,12 @@ crates = {
                     "//crates/be-host-accounts-ui:be-host-accounts-ui",
                     "//crates/be-host-base:be-host-base",
                     "//crates/be-host-desktop:be-host-desktop",
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
                     "//crates/be-host-runtime:be-host-runtime",
                     "//crates/be-host-services:be-host-services",
                     "//crates/be-host-stack:be-host-stack",
                     "//crates/be-host-wayland:be-host-wayland",
                     "//crates/be-lib-build-id:be-lib-build-id",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-sdk-api:be-sdk-api",
                     "//crates/be-sdk-manifest:be-sdk-manifest",
                     "//crates/be-sdk-window-stack:be-sdk-window-stack",
@@ -5187,12 +5187,12 @@ crates = {
                         "//crates/be-host-accounts-ui:be-host-accounts-ui",
                         "//crates/be-host-base:be-host-base",
                         "//crates/be-host-desktop:be-host-desktop",
-                        "//crates/be-host-dmabuf:be-host-dmabuf",
                         "//crates/be-host-runtime:be-host-runtime",
                         "//crates/be-host-services:be-host-services",
                         "//crates/be-host-stack:be-host-stack",
                         "//crates/be-host-wayland:be-host-wayland",
                         "//crates/be-lib-build-id:be-lib-build-id",
+                        "//crates/be-lib-dmabuf:be-lib-dmabuf",
                         "//crates/be-sdk-api:be-sdk-api",
                         "//crates/be-sdk-manifest:be-sdk-manifest",
                         "//crates/be-sdk-window-stack:be-sdk-window-stack",
@@ -5221,12 +5221,12 @@ crates = {
                     "//crates/be-host-accounts-ui:be-host-accounts-ui",
                     "//crates/be-host-base:be-host-base",
                     "//crates/be-host-desktop:be-host-desktop",
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
                     "//crates/be-host-runtime:be-host-runtime",
                     "//crates/be-host-services:be-host-services",
                     "//crates/be-host-stack:be-host-stack",
                     "//crates/be-host-wayland:be-host-wayland",
                     "//crates/be-lib-build-id:be-lib-build-id",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-sdk-api:be-sdk-api",
                     "//crates/be-sdk-manifest:be-sdk-manifest",
                     "//crates/be-sdk-window-stack:be-sdk-window-stack",
@@ -6382,290 +6382,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/be-host-dmabuf": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "be_host_dmabuf",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "be-host-dmabuf",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
-                    "//third-party/rust:ash-0.38.0+1.3.281",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rustix-1.1.4",
-                    "//third-party/rust:smithay-0.7.0",
-                    "//third-party/rust:wgpu-29.0.3",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/be-host-remap": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "be_host_remap",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "be-host-remap",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "linux-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "linux-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "macos-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "macos-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "wasm32": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "windows-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/be-host-remap-host": {
         "binaries": [],
         "edition": "2024",
@@ -6680,7 +6396,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6691,7 +6407,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6702,7 +6418,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6713,7 +6429,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6724,7 +6440,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6735,7 +6451,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6746,103 +6462,8 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/be-host-remap-module": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "be_host_remap_module",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "be-host-remap-module",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "wasm32": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
                 ],
                 "examples": {},
                 "features": [],
@@ -7923,7 +7544,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -7948,7 +7569,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -7973,7 +7594,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -7998,7 +7619,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -8023,7 +7644,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -8048,7 +7669,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -8073,7 +7694,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/beui-fonts:beui-fonts",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
@@ -8455,6 +8076,204 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-lib-crate-pins": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_lib_crate_pins",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-lib-crate-pins",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-lib-dmabuf": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_lib_dmabuf",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-lib-dmabuf",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:ash-0.38.0+1.3.281",
+                    "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:rustix-1.1.4",
+                    "//third-party/rust:smithay-0.7.0",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                ],
                 "test_features": [],
             },
         },
@@ -8881,6 +8700,265 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/be-lib-remap": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_lib_remap",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-lib-remap",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-lib-remap-module": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_lib_remap_module",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-lib-remap-module",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/be-lib-sequence": {
         "binaries": [],
         "edition": "2024",
@@ -9157,98 +9235,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:foldhash-0.2.0",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/be-lib-terminal-emulator": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "be_lib_terminal_emulator",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "be-lib-terminal-emulator",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
-                    "//crates/be-type-terminal:be-type-terminal",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
-                    "//crates/be-type-terminal:be-type-terminal",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
-                    "//crates/be-type-terminal:be-type-terminal",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
-                    "//crates/be-type-terminal:be-type-terminal",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
-                    "//crates/be-type-terminal:be-type-terminal",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
-                    "//crates/be-type-terminal:be-type-terminal",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
-                    "//crates/be-type-terminal:be-type-terminal",
                 ],
                 "examples": {},
                 "features": [],
@@ -10852,6 +10838,25 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-geometry:be-lib-geometry",
+                    "//crates/be-sdk-api:be-sdk-api",
+                    "//crates/be-sdk:be-sdk",
+                    "//crates/be-wasm-gpu-guest:be-wasm-gpu-guest",
+                    "//crates/be-wasm-ops:be-wasm-ops",
+                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -10954,6 +10959,18 @@ crates = {
                 "test_features": [],
             },
             "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-sdk-beui-platform:be-sdk-beui-platform",
+                    "//crates/be-sdk-beui:be-sdk-beui",
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-sdk-beui-platform:be-sdk-beui-platform",
@@ -11250,6 +11267,117 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-sdk-terminal": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_sdk_terminal",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-sdk-terminal",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-type-terminal:be-type-terminal",
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-type-terminal:be-type-terminal",
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-type-terminal:be-type-terminal",
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-type-terminal:be-type-terminal",
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-type-terminal:be-type-terminal",
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-type-terminal:be-type-terminal",
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-type-terminal:be-type-terminal",
+                    "//crates/beui:beui",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-type-terminal:be-type-terminal",
+                    "//crates/beui:beui",
                 ],
                 "examples": {},
                 "features": [],
@@ -13233,13 +13361,19 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13251,13 +13385,19 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13269,13 +13409,19 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13287,13 +13433,19 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13305,13 +13457,19 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13323,13 +13481,19 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13341,13 +13505,19 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13493,17 +13663,23 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
+                        "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
+                    "//third-party/rust:zstd-0.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -13513,17 +13689,23 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
+                        "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
+                    "//third-party/rust:zstd-0.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -13533,17 +13715,23 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
+                        "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
+                    "//third-party/rust:zstd-0.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -13553,17 +13741,23 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
+                        "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
+                    "//third-party/rust:zstd-0.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -13573,17 +13767,23 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
+                        "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
+                    "//third-party/rust:zstd-0.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -13593,17 +13793,23 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
+                        "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
+                    "//third-party/rust:zstd-0.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -13613,17 +13819,23 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:toml-0.9.12+spec-1.1.0",
                         "//third-party/rust:zip-8.6.0",
+                        "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
+                    "//third-party/rust:zstd-0.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -13865,11 +14077,11 @@ crates = {
                         "//crates/be-block-type-host:be-block-type-host",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                         "//crates/be-sdk-manifest:be-sdk-manifest",
                         "//crates/be-sdk-type-api:be-sdk-type-api",
                         "//crates/be-sdk-type-guest:be-sdk-type-guest",
                         "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-database:be-type-database",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/be-type-text:be-type-text",
@@ -13893,11 +14105,11 @@ crates = {
                     "//crates/be-block-type-host:be-block-type-host",
                     "//crates/be-block:be-block",
                     "//crates/be-lib-build-id:be-lib-build-id",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                     "//crates/be-sdk-manifest:be-sdk-manifest",
                     "//crates/be-sdk-type-api:be-sdk-type-api",
                     "//crates/be-sdk-type-guest:be-sdk-type-guest",
                     "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-database:be-type-database",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/be-type-text:be-type-text",
@@ -13931,11 +14143,11 @@ crates = {
                         "//crates/be-block-type-host:be-block-type-host",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                         "//crates/be-sdk-manifest:be-sdk-manifest",
                         "//crates/be-sdk-type-api:be-sdk-type-api",
                         "//crates/be-sdk-type-guest:be-sdk-type-guest",
                         "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-database:be-type-database",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/be-type-text:be-type-text",
@@ -13959,11 +14171,11 @@ crates = {
                     "//crates/be-block-type-host:be-block-type-host",
                     "//crates/be-block:be-block",
                     "//crates/be-lib-build-id:be-lib-build-id",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                     "//crates/be-sdk-manifest:be-sdk-manifest",
                     "//crates/be-sdk-type-api:be-sdk-type-api",
                     "//crates/be-sdk-type-guest:be-sdk-type-guest",
                     "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-database:be-type-database",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/be-type-text:be-type-text",
@@ -13997,11 +14209,11 @@ crates = {
                         "//crates/be-block-type-host:be-block-type-host",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                         "//crates/be-sdk-manifest:be-sdk-manifest",
                         "//crates/be-sdk-type-api:be-sdk-type-api",
                         "//crates/be-sdk-type-guest:be-sdk-type-guest",
                         "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-database:be-type-database",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/be-type-text:be-type-text",
@@ -14025,11 +14237,11 @@ crates = {
                     "//crates/be-block-type-host:be-block-type-host",
                     "//crates/be-block:be-block",
                     "//crates/be-lib-build-id:be-lib-build-id",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                     "//crates/be-sdk-manifest:be-sdk-manifest",
                     "//crates/be-sdk-type-api:be-sdk-type-api",
                     "//crates/be-sdk-type-guest:be-sdk-type-guest",
                     "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-database:be-type-database",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/be-type-text:be-type-text",
@@ -14063,11 +14275,11 @@ crates = {
                         "//crates/be-block-type-host:be-block-type-host",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                         "//crates/be-sdk-manifest:be-sdk-manifest",
                         "//crates/be-sdk-type-api:be-sdk-type-api",
                         "//crates/be-sdk-type-guest:be-sdk-type-guest",
                         "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-database:be-type-database",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/be-type-text:be-type-text",
@@ -14091,11 +14303,11 @@ crates = {
                     "//crates/be-block-type-host:be-block-type-host",
                     "//crates/be-block:be-block",
                     "//crates/be-lib-build-id:be-lib-build-id",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                     "//crates/be-sdk-manifest:be-sdk-manifest",
                     "//crates/be-sdk-type-api:be-sdk-type-api",
                     "//crates/be-sdk-type-guest:be-sdk-type-guest",
                     "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-database:be-type-database",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/be-type-text:be-type-text",
@@ -14129,11 +14341,11 @@ crates = {
                         "//crates/be-block-type-host:be-block-type-host",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                         "//crates/be-sdk-manifest:be-sdk-manifest",
                         "//crates/be-sdk-type-api:be-sdk-type-api",
                         "//crates/be-sdk-type-guest:be-sdk-type-guest",
                         "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-database:be-type-database",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/be-type-text:be-type-text",
@@ -14157,11 +14369,11 @@ crates = {
                     "//crates/be-block-type-host:be-block-type-host",
                     "//crates/be-block:be-block",
                     "//crates/be-lib-build-id:be-lib-build-id",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                     "//crates/be-sdk-manifest:be-sdk-manifest",
                     "//crates/be-sdk-type-api:be-sdk-type-api",
                     "//crates/be-sdk-type-guest:be-sdk-type-guest",
                     "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-database:be-type-database",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/be-type-text:be-type-text",
@@ -14195,11 +14407,11 @@ crates = {
                         "//crates/be-block-type-host:be-block-type-host",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                         "//crates/be-sdk-manifest:be-sdk-manifest",
                         "//crates/be-sdk-type-api:be-sdk-type-api",
                         "//crates/be-sdk-type-guest:be-sdk-type-guest",
                         "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-database:be-type-database",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/be-type-text:be-type-text",
@@ -14223,11 +14435,11 @@ crates = {
                     "//crates/be-block-type-host:be-block-type-host",
                     "//crates/be-block:be-block",
                     "//crates/be-lib-build-id:be-lib-build-id",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                     "//crates/be-sdk-manifest:be-sdk-manifest",
                     "//crates/be-sdk-type-api:be-sdk-type-api",
                     "//crates/be-sdk-type-guest:be-sdk-type-guest",
                     "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-database:be-type-database",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/be-type-text:be-type-text",
@@ -14261,11 +14473,11 @@ crates = {
                         "//crates/be-block-type-host:be-block-type-host",
                         "//crates/be-block:be-block",
                         "//crates/be-lib-build-id:be-lib-build-id",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                         "//crates/be-sdk-manifest:be-sdk-manifest",
                         "//crates/be-sdk-type-api:be-sdk-type-api",
                         "//crates/be-sdk-type-guest:be-sdk-type-guest",
                         "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-database:be-type-database",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/be-type-text:be-type-text",
@@ -14289,11 +14501,11 @@ crates = {
                     "//crates/be-block-type-host:be-block-type-host",
                     "//crates/be-block:be-block",
                     "//crates/be-lib-build-id:be-lib-build-id",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
                     "//crates/be-sdk-manifest:be-sdk-manifest",
                     "//crates/be-sdk-type-api:be-sdk-type-api",
                     "//crates/be-sdk-type-guest:be-sdk-type-guest",
                     "//crates/be-sdk-ui-database:be-sdk-ui-database",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-database:be-type-database",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/be-type-text:be-type-text",
@@ -14648,10 +14860,10 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/be-block:be-block",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                        "//crates/be-sdk-terminal:be-sdk-terminal",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/beui-host:beui-host",
-                        "//crates/beui-terminal-view:beui-terminal-view",
                         "//crates/beui:beui",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -14665,10 +14877,10 @@ crates = {
                 },
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                    "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host:beui-host",
-                    "//crates/beui-terminal-view:beui-terminal-view",
                     "//crates/beui:beui",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -14690,10 +14902,10 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/be-block:be-block",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                        "//crates/be-sdk-terminal:be-sdk-terminal",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/beui-host:beui-host",
-                        "//crates/beui-terminal-view:beui-terminal-view",
                         "//crates/beui:beui",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -14704,10 +14916,10 @@ crates = {
                 },
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                    "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host:beui-host",
-                    "//crates/beui-terminal-view:beui-terminal-view",
                     "//crates/beui:beui",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -14726,10 +14938,10 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/be-block:be-block",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                        "//crates/be-sdk-terminal:be-sdk-terminal",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/beui-host:beui-host",
-                        "//crates/beui-terminal-view:beui-terminal-view",
                         "//crates/beui:beui",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -14740,10 +14952,10 @@ crates = {
                 },
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                    "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host:beui-host",
-                    "//crates/beui-terminal-view:beui-terminal-view",
                     "//crates/beui:beui",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -14762,10 +14974,10 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/be-block:be-block",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                        "//crates/be-sdk-terminal:be-sdk-terminal",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/beui-host:beui-host",
-                        "//crates/beui-terminal-view:beui-terminal-view",
                         "//crates/beui:beui",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -14776,10 +14988,10 @@ crates = {
                 },
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                    "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host:beui-host",
-                    "//crates/beui-terminal-view:beui-terminal-view",
                     "//crates/beui:beui",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -14798,10 +15010,10 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/be-block:be-block",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                        "//crates/be-sdk-terminal:be-sdk-terminal",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/beui-host:beui-host",
-                        "//crates/beui-terminal-view:beui-terminal-view",
                         "//crates/beui:beui",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -14812,10 +15024,10 @@ crates = {
                 },
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                    "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host:beui-host",
-                    "//crates/beui-terminal-view:beui-terminal-view",
                     "//crates/beui:beui",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -14834,10 +15046,10 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/be-block:be-block",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                        "//crates/be-sdk-terminal:be-sdk-terminal",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/beui-host:beui-host",
-                        "//crates/beui-terminal-view:beui-terminal-view",
                         "//crates/beui:beui",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -14848,10 +15060,10 @@ crates = {
                 },
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                    "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host:beui-host",
-                    "//crates/beui-terminal-view:beui-terminal-view",
                     "//crates/beui:beui",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -14870,10 +15082,10 @@ crates = {
                 "binaries": {
                     "be-launcher": [
                         "//crates/be-block:be-block",
-                        "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                        "//crates/be-sdk-terminal:be-sdk-terminal",
+                        "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                         "//crates/be-type-terminal:be-type-terminal",
                         "//crates/beui-host:beui-host",
-                        "//crates/beui-terminal-view:beui-terminal-view",
                         "//crates/beui:beui",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -14884,10 +15096,10 @@ crates = {
                 },
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/be-lib-terminal-emulator:be-lib-terminal-emulator",
+                    "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host:beui-host",
-                    "//crates/beui-terminal-view:beui-terminal-view",
                     "//crates/beui:beui",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -15523,6 +15735,188 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/be-tool-run-test": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "run-test",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_tool_run_test",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-tool-run-test",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "run-test": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-tool-terminal-emulator": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_tool_terminal_emulator",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-tool-terminal-emulator",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
+                    "//crates/be-type-terminal:be-type-terminal",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
+                    "//crates/be-type-terminal:be-type-terminal",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
+                    "//crates/be-type-terminal:be-type-terminal",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
+                    "//crates/be-type-terminal:be-type-terminal",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
+                    "//crates/be-type-terminal:be-type-terminal",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
+                    "//crates/be-type-terminal:be-type-terminal",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-ghostty-vt:be-lib-ghostty-vt",
+                    "//crates/be-type-terminal:be-type-terminal",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/be-tool-tls-diamond-app": {
         "binaries": [],
         "edition": "2024",
@@ -15583,6 +15977,18 @@ crates = {
                 "test_features": [],
             },
             "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-tool-tls-diamond-base:be-tool-tls-diamond-base",
+                    "//crates/be-tool-tls-diamond-left:be-tool-tls-diamond-left",
+                    "//crates/be-tool-tls-diamond-right:be-tool-tls-diamond-right",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-tool-tls-diamond-base:be-tool-tls-diamond-base",
@@ -15673,6 +16079,14 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [],
@@ -15745,6 +16159,16 @@ crates = {
                 "test_features": [],
             },
             "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-tool-tls-diamond-base:be-tool-tls-diamond-base",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-tool-tls-diamond-base:be-tool-tls-diamond-base",
@@ -15839,6 +16263,16 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-tool-tls-diamond-base:be-tool-tls-diamond-base",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -15882,10 +16316,12 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -15896,10 +16332,12 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -15910,10 +16348,12 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -15924,10 +16364,12 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -15938,10 +16380,12 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -15952,10 +16396,12 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -15966,10 +16412,12 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "verify": [
+                        "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -25077,58 +25525,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/beui-html-spike": {
-        "binaries": [
-            {
-                "crate_root": "src/main.rs",
-                "name": "beui-html-spike",
-            },
-        ],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "beui_html_spike",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "beui-html-spike",
-        "platforms": {
-            "linux-x86_64-html": {
-                "binaries": {
-                    "beui-html-spike": [
-                        "//crates/be-host-accounts-ui:be-host-accounts-ui",
-                        "//crates/beui:beui",
-                    ],
-                },
-                "deps": [
-                    "//crates/be-host-accounts-ui:be-host-accounts-ui",
-                    "//crates/beui:beui",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/beui-paint-snapshot:beui-paint-snapshot",
-                ],
-                "test_features": [],
-            },
-            "wasi-html": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-accounts-ui:be-host-accounts-ui",
-                    "//crates/be-wasm-threads:be-wasm-threads",
-                    "//crates/beui:beui",
-                    "//third-party/rust:wasm-bindgen-0.2.122",
-                    "//third-party/rust:wasm-bindgen-futures-0.4.72",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/beui-inspector": {
         "binaries": [],
         "edition": "2024",
@@ -26788,7 +27184,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -26810,7 +27206,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -26832,7 +27228,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -26854,7 +27250,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -26876,7 +27272,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -26898,7 +27294,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -26920,7 +27316,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-dmabuf:be-host-dmabuf",
+                    "//crates/be-lib-dmabuf:be-lib-dmabuf",
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
                     "//crates/be-lib-ui-types:be-lib-ui-types",
                     "//crates/beui-core:beui-core",
@@ -28033,117 +28429,6 @@ crates = {
                     "//crates/beui-types:beui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:raw-window-handle-0.6.2",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/beui-terminal-view": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "beui_terminal_view",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "beui-terminal-view",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-block:be-block",
-                    "//crates/be-type-terminal:be-type-terminal",
-                    "//crates/beui:beui",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-block:be-block",
-                    "//crates/be-type-terminal:be-type-terminal",
-                    "//crates/beui:beui",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-block:be-block",
-                    "//crates/be-type-terminal:be-type-terminal",
-                    "//crates/beui:beui",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-block:be-block",
-                    "//crates/be-type-terminal:be-type-terminal",
-                    "//crates/beui:beui",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-block:be-block",
-                    "//crates/be-type-terminal:be-type-terminal",
-                    "//crates/beui:beui",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-block:be-block",
-                    "//crates/be-type-terminal:be-type-terminal",
-                    "//crates/beui:beui",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-block:be-block",
-                    "//crates/be-type-terminal:be-type-terminal",
-                    "//crates/beui:beui",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-block:be-block",
-                    "//crates/be-type-terminal:be-type-terminal",
-                    "//crates/beui:beui",
                 ],
                 "examples": {},
                 "features": [],
@@ -30630,8 +30915,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "01c0457472c38ea5bd1c3b5ada5e368271cb550be7a4ca4a0b4634e9913f6cc2",
-        "size_bytes": 20967,
         "version": "0.2.32",
     },
     "ab_glyph_rasterizer-0.1.10": {
@@ -30667,8 +30950,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618",
-        "size_bytes": 11206,
         "version": "0.1.10",
     },
     "accesskit-0.24.1": {
@@ -30802,8 +31083,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d3b7f7f85a7e5f68090000ed7622545829afd484d210358702ae4cb97dd0c320",
-        "size_bytes": 36947,
         "version": "0.24.1",
     },
     "accesskit_android-0.7.5": {
@@ -30839,8 +31118,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8e27dedd5e1932e1f52fedcde681bc2ae4213df53bad5b295103aa36b1d0ffb6",
-        "size_bytes": 24046,
         "version": "0.7.5",
     },
     "accesskit_atspi_common-0.19.1": {
@@ -30885,8 +31162,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "023da0e5097f46df7092d5280b02efb9bbf8d93298daeced42652463e357d636",
-        "size_bytes": 32496,
         "version": "0.19.1",
     },
     "accesskit_consumer-0.38.0": {
@@ -30953,8 +31228,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5d10a236f96f87d70732e44520046785431ef01d5bcd6b041317bfadd2f88245",
-        "size_bytes": 48440,
         "version": "0.38.0",
     },
     "accesskit_macos-0.26.3": {
@@ -30999,8 +31272,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ce02dc63b43f0c9296af9ac946312a2dc8814427d7a64d2d600971dac55b6076",
-        "size_bytes": 27650,
         "version": "0.26.3",
     },
     "accesskit_unix-0.22.1": {
@@ -31061,8 +31332,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "03e156ed3802e35eefe894ef2671bc6c889303d8a7e110b5e1b48f504b91362f",
-        "size_bytes": 30261,
         "version": "0.22.1",
     },
     "accesskit_windows-0.34.0": {
@@ -31107,8 +31376,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "106c2b961215864d1c2e703ee63269c25c4e80a577ffb2c1017b9c17dcdf83a1",
-        "size_bytes": 59770,
         "version": "0.34.0",
     },
     "adler2-2.0.1": {
@@ -31143,8 +31410,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa",
-        "size_bytes": 13366,
         "version": "2.0.1",
     },
     "aead-0.5.2": {
@@ -31282,8 +31547,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "d122413f284cf2d62fb1b7db97e02edb8cda96d769b16e443a4f6195e35662b0",
-        "size_bytes": 15509,
         "version": "0.5.2",
     },
     "aead-0.6.1": {
@@ -31367,8 +31630,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "1973cfbc1a2daf9cf550e74e1f088c28e7f7d8c1e1418fb6c9dc5184b7e84c99",
-        "size_bytes": 18672,
         "version": "0.6.1",
     },
     "aes-0.9.3": {
@@ -31442,8 +31703,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "35f0f96ce78e38c3dc6d8948aa8163d06385be74000f3c7a95bf1eef35d3ea32",
-        "size_bytes": 112408,
         "version": "0.9.3",
     },
     "aes-gcm-0.11.1": {
@@ -31559,8 +31818,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7f2b8006a0c83f52b62ba44a97b58bf76fe2f70a329e588f67f89691d93d498f",
-        "size_bytes": 155976,
         "version": "0.11.1",
     },
     "ahash-0.8.12": {
@@ -31654,8 +31911,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75",
-        "size_bytes": 43413,
         "version": "0.8.12",
     },
     "aho-corasick-1.1.4": {
@@ -31787,8 +32042,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ddd31a130427c27518df266943a5308ed92d4b226cc639f5a8f1002816174301",
-        "size_bytes": 184015,
         "version": "1.1.4",
     },
     "allocator-api2-0.2.21": {
@@ -31849,8 +32102,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923",
-        "size_bytes": 63622,
         "version": "0.2.21",
     },
     "alsa-0.9.1": {
@@ -31890,8 +32141,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ed7572b7ba83a31e20d1b48970ee402d2e3e0537dcfe0a3ff4d6eb7508617d43",
-        "size_bytes": 72824,
         "version": "0.9.1",
     },
     "alsa-sys-0.3.1": {
@@ -31932,8 +32181,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "db8fee663d06c4e303404ef5f40488a53e062f89ba8bfed81f42325aafad1527",
-        "size_bytes": 32748,
         "version": "0.3.1",
     },
     "ambient-authority-0.0.2": {
@@ -31964,8 +32211,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e9d4ee0d472d1cd2e28c97dfa124b3d8d992e10eb0a035f33f5d12e3a177ba3b",
-        "size_bytes": 14867,
         "version": "0.0.2",
     },
     "android_system_properties-0.1.5": {
@@ -31995,8 +32240,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "819e7219dbd41043ac279b19830f2efc897156490d7fd6ea916720117ee66311",
-        "size_bytes": 5243,
         "version": "0.1.5",
     },
     "anyhow-1.0.104": {
@@ -32066,8 +32309,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470",
-        "size_bytes": 48819,
         "version": "1.0.104",
     },
     "appendlist-1.4.0": {
@@ -32098,8 +32339,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e149dc73cd30538307e7ffa2acd3d2221148eaeed4871f246657b1c3eaa1cbd2",
-        "size_bytes": 7252,
         "version": "1.4.0",
     },
     "approx-0.4.0": {
@@ -32187,8 +32426,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3f2a05fd1bd10b2527e20a2cd32d8873d115b8b39fe219ee25f42a8aca6ba278",
-        "size_bytes": 14280,
         "version": "0.4.0",
     },
     "arbitrary-1.4.2": {
@@ -32220,8 +32457,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1",
-        "size_bytes": 38307,
         "version": "1.4.2",
     },
     "arboard-3.6.1": {
@@ -32335,8 +32570,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0348a1c054491f4bfe6ab86a7b6ab1e44e45d899005de92f58b3df180b36ddaf",
-        "size_bytes": 54018,
         "version": "3.6.1",
     },
     "argon2-0.5.3": {
@@ -32472,8 +32705,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072",
-        "size_bytes": 28795,
         "version": "0.5.3",
     },
     "arrayref-0.3.9": {
@@ -32504,8 +32735,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb",
-        "size_bytes": 9186,
         "version": "0.3.9",
     },
     "arrayvec-0.7.6": {
@@ -32588,8 +32817,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50",
-        "size_bytes": 31237,
         "version": "0.7.6",
     },
     "as-raw-xcb-connection-1.0.1": {
@@ -32623,8 +32850,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "175571dd1d178ced59193a6fc02dde1b972eb0bc56c892cde9beeceac5bf0f6b",
-        "size_bytes": 6460,
         "version": "1.0.1",
     },
     "ash-0.38.0+1.3.281": {
@@ -32736,8 +32961,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0bb44936d800fea8f016d7f2311c6a4f97aebd5dc86f09906139ec848cf3a46f",
-        "size_bytes": 457775,
         "version": "0.38.0+1.3.281",
     },
     "ashpd-0.11.1": {
@@ -32796,8 +33019,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d2f3f79755c74fd155000314eb349864caa787c6592eace6c6882dad873d9c39",
-        "size_bytes": 116015,
         "version": "0.11.1",
     },
     "asn1-rs-0.5.2": {
@@ -32928,8 +33149,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7f6fd5ddaf0351dff5b8da21b2fb4ff8e08ddd02857f0bf69c47639106c0fff0",
-        "size_bytes": 82934,
         "version": "0.5.2",
     },
     "asn1-rs-0.7.2": {
@@ -33081,8 +33300,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b7f43a50ac4fdca5df8e885c21b835997f0a1cdee65494a6847694a98652d9d8",
-        "size_bytes": 93179,
         "version": "0.7.2",
     },
     "asn1-rs-derive-0.4.0": {
@@ -33114,8 +33331,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "726535892e8eae7e70657b4c8ea93d26b8553afb1ce617caee529ef96d7dee6c",
-        "size_bytes": 5220,
         "version": "0.4.0",
     },
     "asn1-rs-derive-0.6.0": {
@@ -33147,8 +33362,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3109e49b1e4909e9db6515a30c633684d68cdeaa252f215214cb4fa1a5bfee2c",
-        "size_bytes": 11337,
         "version": "0.6.0",
     },
     "asn1-rs-impl-0.1.0": {
@@ -33179,8 +33392,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2777730b2039ac0f95f093556e61b6d26cebed5393ca6f152717777cec3a42ed",
-        "size_bytes": 2256,
         "version": "0.1.0",
     },
     "asn1-rs-impl-0.2.0": {
@@ -33211,8 +33422,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7b18050c2cd6fe86c3a76584ef5e0baf286d038cda203eb6223df2cc413565f7",
-        "size_bytes": 2261,
         "version": "0.2.0",
     },
     "async-broadcast-0.7.2": {
@@ -33253,8 +33462,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "435a87a52755b8f27fcf321ac4f04b2802e337c8c4872923137471ec39c37532",
-        "size_bytes": 22746,
         "version": "0.7.2",
     },
     "async-channel-2.5.0": {
@@ -33303,8 +33510,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "924ed96dd52d1b75e9c1a3e6275715fd320f5f9439fb5a4a11fa51f4221158d2",
-        "size_bytes": 18624,
         "version": "2.5.0",
     },
     "async-executor-1.14.0": {
@@ -33349,8 +33554,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c96bf972d85afc50bf5ab8fe2d54d1586b4e0b46c97c50a0c9e71e2f7bcd812a",
-        "size_bytes": 28804,
         "version": "1.14.0",
     },
     "async-fs-2.2.0": {
@@ -33390,8 +33593,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8034a681df4aed8b8edbd7fbe472401ecf009251c8b40556b304567052e294c5",
-        "size_bytes": 18824,
         "version": "2.2.0",
     },
     "async-io-2.6.0": {
@@ -33446,8 +33647,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "456b8a8feb6f42d237746d4b3e9a178494627745c3c56c6ea55d92ba50d026fc",
-        "size_bytes": 51062,
         "version": "2.6.0",
     },
     "async-lock-3.4.2": {
@@ -33494,8 +33693,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "290f7f2596bd5b78a9fec8088ccd89180d7f9f55b94b0576823bbbdc72ee8311",
-        "size_bytes": 39826,
         "version": "3.4.2",
     },
     "async-net-2.0.0": {
@@ -33535,8 +33732,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b948000fad4873c1c9339d60f2623323a0cfd3816e5181033c6a5cb68b2accf7",
-        "size_bytes": 17787,
         "version": "2.0.0",
     },
     "async-process-2.5.0": {
@@ -33587,8 +33782,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "fc50921ec0055cdd8a16de48773bfeec5c972598674347252c0399676be7da75",
-        "size_bytes": 27552,
         "version": "2.5.0",
     },
     "async-recursion-1.1.1": {
@@ -33619,8 +33812,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11",
-        "size_bytes": 14874,
         "version": "1.1.1",
     },
     "async-signal-0.2.14": {
@@ -33665,8 +33856,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "52b5aaafa020cf5053a01f2a60e8ff5dccf550f0f77ec54a4e47285ac2bab485",
-        "size_bytes": 16447,
         "version": "0.2.14",
     },
     "async-task-4.7.1": {
@@ -33703,8 +33892,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8b75356056920673b02621b35afd0f7dda9306d03c79a30f5c56c44cf256e3de",
-        "size_bytes": 38077,
         "version": "4.7.1",
     },
     "async-trait-0.1.91": {
@@ -33736,8 +33923,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ae36dc4177970ef04fde5178d3e2429882def40e57a451f919c098f72baa6cec",
-        "size_bytes": 32108,
         "version": "0.1.91",
     },
     "atomic-waker-1.1.2": {
@@ -33764,8 +33949,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0",
-        "size_bytes": 12422,
         "version": "1.1.2",
     },
     "atomic_float-1.1.0": {
@@ -33833,8 +34016,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "628d228f918ac3b82fe590352cc719d30664a0c13ca3a60266fe02c7132d480a",
-        "size_bytes": 16232,
         "version": "1.1.0",
     },
     "atspi-0.29.0": {
@@ -33878,8 +34059,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c77886257be21c9cd89a4ae7e64860c6f0eefca799bb79127913052bd0eefb3d",
-        "size_bytes": 20051,
         "version": "0.29.0",
     },
     "atspi-common-0.13.0": {
@@ -33937,8 +34116,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "20c5617155740c98003016429ad13fe43ce7a77b007479350a9f8bf95a29f63d",
-        "size_bytes": 129527,
         "version": "0.13.0",
     },
     "atspi-proxies-0.13.0": {
@@ -33985,8 +34162,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2230e48787ed3eb4088996eab66a32ca20c0b67bbd4fd6cdfe79f04f1f04c9fc",
-        "size_bytes": 29030,
         "version": "0.13.0",
     },
     "autocfg-1.5.1": {
@@ -34012,8 +34187,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53",
-        "size_bytes": 18911,
         "version": "1.5.1",
     },
     "base64-0.22.1": {
@@ -34108,8 +34281,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6",
-        "size_bytes": 81597,
         "version": "0.22.1",
     },
     "base64-0.23.1": {
@@ -34190,8 +34361,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5",
-        "size_bytes": 93605,
         "version": "0.23.1",
     },
     "base64ct-1.8.3": {
@@ -34257,8 +34426,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06",
-        "size_bytes": 32227,
         "version": "1.8.3",
     },
     "bincode-1.3.3": {
@@ -34327,8 +34494,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad",
-        "size_bytes": 28958,
         "version": "1.3.3",
     },
     "bindgen-0.72.1": {
@@ -34374,8 +34539,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "993776b509cfb49c750f11b8f07a46fa23e0a1386ffc01fb1e7d343efc387895",
-        "size_bytes": 246071,
         "version": "0.72.1",
     },
     "bip39-2.2.2": {
@@ -34517,8 +34680,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "90dbd31c98227229239363921e60fcf5e558e43ec69094d46fc4996f08d1d5bc",
-        "size_bytes": 106823,
         "version": "2.2.2",
     },
     "bit-set-0.9.1": {
@@ -34589,8 +34750,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "34ddef2995421ab6a5c779542c81ee77c115206f4ad9d5a8e05f4ff49716a3dd",
-        "size_bytes": 20389,
         "version": "0.9.1",
     },
     "bit-vec-0.9.1": {
@@ -34625,8 +34784,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b71798fca2c1fe1086445a7258a4bc81e6e49dcd24c8d0dd9a1e57395b603f51",
-        "size_bytes": 29177,
         "version": "0.9.1",
     },
     "bitcoin_hashes-0.14.101": {
@@ -34696,8 +34853,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bca4c7abb40c8817d77403c880988cfd484f23ab2365726afb2f798363e2c4a2",
-        "size_bytes": 50890,
         "version": "0.14.101",
     },
     "bitflags-1.3.2": {
@@ -34767,8 +34922,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a",
-        "size_bytes": 23021,
         "version": "1.3.2",
     },
     "bitflags-2.12.1": {
@@ -34834,8 +34987,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "84d7ced0ae9557296835c32bf1b1e02b44c746701f898460fb000d7eaa84f00a",
-        "size_bytes": 50766,
         "version": "2.12.1",
     },
     "blake2-0.10.6": {
@@ -34902,8 +35053,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe",
-        "size_bytes": 47234,
         "version": "0.10.6",
     },
     "block-buffer-0.10.4": {
@@ -34985,8 +35134,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71",
-        "size_bytes": 10538,
         "version": "0.10.4",
     },
     "block-buffer-0.12.1": {
@@ -35049,8 +35196,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa",
-        "size_bytes": 15902,
         "version": "0.12.1",
     },
     "block-padding-0.4.2": {
@@ -35110,8 +35255,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "710f1dd022ef4e93f8a438b4ba958de7f64308434fa6a87104481645cc30068b",
-        "size_bytes": 9764,
         "version": "0.4.2",
     },
     "block2-0.6.2": {
@@ -35156,8 +35299,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cdeb9d870516001442e364c5220d3574d2da8dc765554b4a617230d33fa58ef5",
-        "size_bytes": 34505,
         "version": "0.6.2",
     },
     "blocking-1.6.2": {
@@ -35200,8 +35341,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e83f8d02be6967315521be875afa792a316e28d57b5a2d401897e2a7921b7f21",
-        "size_bytes": 17754,
         "version": "1.6.2",
     },
     "bstr-1.13.0": {
@@ -35290,8 +35429,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1f7dc094d718f2e1c1559ad110e27eeaae14a5465d3d56dd6dbd793079fbd530",
-        "size_bytes": 355737,
         "version": "1.13.0",
     },
     "bumpalo-3.20.3": {
@@ -35379,8 +35516,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649",
-        "size_bytes": 98671,
         "version": "3.20.3",
     },
     "bytemuck-1.25.0": {
@@ -35526,8 +35661,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c8efb64bd706a16a1bdde310ae86b351e4d21550d98d056f22f8a7f7a2183fec",
-        "size_bytes": 53466,
         "version": "1.25.0",
     },
     "bytemuck_derive-1.10.2": {
@@ -35559,8 +35692,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f9abbd1bc6865053c427f7198e6af43bfdedc55ab791faed4fbd361d789575ff",
-        "size_bytes": 25678,
         "version": "1.10.2",
     },
     "byteorder-1.5.0": {
@@ -35638,8 +35769,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b",
-        "size_bytes": 23288,
         "version": "1.5.0",
     },
     "byteorder-lite-0.1.0": {
@@ -35724,8 +35853,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8f1fe948ff07f4bd06c30984e69f5b4899c516a3ef74f34df92a2df2ab535495",
-        "size_bytes": 15909,
         "version": "0.1.0",
     },
     "bytes-1.11.1": {
@@ -35798,8 +35925,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33",
-        "size_bytes": 78584,
         "version": "1.11.1",
     },
     "calloop-0.14.4": {
@@ -35887,8 +36012,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4dbf9978365bac10f54d1d4b04f7ce4427e51f71d61f2fe15e3fed5166474df7",
-        "size_bytes": 77843,
         "version": "0.14.4",
     },
     "calloop-wayland-source-0.4.1": {
@@ -35929,8 +36052,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "138efcf0940a02ebf0cc8d1eff41a1682a46b431630f4c52450d6265876021fa",
-        "size_bytes": 11247,
         "version": "0.4.1",
     },
     "cap-fs-ext-4.0.3": {
@@ -36043,8 +36164,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "56ff379b70af8e08307a8f65e7040c7301cb4a572538ade16b4984f0da77847f",
-        "size_bytes": 16995,
         "version": "4.0.3",
     },
     "cap-primitives-4.0.3": {
@@ -36153,8 +36272,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8b5f74729fd2f44701d1a8eb47e906cdb3ccd9ec0f02baad85a744b791940b18",
-        "size_bytes": 93618,
         "version": "4.0.3",
     },
     "cap-std-4.0.3": {
@@ -36256,8 +36373,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c1ec78e242cfa2cfe276807ac2ecc00315a6c97786977414bcd1c3963b6c91b8",
-        "size_bytes": 36964,
         "version": "4.0.3",
     },
     "caseless-0.2.2": {
@@ -36316,8 +36431,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8b6fd507454086c8edfd769ca6ada439193cdb209c7681712ef6275cccbfe5d8",
-        "size_bytes": 29309,
         "version": "0.2.2",
     },
     "cbc-0.2.1": {
@@ -36412,8 +36525,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ce2dc9ee5f88d11e0beb842c88b33c8a5cf0d1329c4b19494af42b07dbfe8896",
-        "size_bytes": 25642,
         "version": "0.2.1",
     },
     "cc-1.2.63": {
@@ -36450,8 +36561,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "556e016178bb5662a08681bbe0f00f8e17631781a4dfc8c45e466e4b185ec27f",
-        "size_bytes": 97259,
         "version": "1.2.63",
     },
     "cesu8-1.1.0": {
@@ -36476,8 +36585,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6d43a04d8753f35258c91f8ec639f792891f748a1edbd759cf1dcea3382ad83c",
-        "size_bytes": 10555,
         "version": "1.1.0",
     },
     "cexpr-0.6.0": {
@@ -36505,8 +36612,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6fac387a98bb7c37292057cffc56d62ecb629900026402633ae9160df93a8766",
-        "size_bytes": 17966,
         "version": "0.6.0",
     },
     "cfg-if-1.0.4": {
@@ -36543,8 +36648,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801",
-        "size_bytes": 9360,
         "version": "1.0.4",
     },
     "cfg_aliases-0.1.1": {
@@ -36570,8 +36673,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e",
-        "size_bytes": 6009,
         "version": "0.1.1",
     },
     "cfg_aliases-0.2.2": {
@@ -36597,8 +36698,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527",
-        "size_bytes": 6527,
         "version": "0.2.2",
     },
     "cgmath-0.18.0": {
@@ -36668,8 +36767,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1a98d30140e3296250832bbaaff83b27dcd6fa3cc70fb6f1f3e5c9c0023b5317",
-        "size_bytes": 64802,
         "version": "0.18.0",
     },
     "chacha20-0.10.1": {
@@ -36763,8 +36860,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "d524456ba66e72eb8b115ff89e01e497f8e6d11d78b70b1aa13c0fbd97540a81",
-        "size_bytes": 38187,
         "version": "0.10.1",
     },
     "chacha20-0.9.1": {
@@ -36886,8 +36981,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "c3613f74bd2eac03dad61bd53dbe620703d4371614fe0bc3b9f04dd36fe4e818",
-        "size_bytes": 23424,
         "version": "0.9.1",
     },
     "chacha20poly1305-0.10.1": {
@@ -37064,8 +37157,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "10cd79432192d1c0f4e1a0fef9527696cc039165d729fb41b3f4f4f354c2dc35",
-        "size_bytes": 68485,
         "version": "0.10.1",
     },
     "ciborium-0.2.2": {
@@ -37212,8 +37303,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "42e69ffd6f0917f5c029256a24d0161db17cea3997d185db0d35926308770f0e",
-        "size_bytes": 35611,
         "version": "0.2.2",
     },
     "ciborium-io-0.2.2": {
@@ -37305,8 +37394,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "05afea1e0a06c9be33d539b876f1ce3692f4afea2cb41f740e7743225ed1c757",
-        "size_bytes": 6697,
         "version": "0.2.2",
     },
     "ciborium-ll-0.2.2": {
@@ -37398,8 +37485,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9",
-        "size_bytes": 14695,
         "version": "0.2.2",
     },
     "cipher-0.4.4": {
@@ -37527,8 +37612,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad",
-        "size_bytes": 19073,
         "version": "0.4.4",
     },
     "cipher-0.5.2": {
@@ -37661,8 +37744,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "e8cf2a2c93cd704877c0858356ed03480ff301ee950b43f1cbe4573b088bfa6c",
-        "size_bytes": 28177,
         "version": "0.5.2",
     },
     "clang-sys-1.9.1": {
@@ -37717,8 +37798,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "157a8ba7b480713b56f4c09fd13fc3e0a22a5dfab8097ba61cbc5feef950788a",
-        "size_bytes": 47227,
         "version": "1.9.1",
     },
     "claxon-0.4.3": {
@@ -37750,8 +37829,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4bfbf56724aa9eca8afa4fcfadeb479e722935bb2a0900c2d37e0cc477af0688",
-        "size_bytes": 86626,
         "version": "0.4.3",
     },
     "clipboard-win-5.4.1": {
@@ -37791,8 +37868,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bde03770d3df201d4fb868f2c9c59e66a3e4e2bd06692a0fe701e7103c7e84d4",
-        "size_bytes": 20994,
         "version": "5.4.1",
     },
     "cmov-0.5.4": {
@@ -37824,8 +37899,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a",
-        "size_bytes": 27367,
         "version": "0.5.4",
     },
     "cms-0.3.0-pre.1": {
@@ -37907,8 +37980,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "758d5272932ff167e96ec9641a04d96ab1901cccc5ea9f47c15b4cbaa6f9ea53",
-        "size_bytes": 213869,
         "version": "0.3.0-pre.1",
     },
     "cobs-0.3.0": {
@@ -37992,8 +38063,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0fa961b519f0b462e3a3b4a34b64d119eeaca1d59af726fe450bbba07a9fc0a1",
-        "size_bytes": 15639,
         "version": "0.3.0",
     },
     "codespan-reporting-0.13.1": {
@@ -38064,8 +38133,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "af491d569909a7e4dee0ad7db7f5341fef5c614d5b8ec8cf765732aba3cff681",
-        "size_bytes": 57424,
         "version": "0.13.1",
     },
     "color_quant-1.1.0": {
@@ -38098,8 +38165,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b",
-        "size_bytes": 6649,
         "version": "1.1.0",
     },
     "combine-4.6.7": {
@@ -38135,8 +38200,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd",
-        "size_bytes": 134808,
         "version": "4.6.7",
     },
     "comrak-0.55.0": {
@@ -38246,8 +38309,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "daa3d1ea6b01ce72405fa3f826768f51c7a44917527c89b37856ffdd17ee57e4",
-        "size_bytes": 267733,
         "version": "0.55.0",
     },
     "concurrent-queue-2.5.0": {
@@ -38308,8 +38369,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973",
-        "size_bytes": 22654,
         "version": "2.5.0",
     },
     "const-oid-0.10.2": {
@@ -38370,8 +38429,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c",
-        "size_bytes": 61449,
         "version": "0.10.2",
     },
     "const-oid-0.9.6": {
@@ -38438,8 +38495,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8",
-        "size_bytes": 45382,
         "version": "0.9.6",
     },
     "core-foundation-0.9.4": {
@@ -38483,8 +38538,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "91e195e091a93c46f7102ec7818a2aa394e1e1771c3ab4825963fa03e45afb8f",
-        "size_bytes": 27743,
         "version": "0.9.4",
     },
     "core-foundation-sys-0.8.7": {
@@ -38520,8 +38573,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b",
-        "size_bytes": 37712,
         "version": "0.8.7",
     },
     "core-graphics-0.22.3": {
@@ -38570,8 +38621,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2581bbab3b8ffc6fcbd550bf46c355135d16e9ff2a6ea032ad6b9bf1d7efe4fb",
-        "size_bytes": 29514,
         "version": "0.22.3",
     },
     "core-graphics-types-0.1.3": {
@@ -38617,8 +38666,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "45390e6114f68f718cc7a830514a96f903cccd70d02a8f6d9f643ac4ba45afaf",
-        "size_bytes": 7063,
         "version": "0.1.3",
     },
     "core-text-19.2.0": {
@@ -38666,8 +38713,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "99d74ada66e07c1cefa18f8abfba765b486f250de2e4a999e5727fc0dd4b4a25",
-        "size_bytes": 18446,
         "version": "19.2.0",
     },
     "coreaudio-rs-0.11.3": {
@@ -38714,8 +38759,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "321077172d79c662f64f5071a03120748d5bb652f5231570141be24cfcd2bace",
-        "size_bytes": 42844,
         "version": "0.11.3",
     },
     "coreaudio-sys-0.2.18": {
@@ -38758,8 +38801,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b9b4739a805a62757a83e5654fa3faabec0442666b263bb2287d5a8185bfd953",
-        "size_bytes": 7389,
         "version": "0.2.18",
     },
     "countme-3.0.1": {
@@ -38793,8 +38834,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "7704b5fdd17b18ae31c4c1da5a2e0305a2bf17b5249300a9ee9ed7b72114c636",
-        "size_bytes": 10784,
         "version": "3.0.1",
     },
     "cpal-0.15.3": {
@@ -38872,8 +38911,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "873dab07c8f743075e57f524c583985fbaf745602acbe916a01539364369a779",
-        "size_bytes": 100083,
         "version": "0.15.3",
     },
     "cpp_demangle-0.5.1": {
@@ -38963,8 +39000,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0667304c32ea56cb4cd6d2d7c0cfe9a2f8041229db8c033af7f8d69492429def",
-        "size_bytes": 83067,
         "version": "0.5.1",
     },
     "cpubits-0.1.1": {
@@ -38996,8 +39031,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "15b85f9c39137c3a891689859392b1bd49812121d0d61c9caf00d46ed5ce06ae",
-        "size_bytes": 10261,
         "version": "0.1.1",
     },
     "cpufeatures-0.2.17": {
@@ -39041,8 +39074,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280",
-        "size_bytes": 13466,
         "version": "0.2.17",
     },
     "cpufeatures-0.3.0": {
@@ -39086,8 +39117,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8b2a41393f66f16b0823bb79094d54ac5fbd34ab292ddafb9a0456ac9f87d201",
-        "size_bytes": 14156,
         "version": "0.3.0",
     },
     "cranelift-assembler-x64-0.135.1": {
@@ -39126,8 +39155,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "9903e767cc0a95a59950de099a6b1d61e1476f774be1cdfa06d7ccdc9bfae56f",
-        "size_bytes": 30896,
         "version": "0.135.1",
     },
     "cranelift-assembler-x64-meta-0.135.1": {
@@ -39155,8 +39182,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e777252ea3ec9daffa71408fbfe0793ab0a7b7bc3b2cf0f417dd0fa33964b8ef",
-        "size_bytes": 49676,
         "version": "0.135.1",
     },
     "cranelift-bforest-0.135.1": {
@@ -39240,8 +39265,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "7828208a36e6627481cea61bd24c6234e31411d5c58b48e80ca094a1d593b944",
-        "size_bytes": 34212,
         "version": "0.135.1",
     },
     "cranelift-bitset-0.135.1": {
@@ -39352,8 +39375,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "a58c8447cc59ef98c49096679f81392ad0acec2224cea2bef52011f5169f9d02",
-        "size_bytes": 9195,
         "version": "0.135.1",
     },
     "cranelift-codegen-0.135.1": {
@@ -39675,8 +39696,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "ce520e899df1de583e7b564eafd66760fbc147d72894d2278ddac57a1489fcc0",
-        "size_bytes": 1189075,
         "version": "0.135.1",
     },
     "cranelift-codegen-meta-0.135.1": {
@@ -39713,8 +39732,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8d8ab23e63d78ea6bbda18ae1ed9c958bc1cb88d90fb5e95f5ba62e9c019474b",
-        "size_bytes": 93812,
         "version": "0.135.1",
     },
     "cranelift-codegen-shared-0.135.1": {
@@ -39746,8 +39763,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "24319a996b1ef40ebf8af69b39c868c790b35a42cfe38edacfd8c9deb75ea712",
-        "size_bytes": 6192,
         "version": "0.135.1",
     },
     "cranelift-control-0.135.1": {
@@ -39831,8 +39846,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "cf9856d68cc2cefb83229cb2c55b620dd38427555c2fe87d73f8a4421616f628",
-        "size_bytes": 8297,
         "version": "0.135.1",
     },
     "cranelift-entity-0.135.1": {
@@ -39965,8 +39978,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "e0ec225d6b79c5d61358cb5ea081a1384ec541dbf8c1a8c618d187875af326ad",
-        "size_bytes": 31193,
         "version": "0.135.1",
     },
     "cranelift-frontend-0.135.1": {
@@ -40085,8 +40096,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "7d3a96a09bd9bd3cf6df2de2ea15d7418f493e946a8eaa1acfe39297a67ed3f3",
-        "size_bytes": 61662,
         "version": "0.135.1",
     },
     "cranelift-isle-0.135.1": {
@@ -40119,8 +40128,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bd28f593c36afbdc9aa17305c0bb66c39ce0530e1caffcf389fbec053950083e",
-        "size_bytes": 89672,
         "version": "0.135.1",
     },
     "cranelift-native-0.135.1": {
@@ -40218,8 +40225,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "2987ca47affc261aa31ac643fb80dd7f8274cebf878003ba9f50cd6ff2c1055f",
-        "size_bytes": 11448,
         "version": "0.135.1",
     },
     "cranelift-srcgen-0.135.1": {
@@ -40244,8 +40249,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b7431dd8c9def94aca43b27915dee0d42103d9b13922cfb044febcd975547d68",
-        "size_bytes": 6127,
         "version": "0.135.1",
     },
     "crc32fast-1.5.0": {
@@ -40372,8 +40375,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511",
-        "size_bytes": 40723,
         "version": "1.5.0",
     },
     "crossbeam-channel-0.5.16": {
@@ -40461,8 +40462,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d85363c37faeca707aef026efa9f3b34d077bce547e48f770770625c6013679e",
-        "size_bytes": 93189,
         "version": "0.5.16",
     },
     "crossbeam-deque-0.8.7": {
@@ -40560,8 +40559,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5181e0de7b61eb03a81e347d6dd8797bae9da5146707b51077e2d71a54ec0ceb",
-        "size_bytes": 24141,
         "version": "0.8.7",
     },
     "crossbeam-epoch-0.9.20": {
@@ -40652,8 +40649,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2d6914041f254d6e9176c01941b21115dcfb7089e55135a35411081bd106ef3f",
-        "size_bytes": 47545,
         "version": "0.9.20",
     },
     "crossbeam-utils-0.8.21": {
@@ -40723,8 +40718,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28",
-        "size_bytes": 42691,
         "version": "0.8.21",
     },
     "crypto-common-0.1.7": {
@@ -40877,8 +40870,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a",
-        "size_bytes": 9619,
         "version": "0.1.7",
     },
     "crypto-common-0.2.2": {
@@ -40938,8 +40929,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453",
-        "size_bytes": 15449,
         "version": "0.2.2",
     },
     "ctr-0.10.1": {
@@ -40999,8 +40988,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "baaca1c4b237092596f64d571e9db6ce4109c4ef9742e27590f1709594461f21",
-        "size_bytes": 20379,
         "version": "0.10.1",
     },
     "ctutils-0.4.3": {
@@ -41061,8 +41048,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
-        "size_bytes": 30825,
         "version": "0.4.3",
     },
     "cursor-icon-1.2.0": {
@@ -41136,8 +41121,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f",
-        "size_bytes": 14267,
         "version": "1.2.0",
     },
     "curve25519-dalek-4.1.3": {
@@ -41321,8 +41304,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be",
-        "size_bytes": 306017,
         "version": "4.1.3",
     },
     "curve25519-dalek-derive-0.1.1": {
@@ -41353,8 +41334,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3",
-        "size_bytes": 11723,
         "version": "0.1.1",
     },
     "dasp_sample-0.11.0": {
@@ -41421,8 +41400,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0c87e182de0887fd5361989c677c4e8f5000cd9491d6d563161a8f3a5519fc7f",
-        "size_bytes": 11617,
         "version": "0.11.0",
     },
     "data-encoding-2.11.0": {
@@ -41503,8 +41480,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a4ae5f15dda3c708c0ade84bfee31ccab44a3da4f88015ed22f63732abe300c8",
-        "size_bytes": 22677,
         "version": "2.11.0",
     },
     "data-url-0.3.2": {
@@ -41578,8 +41553,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376",
-        "size_bytes": 23862,
         "version": "0.3.2",
     },
     "der-0.7.10": {
@@ -41730,8 +41703,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb",
-        "size_bytes": 90111,
         "version": "0.7.10",
     },
     "der-0.8.2": {
@@ -41890,8 +41861,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a878c850e9e421b20262e9b41f9c860e4785fa07541c266b62ff9d1ef998a80a",
-        "size_bytes": 120967,
         "version": "0.8.2",
     },
     "der-parser-10.0.0": {
@@ -42029,8 +41998,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "07da5016415d5a3c4dd39b11ed26f915f52fc4e0dc197d87908bc916e51bc1a6",
-        "size_bytes": 66186,
         "version": "10.0.0",
     },
     "der_derive-0.7.3": {
@@ -42062,8 +42029,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8034092389675178f570469e6c3b0465d3d30b4505c294a6550db47f3c17ad18",
-        "size_bytes": 24657,
         "version": "0.7.3",
     },
     "der_derive-0.8.0": {
@@ -42096,8 +42061,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "59600e2c2d636fde9b65e99cc6445ac770c63d3628195ff39932b8d6d7409903",
-        "size_bytes": 29600,
         "version": "0.8.0",
     },
     "deranged-0.5.8": {
@@ -42157,8 +42120,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c",
-        "size_bytes": 26885,
         "version": "0.5.8",
     },
     "des-0.9.0": {
@@ -42218,8 +42179,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "916a94e407b54f9034d71dd748234cd1e516ced6284009906ae246f177eafe5a",
-        "size_bytes": 40194,
         "version": "0.9.0",
     },
     "digest-0.10.7": {
@@ -42437,8 +42396,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292",
-        "size_bytes": 19557,
         "version": "0.10.7",
     },
     "digest-0.11.3": {
@@ -42585,8 +42542,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2",
-        "size_bytes": 28955,
         "version": "0.11.3",
     },
     "directories-next-2.0.0": {
@@ -42652,8 +42607,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "339ee130d97a610ea5a5872d2bbb130fdf68884ff09d3028b81bec8a1ac23bbc",
-        "size_bytes": 15153,
         "version": "2.0.0",
     },
     "dirs-sys-next-0.1.2": {
@@ -42712,8 +42665,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4ebda144c4fe02d1f7ea1a7d9641b6fc6b580adcfa024ae48797ecdeb6825b4d",
-        "size_bytes": 10681,
         "version": "0.1.2",
     },
     "dispatch2-0.3.1": {
@@ -42770,8 +42721,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1e0e367e4e7da84520dedcac1901e4da967309406d1e51017ae1abfb97adbd38",
-        "size_bytes": 55299,
         "version": "0.3.1",
     },
     "displaydoc-0.2.6": {
@@ -42808,8 +42757,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1ac70aa55017e108007fbaf5aa0f54b021c98f92ff8af59d42eda9da96e3dd4f",
-        "size_bytes": 21191,
         "version": "0.2.6",
     },
     "dlib-0.5.3": {
@@ -42849,8 +42796,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ab8ecd87370524b461f8557c119c405552c396ed91fc0a8eec68679eab26f94a",
-        "size_bytes": 7120,
         "version": "0.5.3",
     },
     "document-features-0.2.12": {
@@ -42884,8 +42829,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61",
-        "size_bytes": 14739,
         "version": "0.2.12",
     },
     "downcast-rs-1.2.1": {
@@ -42951,8 +42894,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2",
-        "size_bytes": 11821,
         "version": "1.2.1",
     },
     "dpi-0.1.2": {
@@ -43012,8 +42953,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76",
-        "size_bytes": 14812,
         "version": "0.1.2",
     },
     "drm-0.14.1": {
@@ -43101,8 +43040,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "80bc8c5c6c2941f70a55c15f8d9f00f9710ebda3ffda98075f996a0e6c92756f",
-        "size_bytes": 52927,
         "version": "0.14.1",
     },
     "drm-ffi-0.9.1": {
@@ -43168,8 +43105,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "51a91c9b32ac4e8105dec255e849e0d66e27d7c34d184364fb93e469db08f690",
-        "size_bytes": 12421,
         "version": "0.9.1",
     },
     "drm-fourcc-2.2.0": {
@@ -43238,8 +43173,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0aafbcdb8afc29c1a7ee5fbe53b5d62f4565b35a042a662ca9fecd0b54dae6f4",
-        "size_bytes": 12192,
         "version": "2.2.0",
     },
     "drm-sys-0.8.1": {
@@ -43323,8 +43256,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ecc8e1361066d91f5ffccff060a3c3be9c3ecde15be2959c1937595f7a82a9f8",
-        "size_bytes": 12804,
         "version": "0.8.1",
     },
     "drop_bomb-0.1.5": {
@@ -43355,8 +43286,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9bda8e21c04aca2ae33ffc2fd8c23134f3cac46db123ba97bd9d3f3b8a4a85e1",
-        "size_bytes": 6859,
         "version": "0.1.5",
     },
     "ed25519-2.2.3": {
@@ -43462,8 +43391,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53",
-        "size_bytes": 17802,
         "version": "2.2.3",
     },
     "ed25519-dalek-2.2.0": {
@@ -43633,8 +43560,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9",
-        "size_bytes": 98034,
         "version": "2.2.0",
     },
     "either-1.17.0": {
@@ -43707,8 +43632,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9e5e8f6c15a24b9a3ee5efec809ccd006d3b30e8b3bb63c39af737c7f87daa1d",
-        "size_bytes": 21820,
         "version": "1.17.0",
     },
     "emojis-0.9.0": {
@@ -43788,8 +43711,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0b1514ced566c94991ed9563258ecf61e311fd773bf0a3f20606830386bf66e3",
-        "size_bytes": 128418,
         "version": "0.9.0",
     },
     "encoding_rs-0.8.35": {
@@ -43878,8 +43799,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3",
-        "size_bytes": 1381050,
         "version": "0.8.35",
     },
     "endi-1.1.1": {
@@ -43946,8 +43865,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099",
-        "size_bytes": 5045,
         "version": "1.1.1",
     },
     "entities-1.0.1": {
@@ -43972,8 +43889,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b5320ae4c3782150d900b79807611a59a99fc9a1d61d686faafc24b93fc8d7ca",
-        "size_bytes": 24795,
         "version": "1.0.1",
     },
     "enum-primitive-derive-0.3.0": {
@@ -44006,8 +43921,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ba7795da175654fe16979af73f81f26a8ea27638d8d9823d317016888a63dc4c",
-        "size_bytes": 4664,
         "version": "0.3.0",
     },
     "enumflags2-0.7.12": {
@@ -44050,8 +43963,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1027f7680c853e056ebcec683615fb6fbbc07dbaa13b4d5d9442b146ded4ecef",
-        "size_bytes": 17544,
         "version": "0.7.12",
     },
     "enumflags2_derive-0.7.12": {
@@ -44082,8 +43993,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "67c78a4d8fdf9953a5c9d458f9efe940fd97a0cab0941c075a813ac594733827",
-        "size_bytes": 8573,
         "version": "0.7.12",
     },
     "enumn-0.1.14": {
@@ -44115,8 +44024,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2f9ed6b3789237c8a0c1c505af1c7eb2c560df6186f01b098c3a1064ea532f38",
-        "size_bytes": 8449,
         "version": "0.1.14",
     },
     "equivalent-1.0.2": {
@@ -44150,8 +44057,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f",
-        "size_bytes": 7419,
         "version": "1.0.2",
     },
     "errno-0.3.14": {
@@ -44248,8 +44153,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb",
-        "size_bytes": 12002,
         "version": "0.3.14",
     },
     "error-code-3.3.2": {
@@ -44283,8 +44186,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "dea2df4cf52843e0452895c455a1a2cfbb842a1e7329671acf418fdc53ed4c59",
-        "size_bytes": 8516,
         "version": "3.3.2",
     },
     "euclid-0.22.14": {
@@ -44399,8 +44300,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f1a05365e3b1c6d1650318537c7460c6923f1abdd272ad6842baa2b509957a06",
-        "size_bytes": 88222,
         "version": "0.22.14",
     },
     "event-listener-5.4.2": {
@@ -44447,8 +44346,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5a23add41df1562121a9393cb065eab5146a1242410f23a644851e90cfd669d2",
-        "size_bytes": 35131,
         "version": "5.4.2",
     },
     "event-listener-strategy-0.5.4": {
@@ -44493,8 +44390,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93",
-        "size_bytes": 16179,
         "version": "0.5.4",
     },
     "fallible-iterator-0.3.0": {
@@ -44572,8 +44467,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649",
-        "size_bytes": 19639,
         "version": "0.3.0",
     },
     "fallible-streaming-iterator-0.1.9": {
@@ -44606,8 +44499,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a",
-        "size_bytes": 9249,
         "version": "0.1.9",
     },
     "fastrand-2.5.0": {
@@ -44681,8 +44572,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223",
-        "size_bytes": 20782,
         "version": "2.5.0",
     },
     "fax-0.2.7": {
@@ -44716,8 +44605,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "caf1079563223d5d59d83c85886a56e586cfd5c1a26292e971a0fa266531ac5a",
-        "size_bytes": 25616,
         "version": "0.2.7",
     },
     "fdeflate-0.3.7": {
@@ -44798,8 +44685,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1e6853b52649d4ac5c0bd02320cddc5ba956bdb407c4b75a2c6b75bf51500f8c",
-        "size_bytes": 27188,
         "version": "0.3.7",
     },
     "filedescriptor-0.8.3": {
@@ -44867,8 +44752,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e40758ed24c9b2eeb76c35fb0aebc66c626084edd827e07e1552279814c6682d",
-        "size_bytes": 12635,
         "version": "0.8.3",
     },
     "find-msvc-tools-0.1.9": {
@@ -44893,8 +44776,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582",
-        "size_bytes": 31493,
         "version": "0.1.9",
     },
     "finl_unicode-1.5.0": {
@@ -44967,8 +44848,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "80bb028c8b4148c9ee0cca68fcd9add6044e81d3619f48577ddf13a263d047a2",
-        "size_bytes": 80465,
         "version": "1.5.0",
     },
     "flagset-0.4.7": {
@@ -45001,8 +44880,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b7ac824320a75a52197e8f2d787f6a38b6718bb6897a35142d749af3c0e8f4fe",
-        "size_bytes": 13688,
         "version": "0.4.7",
     },
     "flate2-1.1.9": {
@@ -45181,8 +45058,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c",
-        "size_bytes": 82745,
         "version": "1.1.9",
     },
     "float-cmp-0.9.0": {
@@ -45241,8 +45116,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4",
-        "size_bytes": 10102,
         "version": "0.9.0",
     },
     "float_next_after-1.0.0": {
@@ -45277,8 +45150,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8",
-        "size_bytes": 6965,
         "version": "1.0.0",
     },
     "fnv-1.0.7": {
@@ -45309,8 +45180,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1",
-        "size_bytes": 11266,
         "version": "1.0.7",
     },
     "foldhash-0.1.5": {
@@ -45340,8 +45209,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2",
-        "size_bytes": 21901,
         "version": "0.1.5",
     },
     "foldhash-0.2.0": {
@@ -45433,8 +45300,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb",
-        "size_bytes": 23329,
         "version": "0.2.0",
     },
     "font-types-0.12.7": {
@@ -45521,8 +45386,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "835ae9d781464a79026cde387f9cbc650c9a4909d7cf7e658b127e3c35d2f35d",
-        "size_bytes": 33312,
         "version": "0.12.7",
     },
     "fontconfig-parser-0.5.8": {
@@ -45556,8 +45419,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bbc773e24e02d4ddd8395fd30dc147524273a83e54e0f312d986ea30de5f5646",
-        "size_bytes": 40928,
         "version": "0.5.8",
     },
     "fontdb-0.24.0": {
@@ -45675,8 +45536,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2660c5e9157bf76d2db1294e4a9feba604ef610819a3b591088d0d8392a3290f",
-        "size_bytes": 119122,
         "version": "0.24.0",
     },
     "foreign-types-0.3.2": {
@@ -45710,8 +45569,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1",
-        "size_bytes": 7504,
         "version": "0.3.2",
     },
     "foreign-types-shared-0.1.1": {
@@ -45736,8 +45593,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b",
-        "size_bytes": 5672,
         "version": "0.1.1",
     },
     "form_urlencoded-1.2.2": {
@@ -45833,8 +45688,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf",
-        "size_bytes": 9347,
         "version": "1.2.2",
     },
     "freetype-0.7.2": {
@@ -45948,8 +45801,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5a440748e063798e4893ceb877151e84acef9bea9a8c6800645cf3f1b3a7806e",
-        "size_bytes": 20368,
         "version": "0.7.2",
     },
     "freetype-sys-0.20.1": {
@@ -46027,8 +45878,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0e7edc5b9669349acfda99533e9e0bcf26a51862ab43b08ee7745c55d28eb134",
-        "size_bytes": 3877697,
         "version": "0.20.1",
     },
     "fs-set-times-0.20.3": {
@@ -46094,8 +45943,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "94e7099f6313ecacbe1256e8ff9d617b75d1bcb16a6fddef94866d225a01a14a",
-        "size_bytes": 15964,
         "version": "0.20.3",
     },
     "fsevent-sys-4.1.0": {
@@ -46128,8 +45975,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "76ee7a02da4d231650c7cea31349b889be2f45ddb3ef3032d2ec8185f6313fd2",
-        "size_bytes": 4620,
         "version": "4.1.0",
     },
     "futures-0.3.32": {
@@ -46242,8 +46087,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8b147ee9d1f6d097cef9ce628cd2ee62288d963e16fb287bd9286455b241382d",
-        "size_bytes": 61234,
         "version": "0.3.32",
     },
     "futures-channel-0.3.32": {
@@ -46354,8 +46197,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "07bbe89c50d7a535e539b8c17bc0b49bdb77747034daa8087407d655f3f7cc1d",
-        "size_bytes": 33213,
         "version": "0.3.32",
     },
     "futures-core-0.3.32": {
@@ -46464,8 +46305,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7e3450815272ef58cec6d564423f6e755e25379b217b0bc688e295ba24df6b1d",
-        "size_bytes": 14684,
         "version": "0.3.32",
     },
     "futures-executor-0.3.32": {
@@ -46510,8 +46349,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "baf29c38818342a3b26b5b923639e7b1f4a61fc5e76102d4b1981c6dc7a7579d",
-        "size_bytes": 18581,
         "version": "0.3.32",
     },
     "futures-io-0.3.33": {
@@ -46578,8 +46415,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4577ecaa3c4f96589d473f679a71b596316f6641bc350038b962a5daf0085d7a",
-        "size_bytes": 9190,
         "version": "0.3.33",
     },
     "futures-lite-2.6.1": {
@@ -46641,8 +46476,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f78e10609fe0e0b3f4157ffab1876319b5b0db102a2c60dc4626306dc46b44ad",
-        "size_bytes": 46095,
         "version": "2.6.1",
     },
     "futures-macro-0.3.32": {
@@ -46673,8 +46506,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e835b70203e41293343137df5c0664546da5745f82ec9b84d40be8336958447b",
-        "size_bytes": 11929,
         "version": "0.3.32",
     },
     "futures-sink-0.3.32": {
@@ -46717,8 +46548,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c39754e157331b013978ec91992bde1ac089843443c49cbc7f46150b0fad0893",
-        "size_bytes": 8106,
         "version": "0.3.32",
     },
     "futures-task-0.3.32": {
@@ -46815,8 +46644,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "037711b3d59c33004d3856fbdc83b99d4ff37a24768fa1be9ce3538a1cde4393",
-        "size_bytes": 11377,
         "version": "0.3.32",
     },
     "futures-util-0.3.32": {
@@ -47112,8 +46939,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "389ca41296e6190b48053de0321d02a77f32f8a5d2461dd38762c0593805c6d6",
-        "size_bytes": 168797,
         "version": "0.3.32",
     },
     "gbm-0.18.0": {
@@ -47228,8 +47053,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ce852e998d3ca5e4a97014fb31c940dc5ef344ec7d364984525fd11e8a547e6a",
-        "size_bytes": 11893,
         "version": "0.18.0",
     },
     "gbm-sys-0.4.0": {
@@ -47290,8 +47113,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c13a5f2acc785d8fb6bf6b7ab6bfb0ef5dad4f4d97e8e70bb8e470722312f76f",
-        "size_bytes": 7647,
         "version": "0.4.0",
     },
     "generic-array-0.14.7": {
@@ -47409,8 +47230,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a",
-        "size_bytes": 15950,
         "version": "0.14.7",
     },
     "gethostname-1.1.0": {
@@ -47471,8 +47290,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1bd49230192a3797a9a4d6abe9b3eed6f7fa4c8a8a4947977c6f80025f92cbd8",
-        "size_bytes": 9865,
         "version": "1.1.0",
     },
     "getrandom-0.2.17": {
@@ -47578,8 +47395,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0",
-        "size_bytes": 40780,
         "version": "0.2.17",
     },
     "getrandom-0.3.4": {
@@ -47693,8 +47508,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd",
-        "size_bytes": 50932,
         "version": "0.3.4",
     },
     "getrandom-0.4.2": {
@@ -47818,8 +47631,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0de51e6874e94e7bf76d726fc5d13ba782deca734ff60d5bb2fb2607c7406555",
-        "size_bytes": 53905,
         "version": "0.4.2",
     },
     "ghash-0.6.0": {
@@ -47879,8 +47690,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2eecf2d5dc9b66b732b97707a0210906b1d30523eb773193ab777c0c84b3e8d5",
-        "size_bytes": 10780,
         "version": "0.6.0",
     },
     "gif-0.14.2": {
@@ -48014,8 +47823,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ee8cfcc411d9adbbaba82fb72661cc1bcca13e8bba98b364e62b2dba8f960159",
-        "size_bytes": 38710,
         "version": "0.14.2",
     },
     "gimli-0.33.0": {
@@ -48130,8 +47937,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0bf7f043f89559805f8c7cacc432749b2fa0d0a0a9ee46ce47164ed5ba7f126c",
-        "size_bytes": 330197,
         "version": "0.33.0",
     },
     "gl_generator-0.14.0": {
@@ -48163,8 +47968,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1a95dfc23a2b4a9a2f5ab41d194f8bfda3cabec42af4e39f08c339eb2a0c124d",
-        "size_bytes": 22330,
         "version": "0.14.0",
     },
     "glam-0.30.10": {
@@ -48231,8 +48034,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "19fc433e8437a212d1b6f1e68c7824af3aed907da60afa994e7f542d18d12aa9",
-        "size_bytes": 773605,
         "version": "0.30.10",
     },
     "glob-0.3.4": {
@@ -48259,8 +48060,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b",
-        "size_bytes": 23511,
         "version": "0.3.4",
     },
     "globset-0.4.19": {
@@ -48376,8 +48175,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e47d37d2ae4464254884b60ab7071be2b876a9c35b696bd018ddcc76847309cd",
-        "size_bytes": 29646,
         "version": "0.4.19",
     },
     "glow-0.17.0": {
@@ -48423,8 +48220,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "29038e1c483364cc6bb3cf78feee1816002e127c331a1eec55a4d202b9e1adb5",
-        "size_bytes": 165357,
         "version": "0.17.0",
     },
     "glutin_wgl_sys-0.6.1": {
@@ -48457,8 +48252,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2c4ee00b289aba7a9e5306d57c2d05499b2e5dc427f84ac708bd2c090212cf3e",
-        "size_bytes": 5567,
         "version": "0.6.1",
     },
     "gpu-allocator-0.28.0": {
@@ -48556,8 +48349,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "51255ea7cfaadb6c5f1528d43e92a82acb2b96c43365989a28b2d44ee38f8795",
-        "size_bytes": 54791,
         "version": "0.28.0",
     },
     "gpu-descriptor-0.3.2": {
@@ -48637,8 +48428,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b89c83349105e3732062a895becfc71a8f921bb71ecbbdd8ff99263e3b53a0ca",
-        "size_bytes": 7943,
         "version": "0.3.2",
     },
     "gpu-descriptor-types-0.2.0": {
@@ -48687,8 +48476,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "fdf242682df893b86f33a73828fb09ca4b2d3bb6cc95249707fc684d27484b91",
-        "size_bytes": 2169,
         "version": "0.2.0",
     },
     "gvdb-0.10.1": {
@@ -48782,8 +48569,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c28284f834fe0083db924efe590a684fe81c661c6269fc536ae964ab01adc111",
-        "size_bytes": 57506,
         "version": "0.10.1",
     },
     "half-2.7.1": {
@@ -48939,8 +48724,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6ea2d84b969582b4b1864a92dc5d27cd2b77b622a8d79306834f1be5ba20d84b",
-        "size_bytes": 61040,
         "version": "2.7.1",
     },
     "harfbuzz-sys-0.5.0": {
@@ -49062,8 +48845,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bf8c27ca13930dc4ffe474880040fe9e0f03c2121600dc9c95423624cab3e467",
-        "size_bytes": 8215050,
         "version": "0.5.0",
     },
     "harfbuzz_rs-2.0.1": {
@@ -49186,8 +48967,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "58c18cfc23920d010f7637b86240a5f8892dfdbcb4f0e60828f8a9dc6ff5521d",
-        "size_bytes": 204412,
         "version": "2.0.1",
     },
     "harfrust-0.12.0": {
@@ -49295,8 +49074,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c03d949a14aa089bbb282f7dd76a498a7f684428e4257202efc119ec010376f9",
-        "size_bytes": 291579,
         "version": "0.12.0",
     },
     "hash32-0.2.1": {
@@ -49380,8 +49157,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b0c35f58762feb77d74ebe43bdbc3210f09be9fe6742234d573bacc26ed92b67",
-        "size_bytes": 11168,
         "version": "0.2.1",
     },
     "hashbrown-0.14.5": {
@@ -49487,8 +49262,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1",
-        "size_bytes": 141498,
         "version": "0.14.5",
     },
     "hashbrown-0.15.5": {
@@ -49553,8 +49326,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1",
-        "size_bytes": 140908,
         "version": "0.15.5",
     },
     "hashbrown-0.16.1": {
@@ -49699,8 +49470,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100",
-        "size_bytes": 147785,
         "version": "0.16.1",
     },
     "hashbrown-0.17.1": {
@@ -49797,8 +49566,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a",
-        "size_bytes": 155512,
         "version": "0.17.1",
     },
     "hashlink-0.9.1": {
@@ -49867,8 +49634,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6ba4ff7128dee98c7dc9794b6a411377e1404dba1c97deb8d1a55297bd25d8af",
-        "size_bytes": 28928,
         "version": "0.9.1",
     },
     "heapless-0.7.17": {
@@ -50046,8 +49811,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cdc6457c0eb62c71aac4bc17216026d8410337c4126773b9c5daba343f17964f",
-        "size_bytes": 75767,
         "version": "0.7.17",
     },
     "heck-0.5.0": {
@@ -50072,8 +49835,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea",
-        "size_bytes": 11517,
         "version": "0.5.0",
     },
     "hex-0.4.3": {
@@ -50146,8 +49907,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70",
-        "size_bytes": 13299,
         "version": "0.4.3",
     },
     "hex-conservative-0.2.3": {
@@ -50217,8 +49976,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "db3fef046dca3ca91ee1408a8c1b80ab777e80a4d308d1bf4e7adb3fcb047e08",
-        "size_bytes": 24498,
         "version": "0.2.3",
     },
     "hexf-parse-0.2.1": {
@@ -50251,8 +50008,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df",
-        "size_bytes": 4662,
         "version": "0.2.1",
     },
     "hkdf-0.12.4": {
@@ -50322,8 +50077,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7",
-        "size_bytes": 171163,
         "version": "0.12.4",
     },
     "hmac-0.12.1": {
@@ -50392,8 +50145,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e",
-        "size_bytes": 42657,
         "version": "0.12.1",
     },
     "hmac-0.13.0": {
@@ -50453,8 +50204,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f",
-        "size_bytes": 45167,
         "version": "0.13.0",
     },
     "hound-3.5.1": {
@@ -50486,8 +50235,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "62adaabb884c94955b19907d60019f4e145d091c75345379e70d1ee696f7854f",
-        "size_bytes": 39446,
         "version": "3.5.1",
     },
     "http-1.4.1": {
@@ -50592,8 +50339,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8be7462df143984c4598a256ef469b251d7d7f9e271135073e78fc535414f3d0",
-        "size_bytes": 110181,
         "version": "1.4.1",
     },
     "httparse-1.10.1": {
@@ -50668,8 +50413,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87",
-        "size_bytes": 45190,
         "version": "1.10.1",
     },
     "hybrid-array-0.4.15": {
@@ -50729,8 +50472,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "27f864f10dfb56725ce5ce5472bc52252c8f93a4ab86327122cebf62c5f59a17",
-        "size_bytes": 36801,
         "version": "0.4.15",
     },
     "icu_collections-2.4.0": {
@@ -50866,8 +50607,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "fe090a42a0d3140fed8c63263ed1fecc02422cb2f4bfe55cd8de2de1b8e105dd",
-        "size_bytes": 102334,
         "version": "2.4.0",
     },
     "icu_locale_core-2.4.0": {
@@ -51025,8 +50764,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "25d29b57c17c6528d0dc4c2141cfa2d08200465acb537a3909c8b9b8a4a984c0",
-        "size_bytes": 80269,
         "version": "2.4.0",
     },
     "icu_normalizer-2.4.0": {
@@ -51148,8 +50885,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "404a3b8c486f205c87fe7f23ab6894d84a4ad76d6e4671ae1981ba7def87c599",
-        "size_bytes": 536741,
         "version": "2.4.0",
     },
     "icu_normalizer_data-2.4.0": {
@@ -51186,8 +50921,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "20f0088bfb7441f7a37fa0c9e20cb1e9cba1cac6b9ce8cd2a6dc44294f8e8cbc",
-        "size_bytes": 68011,
         "version": "2.4.0",
     },
     "icu_properties-2.4.0": {
@@ -51378,8 +51111,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2ea83d991c56158f7cf898bf86436c1dfe7c07ee82fe88951f2695c9f37a379f",
-        "size_bytes": 146217,
         "version": "2.4.0",
     },
     "icu_properties_data-2.4.0": {
@@ -51419,8 +51150,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b98f29af82d02b163fe50161388350e743bb3107cc8e8c2f7314cb505faddfcf",
-        "size_bytes": 186846,
         "version": "2.4.0",
     },
     "icu_provider-2.4.0": {
@@ -51600,8 +51329,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "413099315636c588ee8f011190b329b971a09a8fae9d157e01dcae8379468514",
-        "size_bytes": 52461,
         "version": "2.4.0",
     },
     "id-arena-2.3.0": {
@@ -51626,8 +51353,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3d3067d79b975e8844ca9eb072e16b31c3c1c36928edf9c6789548c524d0d954",
-        "size_bytes": 12883,
         "version": "2.3.0",
     },
     "idna-1.1.0": {
@@ -51748,8 +51473,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3b0875f23caa03898994f6ddc501886a45c7d3d62d04d2d90788d47be1b1e4de",
-        "size_bytes": 148747,
         "version": "1.1.0",
     },
     "idna_adapter-1.2.2": {
@@ -51847,8 +51570,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714",
-        "size_bytes": 10444,
         "version": "1.2.2",
     },
     "ignore-0.4.32": {
@@ -51953,8 +51674,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0b17771570a2b94107741a7b033f19132c2eee21d59d21b24d2ced26500bd66e",
-        "size_bytes": 73829,
         "version": "0.4.32",
     },
     "image-0.25.10": {
@@ -52226,8 +51945,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "85ab80394333c02fe689eaf900ab500fbd0c2213da414687ebf995a65d5a6104",
-        "size_bytes": 303647,
         "version": "0.25.10",
     },
     "image-webp-0.2.4": {
@@ -52306,8 +52023,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "525e9ff3e1a4be2fbea1fdf0e98686a6d98b4d8f937e1bf7402245af1909e8c3",
-        "size_bytes": 68478,
         "version": "0.2.4",
     },
     "imagesize-0.15.0": {
@@ -52555,8 +52270,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "65b27460c2c92b037f3f94c538ed9a3342f3fdf923606781629ccb35f82d042a",
-        "size_bytes": 29653,
         "version": "0.15.0",
     },
     "indexmap-2.14.0": {
@@ -52690,8 +52403,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9",
-        "size_bytes": 104085,
         "version": "2.14.0",
     },
     "inotify-0.11.5": {
@@ -52736,8 +52447,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4cc00ea907cab49550b7da656f80ebb97be1b997d931fbcd28d39734e17ce592",
-        "size_bytes": 30349,
         "version": "0.11.5",
     },
     "inotify-sys-0.1.8": {
@@ -52779,8 +52488,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c033f80b2c113cdf91ab7a33faa9cbc014726dcad99880c8609af2a370edf37d",
-        "size_bytes": 8411,
         "version": "0.1.8",
     },
     "inout-0.1.4": {
@@ -52854,8 +52561,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01",
-        "size_bytes": 11280,
         "version": "0.1.4",
     },
     "inout-0.2.5": {
@@ -52943,8 +52648,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3b5cf4372d022092674a83b8febf5865f7a573cc0c5baec5e49c879b6a20978f",
-        "size_bytes": 13849,
         "version": "0.2.5",
     },
     "input-0.9.1": {
@@ -53074,8 +52777,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "fbdc09524a91f9cacd26f16734ff63d7dc650daffadd2b6f84d17a285bd875a9",
-        "size_bytes": 40734,
         "version": "0.9.1",
     },
     "input-sys-1.19.0": {
@@ -53157,8 +52858,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "36eee07d8e02bd95bf52b2e642cf13d33701b94c6e4b04fbf1d1fb07e9cb19e7",
-        "size_bytes": 797534,
         "version": "1.19.0",
     },
     "io-extras-0.19.0": {
@@ -53244,8 +52943,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "20fd6de4ccfcc187e38bc21cfa543cb5a302cb86a8b114eb7f0bf0dc9f8ac00f",
-        "size_bytes": 34951,
         "version": "0.19.0",
     },
     "io-lifetimes-1.0.11": {
@@ -53356,8 +53053,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "eae7b9aee968036d54dce06cebaefd919e4472e753296daccd6d344e3e2df0c2",
-        "size_bytes": 37346,
         "version": "1.0.11",
     },
     "io-lifetimes-2.0.4": {
@@ -53392,8 +53087,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "06432fb54d3be7964ecd3649233cddf80db2832f47fec34c01f65b3d9d774983",
-        "size_bytes": 28501,
         "version": "2.0.4",
     },
     "io-lifetimes-3.0.1": {
@@ -53456,8 +53149,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2f0fb0570afe1fed943c5c3d4102d5358592d8625fda6a0007fdbe65a92fba96",
-        "size_bytes": 28589,
         "version": "3.0.1",
     },
     "ipnet-2.12.1": {
@@ -53523,8 +53214,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6a756c3fac73139e83f14c2d742155dd2b78d3ee56597b419a0579b7bdd6dd78",
-        "size_bytes": 31069,
         "version": "2.12.1",
     },
     "itertools-0.13.0": {
@@ -53554,8 +53243,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186",
-        "size_bytes": 146261,
         "version": "0.13.0",
     },
     "itertools-0.14.0": {
@@ -53650,8 +53337,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285",
-        "size_bytes": 152715,
         "version": "0.14.0",
     },
     "itertools-0.15.0": {
@@ -53746,8 +53431,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8b4baf93f58d4425749ca49a51c50ebab072c5df6994d08fed93541c331481dc",
-        "size_bytes": 164131,
         "version": "0.15.0",
     },
     "itoa-1.0.18": {
@@ -53784,8 +53467,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682",
-        "size_bytes": 15935,
         "version": "1.0.18",
     },
     "jetscii-0.5.3": {
@@ -53819,8 +53500,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "47f142fe24a9c9944451e8349de0a56af5f3e7226dc46f3ed4d4ecc0b85af75e",
-        "size_bytes": 18811,
         "version": "0.5.3",
     },
     "jks-0.3.3": {
@@ -53894,8 +53573,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e03966fd15eea3cb2886320a78d01e77f8aaeabd3fb01504ee6a2238876c23bc",
-        "size_bytes": 34774,
         "version": "0.3.3",
     },
     "jni-0.21.1": {
@@ -53932,8 +53609,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1a87aa2bb7d2af34197c04845522473242e1aa17c12f4935d5856491a7fb8c97",
-        "size_bytes": 105028,
         "version": "0.21.1",
     },
     "jni-0.22.4": {
@@ -53978,8 +53653,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5efd9a482cf3a427f00d6b35f14332adc7902ce91efb778580e180ff90fa3498",
-        "size_bytes": 199347,
         "version": "0.22.4",
     },
     "jni-macros-0.22.4": {
@@ -54016,8 +53689,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a00109accc170f0bdb141fed3e393c565b6f5e072365c3bd58f5b062591560a3",
-        "size_bytes": 63557,
         "version": "0.22.4",
     },
     "jni-sys-0.3.1": {
@@ -54053,8 +53724,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "41a652e1f9b6e0275df1f15b32661cf0d4b78d4d87ddec5e0c3c20f097433258",
-        "size_bytes": 11570,
         "version": "0.3.1",
     },
     "jni-sys-0.4.1": {
@@ -54084,8 +53753,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c6377a88cb3910bee9b0fa88d4f42e1d2da8e79915598f65fb0c7ee14c878af2",
-        "size_bytes": 13249,
         "version": "0.4.1",
     },
     "jni-sys-macros-0.4.1": {
@@ -54115,8 +53782,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "38c0b942f458fe50cdac086d2f946512305e5631e720728f2a61aabcd47a6264",
-        "size_bytes": 3301,
         "version": "0.4.1",
     },
     "jobserver-0.1.34": {
@@ -54147,8 +53812,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9afb3de4395d6b3e67a780b6de64b51c978ecf11cb9a462c66be7d4ca9039d33",
-        "size_bytes": 29013,
         "version": "0.1.34",
     },
     "jod-thread-1.0.0": {
@@ -54179,8 +53842,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a037eddb7d28de1d0fc42411f501b53b75838d313908078d6698d064f3029b24",
-        "size_bytes": 6407,
         "version": "1.0.0",
     },
     "js-sys-0.3.99": {
@@ -54258,8 +53919,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "142bc4740e452c1e57ade0cbc129f139c9093e354346f0872ef985f4f5cf5f11",
-        "size_bytes": 108515,
         "version": "0.3.99",
     },
     "keyboard-types-0.8.3": {
@@ -54338,8 +53997,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0fbe853b403ae61a04233030ae8a79d94975281ed9770a1f9e246732b534b28d",
-        "size_bytes": 97188,
         "version": "0.8.3",
     },
     "khronos-egl-6.0.0": {
@@ -54451,8 +54108,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6aae1df220ece3c0ada96b8153459b67eebe9ae9212258bb0134ae60416fdf76",
-        "size_bytes": 29315,
         "version": "6.0.0",
     },
     "khronos_api-3.1.0": {
@@ -54481,8 +54136,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc",
-        "size_bytes": 599718,
         "version": "3.1.0",
     },
     "kurbo-0.13.1": {
@@ -54616,8 +54269,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4b60dfc32f652b926df6192e55525b16d186c69d47876c3ead4da5cc9f8450e2",
-        "size_bytes": 169000,
         "version": "0.13.1",
     },
     "lazy_static-1.5.0": {
@@ -54705,8 +54356,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe",
-        "size_bytes": 14025,
         "version": "1.5.0",
     },
     "leb128-0.2.7": {
@@ -54731,8 +54380,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c83bff1d572d6b9aeef67ddfc8448e4a3737909cb28e81f97c791b9018703e52",
-        "size_bytes": 13874,
         "version": "0.2.7",
     },
     "leb128fmt-0.1.0": {
@@ -54764,8 +54411,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2",
-        "size_bytes": 14138,
         "version": "0.1.0",
     },
     "lewton-0.10.2": {
@@ -54866,8 +54511,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "777b48df9aaab155475a83a7df3070395ea1ac6902f5cd062b8f2b028075c030",
-        "size_bytes": 68807,
         "version": "0.10.2",
     },
     "libc-0.2.186": {
@@ -54962,8 +54605,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66",
-        "size_bytes": 821883,
         "version": "0.2.186",
     },
     "libloading-0.8.9": {
@@ -55023,8 +54664,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55",
-        "size_bytes": 30222,
         "version": "0.8.9",
     },
     "libloading-0.9.0": {
@@ -55085,8 +54724,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60",
-        "size_bytes": 33816,
         "version": "0.9.0",
     },
     "libm-0.2.16": {
@@ -55180,8 +54817,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981",
-        "size_bytes": 164243,
         "version": "0.2.16",
     },
     "libseat-0.2.4": {
@@ -55257,8 +54892,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6656c69b6e0366ffb83faa232f3e4fda5fc91161722d140f2c95ce2e90b1ef31",
-        "size_bytes": 6675,
         "version": "0.2.4",
     },
     "libseat-sys-0.2.0": {
@@ -55294,8 +54927,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e8a484fa48be5f62a8d3ffed767779d0ab808cfead91de98ef4362d469097dfb",
-        "size_bytes": 5364,
         "version": "0.2.0",
     },
     "libsqlite3-sys-0.30.1": {
@@ -55427,8 +55058,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149",
-        "size_bytes": 5122296,
         "version": "0.30.1",
     },
     "libudev-sys-0.1.4": {
@@ -55495,8 +55124,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3c8469b4a23b962c1396b9b451dda50ef5b283e8dd309d69033475fa9b334324",
-        "size_bytes": 6177,
         "version": "0.1.4",
     },
     "linux-raw-sys-0.12.1": {
@@ -55566,8 +55193,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53",
-        "size_bytes": 3006116,
         "version": "0.12.1",
     },
     "linux-raw-sys-0.4.15": {
@@ -55617,8 +55242,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d26c52dbd32dccf2d10cac7725f8eae5296885fb5703b261f7d0a0739ec807ab",
-        "size_bytes": 2150898,
         "version": "0.4.15",
     },
     "linux-raw-sys-0.9.4": {
@@ -55661,8 +55284,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cd945864f07fe9f5371a27ad7b52a172b4b499999f1d97574c9fa68373937e12",
-        "size_bytes": 2311088,
         "version": "0.9.4",
     },
     "litemap-0.8.2": {
@@ -55698,8 +55319,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0",
-        "size_bytes": 34572,
         "version": "0.8.2",
     },
     "litrs-1.0.0": {
@@ -55725,8 +55344,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092",
-        "size_bytes": 46610,
         "version": "1.0.0",
     },
     "lock_api-0.4.14": {
@@ -55840,8 +55457,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965",
-        "size_bytes": 29249,
         "version": "0.4.14",
     },
     "log-0.4.31": {
@@ -55909,8 +55524,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f",
-        "size_bytes": 52646,
         "version": "0.4.31",
     },
     "lyon_geom-1.0.20": {
@@ -56034,8 +55647,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d82dd26aa4dc0b5b70b9115de59824842bcb43cf4a28e1b1e6d0ad148c93f93e",
-        "size_bytes": 56493,
         "version": "1.0.20",
     },
     "lyon_path-1.0.19": {
@@ -56149,8 +55760,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5c463f9c428b7fc5ec885dcd39ce4aa61e29111d0e33483f6f98c74e89d8621e",
-        "size_bytes": 37028,
         "version": "1.0.19",
     },
     "lyon_tessellation-1.0.22": {
@@ -56284,8 +55893,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "43b8dcf906637ecef61b3c0740c7a4e7f27caeb31257cfac0cc579ce15be6005",
-        "size_bytes": 188138,
         "version": "1.0.22",
     },
     "mach2-0.4.3": {
@@ -56324,8 +55931,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d640282b302c0bb0a2a8e0233ead9035e3bed871f0b7e81fe4a1ec829765db44",
-        "size_bytes": 22180,
         "version": "0.4.3",
     },
     "mach2-0.6.0": {
@@ -56358,8 +55963,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "dae608c151f68243f2b000364e1f7b186d9c29845f7d2d85bd31b9ad77ad552b",
-        "size_bytes": 33580,
         "version": "0.6.0",
     },
     "matchers-0.2.0": {
@@ -56424,8 +56027,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9",
-        "size_bytes": 7075,
         "version": "0.2.0",
     },
     "maybe-owned-0.3.4": {
@@ -56456,8 +56057,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4facc753ae494aeb6e3c22f839b158aebd4f9270f55cd3c79906c45476c47ab4",
-        "size_bytes": 14308,
         "version": "0.3.4",
     },
     "memchr-2.8.1": {
@@ -56567,8 +56166,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6b947ae49db0d222b1dbc6b113ce7248a3fc3a6ca21b696717bfc000ba4484d8",
-        "size_bytes": 98743,
         "version": "2.8.1",
     },
     "memfd-0.6.5": {
@@ -56602,8 +56199,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ad38eb12aea514a0466ea40a80fd8cc83637065948eb4a426e4aa46261175227",
-        "size_bytes": 12909,
         "version": "0.6.5",
     },
     "memmap2-0.9.10": {
@@ -56655,8 +56250,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "714098028fe011992e1c3962653c96b2d578c4b4bce9036e15ff220319b1e0e3",
-        "size_bytes": 34846,
         "version": "0.9.10",
     },
     "memoffset-0.9.1": {
@@ -56721,8 +56314,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a",
-        "size_bytes": 9032,
         "version": "0.9.1",
     },
     "minimal-lexical-0.2.1": {
@@ -56781,8 +56372,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a",
-        "size_bytes": 94841,
         "version": "0.2.1",
     },
     "miniz_oxide-0.8.9": {
@@ -56939,8 +56528,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316",
-        "size_bytes": 67132,
         "version": "0.8.9",
     },
     "mio-1.2.1": {
@@ -57055,8 +56642,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "02bd0af71c67b473010cbbc60715ee815645a4dc942899111f494b4b737d6fda",
-        "size_bytes": 106774,
         "version": "1.2.1",
     },
     "miow-0.6.1": {
@@ -57092,8 +56677,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "536bfad37a309d62069485248eeaba1e8d9853aaf951caaeaed0585a95346f08",
-        "size_bytes": 30539,
         "version": "0.6.1",
     },
     "moxcms-0.8.1": {
@@ -57339,8 +56922,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b",
-        "size_bytes": 188252,
         "version": "0.8.1",
     },
     "naga-29.0.3": {
@@ -57611,8 +57192,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0dd91265cc2454558f659b3b4b9640f0ddb8cc6521277f166b8a8c181c898079",
-        "size_bytes": 842607,
         "version": "29.0.3",
     },
     "ndk-0.8.0": {
@@ -57650,8 +57229,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2076a31b7010b17a38c01907c45b945e8f11495ee4dd588309718901b1f7a5b7",
-        "size_bytes": 79770,
         "version": "0.8.0",
     },
     "ndk-0.9.0": {
@@ -57689,8 +57266,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c3f42e7bbe13d351b6bead8286a43aac9534b82bd3cc43e47037f012ebfd62d4",
-        "size_bytes": 84865,
         "version": "0.9.0",
     },
     "ndk-context-0.1.1": {
@@ -57716,8 +57291,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "27b02d87554356db9e9a873add8782d4ea6e3e58ea071a9adb9a2e8ddb884a8b",
-        "size_bytes": 2205,
         "version": "0.1.1",
     },
     "ndk-sys-0.5.0+25.2.9519653": {
@@ -57748,8 +57321,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8c196769dd60fd4f363e11d948139556a344e79d451aeb2fa2fd040738ef7691",
-        "size_bytes": 307233,
         "version": "0.5.0+25.2.9519653",
     },
     "ndk-sys-0.6.0+11769913": {
@@ -57780,8 +57351,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ee6cda3051665f1fb8d9e08fc35c96d5a244fb1be711a03b71118828afc9a873",
-        "size_bytes": 329984,
         "version": "0.6.0+11769913",
     },
     "nix-0.28.0": {
@@ -57896,8 +57465,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ab2156c4fce2f8df6c499cc1c763e4394b7482525bf2a9701c9d79d215f519e4",
-        "size_bytes": 311086,
         "version": "0.28.0",
     },
     "nom-7.1.3": {
@@ -57999,8 +57566,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a",
-        "size_bytes": 117570,
         "version": "7.1.3",
     },
     "notify-8.2.0": {
@@ -58129,8 +57694,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4d3d07927151ff8575b7087f245456e549fea62edf0ec4e565a5ee50c8402bc3",
-        "size_bytes": 39067,
         "version": "8.2.0",
     },
     "notify-types-2.1.0": {
@@ -58191,8 +57754,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "42b8cfee0e339a0337359f3c88165702ac6e600dc01c0cc9579a92d62b08477a",
-        "size_bytes": 22796,
         "version": "2.1.0",
     },
     "nu-ansi-term-0.50.3": {
@@ -58271,8 +57832,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5",
-        "size_bytes": 29597,
         "version": "0.50.3",
     },
     "num-bigint-0.4.8": {
@@ -58368,8 +57927,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367",
-        "size_bytes": 109961,
         "version": "0.4.8",
     },
     "num-bigint-dig-0.8.6": {
@@ -58534,8 +58091,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "e661dda6640fad38e827a6d4a310ff4763082116fe217f279885c97f511bb0b7",
-        "size_bytes": 126196,
         "version": "0.8.6",
     },
     "num-conv-0.2.2": {
@@ -58567,8 +58122,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441",
-        "size_bytes": 7441,
         "version": "0.2.2",
     },
     "num-derive-0.4.2": {
@@ -58601,8 +58154,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202",
-        "size_bytes": 14709,
         "version": "0.4.2",
     },
     "num-integer-0.1.47": {
@@ -58691,8 +58242,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7ce2d95d4b3734dc35aa2f45e1aa22cd416814592a4f9d9205e11affd5b8e10b",
-        "size_bytes": 23502,
         "version": "0.1.47",
     },
     "num-iter-0.1.46": {
@@ -58760,8 +58309,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c92800bd69a1eac91786bcfe9da64a897eb72911b8dc3095decbd07429e8048b",
-        "size_bytes": 10763,
         "version": "0.1.46",
     },
     "num-traits-0.2.19": {
@@ -58908,8 +58455,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841",
-        "size_bytes": 51631,
         "version": "0.2.19",
     },
     "num_enum-0.7.6": {
@@ -58944,8 +58489,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5d0bca838442ec211fa11de3a8b0e0e8f3a4522575b5c4c06ed722e005036f26",
-        "size_bytes": 21741,
         "version": "0.7.6",
     },
     "num_enum_derive-0.7.6": {
@@ -58982,8 +58525,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8",
-        "size_bytes": 18789,
         "version": "0.7.6",
     },
     "objc-sys-0.3.5": {
@@ -59024,8 +58565,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cdb91bdd390c7ce1a8607f35f3ca7151b65afc0ff5ff3b34fa350f7d7c7e4310",
-        "size_bytes": 20560,
         "version": "0.3.5",
     },
     "objc2-0.5.2": {
@@ -59072,8 +58611,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "46a785d4eeff09c14c487497c162e92766fbb3e4059a71840cecc03d9a50b804",
-        "size_bytes": 199204,
         "version": "0.5.2",
     },
     "objc2-0.6.4": {
@@ -59123,8 +58660,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3a12a8ed07aefc768292f076dc3ac8c48f3781c8f2d5851dd3d98950e8c5a89f",
-        "size_bytes": 275200,
         "version": "0.6.4",
     },
     "objc2-app-kit-0.2.2": {
@@ -59192,8 +58727,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e4e89ad9e3d7d297152b17d39ed92cd50ca8063a89a9fa569046d41568891eff",
-        "size_bytes": 337435,
         "version": "0.2.2",
     },
     "objc2-app-kit-0.3.2": {
@@ -59325,8 +58858,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d49e936b501e5c5bf01fda3a9452ff86dc3ea98ad5f283e1455153142d97518c",
-        "size_bytes": 531744,
         "version": "0.3.2",
     },
     "objc2-core-foundation-0.3.2": {
@@ -59420,8 +58951,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2a180dd8642fa45cdb7dd721cd4c11b1cadd4929ce112ebd8b9f5803cc79d536",
-        "size_bytes": 180804,
         "version": "0.3.2",
     },
     "objc2-core-graphics-0.3.2": {
@@ -59503,8 +59032,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e022c9d066895efa1345f8e33e584b9f958da2fd4cd116792e15e07e4720a807",
-        "size_bytes": 84981,
         "version": "0.3.2",
     },
     "objc2-core-video-0.3.2": {
@@ -59560,8 +59087,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d425caf1df73233f29fd8a5c3e5edbc30d2d4307870f802d18f00d83dc5141a6",
-        "size_bytes": 39345,
         "version": "0.3.2",
     },
     "objc2-encode-4.1.0": {
@@ -59598,8 +59123,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ef25abbcd74fb2609453eb695bd2f860d389e457f67dc17cafc8b8cbc89d0c33",
-        "size_bytes": 21004,
         "version": "4.1.0",
     },
     "objc2-foundation-0.2.2": {
@@ -59683,8 +59206,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0ee638a5da3799329310ad4cfa62fbf045d5f56e3ef5ba4149e7452dcf89d5a8",
-        "size_bytes": 249330,
         "version": "0.2.2",
     },
     "objc2-foundation-0.3.2": {
@@ -59810,8 +59331,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e3e0adef53c21f888deb4fa59fc59f7eb17404926ee8a6f59f5df0fd7f9f3272",
-        "size_bytes": 345384,
         "version": "0.3.2",
     },
     "objc2-metal-0.3.2": {
@@ -59935,8 +59454,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a0125f776a10d00af4152d74616409f0d4a2053a6f57fa5b7d6aa2854ac04794",
-        "size_bytes": 226999,
         "version": "0.3.2",
     },
     "objc2-quartz-core-0.3.2": {
@@ -59996,8 +59513,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "96c1358452b371bf9f104e21ec536d37a650eb10f7ee379fff67d2e08d537f1f",
-        "size_bytes": 30036,
         "version": "0.3.2",
     },
     "object-0.39.1": {
@@ -60171,8 +59686,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b",
-        "size_bytes": 360376,
         "version": "0.39.1",
     },
     "oboe-0.6.1": {
@@ -60213,8 +59726,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e8b61bebd49e5d43f5f8cc7ee2891c16e0f41ec7954d36bcb6c14c5e0de867fb",
-        "size_bytes": 24588,
         "version": "0.6.1",
     },
     "oboe-sys-0.6.1": {
@@ -60246,8 +59757,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6c8bb09a4a2b1d668170cfe0a7d5bc103f8999fb316c98099b6a9939c9f2e79d",
-        "size_bytes": 169091,
         "version": "0.6.1",
     },
     "ogg-0.8.0": {
@@ -60306,8 +59815,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6951b4e8bf21c8193da321bcce9c9dd2e13c858fe078bf9054a288b419ae5d6e",
-        "size_bytes": 27128,
         "version": "0.8.0",
     },
     "oid-registry-0.8.1": {
@@ -60462,8 +59969,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "12f40cff3dde1b6087cc5d5f5d4d65712f34016a03ed60e9c08dcc392736b5b7",
-        "size_bytes": 16668,
         "version": "0.8.1",
     },
     "once_cell-1.21.4": {
@@ -60568,8 +60073,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50",
-        "size_bytes": 35010,
         "version": "1.21.4",
     },
     "opaque-debug-0.3.1": {
@@ -60603,8 +60106,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381",
-        "size_bytes": 7066,
         "version": "0.3.1",
     },
     "openxr-0.22.0": {
@@ -60680,8 +60181,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "53770c8f7d3f185bcb577b78f2ed8e33bbf7cdf5cd57fb68b5ec0b4117b79de6",
-        "size_bytes": 96869,
         "version": "0.22.0",
     },
     "openxr-sys-0.14.0": {
@@ -60729,8 +60228,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "febb5d50cee7b964b69d5b7a810ed9620fc64f41382ffefe05434754c7a48877",
-        "size_bytes": 850888,
         "version": "0.14.0",
     },
     "ordered-float-5.3.0": {
@@ -60780,8 +60277,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b7d950ca161dc355eaf28f82b11345ed76c6e1f6eb1f4f4479e0323b9e2fbd0e",
-        "size_bytes": 34539,
         "version": "5.3.0",
     },
     "ordered-stream-0.2.0": {
@@ -60817,8 +60312,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9aa2b01e1d916879f73a53d01d1d6cee68adbb31d6d9177a8cfce093cced1d50",
-        "size_bytes": 19077,
         "version": "0.2.0",
     },
     "owned_ttf_parser-0.25.1": {
@@ -60870,8 +60363,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "36820e9051aca1014ddc75770aab4d68bc1e9e632f0f5627c4086bc216fb583b",
-        "size_bytes": 8989,
         "version": "0.25.1",
     },
     "p12-keystore-0.4.1": {
@@ -61057,8 +60548,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5c2ed4fa0ec7ec58b657d4184680c57da9e203e97771d29a566028869a5193e0",
-        "size_bytes": 67773,
         "version": "0.4.1",
     },
     "parking-2.2.1": {
@@ -61086,8 +60575,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba",
-        "size_bytes": 10685,
         "version": "2.2.1",
     },
     "parking_lot-0.12.5": {
@@ -61193,8 +60680,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a",
-        "size_bytes": 46735,
         "version": "0.12.5",
     },
     "parking_lot_core-0.9.12": {
@@ -61282,8 +60767,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1",
-        "size_bytes": 34110,
         "version": "0.9.12",
     },
     "password-hash-0.5.0": {
@@ -61404,8 +60887,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166",
-        "size_bytes": 26884,
         "version": "0.5.0",
     },
     "pbkdf2-0.13.0": {
@@ -61501,8 +60982,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "112d82ceb8c5bf524d9af484d4e4970c9fd5a0cc15ba14ad93dccd28873b0629",
-        "size_bytes": 22716,
         "version": "0.13.0",
     },
     "pem-rfc7468-0.7.0": {
@@ -61583,8 +61062,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412",
-        "size_bytes": 24159,
         "version": "0.7.0",
     },
     "pem-rfc7468-1.0.0": {
@@ -61666,8 +61143,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a6305423e0e7738146434843d1694d621cce767262b2a86910beab705e4493d9",
-        "size_bytes": 25267,
         "version": "1.0.0",
     },
     "percent-encoding-2.3.2": {
@@ -61741,8 +61216,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220",
-        "size_bytes": 11583,
         "version": "2.3.2",
     },
     "phf-0.13.1": {
@@ -61856,8 +61329,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf",
-        "size_bytes": 24786,
         "version": "0.13.1",
     },
     "phf_codegen-0.13.1": {
@@ -61888,8 +61359,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "49aa7f9d80421bca176ca8dbfebe668cc7a2684708594ec9f3c0db0805d5d6e1",
-        "size_bytes": 14774,
         "version": "0.13.1",
     },
     "phf_generator-0.13.1": {
@@ -61920,8 +61389,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "135ace3a761e564ec88c03a77317a7c6b80bb7f7135ef2544dbe054243b89737",
-        "size_bytes": 15952,
         "version": "0.13.1",
     },
     "phf_macros-0.13.1": {
@@ -61955,8 +61422,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "812f032b54b1e759ccd5f8b6677695d5268c588701effba24601f6932f8269ef",
-        "size_bytes": 21732,
         "version": "0.13.1",
     },
     "phf_shared-0.13.1": {
@@ -62058,8 +61523,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e57fef6bc5981e38c2ce2d63bfa546861309f875b8a75f092d1d54ae2d64f266",
-        "size_bytes": 16141,
         "version": "0.13.1",
     },
     "pico-args-0.5.0": {
@@ -62125,8 +61588,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315",
-        "size_bytes": 11545,
         "version": "0.5.0",
     },
     "pin-project-lite-0.2.17": {
@@ -62162,8 +61623,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd",
-        "size_bytes": 31034,
         "version": "0.2.17",
     },
     "piper-0.2.5": {
@@ -62212,8 +61671,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c835479a4443ded371d6c535cbfd8d31ad92c5d23ae9770a61bc155e4992a3c1",
-        "size_bytes": 23908,
         "version": "0.2.5",
     },
     "pkcs1-0.7.5": {
@@ -62336,8 +61793,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c8ffb9f10fa047879315e6625af03c164b16962a5368d724ed16323b68ace47f",
-        "size_bytes": 35790,
         "version": "0.7.5",
     },
     "pkcs12-0.2.0-pre.0": {
@@ -62482,8 +61937,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8059bd79345d1d1c125656025814704bab5cdd204b1cefd5fab59b0fdd7476d2",
-        "size_bytes": 71734,
         "version": "0.2.0-pre.0",
     },
     "pkcs5-0.8.1": {
@@ -62621,8 +62074,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "63d440a804ec8d6fafbb6b84471e013286658d373248927692ab3366686220ca",
-        "size_bytes": 49232,
         "version": "0.8.1",
     },
     "pkcs8-0.10.2": {
@@ -62724,8 +62175,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7",
-        "size_bytes": 26360,
         "version": "0.10.2",
     },
     "pkcs8-0.11.0": {
@@ -62793,8 +62242,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "451913da69c775a56034ea8d9003d27ee8948e12443eae7c038ba100a4f21cb7",
-        "size_bytes": 34863,
         "version": "0.11.0",
     },
     "pkg-config-0.3.33": {
@@ -62820,8 +62267,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e",
-        "size_bytes": 21590,
         "version": "0.3.33",
     },
     "png-0.18.1": {
@@ -62945,8 +62390,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "60769b8b31b2a9f263dae2776c37b1b28ae246943cf719eb6946a1db05128a61",
-        "size_bytes": 125800,
         "version": "0.18.1",
     },
     "polling-3.11.0": {
@@ -63017,8 +62460,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5d0e4f59085d47d8241c88ead0f274e8a0cb551f3625263c05eb8dd897c34218",
-        "size_bytes": 59387,
         "version": "3.11.0",
     },
     "pollster-0.4.0": {
@@ -63049,8 +62490,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3",
-        "size_bytes": 9840,
         "version": "0.4.0",
     },
     "poly1305-0.8.0": {
@@ -63142,8 +62581,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf",
-        "size_bytes": 32633,
         "version": "0.8.0",
     },
     "polycool-0.4.0": {
@@ -63246,8 +62683,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "50596ddc09eb5ad5f75cacd40209568e66df71baf86e1499a0e99c4cff12a5a6",
-        "size_bytes": 22738,
         "version": "0.4.0",
     },
     "polyval-0.7.3": {
@@ -63342,8 +62777,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f0fa31d631f2b2cb2a544d0aa321ce847a94764d701ca2becc411138b93d49cd",
-        "size_bytes": 26284,
         "version": "0.7.3",
     },
     "portable-pty-0.9.0": {
@@ -63481,8 +62914,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b4a596a2b3d2752d94f51fac2d4a96737b8705dddd311a32b9af47211f08671e",
-        "size_bytes": 29466,
         "version": "0.9.0",
     },
     "postcard-1.1.3": {
@@ -63674,8 +63105,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6764c3b5dd454e283a30e6dfe78e9b31096d9e32036b5d1eaac7a6119ccb9a24",
-        "size_bytes": 43968,
         "version": "1.1.3",
     },
     "potential_utf-0.1.5": {
@@ -63789,8 +63218,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0103b1cef7ec0cf76490e969665504990193874ea05c85ff9bab8b911d0a0564",
-        "size_bytes": 10189,
         "version": "0.1.5",
     },
     "powerfmt-0.2.0": {
@@ -63822,8 +63249,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391",
-        "size_bytes": 15165,
         "version": "0.2.0",
     },
     "ppv-lite86-0.2.21": {
@@ -63946,8 +63371,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9",
-        "size_bytes": 22522,
         "version": "0.2.21",
     },
     "presser-0.3.1": {
@@ -63978,8 +63401,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e8cf8e6a8aa66ce33f63993ffc4ea4271eb5b0530a9002db8455ea6050c77bfa",
-        "size_bytes": 20946,
         "version": "0.3.1",
     },
     "proc-macro-crate-3.5.0": {
@@ -64009,8 +63430,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e67ba7e9b2b56446f1d419b1d807906278ffa1a658a8a5d8a39dcb1f5a78614f",
-        "size_bytes": 12709,
         "version": "3.5.0",
     },
     "proc-macro2-1.0.106": {
@@ -64101,8 +63520,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934",
-        "size_bytes": 59765,
         "version": "1.0.106",
     },
     "profiling-1.0.18": {
@@ -64201,8 +63618,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3d595e54a326bc53c1c197b32d295e14b169e3cfeaa8dc82b529f947fba6bcf5",
-        "size_bytes": 11931,
         "version": "1.0.18",
     },
     "profiling-procmacros-1.0.18": {
@@ -64234,8 +63649,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4488a4a36b9a4ba6b9334a32a39971f77c1436ec82c38707bce707699cc3bbcb",
-        "size_bytes": 6333,
         "version": "1.0.18",
     },
     "pulley-interpreter-48.0.1": {
@@ -64379,8 +63792,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f755d75e0809a4738a3e4880eeeb852fadbe1de5a437505b84f09c381657012a",
-        "size_bytes": 66751,
         "version": "48.0.1",
     },
     "pulley-macros-48.0.1": {
@@ -64410,8 +63821,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c7e69fa1c4a555946f82e7894a7df88b0e9ee03b4266829b4811467c616ce51d",
-        "size_bytes": 2345,
         "version": "48.0.1",
     },
     "pulseaudio-0.3.1": {
@@ -64459,8 +63868,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d70623bd7967a9ca4c2ae0e807fc380b291f98480fc037042305ec643a4d3373",
-        "size_bytes": 781833,
         "version": "0.3.1",
     },
     "pxfm-0.1.29": {
@@ -64495,8 +63902,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e0c5ccf5294c6ccd63a74f1565028353830a9c2f5eb0c682c355c471726a6e3f",
-        "size_bytes": 879481,
         "version": "0.1.29",
     },
     "quick-error-2.0.1": {
@@ -64529,8 +63934,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3",
-        "size_bytes": 14265,
         "version": "2.0.1",
     },
     "quick-xml-0.39.4": {
@@ -64562,8 +63965,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cdcc8dd4e2f670d309a5f0e83fe36dfdc05af317008fea29144da1a2ac858e5e",
-        "size_bytes": 214141,
         "version": "0.39.4",
     },
     "quote-1.0.45": {
@@ -64654,8 +64055,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924",
-        "size_bytes": 31564,
         "version": "1.0.45",
     },
     "ra-ap-rustc_lexer-0.166.0": {
@@ -64729,8 +64128,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "527c12b3731b7d0692498012810b85b2b8dfdb8b514321ed6afc434bd1c70191",
-        "size_bytes": 14407,
         "version": "0.166.0",
     },
     "ra_ap_edition-0.0.351": {
@@ -64764,8 +64161,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "e7b7def8f7824aca5c7de77f53c384fe81d3f6ec46ebf4aa571b9f150404fa14",
-        "size_bytes": 2221,
         "version": "0.0.351",
     },
     "ra_ap_parser-0.0.351": {
@@ -64897,8 +64292,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "b47d3d6aeeccacda850ed07374b170a309d7960547b652befdb0b67934d7e963",
-        "size_bytes": 167640,
         "version": "0.0.351",
     },
     "ra_ap_stdx-0.0.351": {
@@ -64997,8 +64390,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "240b82a8cf926d56716dd37339e8751007665175f446027fe8e5d641b12eb0ea",
-        "size_bytes": 24708,
         "version": "0.0.351",
     },
     "ra_ap_syntax-0.0.351": {
@@ -65172,8 +64563,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "3f482b7dc99e305a4c1b04256e9d7c16f5bbd42f583136bc54a7aaa8e6f1ad84",
-        "size_bytes": 132372,
         "version": "0.0.351",
     },
     "rand-0.10.2": {
@@ -65304,8 +64693,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80",
-        "size_bytes": 104493,
         "version": "0.10.2",
     },
     "rand-0.8.6": {
@@ -65456,8 +64843,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a",
-        "size_bytes": 83339,
         "version": "0.8.6",
     },
     "rand-0.9.4": {
@@ -65642,8 +65027,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "44c5af06bb1b7d3216d91932aed5265164bf384dc89cd6ba05cf59a35f5f76ea",
-        "size_bytes": 99786,
         "version": "0.9.4",
     },
     "rand_chacha-0.3.1": {
@@ -65740,8 +65123,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88",
-        "size_bytes": 15251,
         "version": "0.3.1",
     },
     "rand_chacha-0.9.0": {
@@ -65875,8 +65256,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb",
-        "size_bytes": 18258,
         "version": "0.9.0",
     },
     "rand_core-0.10.1": {
@@ -65909,8 +65288,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69",
-        "size_bytes": 22833,
         "version": "0.10.1",
     },
     "rand_core-0.6.4": {
@@ -66031,8 +65408,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c",
-        "size_bytes": 22666,
         "version": "0.6.4",
     },
     "rand_core-0.9.5": {
@@ -66153,8 +65528,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c",
-        "size_bytes": 24129,
         "version": "0.9.5",
     },
     "range-alloc-0.1.5": {
@@ -66181,8 +65554,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ca45419789ae5a7899559e9512e58ca889e41f04f1f2445e9f4b290ceccd1d08",
-        "size_bytes": 11163,
         "version": "0.1.5",
     },
     "raw-window-handle-0.6.2": {
@@ -66272,8 +65643,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539",
-        "size_bytes": 20234,
         "version": "0.6.2",
     },
     "raw-window-metal-1.1.0": {
@@ -66323,8 +65692,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "40d213455a5f1dc59214213c7330e074ddf8114c9a42411eb890c767357ce135",
-        "size_bytes": 15277,
         "version": "1.1.0",
     },
     "rayon-1.12.0": {
@@ -66390,8 +65757,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d",
-        "size_bytes": 183391,
         "version": "1.12.0",
     },
     "rayon-core-1.13.0": {
@@ -66461,8 +65826,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91",
-        "size_bytes": 73151,
         "version": "1.13.0",
     },
     "rc2-0.9.0": {
@@ -66522,8 +65885,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ceda21af1ae61033b63175653a1af86cae399d79cd03ca80ba347eb3a6c4a7fe",
-        "size_bytes": 11296,
         "version": "0.9.0",
     },
     "read-fonts-0.41.0": {
@@ -66624,8 +65985,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "046a7d674daf459825b32f5062056d6882db0d2f5a479fbd76ccfc870ac18709",
-        "size_bytes": 567271,
         "version": "0.41.0",
     },
     "regalloc2-0.15.2": {
@@ -66778,8 +66137,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "757712e8e61590d6d4f5d563483755538b5aa13467837a3b41cd9832509a7f85",
-        "size_bytes": 150949,
         "version": "0.15.2",
     },
     "regex-1.13.1": {
@@ -67091,8 +66448,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d",
-        "size_bytes": 157118,
         "version": "1.13.1",
     },
     "regex-automata-0.4.16": {
@@ -67489,8 +66844,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8fcfdb36bda0c880c5931cdc7a2bcdc8ba4556847b9d912bca70bc94708711ad",
-        "size_bytes": 627556,
         "version": "0.4.16",
     },
     "regex-syntax-0.8.11": {
@@ -67659,8 +67012,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4",
-        "size_bytes": 359055,
         "version": "0.8.11",
     },
     "renderdoc-sys-1.1.0": {
@@ -67690,8 +67041,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832",
-        "size_bytes": 10366,
         "version": "1.1.0",
     },
     "resvg-0.48.1": {
@@ -67820,8 +67169,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "67e3803f97b999e80cbf7c6ecdd07a8102204d92e1633cf48783720c521196bd",
-        "size_bytes": 78696,
         "version": "0.48.1",
     },
     "rfd-0.15.4": {
@@ -67918,8 +67265,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ef2bee61e6cffa4635c72d7d81a84294e28f0930db0ddcb0f66d10244674ebed",
-        "size_bytes": 56785,
         "version": "0.15.4",
     },
     "rgb-0.8.53": {
@@ -68029,8 +67374,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4",
-        "size_bytes": 18607,
         "version": "0.8.53",
     },
     "ring-0.17.14": {
@@ -68161,8 +67504,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7",
-        "size_bytes": 1502610,
         "version": "0.17.14",
     },
     "rodio-0.20.1": {
@@ -68332,8 +67673,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e7ceb6607dd738c99bc8cb28eff249b7cd5c8ec88b9db96c0608c1480d140fb1",
-        "size_bytes": 90390,
         "version": "0.20.1",
     },
     "rowan-0.17.0": {
@@ -68423,8 +67762,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "14b574c58582fa59fa43a2feb6608b8744184659f08a2e0117e4b8224d95ed61",
-        "size_bytes": 36120,
         "version": "0.17.0",
     },
     "roxmltree-0.20.0": {
@@ -68463,8 +67800,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97",
-        "size_bytes": 54594,
         "version": "0.20.0",
     },
     "roxmltree-0.21.1": {
@@ -68559,8 +67894,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb",
-        "size_bytes": 56837,
         "version": "0.21.1",
     },
     "rsa-0.9.10": {
@@ -68777,8 +68110,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "b8573f03f5883dcaebdfcf4725caa1ecb9c15b2ef50c43a07b816e06799bb12d",
-        "size_bytes": 86417,
         "version": "0.9.10",
     },
     "rusqlite-0.32.1": {
@@ -68928,8 +68259,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7753b721174eb8ff87a9a0e799e2d7bc3749323e773db92e0984debb00019d6e",
-        "size_bytes": 155563,
         "version": "0.32.1",
     },
     "rustc-demangle-0.1.28": {
@@ -68989,8 +68318,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b74b56ffa8bb2830709a538c2cbcae9aa062db0d2a42563bfb09bdaae44020eb",
-        "size_bytes": 30857,
         "version": "0.1.28",
     },
     "rustc-hash-1.1.0": {
@@ -69058,8 +68385,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2",
-        "size_bytes": 9331,
         "version": "1.1.0",
     },
     "rustc-hash-2.1.2": {
@@ -69126,8 +68451,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "94300abf3f1ae2e2b8ffb7b58043de3d399c73fa6f4b73826402a5c457614dbe",
-        "size_bytes": 14754,
         "version": "2.1.2",
     },
     "rustc-literal-escaper-0.0.7": {
@@ -69161,8 +68484,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "8be87abb9e40db7466e0681dc8ecd9dcfd40360cb10b4c8fe24a7c4c3669b198",
-        "size_bytes": 14206,
         "version": "0.0.7",
     },
     "rustc_version-0.4.1": {
@@ -69191,8 +68512,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92",
-        "size_bytes": 12245,
         "version": "0.4.1",
     },
     "rusticata-macros-4.1.0": {
@@ -69252,8 +68571,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "faf0c4a6ece9950b9abdb62b1cfcf2a68b3b67a10ba445b3bb85be2a293d0632",
-        "size_bytes": 11746,
         "version": "4.1.0",
     },
     "rustix-0.38.44": {
@@ -69402,8 +68719,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "fdb5bc1ae2baa591800df16c9ca78619bf65c0488b41b96ccec5d11220d8c154",
-        "size_bytes": 379347,
         "version": "0.38.44",
     },
     "rustix-1.1.4": {
@@ -69599,8 +68914,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190",
-        "size_bytes": 425241,
         "version": "1.1.4",
     },
     "rustix-linux-procfs-0.1.1": {
@@ -69655,8 +68968,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2fc84bf7e9aa16c4f2c758f27412dc9841341e16aa682d9c7ac308fe3ee12056",
-        "size_bytes": 17465,
         "version": "0.1.1",
     },
     "rustls-0.23.43": {
@@ -69844,8 +69155,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0283386ce02abc0151e1761d08802dfe86c173b0b494af5cbc086574e453da06",
-        "size_bytes": 375868,
         "version": "0.23.43",
     },
     "rustls-pki-types-1.15.1": {
@@ -69950,8 +69259,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96",
-        "size_bytes": 39322,
         "version": "1.15.1",
     },
     "rustls-webpki-0.103.13": {
@@ -70087,8 +69394,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e",
-        "size_bytes": 87513,
         "version": "0.103.13",
     },
     "rustversion-1.0.22": {
@@ -70117,8 +69422,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d",
-        "size_bytes": 21096,
         "version": "1.0.22",
     },
     "salsa20-0.11.0": {
@@ -70185,8 +69488,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2f874456e72520ff1375a06c588eaf074b0f01f9e9e1aada45bd9b7954a6e42c",
-        "size_bytes": 44952,
         "version": "0.11.0",
     },
     "same-file-1.0.6": {
@@ -70226,8 +69527,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502",
-        "size_bytes": 10183,
         "version": "1.0.6",
     },
     "scoped-tls-1.0.1": {
@@ -70255,8 +69554,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e1cf6437eb19a8f4a6cc0f7dca544973b0b78843adbfeb3683d1a94a0024a294",
-        "size_bytes": 8202,
         "version": "1.0.1",
     },
     "scopeguard-1.2.0": {
@@ -70325,8 +69622,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49",
-        "size_bytes": 11619,
         "version": "1.2.0",
     },
     "scrypt-0.12.0": {
@@ -70408,8 +69703,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d87af57419b594aa23fa95f09f0e06d80d84ba01c26148c43844cad6ff4485f0",
-        "size_bytes": 24752,
         "version": "0.12.0",
     },
     "sctk-adwaita-0.12.0": {
@@ -70459,8 +69752,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1f8ea028b7cb32e2f577b0a55a7b54cb206376bdb1221bd5c81dcf20b68db1fb",
-        "size_bytes": 63639,
         "version": "0.12.0",
     },
     "semver-1.0.28": {
@@ -70549,8 +69840,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd",
-        "size_bytes": 33064,
         "version": "1.0.28",
     },
     "serde-1.0.228": {
@@ -70747,8 +70036,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e",
-        "size_bytes": 83652,
         "version": "1.0.228",
     },
     "serde_bytes-0.11.19": {
@@ -70881,8 +70168,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a5d440709e79d88e51ac01c4b72fc6cb7314017bb7da9eeff678aa94c10e3ea8",
-        "size_bytes": 13427,
         "version": "0.11.19",
     },
     "serde_core-1.0.228": {
@@ -71007,8 +70292,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad",
-        "size_bytes": 63111,
         "version": "1.0.228",
     },
     "serde_derive-1.0.228": {
@@ -71044,8 +70327,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79",
-        "size_bytes": 59605,
         "version": "1.0.228",
     },
     "serde_json-1.0.150": {
@@ -71220,8 +70501,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9",
-        "size_bytes": 155574,
         "version": "1.0.150",
     },
     "serde_repr-0.1.21": {
@@ -71253,8 +70532,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8d3b1629de253c70a0508c3899572da79ca359fdab27c7920ff00406df418906",
-        "size_bytes": 12412,
         "version": "0.1.21",
     },
     "serde_spanned-1.1.1": {
@@ -71368,8 +70645,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6662b5879511e06e8999a8a235d848113e942c9124f211511b16466ee2995f26",
-        "size_bytes": 11025,
         "version": "1.1.1",
     },
     "serial2-0.2.38": {
@@ -71433,8 +70708,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b16809bc35793b19ce4e0c53924bc0dce3937f15487997cfdaed936004180730",
-        "size_bytes": 36487,
         "version": "0.2.38",
     },
     "sha1-0.10.6": {
@@ -71546,8 +70819,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba",
-        "size_bytes": 13517,
         "version": "0.10.6",
     },
     "sha1-0.11.0": {
@@ -71656,8 +70927,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "aacc4cc499359472b4abe1bf11d0b12e688af9a805fa5e3016f9a386dc2d0214",
-        "size_bytes": 15458,
         "version": "0.11.0",
     },
     "sha2-0.10.9": {
@@ -71809,8 +71078,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283",
-        "size_bytes": 29271,
         "version": "0.10.9",
     },
     "sha2-0.11.1": {
@@ -71922,8 +71189,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "47d7069beb7d6ac7b9acd1039986e73443f24234f41074da099d6f994ac9ad19",
-        "size_bytes": 32748,
         "version": "0.11.1",
     },
     "sharded-slab-0.1.7": {
@@ -71989,8 +71254,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6",
-        "size_bytes": 58227,
         "version": "0.1.7",
     },
     "shared_library-0.1.9": {
@@ -72025,8 +71288,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5a9e7e0f2bfae24d8a5b5a66c5b257a83c7412304311512a0c054cd5e619da11",
-        "size_bytes": 10566,
         "version": "0.1.9",
     },
     "shell-words-1.1.1": {
@@ -72092,8 +71353,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "dc6fe69c597f9c37bfeeeeeb33da3530379845f10be461a66d16d03eca2ded77",
-        "size_bytes": 10012,
         "version": "1.1.1",
     },
     "shlex-1.3.0": {
@@ -72124,8 +71383,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64",
-        "size_bytes": 18713,
         "version": "1.3.0",
     },
     "shlex-2.0.1": {
@@ -72156,8 +71413,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba",
-        "size_bytes": 19332,
         "version": "2.0.1",
     },
     "signal-hook-registry-1.4.8": {
@@ -72218,8 +71473,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b",
-        "size_bytes": 21668,
         "version": "1.4.8",
     },
     "signature-2.2.0": {
@@ -72340,8 +71593,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de",
-        "size_bytes": 15531,
         "version": "2.2.0",
     },
     "simd-adler32-0.3.9": {
@@ -72442,8 +71693,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "703d5c7ef118737c72f1af64ad2f6f8c5e1921f818cdcb97b8fe6fc69bf66214",
-        "size_bytes": 18572,
         "version": "0.3.9",
     },
     "simd_cesu8-1.1.1": {
@@ -72487,8 +71736,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "94f90157bb87cddf702797c5dadfa0be7d266cdf49e22da2fcaa32eff75b2c33",
-        "size_bytes": 319542,
         "version": "1.1.1",
     },
     "simdutf8-0.1.5": {
@@ -72523,8 +71770,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e",
-        "size_bytes": 28488,
         "version": "0.1.5",
     },
     "similar-3.1.1": {
@@ -72633,8 +71878,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e6505efef05804732ed8a3f2d4f279429eb485bd69d5b0cc6b19cc02005cda16",
-        "size_bytes": 79833,
         "version": "3.1.1",
     },
     "simplecss-0.2.2": {
@@ -72721,8 +71964,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7a9c6883ca9c3c7c90e888de77b7a5c849c779d25d74a1269b0218b14e8b136c",
-        "size_bytes": 22136,
         "version": "0.2.2",
     },
     "siphasher-1.0.3": {
@@ -72813,8 +72054,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649",
-        "size_bytes": 11643,
         "version": "1.0.3",
     },
     "skrifa-0.44.0": {
@@ -72901,8 +72140,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "819ab7d62b1d3e72d9d9dea5650bac30424f9111364bb94928dbf5ecad1baa68",
-        "size_bytes": 299025,
         "version": "0.44.0",
     },
     "slab-0.4.12": {
@@ -72994,8 +72231,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5",
-        "size_bytes": 19080,
         "version": "0.4.12",
     },
     "slotmap-1.1.1": {
@@ -73045,8 +72280,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bdd58c3c93c3d278ca835519292445cb4b0d4dc59ccfdf7ceadaab3f8aeb4038",
-        "size_bytes": 61862,
         "version": "1.1.1",
     },
     "smallvec-1.15.1": {
@@ -73166,8 +72399,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03",
-        "size_bytes": 38116,
         "version": "1.15.1",
     },
     "smithay-0.7.0": {
@@ -73655,8 +72886,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "740cea6927892bc182d5bf70c8f79806c8bc9f68f2fb96e55a30be171b63af98",
-        "size_bytes": 708976,
         "version": "0.7.0",
     },
     "smithay-client-toolkit-0.21.1": {
@@ -73734,8 +72963,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "74dc9ee14b0fdcb535f9556141bacac070c994a977d2240ee455d7438a617f00",
-        "size_bytes": 145643,
         "version": "0.21.1",
     },
     "smol_str-0.3.6": {
@@ -73802,8 +73029,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4aaa7368fcf4852a4c2dd92df0cace6a71f2091ca0a23391ce7f3a31833f1523",
-        "size_bytes": 26335,
         "version": "0.3.6",
     },
     "socket2-0.6.4": {
@@ -73893,8 +73118,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51",
-        "size_bytes": 59888,
         "version": "0.6.4",
     },
     "spake2-0.4.0": {
@@ -74028,8 +73251,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c5482afe85a0b6ce956c945401598dbc527593c77ba51d0a87a586938b1b893a",
-        "size_bytes": 18711,
         "version": "0.4.0",
     },
     "spin-0.9.9": {
@@ -74165,8 +73386,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e",
-        "size_bytes": 39817,
         "version": "0.9.9",
     },
     "spirv-0.4.0+sdk-1.4.341.0": {
@@ -74215,8 +73434,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d9571ea910ebd84c86af4b3ed27f9dbdc6ad06f17c5f96146b2b671e2976744f",
-        "size_bytes": 41285,
         "version": "0.4.0+sdk-1.4.341.0",
     },
     "spki-0.7.3": {
@@ -74311,8 +73528,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d",
-        "size_bytes": 16409,
         "version": "0.7.3",
     },
     "spki-0.8.1": {
@@ -74401,8 +73616,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7ef958a98b9d5da290cfc78946e9f3e61e1e62a18db0d92cac0b83cc161491a9",
-        "size_bytes": 20374,
         "version": "0.8.1",
     },
     "stable_deref_trait-1.2.1": {
@@ -74438,8 +73651,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596",
-        "size_bytes": 8186,
         "version": "1.2.1",
     },
     "static_assertions-1.1.0": {
@@ -74474,8 +73685,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f",
-        "size_bytes": 18480,
         "version": "1.1.0",
     },
     "streaming-iterator-0.1.9": {
@@ -74511,8 +73720,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2b2231b7c3057d5e4ad0156fb3dc807d900806020c5ffa3ee6ff2c8c76fb8520",
-        "size_bytes": 18482,
         "version": "0.1.9",
     },
     "strict-num-0.1.1": {
@@ -74606,8 +73813,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6637bab7722d379c8b41ba849228d680cc12d0a45ba1fa2b48f2a30577a06731",
-        "size_bytes": 5104,
         "version": "0.1.1",
     },
     "subtle-2.6.1": {
@@ -74642,8 +73847,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292",
-        "size_bytes": 14562,
         "version": "2.6.1",
     },
     "svgtypes-0.16.1": {
@@ -74737,8 +73940,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "695b5790b3131dafa99b3bbfd25a216edb3d216dad9ca208d4657bfb8f2abc3d",
-        "size_bytes": 45181,
         "version": "0.16.1",
     },
     "symphonia-0.5.5": {
@@ -74848,8 +74049,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5773a4c030a19d9bfaa090f49746ff35c75dfddfa700df7a5939d5e076a57039",
-        "size_bytes": 12085,
         "version": "0.5.5",
     },
     "symphonia-bundle-mp3-0.5.5": {
@@ -74952,8 +74151,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4872dd6bb56bf5eac799e3e957aa1981086c3e613b27e0ac23b176054f7c57ed",
-        "size_bytes": 61019,
         "version": "0.5.5",
     },
     "symphonia-core-0.5.5": {
@@ -75063,8 +74260,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ea00cc4f79b7f6bb7ff87eddc065a1066f3a43fe1875979056672c9ef948c2af",
-        "size_bytes": 99682,
         "version": "0.5.5",
     },
     "symphonia-metadata-0.5.5": {
@@ -75146,8 +74341,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "36306ff42b9ffe6e5afc99d49e121e0bd62fe79b9db7b9681d48e29fa19e6b16",
-        "size_bytes": 24184,
         "version": "0.5.5",
     },
     "syn-1.0.109": {
@@ -75194,8 +74387,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237",
-        "size_bytes": 237611,
         "version": "1.0.109",
     },
     "syn-2.0.117": {
@@ -75342,8 +74533,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e665b8803e7b1d2a727f4023456bbbbe74da67099c585258af0ad9c5013b9b99",
-        "size_bytes": 306011,
         "version": "2.0.117",
     },
     "syn-3.0.3": {
@@ -75388,8 +74577,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3",
-        "size_bytes": 312999,
         "version": "3.0.3",
     },
     "synstructure-0.12.6": {
@@ -75425,8 +74612,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f36bdaa60a83aca3921b5259d5400cbf5e90fc51931376a9bd4a0eb79aa7210f",
-        "size_bytes": 18429,
         "version": "0.12.6",
     },
     "synstructure-0.13.2": {
@@ -75461,8 +74646,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2",
-        "size_bytes": 18950,
         "version": "0.13.2",
     },
     "synstructure-0.14.0": {
@@ -75498,8 +74681,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "901704edd0dfe137f1987838ee4f259e4e063c31371bdb423f7ae38ec6f77f02",
-        "size_bytes": 19010,
         "version": "0.14.0",
     },
     "target-lexicon-0.13.5": {
@@ -75561,8 +74742,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca",
-        "size_bytes": 26928,
         "version": "0.13.5",
     },
     "tempfile-3.27.0": {
@@ -75672,8 +74851,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd",
-        "size_bytes": 44780,
         "version": "3.27.0",
     },
     "termcolor-1.4.1": {
@@ -75713,8 +74890,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755",
-        "size_bytes": 18773,
         "version": "1.4.1",
     },
     "text-size-1.1.1": {
@@ -75748,8 +74923,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "f18aa187839b2bdb1ad2fa35ead8c4c2976b64e4363c386d45ac0f7ee85c9233",
-        "size_bytes": 12553,
         "version": "1.1.1",
     },
     "thiserror-1.0.69": {
@@ -75817,8 +74990,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52",
-        "size_bytes": 22198,
         "version": "1.0.69",
     },
     "thiserror-2.0.18": {
@@ -75934,8 +75105,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4",
-        "size_bytes": 28875,
         "version": "2.0.18",
     },
     "thiserror-impl-1.0.69": {
@@ -75966,8 +75135,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1",
-        "size_bytes": 18365,
         "version": "1.0.69",
     },
     "thiserror-impl-2.0.18": {
@@ -75998,8 +75165,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5",
-        "size_bytes": 21413,
         "version": "2.0.18",
     },
     "thread_local-1.1.10": {
@@ -76064,8 +75229,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1ad99c4c6d32803332c548b1af0540b357b3f5fc0be8f6c6bfe8b2e6ae784070",
-        "size_bytes": 16361,
         "version": "1.1.10",
     },
     "thumbhash-0.1.0": {
@@ -76099,8 +75262,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8b7726e0245a7331bd0c9a1fb4fd99fd695bcd478ca569f0eda2ff2cb14e7a00",
-        "size_bytes": 3809,
         "version": "0.1.0",
     },
     "tiff-0.11.3": {
@@ -76296,8 +75457,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b63feaf3343d35b6ca4d50483f94843803b0f51634937cc2ec519fc32232bc52",
-        "size_bytes": 102026,
         "version": "0.11.3",
     },
     "time-0.3.54": {
@@ -76442,8 +75601,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3e1d5e639ff6bab73cb6885cc7e7b1de96c3f32c68ec55f3952614bec1092244",
-        "size_bytes": 279146,
         "version": "0.3.54",
     },
     "time-core-0.1.9": {
@@ -76474,8 +75631,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109",
-        "size_bytes": 10320,
         "version": "0.1.9",
     },
     "time-macros-0.2.32": {
@@ -76509,8 +75664,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7e689342a48d2ea927c87ea50cabf8594854bf940e9310208848d680d668ed85",
-        "size_bytes": 33664,
         "version": "0.2.32",
     },
     "tiny-skia-0.12.0": {
@@ -76653,8 +75806,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "47ffee5eaaf5527f630fb0e356b90ebdec84d5d18d937c5e440350f88c5a91ea",
-        "size_bytes": 268071,
         "version": "0.12.0",
     },
     "tiny-skia-path-0.12.0": {
@@ -76755,8 +75906,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "edca365c3faccca67d06593c5980fa6c57687de727a03131735bb85f01fdeeb9",
-        "size_bytes": 49022,
         "version": "0.12.0",
     },
     "tinystr-0.8.5": {
@@ -76880,8 +76029,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "abc840c238154d58f9e86b2792261edfde565a17696e1cda1a449de27979801a",
-        "size_bytes": 25049,
         "version": "0.8.5",
     },
     "tinyvec-1.12.0": {
@@ -76995,8 +76142,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bb4ebadaa0af04fab11ae01eb5f9fdb5f9c5b875506e210e71c07873528baa7f",
-        "size_bytes": 56568,
         "version": "1.12.0",
     },
     "tinyvec_macros-0.1.1": {
@@ -77028,8 +76173,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20",
-        "size_bytes": 5865,
         "version": "0.1.1",
     },
     "tokio-1.52.3": {
@@ -77302,8 +76445,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8fc7f01b389ac15039e4dc9531aa973a135d7a4135281b12d7c1bc79fd57fffe",
-        "size_bytes": 901393,
         "version": "1.52.3",
     },
     "tokio-macros-2.7.0": {
@@ -77336,8 +76477,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "385a6cb71ab9ab790c5fe8d67f1645e6c450a7ce006a33de03daa956cf70a496",
-        "size_bytes": 15859,
         "version": "2.7.0",
     },
     "tokio-rustls-0.26.4": {
@@ -77439,8 +76578,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1729aa945f29d91ba541258c8df89027d5792d85a8841fb65e8bf0f4ede4ef61",
-        "size_bytes": 35430,
         "version": "0.26.4",
     },
     "tokio-tungstenite-0.23.1": {
@@ -77651,8 +76788,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "c6989540ced10490aaf14e6bad2e3d33728a2813310a0c71d1574304c49631cd",
-        "size_bytes": 28371,
         "version": "0.23.1",
     },
     "toml-0.9.12+spec-1.1.0": {
@@ -77829,8 +76964,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cf92845e79fc2e2def6a5d828f0801e29a2f8acc037becc5ab08595c7d5e9863",
-        "size_bytes": 56485,
         "version": "0.9.12+spec-1.1.0",
     },
     "toml_datetime-0.7.5+spec-1.1.0": {
@@ -77944,8 +77077,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347",
-        "size_bytes": 17975,
         "version": "0.7.5+spec-1.1.0",
     },
     "toml_datetime-1.1.1+spec-1.1.0": {
@@ -78032,8 +77163,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3165f65f62e28e0115a00b2ebdd37eb6f3b641855f9d636d3cd4103767159ad7",
-        "size_bytes": 17982,
         "version": "1.1.1+spec-1.1.0",
     },
     "toml_edit-0.25.12+spec-1.1.0": {
@@ -78183,8 +77312,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d2153edc6955a6c354fad8f5efd38b6a8769bdccf9fe50f8e1329f81b0baa5d7",
-        "size_bytes": 68620,
         "version": "0.25.12+spec-1.1.0",
     },
     "toml_parser-1.1.3+spec-1.1.0": {
@@ -78298,8 +77425,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1d38ac1cf9b95face32296c0a3ede1fdc270627c9d9c02a7274dd6d960dc4d56",
-        "size_bytes": 35888,
         "version": "1.1.3+spec-1.1.0",
     },
     "toml_writer-1.1.2+spec-1.1.0": {
@@ -78386,8 +77511,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2",
-        "size_bytes": 18968,
         "version": "1.1.2+spec-1.1.0",
     },
     "tracing-0.1.44": {
@@ -78531,8 +77654,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100",
-        "size_bytes": 463135,
         "version": "0.1.44",
     },
     "tracing-attributes-0.1.31": {
@@ -78565,8 +77686,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da",
-        "size_bytes": 39733,
         "version": "0.1.31",
     },
     "tracing-core-0.1.36": {
@@ -78672,8 +77791,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a",
-        "size_bytes": 63967,
         "version": "0.1.36",
     },
     "tracing-log-0.2.0": {
@@ -78787,8 +77904,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3",
-        "size_bytes": 17561,
         "version": "0.2.0",
     },
     "tracing-subscriber-0.3.23": {
@@ -79062,8 +78177,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319",
-        "size_bytes": 213773,
         "version": "0.3.23",
     },
     "tree-sitter-0.26.11": {
@@ -79229,8 +78342,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "af1c71c1c4cc0920b20d6b0f6572e7682cd07a6a2faec71067a31fa394c586df",
-        "size_bytes": 201790,
         "version": "0.26.11",
     },
     "tree-sitter-language-0.1.7": {
@@ -79271,8 +78382,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "009994f150cc0cd50ff54917d5bc8bffe8cad10ca10d81c34da2ec421ae61782",
-        "size_bytes": 7945,
         "version": "0.1.7",
     },
     "tree-sitter-md-0.5.3": {
@@ -79401,8 +78510,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2efd398be546456c814598ee56c0f51769a77241511b4a58077815d120afa882",
-        "size_bytes": 324966,
         "version": "0.5.3",
     },
     "tree-sitter-rust-0.24.2": {
@@ -79487,8 +78594,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "439e577dbe07423ec2582ac62c7531120dbfccfa6e5f92406f93dd271a120e45",
-        "size_bytes": 368844,
         "version": "0.24.2",
     },
     "tree-sitter-zig-1.1.2": {
@@ -79573,8 +78678,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ab11fc124851b0db4dd5e55983bbd9631192e93238389dcd44521715e5d53e28",
-        "size_bytes": 212493,
         "version": "1.1.2",
     },
     "triomphe-0.1.16": {
@@ -79634,8 +78737,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b40688ea6389c8171614b25491f71d4a27946e0c7ce2da1c6de27e25abf1a0ae",
-        "size_bytes": 37467,
         "version": "0.1.16",
     },
     "ttf-parser-0.25.1": {
@@ -79742,8 +78843,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31",
-        "size_bytes": 201121,
         "version": "0.25.1",
     },
     "tungstenite-0.23.0": {
@@ -79975,8 +79074,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "6e2e2ce1e47ed2994fd43b04c8f618008d4cabdd5ee34027cf14f9d918edd9c8",
-        "size_bytes": 61196,
         "version": "0.23.0",
     },
     "typed-arena-2.0.2": {
@@ -80042,8 +79139,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6af6ae20167a9ece4bcb41af5b80f8a1f1df981f6391189ce00fd257af04126a",
-        "size_bytes": 11848,
         "version": "2.0.2",
     },
     "typed-path-0.12.3": {
@@ -80111,8 +79206,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8e28f89b80c87b8fb0cf04ab448d5dd0dd0ade2f8891bae878de66a75a28600e",
-        "size_bytes": 112964,
         "version": "0.12.3",
     },
     "typenum-1.20.1": {
@@ -80175,8 +79268,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20",
-        "size_bytes": 105479,
         "version": "1.20.1",
     },
     "udev-0.9.3": {
@@ -80250,8 +79341,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "af4e37e9ea4401fc841ff54b9ddfc9be1079b1e89434c1a6a865dd68980f7e9f",
-        "size_bytes": 21737,
         "version": "0.9.3",
     },
     "unicode-bidi-0.3.18": {
@@ -80325,8 +79414,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5",
-        "size_bytes": 58300,
         "version": "0.3.18",
     },
     "unicode-ident-1.0.24": {
@@ -80362,8 +79449,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75",
-        "size_bytes": 49298,
         "version": "1.0.24",
     },
     "unicode-normalization-0.1.25": {
@@ -80468,8 +79553,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8",
-        "size_bytes": 128462,
         "version": "0.1.25",
     },
     "unicode-properties-0.1.4": {
@@ -80529,8 +79612,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7df058c713841ad818f1dc5d3fd88063241cc61f49f5fbea4b951e8cf5a8d71d",
-        "size_bytes": 42752,
         "version": "0.1.4",
     },
     "unicode-script-0.5.8": {
@@ -80564,8 +79645,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "383ad40bb927465ec0ce7720e033cb4ca06912855fc35db31b5755d0de75b1ee",
-        "size_bytes": 48253,
         "version": "0.5.8",
     },
     "unicode-segmentation-1.13.3": {
@@ -80593,8 +79672,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8",
-        "size_bytes": 112325,
         "version": "1.13.3",
     },
     "unicode-vo-0.1.0": {
@@ -80625,8 +79702,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b1d386ff53b415b7fe27b50bb44679e2cc4660272694b7b6f3326d8480823a94",
-        "size_bytes": 8084,
         "version": "0.1.0",
     },
     "unicode-width-0.2.2": {
@@ -80706,8 +79781,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254",
-        "size_bytes": 282768,
         "version": "0.2.2",
     },
     "unicode-xid-0.2.6": {
@@ -80738,8 +79811,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853",
-        "size_bytes": 15744,
         "version": "0.2.6",
     },
     "universal-hash-0.5.1": {
@@ -80827,8 +79898,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea",
-        "size_bytes": 9146,
         "version": "0.5.1",
     },
     "universal-hash-0.6.1": {
@@ -80912,8 +79981,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "f4987bdc12753382e0bec4a65c50738ffaabc998b9cdd1f952fb5f39b0048a96",
-        "size_bytes": 9478,
         "version": "0.6.1",
     },
     "untrusted-0.9.0": {
@@ -80945,8 +80012,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1",
-        "size_bytes": 14447,
         "version": "0.9.0",
     },
     "ureq-2.12.1": {
@@ -81131,8 +80196,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d",
-        "size_bytes": 115366,
         "version": "2.12.1",
     },
     "url-2.5.8": {
@@ -81251,8 +80314,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed",
-        "size_bytes": 86512,
         "version": "2.5.8",
     },
     "usvg-0.48.1": {
@@ -81528,8 +80589,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91",
-        "size_bytes": 146652,
         "version": "0.48.1",
     },
     "utf-8-0.7.6": {
@@ -81561,8 +80620,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9",
-        "size_bytes": 10422,
         "version": "0.7.6",
     },
     "utf8_iter-1.0.4": {
@@ -81598,8 +80655,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be",
-        "size_bytes": 10437,
         "version": "1.0.4",
     },
     "uuid-1.23.2": {
@@ -81789,8 +80844,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d258b83ceec21034727ecee8c382cfa6c3e133699b0742c64571814fb420c9f7",
-        "size_bytes": 63572,
         "version": "1.23.2",
     },
     "uuid-rng-internal-1.29.0": {
@@ -81821,8 +80874,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cdf60f3d36825d0911af7e102da39cc817280560cad48e81df1eb5c4d7400f76",
-        "size_bytes": 1826,
         "version": "1.29.0",
     },
     "vcpkg-0.2.15": {
@@ -81847,8 +80898,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426",
-        "size_bytes": 228735,
         "version": "0.2.15",
     },
     "version_check-0.9.5": {
@@ -81873,8 +80922,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a",
-        "size_bytes": 15554,
         "version": "0.9.5",
     },
     "walkdir-2.5.0": {
@@ -81936,8 +80983,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b",
-        "size_bytes": 23951,
         "version": "2.5.0",
     },
     "wasi-0.11.1+wasi-snapshot-preview1": {
@@ -81963,8 +81008,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b",
-        "size_bytes": 28477,
         "version": "0.11.1+wasi-snapshot-preview1",
     },
     "wasm-bindgen-0.2.122": {
@@ -82044,8 +81087,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3ed04576f974d2b2fba0f38c51dbc5518011e38c36bf1143164be765528fd409",
-        "size_bytes": 66786,
         "version": "0.2.122",
     },
     "wasm-bindgen-futures-0.4.72": {
@@ -82101,8 +81142,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9473dbd2991ae90b6291c3c32c30c6187ac49aa32f9905d1cce280ec1e110b0f",
-        "size_bytes": 8241,
         "version": "0.4.72",
     },
     "wasm-bindgen-macro-0.2.122": {
@@ -82134,8 +81173,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "916151b09da36bd82f6615cbf3a419e2f0ba23a03c6160e8e92eb6bd4aa1dec6",
-        "size_bytes": 9295,
         "version": "0.2.122",
     },
     "wasm-bindgen-macro-support-0.2.122": {
@@ -82169,8 +81206,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "299047362ccbfce148b67ab7e73349f77748e00c8296f9542adfad2ad82c5c5e",
-        "size_bytes": 82378,
         "version": "0.2.122",
     },
     "wasm-bindgen-shared-0.2.122": {
@@ -82224,8 +81259,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9a929b2c61f11ba3e9bc35b50c1f25cb38e0e892c0c231ae2b8cf78d5dad4437",
-        "size_bytes": 11275,
         "version": "0.2.122",
     },
     "wasm-encoder-0.254.0": {
@@ -82323,8 +81356,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "09480d646178e5fdd12bb06e812d0af9a3a191dbc9cd697fdc86687beade7393",
-        "size_bytes": 91925,
         "version": "0.254.0",
     },
     "wasm-encoder-0.257.1": {
@@ -82413,8 +81444,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7d8ad9f0a39050867bda22e6486c316e2e52d20a42154d5bc433934bf738d085",
-        "size_bytes": 92126,
         "version": "0.257.1",
     },
     "wasm-metadata-0.254.0": {
@@ -82446,8 +81475,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b01df5f3b4ca7881e843f3bc0fb8a3905d79c68692250dcb8e33e698705ccdb6",
-        "size_bytes": 27246,
         "version": "0.254.0",
     },
     "wasmi-1.1.0": {
@@ -82582,8 +81609,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2300d0f78cba12f14e29e8dd157ea64050c0a688179aefdb2050105805594a0c",
-        "size_bytes": 240220,
         "version": "1.1.0",
     },
     "wasmi_collections-1.1.0": {
@@ -82648,8 +81673,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f8a8c42a2a76148d43097b1d7cc2a5bf33d5c23bd4dd69015fc887e311767884",
-        "size_bytes": 19392,
         "version": "1.1.0",
     },
     "wasmi_core-1.1.0": {
@@ -82738,8 +81761,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9013136083d988725953390bf668b64b7a218fabf26f8b913bbc59546b97ee27",
-        "size_bytes": 51063,
         "version": "1.1.0",
     },
     "wasmi_ir-1.1.0": {
@@ -82804,8 +81825,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ba1fa003f79156f406d62ef0e1464dc03e11ace37170e9fa7524299a75ad8f68",
-        "size_bytes": 33606,
         "version": "1.1.0",
     },
     "wasmparser-0.239.0": {
@@ -82917,8 +81936,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "8c9d90bb93e764f6beabf1d02028c70a2156a6583e63ac4218dd07ef733368b0",
-        "size_bytes": 260621,
         "version": "0.239.0",
     },
     "wasmparser-0.254.0": {
@@ -83055,8 +82072,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "d5769a29f799fbab136aaf65b4fe5384cd7d93fe6fc9ba0dcb6c8382a1f16e27",
-        "size_bytes": 277351,
         "version": "0.254.0",
     },
     "wasmprinter-0.254.0": {
@@ -83166,8 +82181,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "64e3ba11e024f504698f87b629b2b66c22a1231758de7607754963f7d198be39",
-        "size_bytes": 50038,
         "version": "0.254.0",
     },
     "wasmtime-48.0.1": {
@@ -83565,8 +82578,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "1bd39f78fe9bc82cee4025ec9d52118269e9a1498016cc60119b14f2e1d86a8d",
-        "size_bytes": 1044326,
         "version": "48.0.1",
     },
     "wasmtime-environ-48.0.1": {
@@ -83880,8 +82891,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "00c1070d95484d048994ec109cd42c4932ac07e6ee3cc1886fb90c7a18ec29da",
-        "size_bytes": 310872,
         "version": "48.0.1",
     },
     "wasmtime-internal-cache-48.0.1": {
@@ -84013,8 +83022,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9d447fd40f3e149cda8c0cd808660a1d1de438f3ff28627abb9bcda90dfb4895",
-        "size_bytes": 36985,
         "version": "48.0.1",
     },
     "wasmtime-internal-component-macro-48.0.1": {
@@ -84057,8 +83064,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f3d2b2f9f89a65bb2277d82fbdd49263d27d8233bc717d750c4b13a23d57721c",
-        "size_bytes": 254908,
         "version": "48.0.1",
     },
     "wasmtime-internal-component-util-48.0.1": {
@@ -84089,8 +83094,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2c0fe8292115fda08875f29064ae9f7f0b2c1ffbb323146eae538ae34b8a613f",
-        "size_bytes": 2783,
         "version": "48.0.1",
     },
     "wasmtime-internal-core-48.0.1": {
@@ -84196,8 +83199,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "821385794cf44baf2967fd2515368429ed2bff9b9b256f62d09a0f1301474fd8",
-        "size_bytes": 55143,
         "version": "48.0.1",
     },
     "wasmtime-internal-cranelift-48.0.1": {
@@ -84416,8 +83417,6 @@ third_party = {
             "-Cdebug-assertions=off",
             "-Coverflow-checks=off",
         ],
-        "sha256": "0238b4a52773457ad1b8a1a26be90486e0ca0108cf46b9be16cc1d8d8cabdfa1",
-        "size_bytes": 263109,
         "version": "48.0.1",
     },
     "wasmtime-internal-fiber-48.0.1": {
@@ -84539,8 +83538,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "596f1d85e06cbf9c9add9c78ea135171c5753264ffe94a83dcc082a1ff49fc9b",
-        "size_bytes": 34204,
         "version": "48.0.1",
     },
     "wasmtime-internal-jit-icache-coherence-48.0.1": {
@@ -84620,8 +83617,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3cce25afd9e7ac4957292a5c6a219951dd0f140b8417e7378a97f50b67c3b96f",
-        "size_bytes": 7155,
         "version": "48.0.1",
     },
     "wasmtime-internal-unwinder-48.0.1": {
@@ -84733,8 +83728,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a1fdea09d51e39c774984ca68a7d7486767e5b2935f5e686fa654aabcfc3c42d",
-        "size_bytes": 24826,
         "version": "48.0.1",
     },
     "wasmtime-internal-versioned-export-macros-48.0.1": {
@@ -84765,8 +83758,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "97e48a5f514c38c2f74249724cb3501e45548d3311ca9e3881694859fd6ba116",
-        "size_bytes": 2305,
         "version": "48.0.1",
     },
     "wasmtime-internal-wit-bindgen-48.0.1": {
@@ -84803,8 +83794,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "07429ab53576255be2d298e04b2e1f381e39645465adbaebd69314b5430165c0",
-        "size_bytes": 38685,
         "version": "48.0.1",
     },
     "wasmtime-wasi-48.0.1": {
@@ -85006,8 +83995,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "85dd81ee95792682ea5b279c9ed352f6b8a2cba084c2f8abdb225e6933323fed",
-        "size_bytes": 227052,
         "version": "48.0.1",
     },
     "wasmtime-wasi-io-48.0.1": {
@@ -85115,8 +84102,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6a557bc8a7232cd079f6b423a9bb385f3ff9148824f3c26c07a028b499fab2bf",
-        "size_bytes": 19389,
         "version": "48.0.1",
     },
     "wast-257.0.1": {
@@ -85233,8 +84218,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3c416ee8044cf88c5280e3d87c322b009525eb25142cf7428f0a90ea88febc3b",
-        "size_bytes": 169961,
         "version": "257.0.1",
     },
     "wast-35.0.2": {
@@ -85264,8 +84247,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2ef140f1b49946586078353a453a1d28ba90adfc54dde75710bc1931de204d68",
-        "size_bytes": 90940,
         "version": "35.0.2",
     },
     "wat-1.257.1": {
@@ -85354,8 +84335,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "672e5495f00c5fc6c6b502205bae4708aa4dd13d969754438743afe0a8af0f1d",
-        "size_bytes": 13665,
         "version": "1.257.1",
     },
     "wayland-backend-0.3.15": {
@@ -85452,8 +84431,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2857dd20b54e916ec7253b3d6b4d5c4d7d4ca2c33c2e11c6c76a99bd8744755d",
-        "size_bytes": 79957,
         "version": "0.3.15",
     },
     "wayland-client-0.31.14": {
@@ -85537,8 +84514,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "645c7c96bb74690c3189b5c9cb4ca1627062bb23693a4fad9d8c3de958260144",
-        "size_bytes": 68263,
         "version": "0.31.14",
     },
     "wayland-csd-frame-0.3.0": {
@@ -85577,8 +84552,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "625c5029dbd43d25e6aa9615e88b829a5cad13b2819c4ae129fdbb7c31ab4c7e",
-        "size_bytes": 5696,
         "version": "0.3.0",
     },
     "wayland-cursor-0.31.14": {
@@ -85617,8 +84590,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4a52d18780be9b1314328a3de5f930b73d2200112e3849ca6cb11822793fb34d",
-        "size_bytes": 9331,
         "version": "0.31.14",
     },
     "wayland-protocols-0.32.12": {
@@ -85762,8 +84733,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "563a85523cade2429938e790815fd7319062103b9f4a2dc806e9b53b95982d8f",
-        "size_bytes": 156132,
         "version": "0.32.12",
     },
     "wayland-protocols-experimental-20251230.0.3": {
@@ -85814,8 +84783,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "91c6c3e7178e553d093d46999032bc79aafea9dedd71dd702c8ace7bbc25cf13",
-        "size_bytes": 29065,
         "version": "20251230.0.3",
     },
     "wayland-protocols-misc-0.3.12": {
@@ -85952,8 +84919,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6e9567599ef23e09b8dad6e429e5738d4509dfc46b3b21f32841a304d16b29c8",
-        "size_bytes": 15769,
         "version": "0.3.12",
     },
     "wayland-protocols-plasma-0.3.12": {
@@ -86004,8 +84969,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2b6d8cf1eb2c1c31ed1f5643c88a6e53538129d4af80030c8cabd1f9fa884d91",
-        "size_bytes": 68806,
         "version": "0.3.12",
     },
     "wayland-protocols-wlr-0.3.12": {
@@ -86127,8 +85090,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "eb04e52f7836d7c7976c78ca0250d61e33873c34156a2a1fc9474828ec268234",
-        "size_bytes": 28366,
         "version": "0.3.12",
     },
     "wayland-scanner-0.31.10": {
@@ -86160,8 +85121,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9c324a910fd86ebdc364a3e61ec1f11737d3b1d6c273c0239ee8ff4bc0d24b4a",
-        "size_bytes": 37213,
         "version": "0.31.10",
     },
     "wayland-server-0.31.14": {
@@ -86249,8 +85208,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0dde9c29be0f723a573977de51ee455bf3dfa03652730a74f9dd3b337e374d75",
-        "size_bytes": 58044,
         "version": "0.31.14",
     },
     "wayland-sys-0.31.11": {
@@ -86324,8 +85281,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d8eab23fefc9e41f8e841df4a9c707e8a8c4ed26e944ef69297184de2785e3be",
-        "size_bytes": 9727,
         "version": "0.31.11",
     },
     "web-sys-0.3.99": {
@@ -86649,8 +85604,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6d621441cfc37b84979402712047321980c178f299193a3589d05b99e8763436",
-        "size_bytes": 675491,
         "version": "0.3.99",
     },
     "webpki-roots-0.26.11": {
@@ -86714,8 +85667,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9",
-        "size_bytes": 15557,
         "version": "0.26.11",
     },
     "webpki-roots-1.0.9": {
@@ -86780,8 +85731,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7dcd9d09a39985f5344844e66b0c530a33843579125f23e21e9f0f220850f22a",
-        "size_bytes": 217462,
         "version": "1.0.9",
     },
     "weezl-0.1.12": {
@@ -86868,8 +85817,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88",
-        "size_bytes": 46045,
         "version": "0.1.12",
     },
     "wgpu-29.0.3": {
@@ -87223,8 +86170,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bb3feacc458f7bee8bc1737149b42b6c731aa461039a4264a67bb6681646b250",
-        "size_bytes": 209309,
         "version": "29.0.3",
     },
     "wgpu-core-29.0.3": {
@@ -87585,8 +86530,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "02da3ad1b568337f25513b317870960ef87073ea0945502e44b864b67a8c77b7",
-        "size_bytes": 345952,
         "version": "29.0.3",
     },
     "wgpu-core-deps-apple-29.0.3": {
@@ -87628,8 +86571,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "62e51b5447e144b3dbba4feb01f80f4fa21696fa0cd99afb2c3df1affd6fdb28",
-        "size_bytes": 11976,
         "version": "29.0.3",
     },
     "wgpu-core-deps-wasm-29.0.3": {
@@ -87671,8 +86612,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0c2f2fb042f36920771deb0b966543c5751b18f3d327760ffc90f74e20b2dcd4",
-        "size_bytes": 10720,
         "version": "29.0.3",
     },
     "wgpu-core-deps-windows-linux-android-29.0.3": {
@@ -87753,8 +86692,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1bfb01076d0aa08b0ba9bd741e178b5cc440f5abe99d9581323a4c8b5d1a1916",
-        "size_bytes": 12044,
         "version": "29.0.3",
     },
     "wgpu-hal-29.0.3": {
@@ -88081,8 +87018,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "31f8e1a9e7a8512f276f7c62e018c7fa8d60954303fed2e5750114332049193f",
-        "size_bytes": 427187,
         "version": "29.0.3",
     },
     "wgpu-naga-bridge-29.0.3": {
@@ -88161,8 +87096,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "59c654c483f058800972c3645e95388a7eca31bf9fe1933bc20e036588a0be02",
-        "size_bytes": 9419,
         "version": "29.0.3",
     },
     "wgpu-types-29.0.3": {
@@ -88313,8 +87246,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a9bcc31518a0e9735aefebedb5f7a9ef3ed1c42549c9f4c882fa9060ceaac639",
-        "size_bytes": 127829,
         "version": "29.0.3",
     },
     "wiggle-48.0.1": {
@@ -88430,8 +87361,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b871ea219ad85c1e59ee7d013563814e86d2e6aa094d3bc66b7675ec4ca58bb7",
-        "size_bytes": 29595,
         "version": "48.0.1",
     },
     "wiggle-generate-48.0.1": {
@@ -88466,8 +87395,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ed981675756e748a4725286a4059c9be006749a8db4120d54e2021d0f167bac3",
-        "size_bytes": 27252,
         "version": "48.0.1",
     },
     "wiggle-macro-48.0.1": {
@@ -88502,8 +87429,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7f3927729af874585c58b85710128e40d459a7064bb9aea9b0b420fb5eafd555",
-        "size_bytes": 12284,
         "version": "48.0.1",
     },
     "winapi-0.3.9": {
@@ -88580,8 +87505,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5c839a674fcd7a98952e593242ea400abe93992746761e38641405d28b00f419",
-        "size_bytes": 1200382,
         "version": "0.3.9",
     },
     "winapi-util-0.1.11": {
@@ -88616,8 +87539,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22",
-        "size_bytes": 13368,
         "version": "0.1.11",
     },
     "windows-0.54.0": {
@@ -88696,8 +87617,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9252e5725dbed82865af151df558e754e4a3c2c30818359eb17465f1346a1b49",
-        "size_bytes": 11096265,
         "version": "0.54.0",
     },
     "windows-0.62.2": {
@@ -88855,8 +87774,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "527fadee13e0c05939a6a05d5bd6eec6cd2e3dbd648b9f8e447c6518133d8580",
-        "size_bytes": 9360572,
         "version": "0.62.2",
     },
     "windows-collections-0.3.2": {
@@ -88896,8 +87813,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "23b2d95af1a8a14a3c7367e1ed4fc9c20e0a26e79551b1454d72583c97cc6610",
-        "size_bytes": 13510,
         "version": "0.3.2",
     },
     "windows-core-0.54.0": {
@@ -88940,8 +87855,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "12661b9c89351d684a50a8a643ce5f608e20243b9fb84687800163429f161d65",
-        "size_bytes": 44015,
         "version": "0.54.0",
     },
     "windows-core-0.62.2": {
@@ -88991,8 +87904,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b8e83a14d34d0623b51dce9581199302a221863196a1dde71a7663a4c2be9deb",
-        "size_bytes": 36932,
         "version": "0.62.2",
     },
     "windows-future-0.3.2": {
@@ -89036,8 +87947,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e1d6f90251fe18a279739e78025bd6ddc52a7e22f921070ccdc67dde84c605cb",
-        "size_bytes": 17944,
         "version": "0.3.2",
     },
     "windows-implement-0.60.2": {
@@ -89068,8 +87977,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf",
-        "size_bytes": 15325,
         "version": "0.60.2",
     },
     "windows-interface-0.59.3": {
@@ -89100,8 +88007,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358",
-        "size_bytes": 11809,
         "version": "0.59.3",
     },
     "windows-link-0.2.1": {
@@ -89127,8 +88032,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5",
-        "size_bytes": 6133,
         "version": "0.2.1",
     },
     "windows-numerics-0.3.1": {
@@ -89170,8 +88073,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6e2e40844ac143cdb44aead537bbf727de9b044e107a0f1220392177d15b0f26",
-        "size_bytes": 9772,
         "version": "0.3.1",
     },
     "windows-result-0.1.2": {
@@ -89214,8 +88115,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "5e383302e8ec8515204254685643de10811af0ed97ea37210dc26fb0032647f8",
-        "size_bytes": 10601,
         "version": "0.1.2",
     },
     "windows-result-0.4.1": {
@@ -89255,8 +88154,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7781fa89eaf60850ac3d2da7af8e5242a5ea78d1a11c49bf2910bb5a73853eb5",
-        "size_bytes": 13381,
         "version": "0.4.1",
     },
     "windows-strings-0.5.1": {
@@ -89296,8 +88193,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "7837d08f69c77cf6b07689544538e017c1bfcf57e34b4c0ff58e6c2cd3b37091",
-        "size_bytes": 13966,
         "version": "0.5.1",
     },
     "windows-sys-0.48.0": {
@@ -89358,8 +88253,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "677d2418bec65e3338edb076e806bc1ec15693c5d0104683f2efe857f61056a9",
-        "size_bytes": 2628884,
         "version": "0.48.0",
     },
     "windows-sys-0.52.0": {
@@ -89396,8 +88289,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d",
-        "size_bytes": 2576877,
         "version": "0.52.0",
     },
     "windows-sys-0.59.0": {
@@ -89478,8 +88369,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b",
-        "size_bytes": 2387323,
         "version": "0.59.0",
     },
     "windows-sys-0.60.2": {
@@ -89558,8 +88447,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb",
-        "size_bytes": 2518479,
         "version": "0.60.2",
     },
     "windows-sys-0.61.2": {
@@ -89703,8 +88590,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc",
-        "size_bytes": 2517186,
         "version": "0.61.2",
     },
     "windows-targets-0.48.5": {
@@ -89738,8 +88623,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9a2fa6e2155d7247be68c096456083145c183cbbbc2764150dda45a87197940c",
-        "size_bytes": 6904,
         "version": "0.48.5",
     },
     "windows-targets-0.52.6": {
@@ -89774,8 +88657,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9b724f72796e036ab90c1021d4780d4d3d648aca59e491e6b98e725b84e99973",
-        "size_bytes": 6403,
         "version": "0.52.6",
     },
     "windows-targets-0.53.5": {
@@ -89809,8 +88690,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4945f9f551b88e0d65f3db0bc25c33b8acea4d9e41163edf90dcd0b19f9069f3",
-        "size_bytes": 7126,
         "version": "0.53.5",
     },
     "windows-threading-0.2.1": {
@@ -89844,8 +88723,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3949bd5b99cafdf1c7ca86b43ca564028dfe27d66958f2470940f73d86d75b37",
-        "size_bytes": 9686,
         "version": "0.2.1",
     },
     "windows_aarch64_msvc-0.48.5": {
@@ -89872,8 +88749,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "dc35310971f3b2dbbf3f0690a219f40e2d9afcf64f9ab7cc1be722937c26b4bc",
-        "size_bytes": 798483,
         "version": "0.48.5",
     },
     "windows_aarch64_msvc-0.52.6": {
@@ -89901,8 +88776,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469",
-        "size_bytes": 832615,
         "version": "0.52.6",
     },
     "windows_aarch64_msvc-0.53.1": {
@@ -89930,8 +88803,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b9d782e804c2f632e395708e99a94275910eb9100b2114651e04744e9b125006",
-        "size_bytes": 838009,
         "version": "0.53.1",
     },
     "windows_x86_64_msvc-0.48.5": {
@@ -89958,8 +88829,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538",
-        "size_bytes": 798412,
         "version": "0.48.5",
     },
     "windows_x86_64_msvc-0.52.6": {
@@ -89987,8 +88856,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec",
-        "size_bytes": 832564,
         "version": "0.52.6",
     },
     "windows_x86_64_msvc-0.53.1": {
@@ -90016,8 +88883,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650",
-        "size_bytes": 837950,
         "version": "0.53.1",
     },
     "winit-0.31.0-beta.3": {
@@ -90193,8 +89058,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f431156a3e4f0f1b35eaaf37674e55838e3652908c8088f570466274d1902e2b",
-        "size_bytes": 434266,
         "version": "0.31.0-beta.3",
     },
     "winit-appkit-0.31.0-beta.3": {
@@ -90260,8 +89123,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "23343ec0ea7ac6aa72f38009a6ff66fb63bcf6395e0622fba72794d2a762ab42",
-        "size_bytes": 91762,
         "version": "0.31.0-beta.3",
     },
     "winit-common-0.31.0-beta.3": {
@@ -90369,8 +89230,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e90422ff1c04502aaaac1dad1d099791c2bbb3fbb3f823019e0ce5cdeee04025",
-        "size_bytes": 40643,
         "version": "0.31.0-beta.3",
     },
     "winit-core-0.31.0-beta.3": {
@@ -90473,8 +89332,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b8af6307236c51847199950c15cf80e0481a250bb96ce9132f5026df4ad3d0f9",
-        "size_bytes": 82056,
         "version": "0.31.0-beta.3",
     },
     "winit-wayland-0.31.0-beta.3": {
@@ -90560,8 +89417,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8b64ceed06de0c45886eef05102106abe1413e703384e337bc57c7e95b71f803",
-        "size_bytes": 84601,
         "version": "0.31.0-beta.3",
     },
     "winit-win32-0.31.0-beta.3": {
@@ -90619,8 +89474,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "25fb480c41df01d351f656cbf3ad74013f8a9d22bb5b2dcab59f9167e7a0b6ec",
-        "size_bytes": 128314,
         "version": "0.31.0-beta.3",
     },
     "winit-x11-0.31.0-beta.3": {
@@ -90688,8 +89541,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bb5746cd907e514b7895491a1c6f7d0cb70077f9e16928cd74ae6f987ffd96aa",
-        "size_bytes": 102332,
         "version": "0.31.0-beta.3",
     },
     "winnow-0.7.15": {
@@ -90722,8 +89573,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945",
-        "size_bytes": 187092,
         "version": "0.7.15",
     },
     "winnow-1.0.3": {
@@ -90837,8 +89686,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0592e1c9d151f854e6fd382574c3a0855250e1d9b2f99d9281c6e6391af352f1",
-        "size_bytes": 187990,
         "version": "1.0.3",
     },
     "winreg-0.10.1": {
@@ -90875,8 +89722,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "80d0f4e272c85def139476380b12f9ac60926689dd2e01d4923222f40580869d",
-        "size_bytes": 25725,
         "version": "0.10.1",
     },
     "winx-0.36.4": {
@@ -90913,8 +89758,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3f3fd376f71958b862e7afb20cfe5a22830e1963462f3a17f49d82a6c1d1f42d",
-        "size_bytes": 13838,
         "version": "0.36.4",
     },
     "wit-component-0.254.0": {
@@ -90955,8 +89798,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b0e65bb94c369b3c4741ce3d1d2704b1fec93db7c540df0e521a097e7ceeb5be",
-        "size_bytes": 273186,
         "version": "0.254.0",
     },
     "wit-parser-0.254.0": {
@@ -91004,8 +89845,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1655131e4f7d3f0cb141f6eca71315ca40eff0f3d4de7cff0a82bacedd8c89b4",
-        "size_bytes": 188327,
         "version": "0.254.0",
     },
     "witx-0.9.1": {
@@ -91037,8 +89876,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e366f27a5cabcddb2706a78296a40b8fcc451e1a6aba2fc1d94b4a01bdaaef4b",
-        "size_bytes": 45928,
         "version": "0.9.1",
     },
     "writeable-0.6.4": {
@@ -91074,8 +89911,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc",
-        "size_bytes": 31222,
         "version": "0.6.4",
     },
     "x11-dl-2.21.0": {
@@ -91116,8 +89951,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "38735924fedd5314a6e548792904ed8c6de6636285cb9fec04d5b1db85c1516f",
-        "size_bytes": 66823,
         "version": "2.21.0",
     },
     "x11rb-0.13.2": {
@@ -91281,8 +90114,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "9993aa5be5a26815fe2c3eacfc1fde061fc1a1f094bf1ad2a18bf9c495dd7414",
-        "size_bytes": 220549,
         "version": "0.13.2",
     },
     "x11rb-protocol-0.13.2": {
@@ -91392,8 +90223,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ea6fc2961e4ef194dcbfe56bb845534d0dc8098940c7e5c012a258bfec6701bd",
-        "size_bytes": 514069,
         "version": "0.13.2",
     },
     "x25519-dalek-2.0.1": {
@@ -91545,8 +90374,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c7e468321c81fb07fa7f4c636c3972b9100f0346e5b6a9f2bd0603a52f7ed277",
-        "size_bytes": 87820,
         "version": "2.0.1",
     },
     "x509-cert-0.2.5": {
@@ -91690,8 +90517,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "1301e935010a701ae5f8655edc0ad17c44bad3ac5ce8c39185f75453b720ae94",
-        "size_bytes": 99819,
         "version": "0.2.5",
     },
     "x509-cert-0.3.0": {
@@ -91787,8 +90612,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "105ef4642d9cb137ef83d623d0e4bf08b8adf69e9918ca904a174adb6d3d038b",
-        "size_bytes": 127747,
         "version": "0.3.0",
     },
     "x509-parser-0.18.1": {
@@ -91926,8 +90749,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d43b0f71ce057da06bc0851b23ee24f3f86190b07203dd8f567d0b706a185202",
-        "size_bytes": 102625,
         "version": "0.18.1",
     },
     "xcursor-0.3.10": {
@@ -91953,8 +90774,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bec9e4a500ca8864c5b47b8b482a73d62e4237670e5b5f1d6b9e3cae50f28f2b",
-        "size_bytes": 7768,
         "version": "0.3.10",
     },
     "xkbcommon-0.8.0": {
@@ -92062,8 +90881,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8d66ca9352cbd4eecbbc40871d8a11b4ac8107cfc528a6e14d7c19c69d0e1ac9",
-        "size_bytes": 59098,
         "version": "0.8.0",
     },
     "xkbcommon-dl-0.4.2": {
@@ -92112,8 +90929,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d039de8032a9a8856a6be89cea3e5d12fdd82306ab7c94d74e6deab2460651c5",
-        "size_bytes": 5879,
         "version": "0.4.2",
     },
     "xkeysym-0.2.1": {
@@ -92145,8 +90960,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56",
-        "size_bytes": 103129,
         "version": "0.2.1",
     },
     "xml-rs-0.8.28": {
@@ -92173,8 +90986,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f",
-        "size_bytes": 52826,
         "version": "0.8.28",
     },
     "xmlwriter-0.1.0": {
@@ -92205,8 +91016,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9",
-        "size_bytes": 6261,
         "version": "0.1.0",
     },
     "yoke-0.8.4": {
@@ -92352,8 +91161,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "417ef3fcf6c300b7dbd25c85531a746931c02ad536f3cf4786ed1e88223340b3",
-        "size_bytes": 33270,
         "version": "0.8.4",
     },
     "yoke-derive-0.8.4": {
@@ -92386,8 +91193,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "ec8ebde2db3681e8c9980cc27822030e68752690ddfa9473e739aeb4dbde6d71",
-        "size_bytes": 15054,
         "version": "0.8.4",
     },
     "zbus-5.18.0": {
@@ -92490,8 +91295,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "fe18fb60dc696039e738717b76eaea21e7a4489bbb1885020b43c94236d7e98a",
-        "size_bytes": 182668,
         "version": "5.18.0",
     },
     "zbus-lockstep-0.5.2": {
@@ -92527,8 +91330,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "6998de05217a084b7578728a9443d04ea4cd80f2a0839b8d78770b76ccd45863",
-        "size_bytes": 15733,
         "version": "0.5.2",
     },
     "zbus-lockstep-macros-0.5.2": {
@@ -92562,8 +91363,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "10da05367f3a7b7553c8cdf8fa91aee6b64afebe32b51c95177957efc47ca3a0",
-        "size_bytes": 10131,
         "version": "0.5.2",
     },
     "zbus_macros-5.18.0": {
@@ -92602,8 +91401,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "fe96480bed92df2b442a1a30df364e12d08eed03aeb061f2b8dc6afb2be91119",
-        "size_bytes": 39330,
         "version": "5.18.0",
     },
     "zbus_names-4.3.4": {
@@ -92642,8 +91439,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d8bf88b4a3ff53e883001e0e0115b297a9d53c31b9c1edd2bfdd853e3428624e",
-        "size_bytes": 18901,
         "version": "4.3.4",
     },
     "zbus_xml-5.2.1": {
@@ -92684,8 +91479,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "d1586c021a01ca0a9216dcd874e546382e156a5cbab5fab6cb5f10087e22682a",
-        "size_bytes": 47559,
         "version": "5.2.1",
     },
     "zerocopy-0.8.50": {
@@ -92823,8 +91616,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3b065d4f0e55f82fae73202e189638116a87c55ab6b8e6c2721e13dd9d854ad1",
-        "size_bytes": 287760,
         "version": "0.8.50",
     },
     "zerocopy-derive-0.8.50": {
@@ -92854,8 +91645,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0b631b19d36a892ab55420c92dbc83ccd79274f25be714855d3074aa71cab639",
-        "size_bytes": 97640,
         "version": "0.8.50",
     },
     "zerofrom-0.1.8": {
@@ -92968,8 +91757,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "0ec05a11813ea801ff6d75110ad09cd0824ddba17dfe17128ea0d5f68e6c5272",
-        "size_bytes": 6156,
         "version": "0.1.8",
     },
     "zerofrom-derive-0.1.7": {
@@ -93002,8 +91789,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "11532158c46691caf0f2593ea8358fed6bbf68a0315e80aae9bd41fbade684a1",
-        "size_bytes": 8853,
         "version": "0.1.7",
     },
     "zeroize-1.9.0": {
@@ -93118,8 +91903,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e",
-        "size_bytes": 24480,
         "version": "1.9.0",
     },
     "zeroize_derive-1.5.0": {
@@ -93151,8 +91934,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328",
-        "size_bytes": 12034,
         "version": "1.5.0",
     },
     "zerotrie-0.2.5": {
@@ -93299,8 +92080,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "4ea269c3bd32f0a32c321907a2ae912ba6f4649bb0fc764a15627e99a7095a3f",
-        "size_bytes": 84204,
         "version": "0.2.5",
     },
     "zerovec-0.11.9": {
@@ -93446,8 +92225,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f58a2799cfe9a1670c7ea8edbd52ef8edb93cb37a7f83bf31ba9e35d9dae6a40",
-        "size_bytes": 132005,
         "version": "0.11.9",
     },
     "zerovec-derive-0.11.7": {
@@ -93479,8 +92256,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "c3743ddbf47738d929cd1ae2e199d40d0162979dfe31aef8ae646d2bf00bf97a",
-        "size_bytes": 23232,
         "version": "0.11.7",
     },
     "zip-8.6.0": {
@@ -93624,8 +92399,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "2d04a6b5381502aa6087c94c669499eb1602eb9c5e8198e534de571f7154809b",
-        "size_bytes": 149622,
         "version": "8.6.0",
     },
     "zlib-rs-0.6.7": {
@@ -93692,8 +92465,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "34b31d188d9d685a4f9c7b46d6e36631b07058d2cfe190267adce54dc230bf12",
-        "size_bytes": 215740,
         "version": "0.6.7",
     },
     "zmij-1.0.21": {
@@ -93733,8 +92504,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa",
-        "size_bytes": 26665,
         "version": "1.0.21",
     },
     "zopfli-0.8.3": {
@@ -93857,8 +92626,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "f05cd8797d63865425ff89b5c4a48804f35ba0ce8d125800027ad6017d2b5249",
-        "size_bytes": 51589,
         "version": "0.8.3",
     },
     "zstd-0.13.3": {
@@ -93918,8 +92685,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a",
-        "size_bytes": 30514,
         "version": "0.13.3",
     },
     "zstd-safe-7.2.4": {
@@ -94003,8 +92768,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d",
-        "size_bytes": 29350,
         "version": "7.2.4",
     },
     "zstd-sys-2.0.16+zstd.1.5.7": {
@@ -94072,8 +92835,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "91e19ebc2adc8f83e43039e79776e3fda8ca919132d68a1fed6a5faca2683748",
-        "size_bytes": 775620,
         "version": "2.0.16+zstd.1.5.7",
     },
     "zune-core-0.5.1": {
@@ -94142,8 +92903,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "cb8a0807f7c01457d0379ba880ba6322660448ddebc890ce29bb64da71fb40f9",
-        "size_bytes": 27883,
         "version": "0.5.1",
     },
     "zune-jpeg-0.5.15": {
@@ -94267,8 +93026,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296",
-        "size_bytes": 88879,
         "version": "0.5.15",
     },
     "zvariant-5.13.1": {
@@ -94387,8 +93144,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "bee2a0bcd2a907786a456fff45aaaaf54c9ba5f50b71ae9ec1a4edd200c94911",
-        "size_bytes": 96839,
         "version": "5.13.1",
     },
     "zvariant_derive-5.13.1": {
@@ -94426,8 +93181,6 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "38a708216a18780796770bfe3f4739c7c83a3e8f789b755534bbbc06e4e23e12",
-        "size_bytes": 17734,
         "version": "5.13.1",
     },
     "zvariant_utils-3.5.0": {
@@ -94543,6 +93296,5155 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
+        "version": "3.5.0",
+    },
+}
+
+downloads = {
+    "ab_glyph-0.2.32": {
+        "name": "ab_glyph",
+        "sha256": "01c0457472c38ea5bd1c3b5ada5e368271cb550be7a4ca4a0b4634e9913f6cc2",
+        "size_bytes": 20967,
+        "version": "0.2.32",
+    },
+    "ab_glyph_rasterizer-0.1.10": {
+        "name": "ab_glyph_rasterizer",
+        "sha256": "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618",
+        "size_bytes": 11206,
+        "version": "0.1.10",
+    },
+    "accesskit-0.24.1": {
+        "name": "accesskit",
+        "sha256": "d3b7f7f85a7e5f68090000ed7622545829afd484d210358702ae4cb97dd0c320",
+        "size_bytes": 36947,
+        "version": "0.24.1",
+    },
+    "accesskit_android-0.7.5": {
+        "name": "accesskit_android",
+        "sha256": "8e27dedd5e1932e1f52fedcde681bc2ae4213df53bad5b295103aa36b1d0ffb6",
+        "size_bytes": 24046,
+        "version": "0.7.5",
+    },
+    "accesskit_atspi_common-0.19.1": {
+        "name": "accesskit_atspi_common",
+        "sha256": "023da0e5097f46df7092d5280b02efb9bbf8d93298daeced42652463e357d636",
+        "size_bytes": 32496,
+        "version": "0.19.1",
+    },
+    "accesskit_consumer-0.38.0": {
+        "name": "accesskit_consumer",
+        "sha256": "5d10a236f96f87d70732e44520046785431ef01d5bcd6b041317bfadd2f88245",
+        "size_bytes": 48440,
+        "version": "0.38.0",
+    },
+    "accesskit_macos-0.26.3": {
+        "name": "accesskit_macos",
+        "sha256": "ce02dc63b43f0c9296af9ac946312a2dc8814427d7a64d2d600971dac55b6076",
+        "size_bytes": 27650,
+        "version": "0.26.3",
+    },
+    "accesskit_unix-0.22.1": {
+        "name": "accesskit_unix",
+        "sha256": "03e156ed3802e35eefe894ef2671bc6c889303d8a7e110b5e1b48f504b91362f",
+        "size_bytes": 30261,
+        "version": "0.22.1",
+    },
+    "accesskit_windows-0.34.0": {
+        "name": "accesskit_windows",
+        "sha256": "106c2b961215864d1c2e703ee63269c25c4e80a577ffb2c1017b9c17dcdf83a1",
+        "size_bytes": 59770,
+        "version": "0.34.0",
+    },
+    "addr2line-0.26.1": {
+        "name": "addr2line",
+        "sha256": "59317f77929f0e679d39364702289274de2f0f0b22cbf50b2b8cff2169a0b27a",
+        "size_bytes": 43193,
+        "version": "0.26.1",
+    },
+    "adler2-2.0.1": {
+        "name": "adler2",
+        "sha256": "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa",
+        "size_bytes": 13366,
+        "version": "2.0.1",
+    },
+    "aead-0.5.2": {
+        "name": "aead",
+        "sha256": "d122413f284cf2d62fb1b7db97e02edb8cda96d769b16e443a4f6195e35662b0",
+        "size_bytes": 15509,
+        "version": "0.5.2",
+    },
+    "aead-0.6.1": {
+        "name": "aead",
+        "sha256": "1973cfbc1a2daf9cf550e74e1f088c28e7f7d8c1e1418fb6c9dc5184b7e84c99",
+        "size_bytes": 18672,
+        "version": "0.6.1",
+    },
+    "aes-0.9.3": {
+        "name": "aes",
+        "sha256": "35f0f96ce78e38c3dc6d8948aa8163d06385be74000f3c7a95bf1eef35d3ea32",
+        "size_bytes": 112408,
+        "version": "0.9.3",
+    },
+    "aes-gcm-0.11.1": {
+        "name": "aes-gcm",
+        "sha256": "7f2b8006a0c83f52b62ba44a97b58bf76fe2f70a329e588f67f89691d93d498f",
+        "size_bytes": 155976,
+        "version": "0.11.1",
+    },
+    "ahash-0.8.12": {
+        "name": "ahash",
+        "sha256": "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75",
+        "size_bytes": 43413,
+        "version": "0.8.12",
+    },
+    "aho-corasick-1.1.4": {
+        "name": "aho-corasick",
+        "sha256": "ddd31a130427c27518df266943a5308ed92d4b226cc639f5a8f1002816174301",
+        "size_bytes": 184015,
+        "version": "1.1.4",
+    },
+    "allocator-api2-0.2.21": {
+        "name": "allocator-api2",
+        "sha256": "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923",
+        "size_bytes": 63622,
+        "version": "0.2.21",
+    },
+    "alsa-0.9.1": {
+        "name": "alsa",
+        "sha256": "ed7572b7ba83a31e20d1b48970ee402d2e3e0537dcfe0a3ff4d6eb7508617d43",
+        "size_bytes": 72824,
+        "version": "0.9.1",
+    },
+    "alsa-sys-0.3.1": {
+        "name": "alsa-sys",
+        "sha256": "db8fee663d06c4e303404ef5f40488a53e062f89ba8bfed81f42325aafad1527",
+        "size_bytes": 32748,
+        "version": "0.3.1",
+    },
+    "ambient-authority-0.0.2": {
+        "name": "ambient-authority",
+        "sha256": "e9d4ee0d472d1cd2e28c97dfa124b3d8d992e10eb0a035f33f5d12e3a177ba3b",
+        "size_bytes": 14867,
+        "version": "0.0.2",
+    },
+    "android-activity-0.6.1": {
+        "name": "android-activity",
+        "sha256": "0f2a1bb052857d5dd49572219344a7332b31b76405648eabac5bc68978251bcd",
+        "size_bytes": 322611,
+        "version": "0.6.1",
+    },
+    "android-properties-0.2.2": {
+        "name": "android-properties",
+        "sha256": "fc7eb209b1518d6bb87b283c20095f5228ecda460da70b44f0802523dea6da04",
+        "size_bytes": 4563,
+        "version": "0.2.2",
+    },
+    "android_system_properties-0.1.5": {
+        "name": "android_system_properties",
+        "sha256": "819e7219dbd41043ac279b19830f2efc897156490d7fd6ea916720117ee66311",
+        "size_bytes": 5243,
+        "version": "0.1.5",
+    },
+    "anyhow-1.0.104": {
+        "name": "anyhow",
+        "sha256": "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470",
+        "size_bytes": 48819,
+        "version": "1.0.104",
+    },
+    "appendlist-1.4.0": {
+        "name": "appendlist",
+        "sha256": "e149dc73cd30538307e7ffa2acd3d2221148eaeed4871f246657b1c3eaa1cbd2",
+        "size_bytes": 7252,
+        "version": "1.4.0",
+    },
+    "approx-0.4.0": {
+        "name": "approx",
+        "sha256": "3f2a05fd1bd10b2527e20a2cd32d8873d115b8b39fe219ee25f42a8aca6ba278",
+        "size_bytes": 14280,
+        "version": "0.4.0",
+    },
+    "arbitrary-1.4.2": {
+        "name": "arbitrary",
+        "sha256": "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1",
+        "size_bytes": 38307,
+        "version": "1.4.2",
+    },
+    "arboard-3.6.1": {
+        "name": "arboard",
+        "sha256": "0348a1c054491f4bfe6ab86a7b6ab1e44e45d899005de92f58b3df180b36ddaf",
+        "size_bytes": 54018,
+        "version": "3.6.1",
+    },
+    "argon2-0.5.3": {
+        "name": "argon2",
+        "sha256": "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072",
+        "size_bytes": 28795,
+        "version": "0.5.3",
+    },
+    "arrayref-0.3.9": {
+        "name": "arrayref",
+        "sha256": "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb",
+        "size_bytes": 9186,
+        "version": "0.3.9",
+    },
+    "arrayvec-0.7.6": {
+        "name": "arrayvec",
+        "sha256": "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50",
+        "size_bytes": 31237,
+        "version": "0.7.6",
+    },
+    "as-raw-xcb-connection-1.0.1": {
+        "name": "as-raw-xcb-connection",
+        "sha256": "175571dd1d178ced59193a6fc02dde1b972eb0bc56c892cde9beeceac5bf0f6b",
+        "size_bytes": 6460,
+        "version": "1.0.1",
+    },
+    "ash-0.38.0+1.3.281": {
+        "name": "ash",
+        "sha256": "0bb44936d800fea8f016d7f2311c6a4f97aebd5dc86f09906139ec848cf3a46f",
+        "size_bytes": 457775,
+        "version": "0.38.0+1.3.281",
+    },
+    "ashpd-0.11.1": {
+        "name": "ashpd",
+        "sha256": "d2f3f79755c74fd155000314eb349864caa787c6592eace6c6882dad873d9c39",
+        "size_bytes": 116015,
+        "version": "0.11.1",
+    },
+    "asn1-rs-0.5.2": {
+        "name": "asn1-rs",
+        "sha256": "7f6fd5ddaf0351dff5b8da21b2fb4ff8e08ddd02857f0bf69c47639106c0fff0",
+        "size_bytes": 82934,
+        "version": "0.5.2",
+    },
+    "asn1-rs-0.7.2": {
+        "name": "asn1-rs",
+        "sha256": "b7f43a50ac4fdca5df8e885c21b835997f0a1cdee65494a6847694a98652d9d8",
+        "size_bytes": 93179,
+        "version": "0.7.2",
+    },
+    "asn1-rs-derive-0.4.0": {
+        "name": "asn1-rs-derive",
+        "sha256": "726535892e8eae7e70657b4c8ea93d26b8553afb1ce617caee529ef96d7dee6c",
+        "size_bytes": 5220,
+        "version": "0.4.0",
+    },
+    "asn1-rs-derive-0.6.0": {
+        "name": "asn1-rs-derive",
+        "sha256": "3109e49b1e4909e9db6515a30c633684d68cdeaa252f215214cb4fa1a5bfee2c",
+        "size_bytes": 11337,
+        "version": "0.6.0",
+    },
+    "asn1-rs-impl-0.1.0": {
+        "name": "asn1-rs-impl",
+        "sha256": "2777730b2039ac0f95f093556e61b6d26cebed5393ca6f152717777cec3a42ed",
+        "size_bytes": 2256,
+        "version": "0.1.0",
+    },
+    "asn1-rs-impl-0.2.0": {
+        "name": "asn1-rs-impl",
+        "sha256": "7b18050c2cd6fe86c3a76584ef5e0baf286d038cda203eb6223df2cc413565f7",
+        "size_bytes": 2261,
+        "version": "0.2.0",
+    },
+    "async-broadcast-0.7.2": {
+        "name": "async-broadcast",
+        "sha256": "435a87a52755b8f27fcf321ac4f04b2802e337c8c4872923137471ec39c37532",
+        "size_bytes": 22746,
+        "version": "0.7.2",
+    },
+    "async-channel-2.5.0": {
+        "name": "async-channel",
+        "sha256": "924ed96dd52d1b75e9c1a3e6275715fd320f5f9439fb5a4a11fa51f4221158d2",
+        "size_bytes": 18624,
+        "version": "2.5.0",
+    },
+    "async-executor-1.14.0": {
+        "name": "async-executor",
+        "sha256": "c96bf972d85afc50bf5ab8fe2d54d1586b4e0b46c97c50a0c9e71e2f7bcd812a",
+        "size_bytes": 28804,
+        "version": "1.14.0",
+    },
+    "async-fs-2.2.0": {
+        "name": "async-fs",
+        "sha256": "8034a681df4aed8b8edbd7fbe472401ecf009251c8b40556b304567052e294c5",
+        "size_bytes": 18824,
+        "version": "2.2.0",
+    },
+    "async-io-2.6.0": {
+        "name": "async-io",
+        "sha256": "456b8a8feb6f42d237746d4b3e9a178494627745c3c56c6ea55d92ba50d026fc",
+        "size_bytes": 51062,
+        "version": "2.6.0",
+    },
+    "async-lock-3.4.2": {
+        "name": "async-lock",
+        "sha256": "290f7f2596bd5b78a9fec8088ccd89180d7f9f55b94b0576823bbbdc72ee8311",
+        "size_bytes": 39826,
+        "version": "3.4.2",
+    },
+    "async-net-2.0.0": {
+        "name": "async-net",
+        "sha256": "b948000fad4873c1c9339d60f2623323a0cfd3816e5181033c6a5cb68b2accf7",
+        "size_bytes": 17787,
+        "version": "2.0.0",
+    },
+    "async-process-2.5.0": {
+        "name": "async-process",
+        "sha256": "fc50921ec0055cdd8a16de48773bfeec5c972598674347252c0399676be7da75",
+        "size_bytes": 27552,
+        "version": "2.5.0",
+    },
+    "async-recursion-1.1.1": {
+        "name": "async-recursion",
+        "sha256": "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11",
+        "size_bytes": 14874,
+        "version": "1.1.1",
+    },
+    "async-signal-0.2.14": {
+        "name": "async-signal",
+        "sha256": "52b5aaafa020cf5053a01f2a60e8ff5dccf550f0f77ec54a4e47285ac2bab485",
+        "size_bytes": 16447,
+        "version": "0.2.14",
+    },
+    "async-task-4.7.1": {
+        "name": "async-task",
+        "sha256": "8b75356056920673b02621b35afd0f7dda9306d03c79a30f5c56c44cf256e3de",
+        "size_bytes": 38077,
+        "version": "4.7.1",
+    },
+    "async-trait-0.1.91": {
+        "name": "async-trait",
+        "sha256": "ae36dc4177970ef04fde5178d3e2429882def40e57a451f919c098f72baa6cec",
+        "size_bytes": 32108,
+        "version": "0.1.91",
+    },
+    "atomic-polyfill-1.0.3": {
+        "name": "atomic-polyfill",
+        "sha256": "8cf2bce30dfe09ef0bfaef228b9d414faaf7e563035494d7fe092dba54b300f4",
+        "size_bytes": 11581,
+        "version": "1.0.3",
+    },
+    "atomic-waker-1.1.2": {
+        "name": "atomic-waker",
+        "sha256": "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0",
+        "size_bytes": 12422,
+        "version": "1.1.2",
+    },
+    "atomic_float-1.1.0": {
+        "name": "atomic_float",
+        "sha256": "628d228f918ac3b82fe590352cc719d30664a0c13ca3a60266fe02c7132d480a",
+        "size_bytes": 16232,
+        "version": "1.1.0",
+    },
+    "atspi-0.29.0": {
+        "name": "atspi",
+        "sha256": "c77886257be21c9cd89a4ae7e64860c6f0eefca799bb79127913052bd0eefb3d",
+        "size_bytes": 20051,
+        "version": "0.29.0",
+    },
+    "atspi-common-0.13.0": {
+        "name": "atspi-common",
+        "sha256": "20c5617155740c98003016429ad13fe43ce7a77b007479350a9f8bf95a29f63d",
+        "size_bytes": 129527,
+        "version": "0.13.0",
+    },
+    "atspi-proxies-0.13.0": {
+        "name": "atspi-proxies",
+        "sha256": "2230e48787ed3eb4088996eab66a32ca20c0b67bbd4fd6cdfe79f04f1f04c9fc",
+        "size_bytes": 29030,
+        "version": "0.13.0",
+    },
+    "autocfg-1.5.1": {
+        "name": "autocfg",
+        "sha256": "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53",
+        "size_bytes": 18911,
+        "version": "1.5.1",
+    },
+    "base64-0.22.1": {
+        "name": "base64",
+        "sha256": "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6",
+        "size_bytes": 81597,
+        "version": "0.22.1",
+    },
+    "base64-0.23.1": {
+        "name": "base64",
+        "sha256": "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5",
+        "size_bytes": 93605,
+        "version": "0.23.1",
+    },
+    "base64ct-1.8.3": {
+        "name": "base64ct",
+        "sha256": "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06",
+        "size_bytes": 32227,
+        "version": "1.8.3",
+    },
+    "bincode-1.3.3": {
+        "name": "bincode",
+        "sha256": "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad",
+        "size_bytes": 28958,
+        "version": "1.3.3",
+    },
+    "bindgen-0.72.1": {
+        "name": "bindgen",
+        "sha256": "993776b509cfb49c750f11b8f07a46fa23e0a1386ffc01fb1e7d343efc387895",
+        "size_bytes": 246071,
+        "version": "0.72.1",
+    },
+    "bip39-2.2.2": {
+        "name": "bip39",
+        "sha256": "90dbd31c98227229239363921e60fcf5e558e43ec69094d46fc4996f08d1d5bc",
+        "size_bytes": 106823,
+        "version": "2.2.2",
+    },
+    "bit-set-0.9.1": {
+        "name": "bit-set",
+        "sha256": "34ddef2995421ab6a5c779542c81ee77c115206f4ad9d5a8e05f4ff49716a3dd",
+        "size_bytes": 20389,
+        "version": "0.9.1",
+    },
+    "bit-vec-0.9.1": {
+        "name": "bit-vec",
+        "sha256": "b71798fca2c1fe1086445a7258a4bc81e6e49dcd24c8d0dd9a1e57395b603f51",
+        "size_bytes": 29177,
+        "version": "0.9.1",
+    },
+    "bitcoin_hashes-0.14.101": {
+        "name": "bitcoin_hashes",
+        "sha256": "bca4c7abb40c8817d77403c880988cfd484f23ab2365726afb2f798363e2c4a2",
+        "size_bytes": 50890,
+        "version": "0.14.101",
+    },
+    "bitflags-1.3.2": {
+        "name": "bitflags",
+        "sha256": "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a",
+        "size_bytes": 23021,
+        "version": "1.3.2",
+    },
+    "bitflags-2.12.1": {
+        "name": "bitflags",
+        "sha256": "84d7ced0ae9557296835c32bf1b1e02b44c746701f898460fb000d7eaa84f00a",
+        "size_bytes": 50766,
+        "version": "2.12.1",
+    },
+    "blake2-0.10.6": {
+        "name": "blake2",
+        "sha256": "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe",
+        "size_bytes": 47234,
+        "version": "0.10.6",
+    },
+    "block-buffer-0.10.4": {
+        "name": "block-buffer",
+        "sha256": "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71",
+        "size_bytes": 10538,
+        "version": "0.10.4",
+    },
+    "block-buffer-0.12.1": {
+        "name": "block-buffer",
+        "sha256": "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa",
+        "size_bytes": 15902,
+        "version": "0.12.1",
+    },
+    "block-padding-0.4.2": {
+        "name": "block-padding",
+        "sha256": "710f1dd022ef4e93f8a438b4ba958de7f64308434fa6a87104481645cc30068b",
+        "size_bytes": 9764,
+        "version": "0.4.2",
+    },
+    "block2-0.5.1": {
+        "name": "block2",
+        "sha256": "2c132eebf10f5cad5289222520a4a058514204aed6d791f1cf4fe8088b82d15f",
+        "size_bytes": 24191,
+        "version": "0.5.1",
+    },
+    "block2-0.6.2": {
+        "name": "block2",
+        "sha256": "cdeb9d870516001442e364c5220d3574d2da8dc765554b4a617230d33fa58ef5",
+        "size_bytes": 34505,
+        "version": "0.6.2",
+    },
+    "blocking-1.6.2": {
+        "name": "blocking",
+        "sha256": "e83f8d02be6967315521be875afa792a316e28d57b5a2d401897e2a7921b7f21",
+        "size_bytes": 17754,
+        "version": "1.6.2",
+    },
+    "borsh-1.8.1": {
+        "name": "borsh",
+        "sha256": "553c5d846a6ba5150c65e3b1b8ec073bcf1abc20f9b7220de384a4443ea4e20a",
+        "size_bytes": 85266,
+        "version": "1.8.1",
+    },
+    "bstr-1.13.0": {
+        "name": "bstr",
+        "sha256": "1f7dc094d718f2e1c1559ad110e27eeaae14a5465d3d56dd6dbd793079fbd530",
+        "size_bytes": 355737,
+        "version": "1.13.0",
+    },
+    "bumpalo-3.20.3": {
+        "name": "bumpalo",
+        "sha256": "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649",
+        "size_bytes": 98671,
+        "version": "3.20.3",
+    },
+    "bytemuck-1.25.0": {
+        "name": "bytemuck",
+        "sha256": "c8efb64bd706a16a1bdde310ae86b351e4d21550d98d056f22f8a7f7a2183fec",
+        "size_bytes": 53466,
+        "version": "1.25.0",
+    },
+    "bytemuck_derive-1.10.2": {
+        "name": "bytemuck_derive",
+        "sha256": "f9abbd1bc6865053c427f7198e6af43bfdedc55ab791faed4fbd361d789575ff",
+        "size_bytes": 25678,
+        "version": "1.10.2",
+    },
+    "byteorder-1.5.0": {
+        "name": "byteorder",
+        "sha256": "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b",
+        "size_bytes": 23288,
+        "version": "1.5.0",
+    },
+    "byteorder-lite-0.1.0": {
+        "name": "byteorder-lite",
+        "sha256": "8f1fe948ff07f4bd06c30984e69f5b4899c516a3ef74f34df92a2df2ab535495",
+        "size_bytes": 15909,
+        "version": "0.1.0",
+    },
+    "bytes-1.11.1": {
+        "name": "bytes",
+        "sha256": "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33",
+        "size_bytes": 78584,
+        "version": "1.11.1",
+    },
+    "calloop-0.14.4": {
+        "name": "calloop",
+        "sha256": "4dbf9978365bac10f54d1d4b04f7ce4427e51f71d61f2fe15e3fed5166474df7",
+        "size_bytes": 77843,
+        "version": "0.14.4",
+    },
+    "calloop-wayland-source-0.4.1": {
+        "name": "calloop-wayland-source",
+        "sha256": "138efcf0940a02ebf0cc8d1eff41a1682a46b431630f4c52450d6265876021fa",
+        "size_bytes": 11247,
+        "version": "0.4.1",
+    },
+    "cap-fs-ext-4.0.3": {
+        "name": "cap-fs-ext",
+        "sha256": "56ff379b70af8e08307a8f65e7040c7301cb4a572538ade16b4984f0da77847f",
+        "size_bytes": 16995,
+        "version": "4.0.3",
+    },
+    "cap-primitives-4.0.3": {
+        "name": "cap-primitives",
+        "sha256": "8b5f74729fd2f44701d1a8eb47e906cdb3ccd9ec0f02baad85a744b791940b18",
+        "size_bytes": 93618,
+        "version": "4.0.3",
+    },
+    "cap-std-4.0.3": {
+        "name": "cap-std",
+        "sha256": "c1ec78e242cfa2cfe276807ac2ecc00315a6c97786977414bcd1c3963b6c91b8",
+        "size_bytes": 36964,
+        "version": "4.0.3",
+    },
+    "caseless-0.2.2": {
+        "name": "caseless",
+        "sha256": "8b6fd507454086c8edfd769ca6ada439193cdb209c7681712ef6275cccbfe5d8",
+        "size_bytes": 29309,
+        "version": "0.2.2",
+    },
+    "cbc-0.2.1": {
+        "name": "cbc",
+        "sha256": "ce2dc9ee5f88d11e0beb842c88b33c8a5cf0d1329c4b19494af42b07dbfe8896",
+        "size_bytes": 25642,
+        "version": "0.2.1",
+    },
+    "cc-1.2.63": {
+        "name": "cc",
+        "sha256": "556e016178bb5662a08681bbe0f00f8e17631781a4dfc8c45e466e4b185ec27f",
+        "size_bytes": 97259,
+        "version": "1.2.63",
+    },
+    "cesu8-1.1.0": {
+        "name": "cesu8",
+        "sha256": "6d43a04d8753f35258c91f8ec639f792891f748a1edbd759cf1dcea3382ad83c",
+        "size_bytes": 10555,
+        "version": "1.1.0",
+    },
+    "cexpr-0.6.0": {
+        "name": "cexpr",
+        "sha256": "6fac387a98bb7c37292057cffc56d62ecb629900026402633ae9160df93a8766",
+        "size_bytes": 17966,
+        "version": "0.6.0",
+    },
+    "cfg-if-1.0.4": {
+        "name": "cfg-if",
+        "sha256": "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801",
+        "size_bytes": 9360,
+        "version": "1.0.4",
+    },
+    "cfg_aliases-0.1.1": {
+        "name": "cfg_aliases",
+        "sha256": "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e",
+        "size_bytes": 6009,
+        "version": "0.1.1",
+    },
+    "cfg_aliases-0.2.2": {
+        "name": "cfg_aliases",
+        "sha256": "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527",
+        "size_bytes": 6527,
+        "version": "0.2.2",
+    },
+    "cgmath-0.18.0": {
+        "name": "cgmath",
+        "sha256": "1a98d30140e3296250832bbaaff83b27dcd6fa3cc70fb6f1f3e5c9c0023b5317",
+        "size_bytes": 64802,
+        "version": "0.18.0",
+    },
+    "chacha20-0.10.1": {
+        "name": "chacha20",
+        "sha256": "d524456ba66e72eb8b115ff89e01e497f8e6d11d78b70b1aa13c0fbd97540a81",
+        "size_bytes": 38187,
+        "version": "0.10.1",
+    },
+    "chacha20-0.9.1": {
+        "name": "chacha20",
+        "sha256": "c3613f74bd2eac03dad61bd53dbe620703d4371614fe0bc3b9f04dd36fe4e818",
+        "size_bytes": 23424,
+        "version": "0.9.1",
+    },
+    "chacha20poly1305-0.10.1": {
+        "name": "chacha20poly1305",
+        "sha256": "10cd79432192d1c0f4e1a0fef9527696cc039165d729fb41b3f4f4f354c2dc35",
+        "size_bytes": 68485,
+        "version": "0.10.1",
+    },
+    "ciborium-0.2.2": {
+        "name": "ciborium",
+        "sha256": "42e69ffd6f0917f5c029256a24d0161db17cea3997d185db0d35926308770f0e",
+        "size_bytes": 35611,
+        "version": "0.2.2",
+    },
+    "ciborium-io-0.2.2": {
+        "name": "ciborium-io",
+        "sha256": "05afea1e0a06c9be33d539b876f1ce3692f4afea2cb41f740e7743225ed1c757",
+        "size_bytes": 6697,
+        "version": "0.2.2",
+    },
+    "ciborium-ll-0.2.2": {
+        "name": "ciborium-ll",
+        "sha256": "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9",
+        "size_bytes": 14695,
+        "version": "0.2.2",
+    },
+    "cipher-0.4.4": {
+        "name": "cipher",
+        "sha256": "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad",
+        "size_bytes": 19073,
+        "version": "0.4.4",
+    },
+    "cipher-0.5.2": {
+        "name": "cipher",
+        "sha256": "e8cf2a2c93cd704877c0858356ed03480ff301ee950b43f1cbe4573b088bfa6c",
+        "size_bytes": 28177,
+        "version": "0.5.2",
+    },
+    "clang-sys-1.9.1": {
+        "name": "clang-sys",
+        "sha256": "157a8ba7b480713b56f4c09fd13fc3e0a22a5dfab8097ba61cbc5feef950788a",
+        "size_bytes": 47227,
+        "version": "1.9.1",
+    },
+    "claxon-0.4.3": {
+        "name": "claxon",
+        "sha256": "4bfbf56724aa9eca8afa4fcfadeb479e722935bb2a0900c2d37e0cc477af0688",
+        "size_bytes": 86626,
+        "version": "0.4.3",
+    },
+    "clipboard-win-5.4.1": {
+        "name": "clipboard-win",
+        "sha256": "bde03770d3df201d4fb868f2c9c59e66a3e4e2bd06692a0fe701e7103c7e84d4",
+        "size_bytes": 20994,
+        "version": "5.4.1",
+    },
+    "cmov-0.5.4": {
+        "name": "cmov",
+        "sha256": "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a",
+        "size_bytes": 27367,
+        "version": "0.5.4",
+    },
+    "cms-0.3.0-pre.1": {
+        "name": "cms",
+        "sha256": "758d5272932ff167e96ec9641a04d96ab1901cccc5ea9f47c15b4cbaa6f9ea53",
+        "size_bytes": 213869,
+        "version": "0.3.0-pre.1",
+    },
+    "cobs-0.3.0": {
+        "name": "cobs",
+        "sha256": "0fa961b519f0b462e3a3b4a34b64d119eeaca1d59af726fe450bbba07a9fc0a1",
+        "size_bytes": 15639,
+        "version": "0.3.0",
+    },
+    "codespan-reporting-0.13.1": {
+        "name": "codespan-reporting",
+        "sha256": "af491d569909a7e4dee0ad7db7f5341fef5c614d5b8ec8cf765732aba3cff681",
+        "size_bytes": 57424,
+        "version": "0.13.1",
+    },
+    "color_quant-1.1.0": {
+        "name": "color_quant",
+        "sha256": "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b",
+        "size_bytes": 6649,
+        "version": "1.1.0",
+    },
+    "combine-4.6.7": {
+        "name": "combine",
+        "sha256": "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd",
+        "size_bytes": 134808,
+        "version": "4.6.7",
+    },
+    "comrak-0.55.0": {
+        "name": "comrak",
+        "sha256": "daa3d1ea6b01ce72405fa3f826768f51c7a44917527c89b37856ffdd17ee57e4",
+        "size_bytes": 267733,
+        "version": "0.55.0",
+    },
+    "concurrent-queue-2.5.0": {
+        "name": "concurrent-queue",
+        "sha256": "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973",
+        "size_bytes": 22654,
+        "version": "2.5.0",
+    },
+    "const-oid-0.10.2": {
+        "name": "const-oid",
+        "sha256": "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c",
+        "size_bytes": 61449,
+        "version": "0.10.2",
+    },
+    "const-oid-0.9.6": {
+        "name": "const-oid",
+        "sha256": "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8",
+        "size_bytes": 45382,
+        "version": "0.9.6",
+    },
+    "core-foundation-0.9.4": {
+        "name": "core-foundation",
+        "sha256": "91e195e091a93c46f7102ec7818a2aa394e1e1771c3ab4825963fa03e45afb8f",
+        "size_bytes": 27743,
+        "version": "0.9.4",
+    },
+    "core-foundation-sys-0.8.7": {
+        "name": "core-foundation-sys",
+        "sha256": "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b",
+        "size_bytes": 37712,
+        "version": "0.8.7",
+    },
+    "core-graphics-0.22.3": {
+        "name": "core-graphics",
+        "sha256": "2581bbab3b8ffc6fcbd550bf46c355135d16e9ff2a6ea032ad6b9bf1d7efe4fb",
+        "size_bytes": 29514,
+        "version": "0.22.3",
+    },
+    "core-graphics-types-0.1.3": {
+        "name": "core-graphics-types",
+        "sha256": "45390e6114f68f718cc7a830514a96f903cccd70d02a8f6d9f643ac4ba45afaf",
+        "size_bytes": 7063,
+        "version": "0.1.3",
+    },
+    "core-text-19.2.0": {
+        "name": "core-text",
+        "sha256": "99d74ada66e07c1cefa18f8abfba765b486f250de2e4a999e5727fc0dd4b4a25",
+        "size_bytes": 18446,
+        "version": "19.2.0",
+    },
+    "coreaudio-rs-0.11.3": {
+        "name": "coreaudio-rs",
+        "sha256": "321077172d79c662f64f5071a03120748d5bb652f5231570141be24cfcd2bace",
+        "size_bytes": 42844,
+        "version": "0.11.3",
+    },
+    "coreaudio-sys-0.2.18": {
+        "name": "coreaudio-sys",
+        "sha256": "b9b4739a805a62757a83e5654fa3faabec0442666b263bb2287d5a8185bfd953",
+        "size_bytes": 7389,
+        "version": "0.2.18",
+    },
+    "countme-3.0.1": {
+        "name": "countme",
+        "sha256": "7704b5fdd17b18ae31c4c1da5a2e0305a2bf17b5249300a9ee9ed7b72114c636",
+        "size_bytes": 10784,
+        "version": "3.0.1",
+    },
+    "cpal-0.15.3": {
+        "name": "cpal",
+        "sha256": "873dab07c8f743075e57f524c583985fbaf745602acbe916a01539364369a779",
+        "size_bytes": 100083,
+        "version": "0.15.3",
+    },
+    "cpp_demangle-0.5.1": {
+        "name": "cpp_demangle",
+        "sha256": "0667304c32ea56cb4cd6d2d7c0cfe9a2f8041229db8c033af7f8d69492429def",
+        "size_bytes": 83067,
+        "version": "0.5.1",
+    },
+    "cpubits-0.1.1": {
+        "name": "cpubits",
+        "sha256": "15b85f9c39137c3a891689859392b1bd49812121d0d61c9caf00d46ed5ce06ae",
+        "size_bytes": 10261,
+        "version": "0.1.1",
+    },
+    "cpufeatures-0.2.17": {
+        "name": "cpufeatures",
+        "sha256": "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280",
+        "size_bytes": 13466,
+        "version": "0.2.17",
+    },
+    "cpufeatures-0.3.0": {
+        "name": "cpufeatures",
+        "sha256": "8b2a41393f66f16b0823bb79094d54ac5fbd34ab292ddafb9a0456ac9f87d201",
+        "size_bytes": 14156,
+        "version": "0.3.0",
+    },
+    "cranelift-assembler-x64-0.135.1": {
+        "name": "cranelift-assembler-x64",
+        "sha256": "9903e767cc0a95a59950de099a6b1d61e1476f774be1cdfa06d7ccdc9bfae56f",
+        "size_bytes": 30896,
+        "version": "0.135.1",
+    },
+    "cranelift-assembler-x64-meta-0.135.1": {
+        "name": "cranelift-assembler-x64-meta",
+        "sha256": "e777252ea3ec9daffa71408fbfe0793ab0a7b7bc3b2cf0f417dd0fa33964b8ef",
+        "size_bytes": 49676,
+        "version": "0.135.1",
+    },
+    "cranelift-bforest-0.135.1": {
+        "name": "cranelift-bforest",
+        "sha256": "7828208a36e6627481cea61bd24c6234e31411d5c58b48e80ca094a1d593b944",
+        "size_bytes": 34212,
+        "version": "0.135.1",
+    },
+    "cranelift-bitset-0.135.1": {
+        "name": "cranelift-bitset",
+        "sha256": "a58c8447cc59ef98c49096679f81392ad0acec2224cea2bef52011f5169f9d02",
+        "size_bytes": 9195,
+        "version": "0.135.1",
+    },
+    "cranelift-codegen-0.135.1": {
+        "name": "cranelift-codegen",
+        "sha256": "ce520e899df1de583e7b564eafd66760fbc147d72894d2278ddac57a1489fcc0",
+        "size_bytes": 1189075,
+        "version": "0.135.1",
+    },
+    "cranelift-codegen-meta-0.135.1": {
+        "name": "cranelift-codegen-meta",
+        "sha256": "8d8ab23e63d78ea6bbda18ae1ed9c958bc1cb88d90fb5e95f5ba62e9c019474b",
+        "size_bytes": 93812,
+        "version": "0.135.1",
+    },
+    "cranelift-codegen-shared-0.135.1": {
+        "name": "cranelift-codegen-shared",
+        "sha256": "24319a996b1ef40ebf8af69b39c868c790b35a42cfe38edacfd8c9deb75ea712",
+        "size_bytes": 6192,
+        "version": "0.135.1",
+    },
+    "cranelift-control-0.135.1": {
+        "name": "cranelift-control",
+        "sha256": "cf9856d68cc2cefb83229cb2c55b620dd38427555c2fe87d73f8a4421616f628",
+        "size_bytes": 8297,
+        "version": "0.135.1",
+    },
+    "cranelift-entity-0.135.1": {
+        "name": "cranelift-entity",
+        "sha256": "e0ec225d6b79c5d61358cb5ea081a1384ec541dbf8c1a8c618d187875af326ad",
+        "size_bytes": 31193,
+        "version": "0.135.1",
+    },
+    "cranelift-frontend-0.135.1": {
+        "name": "cranelift-frontend",
+        "sha256": "7d3a96a09bd9bd3cf6df2de2ea15d7418f493e946a8eaa1acfe39297a67ed3f3",
+        "size_bytes": 61662,
+        "version": "0.135.1",
+    },
+    "cranelift-isle-0.135.1": {
+        "name": "cranelift-isle",
+        "sha256": "bd28f593c36afbdc9aa17305c0bb66c39ce0530e1caffcf389fbec053950083e",
+        "size_bytes": 89672,
+        "version": "0.135.1",
+    },
+    "cranelift-native-0.135.1": {
+        "name": "cranelift-native",
+        "sha256": "2987ca47affc261aa31ac643fb80dd7f8274cebf878003ba9f50cd6ff2c1055f",
+        "size_bytes": 11448,
+        "version": "0.135.1",
+    },
+    "cranelift-srcgen-0.135.1": {
+        "name": "cranelift-srcgen",
+        "sha256": "b7431dd8c9def94aca43b27915dee0d42103d9b13922cfb044febcd975547d68",
+        "size_bytes": 6127,
+        "version": "0.135.1",
+    },
+    "crc32fast-1.5.0": {
+        "name": "crc32fast",
+        "sha256": "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511",
+        "size_bytes": 40723,
+        "version": "1.5.0",
+    },
+    "critical-section-1.2.0": {
+        "name": "critical-section",
+        "sha256": "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b",
+        "size_bytes": 19133,
+        "version": "1.2.0",
+    },
+    "crossbeam-channel-0.5.16": {
+        "name": "crossbeam-channel",
+        "sha256": "d85363c37faeca707aef026efa9f3b34d077bce547e48f770770625c6013679e",
+        "size_bytes": 93189,
+        "version": "0.5.16",
+    },
+    "crossbeam-deque-0.8.7": {
+        "name": "crossbeam-deque",
+        "sha256": "5181e0de7b61eb03a81e347d6dd8797bae9da5146707b51077e2d71a54ec0ceb",
+        "size_bytes": 24141,
+        "version": "0.8.7",
+    },
+    "crossbeam-epoch-0.9.20": {
+        "name": "crossbeam-epoch",
+        "sha256": "2d6914041f254d6e9176c01941b21115dcfb7089e55135a35411081bd106ef3f",
+        "size_bytes": 47545,
+        "version": "0.9.20",
+    },
+    "crossbeam-utils-0.8.21": {
+        "name": "crossbeam-utils",
+        "sha256": "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28",
+        "size_bytes": 42691,
+        "version": "0.8.21",
+    },
+    "crunchy-0.2.4": {
+        "name": "crunchy",
+        "sha256": "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5",
+        "size_bytes": 3887,
+        "version": "0.2.4",
+    },
+    "crypto-common-0.1.7": {
+        "name": "crypto-common",
+        "sha256": "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a",
+        "size_bytes": 9619,
+        "version": "0.1.7",
+    },
+    "crypto-common-0.2.2": {
+        "name": "crypto-common",
+        "sha256": "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453",
+        "size_bytes": 15449,
+        "version": "0.2.2",
+    },
+    "ctr-0.10.1": {
+        "name": "ctr",
+        "sha256": "baaca1c4b237092596f64d571e9db6ce4109c4ef9742e27590f1709594461f21",
+        "size_bytes": 20379,
+        "version": "0.10.1",
+    },
+    "ctutils-0.4.3": {
+        "name": "ctutils",
+        "sha256": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
+        "size_bytes": 30825,
+        "version": "0.4.3",
+    },
+    "cursor-icon-1.2.0": {
+        "name": "cursor-icon",
+        "sha256": "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f",
+        "size_bytes": 14267,
+        "version": "1.2.0",
+    },
+    "curve25519-dalek-4.1.3": {
+        "name": "curve25519-dalek",
+        "sha256": "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be",
+        "size_bytes": 306017,
+        "version": "4.1.3",
+    },
+    "curve25519-dalek-derive-0.1.1": {
+        "name": "curve25519-dalek-derive",
+        "sha256": "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3",
+        "size_bytes": 11723,
+        "version": "0.1.1",
+    },
+    "dasp_sample-0.11.0": {
+        "name": "dasp_sample",
+        "sha256": "0c87e182de0887fd5361989c677c4e8f5000cd9491d6d563161a8f3a5519fc7f",
+        "size_bytes": 11617,
+        "version": "0.11.0",
+    },
+    "data-encoding-2.11.0": {
+        "name": "data-encoding",
+        "sha256": "a4ae5f15dda3c708c0ade84bfee31ccab44a3da4f88015ed22f63732abe300c8",
+        "size_bytes": 22677,
+        "version": "2.11.0",
+    },
+    "data-url-0.3.2": {
+        "name": "data-url",
+        "sha256": "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376",
+        "size_bytes": 23862,
+        "version": "0.3.2",
+    },
+    "der-0.7.10": {
+        "name": "der",
+        "sha256": "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb",
+        "size_bytes": 90111,
+        "version": "0.7.10",
+    },
+    "der-0.8.2": {
+        "name": "der",
+        "sha256": "a878c850e9e421b20262e9b41f9c860e4785fa07541c266b62ff9d1ef998a80a",
+        "size_bytes": 120967,
+        "version": "0.8.2",
+    },
+    "der-parser-10.0.0": {
+        "name": "der-parser",
+        "sha256": "07da5016415d5a3c4dd39b11ed26f915f52fc4e0dc197d87908bc916e51bc1a6",
+        "size_bytes": 66186,
+        "version": "10.0.0",
+    },
+    "der_derive-0.7.3": {
+        "name": "der_derive",
+        "sha256": "8034092389675178f570469e6c3b0465d3d30b4505c294a6550db47f3c17ad18",
+        "size_bytes": 24657,
+        "version": "0.7.3",
+    },
+    "der_derive-0.8.0": {
+        "name": "der_derive",
+        "sha256": "59600e2c2d636fde9b65e99cc6445ac770c63d3628195ff39932b8d6d7409903",
+        "size_bytes": 29600,
+        "version": "0.8.0",
+    },
+    "deranged-0.5.8": {
+        "name": "deranged",
+        "sha256": "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c",
+        "size_bytes": 26885,
+        "version": "0.5.8",
+    },
+    "des-0.9.0": {
+        "name": "des",
+        "sha256": "916a94e407b54f9034d71dd748234cd1e516ced6284009906ae246f177eafe5a",
+        "size_bytes": 40194,
+        "version": "0.9.0",
+    },
+    "digest-0.10.7": {
+        "name": "digest",
+        "sha256": "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292",
+        "size_bytes": 19557,
+        "version": "0.10.7",
+    },
+    "digest-0.11.3": {
+        "name": "digest",
+        "sha256": "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2",
+        "size_bytes": 28955,
+        "version": "0.11.3",
+    },
+    "directories-next-2.0.0": {
+        "name": "directories-next",
+        "sha256": "339ee130d97a610ea5a5872d2bbb130fdf68884ff09d3028b81bec8a1ac23bbc",
+        "size_bytes": 15153,
+        "version": "2.0.0",
+    },
+    "dirs-sys-next-0.1.2": {
+        "name": "dirs-sys-next",
+        "sha256": "4ebda144c4fe02d1f7ea1a7d9641b6fc6b580adcfa024ae48797ecdeb6825b4d",
+        "size_bytes": 10681,
+        "version": "0.1.2",
+    },
+    "dispatch2-0.3.1": {
+        "name": "dispatch2",
+        "sha256": "1e0e367e4e7da84520dedcac1901e4da967309406d1e51017ae1abfb97adbd38",
+        "size_bytes": 55299,
+        "version": "0.3.1",
+    },
+    "displaydoc-0.2.6": {
+        "name": "displaydoc",
+        "sha256": "1ac70aa55017e108007fbaf5aa0f54b021c98f92ff8af59d42eda9da96e3dd4f",
+        "size_bytes": 21191,
+        "version": "0.2.6",
+    },
+    "dlib-0.5.3": {
+        "name": "dlib",
+        "sha256": "ab8ecd87370524b461f8557c119c405552c396ed91fc0a8eec68679eab26f94a",
+        "size_bytes": 7120,
+        "version": "0.5.3",
+    },
+    "document-features-0.2.12": {
+        "name": "document-features",
+        "sha256": "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61",
+        "size_bytes": 14739,
+        "version": "0.2.12",
+    },
+    "downcast-rs-1.2.1": {
+        "name": "downcast-rs",
+        "sha256": "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2",
+        "size_bytes": 11821,
+        "version": "1.2.1",
+    },
+    "dpi-0.1.2": {
+        "name": "dpi",
+        "sha256": "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76",
+        "size_bytes": 14812,
+        "version": "0.1.2",
+    },
+    "drm-0.14.1": {
+        "name": "drm",
+        "sha256": "80bc8c5c6c2941f70a55c15f8d9f00f9710ebda3ffda98075f996a0e6c92756f",
+        "size_bytes": 52927,
+        "version": "0.14.1",
+    },
+    "drm-ffi-0.9.1": {
+        "name": "drm-ffi",
+        "sha256": "51a91c9b32ac4e8105dec255e849e0d66e27d7c34d184364fb93e469db08f690",
+        "size_bytes": 12421,
+        "version": "0.9.1",
+    },
+    "drm-fourcc-2.2.0": {
+        "name": "drm-fourcc",
+        "sha256": "0aafbcdb8afc29c1a7ee5fbe53b5d62f4565b35a042a662ca9fecd0b54dae6f4",
+        "size_bytes": 12192,
+        "version": "2.2.0",
+    },
+    "drm-sys-0.8.1": {
+        "name": "drm-sys",
+        "sha256": "ecc8e1361066d91f5ffccff060a3c3be9c3ecde15be2959c1937595f7a82a9f8",
+        "size_bytes": 12804,
+        "version": "0.8.1",
+    },
+    "drop_bomb-0.1.5": {
+        "name": "drop_bomb",
+        "sha256": "9bda8e21c04aca2ae33ffc2fd8c23134f3cac46db123ba97bd9d3f3b8a4a85e1",
+        "size_bytes": 6859,
+        "version": "0.1.5",
+    },
+    "ed25519-2.2.3": {
+        "name": "ed25519",
+        "sha256": "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53",
+        "size_bytes": 17802,
+        "version": "2.2.3",
+    },
+    "ed25519-dalek-2.2.0": {
+        "name": "ed25519-dalek",
+        "sha256": "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9",
+        "size_bytes": 98034,
+        "version": "2.2.0",
+    },
+    "either-1.17.0": {
+        "name": "either",
+        "sha256": "9e5e8f6c15a24b9a3ee5efec809ccd006d3b30e8b3bb63c39af737c7f87daa1d",
+        "size_bytes": 21820,
+        "version": "1.17.0",
+    },
+    "embedded-io-0.4.0": {
+        "name": "embedded-io",
+        "sha256": "ef1a6892d9eef45c8fa6b9e0086428a2cca8491aca8f787c534a3d6d0bcb3ced",
+        "size_bytes": 12901,
+        "version": "0.4.0",
+    },
+    "embedded-io-0.6.1": {
+        "name": "embedded-io",
+        "sha256": "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d",
+        "size_bytes": 13133,
+        "version": "0.6.1",
+    },
+    "emojis-0.9.0": {
+        "name": "emojis",
+        "sha256": "0b1514ced566c94991ed9563258ecf61e311fd773bf0a3f20606830386bf66e3",
+        "size_bytes": 128418,
+        "version": "0.9.0",
+    },
+    "encoding_rs-0.8.35": {
+        "name": "encoding_rs",
+        "sha256": "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3",
+        "size_bytes": 1381050,
+        "version": "0.8.35",
+    },
+    "endi-1.1.1": {
+        "name": "endi",
+        "sha256": "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099",
+        "size_bytes": 5045,
+        "version": "1.1.1",
+    },
+    "entities-1.0.1": {
+        "name": "entities",
+        "sha256": "b5320ae4c3782150d900b79807611a59a99fc9a1d61d686faafc24b93fc8d7ca",
+        "size_bytes": 24795,
+        "version": "1.0.1",
+    },
+    "enum-primitive-derive-0.3.0": {
+        "name": "enum-primitive-derive",
+        "sha256": "ba7795da175654fe16979af73f81f26a8ea27638d8d9823d317016888a63dc4c",
+        "size_bytes": 4664,
+        "version": "0.3.0",
+    },
+    "enumflags2-0.7.12": {
+        "name": "enumflags2",
+        "sha256": "1027f7680c853e056ebcec683615fb6fbbc07dbaa13b4d5d9442b146ded4ecef",
+        "size_bytes": 17544,
+        "version": "0.7.12",
+    },
+    "enumflags2_derive-0.7.12": {
+        "name": "enumflags2_derive",
+        "sha256": "67c78a4d8fdf9953a5c9d458f9efe940fd97a0cab0941c075a813ac594733827",
+        "size_bytes": 8573,
+        "version": "0.7.12",
+    },
+    "enumn-0.1.14": {
+        "name": "enumn",
+        "sha256": "2f9ed6b3789237c8a0c1c505af1c7eb2c560df6186f01b098c3a1064ea532f38",
+        "size_bytes": 8449,
+        "version": "0.1.14",
+    },
+    "equivalent-1.0.2": {
+        "name": "equivalent",
+        "sha256": "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f",
+        "size_bytes": 7419,
+        "version": "1.0.2",
+    },
+    "errno-0.3.14": {
+        "name": "errno",
+        "sha256": "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb",
+        "size_bytes": 12002,
+        "version": "0.3.14",
+    },
+    "error-code-3.3.2": {
+        "name": "error-code",
+        "sha256": "dea2df4cf52843e0452895c455a1a2cfbb842a1e7329671acf418fdc53ed4c59",
+        "size_bytes": 8516,
+        "version": "3.3.2",
+    },
+    "euclid-0.22.14": {
+        "name": "euclid",
+        "sha256": "f1a05365e3b1c6d1650318537c7460c6923f1abdd272ad6842baa2b509957a06",
+        "size_bytes": 88222,
+        "version": "0.22.14",
+    },
+    "event-listener-5.4.2": {
+        "name": "event-listener",
+        "sha256": "5a23add41df1562121a9393cb065eab5146a1242410f23a644851e90cfd669d2",
+        "size_bytes": 35131,
+        "version": "5.4.2",
+    },
+    "event-listener-strategy-0.5.4": {
+        "name": "event-listener-strategy",
+        "sha256": "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93",
+        "size_bytes": 16179,
+        "version": "0.5.4",
+    },
+    "fallible-iterator-0.3.0": {
+        "name": "fallible-iterator",
+        "sha256": "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649",
+        "size_bytes": 19639,
+        "version": "0.3.0",
+    },
+    "fallible-streaming-iterator-0.1.9": {
+        "name": "fallible-streaming-iterator",
+        "sha256": "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a",
+        "size_bytes": 9249,
+        "version": "0.1.9",
+    },
+    "fastrand-2.5.0": {
+        "name": "fastrand",
+        "sha256": "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223",
+        "size_bytes": 20782,
+        "version": "2.5.0",
+    },
+    "fax-0.2.7": {
+        "name": "fax",
+        "sha256": "caf1079563223d5d59d83c85886a56e586cfd5c1a26292e971a0fa266531ac5a",
+        "size_bytes": 25616,
+        "version": "0.2.7",
+    },
+    "fdeflate-0.3.7": {
+        "name": "fdeflate",
+        "sha256": "1e6853b52649d4ac5c0bd02320cddc5ba956bdb407c4b75a2c6b75bf51500f8c",
+        "size_bytes": 27188,
+        "version": "0.3.7",
+    },
+    "fiat-crypto-0.2.9": {
+        "name": "fiat-crypto",
+        "sha256": "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d",
+        "size_bytes": 495390,
+        "version": "0.2.9",
+    },
+    "filedescriptor-0.8.3": {
+        "name": "filedescriptor",
+        "sha256": "e40758ed24c9b2eeb76c35fb0aebc66c626084edd827e07e1552279814c6682d",
+        "size_bytes": 12635,
+        "version": "0.8.3",
+    },
+    "find-msvc-tools-0.1.9": {
+        "name": "find-msvc-tools",
+        "sha256": "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582",
+        "size_bytes": 31493,
+        "version": "0.1.9",
+    },
+    "finl_unicode-1.5.0": {
+        "name": "finl_unicode",
+        "sha256": "80bb028c8b4148c9ee0cca68fcd9add6044e81d3619f48577ddf13a263d047a2",
+        "size_bytes": 80465,
+        "version": "1.5.0",
+    },
+    "flagset-0.4.7": {
+        "name": "flagset",
+        "sha256": "b7ac824320a75a52197e8f2d787f6a38b6718bb6897a35142d749af3c0e8f4fe",
+        "size_bytes": 13688,
+        "version": "0.4.7",
+    },
+    "flate2-1.1.9": {
+        "name": "flate2",
+        "sha256": "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c",
+        "size_bytes": 82745,
+        "version": "1.1.9",
+    },
+    "float-cmp-0.9.0": {
+        "name": "float-cmp",
+        "sha256": "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4",
+        "size_bytes": 10102,
+        "version": "0.9.0",
+    },
+    "float_next_after-1.0.0": {
+        "name": "float_next_after",
+        "sha256": "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8",
+        "size_bytes": 6965,
+        "version": "1.0.0",
+    },
+    "fnv-1.0.7": {
+        "name": "fnv",
+        "sha256": "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1",
+        "size_bytes": 11266,
+        "version": "1.0.7",
+    },
+    "foldhash-0.1.5": {
+        "name": "foldhash",
+        "sha256": "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2",
+        "size_bytes": 21901,
+        "version": "0.1.5",
+    },
+    "foldhash-0.2.0": {
+        "name": "foldhash",
+        "sha256": "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb",
+        "size_bytes": 23329,
+        "version": "0.2.0",
+    },
+    "font-types-0.12.7": {
+        "name": "font-types",
+        "sha256": "835ae9d781464a79026cde387f9cbc650c9a4909d7cf7e658b127e3c35d2f35d",
+        "size_bytes": 33312,
+        "version": "0.12.7",
+    },
+    "fontconfig-parser-0.5.8": {
+        "name": "fontconfig-parser",
+        "sha256": "bbc773e24e02d4ddd8395fd30dc147524273a83e54e0f312d986ea30de5f5646",
+        "size_bytes": 40928,
+        "version": "0.5.8",
+    },
+    "fontdb-0.24.0": {
+        "name": "fontdb",
+        "sha256": "2660c5e9157bf76d2db1294e4a9feba604ef610819a3b591088d0d8392a3290f",
+        "size_bytes": 119122,
+        "version": "0.24.0",
+    },
+    "foreign-types-0.3.2": {
+        "name": "foreign-types",
+        "sha256": "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1",
+        "size_bytes": 7504,
+        "version": "0.3.2",
+    },
+    "foreign-types-shared-0.1.1": {
+        "name": "foreign-types-shared",
+        "sha256": "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b",
+        "size_bytes": 5672,
+        "version": "0.1.1",
+    },
+    "form_urlencoded-1.2.2": {
+        "name": "form_urlencoded",
+        "sha256": "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf",
+        "size_bytes": 9347,
+        "version": "1.2.2",
+    },
+    "freetype-0.7.2": {
+        "name": "freetype",
+        "sha256": "5a440748e063798e4893ceb877151e84acef9bea9a8c6800645cf3f1b3a7806e",
+        "size_bytes": 20368,
+        "version": "0.7.2",
+    },
+    "freetype-sys-0.20.1": {
+        "name": "freetype-sys",
+        "sha256": "0e7edc5b9669349acfda99533e9e0bcf26a51862ab43b08ee7745c55d28eb134",
+        "size_bytes": 3877697,
+        "version": "0.20.1",
+    },
+    "fs-set-times-0.20.3": {
+        "name": "fs-set-times",
+        "sha256": "94e7099f6313ecacbe1256e8ff9d617b75d1bcb16a6fddef94866d225a01a14a",
+        "size_bytes": 15964,
+        "version": "0.20.3",
+    },
+    "fsevent-sys-4.1.0": {
+        "name": "fsevent-sys",
+        "sha256": "76ee7a02da4d231650c7cea31349b889be2f45ddb3ef3032d2ec8185f6313fd2",
+        "size_bytes": 4620,
+        "version": "4.1.0",
+    },
+    "futures-0.3.32": {
+        "name": "futures",
+        "sha256": "8b147ee9d1f6d097cef9ce628cd2ee62288d963e16fb287bd9286455b241382d",
+        "size_bytes": 61234,
+        "version": "0.3.32",
+    },
+    "futures-channel-0.3.32": {
+        "name": "futures-channel",
+        "sha256": "07bbe89c50d7a535e539b8c17bc0b49bdb77747034daa8087407d655f3f7cc1d",
+        "size_bytes": 33213,
+        "version": "0.3.32",
+    },
+    "futures-core-0.3.32": {
+        "name": "futures-core",
+        "sha256": "7e3450815272ef58cec6d564423f6e755e25379b217b0bc688e295ba24df6b1d",
+        "size_bytes": 14684,
+        "version": "0.3.32",
+    },
+    "futures-executor-0.3.32": {
+        "name": "futures-executor",
+        "sha256": "baf29c38818342a3b26b5b923639e7b1f4a61fc5e76102d4b1981c6dc7a7579d",
+        "size_bytes": 18581,
+        "version": "0.3.32",
+    },
+    "futures-io-0.3.33": {
+        "name": "futures-io",
+        "sha256": "4577ecaa3c4f96589d473f679a71b596316f6641bc350038b962a5daf0085d7a",
+        "size_bytes": 9190,
+        "version": "0.3.33",
+    },
+    "futures-lite-2.6.1": {
+        "name": "futures-lite",
+        "sha256": "f78e10609fe0e0b3f4157ffab1876319b5b0db102a2c60dc4626306dc46b44ad",
+        "size_bytes": 46095,
+        "version": "2.6.1",
+    },
+    "futures-macro-0.3.32": {
+        "name": "futures-macro",
+        "sha256": "e835b70203e41293343137df5c0664546da5745f82ec9b84d40be8336958447b",
+        "size_bytes": 11929,
+        "version": "0.3.32",
+    },
+    "futures-sink-0.3.32": {
+        "name": "futures-sink",
+        "sha256": "c39754e157331b013978ec91992bde1ac089843443c49cbc7f46150b0fad0893",
+        "size_bytes": 8106,
+        "version": "0.3.32",
+    },
+    "futures-task-0.3.32": {
+        "name": "futures-task",
+        "sha256": "037711b3d59c33004d3856fbdc83b99d4ff37a24768fa1be9ce3538a1cde4393",
+        "size_bytes": 11377,
+        "version": "0.3.32",
+    },
+    "futures-util-0.3.32": {
+        "name": "futures-util",
+        "sha256": "389ca41296e6190b48053de0321d02a77f32f8a5d2461dd38762c0593805c6d6",
+        "size_bytes": 168797,
+        "version": "0.3.32",
+    },
+    "gbm-0.18.0": {
+        "name": "gbm",
+        "sha256": "ce852e998d3ca5e4a97014fb31c940dc5ef344ec7d364984525fd11e8a547e6a",
+        "size_bytes": 11893,
+        "version": "0.18.0",
+    },
+    "gbm-sys-0.4.0": {
+        "name": "gbm-sys",
+        "sha256": "c13a5f2acc785d8fb6bf6b7ab6bfb0ef5dad4f4d97e8e70bb8e470722312f76f",
+        "size_bytes": 7647,
+        "version": "0.4.0",
+    },
+    "generic-array-0.14.7": {
+        "name": "generic-array",
+        "sha256": "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a",
+        "size_bytes": 15950,
+        "version": "0.14.7",
+    },
+    "gethostname-1.1.0": {
+        "name": "gethostname",
+        "sha256": "1bd49230192a3797a9a4d6abe9b3eed6f7fa4c8a8a4947977c6f80025f92cbd8",
+        "size_bytes": 9865,
+        "version": "1.1.0",
+    },
+    "getrandom-0.2.17": {
+        "name": "getrandom",
+        "sha256": "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0",
+        "size_bytes": 40780,
+        "version": "0.2.17",
+    },
+    "getrandom-0.3.4": {
+        "name": "getrandom",
+        "sha256": "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd",
+        "size_bytes": 50932,
+        "version": "0.3.4",
+    },
+    "getrandom-0.4.2": {
+        "name": "getrandom",
+        "sha256": "0de51e6874e94e7bf76d726fc5d13ba782deca734ff60d5bb2fb2607c7406555",
+        "size_bytes": 53905,
+        "version": "0.4.2",
+    },
+    "ghash-0.6.0": {
+        "name": "ghash",
+        "sha256": "2eecf2d5dc9b66b732b97707a0210906b1d30523eb773193ab777c0c84b3e8d5",
+        "size_bytes": 10780,
+        "version": "0.6.0",
+    },
+    "gif-0.14.2": {
+        "name": "gif",
+        "sha256": "ee8cfcc411d9adbbaba82fb72661cc1bcca13e8bba98b364e62b2dba8f960159",
+        "size_bytes": 38710,
+        "version": "0.14.2",
+    },
+    "gimli-0.33.0": {
+        "name": "gimli",
+        "sha256": "0bf7f043f89559805f8c7cacc432749b2fa0d0a0a9ee46ce47164ed5ba7f126c",
+        "size_bytes": 330197,
+        "version": "0.33.0",
+    },
+    "gl_generator-0.14.0": {
+        "name": "gl_generator",
+        "sha256": "1a95dfc23a2b4a9a2f5ab41d194f8bfda3cabec42af4e39f08c339eb2a0c124d",
+        "size_bytes": 22330,
+        "version": "0.14.0",
+    },
+    "glam-0.30.10": {
+        "name": "glam",
+        "sha256": "19fc433e8437a212d1b6f1e68c7824af3aed907da60afa994e7f542d18d12aa9",
+        "size_bytes": 773605,
+        "version": "0.30.10",
+    },
+    "glob-0.3.4": {
+        "name": "glob",
+        "sha256": "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b",
+        "size_bytes": 23511,
+        "version": "0.3.4",
+    },
+    "globset-0.4.19": {
+        "name": "globset",
+        "sha256": "e47d37d2ae4464254884b60ab7071be2b876a9c35b696bd018ddcc76847309cd",
+        "size_bytes": 29646,
+        "version": "0.4.19",
+    },
+    "glow-0.17.0": {
+        "name": "glow",
+        "sha256": "29038e1c483364cc6bb3cf78feee1816002e127c331a1eec55a4d202b9e1adb5",
+        "size_bytes": 165357,
+        "version": "0.17.0",
+    },
+    "glutin_wgl_sys-0.6.1": {
+        "name": "glutin_wgl_sys",
+        "sha256": "2c4ee00b289aba7a9e5306d57c2d05499b2e5dc427f84ac708bd2c090212cf3e",
+        "size_bytes": 5567,
+        "version": "0.6.1",
+    },
+    "gpu-allocator-0.28.0": {
+        "name": "gpu-allocator",
+        "sha256": "51255ea7cfaadb6c5f1528d43e92a82acb2b96c43365989a28b2d44ee38f8795",
+        "size_bytes": 54791,
+        "version": "0.28.0",
+    },
+    "gpu-descriptor-0.3.2": {
+        "name": "gpu-descriptor",
+        "sha256": "b89c83349105e3732062a895becfc71a8f921bb71ecbbdd8ff99263e3b53a0ca",
+        "size_bytes": 7943,
+        "version": "0.3.2",
+    },
+    "gpu-descriptor-types-0.2.0": {
+        "name": "gpu-descriptor-types",
+        "sha256": "fdf242682df893b86f33a73828fb09ca4b2d3bb6cc95249707fc684d27484b91",
+        "size_bytes": 2169,
+        "version": "0.2.0",
+    },
+    "gvdb-0.10.1": {
+        "name": "gvdb",
+        "sha256": "c28284f834fe0083db924efe590a684fe81c661c6269fc536ae964ab01adc111",
+        "size_bytes": 57506,
+        "version": "0.10.1",
+    },
+    "half-2.7.1": {
+        "name": "half",
+        "sha256": "6ea2d84b969582b4b1864a92dc5d27cd2b77b622a8d79306834f1be5ba20d84b",
+        "size_bytes": 61040,
+        "version": "2.7.1",
+    },
+    "harfbuzz-sys-0.5.0": {
+        "name": "harfbuzz-sys",
+        "sha256": "bf8c27ca13930dc4ffe474880040fe9e0f03c2121600dc9c95423624cab3e467",
+        "size_bytes": 8215050,
+        "version": "0.5.0",
+    },
+    "harfbuzz_rs-2.0.1": {
+        "name": "harfbuzz_rs",
+        "sha256": "58c18cfc23920d010f7637b86240a5f8892dfdbcb4f0e60828f8a9dc6ff5521d",
+        "size_bytes": 204412,
+        "version": "2.0.1",
+    },
+    "harfrust-0.12.0": {
+        "name": "harfrust",
+        "sha256": "c03d949a14aa089bbb282f7dd76a498a7f684428e4257202efc119ec010376f9",
+        "size_bytes": 291579,
+        "version": "0.12.0",
+    },
+    "hash32-0.2.1": {
+        "name": "hash32",
+        "sha256": "b0c35f58762feb77d74ebe43bdbc3210f09be9fe6742234d573bacc26ed92b67",
+        "size_bytes": 11168,
+        "version": "0.2.1",
+    },
+    "hashbrown-0.14.5": {
+        "name": "hashbrown",
+        "sha256": "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1",
+        "size_bytes": 141498,
+        "version": "0.14.5",
+    },
+    "hashbrown-0.15.5": {
+        "name": "hashbrown",
+        "sha256": "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1",
+        "size_bytes": 140908,
+        "version": "0.15.5",
+    },
+    "hashbrown-0.16.1": {
+        "name": "hashbrown",
+        "sha256": "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100",
+        "size_bytes": 147785,
+        "version": "0.16.1",
+    },
+    "hashbrown-0.17.1": {
+        "name": "hashbrown",
+        "sha256": "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a",
+        "size_bytes": 155512,
+        "version": "0.17.1",
+    },
+    "hashlink-0.9.1": {
+        "name": "hashlink",
+        "sha256": "6ba4ff7128dee98c7dc9794b6a411377e1404dba1c97deb8d1a55297bd25d8af",
+        "size_bytes": 28928,
+        "version": "0.9.1",
+    },
+    "heapless-0.7.17": {
+        "name": "heapless",
+        "sha256": "cdc6457c0eb62c71aac4bc17216026d8410337c4126773b9c5daba343f17964f",
+        "size_bytes": 75767,
+        "version": "0.7.17",
+    },
+    "heck-0.5.0": {
+        "name": "heck",
+        "sha256": "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea",
+        "size_bytes": 11517,
+        "version": "0.5.0",
+    },
+    "hermit-abi-0.3.9": {
+        "name": "hermit-abi",
+        "sha256": "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024",
+        "size_bytes": 16165,
+        "version": "0.3.9",
+    },
+    "hermit-abi-0.5.2": {
+        "name": "hermit-abi",
+        "sha256": "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c",
+        "size_bytes": 17435,
+        "version": "0.5.2",
+    },
+    "hex-0.4.3": {
+        "name": "hex",
+        "sha256": "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70",
+        "size_bytes": 13299,
+        "version": "0.4.3",
+    },
+    "hex-conservative-0.2.3": {
+        "name": "hex-conservative",
+        "sha256": "db3fef046dca3ca91ee1408a8c1b80ab777e80a4d308d1bf4e7adb3fcb047e08",
+        "size_bytes": 24498,
+        "version": "0.2.3",
+    },
+    "hexf-parse-0.2.1": {
+        "name": "hexf-parse",
+        "sha256": "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df",
+        "size_bytes": 4662,
+        "version": "0.2.1",
+    },
+    "hkdf-0.12.4": {
+        "name": "hkdf",
+        "sha256": "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7",
+        "size_bytes": 171163,
+        "version": "0.12.4",
+    },
+    "hmac-0.12.1": {
+        "name": "hmac",
+        "sha256": "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e",
+        "size_bytes": 42657,
+        "version": "0.12.1",
+    },
+    "hmac-0.13.0": {
+        "name": "hmac",
+        "sha256": "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f",
+        "size_bytes": 45167,
+        "version": "0.13.0",
+    },
+    "hound-3.5.1": {
+        "name": "hound",
+        "sha256": "62adaabb884c94955b19907d60019f4e145d091c75345379e70d1ee696f7854f",
+        "size_bytes": 39446,
+        "version": "3.5.1",
+    },
+    "http-1.4.1": {
+        "name": "http",
+        "sha256": "8be7462df143984c4598a256ef469b251d7d7f9e271135073e78fc535414f3d0",
+        "size_bytes": 110181,
+        "version": "1.4.1",
+    },
+    "httparse-1.10.1": {
+        "name": "httparse",
+        "sha256": "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87",
+        "size_bytes": 45190,
+        "version": "1.10.1",
+    },
+    "hybrid-array-0.4.15": {
+        "name": "hybrid-array",
+        "sha256": "27f864f10dfb56725ce5ce5472bc52252c8f93a4ab86327122cebf62c5f59a17",
+        "size_bytes": 36801,
+        "version": "0.4.15",
+    },
+    "icu_collections-2.4.0": {
+        "name": "icu_collections",
+        "sha256": "fe090a42a0d3140fed8c63263ed1fecc02422cb2f4bfe55cd8de2de1b8e105dd",
+        "size_bytes": 102334,
+        "version": "2.4.0",
+    },
+    "icu_locale_core-2.4.0": {
+        "name": "icu_locale_core",
+        "sha256": "25d29b57c17c6528d0dc4c2141cfa2d08200465acb537a3909c8b9b8a4a984c0",
+        "size_bytes": 80269,
+        "version": "2.4.0",
+    },
+    "icu_normalizer-2.4.0": {
+        "name": "icu_normalizer",
+        "sha256": "404a3b8c486f205c87fe7f23ab6894d84a4ad76d6e4671ae1981ba7def87c599",
+        "size_bytes": 536741,
+        "version": "2.4.0",
+    },
+    "icu_normalizer_data-2.4.0": {
+        "name": "icu_normalizer_data",
+        "sha256": "20f0088bfb7441f7a37fa0c9e20cb1e9cba1cac6b9ce8cd2a6dc44294f8e8cbc",
+        "size_bytes": 68011,
+        "version": "2.4.0",
+    },
+    "icu_properties-2.4.0": {
+        "name": "icu_properties",
+        "sha256": "2ea83d991c56158f7cf898bf86436c1dfe7c07ee82fe88951f2695c9f37a379f",
+        "size_bytes": 146217,
+        "version": "2.4.0",
+    },
+    "icu_properties_data-2.4.0": {
+        "name": "icu_properties_data",
+        "sha256": "b98f29af82d02b163fe50161388350e743bb3107cc8e8c2f7314cb505faddfcf",
+        "size_bytes": 186846,
+        "version": "2.4.0",
+    },
+    "icu_provider-2.4.0": {
+        "name": "icu_provider",
+        "sha256": "413099315636c588ee8f011190b329b971a09a8fae9d157e01dcae8379468514",
+        "size_bytes": 52461,
+        "version": "2.4.0",
+    },
+    "id-arena-2.3.0": {
+        "name": "id-arena",
+        "sha256": "3d3067d79b975e8844ca9eb072e16b31c3c1c36928edf9c6789548c524d0d954",
+        "size_bytes": 12883,
+        "version": "2.3.0",
+    },
+    "idna-1.1.0": {
+        "name": "idna",
+        "sha256": "3b0875f23caa03898994f6ddc501886a45c7d3d62d04d2d90788d47be1b1e4de",
+        "size_bytes": 148747,
+        "version": "1.1.0",
+    },
+    "idna_adapter-1.2.2": {
+        "name": "idna_adapter",
+        "sha256": "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714",
+        "size_bytes": 10444,
+        "version": "1.2.2",
+    },
+    "ignore-0.4.32": {
+        "name": "ignore",
+        "sha256": "0b17771570a2b94107741a7b033f19132c2eee21d59d21b24d2ced26500bd66e",
+        "size_bytes": 73829,
+        "version": "0.4.32",
+    },
+    "image-0.25.10": {
+        "name": "image",
+        "sha256": "85ab80394333c02fe689eaf900ab500fbd0c2213da414687ebf995a65d5a6104",
+        "size_bytes": 303647,
+        "version": "0.25.10",
+    },
+    "image-webp-0.2.4": {
+        "name": "image-webp",
+        "sha256": "525e9ff3e1a4be2fbea1fdf0e98686a6d98b4d8f937e1bf7402245af1909e8c3",
+        "size_bytes": 68478,
+        "version": "0.2.4",
+    },
+    "imagesize-0.15.0": {
+        "name": "imagesize",
+        "sha256": "65b27460c2c92b037f3f94c538ed9a3342f3fdf923606781629ccb35f82d042a",
+        "size_bytes": 29653,
+        "version": "0.15.0",
+    },
+    "indexmap-2.14.0": {
+        "name": "indexmap",
+        "sha256": "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9",
+        "size_bytes": 104085,
+        "version": "2.14.0",
+    },
+    "inotify-0.11.5": {
+        "name": "inotify",
+        "sha256": "4cc00ea907cab49550b7da656f80ebb97be1b997d931fbcd28d39734e17ce592",
+        "size_bytes": 30349,
+        "version": "0.11.5",
+    },
+    "inotify-sys-0.1.8": {
+        "name": "inotify-sys",
+        "sha256": "c033f80b2c113cdf91ab7a33faa9cbc014726dcad99880c8609af2a370edf37d",
+        "size_bytes": 8411,
+        "version": "0.1.8",
+    },
+    "inout-0.1.4": {
+        "name": "inout",
+        "sha256": "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01",
+        "size_bytes": 11280,
+        "version": "0.1.4",
+    },
+    "inout-0.2.5": {
+        "name": "inout",
+        "sha256": "3b5cf4372d022092674a83b8febf5865f7a573cc0c5baec5e49c879b6a20978f",
+        "size_bytes": 13849,
+        "version": "0.2.5",
+    },
+    "input-0.9.1": {
+        "name": "input",
+        "sha256": "fbdc09524a91f9cacd26f16734ff63d7dc650daffadd2b6f84d17a285bd875a9",
+        "size_bytes": 40734,
+        "version": "0.9.1",
+    },
+    "input-sys-1.19.0": {
+        "name": "input-sys",
+        "sha256": "36eee07d8e02bd95bf52b2e642cf13d33701b94c6e4b04fbf1d1fb07e9cb19e7",
+        "size_bytes": 797534,
+        "version": "1.19.0",
+    },
+    "io-extras-0.19.0": {
+        "name": "io-extras",
+        "sha256": "20fd6de4ccfcc187e38bc21cfa543cb5a302cb86a8b114eb7f0bf0dc9f8ac00f",
+        "size_bytes": 34951,
+        "version": "0.19.0",
+    },
+    "io-lifetimes-1.0.11": {
+        "name": "io-lifetimes",
+        "sha256": "eae7b9aee968036d54dce06cebaefd919e4472e753296daccd6d344e3e2df0c2",
+        "size_bytes": 37346,
+        "version": "1.0.11",
+    },
+    "io-lifetimes-2.0.4": {
+        "name": "io-lifetimes",
+        "sha256": "06432fb54d3be7964ecd3649233cddf80db2832f47fec34c01f65b3d9d774983",
+        "size_bytes": 28501,
+        "version": "2.0.4",
+    },
+    "io-lifetimes-3.0.1": {
+        "name": "io-lifetimes",
+        "sha256": "2f0fb0570afe1fed943c5c3d4102d5358592d8625fda6a0007fdbe65a92fba96",
+        "size_bytes": 28589,
+        "version": "3.0.1",
+    },
+    "ipnet-2.12.1": {
+        "name": "ipnet",
+        "sha256": "6a756c3fac73139e83f14c2d742155dd2b78d3ee56597b419a0579b7bdd6dd78",
+        "size_bytes": 31069,
+        "version": "2.12.1",
+    },
+    "itertools-0.13.0": {
+        "name": "itertools",
+        "sha256": "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186",
+        "size_bytes": 146261,
+        "version": "0.13.0",
+    },
+    "itertools-0.14.0": {
+        "name": "itertools",
+        "sha256": "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285",
+        "size_bytes": 152715,
+        "version": "0.14.0",
+    },
+    "itertools-0.15.0": {
+        "name": "itertools",
+        "sha256": "8b4baf93f58d4425749ca49a51c50ebab072c5df6994d08fed93541c331481dc",
+        "size_bytes": 164131,
+        "version": "0.15.0",
+    },
+    "itoa-1.0.18": {
+        "name": "itoa",
+        "sha256": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682",
+        "size_bytes": 15935,
+        "version": "1.0.18",
+    },
+    "jetscii-0.5.3": {
+        "name": "jetscii",
+        "sha256": "47f142fe24a9c9944451e8349de0a56af5f3e7226dc46f3ed4d4ecc0b85af75e",
+        "size_bytes": 18811,
+        "version": "0.5.3",
+    },
+    "jks-0.3.3": {
+        "name": "jks",
+        "sha256": "e03966fd15eea3cb2886320a78d01e77f8aaeabd3fb01504ee6a2238876c23bc",
+        "size_bytes": 34774,
+        "version": "0.3.3",
+    },
+    "jni-0.21.1": {
+        "name": "jni",
+        "sha256": "1a87aa2bb7d2af34197c04845522473242e1aa17c12f4935d5856491a7fb8c97",
+        "size_bytes": 105028,
+        "version": "0.21.1",
+    },
+    "jni-0.22.4": {
+        "name": "jni",
+        "sha256": "5efd9a482cf3a427f00d6b35f14332adc7902ce91efb778580e180ff90fa3498",
+        "size_bytes": 199347,
+        "version": "0.22.4",
+    },
+    "jni-macros-0.22.4": {
+        "name": "jni-macros",
+        "sha256": "a00109accc170f0bdb141fed3e393c565b6f5e072365c3bd58f5b062591560a3",
+        "size_bytes": 63557,
+        "version": "0.22.4",
+    },
+    "jni-sys-0.3.1": {
+        "name": "jni-sys",
+        "sha256": "41a652e1f9b6e0275df1f15b32661cf0d4b78d4d87ddec5e0c3c20f097433258",
+        "size_bytes": 11570,
+        "version": "0.3.1",
+    },
+    "jni-sys-0.4.1": {
+        "name": "jni-sys",
+        "sha256": "c6377a88cb3910bee9b0fa88d4f42e1d2da8e79915598f65fb0c7ee14c878af2",
+        "size_bytes": 13249,
+        "version": "0.4.1",
+    },
+    "jni-sys-macros-0.4.1": {
+        "name": "jni-sys-macros",
+        "sha256": "38c0b942f458fe50cdac086d2f946512305e5631e720728f2a61aabcd47a6264",
+        "size_bytes": 3301,
+        "version": "0.4.1",
+    },
+    "jobserver-0.1.34": {
+        "name": "jobserver",
+        "sha256": "9afb3de4395d6b3e67a780b6de64b51c978ecf11cb9a462c66be7d4ca9039d33",
+        "size_bytes": 29013,
+        "version": "0.1.34",
+    },
+    "jod-thread-1.0.0": {
+        "name": "jod-thread",
+        "sha256": "a037eddb7d28de1d0fc42411f501b53b75838d313908078d6698d064f3029b24",
+        "size_bytes": 6407,
+        "version": "1.0.0",
+    },
+    "js-sys-0.3.99": {
+        "name": "js-sys",
+        "sha256": "142bc4740e452c1e57ade0cbc129f139c9093e354346f0872ef985f4f5cf5f11",
+        "size_bytes": 108515,
+        "version": "0.3.99",
+    },
+    "keyboard-types-0.8.3": {
+        "name": "keyboard-types",
+        "sha256": "0fbe853b403ae61a04233030ae8a79d94975281ed9770a1f9e246732b534b28d",
+        "size_bytes": 97188,
+        "version": "0.8.3",
+    },
+    "khronos-egl-6.0.0": {
+        "name": "khronos-egl",
+        "sha256": "6aae1df220ece3c0ada96b8153459b67eebe9ae9212258bb0134ae60416fdf76",
+        "size_bytes": 29315,
+        "version": "6.0.0",
+    },
+    "khronos_api-3.1.0": {
+        "name": "khronos_api",
+        "sha256": "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc",
+        "size_bytes": 599718,
+        "version": "3.1.0",
+    },
+    "kqueue-1.2.1": {
+        "name": "kqueue",
+        "sha256": "8d763e5b24120b4ddf50de6c92308156765aabfbbccebf401da7cff2d70a41ea",
+        "size_bytes": 31254,
+        "version": "1.2.1",
+    },
+    "kqueue-sys-1.1.2": {
+        "name": "kqueue-sys",
+        "sha256": "07293a4e297ac234359b510362495713f75ea345d5307140414f20c69ffeb087",
+        "size_bytes": 8796,
+        "version": "1.1.2",
+    },
+    "kurbo-0.13.1": {
+        "name": "kurbo",
+        "sha256": "4b60dfc32f652b926df6192e55525b16d186c69d47876c3ead4da5cc9f8450e2",
+        "size_bytes": 169000,
+        "version": "0.13.1",
+    },
+    "lazy_static-1.5.0": {
+        "name": "lazy_static",
+        "sha256": "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe",
+        "size_bytes": 14025,
+        "version": "1.5.0",
+    },
+    "leb128-0.2.7": {
+        "name": "leb128",
+        "sha256": "c83bff1d572d6b9aeef67ddfc8448e4a3737909cb28e81f97c791b9018703e52",
+        "size_bytes": 13874,
+        "version": "0.2.7",
+    },
+    "leb128fmt-0.1.0": {
+        "name": "leb128fmt",
+        "sha256": "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2",
+        "size_bytes": 14138,
+        "version": "0.1.0",
+    },
+    "lewton-0.10.2": {
+        "name": "lewton",
+        "sha256": "777b48df9aaab155475a83a7df3070395ea1ac6902f5cd062b8f2b028075c030",
+        "size_bytes": 68807,
+        "version": "0.10.2",
+    },
+    "libc-0.2.186": {
+        "name": "libc",
+        "sha256": "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66",
+        "size_bytes": 821883,
+        "version": "0.2.186",
+    },
+    "libloading-0.8.9": {
+        "name": "libloading",
+        "sha256": "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55",
+        "size_bytes": 30222,
+        "version": "0.8.9",
+    },
+    "libloading-0.9.0": {
+        "name": "libloading",
+        "sha256": "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60",
+        "size_bytes": 33816,
+        "version": "0.9.0",
+    },
+    "libm-0.2.16": {
+        "name": "libm",
+        "sha256": "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981",
+        "size_bytes": 164243,
+        "version": "0.2.16",
+    },
+    "libredox-0.1.25": {
+        "name": "libredox",
+        "sha256": "61ff90caf6077a803a240f62fdbe88645a890bbca49ef8174c3cb0404362171d",
+        "size_bytes": 10671,
+        "version": "0.1.25",
+    },
+    "libseat-0.2.4": {
+        "name": "libseat",
+        "sha256": "6656c69b6e0366ffb83faa232f3e4fda5fc91161722d140f2c95ce2e90b1ef31",
+        "size_bytes": 6675,
+        "version": "0.2.4",
+    },
+    "libseat-sys-0.2.0": {
+        "name": "libseat-sys",
+        "sha256": "e8a484fa48be5f62a8d3ffed767779d0ab808cfead91de98ef4362d469097dfb",
+        "size_bytes": 5364,
+        "version": "0.2.0",
+    },
+    "libsqlite3-sys-0.30.1": {
+        "name": "libsqlite3-sys",
+        "sha256": "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149",
+        "size_bytes": 5122296,
+        "version": "0.30.1",
+    },
+    "libudev-sys-0.1.4": {
+        "name": "libudev-sys",
+        "sha256": "3c8469b4a23b962c1396b9b451dda50ef5b283e8dd309d69033475fa9b334324",
+        "size_bytes": 6177,
+        "version": "0.1.4",
+    },
+    "linux-raw-sys-0.12.1": {
+        "name": "linux-raw-sys",
+        "sha256": "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53",
+        "size_bytes": 3006116,
+        "version": "0.12.1",
+    },
+    "linux-raw-sys-0.4.15": {
+        "name": "linux-raw-sys",
+        "sha256": "d26c52dbd32dccf2d10cac7725f8eae5296885fb5703b261f7d0a0739ec807ab",
+        "size_bytes": 2150898,
+        "version": "0.4.15",
+    },
+    "linux-raw-sys-0.9.4": {
+        "name": "linux-raw-sys",
+        "sha256": "cd945864f07fe9f5371a27ad7b52a172b4b499999f1d97574c9fa68373937e12",
+        "size_bytes": 2311088,
+        "version": "0.9.4",
+    },
+    "litemap-0.8.2": {
+        "name": "litemap",
+        "sha256": "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0",
+        "size_bytes": 34572,
+        "version": "0.8.2",
+    },
+    "litrs-1.0.0": {
+        "name": "litrs",
+        "sha256": "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092",
+        "size_bytes": 46610,
+        "version": "1.0.0",
+    },
+    "lock_api-0.4.14": {
+        "name": "lock_api",
+        "sha256": "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965",
+        "size_bytes": 29249,
+        "version": "0.4.14",
+    },
+    "log-0.4.31": {
+        "name": "log",
+        "sha256": "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f",
+        "size_bytes": 52646,
+        "version": "0.4.31",
+    },
+    "lyon_geom-1.0.20": {
+        "name": "lyon_geom",
+        "sha256": "d82dd26aa4dc0b5b70b9115de59824842bcb43cf4a28e1b1e6d0ad148c93f93e",
+        "size_bytes": 56493,
+        "version": "1.0.20",
+    },
+    "lyon_path-1.0.19": {
+        "name": "lyon_path",
+        "sha256": "5c463f9c428b7fc5ec885dcd39ce4aa61e29111d0e33483f6f98c74e89d8621e",
+        "size_bytes": 37028,
+        "version": "1.0.19",
+    },
+    "lyon_tessellation-1.0.22": {
+        "name": "lyon_tessellation",
+        "sha256": "43b8dcf906637ecef61b3c0740c7a4e7f27caeb31257cfac0cc579ce15be6005",
+        "size_bytes": 188138,
+        "version": "1.0.22",
+    },
+    "mach2-0.4.3": {
+        "name": "mach2",
+        "sha256": "d640282b302c0bb0a2a8e0233ead9035e3bed871f0b7e81fe4a1ec829765db44",
+        "size_bytes": 22180,
+        "version": "0.4.3",
+    },
+    "mach2-0.6.0": {
+        "name": "mach2",
+        "sha256": "dae608c151f68243f2b000364e1f7b186d9c29845f7d2d85bd31b9ad77ad552b",
+        "size_bytes": 33580,
+        "version": "0.6.0",
+    },
+    "matchers-0.2.0": {
+        "name": "matchers",
+        "sha256": "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9",
+        "size_bytes": 7075,
+        "version": "0.2.0",
+    },
+    "maybe-owned-0.3.4": {
+        "name": "maybe-owned",
+        "sha256": "4facc753ae494aeb6e3c22f839b158aebd4f9270f55cd3c79906c45476c47ab4",
+        "size_bytes": 14308,
+        "version": "0.3.4",
+    },
+    "memchr-2.8.1": {
+        "name": "memchr",
+        "sha256": "6b947ae49db0d222b1dbc6b113ce7248a3fc3a6ca21b696717bfc000ba4484d8",
+        "size_bytes": 98743,
+        "version": "2.8.1",
+    },
+    "memfd-0.6.5": {
+        "name": "memfd",
+        "sha256": "ad38eb12aea514a0466ea40a80fd8cc83637065948eb4a426e4aa46261175227",
+        "size_bytes": 12909,
+        "version": "0.6.5",
+    },
+    "memmap2-0.9.10": {
+        "name": "memmap2",
+        "sha256": "714098028fe011992e1c3962653c96b2d578c4b4bce9036e15ff220319b1e0e3",
+        "size_bytes": 34846,
+        "version": "0.9.10",
+    },
+    "memoffset-0.9.1": {
+        "name": "memoffset",
+        "sha256": "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a",
+        "size_bytes": 9032,
+        "version": "0.9.1",
+    },
+    "minimal-lexical-0.2.1": {
+        "name": "minimal-lexical",
+        "sha256": "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a",
+        "size_bytes": 94841,
+        "version": "0.2.1",
+    },
+    "miniz_oxide-0.8.9": {
+        "name": "miniz_oxide",
+        "sha256": "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316",
+        "size_bytes": 67132,
+        "version": "0.8.9",
+    },
+    "mio-1.2.1": {
+        "name": "mio",
+        "sha256": "02bd0af71c67b473010cbbc60715ee815645a4dc942899111f494b4b737d6fda",
+        "size_bytes": 106774,
+        "version": "1.2.1",
+    },
+    "miow-0.6.1": {
+        "name": "miow",
+        "sha256": "536bfad37a309d62069485248eeaba1e8d9853aaf951caaeaed0585a95346f08",
+        "size_bytes": 30539,
+        "version": "0.6.1",
+    },
+    "moxcms-0.8.1": {
+        "name": "moxcms",
+        "sha256": "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b",
+        "size_bytes": 188252,
+        "version": "0.8.1",
+    },
+    "naga-29.0.3": {
+        "name": "naga",
+        "sha256": "0dd91265cc2454558f659b3b4b9640f0ddb8cc6521277f166b8a8c181c898079",
+        "size_bytes": 842607,
+        "version": "29.0.3",
+    },
+    "ndk-0.8.0": {
+        "name": "ndk",
+        "sha256": "2076a31b7010b17a38c01907c45b945e8f11495ee4dd588309718901b1f7a5b7",
+        "size_bytes": 79770,
+        "version": "0.8.0",
+    },
+    "ndk-0.9.0": {
+        "name": "ndk",
+        "sha256": "c3f42e7bbe13d351b6bead8286a43aac9534b82bd3cc43e47037f012ebfd62d4",
+        "size_bytes": 84865,
+        "version": "0.9.0",
+    },
+    "ndk-context-0.1.1": {
+        "name": "ndk-context",
+        "sha256": "27b02d87554356db9e9a873add8782d4ea6e3e58ea071a9adb9a2e8ddb884a8b",
+        "size_bytes": 2205,
+        "version": "0.1.1",
+    },
+    "ndk-sys-0.5.0+25.2.9519653": {
+        "name": "ndk-sys",
+        "sha256": "8c196769dd60fd4f363e11d948139556a344e79d451aeb2fa2fd040738ef7691",
+        "size_bytes": 307233,
+        "version": "0.5.0+25.2.9519653",
+    },
+    "ndk-sys-0.6.0+11769913": {
+        "name": "ndk-sys",
+        "sha256": "ee6cda3051665f1fb8d9e08fc35c96d5a244fb1be711a03b71118828afc9a873",
+        "size_bytes": 329984,
+        "version": "0.6.0+11769913",
+    },
+    "nix-0.28.0": {
+        "name": "nix",
+        "sha256": "ab2156c4fce2f8df6c499cc1c763e4394b7482525bf2a9701c9d79d215f519e4",
+        "size_bytes": 311086,
+        "version": "0.28.0",
+    },
+    "nom-7.1.3": {
+        "name": "nom",
+        "sha256": "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a",
+        "size_bytes": 117570,
+        "version": "7.1.3",
+    },
+    "notify-8.2.0": {
+        "name": "notify",
+        "sha256": "4d3d07927151ff8575b7087f245456e549fea62edf0ec4e565a5ee50c8402bc3",
+        "size_bytes": 39067,
+        "version": "8.2.0",
+    },
+    "notify-types-2.1.0": {
+        "name": "notify-types",
+        "sha256": "42b8cfee0e339a0337359f3c88165702ac6e600dc01c0cc9579a92d62b08477a",
+        "size_bytes": 22796,
+        "version": "2.1.0",
+    },
+    "nu-ansi-term-0.50.3": {
+        "name": "nu-ansi-term",
+        "sha256": "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5",
+        "size_bytes": 29597,
+        "version": "0.50.3",
+    },
+    "num-bigint-0.4.8": {
+        "name": "num-bigint",
+        "sha256": "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367",
+        "size_bytes": 109961,
+        "version": "0.4.8",
+    },
+    "num-bigint-dig-0.8.6": {
+        "name": "num-bigint-dig",
+        "sha256": "e661dda6640fad38e827a6d4a310ff4763082116fe217f279885c97f511bb0b7",
+        "size_bytes": 126196,
+        "version": "0.8.6",
+    },
+    "num-conv-0.2.2": {
+        "name": "num-conv",
+        "sha256": "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441",
+        "size_bytes": 7441,
+        "version": "0.2.2",
+    },
+    "num-derive-0.4.2": {
+        "name": "num-derive",
+        "sha256": "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202",
+        "size_bytes": 14709,
+        "version": "0.4.2",
+    },
+    "num-integer-0.1.47": {
+        "name": "num-integer",
+        "sha256": "7ce2d95d4b3734dc35aa2f45e1aa22cd416814592a4f9d9205e11affd5b8e10b",
+        "size_bytes": 23502,
+        "version": "0.1.47",
+    },
+    "num-iter-0.1.46": {
+        "name": "num-iter",
+        "sha256": "c92800bd69a1eac91786bcfe9da64a897eb72911b8dc3095decbd07429e8048b",
+        "size_bytes": 10763,
+        "version": "0.1.46",
+    },
+    "num-traits-0.2.19": {
+        "name": "num-traits",
+        "sha256": "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841",
+        "size_bytes": 51631,
+        "version": "0.2.19",
+    },
+    "num_enum-0.7.6": {
+        "name": "num_enum",
+        "sha256": "5d0bca838442ec211fa11de3a8b0e0e8f3a4522575b5c4c06ed722e005036f26",
+        "size_bytes": 21741,
+        "version": "0.7.6",
+    },
+    "num_enum_derive-0.7.6": {
+        "name": "num_enum_derive",
+        "sha256": "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8",
+        "size_bytes": 18789,
+        "version": "0.7.6",
+    },
+    "objc-sys-0.3.5": {
+        "name": "objc-sys",
+        "sha256": "cdb91bdd390c7ce1a8607f35f3ca7151b65afc0ff5ff3b34fa350f7d7c7e4310",
+        "size_bytes": 20560,
+        "version": "0.3.5",
+    },
+    "objc2-0.5.2": {
+        "name": "objc2",
+        "sha256": "46a785d4eeff09c14c487497c162e92766fbb3e4059a71840cecc03d9a50b804",
+        "size_bytes": 199204,
+        "version": "0.5.2",
+    },
+    "objc2-0.6.4": {
+        "name": "objc2",
+        "sha256": "3a12a8ed07aefc768292f076dc3ac8c48f3781c8f2d5851dd3d98950e8c5a89f",
+        "size_bytes": 275200,
+        "version": "0.6.4",
+    },
+    "objc2-app-kit-0.2.2": {
+        "name": "objc2-app-kit",
+        "sha256": "e4e89ad9e3d7d297152b17d39ed92cd50ca8063a89a9fa569046d41568891eff",
+        "size_bytes": 337435,
+        "version": "0.2.2",
+    },
+    "objc2-app-kit-0.3.2": {
+        "name": "objc2-app-kit",
+        "sha256": "d49e936b501e5c5bf01fda3a9452ff86dc3ea98ad5f283e1455153142d97518c",
+        "size_bytes": 531744,
+        "version": "0.3.2",
+    },
+    "objc2-core-data-0.2.2": {
+        "name": "objc2-core-data",
+        "sha256": "617fbf49e071c178c0b24c080767db52958f716d9eabdf0890523aeae54773ef",
+        "size_bytes": 30575,
+        "version": "0.2.2",
+    },
+    "objc2-core-foundation-0.3.2": {
+        "name": "objc2-core-foundation",
+        "sha256": "2a180dd8642fa45cdb7dd721cd4c11b1cadd4929ce112ebd8b9f5803cc79d536",
+        "size_bytes": 180804,
+        "version": "0.3.2",
+    },
+    "objc2-core-graphics-0.3.2": {
+        "name": "objc2-core-graphics",
+        "sha256": "e022c9d066895efa1345f8e33e584b9f958da2fd4cd116792e15e07e4720a807",
+        "size_bytes": 84981,
+        "version": "0.3.2",
+    },
+    "objc2-core-image-0.2.2": {
+        "name": "objc2-core-image",
+        "sha256": "55260963a527c99f1819c4f8e3b47fe04f9650694ef348ffd2227e8196d34c80",
+        "size_bytes": 20050,
+        "version": "0.2.2",
+    },
+    "objc2-core-video-0.3.2": {
+        "name": "objc2-core-video",
+        "sha256": "d425caf1df73233f29fd8a5c3e5edbc30d2d4307870f802d18f00d83dc5141a6",
+        "size_bytes": 39345,
+        "version": "0.3.2",
+    },
+    "objc2-encode-4.1.0": {
+        "name": "objc2-encode",
+        "sha256": "ef25abbcd74fb2609453eb695bd2f860d389e457f67dc17cafc8b8cbc89d0c33",
+        "size_bytes": 21004,
+        "version": "4.1.0",
+    },
+    "objc2-foundation-0.2.2": {
+        "name": "objc2-foundation",
+        "sha256": "0ee638a5da3799329310ad4cfa62fbf045d5f56e3ef5ba4149e7452dcf89d5a8",
+        "size_bytes": 249330,
+        "version": "0.2.2",
+    },
+    "objc2-foundation-0.3.2": {
+        "name": "objc2-foundation",
+        "sha256": "e3e0adef53c21f888deb4fa59fc59f7eb17404926ee8a6f59f5df0fd7f9f3272",
+        "size_bytes": 345384,
+        "version": "0.3.2",
+    },
+    "objc2-io-surface-0.3.2": {
+        "name": "objc2-io-surface",
+        "sha256": "180788110936d59bab6bd83b6060ffdfffb3b922ba1396b312ae795e1de9d81d",
+        "size_bytes": 11722,
+        "version": "0.3.2",
+    },
+    "objc2-metal-0.2.2": {
+        "name": "objc2-metal",
+        "sha256": "dd0cba1276f6023976a406a14ffa85e1fdd19df6b0f737b063b95f6c8c7aadd6",
+        "size_bytes": 75276,
+        "version": "0.2.2",
+    },
+    "objc2-metal-0.3.2": {
+        "name": "objc2-metal",
+        "sha256": "a0125f776a10d00af4152d74616409f0d4a2053a6f57fa5b7d6aa2854ac04794",
+        "size_bytes": 226999,
+        "version": "0.3.2",
+    },
+    "objc2-quartz-core-0.2.2": {
+        "name": "objc2-quartz-core",
+        "sha256": "e42bee7bff906b14b167da2bac5efe6b6a07e6f7c0a21a7308d40c960242dc7a",
+        "size_bytes": 21306,
+        "version": "0.2.2",
+    },
+    "objc2-quartz-core-0.3.2": {
+        "name": "objc2-quartz-core",
+        "sha256": "96c1358452b371bf9f104e21ec536d37a650eb10f7ee379fff67d2e08d537f1f",
+        "size_bytes": 30036,
+        "version": "0.3.2",
+    },
+    "objc2-ui-kit-0.3.2": {
+        "name": "objc2-ui-kit",
+        "sha256": "d87d638e33c06f577498cbcc50491496a3ed4246998a7fbba7ccb98b1e7eab22",
+        "size_bytes": 551453,
+        "version": "0.3.2",
+    },
+    "object-0.39.1": {
+        "name": "object",
+        "sha256": "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b",
+        "size_bytes": 360376,
+        "version": "0.39.1",
+    },
+    "oboe-0.6.1": {
+        "name": "oboe",
+        "sha256": "e8b61bebd49e5d43f5f8cc7ee2891c16e0f41ec7954d36bcb6c14c5e0de867fb",
+        "size_bytes": 24588,
+        "version": "0.6.1",
+    },
+    "oboe-sys-0.6.1": {
+        "name": "oboe-sys",
+        "sha256": "6c8bb09a4a2b1d668170cfe0a7d5bc103f8999fb316c98099b6a9939c9f2e79d",
+        "size_bytes": 169091,
+        "version": "0.6.1",
+    },
+    "ogg-0.8.0": {
+        "name": "ogg",
+        "sha256": "6951b4e8bf21c8193da321bcce9c9dd2e13c858fe078bf9054a288b419ae5d6e",
+        "size_bytes": 27128,
+        "version": "0.8.0",
+    },
+    "oid-registry-0.8.1": {
+        "name": "oid-registry",
+        "sha256": "12f40cff3dde1b6087cc5d5f5d4d65712f34016a03ed60e9c08dcc392736b5b7",
+        "size_bytes": 16668,
+        "version": "0.8.1",
+    },
+    "once_cell-1.21.4": {
+        "name": "once_cell",
+        "sha256": "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50",
+        "size_bytes": 35010,
+        "version": "1.21.4",
+    },
+    "opaque-debug-0.3.1": {
+        "name": "opaque-debug",
+        "sha256": "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381",
+        "size_bytes": 7066,
+        "version": "0.3.1",
+    },
+    "openxr-0.22.0": {
+        "name": "openxr",
+        "sha256": "53770c8f7d3f185bcb577b78f2ed8e33bbf7cdf5cd57fb68b5ec0b4117b79de6",
+        "size_bytes": 96869,
+        "version": "0.22.0",
+    },
+    "openxr-sys-0.14.0": {
+        "name": "openxr-sys",
+        "sha256": "febb5d50cee7b964b69d5b7a810ed9620fc64f41382ffefe05434754c7a48877",
+        "size_bytes": 850888,
+        "version": "0.14.0",
+    },
+    "orbclient-0.4.6": {
+        "name": "orbclient",
+        "sha256": "01f140a738f180203d7912dfd369936fff2fb0ad6f426c0aa007ed3e2b443e6b",
+        "size_bytes": 1347627,
+        "version": "0.4.6",
+    },
+    "ordered-float-5.3.0": {
+        "name": "ordered-float",
+        "sha256": "b7d950ca161dc355eaf28f82b11345ed76c6e1f6eb1f4f4479e0323b9e2fbd0e",
+        "size_bytes": 34539,
+        "version": "5.3.0",
+    },
+    "ordered-stream-0.2.0": {
+        "name": "ordered-stream",
+        "sha256": "9aa2b01e1d916879f73a53d01d1d6cee68adbb31d6d9177a8cfce093cced1d50",
+        "size_bytes": 19077,
+        "version": "0.2.0",
+    },
+    "owned_ttf_parser-0.25.1": {
+        "name": "owned_ttf_parser",
+        "sha256": "36820e9051aca1014ddc75770aab4d68bc1e9e632f0f5627c4086bc216fb583b",
+        "size_bytes": 8989,
+        "version": "0.25.1",
+    },
+    "p12-keystore-0.4.1": {
+        "name": "p12-keystore",
+        "sha256": "5c2ed4fa0ec7ec58b657d4184680c57da9e203e97771d29a566028869a5193e0",
+        "size_bytes": 67773,
+        "version": "0.4.1",
+    },
+    "parking-2.2.1": {
+        "name": "parking",
+        "sha256": "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba",
+        "size_bytes": 10685,
+        "version": "2.2.1",
+    },
+    "parking_lot-0.12.5": {
+        "name": "parking_lot",
+        "sha256": "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a",
+        "size_bytes": 46735,
+        "version": "0.12.5",
+    },
+    "parking_lot_core-0.9.12": {
+        "name": "parking_lot_core",
+        "sha256": "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1",
+        "size_bytes": 34110,
+        "version": "0.9.12",
+    },
+    "password-hash-0.5.0": {
+        "name": "password-hash",
+        "sha256": "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166",
+        "size_bytes": 26884,
+        "version": "0.5.0",
+    },
+    "pbkdf2-0.13.0": {
+        "name": "pbkdf2",
+        "sha256": "112d82ceb8c5bf524d9af484d4e4970c9fd5a0cc15ba14ad93dccd28873b0629",
+        "size_bytes": 22716,
+        "version": "0.13.0",
+    },
+    "pem-rfc7468-0.7.0": {
+        "name": "pem-rfc7468",
+        "sha256": "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412",
+        "size_bytes": 24159,
+        "version": "0.7.0",
+    },
+    "pem-rfc7468-1.0.0": {
+        "name": "pem-rfc7468",
+        "sha256": "a6305423e0e7738146434843d1694d621cce767262b2a86910beab705e4493d9",
+        "size_bytes": 25267,
+        "version": "1.0.0",
+    },
+    "percent-encoding-2.3.2": {
+        "name": "percent-encoding",
+        "sha256": "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220",
+        "size_bytes": 11583,
+        "version": "2.3.2",
+    },
+    "phf-0.13.1": {
+        "name": "phf",
+        "sha256": "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf",
+        "size_bytes": 24786,
+        "version": "0.13.1",
+    },
+    "phf_codegen-0.13.1": {
+        "name": "phf_codegen",
+        "sha256": "49aa7f9d80421bca176ca8dbfebe668cc7a2684708594ec9f3c0db0805d5d6e1",
+        "size_bytes": 14774,
+        "version": "0.13.1",
+    },
+    "phf_generator-0.13.1": {
+        "name": "phf_generator",
+        "sha256": "135ace3a761e564ec88c03a77317a7c6b80bb7f7135ef2544dbe054243b89737",
+        "size_bytes": 15952,
+        "version": "0.13.1",
+    },
+    "phf_macros-0.13.1": {
+        "name": "phf_macros",
+        "sha256": "812f032b54b1e759ccd5f8b6677695d5268c588701effba24601f6932f8269ef",
+        "size_bytes": 21732,
+        "version": "0.13.1",
+    },
+    "phf_shared-0.13.1": {
+        "name": "phf_shared",
+        "sha256": "e57fef6bc5981e38c2ce2d63bfa546861309f875b8a75f092d1d54ae2d64f266",
+        "size_bytes": 16141,
+        "version": "0.13.1",
+    },
+    "pico-args-0.5.0": {
+        "name": "pico-args",
+        "sha256": "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315",
+        "size_bytes": 11545,
+        "version": "0.5.0",
+    },
+    "pin-project-1.1.13": {
+        "name": "pin-project",
+        "sha256": "2466b2336ed02bcdca6b294417127b90ec92038d1d5c4fbeac971a922e0e0924",
+        "size_bytes": 56345,
+        "version": "1.1.13",
+    },
+    "pin-project-internal-1.1.13": {
+        "name": "pin-project-internal",
+        "sha256": "c96395f0a926bc13b1c17622aaddda1ecb55d49c8f1bf9777e4d877800a43f8b",
+        "size_bytes": 29331,
+        "version": "1.1.13",
+    },
+    "pin-project-lite-0.2.17": {
+        "name": "pin-project-lite",
+        "sha256": "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd",
+        "size_bytes": 31034,
+        "version": "0.2.17",
+    },
+    "piper-0.2.5": {
+        "name": "piper",
+        "sha256": "c835479a4443ded371d6c535cbfd8d31ad92c5d23ae9770a61bc155e4992a3c1",
+        "size_bytes": 23908,
+        "version": "0.2.5",
+    },
+    "pkcs1-0.7.5": {
+        "name": "pkcs1",
+        "sha256": "c8ffb9f10fa047879315e6625af03c164b16962a5368d724ed16323b68ace47f",
+        "size_bytes": 35790,
+        "version": "0.7.5",
+    },
+    "pkcs12-0.2.0-pre.0": {
+        "name": "pkcs12",
+        "sha256": "8059bd79345d1d1c125656025814704bab5cdd204b1cefd5fab59b0fdd7476d2",
+        "size_bytes": 71734,
+        "version": "0.2.0-pre.0",
+    },
+    "pkcs5-0.8.1": {
+        "name": "pkcs5",
+        "sha256": "63d440a804ec8d6fafbb6b84471e013286658d373248927692ab3366686220ca",
+        "size_bytes": 49232,
+        "version": "0.8.1",
+    },
+    "pkcs8-0.10.2": {
+        "name": "pkcs8",
+        "sha256": "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7",
+        "size_bytes": 26360,
+        "version": "0.10.2",
+    },
+    "pkcs8-0.11.0": {
+        "name": "pkcs8",
+        "sha256": "451913da69c775a56034ea8d9003d27ee8948e12443eae7c038ba100a4f21cb7",
+        "size_bytes": 34863,
+        "version": "0.11.0",
+    },
+    "pkg-config-0.3.33": {
+        "name": "pkg-config",
+        "sha256": "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e",
+        "size_bytes": 21590,
+        "version": "0.3.33",
+    },
+    "plain-0.2.3": {
+        "name": "plain",
+        "sha256": "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6",
+        "size_bytes": 10664,
+        "version": "0.2.3",
+    },
+    "png-0.18.1": {
+        "name": "png",
+        "sha256": "60769b8b31b2a9f263dae2776c37b1b28ae246943cf719eb6946a1db05128a61",
+        "size_bytes": 125800,
+        "version": "0.18.1",
+    },
+    "polling-3.11.0": {
+        "name": "polling",
+        "sha256": "5d0e4f59085d47d8241c88ead0f274e8a0cb551f3625263c05eb8dd897c34218",
+        "size_bytes": 59387,
+        "version": "3.11.0",
+    },
+    "pollster-0.4.0": {
+        "name": "pollster",
+        "sha256": "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3",
+        "size_bytes": 9840,
+        "version": "0.4.0",
+    },
+    "poly1305-0.8.0": {
+        "name": "poly1305",
+        "sha256": "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf",
+        "size_bytes": 32633,
+        "version": "0.8.0",
+    },
+    "polycool-0.4.0": {
+        "name": "polycool",
+        "sha256": "50596ddc09eb5ad5f75cacd40209568e66df71baf86e1499a0e99c4cff12a5a6",
+        "size_bytes": 22738,
+        "version": "0.4.0",
+    },
+    "polyval-0.7.3": {
+        "name": "polyval",
+        "sha256": "f0fa31d631f2b2cb2a544d0aa321ce847a94764d701ca2becc411138b93d49cd",
+        "size_bytes": 26284,
+        "version": "0.7.3",
+    },
+    "portable-atomic-1.13.1": {
+        "name": "portable-atomic",
+        "sha256": "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49",
+        "size_bytes": 197001,
+        "version": "1.13.1",
+    },
+    "portable-atomic-util-0.2.7": {
+        "name": "portable-atomic-util",
+        "sha256": "c2a106d1259c23fac8e543272398ae0e3c0b8d33c88ed73d0cc71b0f1d902618",
+        "size_bytes": 53577,
+        "version": "0.2.7",
+    },
+    "portable-pty-0.9.0": {
+        "name": "portable-pty",
+        "sha256": "b4a596a2b3d2752d94f51fac2d4a96737b8705dddd311a32b9af47211f08671e",
+        "size_bytes": 29466,
+        "version": "0.9.0",
+    },
+    "postcard-1.1.3": {
+        "name": "postcard",
+        "sha256": "6764c3b5dd454e283a30e6dfe78e9b31096d9e32036b5d1eaac7a6119ccb9a24",
+        "size_bytes": 43968,
+        "version": "1.1.3",
+    },
+    "potential_utf-0.1.5": {
+        "name": "potential_utf",
+        "sha256": "0103b1cef7ec0cf76490e969665504990193874ea05c85ff9bab8b911d0a0564",
+        "size_bytes": 10189,
+        "version": "0.1.5",
+    },
+    "powerfmt-0.2.0": {
+        "name": "powerfmt",
+        "sha256": "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391",
+        "size_bytes": 15165,
+        "version": "0.2.0",
+    },
+    "ppv-lite86-0.2.21": {
+        "name": "ppv-lite86",
+        "sha256": "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9",
+        "size_bytes": 22522,
+        "version": "0.2.21",
+    },
+    "presser-0.3.1": {
+        "name": "presser",
+        "sha256": "e8cf8e6a8aa66ce33f63993ffc4ea4271eb5b0530a9002db8455ea6050c77bfa",
+        "size_bytes": 20946,
+        "version": "0.3.1",
+    },
+    "prettyplease-0.2.37": {
+        "name": "prettyplease",
+        "sha256": "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b",
+        "size_bytes": 72033,
+        "version": "0.2.37",
+    },
+    "proc-macro-crate-3.5.0": {
+        "name": "proc-macro-crate",
+        "sha256": "e67ba7e9b2b56446f1d419b1d807906278ffa1a658a8a5d8a39dcb1f5a78614f",
+        "size_bytes": 12709,
+        "version": "3.5.0",
+    },
+    "proc-macro2-1.0.106": {
+        "name": "proc-macro2",
+        "sha256": "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934",
+        "size_bytes": 59765,
+        "version": "1.0.106",
+    },
+    "profiling-1.0.18": {
+        "name": "profiling",
+        "sha256": "3d595e54a326bc53c1c197b32d295e14b169e3cfeaa8dc82b529f947fba6bcf5",
+        "size_bytes": 11931,
+        "version": "1.0.18",
+    },
+    "profiling-procmacros-1.0.18": {
+        "name": "profiling-procmacros",
+        "sha256": "4488a4a36b9a4ba6b9334a32a39971f77c1436ec82c38707bce707699cc3bbcb",
+        "size_bytes": 6333,
+        "version": "1.0.18",
+    },
+    "pulley-interpreter-48.0.1": {
+        "name": "pulley-interpreter",
+        "sha256": "f755d75e0809a4738a3e4880eeeb852fadbe1de5a437505b84f09c381657012a",
+        "size_bytes": 66751,
+        "version": "48.0.1",
+    },
+    "pulley-macros-48.0.1": {
+        "name": "pulley-macros",
+        "sha256": "c7e69fa1c4a555946f82e7894a7df88b0e9ee03b4266829b4811467c616ce51d",
+        "size_bytes": 2345,
+        "version": "48.0.1",
+    },
+    "pulseaudio-0.3.1": {
+        "name": "pulseaudio",
+        "sha256": "d70623bd7967a9ca4c2ae0e807fc380b291f98480fc037042305ec643a4d3373",
+        "size_bytes": 781833,
+        "version": "0.3.1",
+    },
+    "pxfm-0.1.29": {
+        "name": "pxfm",
+        "sha256": "e0c5ccf5294c6ccd63a74f1565028353830a9c2f5eb0c682c355c471726a6e3f",
+        "size_bytes": 879481,
+        "version": "0.1.29",
+    },
+    "quick-error-2.0.1": {
+        "name": "quick-error",
+        "sha256": "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3",
+        "size_bytes": 14265,
+        "version": "2.0.1",
+    },
+    "quick-xml-0.39.4": {
+        "name": "quick-xml",
+        "sha256": "cdcc8dd4e2f670d309a5f0e83fe36dfdc05af317008fea29144da1a2ac858e5e",
+        "size_bytes": 214141,
+        "version": "0.39.4",
+    },
+    "quote-1.0.45": {
+        "name": "quote",
+        "sha256": "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924",
+        "size_bytes": 31564,
+        "version": "1.0.45",
+    },
+    "r-efi-5.3.0": {
+        "name": "r-efi",
+        "sha256": "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f",
+        "size_bytes": 64532,
+        "version": "5.3.0",
+    },
+    "r-efi-6.0.0": {
+        "name": "r-efi",
+        "sha256": "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf",
+        "size_bytes": 65303,
+        "version": "6.0.0",
+    },
+    "ra-ap-rustc_lexer-0.166.0": {
+        "name": "ra-ap-rustc_lexer",
+        "sha256": "527c12b3731b7d0692498012810b85b2b8dfdb8b514321ed6afc434bd1c70191",
+        "size_bytes": 14407,
+        "version": "0.166.0",
+    },
+    "ra_ap_edition-0.0.351": {
+        "name": "ra_ap_edition",
+        "sha256": "e7b7def8f7824aca5c7de77f53c384fe81d3f6ec46ebf4aa571b9f150404fa14",
+        "size_bytes": 2221,
+        "version": "0.0.351",
+    },
+    "ra_ap_parser-0.0.351": {
+        "name": "ra_ap_parser",
+        "sha256": "b47d3d6aeeccacda850ed07374b170a309d7960547b652befdb0b67934d7e963",
+        "size_bytes": 167640,
+        "version": "0.0.351",
+    },
+    "ra_ap_stdx-0.0.351": {
+        "name": "ra_ap_stdx",
+        "sha256": "240b82a8cf926d56716dd37339e8751007665175f446027fe8e5d641b12eb0ea",
+        "size_bytes": 24708,
+        "version": "0.0.351",
+    },
+    "ra_ap_syntax-0.0.351": {
+        "name": "ra_ap_syntax",
+        "sha256": "3f482b7dc99e305a4c1b04256e9d7c16f5bbd42f583136bc54a7aaa8e6f1ad84",
+        "size_bytes": 132372,
+        "version": "0.0.351",
+    },
+    "rand-0.10.2": {
+        "name": "rand",
+        "sha256": "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80",
+        "size_bytes": 104493,
+        "version": "0.10.2",
+    },
+    "rand-0.8.6": {
+        "name": "rand",
+        "sha256": "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a",
+        "size_bytes": 83339,
+        "version": "0.8.6",
+    },
+    "rand-0.9.4": {
+        "name": "rand",
+        "sha256": "44c5af06bb1b7d3216d91932aed5265164bf384dc89cd6ba05cf59a35f5f76ea",
+        "size_bytes": 99786,
+        "version": "0.9.4",
+    },
+    "rand_chacha-0.3.1": {
+        "name": "rand_chacha",
+        "sha256": "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88",
+        "size_bytes": 15251,
+        "version": "0.3.1",
+    },
+    "rand_chacha-0.9.0": {
+        "name": "rand_chacha",
+        "sha256": "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb",
+        "size_bytes": 18258,
+        "version": "0.9.0",
+    },
+    "rand_core-0.10.1": {
+        "name": "rand_core",
+        "sha256": "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69",
+        "size_bytes": 22833,
+        "version": "0.10.1",
+    },
+    "rand_core-0.6.4": {
+        "name": "rand_core",
+        "sha256": "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c",
+        "size_bytes": 22666,
+        "version": "0.6.4",
+    },
+    "rand_core-0.9.5": {
+        "name": "rand_core",
+        "sha256": "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c",
+        "size_bytes": 24129,
+        "version": "0.9.5",
+    },
+    "range-alloc-0.1.5": {
+        "name": "range-alloc",
+        "sha256": "ca45419789ae5a7899559e9512e58ca889e41f04f1f2445e9f4b290ceccd1d08",
+        "size_bytes": 11163,
+        "version": "0.1.5",
+    },
+    "raw-window-handle-0.6.2": {
+        "name": "raw-window-handle",
+        "sha256": "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539",
+        "size_bytes": 20234,
+        "version": "0.6.2",
+    },
+    "raw-window-metal-1.1.0": {
+        "name": "raw-window-metal",
+        "sha256": "40d213455a5f1dc59214213c7330e074ddf8114c9a42411eb890c767357ce135",
+        "size_bytes": 15277,
+        "version": "1.1.0",
+    },
+    "rayon-1.12.0": {
+        "name": "rayon",
+        "sha256": "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d",
+        "size_bytes": 183391,
+        "version": "1.12.0",
+    },
+    "rayon-core-1.13.0": {
+        "name": "rayon-core",
+        "sha256": "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91",
+        "size_bytes": 73151,
+        "version": "1.13.0",
+    },
+    "rc2-0.9.0": {
+        "name": "rc2",
+        "sha256": "ceda21af1ae61033b63175653a1af86cae399d79cd03ca80ba347eb3a6c4a7fe",
+        "size_bytes": 11296,
+        "version": "0.9.0",
+    },
+    "read-fonts-0.41.0": {
+        "name": "read-fonts",
+        "sha256": "046a7d674daf459825b32f5062056d6882db0d2f5a479fbd76ccfc870ac18709",
+        "size_bytes": 567271,
+        "version": "0.41.0",
+    },
+    "redox_event-0.4.8": {
+        "name": "redox_event",
+        "sha256": "c5018d583d6d2f5499352aea8d177e9067d1eb03ab17c78169d5ba7a30001b15",
+        "size_bytes": 4312,
+        "version": "0.4.8",
+    },
+    "redox_syscall-0.5.18": {
+        "name": "redox_syscall",
+        "sha256": "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d",
+        "size_bytes": 30747,
+        "version": "0.5.18",
+    },
+    "redox_syscall-0.9.4": {
+        "name": "redox_syscall",
+        "sha256": "737970939a87c6fa31e7acad13307bccbb017a073b695b6089a2c484f929e20e",
+        "size_bytes": 27944,
+        "version": "0.9.4",
+    },
+    "redox_users-0.4.6": {
+        "name": "redox_users",
+        "sha256": "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43",
+        "size_bytes": 15585,
+        "version": "0.4.6",
+    },
+    "regalloc2-0.15.2": {
+        "name": "regalloc2",
+        "sha256": "757712e8e61590d6d4f5d563483755538b5aa13467837a3b41cd9832509a7f85",
+        "size_bytes": 150949,
+        "version": "0.15.2",
+    },
+    "regex-1.13.1": {
+        "name": "regex",
+        "sha256": "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d",
+        "size_bytes": 157118,
+        "version": "1.13.1",
+    },
+    "regex-automata-0.4.16": {
+        "name": "regex-automata",
+        "sha256": "8fcfdb36bda0c880c5931cdc7a2bcdc8ba4556847b9d912bca70bc94708711ad",
+        "size_bytes": 627556,
+        "version": "0.4.16",
+    },
+    "regex-syntax-0.8.11": {
+        "name": "regex-syntax",
+        "sha256": "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4",
+        "size_bytes": 359055,
+        "version": "0.8.11",
+    },
+    "renderdoc-sys-1.1.0": {
+        "name": "renderdoc-sys",
+        "sha256": "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832",
+        "size_bytes": 10366,
+        "version": "1.1.0",
+    },
+    "resvg-0.48.1": {
+        "name": "resvg",
+        "sha256": "67e3803f97b999e80cbf7c6ecdd07a8102204d92e1633cf48783720c521196bd",
+        "size_bytes": 78696,
+        "version": "0.48.1",
+    },
+    "rfd-0.15.4": {
+        "name": "rfd",
+        "sha256": "ef2bee61e6cffa4635c72d7d81a84294e28f0930db0ddcb0f66d10244674ebed",
+        "size_bytes": 56785,
+        "version": "0.15.4",
+    },
+    "rgb-0.8.53": {
+        "name": "rgb",
+        "sha256": "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4",
+        "size_bytes": 18607,
+        "version": "0.8.53",
+    },
+    "ring-0.17.14": {
+        "name": "ring",
+        "sha256": "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7",
+        "size_bytes": 1502610,
+        "version": "0.17.14",
+    },
+    "rodio-0.20.1": {
+        "name": "rodio",
+        "sha256": "e7ceb6607dd738c99bc8cb28eff249b7cd5c8ec88b9db96c0608c1480d140fb1",
+        "size_bytes": 90390,
+        "version": "0.20.1",
+    },
+    "rowan-0.17.0": {
+        "name": "rowan",
+        "sha256": "14b574c58582fa59fa43a2feb6608b8744184659f08a2e0117e4b8224d95ed61",
+        "size_bytes": 36120,
+        "version": "0.17.0",
+    },
+    "roxmltree-0.20.0": {
+        "name": "roxmltree",
+        "sha256": "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97",
+        "size_bytes": 54594,
+        "version": "0.20.0",
+    },
+    "roxmltree-0.21.1": {
+        "name": "roxmltree",
+        "sha256": "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb",
+        "size_bytes": 56837,
+        "version": "0.21.1",
+    },
+    "rsa-0.9.10": {
+        "name": "rsa",
+        "sha256": "b8573f03f5883dcaebdfcf4725caa1ecb9c15b2ef50c43a07b816e06799bb12d",
+        "size_bytes": 86417,
+        "version": "0.9.10",
+    },
+    "rusqlite-0.32.1": {
+        "name": "rusqlite",
+        "sha256": "7753b721174eb8ff87a9a0e799e2d7bc3749323e773db92e0984debb00019d6e",
+        "size_bytes": 155563,
+        "version": "0.32.1",
+    },
+    "rustc-demangle-0.1.28": {
+        "name": "rustc-demangle",
+        "sha256": "b74b56ffa8bb2830709a538c2cbcae9aa062db0d2a42563bfb09bdaae44020eb",
+        "size_bytes": 30857,
+        "version": "0.1.28",
+    },
+    "rustc-hash-1.1.0": {
+        "name": "rustc-hash",
+        "sha256": "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2",
+        "size_bytes": 9331,
+        "version": "1.1.0",
+    },
+    "rustc-hash-2.1.2": {
+        "name": "rustc-hash",
+        "sha256": "94300abf3f1ae2e2b8ffb7b58043de3d399c73fa6f4b73826402a5c457614dbe",
+        "size_bytes": 14754,
+        "version": "2.1.2",
+    },
+    "rustc-literal-escaper-0.0.7": {
+        "name": "rustc-literal-escaper",
+        "sha256": "8be87abb9e40db7466e0681dc8ecd9dcfd40360cb10b4c8fe24a7c4c3669b198",
+        "size_bytes": 14206,
+        "version": "0.0.7",
+    },
+    "rustc_version-0.4.1": {
+        "name": "rustc_version",
+        "sha256": "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92",
+        "size_bytes": 12245,
+        "version": "0.4.1",
+    },
+    "rusticata-macros-4.1.0": {
+        "name": "rusticata-macros",
+        "sha256": "faf0c4a6ece9950b9abdb62b1cfcf2a68b3b67a10ba445b3bb85be2a293d0632",
+        "size_bytes": 11746,
+        "version": "4.1.0",
+    },
+    "rustix-0.38.44": {
+        "name": "rustix",
+        "sha256": "fdb5bc1ae2baa591800df16c9ca78619bf65c0488b41b96ccec5d11220d8c154",
+        "size_bytes": 379347,
+        "version": "0.38.44",
+    },
+    "rustix-1.1.4": {
+        "name": "rustix",
+        "sha256": "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190",
+        "size_bytes": 425241,
+        "version": "1.1.4",
+    },
+    "rustix-linux-procfs-0.1.1": {
+        "name": "rustix-linux-procfs",
+        "sha256": "2fc84bf7e9aa16c4f2c758f27412dc9841341e16aa682d9c7ac308fe3ee12056",
+        "size_bytes": 17465,
+        "version": "0.1.1",
+    },
+    "rustls-0.23.43": {
+        "name": "rustls",
+        "sha256": "0283386ce02abc0151e1761d08802dfe86c173b0b494af5cbc086574e453da06",
+        "size_bytes": 375868,
+        "version": "0.23.43",
+    },
+    "rustls-pki-types-1.15.1": {
+        "name": "rustls-pki-types",
+        "sha256": "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96",
+        "size_bytes": 39322,
+        "version": "1.15.1",
+    },
+    "rustls-webpki-0.103.13": {
+        "name": "rustls-webpki",
+        "sha256": "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e",
+        "size_bytes": 87513,
+        "version": "0.103.13",
+    },
+    "rustversion-1.0.22": {
+        "name": "rustversion",
+        "sha256": "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d",
+        "size_bytes": 21096,
+        "version": "1.0.22",
+    },
+    "salsa20-0.11.0": {
+        "name": "salsa20",
+        "sha256": "2f874456e72520ff1375a06c588eaf074b0f01f9e9e1aada45bd9b7954a6e42c",
+        "size_bytes": 44952,
+        "version": "0.11.0",
+    },
+    "same-file-1.0.6": {
+        "name": "same-file",
+        "sha256": "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502",
+        "size_bytes": 10183,
+        "version": "1.0.6",
+    },
+    "scoped-tls-1.0.1": {
+        "name": "scoped-tls",
+        "sha256": "e1cf6437eb19a8f4a6cc0f7dca544973b0b78843adbfeb3683d1a94a0024a294",
+        "size_bytes": 8202,
+        "version": "1.0.1",
+    },
+    "scopeguard-1.2.0": {
+        "name": "scopeguard",
+        "sha256": "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49",
+        "size_bytes": 11619,
+        "version": "1.2.0",
+    },
+    "scrypt-0.12.0": {
+        "name": "scrypt",
+        "sha256": "d87af57419b594aa23fa95f09f0e06d80d84ba01c26148c43844cad6ff4485f0",
+        "size_bytes": 24752,
+        "version": "0.12.0",
+    },
+    "sctk-adwaita-0.12.0": {
+        "name": "sctk-adwaita",
+        "sha256": "1f8ea028b7cb32e2f577b0a55a7b54cb206376bdb1221bd5c81dcf20b68db1fb",
+        "size_bytes": 63639,
+        "version": "0.12.0",
+    },
+    "semver-1.0.28": {
+        "name": "semver",
+        "sha256": "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd",
+        "size_bytes": 33064,
+        "version": "1.0.28",
+    },
+    "serde-1.0.228": {
+        "name": "serde",
+        "sha256": "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e",
+        "size_bytes": 83652,
+        "version": "1.0.228",
+    },
+    "serde_bytes-0.11.19": {
+        "name": "serde_bytes",
+        "sha256": "a5d440709e79d88e51ac01c4b72fc6cb7314017bb7da9eeff678aa94c10e3ea8",
+        "size_bytes": 13427,
+        "version": "0.11.19",
+    },
+    "serde_core-1.0.228": {
+        "name": "serde_core",
+        "sha256": "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad",
+        "size_bytes": 63111,
+        "version": "1.0.228",
+    },
+    "serde_derive-1.0.228": {
+        "name": "serde_derive",
+        "sha256": "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79",
+        "size_bytes": 59605,
+        "version": "1.0.228",
+    },
+    "serde_json-1.0.150": {
+        "name": "serde_json",
+        "sha256": "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9",
+        "size_bytes": 155574,
+        "version": "1.0.150",
+    },
+    "serde_repr-0.1.21": {
+        "name": "serde_repr",
+        "sha256": "8d3b1629de253c70a0508c3899572da79ca359fdab27c7920ff00406df418906",
+        "size_bytes": 12412,
+        "version": "0.1.21",
+    },
+    "serde_spanned-1.1.1": {
+        "name": "serde_spanned",
+        "sha256": "6662b5879511e06e8999a8a235d848113e942c9124f211511b16466ee2995f26",
+        "size_bytes": 11025,
+        "version": "1.1.1",
+    },
+    "serial2-0.2.38": {
+        "name": "serial2",
+        "sha256": "b16809bc35793b19ce4e0c53924bc0dce3937f15487997cfdaed936004180730",
+        "size_bytes": 36487,
+        "version": "0.2.38",
+    },
+    "sha1-0.10.6": {
+        "name": "sha1",
+        "sha256": "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba",
+        "size_bytes": 13517,
+        "version": "0.10.6",
+    },
+    "sha1-0.11.0": {
+        "name": "sha1",
+        "sha256": "aacc4cc499359472b4abe1bf11d0b12e688af9a805fa5e3016f9a386dc2d0214",
+        "size_bytes": 15458,
+        "version": "0.11.0",
+    },
+    "sha2-0.10.9": {
+        "name": "sha2",
+        "sha256": "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283",
+        "size_bytes": 29271,
+        "version": "0.10.9",
+    },
+    "sha2-0.11.1": {
+        "name": "sha2",
+        "sha256": "47d7069beb7d6ac7b9acd1039986e73443f24234f41074da099d6f994ac9ad19",
+        "size_bytes": 32748,
+        "version": "0.11.1",
+    },
+    "sharded-slab-0.1.7": {
+        "name": "sharded-slab",
+        "sha256": "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6",
+        "size_bytes": 58227,
+        "version": "0.1.7",
+    },
+    "shared_library-0.1.9": {
+        "name": "shared_library",
+        "sha256": "5a9e7e0f2bfae24d8a5b5a66c5b257a83c7412304311512a0c054cd5e619da11",
+        "size_bytes": 10566,
+        "version": "0.1.9",
+    },
+    "shell-words-1.1.1": {
+        "name": "shell-words",
+        "sha256": "dc6fe69c597f9c37bfeeeeeb33da3530379845f10be461a66d16d03eca2ded77",
+        "size_bytes": 10012,
+        "version": "1.1.1",
+    },
+    "shlex-1.3.0": {
+        "name": "shlex",
+        "sha256": "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64",
+        "size_bytes": 18713,
+        "version": "1.3.0",
+    },
+    "shlex-2.0.1": {
+        "name": "shlex",
+        "sha256": "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba",
+        "size_bytes": 19332,
+        "version": "2.0.1",
+    },
+    "signal-hook-registry-1.4.8": {
+        "name": "signal-hook-registry",
+        "sha256": "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b",
+        "size_bytes": 21668,
+        "version": "1.4.8",
+    },
+    "signature-2.2.0": {
+        "name": "signature",
+        "sha256": "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de",
+        "size_bytes": 15531,
+        "version": "2.2.0",
+    },
+    "simd-adler32-0.3.9": {
+        "name": "simd-adler32",
+        "sha256": "703d5c7ef118737c72f1af64ad2f6f8c5e1921f818cdcb97b8fe6fc69bf66214",
+        "size_bytes": 18572,
+        "version": "0.3.9",
+    },
+    "simd_cesu8-1.1.1": {
+        "name": "simd_cesu8",
+        "sha256": "94f90157bb87cddf702797c5dadfa0be7d266cdf49e22da2fcaa32eff75b2c33",
+        "size_bytes": 319542,
+        "version": "1.1.1",
+    },
+    "simdutf8-0.1.5": {
+        "name": "simdutf8",
+        "sha256": "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e",
+        "size_bytes": 28488,
+        "version": "0.1.5",
+    },
+    "similar-3.1.1": {
+        "name": "similar",
+        "sha256": "e6505efef05804732ed8a3f2d4f279429eb485bd69d5b0cc6b19cc02005cda16",
+        "size_bytes": 79833,
+        "version": "3.1.1",
+    },
+    "simplecss-0.2.2": {
+        "name": "simplecss",
+        "sha256": "7a9c6883ca9c3c7c90e888de77b7a5c849c779d25d74a1269b0218b14e8b136c",
+        "size_bytes": 22136,
+        "version": "0.2.2",
+    },
+    "siphasher-1.0.3": {
+        "name": "siphasher",
+        "sha256": "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649",
+        "size_bytes": 11643,
+        "version": "1.0.3",
+    },
+    "skrifa-0.44.0": {
+        "name": "skrifa",
+        "sha256": "819ab7d62b1d3e72d9d9dea5650bac30424f9111364bb94928dbf5ecad1baa68",
+        "size_bytes": 299025,
+        "version": "0.44.0",
+    },
+    "slab-0.4.12": {
+        "name": "slab",
+        "sha256": "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5",
+        "size_bytes": 19080,
+        "version": "0.4.12",
+    },
+    "slotmap-1.1.1": {
+        "name": "slotmap",
+        "sha256": "bdd58c3c93c3d278ca835519292445cb4b0d4dc59ccfdf7ceadaab3f8aeb4038",
+        "size_bytes": 61862,
+        "version": "1.1.1",
+    },
+    "smallvec-1.15.1": {
+        "name": "smallvec",
+        "sha256": "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03",
+        "size_bytes": 38116,
+        "version": "1.15.1",
+    },
+    "smithay-0.7.0": {
+        "name": "smithay",
+        "sha256": "740cea6927892bc182d5bf70c8f79806c8bc9f68f2fb96e55a30be171b63af98",
+        "size_bytes": 708976,
+        "version": "0.7.0",
+    },
+    "smithay-client-toolkit-0.21.1": {
+        "name": "smithay-client-toolkit",
+        "sha256": "74dc9ee14b0fdcb535f9556141bacac070c994a977d2240ee455d7438a617f00",
+        "size_bytes": 145643,
+        "version": "0.21.1",
+    },
+    "smol_str-0.3.6": {
+        "name": "smol_str",
+        "sha256": "4aaa7368fcf4852a4c2dd92df0cace6a71f2091ca0a23391ce7f3a31833f1523",
+        "size_bytes": 26335,
+        "version": "0.3.6",
+    },
+    "socket2-0.6.4": {
+        "name": "socket2",
+        "sha256": "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51",
+        "size_bytes": 59888,
+        "version": "0.6.4",
+    },
+    "spake2-0.4.0": {
+        "name": "spake2",
+        "sha256": "c5482afe85a0b6ce956c945401598dbc527593c77ba51d0a87a586938b1b893a",
+        "size_bytes": 18711,
+        "version": "0.4.0",
+    },
+    "spin-0.9.9": {
+        "name": "spin",
+        "sha256": "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e",
+        "size_bytes": 39817,
+        "version": "0.9.9",
+    },
+    "spirv-0.4.0+sdk-1.4.341.0": {
+        "name": "spirv",
+        "sha256": "d9571ea910ebd84c86af4b3ed27f9dbdc6ad06f17c5f96146b2b671e2976744f",
+        "size_bytes": 41285,
+        "version": "0.4.0+sdk-1.4.341.0",
+    },
+    "spki-0.7.3": {
+        "name": "spki",
+        "sha256": "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d",
+        "size_bytes": 16409,
+        "version": "0.7.3",
+    },
+    "spki-0.8.1": {
+        "name": "spki",
+        "sha256": "7ef958a98b9d5da290cfc78946e9f3e61e1e62a18db0d92cac0b83cc161491a9",
+        "size_bytes": 20374,
+        "version": "0.8.1",
+    },
+    "stable_deref_trait-1.2.1": {
+        "name": "stable_deref_trait",
+        "sha256": "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596",
+        "size_bytes": 8186,
+        "version": "1.2.1",
+    },
+    "static_assertions-1.1.0": {
+        "name": "static_assertions",
+        "sha256": "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f",
+        "size_bytes": 18480,
+        "version": "1.1.0",
+    },
+    "streaming-iterator-0.1.9": {
+        "name": "streaming-iterator",
+        "sha256": "2b2231b7c3057d5e4ad0156fb3dc807d900806020c5ffa3ee6ff2c8c76fb8520",
+        "size_bytes": 18482,
+        "version": "0.1.9",
+    },
+    "strict-num-0.1.1": {
+        "name": "strict-num",
+        "sha256": "6637bab7722d379c8b41ba849228d680cc12d0a45ba1fa2b48f2a30577a06731",
+        "size_bytes": 5104,
+        "version": "0.1.1",
+    },
+    "string-interner-0.19.0": {
+        "name": "string-interner",
+        "sha256": "23de088478b31c349c9ba67816fa55d9355232d63c3afea8bf513e31f0f1d2c0",
+        "size_bytes": 31797,
+        "version": "0.19.0",
+    },
+    "subtle-2.6.1": {
+        "name": "subtle",
+        "sha256": "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292",
+        "size_bytes": 14562,
+        "version": "2.6.1",
+    },
+    "svgtypes-0.16.1": {
+        "name": "svgtypes",
+        "sha256": "695b5790b3131dafa99b3bbfd25a216edb3d216dad9ca208d4657bfb8f2abc3d",
+        "size_bytes": 45181,
+        "version": "0.16.1",
+    },
+    "symphonia-0.5.5": {
+        "name": "symphonia",
+        "sha256": "5773a4c030a19d9bfaa090f49746ff35c75dfddfa700df7a5939d5e076a57039",
+        "size_bytes": 12085,
+        "version": "0.5.5",
+    },
+    "symphonia-bundle-mp3-0.5.5": {
+        "name": "symphonia-bundle-mp3",
+        "sha256": "4872dd6bb56bf5eac799e3e957aa1981086c3e613b27e0ac23b176054f7c57ed",
+        "size_bytes": 61019,
+        "version": "0.5.5",
+    },
+    "symphonia-core-0.5.5": {
+        "name": "symphonia-core",
+        "sha256": "ea00cc4f79b7f6bb7ff87eddc065a1066f3a43fe1875979056672c9ef948c2af",
+        "size_bytes": 99682,
+        "version": "0.5.5",
+    },
+    "symphonia-metadata-0.5.5": {
+        "name": "symphonia-metadata",
+        "sha256": "36306ff42b9ffe6e5afc99d49e121e0bd62fe79b9db7b9681d48e29fa19e6b16",
+        "size_bytes": 24184,
+        "version": "0.5.5",
+    },
+    "syn-1.0.109": {
+        "name": "syn",
+        "sha256": "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237",
+        "size_bytes": 237611,
+        "version": "1.0.109",
+    },
+    "syn-2.0.117": {
+        "name": "syn",
+        "sha256": "e665b8803e7b1d2a727f4023456bbbbe74da67099c585258af0ad9c5013b9b99",
+        "size_bytes": 306011,
+        "version": "2.0.117",
+    },
+    "syn-3.0.3": {
+        "name": "syn",
+        "sha256": "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3",
+        "size_bytes": 312999,
+        "version": "3.0.3",
+    },
+    "synstructure-0.12.6": {
+        "name": "synstructure",
+        "sha256": "f36bdaa60a83aca3921b5259d5400cbf5e90fc51931376a9bd4a0eb79aa7210f",
+        "size_bytes": 18429,
+        "version": "0.12.6",
+    },
+    "synstructure-0.13.2": {
+        "name": "synstructure",
+        "sha256": "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2",
+        "size_bytes": 18950,
+        "version": "0.13.2",
+    },
+    "synstructure-0.14.0": {
+        "name": "synstructure",
+        "sha256": "901704edd0dfe137f1987838ee4f259e4e063c31371bdb423f7ae38ec6f77f02",
+        "size_bytes": 19010,
+        "version": "0.14.0",
+    },
+    "target-lexicon-0.13.5": {
+        "name": "target-lexicon",
+        "sha256": "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca",
+        "size_bytes": 26928,
+        "version": "0.13.5",
+    },
+    "tempfile-3.27.0": {
+        "name": "tempfile",
+        "sha256": "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd",
+        "size_bytes": 44780,
+        "version": "3.27.0",
+    },
+    "termcolor-1.4.1": {
+        "name": "termcolor",
+        "sha256": "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755",
+        "size_bytes": 18773,
+        "version": "1.4.1",
+    },
+    "text-size-1.1.1": {
+        "name": "text-size",
+        "sha256": "f18aa187839b2bdb1ad2fa35ead8c4c2976b64e4363c386d45ac0f7ee85c9233",
+        "size_bytes": 12553,
+        "version": "1.1.1",
+    },
+    "thiserror-1.0.69": {
+        "name": "thiserror",
+        "sha256": "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52",
+        "size_bytes": 22198,
+        "version": "1.0.69",
+    },
+    "thiserror-2.0.18": {
+        "name": "thiserror",
+        "sha256": "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4",
+        "size_bytes": 28875,
+        "version": "2.0.18",
+    },
+    "thiserror-impl-1.0.69": {
+        "name": "thiserror-impl",
+        "sha256": "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1",
+        "size_bytes": 18365,
+        "version": "1.0.69",
+    },
+    "thiserror-impl-2.0.18": {
+        "name": "thiserror-impl",
+        "sha256": "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5",
+        "size_bytes": 21413,
+        "version": "2.0.18",
+    },
+    "thread_local-1.1.10": {
+        "name": "thread_local",
+        "sha256": "1ad99c4c6d32803332c548b1af0540b357b3f5fc0be8f6c6bfe8b2e6ae784070",
+        "size_bytes": 16361,
+        "version": "1.1.10",
+    },
+    "thumbhash-0.1.0": {
+        "name": "thumbhash",
+        "sha256": "8b7726e0245a7331bd0c9a1fb4fd99fd695bcd478ca569f0eda2ff2cb14e7a00",
+        "size_bytes": 3809,
+        "version": "0.1.0",
+    },
+    "tiff-0.11.3": {
+        "name": "tiff",
+        "sha256": "b63feaf3343d35b6ca4d50483f94843803b0f51634937cc2ec519fc32232bc52",
+        "size_bytes": 102026,
+        "version": "0.11.3",
+    },
+    "time-0.3.54": {
+        "name": "time",
+        "sha256": "3e1d5e639ff6bab73cb6885cc7e7b1de96c3f32c68ec55f3952614bec1092244",
+        "size_bytes": 279146,
+        "version": "0.3.54",
+    },
+    "time-core-0.1.9": {
+        "name": "time-core",
+        "sha256": "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109",
+        "size_bytes": 10320,
+        "version": "0.1.9",
+    },
+    "time-macros-0.2.32": {
+        "name": "time-macros",
+        "sha256": "7e689342a48d2ea927c87ea50cabf8594854bf940e9310208848d680d668ed85",
+        "size_bytes": 33664,
+        "version": "0.2.32",
+    },
+    "tiny-skia-0.12.0": {
+        "name": "tiny-skia",
+        "sha256": "47ffee5eaaf5527f630fb0e356b90ebdec84d5d18d937c5e440350f88c5a91ea",
+        "size_bytes": 268071,
+        "version": "0.12.0",
+    },
+    "tiny-skia-path-0.12.0": {
+        "name": "tiny-skia-path",
+        "sha256": "edca365c3faccca67d06593c5980fa6c57687de727a03131735bb85f01fdeeb9",
+        "size_bytes": 49022,
+        "version": "0.12.0",
+    },
+    "tinystr-0.8.5": {
+        "name": "tinystr",
+        "sha256": "abc840c238154d58f9e86b2792261edfde565a17696e1cda1a449de27979801a",
+        "size_bytes": 25049,
+        "version": "0.8.5",
+    },
+    "tinyvec-1.12.0": {
+        "name": "tinyvec",
+        "sha256": "bb4ebadaa0af04fab11ae01eb5f9fdb5f9c5b875506e210e71c07873528baa7f",
+        "size_bytes": 56568,
+        "version": "1.12.0",
+    },
+    "tinyvec_macros-0.1.1": {
+        "name": "tinyvec_macros",
+        "sha256": "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20",
+        "size_bytes": 5865,
+        "version": "0.1.1",
+    },
+    "tls_codec-0.4.2": {
+        "name": "tls_codec",
+        "sha256": "0de2e01245e2bb89d6f05801c564fa27624dbd7b1846859876c7dad82e90bf6b",
+        "size_bytes": 27213,
+        "version": "0.4.2",
+    },
+    "tls_codec_derive-0.4.2": {
+        "name": "tls_codec_derive",
+        "sha256": "2d2e76690929402faae40aebdda620a2c0e25dd6d3b9afe48867dfd95991f4bd",
+        "size_bytes": 25155,
+        "version": "0.4.2",
+    },
+    "tokio-1.52.3": {
+        "name": "tokio",
+        "sha256": "8fc7f01b389ac15039e4dc9531aa973a135d7a4135281b12d7c1bc79fd57fffe",
+        "size_bytes": 901393,
+        "version": "1.52.3",
+    },
+    "tokio-macros-2.7.0": {
+        "name": "tokio-macros",
+        "sha256": "385a6cb71ab9ab790c5fe8d67f1645e6c450a7ce006a33de03daa956cf70a496",
+        "size_bytes": 15859,
+        "version": "2.7.0",
+    },
+    "tokio-rustls-0.26.4": {
+        "name": "tokio-rustls",
+        "sha256": "1729aa945f29d91ba541258c8df89027d5792d85a8841fb65e8bf0f4ede4ef61",
+        "size_bytes": 35430,
+        "version": "0.26.4",
+    },
+    "tokio-tungstenite-0.23.1": {
+        "name": "tokio-tungstenite",
+        "sha256": "c6989540ced10490aaf14e6bad2e3d33728a2813310a0c71d1574304c49631cd",
+        "size_bytes": 28371,
+        "version": "0.23.1",
+    },
+    "toml-0.9.12+spec-1.1.0": {
+        "name": "toml",
+        "sha256": "cf92845e79fc2e2def6a5d828f0801e29a2f8acc037becc5ab08595c7d5e9863",
+        "size_bytes": 56485,
+        "version": "0.9.12+spec-1.1.0",
+    },
+    "toml_datetime-0.7.5+spec-1.1.0": {
+        "name": "toml_datetime",
+        "sha256": "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347",
+        "size_bytes": 17975,
+        "version": "0.7.5+spec-1.1.0",
+    },
+    "toml_datetime-1.1.1+spec-1.1.0": {
+        "name": "toml_datetime",
+        "sha256": "3165f65f62e28e0115a00b2ebdd37eb6f3b641855f9d636d3cd4103767159ad7",
+        "size_bytes": 17982,
+        "version": "1.1.1+spec-1.1.0",
+    },
+    "toml_edit-0.25.12+spec-1.1.0": {
+        "name": "toml_edit",
+        "sha256": "d2153edc6955a6c354fad8f5efd38b6a8769bdccf9fe50f8e1329f81b0baa5d7",
+        "size_bytes": 68620,
+        "version": "0.25.12+spec-1.1.0",
+    },
+    "toml_parser-1.1.3+spec-1.1.0": {
+        "name": "toml_parser",
+        "sha256": "1d38ac1cf9b95face32296c0a3ede1fdc270627c9d9c02a7274dd6d960dc4d56",
+        "size_bytes": 35888,
+        "version": "1.1.3+spec-1.1.0",
+    },
+    "toml_writer-1.1.2+spec-1.1.0": {
+        "name": "toml_writer",
+        "sha256": "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2",
+        "size_bytes": 18968,
+        "version": "1.1.2+spec-1.1.0",
+    },
+    "tracing-0.1.44": {
+        "name": "tracing",
+        "sha256": "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100",
+        "size_bytes": 463135,
+        "version": "0.1.44",
+    },
+    "tracing-attributes-0.1.31": {
+        "name": "tracing-attributes",
+        "sha256": "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da",
+        "size_bytes": 39733,
+        "version": "0.1.31",
+    },
+    "tracing-core-0.1.36": {
+        "name": "tracing-core",
+        "sha256": "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a",
+        "size_bytes": 63967,
+        "version": "0.1.36",
+    },
+    "tracing-log-0.2.0": {
+        "name": "tracing-log",
+        "sha256": "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3",
+        "size_bytes": 17561,
+        "version": "0.2.0",
+    },
+    "tracing-subscriber-0.3.23": {
+        "name": "tracing-subscriber",
+        "sha256": "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319",
+        "size_bytes": 213773,
+        "version": "0.3.23",
+    },
+    "tree-sitter-0.26.11": {
+        "name": "tree-sitter",
+        "sha256": "af1c71c1c4cc0920b20d6b0f6572e7682cd07a6a2faec71067a31fa394c586df",
+        "size_bytes": 201790,
+        "version": "0.26.11",
+    },
+    "tree-sitter-language-0.1.7": {
+        "name": "tree-sitter-language",
+        "sha256": "009994f150cc0cd50ff54917d5bc8bffe8cad10ca10d81c34da2ec421ae61782",
+        "size_bytes": 7945,
+        "version": "0.1.7",
+    },
+    "tree-sitter-md-0.5.3": {
+        "name": "tree-sitter-md",
+        "sha256": "2efd398be546456c814598ee56c0f51769a77241511b4a58077815d120afa882",
+        "size_bytes": 324966,
+        "version": "0.5.3",
+    },
+    "tree-sitter-rust-0.24.2": {
+        "name": "tree-sitter-rust",
+        "sha256": "439e577dbe07423ec2582ac62c7531120dbfccfa6e5f92406f93dd271a120e45",
+        "size_bytes": 368844,
+        "version": "0.24.2",
+    },
+    "tree-sitter-zig-1.1.2": {
+        "name": "tree-sitter-zig",
+        "sha256": "ab11fc124851b0db4dd5e55983bbd9631192e93238389dcd44521715e5d53e28",
+        "size_bytes": 212493,
+        "version": "1.1.2",
+    },
+    "triomphe-0.1.16": {
+        "name": "triomphe",
+        "sha256": "b40688ea6389c8171614b25491f71d4a27946e0c7ce2da1c6de27e25abf1a0ae",
+        "size_bytes": 37467,
+        "version": "0.1.16",
+    },
+    "ttf-parser-0.25.1": {
+        "name": "ttf-parser",
+        "sha256": "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31",
+        "size_bytes": 201121,
+        "version": "0.25.1",
+    },
+    "tungstenite-0.23.0": {
+        "name": "tungstenite",
+        "sha256": "6e2e2ce1e47ed2994fd43b04c8f618008d4cabdd5ee34027cf14f9d918edd9c8",
+        "size_bytes": 61196,
+        "version": "0.23.0",
+    },
+    "typed-arena-2.0.2": {
+        "name": "typed-arena",
+        "sha256": "6af6ae20167a9ece4bcb41af5b80f8a1f1df981f6391189ce00fd257af04126a",
+        "size_bytes": 11848,
+        "version": "2.0.2",
+    },
+    "typed-path-0.12.3": {
+        "name": "typed-path",
+        "sha256": "8e28f89b80c87b8fb0cf04ab448d5dd0dd0ade2f8891bae878de66a75a28600e",
+        "size_bytes": 112964,
+        "version": "0.12.3",
+    },
+    "typenum-1.20.1": {
+        "name": "typenum",
+        "sha256": "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20",
+        "size_bytes": 105479,
+        "version": "1.20.1",
+    },
+    "udev-0.9.3": {
+        "name": "udev",
+        "sha256": "af4e37e9ea4401fc841ff54b9ddfc9be1079b1e89434c1a6a865dd68980f7e9f",
+        "size_bytes": 21737,
+        "version": "0.9.3",
+    },
+    "uds_windows-1.2.1": {
+        "name": "uds_windows",
+        "sha256": "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e",
+        "size_bytes": 21931,
+        "version": "1.2.1",
+    },
+    "unicode-bidi-0.3.18": {
+        "name": "unicode-bidi",
+        "sha256": "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5",
+        "size_bytes": 58300,
+        "version": "0.3.18",
+    },
+    "unicode-ident-1.0.24": {
+        "name": "unicode-ident",
+        "sha256": "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75",
+        "size_bytes": 49298,
+        "version": "1.0.24",
+    },
+    "unicode-normalization-0.1.25": {
+        "name": "unicode-normalization",
+        "sha256": "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8",
+        "size_bytes": 128462,
+        "version": "0.1.25",
+    },
+    "unicode-properties-0.1.4": {
+        "name": "unicode-properties",
+        "sha256": "7df058c713841ad818f1dc5d3fd88063241cc61f49f5fbea4b951e8cf5a8d71d",
+        "size_bytes": 42752,
+        "version": "0.1.4",
+    },
+    "unicode-script-0.5.8": {
+        "name": "unicode-script",
+        "sha256": "383ad40bb927465ec0ce7720e033cb4ca06912855fc35db31b5755d0de75b1ee",
+        "size_bytes": 48253,
+        "version": "0.5.8",
+    },
+    "unicode-segmentation-1.13.3": {
+        "name": "unicode-segmentation",
+        "sha256": "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8",
+        "size_bytes": 112325,
+        "version": "1.13.3",
+    },
+    "unicode-vo-0.1.0": {
+        "name": "unicode-vo",
+        "sha256": "b1d386ff53b415b7fe27b50bb44679e2cc4660272694b7b6f3326d8480823a94",
+        "size_bytes": 8084,
+        "version": "0.1.0",
+    },
+    "unicode-width-0.2.2": {
+        "name": "unicode-width",
+        "sha256": "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254",
+        "size_bytes": 282768,
+        "version": "0.2.2",
+    },
+    "unicode-xid-0.2.6": {
+        "name": "unicode-xid",
+        "sha256": "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853",
+        "size_bytes": 15744,
+        "version": "0.2.6",
+    },
+    "universal-hash-0.5.1": {
+        "name": "universal-hash",
+        "sha256": "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea",
+        "size_bytes": 9146,
+        "version": "0.5.1",
+    },
+    "universal-hash-0.6.1": {
+        "name": "universal-hash",
+        "sha256": "f4987bdc12753382e0bec4a65c50738ffaabc998b9cdd1f952fb5f39b0048a96",
+        "size_bytes": 9478,
+        "version": "0.6.1",
+    },
+    "untrusted-0.9.0": {
+        "name": "untrusted",
+        "sha256": "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1",
+        "size_bytes": 14447,
+        "version": "0.9.0",
+    },
+    "ureq-2.12.1": {
+        "name": "ureq",
+        "sha256": "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d",
+        "size_bytes": 115366,
+        "version": "2.12.1",
+    },
+    "url-2.5.8": {
+        "name": "url",
+        "sha256": "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed",
+        "size_bytes": 86512,
+        "version": "2.5.8",
+    },
+    "urlencoding-2.1.3": {
+        "name": "urlencoding",
+        "sha256": "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da",
+        "size_bytes": 6538,
+        "version": "2.1.3",
+    },
+    "usvg-0.48.1": {
+        "name": "usvg",
+        "sha256": "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91",
+        "size_bytes": 146652,
+        "version": "0.48.1",
+    },
+    "utf-8-0.7.6": {
+        "name": "utf-8",
+        "sha256": "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9",
+        "size_bytes": 10422,
+        "version": "0.7.6",
+    },
+    "utf8_iter-1.0.4": {
+        "name": "utf8_iter",
+        "sha256": "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be",
+        "size_bytes": 10437,
+        "version": "1.0.4",
+    },
+    "uuid-1.23.2": {
+        "name": "uuid",
+        "sha256": "d258b83ceec21034727ecee8c382cfa6c3e133699b0742c64571814fb420c9f7",
+        "size_bytes": 63572,
+        "version": "1.23.2",
+    },
+    "uuid-rng-internal-1.29.0": {
+        "name": "uuid-rng-internal",
+        "sha256": "cdf60f3d36825d0911af7e102da39cc817280560cad48e81df1eb5c4d7400f76",
+        "size_bytes": 1826,
+        "version": "1.29.0",
+    },
+    "valuable-0.1.1": {
+        "name": "valuable",
+        "sha256": "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65",
+        "size_bytes": 28679,
+        "version": "0.1.1",
+    },
+    "vcpkg-0.2.15": {
+        "name": "vcpkg",
+        "sha256": "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426",
+        "size_bytes": 228735,
+        "version": "0.2.15",
+    },
+    "version_check-0.9.5": {
+        "name": "version_check",
+        "sha256": "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a",
+        "size_bytes": 15554,
+        "version": "0.9.5",
+    },
+    "walkdir-2.5.0": {
+        "name": "walkdir",
+        "sha256": "29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b",
+        "size_bytes": 23951,
+        "version": "2.5.0",
+    },
+    "wasi-0.11.1+wasi-snapshot-preview1": {
+        "name": "wasi",
+        "sha256": "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b",
+        "size_bytes": 28477,
+        "version": "0.11.1+wasi-snapshot-preview1",
+    },
+    "wasip2-1.0.3+wasi-0.2.9": {
+        "name": "wasip2",
+        "sha256": "20064672db26d7cdc89c7798c48a0fdfac8213434a1186e5ef29fd560ae223d6",
+        "size_bytes": 134512,
+        "version": "1.0.3+wasi-0.2.9",
+    },
+    "wasip3-0.4.0+wasi-0.3.0-rc-2026-01-06": {
+        "name": "wasip3",
+        "sha256": "5428f8bf88ea5ddc08faddef2ac4a67e390b88186c703ce6dbd955e1c145aca5",
+        "size_bytes": 123354,
+        "version": "0.4.0+wasi-0.3.0-rc-2026-01-06",
+    },
+    "wasm-bindgen-0.2.122": {
+        "name": "wasm-bindgen",
+        "sha256": "3ed04576f974d2b2fba0f38c51dbc5518011e38c36bf1143164be765528fd409",
+        "size_bytes": 66786,
+        "version": "0.2.122",
+    },
+    "wasm-bindgen-futures-0.4.72": {
+        "name": "wasm-bindgen-futures",
+        "sha256": "9473dbd2991ae90b6291c3c32c30c6187ac49aa32f9905d1cce280ec1e110b0f",
+        "size_bytes": 8241,
+        "version": "0.4.72",
+    },
+    "wasm-bindgen-macro-0.2.122": {
+        "name": "wasm-bindgen-macro",
+        "sha256": "916151b09da36bd82f6615cbf3a419e2f0ba23a03c6160e8e92eb6bd4aa1dec6",
+        "size_bytes": 9295,
+        "version": "0.2.122",
+    },
+    "wasm-bindgen-macro-support-0.2.122": {
+        "name": "wasm-bindgen-macro-support",
+        "sha256": "299047362ccbfce148b67ab7e73349f77748e00c8296f9542adfad2ad82c5c5e",
+        "size_bytes": 82378,
+        "version": "0.2.122",
+    },
+    "wasm-bindgen-shared-0.2.122": {
+        "name": "wasm-bindgen-shared",
+        "sha256": "9a929b2c61f11ba3e9bc35b50c1f25cb38e0e892c0c231ae2b8cf78d5dad4437",
+        "size_bytes": 11275,
+        "version": "0.2.122",
+    },
+    "wasm-encoder-0.244.0": {
+        "name": "wasm-encoder",
+        "sha256": "990065f2fe63003fe337b932cfb5e3b80e0b4d0f5ff650e6985b1048f62c8319",
+        "size_bytes": 85804,
+        "version": "0.244.0",
+    },
+    "wasm-encoder-0.254.0": {
+        "name": "wasm-encoder",
+        "sha256": "09480d646178e5fdd12bb06e812d0af9a3a191dbc9cd697fdc86687beade7393",
+        "size_bytes": 91925,
+        "version": "0.254.0",
+    },
+    "wasm-encoder-0.257.1": {
+        "name": "wasm-encoder",
+        "sha256": "7d8ad9f0a39050867bda22e6486c316e2e52d20a42154d5bc433934bf738d085",
+        "size_bytes": 92126,
+        "version": "0.257.1",
+    },
+    "wasm-metadata-0.244.0": {
+        "name": "wasm-metadata",
+        "sha256": "bb0e353e6a2fbdc176932bbaab493762eb1255a7900fe0fea1a2f96c296cc909",
+        "size_bytes": 21500,
+        "version": "0.244.0",
+    },
+    "wasm-metadata-0.254.0": {
+        "name": "wasm-metadata",
+        "sha256": "b01df5f3b4ca7881e843f3bc0fb8a3905d79c68692250dcb8e33e698705ccdb6",
+        "size_bytes": 27246,
+        "version": "0.254.0",
+    },
+    "wasmi-1.1.0": {
+        "name": "wasmi",
+        "sha256": "2300d0f78cba12f14e29e8dd157ea64050c0a688179aefdb2050105805594a0c",
+        "size_bytes": 240220,
+        "version": "1.1.0",
+    },
+    "wasmi_collections-1.1.0": {
+        "name": "wasmi_collections",
+        "sha256": "f8a8c42a2a76148d43097b1d7cc2a5bf33d5c23bd4dd69015fc887e311767884",
+        "size_bytes": 19392,
+        "version": "1.1.0",
+    },
+    "wasmi_core-1.1.0": {
+        "name": "wasmi_core",
+        "sha256": "9013136083d988725953390bf668b64b7a218fabf26f8b913bbc59546b97ee27",
+        "size_bytes": 51063,
+        "version": "1.1.0",
+    },
+    "wasmi_ir-1.1.0": {
+        "name": "wasmi_ir",
+        "sha256": "ba1fa003f79156f406d62ef0e1464dc03e11ace37170e9fa7524299a75ad8f68",
+        "size_bytes": 33606,
+        "version": "1.1.0",
+    },
+    "wasmparser-0.239.0": {
+        "name": "wasmparser",
+        "sha256": "8c9d90bb93e764f6beabf1d02028c70a2156a6583e63ac4218dd07ef733368b0",
+        "size_bytes": 260621,
+        "version": "0.239.0",
+    },
+    "wasmparser-0.244.0": {
+        "name": "wasmparser",
+        "sha256": "47b807c72e1bac69382b3a6fb3dbe8ea4c0ed87ff5629b8685ae6b9a611028fe",
+        "size_bytes": 265607,
+        "version": "0.244.0",
+    },
+    "wasmparser-0.254.0": {
+        "name": "wasmparser",
+        "sha256": "d5769a29f799fbab136aaf65b4fe5384cd7d93fe6fc9ba0dcb6c8382a1f16e27",
+        "size_bytes": 277351,
+        "version": "0.254.0",
+    },
+    "wasmparser-0.257.1": {
+        "name": "wasmparser",
+        "sha256": "d92fc335fb6d48f46bda1d8b26b69e28320c15ac3272208333833d6e217e2b4a",
+        "size_bytes": 278931,
+        "version": "0.257.1",
+    },
+    "wasmprinter-0.254.0": {
+        "name": "wasmprinter",
+        "sha256": "64e3ba11e024f504698f87b629b2b66c22a1231758de7607754963f7d198be39",
+        "size_bytes": 50038,
+        "version": "0.254.0",
+    },
+    "wasmtime-48.0.1": {
+        "name": "wasmtime",
+        "sha256": "1bd39f78fe9bc82cee4025ec9d52118269e9a1498016cc60119b14f2e1d86a8d",
+        "size_bytes": 1044326,
+        "version": "48.0.1",
+    },
+    "wasmtime-environ-48.0.1": {
+        "name": "wasmtime-environ",
+        "sha256": "00c1070d95484d048994ec109cd42c4932ac07e6ee3cc1886fb90c7a18ec29da",
+        "size_bytes": 310872,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-cache-48.0.1": {
+        "name": "wasmtime-internal-cache",
+        "sha256": "9d447fd40f3e149cda8c0cd808660a1d1de438f3ff28627abb9bcda90dfb4895",
+        "size_bytes": 36985,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-component-macro-48.0.1": {
+        "name": "wasmtime-internal-component-macro",
+        "sha256": "f3d2b2f9f89a65bb2277d82fbdd49263d27d8233bc717d750c4b13a23d57721c",
+        "size_bytes": 254908,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-component-util-48.0.1": {
+        "name": "wasmtime-internal-component-util",
+        "sha256": "2c0fe8292115fda08875f29064ae9f7f0b2c1ffbb323146eae538ae34b8a613f",
+        "size_bytes": 2783,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-core-48.0.1": {
+        "name": "wasmtime-internal-core",
+        "sha256": "821385794cf44baf2967fd2515368429ed2bff9b9b256f62d09a0f1301474fd8",
+        "size_bytes": 55143,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-cranelift-48.0.1": {
+        "name": "wasmtime-internal-cranelift",
+        "sha256": "0238b4a52773457ad1b8a1a26be90486e0ca0108cf46b9be16cc1d8d8cabdfa1",
+        "size_bytes": 263109,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-fiber-48.0.1": {
+        "name": "wasmtime-internal-fiber",
+        "sha256": "596f1d85e06cbf9c9add9c78ea135171c5753264ffe94a83dcc082a1ff49fc9b",
+        "size_bytes": 34204,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-jit-debug-48.0.1": {
+        "name": "wasmtime-internal-jit-debug",
+        "sha256": "365faed74827bb0116785bab5872372df1baaec9ec0003c83bc99ccdc595f689",
+        "size_bytes": 10078,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-jit-icache-coherence-48.0.1": {
+        "name": "wasmtime-internal-jit-icache-coherence",
+        "sha256": "3cce25afd9e7ac4957292a5c6a219951dd0f140b8417e7378a97f50b67c3b96f",
+        "size_bytes": 7155,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-unwinder-48.0.1": {
+        "name": "wasmtime-internal-unwinder",
+        "sha256": "a1fdea09d51e39c774984ca68a7d7486767e5b2935f5e686fa654aabcfc3c42d",
+        "size_bytes": 24826,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-versioned-export-macros-48.0.1": {
+        "name": "wasmtime-internal-versioned-export-macros",
+        "sha256": "97e48a5f514c38c2f74249724cb3501e45548d3311ca9e3881694859fd6ba116",
+        "size_bytes": 2305,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-winch-48.0.1": {
+        "name": "wasmtime-internal-winch",
+        "sha256": "5273668f321005b9c75532ed073c0f6c3fd1147f3736a544c9e3070c47876489",
+        "size_bytes": 15049,
+        "version": "48.0.1",
+    },
+    "wasmtime-internal-wit-bindgen-48.0.1": {
+        "name": "wasmtime-internal-wit-bindgen",
+        "sha256": "07429ab53576255be2d298e04b2e1f381e39645465adbaebd69314b5430165c0",
+        "size_bytes": 38685,
+        "version": "48.0.1",
+    },
+    "wasmtime-wasi-48.0.1": {
+        "name": "wasmtime-wasi",
+        "sha256": "85dd81ee95792682ea5b279c9ed352f6b8a2cba084c2f8abdb225e6933323fed",
+        "size_bytes": 227052,
+        "version": "48.0.1",
+    },
+    "wasmtime-wasi-io-48.0.1": {
+        "name": "wasmtime-wasi-io",
+        "sha256": "6a557bc8a7232cd079f6b423a9bb385f3ff9148824f3c26c07a028b499fab2bf",
+        "size_bytes": 19389,
+        "version": "48.0.1",
+    },
+    "wast-257.0.1": {
+        "name": "wast",
+        "sha256": "3c416ee8044cf88c5280e3d87c322b009525eb25142cf7428f0a90ea88febc3b",
+        "size_bytes": 169961,
+        "version": "257.0.1",
+    },
+    "wast-35.0.2": {
+        "name": "wast",
+        "sha256": "2ef140f1b49946586078353a453a1d28ba90adfc54dde75710bc1931de204d68",
+        "size_bytes": 90940,
+        "version": "35.0.2",
+    },
+    "wat-1.257.1": {
+        "name": "wat",
+        "sha256": "672e5495f00c5fc6c6b502205bae4708aa4dd13d969754438743afe0a8af0f1d",
+        "size_bytes": 13665,
+        "version": "1.257.1",
+    },
+    "wayland-backend-0.3.15": {
+        "name": "wayland-backend",
+        "sha256": "2857dd20b54e916ec7253b3d6b4d5c4d7d4ca2c33c2e11c6c76a99bd8744755d",
+        "size_bytes": 79957,
+        "version": "0.3.15",
+    },
+    "wayland-client-0.31.14": {
+        "name": "wayland-client",
+        "sha256": "645c7c96bb74690c3189b5c9cb4ca1627062bb23693a4fad9d8c3de958260144",
+        "size_bytes": 68263,
+        "version": "0.31.14",
+    },
+    "wayland-csd-frame-0.3.0": {
+        "name": "wayland-csd-frame",
+        "sha256": "625c5029dbd43d25e6aa9615e88b829a5cad13b2819c4ae129fdbb7c31ab4c7e",
+        "size_bytes": 5696,
+        "version": "0.3.0",
+    },
+    "wayland-cursor-0.31.14": {
+        "name": "wayland-cursor",
+        "sha256": "4a52d18780be9b1314328a3de5f930b73d2200112e3849ca6cb11822793fb34d",
+        "size_bytes": 9331,
+        "version": "0.31.14",
+    },
+    "wayland-protocols-0.32.12": {
+        "name": "wayland-protocols",
+        "sha256": "563a85523cade2429938e790815fd7319062103b9f4a2dc806e9b53b95982d8f",
+        "size_bytes": 156132,
+        "version": "0.32.12",
+    },
+    "wayland-protocols-experimental-20251230.0.3": {
+        "name": "wayland-protocols-experimental",
+        "sha256": "91c6c3e7178e553d093d46999032bc79aafea9dedd71dd702c8ace7bbc25cf13",
+        "size_bytes": 29065,
+        "version": "20251230.0.3",
+    },
+    "wayland-protocols-misc-0.3.12": {
+        "name": "wayland-protocols-misc",
+        "sha256": "6e9567599ef23e09b8dad6e429e5738d4509dfc46b3b21f32841a304d16b29c8",
+        "size_bytes": 15769,
+        "version": "0.3.12",
+    },
+    "wayland-protocols-plasma-0.3.12": {
+        "name": "wayland-protocols-plasma",
+        "sha256": "2b6d8cf1eb2c1c31ed1f5643c88a6e53538129d4af80030c8cabd1f9fa884d91",
+        "size_bytes": 68806,
+        "version": "0.3.12",
+    },
+    "wayland-protocols-wlr-0.3.12": {
+        "name": "wayland-protocols-wlr",
+        "sha256": "eb04e52f7836d7c7976c78ca0250d61e33873c34156a2a1fc9474828ec268234",
+        "size_bytes": 28366,
+        "version": "0.3.12",
+    },
+    "wayland-scanner-0.31.10": {
+        "name": "wayland-scanner",
+        "sha256": "9c324a910fd86ebdc364a3e61ec1f11737d3b1d6c273c0239ee8ff4bc0d24b4a",
+        "size_bytes": 37213,
+        "version": "0.31.10",
+    },
+    "wayland-server-0.31.14": {
+        "name": "wayland-server",
+        "sha256": "0dde9c29be0f723a573977de51ee455bf3dfa03652730a74f9dd3b337e374d75",
+        "size_bytes": 58044,
+        "version": "0.31.14",
+    },
+    "wayland-sys-0.31.11": {
+        "name": "wayland-sys",
+        "sha256": "d8eab23fefc9e41f8e841df4a9c707e8a8c4ed26e944ef69297184de2785e3be",
+        "size_bytes": 9727,
+        "version": "0.31.11",
+    },
+    "web-sys-0.3.99": {
+        "name": "web-sys",
+        "sha256": "6d621441cfc37b84979402712047321980c178f299193a3589d05b99e8763436",
+        "size_bytes": 675491,
+        "version": "0.3.99",
+    },
+    "web-time-1.1.0": {
+        "name": "web-time",
+        "sha256": "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb",
+        "size_bytes": 18026,
+        "version": "1.1.0",
+    },
+    "webpki-roots-0.26.11": {
+        "name": "webpki-roots",
+        "sha256": "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9",
+        "size_bytes": 15557,
+        "version": "0.26.11",
+    },
+    "webpki-roots-1.0.9": {
+        "name": "webpki-roots",
+        "sha256": "7dcd9d09a39985f5344844e66b0c530a33843579125f23e21e9f0f220850f22a",
+        "size_bytes": 217462,
+        "version": "1.0.9",
+    },
+    "weezl-0.1.12": {
+        "name": "weezl",
+        "sha256": "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88",
+        "size_bytes": 46045,
+        "version": "0.1.12",
+    },
+    "wgpu-29.0.3": {
+        "name": "wgpu",
+        "sha256": "bb3feacc458f7bee8bc1737149b42b6c731aa461039a4264a67bb6681646b250",
+        "size_bytes": 209309,
+        "version": "29.0.3",
+    },
+    "wgpu-core-29.0.3": {
+        "name": "wgpu-core",
+        "sha256": "02da3ad1b568337f25513b317870960ef87073ea0945502e44b864b67a8c77b7",
+        "size_bytes": 345952,
+        "version": "29.0.3",
+    },
+    "wgpu-core-deps-apple-29.0.3": {
+        "name": "wgpu-core-deps-apple",
+        "sha256": "62e51b5447e144b3dbba4feb01f80f4fa21696fa0cd99afb2c3df1affd6fdb28",
+        "size_bytes": 11976,
+        "version": "29.0.3",
+    },
+    "wgpu-core-deps-emscripten-29.0.3": {
+        "name": "wgpu-core-deps-emscripten",
+        "sha256": "3487cd6293a963bc5c0c0396f6a2192043c50003c07f4efdccbad3d90ec9d819",
+        "size_bytes": 10698,
+        "version": "29.0.3",
+    },
+    "wgpu-core-deps-wasm-29.0.3": {
+        "name": "wgpu-core-deps-wasm",
+        "sha256": "0c2f2fb042f36920771deb0b966543c5751b18f3d327760ffc90f74e20b2dcd4",
+        "size_bytes": 10720,
+        "version": "29.0.3",
+    },
+    "wgpu-core-deps-windows-linux-android-29.0.3": {
+        "name": "wgpu-core-deps-windows-linux-android",
+        "sha256": "1bfb01076d0aa08b0ba9bd741e178b5cc440f5abe99d9581323a4c8b5d1a1916",
+        "size_bytes": 12044,
+        "version": "29.0.3",
+    },
+    "wgpu-hal-29.0.3": {
+        "name": "wgpu-hal",
+        "sha256": "31f8e1a9e7a8512f276f7c62e018c7fa8d60954303fed2e5750114332049193f",
+        "size_bytes": 427187,
+        "version": "29.0.3",
+    },
+    "wgpu-naga-bridge-29.0.3": {
+        "name": "wgpu-naga-bridge",
+        "sha256": "59c654c483f058800972c3645e95388a7eca31bf9fe1933bc20e036588a0be02",
+        "size_bytes": 9419,
+        "version": "29.0.3",
+    },
+    "wgpu-types-29.0.3": {
+        "name": "wgpu-types",
+        "sha256": "a9bcc31518a0e9735aefebedb5f7a9ef3ed1c42549c9f4c882fa9060ceaac639",
+        "size_bytes": 127829,
+        "version": "29.0.3",
+    },
+    "wiggle-48.0.1": {
+        "name": "wiggle",
+        "sha256": "b871ea219ad85c1e59ee7d013563814e86d2e6aa094d3bc66b7675ec4ca58bb7",
+        "size_bytes": 29595,
+        "version": "48.0.1",
+    },
+    "wiggle-generate-48.0.1": {
+        "name": "wiggle-generate",
+        "sha256": "ed981675756e748a4725286a4059c9be006749a8db4120d54e2021d0f167bac3",
+        "size_bytes": 27252,
+        "version": "48.0.1",
+    },
+    "wiggle-macro-48.0.1": {
+        "name": "wiggle-macro",
+        "sha256": "7f3927729af874585c58b85710128e40d459a7064bb9aea9b0b420fb5eafd555",
+        "size_bytes": 12284,
+        "version": "48.0.1",
+    },
+    "winapi-0.3.9": {
+        "name": "winapi",
+        "sha256": "5c839a674fcd7a98952e593242ea400abe93992746761e38641405d28b00f419",
+        "size_bytes": 1200382,
+        "version": "0.3.9",
+    },
+    "winapi-i686-pc-windows-gnu-0.4.0": {
+        "name": "winapi-i686-pc-windows-gnu",
+        "sha256": "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6",
+        "size_bytes": 2918815,
+        "version": "0.4.0",
+    },
+    "winapi-util-0.1.11": {
+        "name": "winapi-util",
+        "sha256": "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22",
+        "size_bytes": 13368,
+        "version": "0.1.11",
+    },
+    "winapi-x86_64-pc-windows-gnu-0.4.0": {
+        "name": "winapi-x86_64-pc-windows-gnu",
+        "sha256": "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f",
+        "size_bytes": 2947998,
+        "version": "0.4.0",
+    },
+    "winch-codegen-48.0.1": {
+        "name": "winch-codegen",
+        "sha256": "5b223d6350e387101a19062dd25b1c1763b0c28b26b8eeedde2e7568cab1b07c",
+        "size_bytes": 182781,
+        "version": "48.0.1",
+    },
+    "windows-0.54.0": {
+        "name": "windows",
+        "sha256": "9252e5725dbed82865af151df558e754e4a3c2c30818359eb17465f1346a1b49",
+        "size_bytes": 11096265,
+        "version": "0.54.0",
+    },
+    "windows-0.62.2": {
+        "name": "windows",
+        "sha256": "527fadee13e0c05939a6a05d5bd6eec6cd2e3dbd648b9f8e447c6518133d8580",
+        "size_bytes": 9360572,
+        "version": "0.62.2",
+    },
+    "windows-collections-0.3.2": {
+        "name": "windows-collections",
+        "sha256": "23b2d95af1a8a14a3c7367e1ed4fc9c20e0a26e79551b1454d72583c97cc6610",
+        "size_bytes": 13510,
+        "version": "0.3.2",
+    },
+    "windows-core-0.54.0": {
+        "name": "windows-core",
+        "sha256": "12661b9c89351d684a50a8a643ce5f608e20243b9fb84687800163429f161d65",
+        "size_bytes": 44015,
+        "version": "0.54.0",
+    },
+    "windows-core-0.62.2": {
+        "name": "windows-core",
+        "sha256": "b8e83a14d34d0623b51dce9581199302a221863196a1dde71a7663a4c2be9deb",
+        "size_bytes": 36932,
+        "version": "0.62.2",
+    },
+    "windows-future-0.3.2": {
+        "name": "windows-future",
+        "sha256": "e1d6f90251fe18a279739e78025bd6ddc52a7e22f921070ccdc67dde84c605cb",
+        "size_bytes": 17944,
+        "version": "0.3.2",
+    },
+    "windows-implement-0.60.2": {
+        "name": "windows-implement",
+        "sha256": "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf",
+        "size_bytes": 15325,
+        "version": "0.60.2",
+    },
+    "windows-interface-0.59.3": {
+        "name": "windows-interface",
+        "sha256": "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358",
+        "size_bytes": 11809,
+        "version": "0.59.3",
+    },
+    "windows-link-0.2.1": {
+        "name": "windows-link",
+        "sha256": "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5",
+        "size_bytes": 6133,
+        "version": "0.2.1",
+    },
+    "windows-numerics-0.3.1": {
+        "name": "windows-numerics",
+        "sha256": "6e2e40844ac143cdb44aead537bbf727de9b044e107a0f1220392177d15b0f26",
+        "size_bytes": 9772,
+        "version": "0.3.1",
+    },
+    "windows-result-0.1.2": {
+        "name": "windows-result",
+        "sha256": "5e383302e8ec8515204254685643de10811af0ed97ea37210dc26fb0032647f8",
+        "size_bytes": 10601,
+        "version": "0.1.2",
+    },
+    "windows-result-0.4.1": {
+        "name": "windows-result",
+        "sha256": "7781fa89eaf60850ac3d2da7af8e5242a5ea78d1a11c49bf2910bb5a73853eb5",
+        "size_bytes": 13381,
+        "version": "0.4.1",
+    },
+    "windows-strings-0.5.1": {
+        "name": "windows-strings",
+        "sha256": "7837d08f69c77cf6b07689544538e017c1bfcf57e34b4c0ff58e6c2cd3b37091",
+        "size_bytes": 13966,
+        "version": "0.5.1",
+    },
+    "windows-sys-0.45.0": {
+        "name": "windows-sys",
+        "sha256": "75283be5efb2831d37ea142365f009c02ec203cd29a3ebecbc093d52315b66d0",
+        "size_bytes": 2568659,
+        "version": "0.45.0",
+    },
+    "windows-sys-0.48.0": {
+        "name": "windows-sys",
+        "sha256": "677d2418bec65e3338edb076e806bc1ec15693c5d0104683f2efe857f61056a9",
+        "size_bytes": 2628884,
+        "version": "0.48.0",
+    },
+    "windows-sys-0.52.0": {
+        "name": "windows-sys",
+        "sha256": "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d",
+        "size_bytes": 2576877,
+        "version": "0.52.0",
+    },
+    "windows-sys-0.59.0": {
+        "name": "windows-sys",
+        "sha256": "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b",
+        "size_bytes": 2387323,
+        "version": "0.59.0",
+    },
+    "windows-sys-0.60.2": {
+        "name": "windows-sys",
+        "sha256": "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb",
+        "size_bytes": 2518479,
+        "version": "0.60.2",
+    },
+    "windows-sys-0.61.2": {
+        "name": "windows-sys",
+        "sha256": "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc",
+        "size_bytes": 2517186,
+        "version": "0.61.2",
+    },
+    "windows-targets-0.42.2": {
+        "name": "windows-targets",
+        "sha256": "8e5180c00cd44c9b1c88adb3693291f1cd93605ded80c250a75d472756b4d071",
+        "size_bytes": 5492,
+        "version": "0.42.2",
+    },
+    "windows-targets-0.48.5": {
+        "name": "windows-targets",
+        "sha256": "9a2fa6e2155d7247be68c096456083145c183cbbbc2764150dda45a87197940c",
+        "size_bytes": 6904,
+        "version": "0.48.5",
+    },
+    "windows-targets-0.52.6": {
+        "name": "windows-targets",
+        "sha256": "9b724f72796e036ab90c1021d4780d4d3d648aca59e491e6b98e725b84e99973",
+        "size_bytes": 6403,
+        "version": "0.52.6",
+    },
+    "windows-targets-0.53.5": {
+        "name": "windows-targets",
+        "sha256": "4945f9f551b88e0d65f3db0bc25c33b8acea4d9e41163edf90dcd0b19f9069f3",
+        "size_bytes": 7126,
+        "version": "0.53.5",
+    },
+    "windows-threading-0.2.1": {
+        "name": "windows-threading",
+        "sha256": "3949bd5b99cafdf1c7ca86b43ca564028dfe27d66958f2470940f73d86d75b37",
+        "size_bytes": 9686,
+        "version": "0.2.1",
+    },
+    "windows_aarch64_gnullvm-0.42.2": {
+        "name": "windows_aarch64_gnullvm",
+        "sha256": "597a5118570b68bc08d8d59125332c54f1ba9d9adeedeef5b99b02ba2b0698f8",
+        "size_bytes": 364071,
+        "version": "0.42.2",
+    },
+    "windows_aarch64_gnullvm-0.48.5": {
+        "name": "windows_aarch64_gnullvm",
+        "sha256": "2b38e32f0abccf9987a4e3079dfb67dcd799fb61361e53e2882c3cbaf0d905d8",
+        "size_bytes": 418492,
+        "version": "0.48.5",
+    },
+    "windows_aarch64_gnullvm-0.52.6": {
+        "name": "windows_aarch64_gnullvm",
+        "sha256": "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3",
+        "size_bytes": 435718,
+        "version": "0.52.6",
+    },
+    "windows_aarch64_gnullvm-0.53.1": {
+        "name": "windows_aarch64_gnullvm",
+        "sha256": "a9d8416fa8b42f5c947f8482c43e7d89e73a173cead56d044f6a56104a6d1b53",
+        "size_bytes": 787748,
+        "version": "0.53.1",
+    },
+    "windows_aarch64_msvc-0.42.2": {
+        "name": "windows_aarch64_msvc",
+        "sha256": "e08e8864a60f06ef0d0ff4ba04124db8b0fb3be5776a5cd47641e942e58c4d43",
+        "size_bytes": 666981,
+        "version": "0.42.2",
+    },
+    "windows_aarch64_msvc-0.48.5": {
+        "name": "windows_aarch64_msvc",
+        "sha256": "dc35310971f3b2dbbf3f0690a219f40e2d9afcf64f9ab7cc1be722937c26b4bc",
+        "size_bytes": 798483,
+        "version": "0.48.5",
+    },
+    "windows_aarch64_msvc-0.52.6": {
+        "name": "windows_aarch64_msvc",
+        "sha256": "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469",
+        "size_bytes": 832615,
+        "version": "0.52.6",
+    },
+    "windows_aarch64_msvc-0.53.1": {
+        "name": "windows_aarch64_msvc",
+        "sha256": "b9d782e804c2f632e395708e99a94275910eb9100b2114651e04744e9b125006",
+        "size_bytes": 838009,
+        "version": "0.53.1",
+    },
+    "windows_i686_gnu-0.42.2": {
+        "name": "windows_i686_gnu",
+        "sha256": "c61d927d8da41da96a81f029489353e68739737d3beca43145c8afec9a31a84f",
+        "size_bytes": 736236,
+        "version": "0.42.2",
+    },
+    "windows_i686_gnu-0.48.5": {
+        "name": "windows_i686_gnu",
+        "sha256": "a75915e7def60c94dcef72200b9a8e58e5091744960da64ec734a6c6e9b3743e",
+        "size_bytes": 844891,
+        "version": "0.48.5",
+    },
+    "windows_i686_gnu-0.52.6": {
+        "name": "windows_i686_gnu",
+        "sha256": "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b",
+        "size_bytes": 880402,
+        "version": "0.52.6",
+    },
+    "windows_i686_gnu-0.53.1": {
+        "name": "windows_i686_gnu",
+        "sha256": "960e6da069d81e09becb0ca57a65220ddff016ff2d6af6a223cf372a506593a3",
+        "size_bytes": 939775,
+        "version": "0.53.1",
+    },
+    "windows_i686_gnullvm-0.52.6": {
+        "name": "windows_i686_gnullvm",
+        "sha256": "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66",
+        "size_bytes": 475940,
+        "version": "0.52.6",
+    },
+    "windows_i686_gnullvm-0.53.1": {
+        "name": "windows_i686_gnullvm",
+        "sha256": "fa7359d10048f68ab8b09fa71c3daccfb0e9b559aed648a8f95469c27057180c",
+        "size_bytes": 857396,
+        "version": "0.53.1",
+    },
+    "windows_i686_msvc-0.42.2": {
+        "name": "windows_i686_msvc",
+        "sha256": "44d840b6ec649f480a41c8d80f9c65108b92d89345dd94027bfe06ac444d1060",
+        "size_bytes": 724951,
+        "version": "0.42.2",
+    },
+    "windows_i686_msvc-0.48.5": {
+        "name": "windows_i686_msvc",
+        "sha256": "8f55c233f70c4b27f66c523580f78f1004e8b5a8b659e05a4eb49d4166cca406",
+        "size_bytes": 864300,
+        "version": "0.48.5",
+    },
+    "windows_i686_msvc-0.52.6": {
+        "name": "windows_i686_msvc",
+        "sha256": "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66",
+        "size_bytes": 901163,
+        "version": "0.52.6",
+    },
+    "windows_i686_msvc-0.53.1": {
+        "name": "windows_i686_msvc",
+        "sha256": "1e7ac75179f18232fe9c285163565a57ef8d3c89254a30685b57d83a38d326c2",
+        "size_bytes": 907688,
+        "version": "0.53.1",
+    },
+    "windows_x86_64_gnu-0.42.2": {
+        "name": "windows_x86_64_gnu",
+        "sha256": "8de912b8b8feb55c064867cf047dda097f92d51efad5b491dfb98f6bbb70cb36",
+        "size_bytes": 699373,
+        "version": "0.42.2",
+    },
+    "windows_x86_64_gnu-0.48.5": {
+        "name": "windows_x86_64_gnu",
+        "sha256": "53d40abd2583d23e4718fddf1ebec84dbff8381c07cae67ff7768bbf19c6718e",
+        "size_bytes": 801619,
+        "version": "0.48.5",
+    },
+    "windows_x86_64_gnu-0.52.6": {
+        "name": "windows_x86_64_gnu",
+        "sha256": "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78",
+        "size_bytes": 836363,
+        "version": "0.52.6",
+    },
+    "windows_x86_64_gnu-0.53.1": {
+        "name": "windows_x86_64_gnu",
+        "sha256": "9c3842cdd74a865a8066ab39c8a7a473c0778a3f29370b5fd6b4b9aa7df4a499",
+        "size_bytes": 903712,
+        "version": "0.53.1",
+    },
+    "windows_x86_64_gnullvm-0.42.2": {
+        "name": "windows_x86_64_gnullvm",
+        "sha256": "26d41b46a36d453748aedef1486d5c7a85db22e56aff34643984ea85514e94a3",
+        "size_bytes": 364068,
+        "version": "0.42.2",
+    },
+    "windows_x86_64_gnullvm-0.48.5": {
+        "name": "windows_x86_64_gnullvm",
+        "sha256": "0b7b52767868a23d5bab768e390dc5f5c55825b6d30b86c844ff2dc7414044cc",
+        "size_bytes": 418486,
+        "version": "0.48.5",
+    },
+    "windows_x86_64_gnullvm-0.52.6": {
+        "name": "windows_x86_64_gnullvm",
+        "sha256": "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d",
+        "size_bytes": 435707,
+        "version": "0.52.6",
+    },
+    "windows_x86_64_gnullvm-0.53.1": {
+        "name": "windows_x86_64_gnullvm",
+        "sha256": "0ffa179e2d07eee8ad8f57493436566c7cc30ac536a3379fdf008f47f6bb7ae1",
+        "size_bytes": 787739,
+        "version": "0.53.1",
+    },
+    "windows_x86_64_msvc-0.42.2": {
+        "name": "windows_x86_64_msvc",
+        "sha256": "9aec5da331524158c6d1a4ac0ab1541149c0b9505fde06423b02f5ef0106b9f0",
+        "size_bytes": 666936,
+        "version": "0.42.2",
+    },
+    "windows_x86_64_msvc-0.48.5": {
+        "name": "windows_x86_64_msvc",
+        "sha256": "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538",
+        "size_bytes": 798412,
+        "version": "0.48.5",
+    },
+    "windows_x86_64_msvc-0.52.6": {
+        "name": "windows_x86_64_msvc",
+        "sha256": "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec",
+        "size_bytes": 832564,
+        "version": "0.52.6",
+    },
+    "windows_x86_64_msvc-0.53.1": {
+        "name": "windows_x86_64_msvc",
+        "sha256": "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650",
+        "size_bytes": 837950,
+        "version": "0.53.1",
+    },
+    "winit-0.31.0-beta.3": {
+        "name": "winit",
+        "sha256": "f431156a3e4f0f1b35eaaf37674e55838e3652908c8088f570466274d1902e2b",
+        "size_bytes": 434266,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-android-0.31.0-beta.3": {
+        "name": "winit-android",
+        "sha256": "d5d60d944a564986b9311e325334cc22e7e4cf726dd0ff7475fd925404215af4",
+        "size_bytes": 29964,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-appkit-0.31.0-beta.3": {
+        "name": "winit-appkit",
+        "sha256": "23343ec0ea7ac6aa72f38009a6ff66fb63bcf6395e0622fba72794d2a762ab42",
+        "size_bytes": 91762,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-common-0.31.0-beta.3": {
+        "name": "winit-common",
+        "sha256": "e90422ff1c04502aaaac1dad1d099791c2bbb3fbb3f823019e0ce5cdeee04025",
+        "size_bytes": 40643,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-core-0.31.0-beta.3": {
+        "name": "winit-core",
+        "sha256": "b8af6307236c51847199950c15cf80e0481a250bb96ce9132f5026df4ad3d0f9",
+        "size_bytes": 82056,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-orbital-0.31.0-beta.3": {
+        "name": "winit-orbital",
+        "sha256": "278a8ae837902a3bc95dd2fd696d680da33f32130eecc29905358c9089cf6c50",
+        "size_bytes": 23722,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-uikit-0.31.0-beta.3": {
+        "name": "winit-uikit",
+        "sha256": "83315a3ea1739c8466cf23d35e3b0a2cb20c9515d8857666b633afef484740b5",
+        "size_bytes": 38679,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-wayland-0.31.0-beta.3": {
+        "name": "winit-wayland",
+        "sha256": "8b64ceed06de0c45886eef05102106abe1413e703384e337bc57c7e95b71f803",
+        "size_bytes": 84601,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-web-0.31.0-beta.3": {
+        "name": "winit-web",
+        "sha256": "f539be45f95cc297bdfb80569aef38d925d64aec4133852a4d3fc5cb3660f1c9",
+        "size_bytes": 63482,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-win32-0.31.0-beta.3": {
+        "name": "winit-win32",
+        "sha256": "25fb480c41df01d351f656cbf3ad74013f8a9d22bb5b2dcab59f9167e7a0b6ec",
+        "size_bytes": 128314,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-x11-0.31.0-beta.3": {
+        "name": "winit-x11",
+        "sha256": "bb5746cd907e514b7895491a1c6f7d0cb70077f9e16928cd74ae6f987ffd96aa",
+        "size_bytes": 102332,
+        "version": "0.31.0-beta.3",
+    },
+    "winnow-0.7.15": {
+        "name": "winnow",
+        "sha256": "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945",
+        "size_bytes": 187092,
+        "version": "0.7.15",
+    },
+    "winnow-1.0.3": {
+        "name": "winnow",
+        "sha256": "0592e1c9d151f854e6fd382574c3a0855250e1d9b2f99d9281c6e6391af352f1",
+        "size_bytes": 187990,
+        "version": "1.0.3",
+    },
+    "winreg-0.10.1": {
+        "name": "winreg",
+        "sha256": "80d0f4e272c85def139476380b12f9ac60926689dd2e01d4923222f40580869d",
+        "size_bytes": 25725,
+        "version": "0.10.1",
+    },
+    "winx-0.36.4": {
+        "name": "winx",
+        "sha256": "3f3fd376f71958b862e7afb20cfe5a22830e1963462f3a17f49d82a6c1d1f42d",
+        "size_bytes": 13838,
+        "version": "0.36.4",
+    },
+    "wit-bindgen-0.51.0": {
+        "name": "wit-bindgen",
+        "sha256": "d7249219f66ced02969388cf2bb044a09756a083d0fab1e566056b04d9fbcaa5",
+        "size_bytes": 68035,
+        "version": "0.51.0",
+    },
+    "wit-bindgen-0.57.1": {
+        "name": "wit-bindgen",
+        "sha256": "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e",
+        "size_bytes": 71227,
+        "version": "0.57.1",
+    },
+    "wit-bindgen-core-0.51.0": {
+        "name": "wit-bindgen-core",
+        "sha256": "ea61de684c3ea68cb082b7a88508a8b27fcc8b797d738bfc99a82facf1d752dc",
+        "size_bytes": 35048,
+        "version": "0.51.0",
+    },
+    "wit-bindgen-rust-0.51.0": {
+        "name": "wit-bindgen-rust",
+        "sha256": "b7c566e0f4b284dd6561c786d9cb0142da491f46a9fbed79ea69cdad5db17f21",
+        "size_bytes": 57051,
+        "version": "0.51.0",
+    },
+    "wit-bindgen-rust-macro-0.51.0": {
+        "name": "wit-bindgen-rust-macro",
+        "sha256": "0c0f9bfd77e6a48eccf51359e3ae77140a7f50b1e2ebfe62422d8afdaffab17a",
+        "size_bytes": 14283,
+        "version": "0.51.0",
+    },
+    "wit-component-0.244.0": {
+        "name": "wit-component",
+        "sha256": "9d66ea20e9553b30172b5e831994e35fbde2d165325bec84fc43dbf6f4eb9cb2",
+        "size_bytes": 256882,
+        "version": "0.244.0",
+    },
+    "wit-component-0.254.0": {
+        "name": "wit-component",
+        "sha256": "b0e65bb94c369b3c4741ce3d1d2704b1fec93db7c540df0e521a097e7ceeb5be",
+        "size_bytes": 273186,
+        "version": "0.254.0",
+    },
+    "wit-parser-0.244.0": {
+        "name": "wit-parser",
+        "sha256": "ecc8ac4bc1dc3381b7f59c34f00b67e18f910c2c0f50015669dde7def656a736",
+        "size_bytes": 159371,
+        "version": "0.244.0",
+    },
+    "wit-parser-0.254.0": {
+        "name": "wit-parser",
+        "sha256": "1655131e4f7d3f0cb141f6eca71315ca40eff0f3d4de7cff0a82bacedd8c89b4",
+        "size_bytes": 188327,
+        "version": "0.254.0",
+    },
+    "witx-0.9.1": {
+        "name": "witx",
+        "sha256": "e366f27a5cabcddb2706a78296a40b8fcc451e1a6aba2fc1d94b4a01bdaaef4b",
+        "size_bytes": 45928,
+        "version": "0.9.1",
+    },
+    "writeable-0.6.4": {
+        "name": "writeable",
+        "sha256": "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc",
+        "size_bytes": 31222,
+        "version": "0.6.4",
+    },
+    "x11-dl-2.21.0": {
+        "name": "x11-dl",
+        "sha256": "38735924fedd5314a6e548792904ed8c6de6636285cb9fec04d5b1db85c1516f",
+        "size_bytes": 66823,
+        "version": "2.21.0",
+    },
+    "x11rb-0.13.2": {
+        "name": "x11rb",
+        "sha256": "9993aa5be5a26815fe2c3eacfc1fde061fc1a1f094bf1ad2a18bf9c495dd7414",
+        "size_bytes": 220549,
+        "version": "0.13.2",
+    },
+    "x11rb-protocol-0.13.2": {
+        "name": "x11rb-protocol",
+        "sha256": "ea6fc2961e4ef194dcbfe56bb845534d0dc8098940c7e5c012a258bfec6701bd",
+        "size_bytes": 514069,
+        "version": "0.13.2",
+    },
+    "x25519-dalek-2.0.1": {
+        "name": "x25519-dalek",
+        "sha256": "c7e468321c81fb07fa7f4c636c3972b9100f0346e5b6a9f2bd0603a52f7ed277",
+        "size_bytes": 87820,
+        "version": "2.0.1",
+    },
+    "x509-cert-0.2.5": {
+        "name": "x509-cert",
+        "sha256": "1301e935010a701ae5f8655edc0ad17c44bad3ac5ce8c39185f75453b720ae94",
+        "size_bytes": 99819,
+        "version": "0.2.5",
+    },
+    "x509-cert-0.3.0": {
+        "name": "x509-cert",
+        "sha256": "105ef4642d9cb137ef83d623d0e4bf08b8adf69e9918ca904a174adb6d3d038b",
+        "size_bytes": 127747,
+        "version": "0.3.0",
+    },
+    "x509-parser-0.18.1": {
+        "name": "x509-parser",
+        "sha256": "d43b0f71ce057da06bc0851b23ee24f3f86190b07203dd8f567d0b706a185202",
+        "size_bytes": 102625,
+        "version": "0.18.1",
+    },
+    "xcursor-0.3.10": {
+        "name": "xcursor",
+        "sha256": "bec9e4a500ca8864c5b47b8b482a73d62e4237670e5b5f1d6b9e3cae50f28f2b",
+        "size_bytes": 7768,
+        "version": "0.3.10",
+    },
+    "xkbcommon-0.8.0": {
+        "name": "xkbcommon",
+        "sha256": "8d66ca9352cbd4eecbbc40871d8a11b4ac8107cfc528a6e14d7c19c69d0e1ac9",
+        "size_bytes": 59098,
+        "version": "0.8.0",
+    },
+    "xkbcommon-dl-0.4.2": {
+        "name": "xkbcommon-dl",
+        "sha256": "d039de8032a9a8856a6be89cea3e5d12fdd82306ab7c94d74e6deab2460651c5",
+        "size_bytes": 5879,
+        "version": "0.4.2",
+    },
+    "xkeysym-0.2.1": {
+        "name": "xkeysym",
+        "sha256": "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56",
+        "size_bytes": 103129,
+        "version": "0.2.1",
+    },
+    "xml-rs-0.8.28": {
+        "name": "xml-rs",
+        "sha256": "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f",
+        "size_bytes": 52826,
+        "version": "0.8.28",
+    },
+    "xmlwriter-0.1.0": {
+        "name": "xmlwriter",
+        "sha256": "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9",
+        "size_bytes": 6261,
+        "version": "0.1.0",
+    },
+    "yoke-0.8.4": {
+        "name": "yoke",
+        "sha256": "417ef3fcf6c300b7dbd25c85531a746931c02ad536f3cf4786ed1e88223340b3",
+        "size_bytes": 33270,
+        "version": "0.8.4",
+    },
+    "yoke-derive-0.8.4": {
+        "name": "yoke-derive",
+        "sha256": "ec8ebde2db3681e8c9980cc27822030e68752690ddfa9473e739aeb4dbde6d71",
+        "size_bytes": 15054,
+        "version": "0.8.4",
+    },
+    "zbus-5.18.0": {
+        "name": "zbus",
+        "sha256": "fe18fb60dc696039e738717b76eaea21e7a4489bbb1885020b43c94236d7e98a",
+        "size_bytes": 182668,
+        "version": "5.18.0",
+    },
+    "zbus-lockstep-0.5.2": {
+        "name": "zbus-lockstep",
+        "sha256": "6998de05217a084b7578728a9443d04ea4cd80f2a0839b8d78770b76ccd45863",
+        "size_bytes": 15733,
+        "version": "0.5.2",
+    },
+    "zbus-lockstep-macros-0.5.2": {
+        "name": "zbus-lockstep-macros",
+        "sha256": "10da05367f3a7b7553c8cdf8fa91aee6b64afebe32b51c95177957efc47ca3a0",
+        "size_bytes": 10131,
+        "version": "0.5.2",
+    },
+    "zbus_macros-5.18.0": {
+        "name": "zbus_macros",
+        "sha256": "fe96480bed92df2b442a1a30df364e12d08eed03aeb061f2b8dc6afb2be91119",
+        "size_bytes": 39330,
+        "version": "5.18.0",
+    },
+    "zbus_names-4.3.4": {
+        "name": "zbus_names",
+        "sha256": "d8bf88b4a3ff53e883001e0e0115b297a9d53c31b9c1edd2bfdd853e3428624e",
+        "size_bytes": 18901,
+        "version": "4.3.4",
+    },
+    "zbus_xml-5.2.1": {
+        "name": "zbus_xml",
+        "sha256": "d1586c021a01ca0a9216dcd874e546382e156a5cbab5fab6cb5f10087e22682a",
+        "size_bytes": 47559,
+        "version": "5.2.1",
+    },
+    "zerocopy-0.8.50": {
+        "name": "zerocopy",
+        "sha256": "3b065d4f0e55f82fae73202e189638116a87c55ab6b8e6c2721e13dd9d854ad1",
+        "size_bytes": 287760,
+        "version": "0.8.50",
+    },
+    "zerocopy-derive-0.8.50": {
+        "name": "zerocopy-derive",
+        "sha256": "0b631b19d36a892ab55420c92dbc83ccd79274f25be714855d3074aa71cab639",
+        "size_bytes": 97640,
+        "version": "0.8.50",
+    },
+    "zerofrom-0.1.8": {
+        "name": "zerofrom",
+        "sha256": "0ec05a11813ea801ff6d75110ad09cd0824ddba17dfe17128ea0d5f68e6c5272",
+        "size_bytes": 6156,
+        "version": "0.1.8",
+    },
+    "zerofrom-derive-0.1.7": {
+        "name": "zerofrom-derive",
+        "sha256": "11532158c46691caf0f2593ea8358fed6bbf68a0315e80aae9bd41fbade684a1",
+        "size_bytes": 8853,
+        "version": "0.1.7",
+    },
+    "zeroize-1.9.0": {
+        "name": "zeroize",
+        "sha256": "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e",
+        "size_bytes": 24480,
+        "version": "1.9.0",
+    },
+    "zeroize_derive-1.5.0": {
+        "name": "zeroize_derive",
+        "sha256": "3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328",
+        "size_bytes": 12034,
+        "version": "1.5.0",
+    },
+    "zerotrie-0.2.5": {
+        "name": "zerotrie",
+        "sha256": "4ea269c3bd32f0a32c321907a2ae912ba6f4649bb0fc764a15627e99a7095a3f",
+        "size_bytes": 84204,
+        "version": "0.2.5",
+    },
+    "zerovec-0.11.9": {
+        "name": "zerovec",
+        "sha256": "f58a2799cfe9a1670c7ea8edbd52ef8edb93cb37a7f83bf31ba9e35d9dae6a40",
+        "size_bytes": 132005,
+        "version": "0.11.9",
+    },
+    "zerovec-derive-0.11.7": {
+        "name": "zerovec-derive",
+        "sha256": "c3743ddbf47738d929cd1ae2e199d40d0162979dfe31aef8ae646d2bf00bf97a",
+        "size_bytes": 23232,
+        "version": "0.11.7",
+    },
+    "zip-8.6.0": {
+        "name": "zip",
+        "sha256": "2d04a6b5381502aa6087c94c669499eb1602eb9c5e8198e534de571f7154809b",
+        "size_bytes": 149622,
+        "version": "8.6.0",
+    },
+    "zlib-rs-0.6.7": {
+        "name": "zlib-rs",
+        "sha256": "34b31d188d9d685a4f9c7b46d6e36631b07058d2cfe190267adce54dc230bf12",
+        "size_bytes": 215740,
+        "version": "0.6.7",
+    },
+    "zmij-1.0.21": {
+        "name": "zmij",
+        "sha256": "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa",
+        "size_bytes": 26665,
+        "version": "1.0.21",
+    },
+    "zopfli-0.8.3": {
+        "name": "zopfli",
+        "sha256": "f05cd8797d63865425ff89b5c4a48804f35ba0ce8d125800027ad6017d2b5249",
+        "size_bytes": 51589,
+        "version": "0.8.3",
+    },
+    "zstd-0.13.3": {
+        "name": "zstd",
+        "sha256": "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a",
+        "size_bytes": 30514,
+        "version": "0.13.3",
+    },
+    "zstd-safe-7.2.4": {
+        "name": "zstd-safe",
+        "sha256": "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d",
+        "size_bytes": 29350,
+        "version": "7.2.4",
+    },
+    "zstd-sys-2.0.16+zstd.1.5.7": {
+        "name": "zstd-sys",
+        "sha256": "91e19ebc2adc8f83e43039e79776e3fda8ca919132d68a1fed6a5faca2683748",
+        "size_bytes": 775620,
+        "version": "2.0.16+zstd.1.5.7",
+    },
+    "zune-core-0.5.1": {
+        "name": "zune-core",
+        "sha256": "cb8a0807f7c01457d0379ba880ba6322660448ddebc890ce29bb64da71fb40f9",
+        "size_bytes": 27883,
+        "version": "0.5.1",
+    },
+    "zune-jpeg-0.5.15": {
+        "name": "zune-jpeg",
+        "sha256": "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296",
+        "size_bytes": 88879,
+        "version": "0.5.15",
+    },
+    "zvariant-5.13.1": {
+        "name": "zvariant",
+        "sha256": "bee2a0bcd2a907786a456fff45aaaaf54c9ba5f50b71ae9ec1a4edd200c94911",
+        "size_bytes": 96839,
+        "version": "5.13.1",
+    },
+    "zvariant_derive-5.13.1": {
+        "name": "zvariant_derive",
+        "sha256": "38a708216a18780796770bfe3f4739c7c83a3e8f789b755534bbbc06e4e23e12",
+        "size_bytes": 17734,
+        "version": "5.13.1",
+    },
+    "zvariant_utils-3.5.0": {
+        "name": "zvariant_utils",
         "sha256": "90cb9383f9b45290407a1258b202d3f8f01db719eb60b4e4055c6375af4fc7c7",
         "size_bytes": 16990,
         "version": "3.5.0",

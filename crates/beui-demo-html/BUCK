@@ -1,50 +1,26 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library")
-load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/program:drive.bzl", "web_drive_test")
-load("@root//buck/wasm:defs.bzl", "wasi_html_module", "wasi_program_flags")
+load("@root//buck/wasm:defs.bzl", "web_library", "web_program")
 
 # beui's demo (crates/beui-demo) on beui's
 # HTML core: `./scripts/buck run //crates/beui-demo:web-html` serves it with
 # Caddy on http://127.0.0.1:8075, or on the address after `--`.
-cargo_library(
-    rustc_flags = select({
-        "DEFAULT": [],
-        "prelude//cpu/constraints:cpu[wasm32]": wasi_program_flags,
-    }),
+web_library(
+    role = "html",
     target_compatible_with = ["root//buck/constraints:html"],
 )
 
-wasi_html_module(
-    name = "web-module",
-    library = ":beui-demo-html",
-    module = "beui_demo_html",
-)
-
-program(
+web_program(
     name = "web",
-    bindgen = [":web-module"],
     files = [
         "web/index.html",
         "//crates/beui-fonts:Inter-Regular.ttf",
         "//crates/beui-fonts:Hack-Regular.ttf",
         "//crates/beui-fonts:NotoEmoji-Regular.ttf",
         "//crates/beui-fonts:lucide.ttf",
-        "//crates/be-host:wasi.js",
-        "//crates/be-host:threads.js",
-        "//crates/be-host:thread.js",
-        "//crates/be-host:dylink.js",
-        "//crates/be-host:env.js",
     ],
-    manifests = [],
-    modules = [],
-    run_with = [
-        "sh",
-        "$(location //buck/program:serve-bundle.sh)",
-        "$(location //buck/tools:caddy)",
-        "$(location //buck/program:bundle.Caddyfile)",
-        "127.0.0.1:8075",
-    ],
-    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+    module = "beui_demo_html",
+    role = "html",
+    serve = "127.0.0.1:8075",
     visibility = ["PUBLIC"],
 )
 

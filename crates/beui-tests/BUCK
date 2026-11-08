@@ -1,16 +1,12 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
-load("@root//buck/program:defs.bzl", "program")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_test")
 load("@root//buck/program:drive.bzl", "headless", "web_drive_test")
-load("@root//buck/wasm:defs.bzl", "wasi_html_module", "wasi_program_flags")
+load("@root//buck/wasm:defs.bzl", "web_library", "web_program")
 
 # Screens built for both of beui's cores, and src/drive/*.drive, scripts both
 # cores must answer the same way (guides/testing_a_gui.md, 7). The script's
 # file name is the screen it drives.
-cargo_library(
-    rustc_flags = select({
-        "DEFAULT": [],
-        "prelude//cpu/constraints:cpu[wasm32]": wasi_program_flags,
-    }),
+web_library(
+    role = "html",
 )
 
 # The native core: a screen headless, named by its argument
@@ -39,30 +35,17 @@ headless(
 )
 
 # The HTML core: the same screens in the browser, ?fixture=NAME.
-wasi_html_module(
-    name = "web-module",
-    library = ":beui-tests",
-    module = "beui_shared_tests",
-)
-
-program(
+web_program(
     name = "web",
-    bindgen = [":web-module"],
     files = [
         "web/index.html",
         "//crates/beui-fonts:Inter-Regular.ttf",
         "//crates/beui-fonts:Hack-Regular.ttf",
         "//crates/beui-fonts:NotoEmoji-Regular.ttf",
         "//crates/beui-fonts:lucide.ttf",
-        "//crates/be-host:wasi.js",
-        "//crates/be-host:threads.js",
-        "//crates/be-host:thread.js",
-        "//crates/be-host:dylink.js",
-        "//crates/be-host:env.js",
     ],
-    manifests = [],
-    modules = [],
-    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+    module = "beui_shared_tests",
+    role = "html",
 )
 
 # Each script in Chromium against :web, and the live DOM checks of

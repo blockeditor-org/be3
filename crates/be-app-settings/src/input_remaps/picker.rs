@@ -1,8 +1,8 @@
 //! The key picker: what a rule's key, held key, sent key or step is chosen
 //! with, so no key name has to be typed. Typing one is the fallback at its foot.
 
-use be_host_remap::names::{Modifier, Source};
-use be_host_remap::rules::Wheel;
+use be_lib_remap::names::{Modifier, Source};
+use be_lib_remap::rules::Wheel;
 use be_sdk_beui::beui::icons::{ICON_KEYBOARD, ICON_SEARCH};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -357,7 +357,7 @@ fn AllKeysTab(query: Signal<String>, wheel: Memo<bool>, pick: Callback<Picked>) 
                 clearable=true
                 @test_id={"input-remaps.picker.search"}
             />
-            <ForEach keys={kinds}>|kind: be_host_remap::names::KeyKind| {
+            <ForEach keys={kinds}>|kind: be_lib_remap::names::KeyKind| {
                 let names = create_memo(move || {
                     listed.with(|listed| {
                         listed

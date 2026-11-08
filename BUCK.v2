@@ -2,6 +2,36 @@
 # way, because a filesystem that ignores case - Windows', and macOS's by
 # default - cannot hold a file named BUCK beside the buck/ directory.
 
+load("//buck/cargo:buckify.bzl", "cargo_plan")
+load("//buck/cargo:crates.bzl", "crates")
+load("//buck/dev:verify.bzl", "package_fix", "verify")
+
+# The root's own Starlark; every other package's :fix is its own.
+package_fix(starlark = ["BUCK.v2", "PACKAGE"])
+
+# Everything ./scripts/verify and ./scripts/ci build, in parts
+# (buck/dev/verify.bzl): `./scripts/buck build //:verify[tests]`.
+verify(
+    name = "verify",
+    buckify = ":cargo-plan",
+)
+
+# buck/cargo/crates.bzl and Cargo.lock generated from the Cargo.toml files of
+# the crates it names (buck/cargo/buckify.bzl).
+cargo_plan(
+    name = "cargo-plan",
+    crates = ["//{}:cargo-inputs".format(path) for path in crates],
+    lock = "Cargo.lock",
+    manifest = "Cargo.toml",
+)
+
+# The formatter's settings, for every package's :fix (buck/dev/verify.bzl).
+export_file(
+    name = "starlark_fmt.json",
+    src = "buck/starlark_fmt.json",
+    visibility = ["PUBLIC"],
+)
+
 # clippy.toml reaches the rust toolchain as a file, so it needs a target.
 export_file(
     name = "clippy.toml",
@@ -10,8 +40,8 @@ export_file(
 )
 
 # The commands a person runs, started from the root once buck2 has built what
-# each names. ./scripts/verify and ./scripts/ci are scripts rather than targets,
-# so that each is one buck2 command.
+# each names. ./scripts/verify and ./scripts/ci are scripts that build
+# //:verify and then run what read it, so that each is one buck2 command.
 #
 #   ./scripts/buck run //:fuzz
 #   ./scripts/buck run //:buckify [-- --check]

@@ -13,7 +13,7 @@ fn each_changed_file_counts_toward_one_kind_of_line() {
         ("crates/be-tool-local/src/ci/tests.rs", Some(Kind::Tests)),
         ("crates/beui/BUCK", Some(Kind::Build)),
         ("crates/beui/Cargo.toml", Some(Kind::Build)),
-        ("buck/dev/verify.bxl", Some(Kind::Build)),
+        ("buck/dev/test.bxl", Some(Kind::Build)),
         ("scripts/verify", Some(Kind::Build)),
         ("Cargo.lock", Some(Kind::Build)),
         ("guides/beui.md", Some(Kind::Markdown)),

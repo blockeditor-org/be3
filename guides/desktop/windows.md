@@ -5,8 +5,10 @@
 `--desktop` is a development view with no virtual display, so a focused window comes up on the
 real monitor above be-host. `BEUI_PLATFORM=drm` and `--install-login-session` are refused.
 
-All of it is compile-checked only: `buck/dev/verify.bxl`'s `_CROSS_CHECKS` builds be-host-win32,
-be-host-win32-capture, be-host-win32-input, beui and be-host for `windows_x86_64`. The logic behind
+Nothing in verify or CI compiles it: after changing it, check it by hand with `./scripts/buck
+build '//crates/be-host-win32:be-host-win32[check]' --target-platforms
+//buck/platforms:windows_x86_64`, and the same for be-host-win32-capture, be-host-win32-input,
+beui-host and be-host. The logic behind
 the Win32 calls is plain Rust tested on Linux with fakes; put new logic there. Running it needs a
 real Windows machine (Wine has no Windows.Graphics.Capture).
 

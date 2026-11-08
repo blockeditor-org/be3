@@ -1,0 +1,5 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# crates.bzl's downloads, as crates/be-tool-bootstrap's lock step pins them and
+# crates/be-tool-buck's generate writes them again.
+cargo_crate()

@@ -28,7 +28,7 @@ be-lib-build-id = { path = "../be-lib-build-id" }
 be-type-database = { path = "../be-type-database" }
 futures-util = "0.3"
 portable-pty = "0.9"
-be-lib-terminal-emulator = { path = "../be-lib-terminal-emulator" }
+be-tool-terminal-emulator = { path = "../be-tool-terminal-emulator" }
 serde_json = "1"
 be-type-terminal = { path = "../be-type-terminal" }
 be-type-text = { path = "../be-type-text" }

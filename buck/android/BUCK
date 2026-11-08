@@ -1,3 +1,5 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
+
 # What an APK is made with, pinned by hash and size: a JDK (javac, d8,
 # apksigner for reference tests), the SDK build tools (aapt2, zipalign), and
 # the platform (android.jar). local-tools signs APKs locally, in Rust.
@@ -35,3 +37,5 @@ http_archive(
     urls = ["https://dl.google.com/android/repository/platform-35_r02.zip"],
     visibility = ["PUBLIC"],
 )
+
+package_fix()

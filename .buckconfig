@@ -25,7 +25,8 @@ prelude = bundled
 target_platform_detector_spec = target:root//...->root//buck/platforms:linux_x86_64
 
 # Where actions run: on our build server's worker. buck/platforms/BUCK is the
-# platform, and buck/tools the compilers it runs.
+# platform, and buck/tools the compilers it runs. A local build names
+# :execution_platforms_local instead (guides/running/local_buck2.md).
 [build]
 execution_platforms = root//buck/platforms:execution_platforms
 
@@ -40,6 +41,13 @@ digest_algorithms = SHA256
 # downloads a digest twice.
 defer_write_actions = true
 sqlite_materializer_state = true
+
+# Delete outputs no build has used for three days, once a day while the daemon
+# runs. Every change to a crate leaves its old outputs under their content hash,
+# and nothing else ever removes them.
+clean_stale_enabled = true
+clean_stale_artifact_ttl_hours = 72
+clean_stale_period_hours = 24
 
 # Where the remote execution cluster is: not here. Namespace shuts it down when
 # it has been idle, so ./scripts/buck asks the waker for its hosts and writes
@@ -60,6 +68,7 @@ find_missing_blobs_batch_size = 10000
 
 # What buck2 does not watch or read as part of the workspace: git's own
 # directory, whose every fetch would otherwise be a file change, and the
-# directories cargo, the web bundle and buck2 itself write into.
+# directories cargo, the web bundle and buck2 itself write into, and the
+# worktrees Claude Code checks out under .claude.
 [project]
-ignore = .git, target, dist, buck-out
+ignore = .git, .claude, target, dist, buck-out

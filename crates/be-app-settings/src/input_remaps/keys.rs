@@ -1,9 +1,9 @@
 //! What the editor shows of key names, and the names it writes. Every name
-//! comes from `be_host_remap::names`, which the remapper reads too.
+//! comes from `be_lib_remap::names`, which the remapper reads too.
 
-use be_host_remap::edit::modifier_of;
-use be_host_remap::names::{KeyKind, Modifier, Source};
-use be_host_remap::rules::Wheel;
+use be_lib_remap::edit::modifier_of;
+use be_lib_remap::names::{KeyKind, Modifier, Source};
+use be_lib_remap::rules::Wheel;
 
 /// The name a person reads for a name as the TOML writes it: `Left Ctrl` for
 /// `LeftCtrl`, `Wheel up` for `WheelUp`, `Shift` for `Shift`. A name nothing

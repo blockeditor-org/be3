@@ -1,18 +1,5 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library")
-load("@root//buck/wasm:defs.bzl", "wasm32_module")
+load("@root//buck/wasm:defs.bzl", "wasm32_crate")
 
 # The smallest guest without a gpu, a library or WASI: the tests of
 # be-wasm-guest-host and be-wasm-host start it in process and as this module.
-cargo_library()
-
-cargo_library(
-    name = "wasm",
-    preferred_linkage = "shared",
-    target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
-)
-
-wasm32_module(
-    name = "module",
-    library = ":wasm",
-    visibility = ["PUBLIC"],
-)
+wasm32_crate()

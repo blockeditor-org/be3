@@ -1,17 +1,14 @@
 load("@root//buck/android:defs.bzl", "android_apk")
-load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_test")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/program:defs.bzl", "precompiled_apps", "program")
 load("@root//buck/program:drive.bzl", "headless")
-load("@root//buck/wasm:defs.bzl", "wasi_program_flags", "wasi_program_module")
+load("@root//buck/wasm:defs.bzl", "wasi_program_module", "web_library")
 
 # On Android be-host is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
-cargo_library(
-    rustc_flags = select({
-        "DEFAULT": [],
-        "root//buck/platforms:wasi_setting": wasi_program_flags,
-    }),
+web_library(
+    role = "program",
     soname = "libbe_host.so",
 )
 
@@ -117,7 +114,6 @@ web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:host-index"] + ["//buc
             "//crates/be-tool-tls-diamond-app:",
             "//crates/be-wasm-host:",
             "//crates/beui-demo-html:",
-            "//crates/beui-html-spike:",
             "//crates/beui-tests:",
             "//crates/beui-web-demo:",
         ],
