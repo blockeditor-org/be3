@@ -1,5 +1,6 @@
 use be_sdk_beui::beui::Vec2;
-use be_sdk_test::{BeuiTest, HostCall, Reply, wire};
+use be_sdk_beui::network::ResponseHead;
+use be_sdk_test::{BeuiTest, Fetch};
 use be_type_map::MapRegion;
 use be_type_map::{Map, MapContent};
 use uuid::Uuid;
@@ -145,33 +146,41 @@ fn serve_tiles(editor: &mut BeuiTest<MapRoot>) -> Vec<String> {
     serve_tiles_with(editor, ocean_tile)
 }
 
-type Fetched =
-    Reply<Result<Vec<u8>, be_sdk_beui::Failure>, wire::Fallible<wire::Bytes, wire::Plain>>;
-
-fn requested_tiles(editor: &mut BeuiTest<MapRoot>) -> Vec<(Fetched, String)> {
+fn requested_tiles(editor: &mut BeuiTest<MapRoot>) -> Vec<(Fetch, String)> {
     editor
-        .take_requests()
+        .take_fetches()
         .into_iter()
-        .filter_map(|call| match call {
-            HostCall::Fetch { reply, url } => Some((reply, url)),
-            _ => None,
+        .map(|fetch| {
+            assert_eq!(fetch.request.method, "GET");
+            let url = fetch.request.url.clone();
+            (fetch, url)
         })
         .collect()
+}
+
+/// Answers `fetch` with `tile`, its body in two chunks as a network delivers it.
+fn serve(editor: &mut BeuiTest<MapRoot>, fetch: &Fetch, tile: Vec<u8>) {
+    let (first, second) = tile.split_at(tile.len() / 2);
+    let head = ResponseHead {
+        status: 200,
+        headers: Vec::new(),
+    };
+    editor.respond(fetch, head, [first.to_vec(), second.to_vec()]);
 }
 
 fn serve_tiles_with(editor: &mut BeuiTest<MapRoot>, tile: impl Fn() -> Vec<u8>) -> Vec<String> {
     let mut served = Vec::new();
     loop {
-        for (request, url) in requested_tiles(editor) {
+        for (fetch, url) in requested_tiles(editor) {
             assert!(url.starts_with("https://vector.openstreetmap.org/") && url.ends_with(".mvt"));
-            editor.answer(request, Ok(tile()));
+            serve(editor, &fetch, tile());
             served.push(url);
         }
         let ids: Vec<String> = served.iter().map(|url| tile_test_id(url)).collect();
         editor.settle_until("the served tiles to be drawn", |editor| {
-            editor.has_requests() || ids.iter().all(|id| tile_drawn(editor, id))
+            editor.has_fetches() || ids.iter().all(|id| tile_drawn(editor, id))
         });
-        if !editor.has_requests() {
+        if !editor.has_fetches() {
             served.sort();
             return served;
         }

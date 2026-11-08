@@ -299,6 +299,7 @@ enum Answer {
     Debug(EditorInstanceId, be_sdk_api::embed::debug::debug::Call),
     Ended(be_sdk_api::ops::OpId),
     Service(super::wire::Service),
+    Network(EditorInstanceId, be_sdk_api::embed::network::Call),
     Withdrawn(be_sdk_api::ops::OpId),
     LaidOut(LayoutCommit),
     Presented(PresentCommit),
@@ -326,6 +327,7 @@ impl From<Heard> for Answer {
             Heard::Debug(instance, call) => Self::Debug(instance, call),
             Heard::Ended(op) => Self::Ended(op),
             Heard::Service(service) => Self::Service(service),
+            Heard::Network(instance, call) => Self::Network(instance, call),
             Heard::Withdrawn(op) => Self::Withdrawn(op),
         }
     }
@@ -1247,6 +1249,7 @@ impl Runtime {
                 | Answer::Debug(..)
                 | Answer::Ended(_)
                 | Answer::Service(_)
+                | Answer::Network(..)
                 | Answer::Withdrawn(_)
                 | Answer::LaidOut(_)
                 | Answer::Presented(_) => None,
@@ -1356,6 +1359,10 @@ impl Runtime {
                     self.instances.serve(service);
                     false
                 }
+                Answer::Network(instance, call) => {
+                    self.instances.network(instance, call);
+                    false
+                }
                 Answer::Withdrawn(op) => {
                     self.instances.withdraw(op);
                     false
@@ -1380,6 +1387,12 @@ impl Runtime {
         let backend = &mut self.backend;
         self.instances
             .relay(|replica, frame| backend.relay(replica, frame));
+        let finished = self
+            .instances
+            .stream_fetches(|body, item| backend.stream_item(body, item));
+        if !finished.is_empty() {
+            self.backend.answer(finished);
+        }
         self.backend.answer_watches(answers, accepted);
     }
 

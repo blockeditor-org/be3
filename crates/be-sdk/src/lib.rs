@@ -18,6 +18,7 @@ mod host;
 mod layered_settings;
 mod link;
 mod module;
+pub mod network;
 #[cfg(target_arch = "wasm32")]
 mod panes;
 mod preferences;

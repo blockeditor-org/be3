@@ -156,6 +156,7 @@ pub(super) enum Heard {
     Debug(EditorInstanceId, DebugCall),
     Ended(be_sdk_api::ops::OpId),
     Service(super::wire::Service),
+    Network(EditorInstanceId, be_sdk_api::embed::network::Call),
     Withdrawn(be_sdk_api::ops::OpId),
 }
 

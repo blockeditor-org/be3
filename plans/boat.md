@@ -1,6 +1,7 @@
 # boat.dev
 
-Depends on: plans/app_network.md (step 1) and plans/owner_settings.md.
+Depends on: plans/owner_settings.md. Apps' `fetch` and `open_url` exist
+(guides/apps/host_services.md).
 
 An app for boat.dev cloud VMs ("sandboxes"): list your VMs and start and stop
 them. Opening a terminal block into one is
@@ -42,8 +43,8 @@ From `https://boat.dev/llms.txt`, `https://boat.dev/openapi.yaml` and
 ### Crates
 
 - `be-type-boat`: the block's content, and the `BoatSettings` kind.
-- `be-app-boat`: the editor. The manifest has `network: "*"`
-  (plans/app_network.md).
+- `be-app-boat`: the editor. The manifest has `"network": ["*"]`
+  (guides/adding_an_app.md).
 
 ### Content and online data
 

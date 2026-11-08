@@ -13,7 +13,9 @@ use crate::state::Subscription;
 use be_lib_geometry::{Pos2, Rect, Vec2};
 use be_sdk_api::OfferedClipItem;
 use be_sdk_api::TopBar;
-use be_sdk_api::guest::host_services;
+use be_sdk_api::guest::{host_services, network};
+use be_sdk_api::ops::OpError;
+use crate::network::{Request, Response};
 use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
@@ -1845,12 +1847,31 @@ impl EditorHost {
         self.push(Pushed::Audio);
     }
 
-    /// A GET the host makes for the app, its only network on any platform. The host refuses
-    /// a URL whose host name the manifest's `network` does not list. Canceling aborts the
-    /// request in the browser and drops the answer natively.
-    pub fn fetch(&self, url: impl Into<String>) -> Asked<Result<Vec<u8>, Failure>> {
+    /// Sends `request` through the host, the app's only network on any platform, and answers
+    /// with the response's status and headers once they arrive; the body follows as it
+    /// arrives, with no limit on its length (`Response::chunk`, `bytes`, `json`). The host
+    /// refuses an `http://` URL, or one whose host name the manifest's `network` does not
+    /// list (`"*"` lists every one), and adds no credentials: a token is the app's own
+    /// (`Request::bearer`). Canceling, or dropping the response, aborts the request.
+    pub fn fetch(&self, request: Request) -> Asked<Result<Response, Failure>> {
+        let fetch = self.ask(|| network::Fetch::new(request));
+        let head = fetch.response();
+        Asked::from_future(async move {
+            match head.await {
+                Ok(Ok(head)) => Some(Ok(Response::new(head, fetch))),
+                Ok(Err(failure)) => Some(Err(failure)),
+                Err(OpError::Canceled) => None,
+                Err(error) => Some(Err(Failure::from(error))),
+            }
+        })
+    }
+
+    /// Opens `url`, an `http://` or `https://` link, in the system's browser or a new tab on
+    /// the web. Where the browser blocks the tab, the host shows the link for the person to
+    /// press instead, and still answers that it opened.
+    pub fn open_url(&self, url: impl Into<String>) -> Asked<Result<(), Failure>> {
         let url = url.into();
-        Asked::of(self.ask(|| host_services::fetch(url)))
+        Asked::of(self.ask(|| network::open_url(url)))
     }
 
     pub fn list_data(&self) -> Asked<Result<Vec<String>, Failure>> {

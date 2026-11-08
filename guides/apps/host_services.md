@@ -8,27 +8,49 @@ covers how those calls work as a whole and the parts that trip agents up.
 ## Asking and answering
 
 A call the host answers (`save_file`, `export_block`, `read_plain_file`,
-`fetch`, `list_data`, `read_data`, the revision calls, ...) is an async
+`list_data`, `read_data`, the revision calls, ...) is an async
 function of the host-services interface
-(`crates/be-sdk-api/wit/host-services.wit`), made for the editor's own
+(`crates/be-sdk-api/wit/host-services.wit`; `fetch` and `open_url` are the
+`network` interface's, `network.wit`), made for the editor's own
 instance, and returns an `Asked<T>`. Run it with
-`editor.then(asked, answered)` (`Creation::then` in a creation dialog): the
-answer reaches `answered` only if the asking scope is still alive, and the
-returned `Task`'s `cancel()` withdraws the call. Closing the editor cancels
-everything it waits on, and the host drops the work (an unsent fetch, an
-export not yet made).
+`editor.then(asked, answered)` (`Creation::then` in a creation dialog), which
+takes any future answering an `Option` (an `async` block awaiting several
+`Asked`s): the answer reaches `answered` only if the asking scope is still
+alive, and the returned `Task`'s `cancel()` withdraws the call. Closing the
+editor cancels everything it waits on, and the host drops the work (a fetch
+in flight, an export not yet made). `Asked::and_then` chains a second call on
+the first's success.
 
 A call that can fail answers `be_sdk_api::Failure`: `denied` (including the
 host refusing the call outright), `unavailable`, or `failed` with a message;
 its `Display` is the text to show.
 
 In a test, `BeuiTest::take_requests()` returns the calls as
-`be_sdk_test::HostCall`s, each answered with `answer(reply, value)`.
+`be_sdk_test::HostCall`s, each answered with `answer(reply, value)`; fetches
+are `take_fetches()`, each a `be_sdk_test::Fetch` holding the whole request,
+answered with `respond(fetch, head, chunks)` (the body goes out in those
+chunks, as the editor's credit allows) or `fail_fetch`, and the links opened
+are `take_opened_urls()`. No test needs a real server.
 
 Notes on particular calls:
 
-- `fetch(url)` is the app's only network, on every platform, and only to host
-  names in the manifest's `network`.
+- `fetch(request)` is the app's only network, on every platform: a
+  `be_sdk::network::Request` (`Request::get(url).bearer(token)`,
+  `Request::post(url).json(&value)?`) answered with a `Response`, its status
+  and headers whatever the status, then its body as it arrives: `chunk()` a
+  piece at a time, or `bytes()`, `text()`, `json::<T>()` whole, which fail on
+  a status that is not a success, so read `status` first to tell a 401 apart.
+  Dropping the `Response` aborts the request. The host refuses `http://`, and
+  a host name the manifest's `network` does not list (`"*"` lists every one),
+  and adds no credentials: tokens, their expiry and rotation are the app's.
+  In a browser CORS applies. Natively the host reads the response with ureq
+  on a thread per request, which reads at most `http::CHUNKS_AHEAD` chunks
+  ahead of what the app's stream credit has taken, so a slow app holds the
+  download back rather than the host holding the body
+  (`be-host-runtime/src/instances/network.rs`).
+- `open_url(url)` opens an `http(s)` link in the system browser, or a new tab
+  on the web; where the browser blocks a tab opened that long after the press
+  that led to it, the host shows a notice whose Open button opens it.
 - Files are picked with beui's own picker (guides/beui/components.md, Inputs and
   forms), which
   inside an app forwards to the host's; `be_sdk_beui::FileChooser` adds the
@@ -146,7 +168,7 @@ If an editor needs something the host has, add it to the `be3:app` world in
 `crates/be-sdk-api/wit` (`PROTOCOL.md` there lists the interfaces; how WIT is
 written and travels is in guides/type_modules.md, Operations and WIT). An app's
 request goes in the import that fits (`host`, `blocks`, `shell`,
-`host-services`); a host request to an app goes in `app.wit`, as a method of
+`host-services`, `network`); a host request to an app goes in `app.wit`, as a method of
 the `editor` resource when it concerns one instance. Every function is an
 `async func`: one the app only tells the host returns nothing and is
 `.detach()`ed; a followed value is a resource whose `next` the host answers

@@ -18,6 +18,6 @@ fn labels_stay_while_deeper_tiles_load() {
         assert!(shown(&editor) > 0);
     }
 
-    assert!(editor.has_requests());
+    assert!(editor.has_fetches());
     assert!(shown(&editor) > 0);
 }

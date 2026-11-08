@@ -5,13 +5,28 @@ pub fn open_browser(url: &str) -> Result<(), String> {
     open(url)
 }
 
+/// Opens a link an app asked for (`network.open-url`) as `open_browser` does; where the
+/// browser blocks the tab, which it does once the press that led to it is too long ago, it
+/// shows a notice whose own press opens it.
+pub fn open_link(url: &str) -> Result<(), String> {
+    match open_browser(url) {
+        Err(error) if error == BLOCKED => {
+            crate::notices::offer_link(url.to_owned());
+            Ok(())
+        }
+        opened => opened,
+    }
+}
+
+const BLOCKED: &str = "The browser blocked the new tab. Use the link and code below.";
+
 #[cfg(target_arch = "wasm32")]
 fn open(url: &str) -> Result<(), String> {
     web_sys::window()
         .ok_or("No browser window is available")?
         .open_with_url_and_target(url, "_blank")
         .map_err(|_| "Could not open a browser tab")?
-        .ok_or("The browser blocked the new tab. Use the link and code below.")?;
+        .ok_or(BLOCKED)?;
     Ok(())
 }
 

@@ -213,7 +213,9 @@ The `be_sdk_manifest` types document every field. What is easy to get wrong:
   inside it it handles (`show_block`, `dialog`, `panel`, `window`; `pick` and `rename`
   mark the editor picker and rename children run in),
   and which editors it places as soon as it opens.
-- `network` lists the host names `fetch` may reach; `extensions` the protocol
+- `network` lists the host names `fetch` may reach, matched whole against an
+  `https://` URL's host, or `"*"` for any (still https only), which
+  first-party apps use for now; `extensions` the protocol
   packages beyond the core it uses (`be_sdk_api::EXTENSIONS`, only
   `be3:desktop`). The host denies anything else.
 - `block_types` belong to the type, not an editor (adding_a_block.md, Declare

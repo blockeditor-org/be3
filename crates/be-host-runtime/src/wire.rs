@@ -16,7 +16,7 @@ use be_sdk_api::{
             debug::paintings,
         },
         host::Call,
-        host_services,
+        host_services, network,
         shell::Call as ShellCall,
     },
     ops::{
@@ -383,6 +383,42 @@ impl Wire {
         heard.push(Heard::Service(Service { instance, call }));
     }
 
+    /// A fetch belongs to the editor that opened it, and its `response` and `body` to the
+    /// fetch; the instance serves them (`Instances::network`), and a cancel of one stops it.
+    fn network(
+        &mut self,
+        op: OpId,
+        parent: Option<OpId>,
+        call: network::Call,
+        heard: &mut Vec<Heard>,
+    ) {
+        use network::Call as Network;
+        let instance = match &call {
+            Network::FetchResponse { this, .. } | Network::FetchBody { this, .. } => {
+                self.held.owners.get(&this.op()).copied()
+            }
+            Network::FetchNew { .. } | Network::OpenUrl { .. } => self.editor_of(parent),
+        };
+        let Some(instance) = instance else {
+            self.connection.complete(op, Outcome::Err(OpError::Denied));
+            return;
+        };
+        match &call {
+            Network::FetchNew { resource, .. } => {
+                self.held.owners.insert(resource.op(), instance);
+            }
+            _ => {
+                self.serving.insert(op, instance);
+            }
+        }
+        heard.push(Heard::Network(instance, call));
+    }
+
+    /// Yields one encoded item on a stream the instance serves, unless it has no credit.
+    pub(super) fn stream_item(&mut self, op: OpId, item: &[u8]) -> bool {
+        self.connection.ready(op) && self.connection.yield_item(op, item).is_ok()
+    }
+
     fn published_watch(&mut self, started: Started, heard: &mut Vec<Heard>) {
         let Some(watching) = super::published::watching(started.method) else {
             return;
@@ -693,6 +729,10 @@ impl Wire {
                     }
                     Some(embed::Call::HostServices(call)) => {
                         self.serve(op, parent, call, heard);
+                        return Ok(());
+                    }
+                    Some(embed::Call::Network(call)) => {
+                        self.network(op, parent, call, heard);
                         return Ok(());
                     }
                     Some(embed::Call::Debug(call)) => {

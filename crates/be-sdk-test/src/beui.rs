@@ -138,6 +138,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     exited: bool,
     draft: Vec<u8>,
     requests: Vec<(Option<OpId>, Call)>,
+    fetches: crate::fetches::Fetches,
     wakes: Arc<Wakes>,
     clock: std::time::Duration,
     desk: Option<desk::Desk>,
@@ -424,6 +425,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             exited: false,
             draft: data,
             requests: Vec::new(),
+            fetches: crate::fetches::Fetches::default(),
             wakes,
             clock: std::time::Duration::ZERO,
             desk: None,
@@ -1146,6 +1148,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.store.tick(self.clock.as_millis() as u64);
         let mut inbox = std::mem::take(&mut self.inbox);
         self.link.answer(&self.store, &mut self.connection);
+        self.fetches.answer(&mut self.connection);
         let mut frames = std::mem::take(&mut self.answered);
         frames.extend(self.connection.take_outbound());
         if !frames.is_empty() {
@@ -1349,6 +1352,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     self.link.ended(op, &self.store, &mut self.connection);
                     continue;
                 }
+                Incoming::Canceled { op } if self.fetches.holds(op) => {
+                    self.fetches.ended(op, &mut self.connection);
+                    continue;
+                }
+                Incoming::Canceled { op } if self.fetches.withdrawn(op, &mut self.connection) => {
+                    continue;
+                }
                 Incoming::Started(started) if extension_call(started.method) => {
                     self.connection.complete(started.op, Outcome::returned(&()));
                     self.acknowledged.insert(started.op);
@@ -1429,6 +1439,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
                             self.requests.push((Some(op), call));
                             continue;
                         }
+                        Some(embed::Call::Network(call)) => {
+                            self.fetches.call(call, connection);
+                            continue;
+                        }
                         Some(call) => {
                             let (op, outcome) = call.refuse(OpError::Unsupported);
                             connection.complete(op, outcome);
@@ -1491,6 +1505,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             self.calls.push(call);
         }
         self.link.answer(&self.store, &mut self.connection);
+        self.fetches.answer(&mut self.connection);
         let frames = self.connection.take_outbound();
         let acknowledged = &mut self.acknowledged;
         match frames.iter().all(|frame| acknowledges(frame, acknowledged)) {
@@ -1759,6 +1774,44 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn has_requests(&self) -> bool {
         !self.requests.is_empty()
+    }
+
+    /// Whether the editor sent a fetch `take_fetches` has not taken yet.
+    pub fn has_fetches(&self) -> bool {
+        self.fetches.has_sent()
+    }
+
+    /// The requests the editor sent with `EditorHost::fetch` since the last call, each
+    /// whole as it asked; answer each with `respond` or `fail_fetch`.
+    pub fn take_fetches(&mut self) -> Vec<crate::Fetch> {
+        self.fetches.take_sent()
+    }
+
+    /// Answers `fetch` with `head`, then its body in `chunks`, each sent once the editor has
+    /// credit for it, as a host streams a body that arrives in pieces.
+    pub fn respond(
+        &mut self,
+        fetch: &crate::Fetch,
+        head: be_sdk_api::network::ResponseHead,
+        chunks: impl IntoIterator<Item = Vec<u8>>,
+    ) {
+        self.fetches.respond(fetch, head, chunks);
+        self.fetches.answer(&mut self.connection);
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
+    }
+
+    /// Answers `fetch` with `failure`: no response came, or the body ends with it.
+    pub fn fail_fetch(&mut self, fetch: &crate::Fetch, failure: be_sdk_beui::Failure) {
+        self.fetches.fail(fetch, failure);
+        self.fetches.answer(&mut self.connection);
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
+    }
+
+    /// The links the editor opened with `EditorHost::open_url` since the last call.
+    pub fn take_opened_urls(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.fetches.opened)
     }
 
     pub fn take_requests(&mut self) -> Vec<Call> {

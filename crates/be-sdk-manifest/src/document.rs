@@ -30,7 +30,8 @@ pub struct ManifestDocument {
     /// The app's wasm module, the same bytes on every platform; the BUCK file's `app()`
     /// names the module that builds it.
     pub entry_point: String,
-    /// Host names `fetch` may reach, matched whole against an https URL's host.
+    /// Host names `fetch` may reach, matched whole against an https URL's host, or `"*"`
+    /// for any https URL, which first-party apps use for now.
     #[serde(default)]
     pub network: Vec<String>,
     /// Protocol packages beyond the core the app uses, of `be_sdk_api::EXTENSIONS`. The

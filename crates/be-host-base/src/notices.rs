@@ -7,6 +7,8 @@ pub struct Notice {
     pub id: u64,
     pub message: String,
     pub report: Option<String>,
+    /// A link the notice offers to open, from a press of its own (`offer_link`).
+    pub link: Option<String>,
 }
 
 struct Notices {
@@ -24,14 +26,20 @@ fn notices() -> MutexGuard<'static, Notices> {
 }
 
 pub fn report(message: String) {
-    show(message, None);
+    show(message, None, None);
 }
 
 pub fn report_with(message: String, report: String) {
-    show(message, Some(report));
+    show(message, Some(report), None);
 }
 
-fn show(message: String, report: Option<String>) {
+/// Offers `url` for the person to open with a press, where the browser blocked a tab opened
+/// without one.
+pub fn offer_link(url: String) {
+    show(format!("The browser blocked a new tab for {url}."), None, Some(url));
+}
+
+fn show(message: String, report: Option<String>, link: Option<String>) {
     {
         let mut notices = notices();
         if let Some(notice) = notices
@@ -50,6 +58,7 @@ fn show(message: String, report: Option<String>) {
             id,
             message,
             report,
+            link,
         });
     }
     crate::host::wake();
@@ -65,6 +74,14 @@ pub fn report_of(id: u64) -> Option<String> {
         .iter()
         .find(|notice| notice.id == id)
         .and_then(|notice| notice.report.clone())
+}
+
+pub fn link_of(id: u64) -> Option<String> {
+    notices()
+        .shown
+        .iter()
+        .find(|notice| notice.id == id)
+        .and_then(|notice| notice.link.clone())
 }
 
 pub fn shown() -> Vec<Notice> {
