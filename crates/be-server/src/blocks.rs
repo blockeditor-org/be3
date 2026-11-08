@@ -6,7 +6,7 @@ use be_block_protocol::{
     AccessEntry, AccessList, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet, ObjectChange,
     OrganizationRole, ReferenceChange,
 };
-use be_block_store::{Hash, ObjectStore};
+use be_block_store::Hash;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use uuid::Uuid;
@@ -619,11 +619,11 @@ impl ServerStore {
                 &policy,
             )?;
             transaction.commit()?;
-            remove_objects(store.objects(), &freed)?;
             graph.set_references(block, &references)?;
             graph.set_head(block, commit)?;
             graph.set_metadata(block, metadata)?;
             graph.touch(block)?;
+            store.objects().remove_freed(&freed);
             Ok(PublishOutcome::Published(commit, redescribed))
         })
         .await
@@ -1165,7 +1165,7 @@ impl ServerStore {
             std::mem::drop(refs);
             let freed = forget_objects(&transaction, &freed)?;
             transaction.commit()?;
-            remove_objects(store.objects(), &freed)?;
+            store.objects().remove_freed(&freed);
             Ok(Collected {
                 blocks: removed,
                 objects: freed.len(),
@@ -1632,13 +1632,6 @@ fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
     std::iter::once(block)
         .chain(graph.ancestors(block))
         .collect()
-}
-
-fn remove_objects(objects: &crate::objects::Objects, freed: &[Hash]) -> Result<(), ServerError> {
-    for hash in freed {
-        objects.remove(*hash)?;
-    }
-    Ok(())
 }
 
 fn persist_refs(

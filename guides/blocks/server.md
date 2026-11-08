@@ -244,7 +244,11 @@ counts and records nothing: `upload-urls` did before it signed.
   the server starts and every `UPLOAD_SWEEP_INTERVAL`. A reservation is renewed
   each time its URL is signed, and the URL expires well inside the grace, so no
   upload can land after its reservation was collected and leave bytes nothing
-  names. Counters are kept incrementally:
+  names. Freed objects are deleted after their transaction commits but while
+  the database is still held (`Objects::remove_freed`), so no upload of the
+  same object is reserved in between; a delete that fails is logged, not
+  returned, since the call's change is already committed. Counters are kept
+  incrementally:
   `object_sizes`, `account_objects` (per payer and object, how many of its
   blocks hold it), `account_usage`, `organization_usage`, and `block_sizes`,
   which the cached `BlockGraph` mirrors as `BlockNode::size` and `tree_size`

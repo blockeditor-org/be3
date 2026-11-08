@@ -310,6 +310,23 @@ impl Objects {
         }
     }
 
+    /// Deletes objects whose rows a committed transaction already forgot (`forget_objects`), a
+    /// bucket's `PARALLEL_READS` at a time. The caller still holds the database, so no upload of
+    /// the same object is reserved until they are gone. A delete that fails is logged rather
+    /// than failing the call, whose change is already committed: it leaves bytes nothing
+    /// names, which cost storage but are never read.
+    pub fn remove_freed(&self, hashes: &[Hash]) {
+        let removed = match self {
+            Self::Local(store) => hashes.iter().map(|hash| store.remove(*hash)).collect(),
+            Self::Bucket(cached) => parallel(hashes, |hash| cached.remove(*hash)),
+        };
+        for (hash, removed) in hashes.iter().zip(removed) {
+            if let Err(error) = removed {
+                tracing::warn!(%hash, %error, "a freed object could not be deleted");
+            }
+        }
+    }
+
     /// Writes `objects`, answering their hashes in order; a bucket's are written
     /// `PARALLEL_READS` at a time. Like `put`, they still need a `sync`.
     pub fn put_many(&self, objects: &[Vec<u8>]) -> Result<Vec<Hash>, StoreError> {

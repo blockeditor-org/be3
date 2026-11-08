@@ -459,9 +459,7 @@ impl ServerStore {
                     }
                     let freed = forget_objects(&transaction, &freed)?;
                     transaction.commit()?;
-                    for hash in &freed {
-                        store.objects().remove(*hash)?;
-                    }
+                    store.objects().remove_freed(&freed);
                     Ok((freed.len(), expired.len() >= UPLOADS_SWEPT_AT_ONCE))
                 })
                 .await?;
