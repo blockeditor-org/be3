@@ -45,5 +45,12 @@ fn stage_names_libraries_by_their_sha256_and_apps_by_their_id() {
         staged["apps.json"],
         Entry::Write(b"[\n  \"be3.notes.app.json\"\n]\n".to_vec())
     );
+    let input = |argument, part, within: &str| Entry::Input {
+        argument,
+        part,
+        within: within.into(),
+    };
+    assert_eq!(staged["notes.wasm"], input(1, 1, ""));
+    assert_eq!(staged["data/be3.notes/files/a.txt"], input(2, 0, "files/a.txt"));
     let _ = std::fs::remove_dir_all(directory);
 }

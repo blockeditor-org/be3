@@ -127,6 +127,25 @@ _native_core_transition = transition(
     refs = {"html": "root//buck/constraints:html", "linux_x86_64": "root//buck/platforms:linux_x86_64"} | PROFILE_REFS,
 )
 
+# A program's directory from the stage's layout: each file the stage wrote, the
+# executable, which finds the apps beside the path it was run from, and each
+# source file, which can change under a link to it (buck/program/build-info.json
+# does with every command), copied; every other file a symlink to the artifact
+# an argument gave, or to the file within it for a --tree or --data directory.
+def _lay_out(ctx: AnalysisContext, layout: list, arguments: list, generated: Artifact, executable: [str, None], out: Artifact):
+    contents = {}
+    for entry in layout:
+        path = entry["path"]
+        if "argument" not in entry:
+            contents[path] = assembled_dir.copy(generated.project(path))
+            continue
+        artifact = arguments[entry["argument"]][entry["part"]]
+        if entry["within"]:
+            artifact = artifact.project(entry["within"])
+        copied = path == executable or artifact.is_source
+        contents[path] = assembled_dir.copy(artifact) if copied else assembled_dir.symlink(artifact)
+    ctx.actions.assembled_dir(out, contents = contents, has_content_based_path = False)
+
 # The app as it runs (crates/be-tool-buck's stage): the executable under cargo's name, and
 # beside it every app, each module precompiled for precompile_target in an
 # action of its own by the precompiler, app-test-runner as the workers run
@@ -135,28 +154,39 @@ _native_core_transition = transition(
 # precompiler, each app is its module alone. With no binary it
 # is the apps alone. `index` writes the apps.json the app finds the
 # apps through. The web bundle is this rule too: `bindgen` runs
-# wasm-bindgen over each module. `[archive]` is the whole directory as one
+# wasm-bindgen over each module. The stage writes only the files it makes
+# and where everything goes; the directory is then laid out from that
+# (_lay_out), each file a symlink to the artifact it is, so programs that
+# share the apps' modules and .cwasm files share their bytes too. `[archive]`
+# is the whole directory, links followed, as one
 # compressed file (crates/be-host-archive), a quarter of its size or less, made on a
 # worker. `buck2 run` runs the executable from it, unpacked into target/programs
 # once for each new archive, so a run downloads only the archive; or, for a
 # bundle without one, `run_with` followed by the bundle, which is how the web
 # bundle serves itself.
 def _program_impl(ctx: AnalysisContext) -> list[Provider]:
-    # Not content-based: buck2 would write the directory once where the action runs and
-    # copy it to a path named for its hash, so each program would take twice the space,
-    # and a program is mostly the host's binary and the apps' modules.
-    out = ctx.actions.declare_output(ctx.label.name, dir = True, has_content_based_path = False)
-    command = cmd_args(ctx.attrs._tools[RunInfo], "stage", out.as_output())
+    generated = ctx.actions.declare_output(ctx.label.name + "-generated", dir = True)
+    layout = ctx.actions.declare_output(ctx.label.name + "-layout.json")
+    command = cmd_args(ctx.attrs._tools[RunInfo], "stage", generated.as_output(), layout.as_output())
+
+    # Each argument's artifacts, in the order the stage numbers them. The stage reads
+    # only what it is given by path; the rest it needs only the names of.
+    arguments = []
+
+    def add(argument, artifacts = []):
+        command.add(argument)
+        arguments.append(artifacts)
+
     only_libraries = ctx.attrs.libraries == "only"
     if ctx.attrs.compiled_only:
-        command.add("--compiled-only")
+        add("--compiled-only")
     name = None
     if ctx.attrs.binary:
         executable = ctx.attrs.binary[DefaultInfo].default_outputs[0]
         name = ctx.attrs.executable_name + executable.extension
-        command.add(cmd_args("--executable=", executable, "=", name, delimiter = ""))
+        add("--executable={}={}".format(executable.basename, name), [executable])
     for file in ctx.attrs.files:
-        command.add(cmd_args("--file=", file, delimiter = ""))
+        add("--file=" + file.basename, [file])
     libraries = []
     for module in ctx.attrs.modules + ctx.attrs.linked:
         info = module.get(WasmLibrariesInfo)
@@ -164,27 +194,30 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
             if library not in libraries:
                 libraries.append(library)
     for index, library in enumerate(libraries if ctx.attrs.libraries != "exclude" else []):
-        command.add(cmd_args("--library=", library, delimiter = ""))
+        add(cmd_args("--library=", library, delimiter = ""), [library])
         if ctx.attrs.precompiler or ctx.attrs.precompiled:
-            artifact = "library{}-{}".format(index, library.basename.removesuffix(".wasm"))
-            command.add(cmd_args("--library-artifact=", _compiled(ctx, library, artifact), delimiter = ""))
+            artifact = _compiled(ctx, library, "library{}-{}".format(index, library.basename.removesuffix(".wasm")))
+            add("--library-artifact=" + artifact.basename, [artifact])
     for module in ctx.attrs.linked:
-        command.add(cmd_args("--file=", module[DefaultInfo].default_outputs[0], delimiter = ""))
+        wasm = module[DefaultInfo].default_outputs[0]
+        add("--file=" + wasm.basename, [wasm])
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
     app_types = ctx.attrs.app_types or [None] * len(ctx.attrs.manifests)
     for manifest, module, files, types in zip(ctx.attrs.manifests, ctx.attrs.modules, data, app_types):
         if only_libraries:
             break
         wasm = module[DefaultInfo].default_outputs[0]
-        command.add(cmd_args(manifest, wasm, delimiter = "="))
+        add(cmd_args(manifest, wasm.basename, delimiter = "="), [manifest, wasm])
         if files:
-            command.add(cmd_args("--data=", files, delimiter = ""))
+            add(cmd_args("--data=", files, delimiter = ""), [files])
         if ctx.attrs.precompiler or ctx.attrs.precompiled:
-            command.add(cmd_args("--artifact=", _compiled(ctx, wasm), delimiter = ""))
+            artifact = _compiled(ctx, wasm)
+            add("--artifact=" + artifact.basename, [artifact])
         for type_module in types[DefaultInfo].default_outputs if types else []:
-            command.add(cmd_args("--app-type=", type_module, delimiter = ""))
+            add(cmd_args("--app-type=", type_module, delimiter = ""), [type_module])
             if ctx.attrs.precompiler or ctx.attrs.precompiled:
-                command.add(cmd_args("--type-artifact=", _compiled(ctx, type_module), delimiter = ""))
+                artifact = _compiled(ctx, type_module)
+                add("--type-artifact=" + artifact.basename, [artifact])
     for module in ctx.attrs.bindgen:
         wasm = module[DefaultInfo].default_outputs[0]
         bindings = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + "-bindings", dir = True)
@@ -201,10 +234,20 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
             category = "wasm_bindgen",
             identifier = wasm.basename,
         )
-        command.add(cmd_args("--tree=", bindings, delimiter = ""))
+        add(cmd_args("--tree=", bindings, delimiter = ""), [bindings])
     if ctx.attrs.index:
-        command.add("--index")
+        add("--index")
     ctx.actions.run(command, category = "program")
+
+    # Not content-based: buck2 would lay the directory out once and copy it to a path
+    # named for its hash, so the executable, the one file copied, would take twice the space.
+    out = ctx.actions.declare_output(ctx.label.name, dir = True, has_content_based_path = False)
+    ctx.actions.dynamic_output(
+        dynamic = [layout],
+        inputs = [],
+        outputs = [out.as_output()],
+        f = lambda ctx, artifacts, outputs: _lay_out(ctx, artifacts[layout].read_json(), arguments, generated, name, outputs[out]),
+    )
     archive = ctx.actions.declare_output(ctx.label.name + ".programz")
     ctx.actions.run(
         cmd_args(ctx.attrs._archiver[RunInfo], "pack", out, archive.as_output()),
