@@ -132,9 +132,6 @@ interface types {
         block: block-id,
         kind: key-kind,
         epoch: u64,
-        /// A scope key of an owner-only block: sealed to its author alone,
-        /// never wrapped by another key nor sealed to the escrow key.
-        owner-only: bool,
     }
 
     variant wrapped-by {

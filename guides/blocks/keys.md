@@ -88,8 +88,8 @@ by the current one over `EscrowKey::chained`.
 
 An owner-only block is never escrowed
 (decisions/owner_only_settings_are_never_escrowed.md): its scope key
-(`KeyRow::owner_only`, which the server sets when serving rows) is sealed to its
-author alone, not wrapped under the scope above nor sealed to the escrow key
+has a version-8 id (`be_block_protocol::owner_only_key`), bound into every seal
+of it so a server cannot relabel it, and is sealed to its author alone, not wrapped under the scope above nor sealed to the escrow key
 (`KeyBook::mint_own_scope`; `escrow_wrap` and `Peer`'s moves skip it), and
 `store_keys` refuses any other wrap of it. Key work never lists it as
 unescrowed, a rotation by anyone else leaves it out (it needs nothing from the

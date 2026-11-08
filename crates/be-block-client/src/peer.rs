@@ -840,36 +840,21 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         parent: BlockParent,
     ) -> Result<Uuid, ClientError> {
-        self.create_block(block, C::CONTENT_TYPE, parent, &BlockMetadata::default())
-            .await
-            .map(|summary| summary.id)
+        self.create_block(
+            block,
+            C::CONTENT_TYPE,
+            parent,
+            &BlockMetadata::default(),
+            false,
+        )
+        .await
+        .map(|summary| summary.id)
     }
 
+    /// Makes a block. With `owner_only`, only this account reads it, on any of its devices: its
+    /// own scope root, whose key is sealed to this account alone and never escrowed
+    /// (`KindVisibility::Owner`), made only in this account's own settings.
     pub async fn create_block(
-        &self,
-        block: Uuid,
-        content_type: Uuid,
-        parent: BlockParent,
-        metadata: &BlockMetadata,
-    ) -> Result<BlockSummary, ClientError> {
-        self.make_block(block, content_type, parent, metadata, false)
-            .await
-    }
-
-    /// Makes a block only this account reads, on any of its devices: its own scope root, whose
-    /// key is sealed to this account alone and never escrowed (`KindVisibility::Owner`).
-    pub async fn create_owner_only(
-        &self,
-        block: Uuid,
-        content_type: Uuid,
-        parent: BlockParent,
-        metadata: &BlockMetadata,
-    ) -> Result<BlockSummary, ClientError> {
-        self.make_block(block, content_type, parent, metadata, true)
-            .await
-    }
-
-    async fn make_block(
         &self,
         block: Uuid,
         content_type: Uuid,
@@ -1047,7 +1032,13 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(());
         }
         match self
-            .create_block(block, content_type, parent, &BlockMetadata::default())
+            .create_block(
+                block,
+                content_type,
+                parent,
+                &BlockMetadata::default(),
+                false,
+            )
             .await
         {
             Ok(_) => Ok(()),
@@ -1795,7 +1786,7 @@ impl<S: ObjectStore> Peer<S> {
         while !level.is_empty() {
             let mut below = Vec::new();
             for node in level {
-                if node.id != block && !node.access.can_view() {
+                if node.id != block && (!node.access.can_view() || node.owner_only) {
                     continue;
                 }
                 if node.id != block && node.scope == Some(node.id) {

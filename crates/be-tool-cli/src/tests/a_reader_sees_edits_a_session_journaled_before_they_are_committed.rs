@@ -20,6 +20,7 @@ async fn read() {
         TextContent::CONTENT_TYPE,
         BlockParent::Root,
         &BlockMetadata::named("Notes"),
+        false,
     )
     .await
     .unwrap();

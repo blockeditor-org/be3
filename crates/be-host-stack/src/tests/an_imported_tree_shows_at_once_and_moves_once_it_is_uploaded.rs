@@ -22,6 +22,7 @@ fn folder(parent: be_block_graph::BlockParent) -> Uuid {
         parent,
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     block
 }
@@ -41,6 +42,7 @@ fn an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded() {
             be_block_graph::BlockParent::Block(inner),
             be_block::BlockMetadata::default(),
             None,
+            false,
         );
         open(counter, CounterContent::CONTENT_TYPE);
         add(counter, count);

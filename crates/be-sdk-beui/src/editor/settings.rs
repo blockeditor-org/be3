@@ -385,21 +385,14 @@ impl Editor {
                 self.create_settings_block(owner, content)?
             }
         };
-        match R::VISIBILITY.owner_only() {
-            true => self.blocks().create_owner_only(
-                block,
-                kind,
-                Some(content.encode()),
-                BlockParent::Block(settings),
-            ),
-            false => self.blocks().create_at(
-                block,
-                kind,
-                Some(content.encode()),
-                BlockParent::Block(settings),
-                be_block::BlockMetadata::default(),
-            ),
-        };
+        self.blocks().create_at(
+            block,
+            kind,
+            Some(content.encode()),
+            BlockParent::Block(settings),
+            be_block::BlockMetadata::default(),
+            R::VISIBILITY.owner_only(),
+        );
         if R::VISIBILITY == KindVisibility::Inside {
             self.host()
                 .set_access(block, ANYONE_INSIDE, AccessLevel::View);
@@ -432,6 +425,7 @@ impl Editor {
             Some(content.encode()),
             BlockParent::Block(owner),
             be_block::BlockMetadata::default(),
+            false,
         );
         blocks.define(
             owner,

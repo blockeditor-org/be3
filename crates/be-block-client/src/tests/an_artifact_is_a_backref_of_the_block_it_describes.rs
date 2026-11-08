@@ -41,6 +41,7 @@ async fn an_artifact_is_a_backref_of_the_block_it_describes() {
             ImageContent::CONTENT_TYPE,
             BlockParent::Root,
             &described(source),
+            false,
         )
         .await
         .unwrap()

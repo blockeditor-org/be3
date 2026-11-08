@@ -234,6 +234,7 @@ async fn folder(
             content_type,
             parent,
             &metadata.unwrap_or_else(|| BlockMetadata::named(name)),
+            false,
         )
         .await
         .map_err(text)?

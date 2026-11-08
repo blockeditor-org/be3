@@ -36,6 +36,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
         BlockParent::Root,
         BlockMetadata::default(),
         None,
+        false,
     );
     be_host_stack::create(
         copy,
@@ -47,6 +48,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
             metadata
         },
         None,
+        false,
     );
     be_host_stack::create(
         elsewhere,
@@ -54,6 +56,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
         BlockParent::Root,
         BlockMetadata::default(),
         None,
+        false,
     );
     let instances = placed_on(copy, TextContent::CONTENT_TYPE);
     let scope = instances.scope(INSTANCE);

@@ -63,6 +63,7 @@ async fn workspace(peer: &Peer<MemoryStore>) -> Uuid {
         WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &BlockMetadata::named("Code"),
+        false,
     )
     .await
     .unwrap();
@@ -76,6 +77,7 @@ async fn folder(peer: &Peer<MemoryStore>, parent: Uuid, name: &str) -> Uuid {
         FolderContent::CONTENT_TYPE,
         BlockParent::Block(parent),
         &BlockMetadata::named(name),
+        false,
     )
     .await
     .unwrap();
@@ -120,6 +122,7 @@ async fn block<C: BlockContent>(
         C::CONTENT_TYPE,
         BlockParent::Block(parent),
         &BlockMetadata::named(name),
+        false,
     )
     .await
     .unwrap();

@@ -185,6 +185,7 @@ impl<S: ObjectStore> Peer<S> {
             references: block.metadata.references(),
             key,
             keys: keys.clone(),
+            // Block files hold no owner-only block: exporting leaves them out.
             owner_only: false,
         };
         let Some(content) = &block.content else {

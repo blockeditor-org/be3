@@ -81,7 +81,6 @@ pub(crate) fn key_row(
             block: parse_uuid(&block)?,
             kind: decode_kind(&kind)?,
             epoch: u64::try_from(epoch).map_err(|_| ServerError::Corrupt)?,
-            owner_only: false,
         })
     })
     .transpose()
@@ -113,7 +112,6 @@ pub(crate) fn keys_of_block(
             block,
             kind: decode_kind(&kind)?,
             epoch: u64::try_from(epoch).map_err(|_| ServerError::Corrupt)?,
-            owner_only: false,
         });
     }
     Ok(keys)
@@ -160,8 +158,7 @@ pub(crate) fn served_keys(
         if !seen.can_view(graph, block) {
             continue;
         }
-        for mut row in keys_of_block(connection, identity.organization, block)? {
-            row.owner_only = owner_only_scope(graph, &row);
+        for row in keys_of_block(connection, identity.organization, block)? {
             keys.insert(row.id, row);
         }
     }
@@ -250,9 +247,9 @@ pub(crate) fn store_keys(
                 ),
             ));
         }
-        if row.owner_only != owner_only_scope(graph, row) {
+        if be_block_protocol::owner_only_key(row.id) != owner_only_scope(graph, row) {
             return Err(refused(format!(
-                "key {} is marked owner-only exactly when it is the scope key of an owner-only block",
+                "key {} has an owner-only id exactly when it is the scope key of an owner-only block",
                 row.id
             )));
         }

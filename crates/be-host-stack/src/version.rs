@@ -1845,7 +1845,7 @@ async fn create(
 ) -> Result<(), String> {
     let summary = match context
         .peer
-        .create_block(block, content_type, parent, &metadata)
+        .create_block(block, content_type, parent, &metadata, false)
         .await
     {
         Ok(summary) => summary,

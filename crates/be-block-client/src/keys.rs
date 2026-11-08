@@ -172,7 +172,6 @@ impl KeyBook {
                         block: self.organization,
                         kind: KeyKind::Escrow,
                         epoch: escrow.epoch,
-                        owner_only: false,
                     });
                 }
             }
@@ -536,11 +535,13 @@ impl KeyBook {
             .last()
             .map_or(1, |row| row.epoch + 1);
         let row = KeyRow {
-            id: Uuid::new_v4(),
+            id: match owner_only {
+                true => be_block_protocol::owner_only_key_id(),
+                false => Uuid::new_v4(),
+            },
             block,
             kind,
             epoch,
-            owner_only,
         };
         self.ring.insert(row.id, ContentKey::random());
         self.trusted.lock().unwrap().insert(row.id);
@@ -597,9 +598,10 @@ impl KeyBook {
         ))
     }
 
-    /// Whether `key` is an owner-only block's scope key, which nothing else may wrap.
+    /// Whether `key` is an owner-only block's scope key, which nothing else may wrap. Told by
+    /// the key's own id, which every seal of it binds, so the server cannot say otherwise.
     pub fn owner_only(&self, key: Uuid) -> bool {
-        self.row(key).is_some_and(|row| row.owner_only)
+        be_block_protocol::owner_only_key(key)
     }
 
     pub fn record(&self, set: &KeySet) {

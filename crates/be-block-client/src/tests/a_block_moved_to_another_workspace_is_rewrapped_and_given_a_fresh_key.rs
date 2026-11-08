@@ -11,6 +11,7 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
         WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &BlockMetadata::named(name),
+        false,
     )
     .await
     .unwrap()

@@ -766,7 +766,6 @@ fn row(id: Uuid, block: Uuid, kind: KeyKind) -> KeyRow {
         block,
         kind,
         epoch: 1,
-        owner_only: false,
     }
 }
 

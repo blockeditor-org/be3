@@ -18,6 +18,7 @@ fn a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again() {
         BlockParent::Root,
         be_block::BlockMetadata::default(),
         Some(listing.encode()),
+        false,
     );
     create(
         note,
@@ -25,6 +26,7 @@ fn a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again() {
         BlockParent::Block(folder),
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     hold(folder, FolderContent::CONTENT_TYPE);
     let deleted = |shared: &Shared| shared.graph.deleted_root(note);

@@ -40,6 +40,7 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
                 WorkspaceContent::CONTENT_TYPE,
                 be_block_graph::BlockParent::Root,
                 &be_block::BlockMetadata::named("Sharer's"),
+                false,
             )
             .await
             .unwrap()

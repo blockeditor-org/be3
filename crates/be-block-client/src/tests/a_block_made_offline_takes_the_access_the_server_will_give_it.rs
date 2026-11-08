@@ -29,6 +29,7 @@ async fn a_block_made_offline_takes_the_access_the_server_will_give_it() {
             be_block_graph::TAGS_TYPE,
             BlockParent::Block(team),
             &be_block::BlockMetadata::default(),
+            false,
         )
         .await
         .unwrap();

@@ -1016,28 +1016,8 @@ pub fn name_when_created(block: Uuid, name: String) {
     PENDING_NAMES.with(|pending| pending.borrow_mut().insert(block, name));
 }
 
+/// Makes a block; with `owner_only`, one only this account reads (`KindVisibility::Owner`).
 pub fn create(
-    block: Uuid,
-    content_type: Uuid,
-    parent: be_block_graph::BlockParent,
-    metadata: be_block::BlockMetadata,
-    content: Option<Vec<u8>>,
-) {
-    make(block, content_type, parent, metadata, content, false);
-}
-
-/// Makes a block only this account reads, on any of its devices (`KindVisibility::Owner`).
-pub fn create_owner_only(
-    block: Uuid,
-    content_type: Uuid,
-    parent: be_block_graph::BlockParent,
-    metadata: be_block::BlockMetadata,
-    content: Option<Vec<u8>>,
-) {
-    make(block, content_type, parent, metadata, content, true);
-}
-
-fn make(
     block: Uuid,
     content_type: Uuid,
     parent: be_block_graph::BlockParent,
@@ -1335,7 +1315,7 @@ pub fn import_file(
         reply: Box::new(move |content| {
             reply(content.map(|(content_type, content)| {
                 let block = Uuid::new_v4();
-                create(block, content_type, parent, metadata, Some(content));
+                create(block, content_type, parent, metadata, Some(content), false);
                 (block, content_type)
             }));
         }),

@@ -87,6 +87,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
             &be_block::BlockMetadata::named("Another"),
+            false,
         )
         .await
         .unwrap_err();
@@ -97,6 +98,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
             Uuid::from_u128(0xf01d),
             BlockParent::Root,
             &be_block::BlockMetadata::named("A folder at the top"),
+            false,
         )
         .await
         .unwrap_err();
@@ -111,6 +113,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
             &be_block::BlockMetadata::named("Not mine"),
+            false,
         )
         .await;
     assert!(squatted.is_ok(), "an id no account's My files uses is free");
@@ -120,6 +123,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
             &be_block::BlockMetadata::named("Not mine"),
+            false,
         )
         .await
         .unwrap_err();

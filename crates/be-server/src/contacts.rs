@@ -345,6 +345,15 @@ impl ServerStore {
                         format!("block {} is not managed by this account", grant.block),
                     ));
                 }
+                if graph.owner_only_root(grant.block).is_some() {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!(
+                            "block {} is readable by its author alone, so it is shared with no one",
+                            grant.block
+                        ),
+                    ));
+                }
                 if !store
                     .policies(graph, database, grant.organization)?
                     .shares_outside()
@@ -476,6 +485,7 @@ impl ServerStore {
                 let owner_role = role_in(&transaction, owner, grant.organization)?;
                 let may_grant = is_member_of(&transaction, caller, grant.organization)?
                     && graph.contains(grant.block)
+                    && graph.owner_only_root(grant.block).is_none()
                     && owner_role.is_some_and(|role| {
                         visibility(Identity {
                             account: owner,

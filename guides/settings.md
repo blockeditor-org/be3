@@ -67,13 +67,16 @@ A kind with `KindVisibility::Owner` (an app's key for an outside service, where 
 up to) is readable by the account that made it alone, on any of its devices, administrators and
 the server included (decisions/owner_only_settings_are_never_escrowed.md). Its block is made
 `owner-only`: `RootSetting::owner_only` (which `SettingsLayers` picks from `VISIBILITY`) and
-`ensure_block_kind` create it with `Blocks::create_owner_only`, the app protocol's `create-block`
-carries the flag, and the host makes it with `Peer::create_owner_only`. The block protocol's
+`ensure_block_kind` pass `owner_only` to `Blocks::create_at`, the app protocol's `create-block`
+carries the flag, and the host passes it to `Peer::create_block`. It is made only in the
+author's own `Settings` or `SettingsProfile` (`be_block::holds_owner_only`, checked by the host
+and the server), nothing moves into it, block files leave it out, and collecting a detached
+subtree takes it with its parent. The block protocol's
 `create-block` stores it on the block for its whole life (`BlockNode::owner_only`), and the
 block is a scope root of its own whose key is sealed to its author alone (guides/blocks/keys.md,
 Escrow). Everyone else, administrators too, at most knows it exists
 (`BlockGraph::closed_to`, `Visibility::inherited` in `be-server/src/blocks.rs`); only the
-author moves it, and no one is granted it. Like every kind it syncs to every device unless a
+author moves it, and no one is granted it, by `set-access` or a contact link. Like every kind it syncs to every device unless a
 profile keeps it, and belongs to one organization. Losing the recovery phrase loses it, which
 the Settings list says in a company organization (`ONLY_YOURS` in `root/ui.rs`); an app holding
 a key just asks to connect again.

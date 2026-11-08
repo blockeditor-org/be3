@@ -5,8 +5,15 @@ Its block is made `owner-only`, a flag the server stores on the block for its
 whole life: the block is its own scope root, its key is sealed only to the
 author's identity, never wrapped under the scope above and never sealed to the
 organization's escrow key, and the server lets no one else open, move or share
-it, administrators included. They can still see that it exists, since the
-account's `Settings` references it, and deleting the account deletes it.
+it, administrators included: an administrator sees that the block exists
+(`KnowExists`, since the account's `Settings` references it) but cannot open
+it. An administrator who deletes the account's settings, or the account, has
+the block collected with them. It is made only in its author's own `Settings`
+or settings profile, so no one plants one where someone else pays for it.
+
+The key is told apart by its id (a version-8 UUID, `owner_only_key`), which
+every seal of the key binds, so a server cannot have a device escrow it by
+claiming it is ordinary.
 
 ## Why
 
