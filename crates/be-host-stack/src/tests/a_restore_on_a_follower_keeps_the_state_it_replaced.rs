@@ -37,9 +37,13 @@ fn a_restore_on_a_follower_keeps_the_state_it_replaced() {
     assert!(outside.is_owner(), "the other peer owns the session");
 
     let (send, receive) = std::sync::mpsc::channel();
-    revisions::request(block, Asked::Restore(*first.hash().as_bytes()), move |reply| {
-        send.send(reply).unwrap();
-    });
+    revisions::request(
+        block,
+        Asked::Restore(*first.hash().as_bytes()),
+        move |reply| {
+            send.send(reply).unwrap();
+        },
+    );
     assert!(matches!(
         receive.recv().expect("the restore answers"),
         Answered::Restored(Ok(()))

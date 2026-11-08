@@ -17,7 +17,9 @@ fn a_pending_edit_of_any_kind_carries_over_onto_content_loaded_afresh() {
     let mut before = caption("hello brave new world", Vec::new());
     for _ in 0..5 {
         before.apply(&type_into(&before, 1, 0, "scratch "));
-        let erase = sequence(&before).delete(0..8).expect("the scratch is there");
+        let erase = sequence(&before)
+            .delete(0..8)
+            .expect("the scratch is there");
         before.apply(&text_edit(erase));
     }
     let delete = sequence(&before).delete(12..16).expect("\"new \" is there");
@@ -34,7 +36,11 @@ fn a_pending_edit_of_any_kind_carries_over_onto_content_loaded_afresh() {
         &|_| text_edit(undelete.clone()),
         &|old| {
             let len = sequence(old).len();
-            text_edit(sequence(old).move_range(0..6, len).expect("the range moves"))
+            text_edit(
+                sequence(old)
+                    .move_range(0..6, len)
+                    .expect("the range moves"),
+            )
         },
         &|old| format(old, 2, 0..5, "bold", Some(MarkValue::Bool(true))),
         &|old| {
