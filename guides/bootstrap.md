@@ -75,15 +75,18 @@ name that is its content's hash never changes what it points at, and nothing
 deletes them, so every commit's pins keep working.
 
 Every commit is verified with the release pinned before it, so whatever that
-release passes to, reads from or writes into the tree (the `//:verify` and
-`//:verify-manifest` parts it builds and the manifests they write, test.bxl's parameters and its
+release passes to, reads from or writes into the tree (verify.bxl's parameters and the
+manifest it prints, test.bxl's parameters and its
 `target<TAB>directory` lines, each directory holding `log`, `status` and
 `changed/` as crates/be-tool-run-test's `--record` writes them,
 be-tool-verify's flags, the names in scripts/internal/pins,
 build-info.json's path and keys, env vars) has to keep working with it, or that
 commit's verify fails. Renaming one takes steps, each landing after CI pins
 the release built from the step before: first the bootstrap speaks the new name
-while the tree accepts both, then the tree drops the old one. A value the
+while the tree accepts both, then the tree drops the old one. Or, in one step, the
+pull request sets `BE3_BOOTSTRAP: cargo` in .github/workflows/ci.yml, so its CI runs the
+checkout's own bootstrap, and drops it in a commit of its own once the autofix job has pinned
+the release that run published. A value the
 release writes that nothing in verify checks, such as build-info.json's
 `program_id` or default server, changes in one step: until the new pin lands
 that branch's builds carry the old value, and `./scripts/deploy`, the one check

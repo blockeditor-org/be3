@@ -4,7 +4,7 @@ load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "with_modifiers")
 # The release of the bootstrap for every platform a person or CI runs the
 # scripts on, in cargo's release profile whatever the command asked for, laid
 # out as <triple>/bootstrap(.exe). CI uploads each by its SHA-256 and pins it
-# in scripts/internal/pins (//:verify[bootstrap], buck/dev/verify.bzl).
+# in scripts/internal/pins (the bootstrap part of buck/dev/verify.bxl).
 
 _PLATFORMS = {
     "linux_x86_64": "x86_64-unknown-linux-gnu",

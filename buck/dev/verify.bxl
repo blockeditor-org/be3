@@ -1,0 +1,139 @@
+load("//buck/dev:test.bzl", "TestRunInfo")
+
+# Everything ./scripts/verify and ./scripts/ci build, in one buck2 command,
+# found by query rather than named in a list:
+#
+#   ./scripts/buck bxl --keep-going //buck/dev/verify.bxl:main -- --host linux_x86_64 --part lint --part tests
+#
+# Always: crates/be-tool-verify, which reads the rest afterwards, Cargo.lock
+# and the crate rules generated anew (//:cargo-plan) and the sysroot's
+# lockfile (buck/sysroot:lock). Each --part adds what it names:
+#
+# - lint: every package's autofixes, each source_fix in the root and
+#   toolchains cells (package_fix, buck/dev/verify.bzl);
+# - tests: every test that does not paint (_be_test, buck/dev/test.bzl), run
+#   as its [run] action, and the check pass (_checks);
+# - app-tests: every test that paints, the same way;
+# - previews: the paint preview renderer and the paint review site;
+# - bootstrap: crates/be-tool-bootstrap's binaries scripts/internal/pins does
+#   not name (//scripts/internal:bootstrap-unpinned[publish]).
+#
+# Each test is configured as a command naming it alone would configure it, on
+# its own default platform, so the HTML core's tests build on
+# linux_x86_64_html; the tools run here are built for --host, a platform in
+# buck/platforms, and the rest for linux_x86_64. The script declares no action
+# of its own: an action declared in BXL has its output under a path keyed by
+# the script's arguments, so two runs with different flags, or a `buck2
+# build` of the same target, would not share it. It only analyses targets and
+# ensures what they already build.
+#
+# It prints what crates/be-tool-verify reads, a "kind<TAB>path" line each, or
+# for a test's paintings "paintings<TAB>package<TAB>path", the package holding
+# the snapshots/ they belong in. Those are worked out before anything builds,
+# so with --keep-going the list is whole even when some fail, and buck2 still
+# exits non-zero; crates/be-tool-verify reads what did build. An action that
+# failed can still leave an earlier run's output at its path, so it writes a
+# fix or a painting only where the checkout still holds what it was made from.
+
+_LINUX = "root//buck/platforms:linux_x86_64"
+
+_PARTS = ["lint", "tests", "app-tests", "previews", "bootstrap"]
+
+def _output(ctx: bxl.Context, label: str, platform: str = _LINUX) -> Artifact:
+    providers = ctx.analysis(ctx.configured_targets(label, target_platform = platform)).providers()
+    return providers[DefaultInfo].default_outputs[0]
+
+# Every test, configured for its own default platform; one incompatible with
+# that is left out.
+def _tests(ctx: bxl.Context):
+    labels = [str(target.label) for target in ctx.uquery().kind("^_be_test$", "root//...")]
+    return ctx.configured_targets(labels)
+
+# The check pass ([check], rustc's metadata build with every lint) over each
+# first-party Rust library and binary on linux_x86_64 that nothing else verify
+# builds compiles: a warning fails a compile, so a target that is compiled
+# anyway is already checked, and checking it again would be a second rustc
+# run. A target counts as compiled when a test's configured graph holds it in
+# that very configuration, deps a BUCK file adds included; a proc macro is
+# built only for the execution platform, so it is always checked here, and a
+# test's harness is left to its test, which builds it for the test's own
+# platform. Of the rest, a target another of them depends on is left to that
+# one's check, which compiles it.
+def _checks(ctx: bxl.Context, tests) -> list[Artifact]:
+    harnesses = {test.attrs_lazy().get("harness").value().raw_target(): True for test in tests}
+    labels = [str(target.label) for target in ctx.uquery().kind("^rust_(library|binary)$", "root//crates/...")]
+    candidates = ctx.configured_targets(labels, target_platform = _LINUX)
+    built = {target.label: True for target in ctx.cquery().deps(tests)}
+    unchecked = [target for target in candidates if target.label not in built and target.label.raw_target() not in harnesses]
+    below = []
+    for target in unchecked:
+        below.extend(target.deps())
+    covered = {target.label: True for target in ctx.cquery().deps(bxl.ctarget_set(below))} if below else {}
+    checks = []
+    for target in unchecked:
+        if target.label in covered:
+            continue
+        sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets
+        if "check" in sub_targets:
+            checks.append(sub_targets["check"][DefaultInfo].default_outputs[0])
+    return checks
+
+# Each test's [run] output, by whether it paints: a run_apart test's runs are
+# its parts', which are tests of their own too, so each is taken once.
+def _runs(ctx: bxl.Context, tests) -> (list, list):
+    plain, paintings, seen = [], [], {}
+    for target in tests:
+        info = ctx.analysis(target).providers()[TestRunInfo]
+        for run in info.runs:
+            if run in seen:
+                continue
+            seen[run] = True
+            if info.paints:
+                paintings.append(("paintings\t" + target.label.package, run))
+            else:
+                plain.append(run)
+    return plain, paintings
+
+def _impl(ctx: bxl.Context):
+    args = ctx.cli_args
+    for part in args.part:
+        if part not in _PARTS:
+            fail("--part is one of {}, not {}".format(", ".join(_PARTS), part))
+    host = "root//buck/platforms:" + args.host
+    read = [
+        ("verify", _output(ctx, "root//crates/be-tool-verify:release", host)),
+        ("buckify", _output(ctx, "root//:cargo-plan")),
+        ("sysroot", _output(ctx, "root//buck/sysroot:lock")),
+    ]
+    built = []
+    if "lint" in args.part:
+        fixes = ctx.uquery().kind("^source_fix$", ctx.uquery().eval("root//... + toolchains//..."))
+        for fix in ctx.configured_targets([str(target.label) for target in fixes]):
+            read.append(("fix", ctx.analysis(fix).providers()[DefaultInfo].default_outputs[0]))
+    if "tests" in args.part or "app-tests" in args.part:
+        tests = _tests(ctx)
+        plain, paintings = _runs(ctx, tests)
+        if "tests" in args.part:
+            built.extend(plain)
+            built.extend(_checks(ctx, tests))
+        if "app-tests" in args.part:
+            read.extend(paintings)
+    if "previews" in args.part:
+        read.append(("local-tools", _output(ctx, "root//crates/be-tool-local:release", host)))
+        read.append(("browser-rasterizer", _output(ctx, "root//crates/be-tool-browser-rasterizer:release", host)))
+        read.append(("paint-review-site", _output(ctx, "root//crates/be-tool-paint-review-web:web-release")))
+    if "bootstrap" in args.part:
+        unpinned = ctx.analysis(ctx.configured_targets("root//scripts/internal:bootstrap-unpinned", target_platform = _LINUX)).providers()
+        read.append(("bootstrap", unpinned[DefaultInfo].sub_targets["publish"][DefaultInfo].default_outputs[0]))
+    paths = ctx.output.ensure_multiple([artifact for _, artifact in read])
+    ctx.output.ensure_multiple(built)
+    for (kind, _), path in zip(read, paths):
+        ctx.output.print(kind, path.abs_path(), sep = "\t")
+
+main = bxl_main(
+    cli_args = {
+        "host": cli_args.string(),
+        "part": cli_args.list(cli_args.string(), default = []),
+    },
+    impl = _impl,
+)

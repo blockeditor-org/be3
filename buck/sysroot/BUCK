@@ -7,8 +7,8 @@ load(":packages.bzl", "packages")
 # glibc, libstdc++ and every system library a crate links - unpacked into a
 # sysroot the toolchain passes with --sysroot, so a worker's image is only what
 # runs the tools. They come from a snapshot of the archive, which pins every
-# index; ./scripts/buck run //:lock-sysroot resolves the list below into
-# packages.bzl.
+# index; ./scripts/verify resolves the list below into packages.bzl
+# (buck/sysroot:lock, which crates/be-tool-verify copies into place).
 
 snapshot = "20260915T000000Z"
 
@@ -144,16 +144,10 @@ pkg_config(
 # LD_LIBRARY_PATH loads it from there.
 export_file(
     name = "lavapipe_icd.json",
-    visibility = ["PUBLIC"],
-)
-
-export_file(
-    name = "lock.sh",
 )
 
 export_file(
     name = "deb_sysroot.sh",
-    visibility = ["PUBLIC"],
 )
 
 package_fix(exclude = ["packages.bzl"])

@@ -4,17 +4,10 @@
 
 load("//buck/cargo:buckify.bzl", "cargo_plan")
 load("//buck/cargo:crates.bzl", "crates")
-load("//buck/dev:verify.bzl", "package_fix", "verify")
+load("//buck/dev:verify.bzl", "package_fix")
 
 # The root's own Starlark; every other package's :fix is its own.
 package_fix(starlark = ["BUCK.v2", "PACKAGE"])
-
-# Everything ./scripts/verify and ./scripts/ci build, in parts
-# (buck/dev/verify.bzl): `./scripts/buck build //:verify[tests]`.
-verify(
-    name = "verify",
-    buckify = ":cargo-plan",
-)
 
 # buck/cargo/crates.bzl and Cargo.lock generated from the Cargo.toml files of
 # the crates it names (buck/cargo/buckify.bzl).
@@ -40,12 +33,11 @@ export_file(
 )
 
 # The commands a person runs, started from the root once buck2 has built what
-# each names. ./scripts/verify and ./scripts/ci are scripts that build
-# //:verify and then run what read it, so that each is one buck2 command.
+# each names. ./scripts/verify and ./scripts/ci are one buck2 command each,
+# buck/dev/verify.bxl, then crates/be-tool-verify, which reads what it built.
 #
 #   ./scripts/buck run //:fuzz
 #   ./scripts/buck run //:buckify [-- --check]
-#   ./scripts/buck run //:lock-sysroot
 #   ./scripts/buck run //:pdfium -- REVISION
 #   ./scripts/buck run //:rust-project
 
@@ -60,14 +52,6 @@ command_alias(
     args = [
         "sh",
         "$(location //buck/cargo:update.sh)",
-    ],
-)
-
-command_alias(
-    name = "lock-sysroot",
-    args = [
-        "sh",
-        "$(location //buck/sysroot:lock.sh)",
     ],
 )
 

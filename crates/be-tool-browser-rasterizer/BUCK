@@ -3,7 +3,7 @@ load("@root//buck/platforms:profile.bzl", "released")
 
 cargo_binary()
 
-# What CI downloads to draw the paint previews (//:verify[previews], buck/dev/verify.bzl).
+# What CI downloads to draw the paint previews (the previews part of buck/dev/verify.bxl).
 released(
     name = "release",
     actual = ":bin",

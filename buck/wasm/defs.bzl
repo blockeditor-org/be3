@@ -8,7 +8,6 @@ load(
     "cargo_test_sources",
     "cargo_wasm_facts",
 )
-load("@root//buck/dev:targets.bzl", "MODULES")
 load("@root//buck/dev:test.bzl", "be_test")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "keep_profile", "opt_flags")
@@ -249,23 +248,10 @@ def _needs(libraries):
 # such as crates/be-tool-tls-diamond-base, has a library.rs beside its Cargo.toml that only
 # names the crate, and that is what is linked, so the module holds the very rlib
 # its dependents compile against.
-# Whether the crate's library is its module alone, with no rust_library to
-# check, which buck/dev/targets.bzl's MODULES has to agree with.
-def _module_alone(alone):
-    if alone != (native.package_name() in MODULES):
-        fail(
-            "{} {} a rust_library of its own, so buck/dev/targets.bzl's MODULES {} name it".format(
-                native.package_name(),
-                "has no" if alone else "has",
-                "should" if alone else "should not",
-            )
-        )
-
 def wasm_library(module, libraries = [], rustc_flags = []):
     facts = cargo_wasm_facts()
     linker_flags = _needs(libraries) + ["--be3-library=" + module]
     rustc_flags = _guest_exports + rustc_flags + ([] if libraries else _reactor) + RELEASE_SYMBOL_FLAGS
-    _module_alone(not native.glob(["library.rs"]))
     if native.glob(["library.rs"]):
         cargo_library(rustc_flags = rustc_flags)
         native.rust_library(
@@ -310,7 +296,6 @@ def wasm_library(module, libraries = [], rustc_flags = []):
 # crates/be-tool-tls-diamond-app.
 def linked_app(module, libraries, rustc_flags = []):
     facts = cargo_wasm_facts()
-    _module_alone(True)
     native.rust_library(
         name = "wasm",
         crate = facts.crate,

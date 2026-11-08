@@ -1,4 +1,3 @@
-load("//buck/cargo:crates.bzl", "crates")
 load("//buck/platforms:cross.bzl", "CROSS_PLATFORMS")
 
 # What ./scripts/verify leaves out (decisions/verify_compiles_one_configuration_per_target.md),
@@ -12,18 +11,11 @@ load("//buck/platforms:cross.bzl", "CROSS_PLATFORMS")
 
 _RELEASE = "root//buck/constraints:release"
 
-# The configurations whose crates are the ones cargo plans there
-# (buck/cargo/buckify.sh), by plan name. Each of those plans is cargo asked
-# about a list of packages for that platform alone, so a crate in it is meant
-# to compile there.
-_PLANNED = {
-    "linux_x86_64": "linux-x86_64",
-    "linux_x86_64_html": "linux-x86_64-html",
-    "wasi": "wasi",
-    "wasi_guest": "wasi-guest",
-    "wasi_html": "wasi-html",
-    "wasm32": "wasm32",
-}
+# The configurations whose roots are every first-party Rust library and binary
+# that is compatible there: a workspace crate's targets are incompatible with
+# every platform cargo did not plan the crate for (planned_by_cargo,
+# buck/cargo/defs.bzl), so a crate configured there is meant to compile there.
+_PLANNED = ["linux_x86_64", "linux_x86_64_html", "wasi", "wasi_guest", "wasi_html", "wasm32"]
 
 # The cross platforms' plans are the host's whole workspace for each triple,
 # Linux-only crates included, so their crates are instead what these ship
@@ -48,22 +40,25 @@ _JOBS = [
     ("wasm32", False, True, False),
 ] + [(name, False, True, False) for name in sorted(CROSS_PLATFORMS)]
 
-def _configuration(target) -> str:
-    return str(target.label).rpartition("(")[2].partition("#")[0].rpartition(":")[2]
+# The configuration a target with no transition of its own has on the
+# platform, by name (Configuration itself has no equality).
+def _configuration(ctx: bxl.Context, platform: str, release: bool) -> str:
+    target = ctx.configured_targets(
+        "root//:clippy.toml",
+        modifiers = [_RELEASE] if release else [],
+        target_platform = "root//buck/platforms:" + platform,
+    )
+    return str(target.label.config())
 
-# The libraries and binaries cargo planned on this plan, of the first-party
-# crates, as labels; a binary target is "bin" when its crate has one
-# (cargo_binary in buck/cargo/defs.bzl).
-def _planned(plan: str) -> list[str]:
-    labels = []
-    for directory, crate in crates.items():
-        if not directory.startswith("crates/") or plan not in crate["platforms"]:
-            continue
-        if crate["library"] != None:
-            labels.append("//{}:{}".format(directory, crate["name"]))
-        for binary in crate["platforms"][plan]["binaries"]:
-            labels.append("//{}:{}".format(directory, "bin" if len(crate["binaries"]) == 1 else binary))
-    return labels
+# The roots on a platform cargo plans: every first-party Rust library and
+# binary but proc macros, which are built for the execution platform alone,
+# and tests' harnesses, which their tests build. Those incompatible with the
+# platform drop out when configured (_targets).
+def _planned(ctx: bxl.Context) -> list[str]:
+    targets = ctx.uquery().kind("^rust_(library|binary)$", "root//crates/...")
+    proc_macros = ctx.uquery().attrfilter("proc_macro", "True", targets)
+    harnesses = {str(test.get_attr("harness")): True for test in ctx.uquery().kind("^_be_test$", "root//crates/...")}
+    return [str(target.label) for target in targets - proc_macros if str(target.label) not in harnesses]
 
 # The first-party Rust libraries and binaries the roots build in this
 # configuration, themselves included. A root that does not exist, or is
@@ -71,22 +66,22 @@ def _planned(plan: str) -> list[str]:
 def _targets(ctx: bxl.Context, existing: dict[str, bool], roots: list[str], platform: str, release: bool) -> list:
     lazies = [
         ctx.lazy.configured_target_node(
-            "root" + root,
+            root,
             modifiers = [_RELEASE] if release else [],
             target_platform = "root//buck/platforms:" + platform,
         ).catch()
         for root in roots
-        if "root" + root in existing
+        if root in existing
     ]
     configured = [result.unwrap() for result in ctx.lazy.join_all(lazies).resolve() if result.is_ok()]
     if not configured:
         return []
-    name = platform + ("_release" if release else "")
+    configuration = _configuration(ctx, platform, release)
     closure = ctx.cquery().kind("^rust_(library|binary)$", ctx.cquery().deps(bxl.ctarget_set(configured)))
     return [
         target
         for target in closure
-        if target.label.package.startswith("crates/") and not target.label.name.endswith("-harness") and _configuration(target) == name
+        if target.label.package.startswith("crates/") and not target.label.name.endswith("-harness") and str(target.label.config()) == configuration
     ]
 
 def _subtarget(ctx: bxl.Context, target, name: str):
@@ -96,10 +91,11 @@ def _subtarget(ctx: bxl.Context, target, name: str):
 def _impl(ctx: bxl.Context):
     actions = ctx.bxl_actions().actions
     existing = {str(target.label): True for target in ctx.uquery().eval("kind('^rust_(library|binary)$', //crates/...)")}
+    planned = _planned(ctx)
     checks = {}
     diagnostics = {}
     for platform, release, check, clippy in _JOBS:
-        roots = _planned(_PLANNED[platform]) if platform in _PLANNED else _SHIPPED[platform]
+        roots = planned if platform in _PLANNED else ["root" + root for root in _SHIPPED[platform]]
         for target in _targets(ctx, existing, roots, platform, release):
             key = str(target.label)
             if check and key not in checks:

@@ -9,7 +9,8 @@ through cargo's own plans. Every command and target is in guides/common_commands
 ## Layout
 
 - `.buckconfig`: cells and the execution platform; the prelude is the one bundled in buck2.
-- `BUCK.v2`: the `//:` commands, with their scripts in `buck/dev`, and `//:verify` (below)
+- `BUCK.v2`: the `//:` commands, with their scripts in `buck/dev`, where `verify.bxl` is what
+  `./scripts/verify` builds (below)
   (`BUCK.v2` because a case-insensitive filesystem cannot hold `BUCK` beside `buck/`).
 - `buck/tools`: every compiler and tool, downloaded and pinned by hash and size;
   `buck/toolchains`: the toolchains built from them. Their rules check, at analysis, that the
@@ -154,7 +155,9 @@ crate defining `LLVMFuzzerTestOneInput` (crates/be-lib-sequence/fuzz). It become
 `:fuzz-<name>`, `//:fuzz` finds it, and `:fuzz-<name>-test` fuzzes briefly from a fixed seed.
 Its corpus is kept in `target/fuzz/<crate>/<name>`.
 
-**A system library**: a line in `buck/sysroot/BUCK`, then `./scripts/buck run //:lock-sysroot`.
+**A system library**: a line in `buck/sysroot/BUCK`, then `./scripts/verify --lint`, which
+resolves it into `buck/sysroot/packages.bzl` (any run of verify does; the build it runs still
+uses the old list, so run it again before relying on the package).
 A `-sys` crate's pkg-config is answered from the sysroot by the `_PKG_CONFIG` fixup.
 
 ## Tests
@@ -166,12 +169,20 @@ through crates/be-tool-run-test, which gives it a short `TMPDIR` of its own, its
 `TestRunInfo` says what it runs. buck2 test runs it again every time unless a worker ran it and
 the build server caches the result (`supports_test_execution_caching`), and brings back no
 files, so each `:test` also has `[run]`, the same command as an action, cached like any other;
-`//:verify` builds those (a `run_apart` test's are its parts'). `./scripts/test` runs `buck2 test` with
+`./scripts/verify` builds those (a `run_apart` test's are its parts'). `./scripts/test` runs `buck2 test` with
 `-- --test-arg --nocapture NAME` (`--test-arg` takes everything after it) and an `--event-log`,
 whose `TestResult` events hold every test's whole output, a passing one's too, which the console
 leaves out; it prints each from there. Under `--update` it runs each `:test` as an action
 instead, through `buck/dev/test.bxl` with the launcher's `--record`, and copies the paintings it
 accepted from that action's output, which `buck2 test` brings back none of.
+
+Both actions are `run_test` (buck/dev/test.bzl), one definition with a mode: `passed` and
+`paintings` for `[run]`, which fail when the test does and so are never cached failing, and
+`record` for test.bxl, which succeeds when the test fails so that its log comes back. A failed
+record is cached like a pass, since buck2 keeps no output of a failed action: the bootstrap keeps
+the runs whose last record failed in `target/test-failed` and names them to test.bxl with
+`--again`, which puts a new `--nonce` into those runs' environment alone, so a failing test runs
+again while every passing one still comes from the cache.
 
 - **App tests** are the crate's tests compiled to wasm and run by `be-sdk-test-runner`; they
   read and write only their crate's `snapshots/`, so one crate's paintings leave others cached.
@@ -194,28 +205,27 @@ accepted from that action's output, which `buck2 test` brings back none of.
 
 ## What verify builds
 
-`./scripts/verify` and `./scripts/ci` are one `buck2 build --keep-going` of `//:verify`'s parts
-and the same parts of `//:verify-manifest` (buck/dev/verify.bzl): `[lint]` every `:fix`,
-`[tests]` the tests that do not paint and the check pass, `[app-tests]` those that paint,
-`[previews]` and `[bootstrap]` what `./scripts/ci` asks for, and the target itself crates.bzl and
-the sysroot's lockfile generated anew and crates/be-tool-verify. Each manifest lists, a
-`kind<TAB>path` line each, what crates/be-tool-verify reads afterwards; it is a target of its own
-because a target with a failed action reports no outputs. Any part builds alone:
-`./scripts/buck build //:verify[tests]`. The tools that run here are built for the
-`--target-platforms` the bootstrap names, the rest for `linux_x86_64`.
+`./scripts/verify` and `./scripts/ci` are one `buck2 bxl --keep-going` of `buck/dev/verify.bxl`,
+with `--host` and a `--part` for each part asked for: `lint`, every `source_fix` in the root and
+toolchains cells; `tests`, the `[run]` of every `_be_test` that does not paint and the check pass;
+`app-tests`, those that paint; `previews` and `bootstrap`, what `./scripts/ci` asks for; and
+always the crates' rules and Cargo.lock (`//:cargo-plan`) and the sysroot's lockfile
+generated anew, and crates/be-tool-verify. It finds
+each by kind, so a new package, test or crate needs no list. Each test is configured for its own
+default platform (the HTML core's tests for `linux_x86_64_html`), the tools that run here for
+`--host`, and the rest for `linux_x86_64`. The script declares no action of its own and only
+ensures what targets build, so its outputs are the ones `./scripts/buck build` of the same target
+shares: an action declared in BXL would have its output under a path keyed by the script's
+arguments. It prints the manifest crates/be-tool-verify reads, a `kind<TAB>path` line each,
+worked out before anything builds, so the bootstrap writes it whole to
+`target/verify-manifest.txt` even when something failed, and buck2 still exits non-zero.
 
-A rule cannot find targets by pattern, so `//:verify` names them: from crates.bzl every crate's
-`:fix` and `:test`, and from buck/dev/targets.bzl the packages with no crate, the crates with no
-`:test`, every other test, the tests on another platform, the crates whose library is only a wasm
-module and the binaries not named `bin`. Each list is checked where its targets are defined
-(`package_fix`, `be_test`, `cargo_binary`, the wasm macros), so a target a list lacks fails to
-load with what to add, and a name a list has that is no target fails `//:verify`. The check pass
-(`_checks`) is worked out from crates.bzl's plans, as the targets on `linux_x86_64` nothing else
-compiles: every binary and example, every proc macro, and each library no test, checked target or
-checked library depends on. A crate's own BUCK file can add dependencies its plan does not have,
-so a few targets built anyway are checked too. crates.bzl itself has to name every crate under
-`crates/`: the bootstrap fails before buck2 when it does not, and `//:buckify` plans the new
-crate (buck/cargo/buckify.bxl, the one place that lists `crates/` itself).
+The check pass is rustc's `[check]` over the first-party `rust_library` and `rust_binary`
+targets on `linux_x86_64` that nothing else verify builds compiles, found in the configured
+graph: those that no test's dependencies hold in that same configuration (BUCK-added
+dependencies included), other than a test's harness, which its test builds, and that no other
+such target depends on, since that one's check compiles them. A proc macro is built only for
+the execution platform, so it is always checked.
 
 ## Shipping
 
@@ -277,7 +287,7 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   `cargo_*` macro defines and a package without a crate calls itself): be-tool-buck's `fix` runs
   be-tool-fix-rust-source, then rustfmt, over its Rust files and starlark_fmt over its Starlark;
   a fix that enables another shows up on the next run. A new package outside `crates/` calls
-  `package_fix()` in its BUCK and is named in `PACKAGES` in buck/dev/targets.bzl.
+  `package_fix()` in its BUCK.
 - **`UNAUTHENTICATED`** from the server is a wrong or missing key, which buck2 reports as failing
   to reach it.
 - **Downloads**: every `http_archive` needs `size_bytes` as well as `sha256`, or buck2 sends a

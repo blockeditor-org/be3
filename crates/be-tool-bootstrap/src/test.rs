@@ -211,8 +211,9 @@ fn parts(target: &str, name: &str) -> Option<Vec<String>> {
 
 /// --update runs each test as an action through buck/dev/test.bxl, which keeps
 /// the paintings it accepted for this to copy into the crate's snapshots/. An
-/// action's failure is cached like a pass, so a run asked for again after one
-/// failed adds --nonce, which goes into every test's environment.
+/// action's failure is cached like a pass, so target/test-failed keeps the
+/// runs whose last record failed, and each is named with --again, with a new
+/// --nonce, which goes into those runs' environment alone.
 fn update_paintings(buck2: &Path, targets: &[String], name: String) -> Result<bool> {
     let mut arguments: Vec<String> = ["bxl", "--keep-going", "//buck/dev/test.bxl:main", "--"]
         .into_iter()
@@ -228,13 +229,21 @@ fn update_paintings(buck2: &Path, targets: &[String], name: String) -> Result<bo
         "true".to_owned(),
     ]);
     let failures = repository().join("target/test-failed");
-    let asked = arguments.join(" ");
-    if std::fs::read_to_string(&failures).is_ok_and(|last| last == asked) {
+    let mut failed_before: BTreeSet<String> = std::fs::read_to_string(&failures)
+        .unwrap_or_default()
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect();
+    if !failed_before.is_empty() {
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|since| since.as_nanos())
             .unwrap_or_default();
         arguments.extend(["--nonce".to_owned(), nonce.to_string()]);
+        for again in &failed_before {
+            arguments.extend(["--again".to_owned(), again.clone()]);
+        }
     }
     let (status, output) = buck::retrying(buck2, &arguments, false, true, None)?;
     let mut failed = status != 0;
@@ -242,12 +251,18 @@ fn update_paintings(buck2: &Path, targets: &[String], name: String) -> Result<bo
         let Some((target, directory)) = line.trim_end_matches('\r').split_once('\t') else {
             continue;
         };
-        failed |= !report(target, Path::new(directory));
+        if report(target, Path::new(directory)) {
+            failed_before.remove(target);
+        } else {
+            failed = true;
+            failed_before.insert(target.to_owned());
+        }
     }
-    let _ = if failed {
-        std::fs::write(&failures, asked)
-    } else {
+    let _ = if failed_before.is_empty() {
         std::fs::remove_file(&failures)
+    } else {
+        let listed: String = failed_before.into_iter().map(|line| line + "\n").collect();
+        std::fs::write(&failures, listed)
     };
     Ok(failed)
 }
