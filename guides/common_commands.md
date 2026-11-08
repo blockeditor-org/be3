@@ -100,6 +100,6 @@ An agent shows a visual change with a painting (guides/testing_a_gui.md).
 | `./scripts/buck run //crates/be-lib-sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
 | `./scripts/buckify` | brings `Cargo.lock` and the crates' facts (each `crates/<crate>/PACKAGE`, `buck/cargo/members.bzl`, `third-party/rust/crates.bzl`) up to date with the manifests (the bootstrap's lock step, then the plans on a worker); `BE3_BOOTSTRAP=source` until a bootstrap with it is pinned |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
-| `./scripts/buck run //:pdfium -- REVISION` | regenerates `third-party/pdfium/sources.bzl` from PDFium's GN build at REVISION (a commit, or a branch such as `chromium/8046`), which is how PDFium is updated; it checks PDFium and its DEPS out under `target/pdfium` and needs git, curl and python3 |
+| `./scripts/buck run //:pdfium -- REVISION` | regenerates `third-party/pdfium/sources.bzl` from PDFium's GN build at REVISION (a commit, or a branch such as `chromium/8046`), which is how PDFium is updated; it checks PDFium and its DEPS out under `target/pdfium`, pins the GitHub archive of each repository the build reads by hash and size, and needs git, curl and python3 |
 
 guides/buck2.md has the platforms and profiles these build with (`--target-platforms`, `-m release`).
