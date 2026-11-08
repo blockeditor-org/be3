@@ -9,8 +9,7 @@ close) and whatever the editor registered. It cannot see past the app it is
 in. A text block shown as a direct editor inside a canvas has its palette, and
 the canvas has another, and neither one knows about the workspace. This plan
 replaces them with one palette. It lists the actions of the focused editor, of
-every app that contains it, and of the host. Not implemented yet. Items
-marked **(ask)** need a decision from the user during the work.
+every app that contains it, and of the host. Not implemented yet.
 
 ## What exists
 
@@ -86,8 +85,8 @@ framework: an app written without beui can publish actions the same way.
   - deduplicated by id within one instance only, since two instances' "Undo"
     are two different actions;
   - grouped under the instance's block name, so "Undo" for the text and
-    "Undo" for the canvas can both be shown (**ask**: show both, or only the
-    innermost one of each id).
+    "Undo" for the canvas are both shown, the innermost first: searching
+    "undo" puts the focused editor's at the top.
 - Add the host's own actions: switch account, settings, theme, and the dialogs
   the host owns.
 - Draw the palette with `styled::CommandPalette`. Its rows come from an
@@ -106,7 +105,7 @@ workspace-ui has no actions today. With the palette it should register them
 as ordinary actions in its own document, and they would show up through the
 same protocol:
 
-- quick open (find a file by name), with its own shortcut (**ask**: Ctrl+P);
+- quick open (find a file by name), on Ctrl+P (Cmd+P on macOS);
 - switch to the next and previous tab (Ctrl+Tab already exists in the dock);
 - close the tab, split right and down, show or hide the files pane;
 - new file.
@@ -125,7 +124,8 @@ key unhandled. Two ways to do that:
    only works for keys the focused app does not want, which the host cannot
    know without option 1.
 
-Recommend 1, limited to keys with Ctrl or Alt (**ask**).
+Use 1, limited to keys with Ctrl or Alt, so plain typing never waits on a
+round trip.
 
 ## Tests
 

@@ -101,7 +101,7 @@ opens to your sheets and a button to make one. Not designed yet.
 **Connected apps.** A third party's own product, with its own website and
 login, should be able to connect to a person's account and edit blocks of its
 types wherever they are, without our involvement and on any server.
-`plans/connected_apps.md` has the design, which waits for the server protocol
+`plans/deferred/connected_apps.md` has the design, which waits for the server protocol
 to be frozen.
 
 ## Where it runs
@@ -190,7 +190,7 @@ necessarily the ones that should exist.
 ### Text
 
 A core app for the first release, and the base of note keeping
-(`plans/daily_driver.md`). It has to be fast on large files and feel native,
+(`plans/deferred/daily_driver.md`). It has to be fast on large files and feel native,
 including text input on the web.
 
 ### Infinite canvas
@@ -199,12 +199,12 @@ A core app for the first release. Slides are canvases, so it is also the base
 of presentations. It is headed to be a general 2D vector and raster image
 editor with profiles for different tasks, like Affinity's: prototyping (like
 Excalidraw, and first), vector, raster and interactivity. A profile is how you
-view a canvas, not part of it. `plans/canvas.md` has the plan.
+view a canvas, not part of it. `plans/deferred/canvas.md` has the plan.
 
 ### Files, folders and the workspace
 
 Where you find and organize everything. The file tree is today's only entry
-point (see Extension). Search, history, trash and export (`plans/daily_driver.md`, phase 7) come next.
+point (see Extension). Search, history, trash and export (`plans/deferred/daily_driver.md`, phase 7) come next.
 `be sync` keeps a folder and a directory on disk in step both ways
 (`guides/sync.md`), so that be-host can one day hold its own source code while
 buck2, editors, CI and agents still read real files.
@@ -264,8 +264,9 @@ documents it talks about.
 
 ### Presentation
 
-A deck of slides, each one a canvas. `plans/presentation.md` lists ideas, such
-as speaker notes and following the presenter live.
+A deck of slides, each one a canvas. `plans/presentation.md` plans speaker notes,
+duplicating slides and following the presenter live; `plans/deferred/presentation.md`
+lists later ideas.
 
 ### Pixel art and video
 

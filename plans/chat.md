@@ -103,10 +103,13 @@ A host feature any type can use; chat is the first.
 - First version: the author is whatever the sender wrote, so anyone with Edit
   can post as someone else. The message keeps an empty signature, and the
   bytes to sign are defined from the start.
-- **The signing key.** **(ask)** XEdDSA with the existing identity key, so
-  contacts' verified keys and the key-change chain work unchanged; or an
-  Ed25519 key derived from the identity secret, added to `ContactCard` and to
-  key changes.
+- **The signing key** is an Ed25519 key derived from the identity secret
+  through HKDF, as `EscrowSecret` derives its signing key, and its public half
+  is added to `ContactCard` and to key changes (`seal_key_change`), so a
+  contact verifies it the way it verifies the identity key. Chosen over XEdDSA
+  with the identity key itself: XEdDSA would change no format, but has no
+  well-reviewed Rust implementation, while Ed25519 is already in the tree. No
+  format is frozen, so adding the field costs nothing. Record it as a decision.
 - **Host calls.** `sign(bytes)` and `verify(account, bytes, signature)`
   returning verified, unverified key, or bad. Apps never hold the identity
   secret. Both are calls on the app protocol, with no framework types.

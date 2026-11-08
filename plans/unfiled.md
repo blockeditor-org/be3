@@ -32,7 +32,7 @@ ever holds what they put there themselves. Not implemented yet.
   a move; deleting one moves it to Recently Deleted.
 - **Placing.** `block-location` gains `unfiled`, which the host resolves to the
   account's own Unfiled; apps never learn its id. A connected app
-  (plans/connected_apps.md) creates there through the server, and that plan
+  (plans/deferred/connected_apps.md) creates there through the server, and that plan
   covers how its keys are wrapped. Everything made without a
   place the person chose goes there: a pick with no place, a terminal an app
   makes for a connection (plans/boat.md), an exported dynamic artifact, a

@@ -23,12 +23,11 @@ checking at all.
 
 A manifest's `icon` is a Lucide icon font codepoint (`""`), so an editor
 can only use an icon from the font every beui context carries. Let an editor
-declare any icon: the manifest carries the icon as vector outlines, which the
-host draws with beui's path shape (`beui::Path`) and tints with
-the theme. An editor that uses a `beui::icons` icon names it in its source, and
-the build writes that glyph's outlines into the manifest. **(ask)** vector
-outlines, or icons rasterized at build time at a few sizes. Done: no manifest
-holds a font codepoint.
+declare any icon: the build rasterizes it at a few sizes into the manifest as
+alpha masks, which the host draws tinted with the theme, picking the size
+nearest the one it shows. An editor that uses a `beui::icons` icon names it in
+its source, and the build rasterizes that glyph. Done: no manifest holds a
+font codepoint.
 
 ## 4. Anchored views
 

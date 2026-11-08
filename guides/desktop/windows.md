@@ -14,7 +14,7 @@ real Windows machine (Wine has no Windows.Graphics.Capture).
 
 Not there yet: opening a block's file in a Windows program, packaged (Store) apps, controller
 presses into popups, the tray, notifications, media, Wi-Fi, input devices and the lock screen
-(Explorer owns them). Deferred input plans: plans/windows_input.md.
+(Explorer owns them). Deferred input plans: plans/deferred/windows_input.md.
 
 ## The crates
 

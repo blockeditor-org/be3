@@ -2,9 +2,10 @@
 
 Depends on: none.
 
-Apps get the network a browser has, plus raw sockets where the platform allows
-them. Every app is first-party and trusted today, so access is wide open; the
-manifest stays the place to restrict it later. Not implemented yet.
+Apps get the network a browser has: `fetch` and WebSocket. Raw sockets and
+WebRTC are deferred (plans/deferred/app_network_sockets.md). Every app is
+first-party and trusted today, so access is wide open; the manifest stays the
+place to restrict it later. Not implemented yet.
 
 ## What exists
 
@@ -24,7 +25,7 @@ manifest stays the place to restrict it later. Not implemented yet.
 
 A new `network` interface in `crates/be-sdk-api/wit` replaces
 `host-services` `fetch`. Its shapes follow what browsers offer, since the web
-is the narrowest platform; only raw sockets are missing somewhere.
+is the narrowest platform.
 
 - **`fetch(request)`**: a method, URL, headers and body; it answers the status
   and headers, with the body as a `stream<list<u8>>`, so no body limit applies.
@@ -33,19 +34,12 @@ is the narrowest platform; only raw sockets are missing somewhere.
   (text or binary), a stream of messages that ends on close, and `close`. No
   custom headers anywhere, because browsers can't set them; services that need
   auth on a socket take a token got with `fetch`.
-- **TCP and UDP**: `tcp-socket` (connect to host and port, optionally with TLS
-  done by the host with rustls and the platform's roots; a read stream, write,
-  close) and `udp-socket`. Native and Android only; the web answers
-  `unavailable`.
-- **WebRTC**: data channels, with signalling over block peer messages
-  (guides/blocks/apps.md), so apps need no signalling server. It belongs with
-  VISION's layer 2 (connection setup) and is designed with it.
 - **`open-url`**: opens a link in the system browser, or a new tab on the web.
 - **Credentials are the app's.** The host adds no tokens and knows no outside
   service; each app keeps its own (plans/owner_settings.md) and handles 401s,
   expiry and rotation by its service's rules.
 - **The manifest.** `network` keeps its host list and also takes `"*"`, which
-  first-party apps use for now. Sockets need `"sockets": true` as well.
+  first-party apps use for now.
   Restricting third-party apps later is a manifest change, not an API change.
 - **The SDK.** `be_sdk` gets async Rust wrappers for each resource, and
   `be-sdk-test` records each request as a `HostCall` with the whole request, and
@@ -56,8 +50,6 @@ is the narrowest platform; only raw sockets are missing somewhere.
 1. `fetch(request)`, `"*"` and `open-url`; move be-app-map over. Update
    guides/apps/host_services.md.
 2. WebSocket.
-3. TCP and UDP, when the first app needs them.
-4. WebRTC data channels, with layer 2.
 
 ## Not planned here
 

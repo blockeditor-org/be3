@@ -4,7 +4,7 @@ Depends on: plans/large_blocks.md.
 
 A plan for full-text search over names and content. The server never reads
 content (guides/the_new_block_stack.md, goal 5), so clients build the index,
-encrypt it like any block, and search it locally. `plans/daily_driver.md`
+encrypt it like any block, and search it locally. `plans/deferred/daily_driver.md`
 ("Search") asks for it before daily use.
 
 ## The shape
@@ -39,7 +39,7 @@ lag a move or a revocation).
 A pure crate, native and wasm, no IO:
 
 - **Tokenizing**: `unicode-segmentation` word boundaries and `caseless`
-  folding (both already in `Cargo.lock`; `plans/i18n.md` wants case-folded
+  folding (both already in `Cargo.lock`; `plans/deferred/i18n.md` wants case-folded
   matching too). Prefix matching on the last term; fuzzy matching only on
   names.
 - **Documents** are `(block, part)` pairs, not blocks. The part is a leaf of
@@ -58,9 +58,10 @@ A pure crate, native and wasm, no IO:
     and each block's highest score, so a query stops reading a common term's
     list once no remaining document can enter the top results (block-max
     WAND);
-  - positions apart from postings, read only for phrase queries and snippets;
-  - the extracted text, compressed per document, read for the hits shown,
-    so snippets need no reads of the blocks themselves.
+  - positions apart from postings, read only for phrase queries.
+
+  The index stores no text: a snippet comes from the hit's own content (see
+  "Querying").
 - **The document table**: per document, the head commit it was indexed at and
   the segment holding it, sorted by document. A newer entry masks older
   postings; each segment also keeps a deletion bitmap so masking never reads
@@ -218,10 +219,16 @@ would be paid by the tree's owner for people the owner may not know about.
   framework-independent). `within` limits it to a block's subtree.
 - The host reads indexes on demand, never in full: each segment's term
   dictionary, then ranges of postings with `read-part`'s range reads
-  (guides/type_modules.md, "Reading a range"), then the stored text of the hits
-  it shows. What it read stays in the object store (`be-objects/`, the origin
+  (guides/type_modules.md, "Reading a range"). What it read stays in the object store (`be-objects/`, the origin
   private file system on the web), so later queries and offline queries reuse
   it.
+- **Snippets** come from the content of the top hits only: the host reads each
+  shown hit's part (the document's part of the block, by range for a large
+  block), asks its type for that part's text (`search-text`) and cuts the
+  snippet around the matched terms. Hits past those shown get no snippet
+  until shown.
+- **Scope**: only the open organization, and never the trash; a block moved
+  to Recently Deleted leaves every index (see "Leaving the tree").
 - Results are pushed again when an index changes, like any
   query (`graph_revision`).
 
@@ -238,8 +245,8 @@ would be paid by the tree's owner for people the owner may not know about.
 
 The target is a tree with a gigabyte of text (about 150 million words):
 
-- The index is roughly 0.6 to 0.8 GB: postings about 10% of the text,
-  positions 20 to 30%, stored text about 30% (zstd), dictionaries the rest.
+- The index is roughly 0.3 to 0.5 GB: postings about 10% of the text,
+  positions 20 to 30%, dictionaries the rest.
   The tree's owner pays for it.
 - A query reads per segment a top-level dictionary, one dictionary block per
   term and the postings blocks it does not skip: with about 20 segments after
@@ -274,12 +281,3 @@ The aim is the same as for every block: hide names and content. The server
 already knows the graph and which blocks each device opens, so it is accepted
 that it also sees index sizes, when they change, which parts change, and which
 parts and ranges a query reads. It never sees a term, a query or a name.
-
-## Open questions
-
-- Should search reach other organizations the account belongs to, or only the
-  open one?
-- Should the trash be searchable (it is detached, so outside any root's
-  index)?
-- Should the index store extracted text for snippets, or fetch the top hits'
-  content instead? Storing it roughly doubles the text a tree keeps.
