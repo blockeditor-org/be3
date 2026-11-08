@@ -29,9 +29,6 @@ beui on the web runs an HTML core (`beui-core-html`), switched in at compile tim
   `use_keyboard()` is always true.
 - `Break`'s copy test across Firefox and WebKit (decisions/beui_break_copies_without_a_newline.md): the shared
   scripts run only in Chromium.
-- Porting be-host itself to the HTML core; it runs the native core with wgpu
-  on the web.
-- Web apps as iframes, which could run the HTML core.
 - `color_var!` is meant to be the only way to make a `ColorVar`, but
   `ColorVar::__declared_at`, which it expands to, is public (doc-hidden), so
   any code can name one by string.
