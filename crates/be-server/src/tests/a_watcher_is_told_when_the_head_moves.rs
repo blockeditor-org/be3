@@ -25,10 +25,10 @@ async fn a_watcher_is_told_when_the_head_moves() {
                 head,
                 None,
                 Vec::new(),
-                chunks,
+                objects_change(&[], chunks),
                 1_000,
                 false,
-                Vec::new(),
+                listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
             )

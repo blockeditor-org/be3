@@ -27,7 +27,7 @@ the headless be-host.
   and reporting. A child whose verdict is to leave its work out pushes it anyway, for review.
 - Fast-forward when possible. Otherwise compare the files the child changed with those landed
   since its base (`git merge-base`, then `git diff --name-only` both ways); if they share none,
-  or only guides and generated files (`buck/cargo/crates.bzl`, `Cargo.lock`), and the rebase is
+  or only guides and generated files (the crates' facts, `Cargo.lock`), and the rebase is
   clean, rebase and land it yourself. Otherwise ask the child to rebase, rerun verify and push.
 - Since some landings are unverified, run verify on the integration branch every few landings,
   in its own worktree, in the background, and check `git status` afterwards: verify accepts
@@ -44,15 +44,16 @@ the headless be-host.
 
 - A cold verify can run over ten minutes with no output. Tell children to run it in the
   background with a 45-minute timeout; with less, they give up on an empty log.
-- After a `Cargo.toml` dependency change, the first verify regenerates `crates.bzl` and
+- After a `Cargo.toml` dependency change, the first verify regenerates the crates' facts and
   `Cargo.lock` and fails; rerun it.
 - `./scripts/test` caches results, so rerunning a test proves nothing about flakiness; loop it
   within one run, and say how a flake was counted.
 - Name a known flake in every prompt with what to do instead (push and say so if it is the only
   failure outside the child's crates), or every child stalls on it. Give one agent the fix.
 - Build server outages ("service is currently unavailable", resets, dropped bootstrap
-  downloads): a child reruns once, then commits as `wip:`, pushes and reports. The coordinator
-  runs verify itself before deciding whether to pause everyone and ask the user.
+  downloads): a child reruns once, then commits as `wip:`, pushes, reports and stops. The
+  coordinator reruns verify once itself; if that fails too, it pauses everyone and asks the user
+  how to continue.
 - When the usage limit is reached every session stops; message each to resume after it resets.
 
 ## Subagents on one VM

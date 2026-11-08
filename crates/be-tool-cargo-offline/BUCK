@@ -1,0 +1,6 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# buckify's action (buck/cargo/buckify.bzl). It depends on nothing from
+# crates.io, so buck2 builds it from the checked-in facts even when those
+# cannot build crates/be-tool-buck, which it then builds with cargo instead.
+cargo_crate()

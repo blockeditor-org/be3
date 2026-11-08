@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use be_block_store::{ObjectStore, StoreError, Vault};
+use be_block_store::{ObjectStore, Part, StoreError, Vault};
 use uuid::Uuid;
 
 use crate::{Commit, CommitId};
@@ -49,11 +49,11 @@ impl<S: ObjectStore> CommitStore<S> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn write(
+    pub fn write<'a>(
         &self,
         key: Uuid,
         content_type: Uuid,
-        data: &[u8],
+        data: impl Into<Part<'a>>,
         author: Uuid,
         time: i64,
         parent: Option<CommitId>,

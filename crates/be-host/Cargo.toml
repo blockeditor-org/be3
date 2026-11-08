@@ -84,7 +84,7 @@ be-sdk-test = { path = "../be-sdk-test" }
 # displays and input devices themselves rather than in a window.
 [target.'cfg(target_os = "linux")'.dependencies]
 be-host-services = { path = "../be-host-services" }
-be-host-dmabuf = { path = "../be-host-dmabuf" }
+be-lib-dmabuf = { path = "../be-lib-dmabuf" }
 be-host-wayland = { path = "../be-host-wayland" }
 beui-platform-drm = { path = "../beui-platform-drm" }
 zbus = { version = "5", default-features = false, features = ["async-io"] }

@@ -761,7 +761,7 @@ impl Tree {
             .is_some_and(|held| held.fields == expected)
     }
 
-    fn value(&self, object: ObjectId, field: u16) -> Option<&Value> {
+    pub(crate) fn value(&self, object: ObjectId, field: u16) -> Option<&Value> {
         self.objects.get(&object)?.fields.get(usize::from(field))
     }
 

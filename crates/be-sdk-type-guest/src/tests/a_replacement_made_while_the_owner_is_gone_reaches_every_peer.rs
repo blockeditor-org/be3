@@ -16,7 +16,7 @@ fn a_replacement_made_while_the_owner_is_gone_reaches_every_peer() {
     sim.settle();
     sim.crash(0);
     sim.deaf.clear();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert!(sim.devices[1].status.owner);
     assert_eq!(texts(&sim.head_content()), ["replacement"]);
     for device in 1..3 {
@@ -27,6 +27,6 @@ fn a_replacement_made_while_the_owner_is_gone_reaches_every_peer() {
     assert!(sim.kept(|content| texts(content).contains(&"unsealed".to_owned())));
     sim.operate(2, 1, add("afterwards"));
     sim.settle();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(texts(&sim.head_content()), ["replacement", "afterwards"]);
 }

@@ -78,12 +78,14 @@ An agent shows a visual change with a painting (guides/testing_a_gui.md).
 
 | Command | What it does |
 |---|---|
-| `./scripts/verify` | rustc's check pass over every first-party target on Linux x86_64 and the apps' `wasi_guest`, autofixes, lints, tests and app tests; `--check` writes nothing, `--lint`, `--tests`, `--app-tests` run one part |
+| `./scripts/verify` | rustc's check pass over the first-party targets on Linux x86_64 nothing else compiles, autofixes, lints, tests and app tests; `--check` writes nothing, `--lint`, `--tests`, `--app-tests` run one part; every run also brings `buck/sysroot/packages.bzl` up to date with `buck/sysroot/BUCK` |
+| `./scripts/buck bxl --keep-going //buck/dev/verify.bxl:main -- --host linux_x86_64 --part tests` | one part of what `./scripts/verify` builds, without reading it afterwards: `lint`, `tests`, `app-tests` (guides/buck2.md, What verify builds) |
 | `./scripts/ci` | what CI runs: `./scripts/verify` and crates/be-tool-bootstrap's release (guides/bootstrap.md), and `--previews BASE OUT` the paint previews |
 | `./scripts/test adding [--update]` | the tests whose full names contain `adding` (or a module path such as `media::tests`), in every crate. A path matches inside other crates' paths too (`desktop::tests` also runs be-host's `compositor::desktop::tests`), so name the crate's target (next row) to run one crate's |
 | `./scripts/test //crates/be-app-desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
 | `./scripts/buck run //crates/be-host:native` | the host, with every app beside it |
 | `./scripts/test //crates/be-host-tests:test [--update]` | the host tests: be-host headless with the editors each test names, driven and painted as a whole |
+| `./scripts/buck test //crates/be-lib-geometry:test` | one crate's tests through buck2 test, which prints only a failing test's output (`./scripts/test` runs the same and prints every test's); `build //crates/be-lib-geometry:test[run]` is the action verify runs, and `build //crates/be-lib-geometry:fix` the crate's autofixes |
 | `./scripts/buck build //crates/be-host:native-dist --out DIR` | a platform's release of the host; `//crates/be-server-bin:dist` is the server's |
 | `./scripts/buck build //crates/be-host:apps --out DIR` | the apps alone, shared by every platform |
 | `./scripts/buck build //crates/be-host:web --out DIR` | the web bundle with every app (`:web-dist` without) |
@@ -96,9 +98,8 @@ An agent shows a visual change with a painting (guides/testing_a_gui.md).
 | `./scripts/buck run //crates/be-tool-paint-review-web:web -- 127.0.0.1:8075 DIR` | the page reviewing a pull request's paintings, serving the `HASH.json` lists and `HASH.webp` images in DIR beside it on http://127.0.0.1:8075/site/dev/index.html?changes=HASH |
 | `./scripts/buck run //:fuzz` | every fuzz target, taking turns with every core (`BE3_FUZZ_SLICE` seconds each, 600 by default), until it is stopped |
 | `./scripts/buck run //crates/be-lib-sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
-| `./scripts/buck run //:buckify` | regenerates `buck/cargo/crates.bzl` and `Cargo.lock` from the manifests |
+| `./scripts/buckify` | brings `Cargo.lock` and the crates' facts (each `crates/<crate>/PACKAGE`, `buck/cargo/members.bzl`, `third-party/rust/crates.bzl`) up to date with the manifests (the bootstrap's lock step, then the plans on a worker); `BE3_BOOTSTRAP=cargo` until a bootstrap with it is pinned |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
-| `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
-| `./scripts/buck run //:pdfium -- REVISION` | regenerates `third-party/pdfium/sources.bzl` from PDFium's GN build at REVISION (a commit, or a branch such as `chromium/8046`), which is how PDFium is updated; it checks PDFium and its DEPS out under `target/pdfium` and needs git, curl and python3 |
+| `./scripts/buck run //:pdfium -- REVISION` | regenerates `third-party/pdfium/sources.bzl` from PDFium's GN build at REVISION (a commit, or a branch such as `chromium/8046`), which is how PDFium is updated; it checks PDFium and its DEPS out under `target/pdfium`, pins the GitHub archive of each repository the build reads by hash and size, and needs git, curl and python3 |
 
 guides/buck2.md has the platforms and profiles these build with (`--target-platforms`, `-m release`).

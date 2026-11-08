@@ -1,6 +1,8 @@
 load("@root//buck/android:defs.bzl", "android_apk")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_package", "cargo_test")
 load("@root//buck/program:drive.bzl", "headless")
+
+cargo_package()
 
 # On Android the launcher is this library, loaded by LauncherActivity under
 # cargo's name for it.

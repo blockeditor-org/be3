@@ -1,0 +1,5 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# third-party/rust/downloads.bzl, as crates/be-tool-bootstrap's lock step pins
+# it, and buck/cargo/members.bzl, as crates/be-tool-buck's generate writes it.
+cargo_crate()

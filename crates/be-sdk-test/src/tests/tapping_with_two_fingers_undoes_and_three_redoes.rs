@@ -12,6 +12,7 @@ fn tapping_with_two_fingers_undoes_and_three_redoes() {
             head: None,
             can_undo: true,
             can_redo: true,
+            ..Default::default()
         },
     )]);
     test.run();

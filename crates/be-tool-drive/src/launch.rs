@@ -154,6 +154,13 @@ impl Launch {
             .env(environment::DRIVE_LISTENER, listening.to_string())
             .env_remove("DISPLAY")
             .env_remove("WAYLAND_DISPLAY")
+            // No audio server, whatever the machine has: be-host shows a volume control in
+            // the desktop's status bar when it reaches one, so paintings would depend on
+            // where they were made.
+            .env(
+                "PULSE_SERVER",
+                format!("unix:{}", dir.join("no-audio").display()),
+            )
             .stdin(Stdio::null())
             .process_group(0);
         // unsafe(ffi)

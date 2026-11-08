@@ -86,6 +86,7 @@ pub struct Workspace {
     pub(crate) screens: Memo<Vec<Rect>>,
     unreadable: Signal<Option<String>>,
     panels: Signal<Vec<HostPanel>>,
+    history_request: Signal<Option<be_sdk_beui::HistoryRequest>>,
     landing_for: Signal<Option<Uuid>>,
     default_editors: Memo<EditorSettings>,
 }
@@ -149,6 +150,7 @@ impl Workspace {
             screens,
             unreadable: create_signal(None),
             panels,
+            history_request: create_signal(None),
             landing_for: create_signal(None),
         };
         create_effect(move || {
@@ -228,6 +230,12 @@ impl Workspace {
     pub fn layout(&self) -> DockingLayout<TabId> {
         let inner = self.state.value();
         inner.layout
+    }
+
+    /// The last version history the host asked to show: the shell shows it where it keeps a
+    /// block's history.
+    pub fn history_request(&self) -> ReadSignal<Option<be_sdk_beui::HistoryRequest>> {
+        self.history_request.read_only()
     }
 
     pub fn dock_host(&self) -> DockHostLayout {
@@ -374,6 +382,17 @@ impl Workspace {
         }
         for panel in self.editor.take_panel_requests() {
             self.show_panel(panel);
+        }
+        for request in self.host().take_history_requests() {
+            let shown = self.tabs.with_untracked(|tabs| {
+                tabs.iter()
+                    .find(|(_, item)| item.id == request.block_id)
+                    .map(|(tab, _)| *tab)
+            });
+            if let Some(tab) = shown {
+                self.layout().show(&tab);
+            }
+            self.history_request.set(Some(request));
         }
         for request in self.host().take_show_requests() {
             let landing = request.block_type == WORKSPACE_TYPE && request.editor.is_none();

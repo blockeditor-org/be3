@@ -1,0 +1,12 @@
+#!/bin/sh
+#
+# Brings the crates' facts and Cargo.lock up to date with the Cargo.toml files,
+# as ./scripts/verify does: run it after changing a manifest to build with the
+# change before then (guides/buck2.md).
+#
+# Usage:
+#   ./scripts/buckify [--check]
+#
+# guides/bootstrap.md says what runs it.
+
+exec sh "$(dirname "$0")/internal/bootstrap.sh" buckify "$@"

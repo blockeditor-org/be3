@@ -36,11 +36,11 @@ app_types = rule(
     impl = _app_types_impl,
 )
 
-# Every app's manifest and type module in one file (buck/program/bundle.sh), which
+# Every app's manifest and type module in one file (crates/be-tool-buck's bundle), which
 # an executable that is its whole release, `be`, carries with include_bytes!.
 def _type_bundle_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name + ".bundle")
-    command = cmd_args("sh", ctx.attrs._bundle, out.as_output())
+    command = cmd_args(ctx.attrs._tools[RunInfo], "bundle", out.as_output())
     for manifest, types in zip(ctx.attrs.manifests, ctx.attrs.app_types):
         modules = types[DefaultInfo].default_outputs
         command.add(cmd_args(manifest, modules[0] if modules else "", delimiter = "="))
@@ -51,7 +51,7 @@ type_bundle = rule(
     attrs = {
         "app_types": attrs.list(attrs.dep()),
         "manifests": attrs.list(attrs.source()),
-        "_bundle": attrs.default_only(attrs.source(default = "root//buck/program:bundle.sh")),
+        "_tools": attrs.default_only(attrs.exec_dep(default = "root//crates/be-tool-buck:bin", providers = [RunInfo])),
     },
     impl = _type_bundle_impl,
 )
@@ -112,7 +112,41 @@ def _compiled(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) ->
         fail("{} is not among {}'s modules".format(wasm, ctx.attrs.precompiled.label))
     return artifacts[wasm]
 
-# The app as it runs (buck/program/stage.sh): the executable under cargo's name, and
+# What `buck2 run` unpacks a program's archive with: built for the platform
+# the program is, as the machine that runs it is, but on beui's native core,
+# since a program on the HTML core, such as be-server's portal assets, is built
+# for linux_x86_64_html and the unpacker is no crate of that core.
+def _native_core_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    html = refs.html[ConstraintValueInfo]
+    if platform.configuration.constraints.get(html.setting.label) != html:
+        return platform
+    return keep_profile(platform, refs.linux_x86_64[PlatformInfo], refs)
+
+_native_core_transition = transition(
+    impl = _native_core_transition_impl,
+    refs = {"html": "root//buck/constraints:html", "linux_x86_64": "root//buck/platforms:linux_x86_64"} | PROFILE_REFS,
+)
+
+# A program's directory from the stage's layout: each file the stage wrote, the
+# executable, which finds the apps beside the path it was run from, and each
+# source file, which can change under a link to it (buck/program/build-info.json
+# does with every command), copied; every other file a symlink to the artifact
+# an argument gave, or to the file within it for a --tree or --data directory.
+def _lay_out(ctx: AnalysisContext, layout: list, arguments: list, generated: Artifact, executable: [str, None], out: Artifact):
+    contents = {}
+    for entry in layout:
+        path = entry["path"]
+        if "argument" not in entry:
+            contents[path] = assembled_dir.copy(generated.project(path))
+            continue
+        artifact = arguments[entry["argument"]][entry["part"]]
+        if entry["within"]:
+            artifact = artifact.project(entry["within"])
+        copied = path == executable or artifact.is_source
+        contents[path] = assembled_dir.copy(artifact) if copied else assembled_dir.symlink(artifact)
+    ctx.actions.assembled_dir(out, contents = contents, has_content_based_path = False)
+
+# The app as it runs (crates/be-tool-buck's stage): the executable under cargo's name, and
 # beside it every app, each module precompiled for precompile_target in an
 # action of its own by the precompiler, app-test-runner as the workers run
 # it, whatever the app is built for, and every library in their closures
@@ -120,50 +154,70 @@ def _compiled(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) ->
 # precompiler, each app is its module alone. With no binary it
 # is the apps alone. `index` writes the apps.json the app finds the
 # apps through. The web bundle is this rule too: `bindgen` runs
-# wasm-bindgen over each module. `[archive]` is the whole directory as one
+# wasm-bindgen over each module. The stage writes only the files it makes
+# and where everything goes; the directory is then laid out from that
+# (_lay_out), each file a symlink to the artifact it is, so programs that
+# share the apps' modules and .cwasm files share their bytes too. `[archive]`
+# is the whole directory, links followed, as one
 # compressed file (crates/be-host-archive), a quarter of its size or less, made on a
 # worker. `buck2 run` runs the executable from it, unpacked into target/programs
 # once for each new archive, so a run downloads only the archive; or, for a
 # bundle without one, `run_with` followed by the bundle, which is how the web
 # bundle serves itself.
 def _program_impl(ctx: AnalysisContext) -> list[Provider]:
-    out = ctx.actions.declare_output(ctx.label.name, dir = True)
-    command = cmd_args("sh", ctx.attrs._stage, out.as_output())
+    generated = ctx.actions.declare_output(ctx.label.name + "-generated", dir = True)
+    layout = ctx.actions.declare_output(ctx.label.name + "-layout.json")
+    command = cmd_args(ctx.attrs._tools[RunInfo], "stage", generated.as_output(), layout.as_output())
+
+    # Each argument's artifacts, in the order the stage numbers them. The stage reads
+    # only what it is given by path; the rest it needs only the names of.
+    arguments = []
+
+    def add(argument, artifacts = []):
+        command.add(argument)
+        arguments.append(artifacts)
+
+    only_libraries = ctx.attrs.libraries == "only"
     if ctx.attrs.compiled_only:
-        command.add("--compiled-only")
+        add("--compiled-only")
     name = None
     if ctx.attrs.binary:
         executable = ctx.attrs.binary[DefaultInfo].default_outputs[0]
         name = ctx.attrs.executable_name + executable.extension
-        command.add(cmd_args("--executable=", executable, "=", name, delimiter = ""))
+        add("--executable={}={}".format(executable.basename, name), [executable])
     for file in ctx.attrs.files:
-        command.add(cmd_args("--file=", file, delimiter = ""))
+        add("--file=" + file.basename, [file])
     libraries = []
     for module in ctx.attrs.modules + ctx.attrs.linked:
         info = module.get(WasmLibrariesInfo)
         for library in info.closure if info else []:
             if library not in libraries:
                 libraries.append(library)
-    for index, library in enumerate(libraries):
-        command.add(cmd_args("--library=", library, delimiter = ""))
+    for index, library in enumerate(libraries if ctx.attrs.libraries != "exclude" else []):
+        add(cmd_args("--library=", library, delimiter = ""), [library])
         if ctx.attrs.precompiler or ctx.attrs.precompiled:
-            artifact = "library{}-{}".format(index, library.basename.removesuffix(".wasm"))
-            command.add(cmd_args("--library-artifact=", _compiled(ctx, library, artifact), delimiter = ""))
+            artifact = _compiled(ctx, library, "library{}-{}".format(index, library.basename.removesuffix(".wasm")))
+            add("--library-artifact=" + artifact.basename, [artifact])
     for module in ctx.attrs.linked:
-        command.add(cmd_args("--file=", module[DefaultInfo].default_outputs[0], delimiter = ""))
+        wasm = module[DefaultInfo].default_outputs[0]
+        add("--file=" + wasm.basename, [wasm])
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
     app_types = ctx.attrs.app_types or [None] * len(ctx.attrs.manifests)
     for manifest, module, files, types in zip(ctx.attrs.manifests, ctx.attrs.modules, data, app_types):
+        if only_libraries:
+            break
         wasm = module[DefaultInfo].default_outputs[0]
-        command.add(cmd_args(manifest, wasm, delimiter = "="))
+        add(cmd_args(manifest, wasm.basename, delimiter = "="), [manifest, wasm])
         if files:
-            command.add(cmd_args("--data=", files, delimiter = ""))
+            add(cmd_args("--data=", files, delimiter = ""), [files])
         if ctx.attrs.precompiler or ctx.attrs.precompiled:
-            command.add(cmd_args("--artifact=", _compiled(ctx, wasm), delimiter = ""))
+            artifact = _compiled(ctx, wasm)
+            add("--artifact=" + artifact.basename, [artifact])
         for type_module in types[DefaultInfo].default_outputs if types else []:
-            command.add(cmd_args("--app-type=", type_module, delimiter = ""))
+            add(cmd_args("--app-type=", type_module, delimiter = ""), [type_module])
             if ctx.attrs.precompiler or ctx.attrs.precompiled:
-                command.add(cmd_args("--type-artifact=", _compiled(ctx, type_module), delimiter = ""))
+                artifact = _compiled(ctx, type_module)
+                add("--type-artifact=" + artifact.basename, [artifact])
     for module in ctx.attrs.bindgen:
         wasm = module[DefaultInfo].default_outputs[0]
         bindings = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + "-bindings", dir = True)
@@ -180,10 +234,20 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
             category = "wasm_bindgen",
             identifier = wasm.basename,
         )
-        command.add(cmd_args("--tree=", bindings, delimiter = ""))
+        add(cmd_args("--tree=", bindings, delimiter = ""), [bindings])
     if ctx.attrs.index:
-        command.add("--index")
+        add("--index")
     ctx.actions.run(command, category = "program")
+
+    # Not content-based: buck2 would lay the directory out once and copy it to a path
+    # named for its hash, so the executable, the one file copied, would take twice the space.
+    out = ctx.actions.declare_output(ctx.label.name, dir = True, has_content_based_path = False)
+    ctx.actions.dynamic_output(
+        dynamic = [layout],
+        f = lambda ctx, artifacts, outputs: _lay_out(ctx, artifacts[layout].read_json(), arguments, generated, name, outputs[out]),
+        inputs = [],
+        outputs = [out.as_output()],
+    )
     archive = ctx.actions.declare_output(ctx.label.name + ".programz")
     ctx.actions.run(
         cmd_args(ctx.attrs._archiver[RunInfo], "pack", out, archive.as_output()),
@@ -217,6 +281,11 @@ program = rule(
         "executable_name": attrs.string(default = ""),
         "files": attrs.list(attrs.source(), default = []),
         "index": attrs.bool(default = False),
+        # Which libraries the program holds: "include" every one the modules
+        # need, "exclude" them, for a program run with the BE_BUNDLE path list
+        # (be-lib-build-id) that has them in another, or "only" them and none of
+        # the apps, which is that other directory.
+        "libraries": attrs.enum(["include", "exclude", "only"], default = "include"),
         # Modules staged as they are, like files, with every library they
         # need: a linked module that is not an app with a manifest, such as
         # a test's.
@@ -233,35 +302,19 @@ program = rule(
         "run_with": attrs.list(attrs.arg(), default = []),
         "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
         "_archiver": attrs.default_only(attrs.exec_dep(default = "root//crates/be-host-archive:bin")),
-        "_stage": attrs.default_only(attrs.source(default = "root//buck/program:stage.sh")),
-        "_unpacker": attrs.default_only(attrs.dep(default = "root//crates/be-host-archive:bin")),
+        "_tools": attrs.default_only(attrs.exec_dep(default = "root//crates/be-tool-buck:bin", providers = [RunInfo])),
+        "_unpacker": attrs.default_only(attrs.transition_dep(cfg = _native_core_transition, default = "root//crates/be-host-archive:bin")),
     },
     impl = _program_impl,
 )
 
-# A page on beui's HTML core rendered at build time: the renderer, a program
-# built for the host on that core (linux_x86_64_html), run with the path it
-# writes the page to. A web bundle stages it as its index.html, which its wasm
-# module then hydrates.
+# Builds a dependency for the host on beui's HTML core (linux_x86_64_html).
 def _html_host_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return keep_profile(platform, refs.linux_x86_64_html[PlatformInfo], refs)
 
 _html_host_transition = transition(
     impl = _html_host_transition_impl,
     refs = {"linux_x86_64_html": "root//buck/platforms:linux_x86_64_html"} | PROFILE_REFS,
-)
-
-def _prerendered_page_impl(ctx: AnalysisContext) -> list[Provider]:
-    page = ctx.actions.declare_output(ctx.attrs.out)
-    ctx.actions.run(cmd_args(ctx.attrs.renderer[RunInfo], page.as_output()), category = "prerender")
-    return [DefaultInfo(default_output = page)]
-
-prerendered_page = rule(
-    attrs = {
-        "out": attrs.string(default = "index.html"),
-        "renderer": attrs.transition_dep(cfg = _html_host_transition),
-    },
-    impl = _prerendered_page_impl,
 )
 
 # A program on beui's HTML core for the host (linux_x86_64_html), from any

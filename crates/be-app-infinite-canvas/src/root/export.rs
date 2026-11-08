@@ -284,11 +284,15 @@ impl Exporter {
             };
             let mut images = Images::new();
             for block in wanted.scene.images() {
-                let read = editor
-                    .content_of::<ImageContent>(block)
-                    .read(|image| ImageFile {
-                        media_type: image.header().media_type.clone(),
-                        data: image.data().to_vec(),
+                let image = editor.content_of::<ImageContent>(block);
+                let read = image
+                    .read(|image| image.header().media_type.clone())
+                    .and_then(|media_type| {
+                        let data = image.payload().get()?;
+                        Ok(ImageFile {
+                            media_type,
+                            data: data.to_vec(),
+                        })
                     });
                 match read {
                     Ok(file) => {

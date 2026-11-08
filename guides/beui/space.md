@@ -76,7 +76,9 @@ points to it when it is out of view. An absolute position (a platform
 hits. Moving onto another panel just names the new window, so a drag goes on
 across windows; off every panel with a button held, events go on to the
 window the press began in, at points outside its rectangle, which is how a
-program tells a drop on nothing.
+program tells a drop on nothing. A panel that opens, closes, moves or resizes
+under a resting cursor sends a move to whatever the cursor is now over
+(`repoint`), so hover never waits for the next motion.
 
 **Steering.** Ctrl and Shift held together steer: mouse motion turns the head,
 W, A, S and D walk, Q and E roll. Nothing pressed while steering reaches the
@@ -175,7 +177,7 @@ Windows; elsewhere the `Link` fails at once and space stays the simulator.
   renderers' `OpenGpu` and opens the device through `XR_KHR_vulkan_enable2`;
   the window, the panels, dmabufs and the headset share that one device.
   `OpenDevice::extensions` carries the Vulkan device extensions be-host needs
-  (be-host-dmabuf's `DEVICE_EXTENSIONS` on Linux, be-host-win32-capture's on
+  (be-lib-dmabuf's `DEVICE_EXTENSIONS` on Linux, be-host-win32-capture's on
   Windows). When a headset turns up after the device was opened, the device is
   stale: the renderer reopens it as after a lost GPU (`Renderer::recover`,
   `Gpu::reopen`), the runner hands the new device to the program

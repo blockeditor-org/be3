@@ -30,6 +30,7 @@ pub struct History<C: Undo, T: Moment = Instant> {
     undo: Vec<(C::Step, Option<T>)>,
     redo: Vec<C::Step>,
     gesture: Option<Gesture<C>>,
+    stopped: bool,
 }
 
 impl<C: Undo, T: Moment> Default for History<C, T> {
@@ -38,6 +39,7 @@ impl<C: Undo, T: Moment> Default for History<C, T> {
             undo: Vec::new(),
             redo: Vec::new(),
             gesture: None,
+            stopped: false,
         }
     }
 }
@@ -133,6 +135,24 @@ impl<C: Undo, T: Moment> History<C, T> {
 
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
+    }
+
+    /// The session restarted: the content was loaded afresh, so no step recorded before can
+    /// apply. Undo and redo stop here, and `stopped` says there were steps behind it.
+    pub fn restart(&mut self) {
+        self.close();
+        self.stopped |= !self.undo.is_empty() || !self.redo.is_empty();
+        self.undo.clear();
+        self.redo.clear();
+    }
+
+    pub fn gesture_open(&self) -> bool {
+        self.gesture.is_some()
+    }
+
+    /// Whether undo or redo, once out of steps, stopped at a restart rather than at the start.
+    pub fn stopped(&self) -> bool {
+        self.stopped
     }
 
     fn close(&mut self) {

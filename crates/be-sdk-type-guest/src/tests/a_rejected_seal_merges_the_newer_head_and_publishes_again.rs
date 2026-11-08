@@ -14,7 +14,7 @@ fn a_rejected_seal_merges_the_newer_head_and_publishes_again() {
     sim.quiet = true;
     sim.publish_elsewhere(&theirs);
     sim.quiet = false;
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(sim.rejections, 1);
     let mut merged = texts(&sim.head_content());
     merged.sort();

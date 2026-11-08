@@ -1,3 +1,5 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
+
 # System libraries, named so that a third-party crate that needs one can depend
 # on it rather than on a flag somewhere in the toolchain.
 
@@ -15,5 +17,6 @@ prebuilt_cxx_library(
             "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
         ],
     }),
-    visibility = ["PUBLIC"],
 )
+
+package_fix()

@@ -45,7 +45,7 @@ interface objects {
 interface blocks {
     use types.{
         access-level, account-id, block-id, block-parent, block-summary, commit-id,
-        content-type-id, error, hash, key-id, key-set, listing, organization-role,
+        content-type-id, error, hash, journal, key-id, key-set, listing, organization-role,
     };
 
     variant publish-outcome {
@@ -55,11 +55,35 @@ interface blocks {
         rejected(option<commit-id>),
     }
 
+    /// The objects a commit holds besides itself, as a change from those
+    /// its expected head holds: those in `removed` go, then `added` join.
+    record object-change {
+        added: list<hash>,
+        removed: list<hash>,
+    }
+
+    /// A reference that joins a list at `index` of the new list.
+    record placed-reference {
+        index: u32,
+        block: block-id,
+    }
+
+    /// A commit's references as a change from its expected head's: those
+    /// in `removed` go, then each of `added`, in order, goes in at its index.
+    /// A reference that moves is removed and added.
+    record reference-change {
+        removed: list<block-id>,
+        added: list<placed-reference>,
+    }
+
     record history-entry {
         commit: commit-id,
         parents: list<commit-id>,
         time: s64,
         pinned: bool,
+        /// The block's head when the history was read: read in the same step,
+        /// so a publish that prunes the head before can't leave none marked.
+        head: bool,
     }
 
     /// The summaries asked for, and as many of the objects of their heads as
@@ -67,6 +91,9 @@ interface blocks {
     record contents {
         blocks: list<block-summary>,
         objects: list<list<u8>>,
+        /// Each block's journal, in the order of `blocks`; none when it has
+        /// nothing past its base.
+        journals: list<option<journal>>,
     }
 
     /// What `collect-detached` deleted and freed.
@@ -134,15 +161,17 @@ interface blocks {
     set-metadata: async func(block: block-id, metadata: list<u8>, references: list<block-id>) -> result<block-summary, error>;
 
     /// Stores `objects` and moves the head to `commit` if it is `expected`.
+    /// `held` and `references` are changes from what `expected` holds and
+    /// references, so a commit that changes little sends little.
     publish: async func(
         block: block-id,
         commit: commit-id,
         expected: option<commit-id>,
         parents: list<commit-id>,
-        chunks: list<hash>,
+        held: object-change,
         time: s64,
         pinned: bool,
-        references: list<block-id>,
+        references: reference-change,
         metadata: list<u8>,
         objects: list<list<u8>>,
     ) -> result<publish-outcome, error>;
@@ -150,8 +179,8 @@ interface blocks {
     /// One block's summary, which lists it as `listing.block` would.
     read-block: async func(block: block-id) -> result<block-summary, error>;
 
-    /// Summaries of `blocks` and the objects of their heads the caller does
-    /// not hold, those of the commits in `held` left out.
+    /// Summaries of `blocks`, their journals, and the objects of their heads
+    /// the caller does not hold, those of the commits in `held` left out.
     read-contents: async func(blocks: list<block-id>, held: list<commit-id>) -> result<contents, error>;
 
     /// Moves a block, with the keys it needs under its new parent.
@@ -171,10 +200,6 @@ interface blocks {
 
     list-history: async func(block: block-id) -> result<list<history-entry>, error>;
 
-    /// Drops commits from a block's history; answers how many objects that
-    /// freed.
-    prune-history: async func(block: block-id, drop: list<commit-id>) -> result<u64, error>;
-
     delete-block: async func(block: block-id) -> result<_, error>;
 
     /// Deletes the detached blocks nothing reaches any more.
@@ -193,12 +218,15 @@ interface blocks {
 /// Live sessions on blocks, whose connections relay edits to each other and
 /// share one lease.
 interface sessions {
-    use types.{block-id, client-id, commit-id, error, session-state};
+    use types.{block-id, client-id, commit-id, error, hash, journal, journal-base, journal-entry, session-state};
 
     record joined {
         /// This connection, as the session's participants name it.
         client: client-id,
         state: session-state,
+        /// The block's journal as of joining; what is appended after reaches
+        /// this connection as relays.
+        journal: option<journal>,
     }
 
     record relayed {
@@ -237,5 +265,19 @@ interface sessions {
         /// Relays a sealed message to one participant, or to every other one
         /// with no `to`.
         relay: async func(to: option<client-id>, payload: list<u8>) -> result<_, error>;
+
+        /// The owner of `generation` appends operations it sequenced to the
+        /// block's journal, written by the build `tag` names, and with `relay`
+        /// relays each entry's payload to every other participant. Entries at
+        /// or below the journal's last sequence number are dropped as already
+        /// held. Entries from anyone but the owner of `generation` are relayed
+        /// and not kept. Refused while the journal is another `tag`'s: the
+        /// owner rebases first.
+        append: async func(generation: u64, tag: hash, entries: list<journal-entry>, relay: bool) -> result<_, error>;
+
+        /// The journal starts over from `base`, dropping every entry: the
+        /// owner of `generation` rebases after each commit, and on taking the
+        /// session before it appends.
+        rebase-journal: async func(generation: u64, tag: hash, base: journal-base) -> result<_, error>;
     }
 }

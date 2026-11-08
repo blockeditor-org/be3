@@ -1,0 +1,8 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
+load("@root//buck/wasm:defs.bzl", "wasm32_crate")
+
+cargo_package()
+
+# The remaps be-host runs on the input of a Linux session, as a WebAssembly
+# module (guides/desktop/login_session.md, Input remaps). The host is be-host-remap-host.
+wasm32_crate()

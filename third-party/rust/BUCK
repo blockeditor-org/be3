@@ -1,6 +1,13 @@
 load("@root//buck/cargo:third_party.bzl", "third_party_crates")
+load("@root//buck/dev:verify.bzl", "package_fix")
+load(":crates.bzl", "third_party")
+load(":downloads.bzl", "downloads")
 load(":fixups.bzl", "FIXUPS")
 
 # Every third-party crate the workspace depends on, as <name>-<version>, from
-# cargo's own plans: buck/cargo/third_party.bzl says how.
-third_party_crates(FIXUPS)
+# cargo's own plans (crates.bzl, which ./scripts/buckify generates) and the
+# downloads the bootstrap's lock step pins (downloads.bzl): buck/cargo/third_party.bzl
+# says how.
+third_party_crates(third_party, downloads, FIXUPS)
+
+package_fix(exclude = ["crates.bzl", "downloads.bzl"])

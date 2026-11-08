@@ -31,9 +31,10 @@ A command goes where it can only mean one thing:
   for, the clipboard, resizing the headless window, focus, files dragged in;
 - input (pointer, touch, pen, keys) and `state`, which reach the program.
 
-A headless run never exercises the platform underneath: winit's key translation, the system
-clipboard and file dialogs, the swapchain, real input methods. For those, run in a window
-(guides/running/native.md).
+A headless run has no X or Wayland display and no audio server (`PULSE_SERVER` names a socket
+that is not there), so what it paints does not depend on the machine. It never exercises the
+platform underneath: winit's key translation, the system clipboard and file dialogs, the
+swapchain, real input methods. For those, run in a window (guides/running/native.md).
 
 ## Starting any beui program
 

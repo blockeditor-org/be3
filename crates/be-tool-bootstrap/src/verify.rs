@@ -2,7 +2,7 @@ use std::process::{Command, ExitCode};
 
 use crate::platform::target_platform;
 use crate::quiet::Quiet;
-use crate::{Result, buck, in_ci, repository};
+use crate::{Result, buck, in_ci, lock, repository};
 
 const VERIFY_USAGE: &str =
     "Usage: ./scripts/verify [--check] [--lint] [--tests] [--app-tests] [--verbose]";
@@ -16,7 +16,7 @@ pub fn verify(arguments: Vec<String>) -> Result<ExitCode> {
             return Err(VERIFY_USAGE.to_owned());
         }
     }
-    run(arguments, false)
+    run(arguments)
 }
 
 pub fn ci(arguments: Vec<String>) -> Result<ExitCode> {
@@ -34,10 +34,10 @@ pub fn ci(arguments: Vec<String>) -> Result<ExitCode> {
             checked.push(arguments.next().ok_or_else(|| CI_USAGE.to_owned())?);
         }
     }
-    run(checked, true)
+    run(checked)
 }
 
-fn run(arguments: Vec<String>, ci: bool) -> Result<ExitCode> {
+fn run(arguments: Vec<String>) -> Result<ExitCode> {
     let has = |flag: &str| arguments.iter().any(|argument| argument == flag);
     let (mut lint, mut tests, mut app_tests) = (has("--lint"), has("--tests"), has("--app-tests"));
     let verbose = has("--verbose") || in_ci();
@@ -55,38 +55,36 @@ fn run(arguments: Vec<String>, ci: bool) -> Result<ExitCode> {
         unsafe { std::env::set_var("BE3_VERBOSE", "1") };
     }
 
+    // Before buck2, which reads the downloads from the start.
+    lock::ensure(has("--check"))?;
+    lock::check_members()?;
     let buck2 = buck::prepare()?;
     buck::write_build_id()?;
     let target = repository().join("target");
     let manifest = target.join("verify-manifest.txt");
     let log = target.join("verify.log");
+    let events = target.join("verify-events.json-lines");
+    let _ = std::fs::remove_file(&events);
+    passed.extend([
+        "--event-log".to_owned(),
+        events.to_string_lossy().into_owned(),
+    ]);
     let host = target_platform().unwrap_or("linux_x86_64");
-    let bxl: Vec<String> = [
-        "bxl",
-        "--keep-going",
-        "//buck/dev/verify.bxl:main",
-        "--",
-        "--host",
-        host,
-        "--lint",
-        bool(lint),
-        "--tests",
-        bool(tests),
-        "--app_tests",
-        bool(app_tests),
-        "--previews",
-        bool(has("--previews")),
-        "--bootstrap",
-        bool(has("--bootstrap")),
-        "--release_bootstrap",
-        bool(ci),
-    ]
-    .into_iter()
-    .map(str::to_owned)
-    .collect();
+    let mut parts = Vec::new();
+    for (flag, part) in [
+        (lint, "lint"),
+        (tests, "tests"),
+        (app_tests, "app-tests"),
+        (has("--previews"), "previews"),
+        (has("--bootstrap"), "bootstrap"),
+    ] {
+        if flag {
+            parts.push(part);
+        }
+    }
     let (status, output) = buck::retrying(
         &buck2,
-        &bxl,
+        &bxl_arguments(host, &parts, &events),
         false,
         true,
         (!verbose).then_some(log.as_path()),
@@ -106,7 +104,8 @@ fn run(arguments: Vec<String>, ci: bool) -> Result<ExitCode> {
         }
     }
 
-    let verify = String::from_utf8_lossy(&output)
+    let written = std::fs::read_to_string(&manifest).unwrap_or_default();
+    let verify = written
         .lines()
         .filter_map(|line| line.split_once('\t'))
         .filter(|(kind, _)| *kind == "verify")
@@ -126,6 +125,28 @@ fn run(arguments: Vec<String>, ci: bool) -> Result<ExitCode> {
     buck::exec(command)
 }
 
-fn bool(value: bool) -> &'static str {
-    if value { "true" } else { "false" }
+/// The buck2 command: buck/dev/verify.bxl with the parts asked for, which
+/// prints the manifest crates/be-tool-verify reads, whole even when something
+/// fails to build. --keep-going builds everything that can be, so that it
+/// reads what did; the tools it runs here are built for host. The event log
+/// is for crates/be-tool-verify too, which checks from it where Rust links
+/// ran (be-tool-verify's links.rs).
+fn bxl_arguments(host: &str, parts: &[&str], events: &std::path::Path) -> Vec<String> {
+    let mut arguments: Vec<String> = [
+        "bxl",
+        "--keep-going",
+        "--event-log",
+        &events.to_string_lossy(),
+        "//buck/dev/verify.bxl:main",
+        "--",
+        "--host",
+        host,
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    for part in parts {
+        arguments.extend(["--part".to_owned(), (*part).to_owned()]);
+    }
+    arguments
 }

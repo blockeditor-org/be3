@@ -13,8 +13,9 @@ The directory holds only `be-server` and the `build-info.json` it reads beside i
 `--data-dir` holds `metadata.sqlite` and `objects/`, or `object-cache/` when objects live in a
 bucket (below). The server adds missing tables, indexes and
 defaulted columns on startup and refuses incompatible schemas; the data and its backups are not
-frozen (guides/frozen_formats.md), so a change may require deleting them. Don't run `CollectDetached` or `PruneHistory` against
-it: be-host never sends them and backups never delete objects.
+frozen (guides/frozen_formats.md), so a change may require deleting them. Don't run `CollectDetached` against
+it: be-host never sends it. Publishing prunes history as commits arrive (guides/blocks/server.md);
+backups keep every object they copied.
 
 ## Objects in a bucket
 

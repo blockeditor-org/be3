@@ -8,7 +8,11 @@ mod the_display_is_told_only_what_changed;
 
 use beui::{Color32, pos2};
 
-use be_host_dmabuf::testing::{read, vulkan_device};
+use be_lib_dmabuf::testing::read;
+
+fn vulkan_device() -> (wgpu::Device, wgpu::Queue) {
+    be_lib_dmabuf::testing::vulkan_device(beui_host::native::open_vulkan_device)
+}
 
 const WIDTH: u32 = 32;
 const HEIGHT: u32 = 24;

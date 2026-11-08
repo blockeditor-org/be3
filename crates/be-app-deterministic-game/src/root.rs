@@ -108,8 +108,8 @@ impl BlockGame {
             .as_ref()
             .is_none_or(|loaded| loaded.module != module || loaded.revision != revision);
         if stale {
-            let game = match projection.read(|module| Game::load(module.data())) {
-                Ok(game) => game,
+            let game = match projection.payload().get() {
+                Ok(data) => Game::load(&data),
                 Err(pending) => return waiting(pending),
             };
             *self.loaded.borrow_mut() = Some(Loaded {

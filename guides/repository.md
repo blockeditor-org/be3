@@ -30,6 +30,10 @@ library is `//crates/NAME:NAME`, abbreviated `//crates/NAME`, with its other tar
   `be-tool-cli` (`be`), `be-tool-launcher` (runs any pull request on Android or the desktop) and
   `be-tool-paint-review` (the page for reviewing a pull request's paintings).
 
+Which family may depend on which is checked when a crate's BUCK file loads; the rules (be-wasm
+at the base, under be-lib) are in buck/cargo/layers.bzl. Fix a violation by moving code or
+renaming the crate into the family it belongs to, not by adding an exception.
+
 ## Separate projects
 
 These depend on beui and the app system and live here so a change to either updates them in the

@@ -41,6 +41,7 @@ pub struct BlockDrag {
 pub struct HostContent {
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
+    pub length: u64,
     pub session: Vec<u8>,
     pub unsettled: Vec<Vec<u8>>,
     pub applied: u64,
@@ -48,9 +49,15 @@ pub struct HostContent {
 
 impl HostContent {
     pub fn of<C: be_block::LiveEdit>(content: &C) -> Self {
+        let bytes = content.encode();
+        let length = match C::LOADS {
+            be_block::Loads::Whole => bytes.len() as u64,
+            be_block::Loads::FirstPart => content.parts().length(),
+        };
         Self {
             content_type: C::CONTENT_TYPE,
-            bytes: content.encode(),
+            bytes,
+            length,
             session: content.session_state(),
             unsettled: Vec::new(),
             applied: 0,
@@ -61,6 +68,7 @@ impl HostContent {
         Snapshot {
             content_type: self.content_type,
             bytes: self.bytes,
+            length: self.length,
             session: self.session,
             unsettled: self.unsettled,
             applied: self.applied,
@@ -168,11 +176,23 @@ pub struct ShowRequest {
     pub editor: Option<Uuid>,
 }
 
+/// A block's version history to show, at a commit when named.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HistoryRequest {
+    pub block_id: Uuid,
+    pub commit: Option<[u8; 32]>,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BlockHistory {
     pub head: Option<[u8; 32]>,
     pub can_undo: bool,
     pub can_redo: bool,
+    /// Undo stopped at the session restart that committed this; version history holds what
+    /// came before.
+    pub restarted_at: Option<[u8; 32]>,
+    /// Edits made with another build of the block's type were lost when it opened.
+    pub lost_edits: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -485,6 +505,7 @@ pub struct EditorHost {
     picked: Rc<RefCell<Option<BlockPick>>>,
     card: Rc<Cell<bool>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
+    history_requests: Rc<RefCell<Vec<HistoryRequest>>>,
     child_commits: Rc<RefCell<Vec<ChildCommit>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     on_pushed: Rc<crate::state::Callbacks<Pushed, dyn Fn()>>,
@@ -673,6 +694,17 @@ impl EditorHost {
 
     pub(crate) fn wants_shows(&self) -> bool {
         self.shows_watched.get()
+    }
+
+    /// What the host asked this shell to show of blocks' version history.
+    pub fn take_history_requests(&self) -> Vec<HistoryRequest> {
+        self.shows_watched.set(true);
+        std::mem::take(&mut self.history_requests.borrow_mut())
+    }
+
+    pub(crate) fn history_requested(&self, request: HistoryRequest) {
+        self.history_requests.borrow_mut().push(request);
+        self.push(Pushed::Shows);
     }
 
     pub fn take_dialog_requests(&self) -> Vec<(Uuid, ShellDialog)> {
@@ -1066,6 +1098,13 @@ impl EditorHost {
         ));
     }
 
+    /// Asks the host to show the block's version history, at `commit` when named.
+    pub fn show_history(&self, block_id: Uuid, commit: Option<[u8; 32]>) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::History(commit)));
+    }
+
     pub fn restore_block(&self, block_id: Uuid) {
         self.block_commands
             .borrow_mut()
@@ -1215,7 +1254,8 @@ impl EditorHost {
                     })
                     .collect(),
             ),
-            content @ (ToEditor::Snapshot(_) | ToEditor::Operations(_)) => {
+            content
+            @ (ToEditor::Snapshot(_) | ToEditor::Operations(_) | ToEditor::Range { .. }) => {
                 if self.followed.borrow().contains_key(&block) {
                     self.update_content(block, content);
                 }
@@ -1279,6 +1319,10 @@ impl EditorHost {
             message
             @ (FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_)) => {
                 self.content_operations.borrow_mut().push((block, message));
+            }
+            message @ FromEditor::Read { .. } => {
+                self.content_operations.borrow_mut().push((block, message));
+                self.waker.wake();
             }
         }
     }

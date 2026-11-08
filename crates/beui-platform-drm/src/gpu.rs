@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::os::fd::OwnedFd;
 use std::rc::Rc;
 
-use be_host_dmabuf::{SyncFiles, Vulkan};
+use be_lib_dmabuf::{SyncFiles, Vulkan};
 use beui::Vec2;
 use beui::native::texture_quad::{Bound, Pipelines, Quad};
 

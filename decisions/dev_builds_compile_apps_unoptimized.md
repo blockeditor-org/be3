@@ -1,7 +1,7 @@
 # Dev builds compile apps at opt-level 0
 
 Outside a release build, apps compile at opt-level 0 and the workspace crates under them,
-for wasm, at 1 (`_wasm_dev` in `buck/cargo/defs.bzl`); only third-party crates get the app
+for wasm, at 1 (`OPT_LEVELS` in `buck/platforms/profile.bzl`); only third-party crates get the app
 profile's 2, which their cache hides. Test modules are precompiled with Cranelift's
 optimizations off (`--quick`).
 

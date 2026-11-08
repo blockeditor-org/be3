@@ -50,7 +50,7 @@ use smithay::reexports::input::{Device as Libdevice, DeviceCapability, Libinput}
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::utils::{Clock, DeviceFd, Monotonic};
 
-use be_host_dmabuf::{DEVICE_EXTENSIONS, Vulkan, adapter_for};
+use be_lib_dmabuf::{DEVICE_EXTENSIONS, Vulkan, adapter_for};
 
 use crate::display::{DisplayConfig, DisplayControl, DisplayUse};
 use crate::displays::{Display, Displays};

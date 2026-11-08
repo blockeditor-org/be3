@@ -11,7 +11,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
     let block = client.create_block(BlockParent::Root).await;
     assert_eq!(client.read_block(block).await.head, None);
 
-    let (first, chunks) = author.compose(b"first draft\n", 1_000, None);
+    let (first, chunks) = author.compose(b"first draft\n", minutes_ago(2), None);
     client
         .upload(&author.store, &author.objects_of(first, &chunks))
         .await;
@@ -23,10 +23,10 @@ async fn blocks_publish_and_read_back_through_the_server() {
                 first,
                 None,
                 Vec::new(),
-                chunks.clone(),
-                1_000,
+                objects_change(&[], chunks.clone()),
+                minutes_ago(2),
                 false,
-                Vec::new(),
+                listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
             )
@@ -43,7 +43,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
         panic!("the published chunk was not readable: {response:?}");
     };
 
-    let (second, next_chunks) = author.compose(b"second draft\n", 2_000, Some(first));
+    let (second, next_chunks) = author.compose(b"second draft\n", minutes_ago(1), Some(first));
     let carried = author
         .objects_of(second, &next_chunks)
         .into_iter()
@@ -57,10 +57,10 @@ async fn blocks_publish_and_read_back_through_the_server() {
                 second,
                 Some(first),
                 Some(first).into_iter().collect(),
-                next_chunks,
-                2_000,
+                objects_change(&chunks, next_chunks),
+                minutes_ago(1),
                 false,
-                Vec::new(),
+                listing(&[], Vec::new()),
                 Vec::new(),
                 carried,
             )

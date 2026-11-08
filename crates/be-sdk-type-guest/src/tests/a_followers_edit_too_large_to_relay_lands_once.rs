@@ -12,7 +12,7 @@ fn a_followers_edit_too_large_to_relay_lands_once() {
     let pasted = "a line of pasted text\n".repeat(60_000);
     sim.type_at(1, 1, 12, &pasted);
     sim.settle();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert!(
         sim.largest_relay < 1024 * 1024,
         "a relayed message carried {} bytes",
@@ -29,7 +29,7 @@ fn a_followers_edit_too_large_to_relay_lands_once() {
     sim.settle();
     sim.type_at(0, 1, 2, "!");
     sim.settle();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     let expected = format!("> !start\ntyped\n{pasted}");
     assert!(prose(&sim.head_content()) == expected);
     for device in 0..2 {

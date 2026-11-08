@@ -28,6 +28,6 @@ fn child_changes_become_edits_of_the_parent() {
         assert_eq!(sim.content(device).references(), [other]);
     }
     sim.change(0, Change::Child(ChildChange::Delete(other)));
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert!(sim.head_content().references().is_empty());
 }

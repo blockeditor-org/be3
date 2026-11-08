@@ -139,57 +139,42 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
             .unwrap()
             .published();
     }
-    let history = admin.history(image_block).await.unwrap();
-    let thinning = RetentionPolicy {
-        keep_all_within: 0,
-        buckets: vec![be_block_commit::retention::Bucket {
-            until_age: i64::MAX,
-            interval: 10 * MINUTE,
-        }],
-    };
-    assert_eq!(admin.prune(image_block, &thinning).await.unwrap(), 0);
     assert_eq!(
         admin.history(image_block).await.unwrap().len(),
-        history.len()
+        4,
+        "publishing pruned a version the organization keeps"
     );
-    let oldest = history.last().unwrap().commit;
-    let pruned = crate::ask(client::blocks::prune_history(
-        &admin.connection(),
-        image_block,
-        vec![oldest],
-    ))
-    .await
-    .unwrap_err();
-    assert_eq!(refused(pruned), ErrorCode::PolicyRefused);
-    let backdated = pseudorandom(64, 7);
-    let backdated_commit =
-        be_block_commit::CommitId::from_hash(be_block_store::Hash::of(&backdated));
     let current = admin.summary(image_block).await.unwrap().head;
-    crate::ask(client::blocks::publish(
-        &admin.connection(),
-        image_block,
-        backdated_commit,
-        current,
-        current.into_iter().collect(),
-        Vec::new(),
-        0,
-        false,
-        Vec::new(),
-        Vec::new(),
-        vec![backdated],
-    ))
-    .await
-    .unwrap();
-    let pruned = crate::ask(client::blocks::prune_history(
-        &admin.connection(),
-        image_block,
-        vec![backdated_commit],
-    ))
-    .await
-    .unwrap_err();
-    assert_eq!(
-        refused(pruned),
-        ErrorCode::PolicyRefused,
+    let mut backdated_commit = None;
+    for (seed, time) in [(7, 0), (8, 1)] {
+        let backdated = pseudorandom(64, seed);
+        let commit = be_block_commit::CommitId::from_hash(be_block_store::Hash::of(&backdated));
+        let expected = backdated_commit.or(current);
+        crate::ask(client::blocks::publish(
+            &admin.connection(),
+            image_block,
+            commit,
+            expected,
+            expected.into_iter().collect(),
+            be_block_protocol::ObjectChange::default(),
+            time,
+            false,
+            be_block_protocol::ReferenceChange::default(),
+            Vec::new(),
+            vec![backdated],
+        ))
+        .await
+        .unwrap();
+        backdated_commit.get_or_insert(commit);
+    }
+    let backdated_commit = backdated_commit.unwrap();
+    assert!(
+        admin
+            .history(image_block)
+            .await
+            .unwrap()
+            .iter()
+            .any(|entry| entry.commit == backdated_commit),
         "a version that says it is old was pruned the day the server received it"
     );
 
@@ -224,10 +209,10 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         be_block_commit::CommitId::from_hash(early_hash),
         current,
         current.into_iter().collect(),
-        Vec::new(),
+        be_block_protocol::ObjectChange::default(),
         0,
         false,
-        Vec::new(),
+        be_block_protocol::ReferenceChange::default(),
         Vec::new(),
         Vec::new(),
     ))

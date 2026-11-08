@@ -15,6 +15,25 @@ buck2_sha256_aarch64_apple_darwin='aacdf7cabe34b9b5dc74866b8dcf7410cdbae3ad2dcce
 buck2_sha256_x86_64_pc_windows_msvc='1f0619b285ee3cbdc562a38b70f2636f73e8233b2f5156aef93e9e8a00079e2c'
 buck2_sha256_aarch64_pc_windows_msvc='58edb0718e3b89a3f875129cc72640f2f4cb80487ec42057eb88447519dff0cf'
 
+# cargo, rust-toolchain.toml's release, which the bootstrap's lock step brings
+# Cargo.lock up to date with (crates/be-tool-bootstrap/src/lock.rs): Rust's own
+# https://static.rust-lang.org/dist/cargo-<version>-<triple>.tar.gz, by its
+# SHA-256, as https://static.rust-lang.org/dist/channel-rust-<version>.toml
+# lists it, and its size in bytes.
+cargo_version='1.98.0'
+cargo_sha256_x86_64_unknown_linux_gnu='18bf1598891b30dd5eb52a337d08a92b4456255ddbe4c1ab996ffb578077031c'
+cargo_sha256_aarch64_unknown_linux_gnu='e271c3c5d50336259a166e68b60ba792a64278ab117686183be3e51a0958d34b'
+cargo_sha256_x86_64_apple_darwin='7fdd094e131f98864fea06c6e0059fcecaba7b0010d07b90023f42215b6f33e8'
+cargo_sha256_aarch64_apple_darwin='ae556d0783f4ab2a6fccd4674158df08cf36526b73de03b7fde0e10b2bfc3d2e'
+cargo_sha256_x86_64_pc_windows_msvc='c50b54520d2748c60cabbc50c3f45fadb522453f048f77ad6d5f4f1b7e3f300b'
+cargo_sha256_aarch64_pc_windows_msvc='91145f927130f6a2c0eaf555725c3a83afe56a1fded4a0450d680b27323a633f'
+cargo_size_x86_64_unknown_linux_gnu='15858529'
+cargo_size_aarch64_unknown_linux_gnu='15833225'
+cargo_size_x86_64_apple_darwin='13345290'
+cargo_size_aarch64_apple_darwin='12993393'
+cargo_size_x86_64_pc_windows_msvc='14552810'
+cargo_size_aarch64_pc_windows_msvc='16125527'
+
 # be, the tracker's command line tool (guides/tracker.md), built from the same
 # tree as the be-server the tracker lives on. The release is that server's
 # build id, written beside be, so the server refuses this be once it is
@@ -43,9 +62,9 @@ nsc_sha256_linux_arm64='fc121a4fda8083f9e2815a2ecb4e75d06649b98316d4c793434d03fc
 # binary, which is also its name at https://be3-ci.b-cdn.net/bootstrap/<sha256>.
 # CI uploads and pins a new release when the binaries built from the checkout
 # are not these (guides/bootstrap.md).
-bootstrap_sha256_x86_64_unknown_linux_gnu='39697b0f1430221593fa7e39b75518704c157723d0238feb0c882c95d03cba56'
-bootstrap_sha256_aarch64_unknown_linux_gnu='4d27e08491a38fdf0ee3dc7ded8cd7c7268c691e0fe28485afa2978757e62bfc'
-bootstrap_sha256_x86_64_apple_darwin='32dc62e00b185597a0ce2de527accb79db819ab6fea4ce985ef83f3703af1f2e'
-bootstrap_sha256_aarch64_apple_darwin='81f90415ba2fe151fe6cbc85c1ec4001c6170de3d26de657034533d0d73d5a1c'
-bootstrap_sha256_x86_64_pc_windows_msvc='16e3ecd07e6b604156e0afd8d358af7c48002f257476cd9ac3c3188437c76c4e'
-bootstrap_sha256_aarch64_pc_windows_msvc='ea72dcaf3ceed582bb8c50976a09d3b4c2caa214ee3730c45829b87ae267c80b'
+bootstrap_sha256_x86_64_unknown_linux_gnu='e9a1c795765dd6737ab5dd667cf40bb3c7ce01d7730dc70b12aa02880fc16a93'
+bootstrap_sha256_aarch64_unknown_linux_gnu='568547dab8446108dcf21209ea9a0d707a64f7df689ca109bb66513b4c163498'
+bootstrap_sha256_x86_64_apple_darwin='28949d90cdb37bb56476e95c0b4cec520c8fffdc3f25234c42d9aa3dab350256'
+bootstrap_sha256_aarch64_apple_darwin='12d4e7c247ee78323342dd1ccf04f026695a08fe955965329ac383dc4a024cef'
+bootstrap_sha256_x86_64_pc_windows_msvc='fa96dc35a5d215808446332fcc682e0742d462864e5d85485c8417333aae83b7'
+bootstrap_sha256_aarch64_pc_windows_msvc='fe2d3227db362204e685ee5df194896933b15073f025d3e1c71e396431d4fc2f'

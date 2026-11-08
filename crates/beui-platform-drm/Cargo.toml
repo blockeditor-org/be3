@@ -5,7 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-host-dmabuf = { path = "../be-host-dmabuf" }
+be-lib-dmabuf = { path = "../be-lib-dmabuf" }
 beui = { path = "../beui" }
 beui-host = { path = "../beui-host", default-features = false }
 beui-core = { path = "../beui-core" }

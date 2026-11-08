@@ -29,8 +29,12 @@ pub enum SessionMessage {
     Accepted {
         op: SessionOp,
     },
+    /// A follower asks for what it lacks: the operations after `since`, and the head and
+    /// session state unless it already holds `base` as sealed at `sealed`.
     Catchup {
         since: u64,
+        base: Option<CommitId>,
+        sealed: u64,
     },
     Snapshot {
         head: Option<CommitId>,
@@ -40,11 +44,16 @@ pub enum SessionMessage {
         #[serde(with = "serde_bytes")]
         state: Vec<u8>,
     },
+    /// The owner committed `head`, holding everything up to `sequence`. With `reload`,
+    /// followers load `head` with that session state; with `restart`, the session started over
+    /// from `head` loaded afresh, so what followers had pending moves onto it
+    /// (`LiveEdit::carry_over`) and undo stops there.
     Sealed {
         head: CommitId,
         sequence: u64,
         #[serde(with = "serde_bytes")]
         reload: Option<Vec<u8>>,
+        restart: bool,
     },
     Replaced {
         head: CommitId,
@@ -148,6 +157,14 @@ impl Sequencer {
         Inherited::Continued
     }
 
+    /// Takes an operation replayed from the journal, numbered as its owner numbered it: a
+    /// folded entry skips the numbers it absorbed.
+    pub fn replayed(&mut self, op: SessionOp) {
+        self.accepted.insert(op.id);
+        self.sequence = self.sequence.max(op.sequence);
+        self.log.push_back(op);
+    }
+
     pub fn since(&self, sequence: u64) -> Vec<SessionOp> {
         self.log
             .iter()
@@ -245,6 +262,11 @@ impl Follower {
         self.pending = kept;
     }
 
+    /// Puts back what `take_pending` took, rewritten.
+    pub fn restore_pending(&mut self, pending: Vec<(OpId, Vec<u8>)>) {
+        self.pending = pending.into();
+    }
+
     pub fn take_pending(&mut self) -> Vec<(OpId, Vec<u8>)> {
         self.pending.drain(..).collect()
     }
@@ -275,9 +297,11 @@ impl Follower {
             .collect()
     }
 
-    pub fn catchup(&self) -> SessionMessage {
+    pub fn catchup(&self, base: Option<CommitId>, sealed: u64) -> SessionMessage {
         SessionMessage::Catchup {
             since: self.applied,
+            base,
+            sealed,
         }
     }
 }

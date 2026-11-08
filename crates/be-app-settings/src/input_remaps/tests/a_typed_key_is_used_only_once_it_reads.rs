@@ -35,5 +35,5 @@ fn a_typed_key_is_used_only_once_it_reads() {
         text.contains(r#"send = "Key:0x9e""#),
         "a code is written as the TOML reads it: {text}"
     );
-    assert!(be_host_remap::text::parse(&text).is_ok(), "{text}");
+    assert!(be_lib_remap::text::parse(&text).is_ok(), "{text}");
 }

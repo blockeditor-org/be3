@@ -19,16 +19,18 @@ rest wait in `EditorHost`). A frame is an encoded
 `be_sdk_type_guest::editor::ToEditor` or `FromEditor`, relayed unread between
 the instance and the replica.
 
-- App to host: `Operate`, `Gesture`, `ShowPresence`, `SendToPeers`, `Resend`.
+- App to host: `Operate`, `Gesture`, `ShowPresence`, `SendToPeers`, `Resend`,
+  `Read` (below).
   An instance asks for content by sending `Resend` when it first follows a
   block; the host attaches it then, with `editable` from the account's access
   (sent again when that changes).
-- Host to app: `Snapshot { content_type, bytes, session, unsettled, applied }`,
+- Host to app: `Snapshot { content_type, bytes, length, session, unsettled,
+  applied }`, where `length` is the whole stored form's,
   where `applied` counts operations *this instance* sent that the snapshot
   holds, which is how an app tells its own unacknowledged edits from others';
   `Operations` (each marked `mine`, with `unsettled` and, for a peer's
   operation that goes beneath them, the rebased `beneath`); `Presence`;
-  `PeerMessages`.
+  `PeerMessages`; `Range`.
 - `write-content` writes content outright, since it may name a block nothing
   follows (guides/blocks/host.md, "Creating, seeding and replacing").
 
@@ -51,6 +53,21 @@ database view follows its database and schema). Revision previews and blocks
 still uploading are answered with a host-made `Snapshot` with no session
 state. Dynamic artifacts use `EditorHost::content_of` and
 `EditorHost::replace_content`. `be_sdk_beui` re-exports `be_block`.
+
+### Reading a range
+
+A type that loads only its first part (`be_block::Loads::FirstPart`, such as
+`Blob`) leaves the rest of its stored form
+in the store: the replica, its followers and every editor's `Snapshot` hold
+only that part's bytes, and `Snapshot::length` says how long the whole is. An
+editor reads the rest with `LiveContent::read_range(offset, length, done)`,
+which sends `FromEditor::Read { token, offset, length }`; the replica answers
+`ToEditor::Range { token, result }` from the parts it holds, unsaved ones
+included, and the type module's `read-part` host call for the parts it left in
+the store (guides/type_modules.md). Offsets are into the whole stored form.
+A blob editor uses `ContentProjection::payload()` instead, a signal of the
+payload that reads it once per snapshot (so a header edit reads nothing) and
+holds what a host-made snapshot already carried.
 
 ## State and change callbacks
 

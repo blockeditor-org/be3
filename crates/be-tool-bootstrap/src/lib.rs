@@ -5,8 +5,11 @@ use std::sync::OnceLock;
 mod be;
 mod buck;
 mod buck2;
+mod buckify;
+mod cargo;
 mod deploy;
 mod download;
+mod lock;
 mod nsc;
 mod pins;
 mod platform;
@@ -15,20 +18,24 @@ mod server;
 mod setup;
 mod source;
 mod switch;
+mod tar;
 mod test;
 mod verify;
 
 pub use pins::Pins;
 pub use quiet::Quiet;
+pub use tar::file as tar_file;
 pub use test::crate_of_function;
 
 pub type Result<T> = std::result::Result<T, String>;
 
-const USAGE: &str =
-    "usage: bootstrap buck|test|verify|ci|be|deploy|setup|switch|install-buck2|install-nsc ...";
+const USAGE: &str = "usage: bootstrap buck|test|verify|ci|lock|buckify|be|deploy|setup|switch|install-buck2|install-nsc ...";
 
 pub fn run() -> ExitCode {
     let mut arguments = std::env::args().skip(1);
+    if let Ok(release) = std::env::var(lock::RUSTC_RELEASE) {
+        return lock::rustc(&release, &arguments.collect::<Vec<_>>());
+    }
     let command = arguments.next().unwrap_or_default();
     let rest: Vec<String> = arguments.collect();
     if let Some(code) = source::run_from_source(&command, &rest) {
@@ -39,6 +46,8 @@ pub fn run() -> ExitCode {
         "test" => test::main(rest),
         "verify" => verify::verify(rest),
         "ci" => verify::ci(rest),
+        "lock" => lock::main(rest),
+        "buckify" => buckify::main(rest),
         "be" => be::main(rest),
         "deploy" => deploy::main(rest),
         "setup" => setup::main(rest),

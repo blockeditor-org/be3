@@ -38,6 +38,7 @@ pub mod backup;
 pub mod blocks;
 pub mod contacts;
 mod http;
+pub mod journal;
 pub mod keys;
 pub mod limits;
 pub mod objects;

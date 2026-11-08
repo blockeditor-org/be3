@@ -1,3 +1,5 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
+
 # What a wasm build is for. be-host's web bundle and an app are both
 # wasm32-wasip1-threads, but the app links a real wgpu backend and an app only
 # the custom one, whose handles are neither Send nor Sync. cargo plans the two
@@ -5,13 +7,11 @@
 # its own for the rules made from those plans to select by.
 constraint_setting(
     name = "wasm_role",
-    visibility = ["PUBLIC"],
 )
 
 constraint_value(
     name = "guest",
     constraint_setting = ":wasm_role",
-    visibility = ["PUBLIC"],
 )
 
 # Which of Cargo's profiles a build stands in for: dev without this value, and
@@ -22,13 +22,27 @@ constraint_value(
 # transition keeps it.
 constraint_setting(
     name = "profile",
-    visibility = ["PUBLIC"],
 )
 
 constraint_value(
     name = "release",
     constraint_setting = ":profile",
-    visibility = ["PUBLIC"],
+)
+
+# Whether be-host's binary is linked with fat LTO over one codegen unit
+# (crates/be-host/BUCK): a constraint rather than a buckconfig value, so an LTO
+# build has outputs of its own. `-m lto` (the root PACKAGE's modifier) adds it
+# to a command's platform; ./scripts/deploy's native builds have it by their
+# transition (crates/be-tool-local/defs.bzl). Transitions drop it otherwise
+# (keep_profile in buck/platforms/profile.bzl), since nothing else selects on
+# it and the apps would only be built again for nothing.
+constraint_setting(
+    name = "link_time_optimization",
+)
+
+constraint_value(
+    name = "lto",
+    constraint_setting = ":link_time_optimization",
 )
 
 # Which core beui's view layer builds on (guides/beui.md, Two cores): the native one,
@@ -40,11 +54,23 @@ constraint_value(
 # passes that flag to every first-party crate built for them.
 constraint_setting(
     name = "beui_core",
-    visibility = ["PUBLIC"],
 )
 
 constraint_value(
     name = "html",
     constraint_setting = ":beui_core",
-    visibility = ["PUBLIC"],
 )
+
+# What no platform has: buck/cargo/defs.bzl makes a workspace crate's targets
+# need it on every platform cargo did not plan the crate for, so building one
+# there is a configuration error that names this.
+constraint_setting(
+    name = "cargo_plan",
+)
+
+constraint_value(
+    name = "planned_by_cargo",
+    constraint_setting = ":cargo_plan",
+)
+
+package_fix()

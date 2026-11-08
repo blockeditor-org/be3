@@ -1,6 +1,9 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
 load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/program:drive.bzl", "page_test")
 load("@root//buck/wasm:defs.bzl", "linked_app")
+
+cargo_package()
 
 # The app at the top of the thread-local diamond (guides/app_libraries.md,
 # "Thread-locals"): its generics reach the thread-locals of base, left and

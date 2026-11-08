@@ -28,7 +28,7 @@ otherwise; triangle names base alone (`BASE_LIBRARY`), and
 and exports everything, since it cannot know what a future app will use, so a
 crate only one or two apps use stays in those apps. To move a crate into a
 library, add it to the library crate's `Cargo.toml` and `lib.rs` and run
-`./scripts/buck run //:buckify`.
+`./scripts/buckify`.
 
 C code: libc++ and setjmp live in base even though base does not use them, so
 every C++ library above shares one copy. wasi-libc functions some C library

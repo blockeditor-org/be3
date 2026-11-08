@@ -10,7 +10,7 @@ fn a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it() {
     sim.operate(0, 1, Counter::add(1));
     sim.operate(1, 1, Counter::add(10));
     sim.settle();
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     let sealed = sim.head.expect("the owner sealed");
     assert_eq!(sim.devices[1].status.head, Some(sealed));
 
@@ -21,7 +21,7 @@ fn a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it() {
     );
     assert!(sim.devices[1].status.owner);
     sim.operate(1, 1, Counter::add(100));
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(sim.publishes, 2);
     assert_eq!(
         sim.rejections, 0,

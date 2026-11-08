@@ -1,6 +1,6 @@
 # Terminal screen rows overflow visibly rather than with an ellipsis
 
-In beui-terminal-view, screen rows joined by `wrapped` are one `Text` with
+In be-sdk-terminal, screen rows joined by `wrapped` are one `Text` with
 `Overflow::Visible` and a `<Break/>` at each wrap point.
 
 ## Rejected

@@ -1,5 +1,8 @@
 use be_block_commit::CommitId;
-use be_sdk_type_api::{Description, Merging, Recipients, ReplicaId, Status, Written};
+use be_sdk_type_api::{
+    Description, JournalBase, JournalEntry, Merging, Recipients, ReplicaId, Status, UndoState,
+    Written,
+};
 
 pub(crate) type Token = u64;
 
@@ -24,10 +27,18 @@ pub(crate) enum Effect {
         parent: Option<CommitId>,
         content: Written,
     },
-    Read {
+    Load {
         replica: ReplicaId,
         token: Token,
         commit: CommitId,
+        first_part: bool,
+    },
+    ReadPart {
+        replica: ReplicaId,
+        token: Token,
+        part: be_block::PartRef,
+        offset: u64,
+        length: u64,
     },
     Resume {
         replica: ReplicaId,
@@ -43,6 +54,17 @@ pub(crate) enum Effect {
         generation: u64,
         clean_at: Option<CommitId>,
     },
+    Append {
+        replica: ReplicaId,
+        generation: u64,
+        entries: Vec<JournalEntry>,
+        relay: bool,
+    },
+    Rebase {
+        replica: ReplicaId,
+        generation: u64,
+        base: JournalBase,
+    },
     Release {
         replica: ReplicaId,
     },
@@ -56,8 +78,7 @@ pub(crate) enum Effect {
     },
     History {
         replica: ReplicaId,
-        can_undo: bool,
-        can_redo: bool,
+        history: UndoState,
     },
     Conflict {
         replica: ReplicaId,

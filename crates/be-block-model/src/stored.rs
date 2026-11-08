@@ -20,7 +20,7 @@ pub const CRITICAL: u64 = 0x6265_3303;
 const UUID: u64 = 37;
 
 const KIND: &str = "$kind";
-const ID: &str = "$id";
+pub(crate) const ID: &str = "$id";
 
 pub fn encode<T: Serialize + ?Sized>(value: &T) -> Vec<u8> {
     let mut out = Vec::new();
@@ -72,10 +72,6 @@ pub(crate) fn document(tree: &Tree, kind: &Kind) -> Stored {
         ("format".to_owned(), Stored::from(kind.format)),
         ("root".to_owned(), object(tree, ObjectId::ROOT, kind, false)),
     ])
-}
-
-pub(crate) fn save(tree: &Tree, kind: &Kind) -> Vec<u8> {
-    encode(&document(tree, kind))
 }
 
 fn object(tree: &Tree, id: ObjectId, kind: &Kind, with_id: bool) -> Stored {
@@ -160,8 +156,7 @@ fn field(tree: &Tree, value: &Value, shape: &Shape) -> Stored {
     }
 }
 
-pub(crate) fn load(bytes: &[u8], kind: &Kind) -> Result<Tree, Malformed> {
-    let envelope: Stored = decode(bytes).ok_or(Malformed)?;
+pub(crate) fn load(envelope: Stored, kind: &Kind) -> Result<Tree, Malformed> {
     let mut entries = properties(envelope).ok_or(Malformed)?;
     let format = entries
         .remove("format")
@@ -192,6 +187,33 @@ fn properties(value: Stored) -> Option<BTreeMap<String, Stored>> {
             .filter_map(|(key, value)| Some((key.into_text().ok()?, value)))
             .collect(),
     )
+}
+
+/// `value` with every map's entries in the order of their encoded keys,
+/// shorter first, so data kept for a newer build encodes the same bytes
+/// whatever order the build that wrote it used.
+fn canonical(value: Stored) -> Stored {
+    match value {
+        Stored::Map(entries) => {
+            let mut entries: Vec<(Vec<u8>, Stored, Stored)> = entries
+                .into_iter()
+                .map(|(key, value)| {
+                    let key = canonical(key);
+                    (encode(&key), key, canonical(value))
+                })
+                .collect();
+            entries.sort_by(|(a, ..), (b, ..)| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
+            Stored::Map(
+                entries
+                    .into_iter()
+                    .map(|(_, key, value)| (key, value))
+                    .collect(),
+            )
+        }
+        Stored::Array(items) => Stored::Array(items.into_iter().map(canonical).collect()),
+        Stored::Tag(tag, inner) => Stored::Tag(tag, Box::new(canonical(*inner))),
+        other => other,
+    }
 }
 
 fn uncritical(value: Stored) -> Stored {
@@ -249,7 +271,7 @@ impl Loading {
         }
         kept.properties = entries
             .into_iter()
-            .map(|(name, value)| (name, encode(&value)))
+            .map(|(name, value)| (name, encode(&canonical(value))))
             .collect();
         self.objects.insert(
             id,
@@ -272,7 +294,7 @@ impl Loading {
             Shape::List(child) => {
                 let child = child();
                 let mut ids = Vec::new();
-                for item in found.into_array().ok()? {
+                for (index, item) in found.into_array().ok()?.into_iter().enumerate() {
                     let Some(entries) = properties(item) else {
                         continue;
                     };
@@ -281,7 +303,7 @@ impl Loading {
                         .and_then(as_uuid)
                         .map(ObjectId::from_uuid)
                         .filter(|id| *id != ObjectId::ROOT && !self.objects.contains_key(id))
-                        .unwrap_or_else(|| self.fresh());
+                        .unwrap_or_else(|| self.derived(place, index));
                     self.objects
                         .insert(id, Object::new(Some(place), Vec::new()));
                     self.object(entries, &child, id, Some(place), false);
@@ -330,14 +352,36 @@ impl Loading {
         })
     }
 
-    fn fresh(&self) -> ObjectId {
+    /// The id for an item stored without one, or with one already taken: derived from where the
+    /// item sits, so every replica loading the same bytes gives it the same id and edits naming it
+    /// land everywhere.
+    fn derived(&self, place: Place, index: usize) -> ObjectId {
+        let mut attempt = 0_u128;
         loop {
-            let id = ObjectId::new();
-            if !self.objects.contains_key(&id) {
+            let mut state = place.object.as_uuid().as_u128()
+                ^ (u128::from(place.field) << 96)
+                ^ ((index as u128) << 32)
+                ^ attempt;
+            state = mix(state);
+            let id = ObjectId::from_uuid(Uuid::from_u128(state));
+            if id != ObjectId::ROOT && !self.objects.contains_key(&id) {
                 return id;
             }
+            attempt += 1;
         }
     }
+}
+
+/// A bijective mix of 128 bits (xorshift-multiply rounds), spreading derived ids over the space.
+fn mix(mut state: u128) -> u128 {
+    for multiplier in [
+        0x9e37_79b9_7f4a_7c15_f39c_c060_5ced_c835_u128,
+        0xbf58_476d_1ce4_e5b9_94d0_49bb_1331_11eb_u128,
+    ] {
+        state ^= state >> 67;
+        state = state.wrapping_mul(multiplier | 1);
+    }
+    state ^ (state >> 59)
 }
 
 fn rich_text(rich: &Rich) -> Stored {

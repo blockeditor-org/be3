@@ -11,12 +11,12 @@ underneath is in guides/blocks/content_types.md.
 ## 1. Make the types crate
 
 The types of `crates/be-app-my-block` live in `crates/be-type-my-block` (add it
-to the root `Cargo.toml`'s members and run `./scripts/buck run //:buckify`). It
+to the root `Cargo.toml`'s members and run `./scripts/buckify`). It
 is a plain library the editor, its tests and other crates depend on, and its
 `:module` build is the type module the host runs. Copy checklist's
 `Cargo.toml` (`crate-type = ["cdylib", "rlib"]`, a `module` feature) and
-`BUCK` (a `cargo_library`, a `wasm` library with the `module` feature, and a
-`wasm32_module` named `module`).
+`BUCK` (`cargo_package()` and one `type_module(module = "my_block_types")` call, buck/wasm/defs.bzl,
+which makes the library, its tests and `:module`).
 
 `src/lib.rs` lists the types and exports the guest only under `module`, so a
 crate depending on the library (an editor compiled to wasm) does not get a

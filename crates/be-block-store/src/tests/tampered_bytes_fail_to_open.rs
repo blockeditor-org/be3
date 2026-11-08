@@ -15,11 +15,10 @@ fn tampered_bytes_fail_to_open() {
 
     let missing = Manifest {
         content_type: CONTENT,
-        length: 4,
-        chunks: vec![ChunkRef {
+        root: Some(PartRef::Chunk(ChunkRef {
             hash: Hash::of(b"absent"),
             length: 4,
-        }],
+        })),
     };
     assert!(matches!(
         vault.read(&missing),

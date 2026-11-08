@@ -1,19 +1,21 @@
+load("@root//buck/dev:verify.bzl", "bootstrap_unpinned")
+
+# crates/be-tool-bootstrap's release as this checkout builds it, compared with
+# pins: ./scripts/ci builds it, and with [publish] the binaries to upload.
+bootstrap_unpinned(
+    name = "bootstrap-unpinned",
+    dist = "//crates/be-tool-bootstrap:dist",
+    pins = "pins",
+)
+
 # The one build script a buck2 action runs: crates/be-lib-ghostty-vt builds
-# libghostty-vt with it, on a worker, the same way cargo's build does locally.
+# libghostty-vt with it.
 export_file(
     name = "build-ghostty-vt.sh",
     src = "build-ghostty-vt.sh",
-    visibility = ["PUBLIC"],
-)
-
-export_file(
-    name = "download.sh",
-    src = "download.sh",
-    visibility = ["PUBLIC"],
 )
 
 export_file(
     name = "ghostty-vt.patch",
     src = "ghostty-vt.patch",
-    visibility = ["PUBLIC"],
 )

@@ -20,8 +20,8 @@ fn a_sequence_is_built_from_taps_and_waits() {
     editor.run();
 
     let text = stored(&editor);
-    let groups = be_host_remap::text::parse(&text).expect("the sequence reads");
-    let be_host_remap::Action::Steps { steps, .. } = &groups[0].rules[0].action else {
+    let groups = be_lib_remap::text::parse(&text).expect("the sequence reads");
+    let be_lib_remap::Action::Steps { steps, .. } = &groups[0].rules[0].action else {
         panic!("a sequence: {text}");
     };
     assert_eq!(steps.len(), 3, "{text}");

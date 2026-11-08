@@ -207,7 +207,7 @@ impl<S: ObjectStore> Peer<S> {
             .with_references(references.clone())
             .with_metadata(encoded.clone());
         let id = self.commits.put(key, &commit)?;
-        let chunks = manifest.chunk_hashes();
+        let chunks = vault.objects(&manifest)?;
         let mut objects = vec![id.hash()];
         objects.extend(chunks.iter().copied());
         Ok(Prepared {
@@ -259,10 +259,10 @@ impl<S: ObjectStore> Peer<S> {
                     pending.commit,
                     None,
                     Vec::new(),
-                    pending.chunks,
+                    be_block_protocol::ObjectChange::between(&[], &pending.chunks),
                     pending.time,
                     false,
-                    pending.references,
+                    be_block_protocol::ReferenceChange::between(&[], &pending.references),
                     pending.metadata,
                     Vec::new(),
                 )

@@ -1,18 +1,29 @@
 load("@prelude//cfg/modifier:cfg_constructor.bzl", "cfg_constructor_pre_constraint_analysis")
 load("@prelude//cfg/modifier:common.bzl", "MODIFIER_METADATA_KEY")
 load("@prelude//rust:cargo_package.bzl", "set_reindeer_platforms")
-load("//buck/platforms:cross.bzl", "PLAN_SETTINGS")
-load("//buck/platforms:modifiers.bzl", "cfg_constructor_named")
+load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
+load("@root//buck/platforms:modifiers.bzl", "cfg_constructor_named")
+load("@root//buck/platforms:profile.bzl", "MODIFIERS")
 
-# Which platform a configuration is, by the names buck/cargo/crates.bzl keys
+# Which platform a configuration is, by the names the crates' facts key
 # cargo's plans by, which is how the third-party rules in third-party/rust pick
 # their features and dependencies.
 set_reindeer_platforms(select({"DEFAULT": None} | {setting: plan for plan, setting in PLAN_SETTINGS.items()}))
 
-# Configuration modifiers: `-m release` adds buck/constraints:release, cargo's
-# release profile, to whatever platform a command builds for.
+# Every target is visible to every other unless it says otherwise; the macros
+# in buck/ leave visibility to this.
+package(visibility = ["PUBLIC"])
+
+# Configuration modifiers, MODIFIERS in buck/platforms/profile.bzl: `-m release`
+# adds buck/constraints:release, cargo's release profile, and `-m lto`
+# buck/constraints:lto, be-host linked with LTO, to whatever platform a command
+# builds for. The platform itself is .buckconfig's
+# target_platform_detector_spec, or --target-platforms: a set_cfg_modifiers()
+# here naming linux_x86_64's cpu and os would apply after --target-platforms
+# and override it, and the configuration it made would be named cfg:... with
+# hashes of its own.
 native.set_cfg_constructor(
-    aliases = struct(release = "root//buck/constraints:release"),
+    aliases = struct(**MODIFIERS),
     extra_data = struct(),
     key = MODIFIER_METADATA_KEY,
     stage0 = cfg_constructor_pre_constraint_analysis,

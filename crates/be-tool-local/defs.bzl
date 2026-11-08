@@ -1,59 +1,33 @@
-load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
+load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile", "with_modifiers")
 
 # What ./scripts/deploy runs: local-tools deploy, handed the server, the be
 # bundles and the app's downloads, each built for the platform it runs on
 # whatever machine deploys them, in the profile the command asks for
 # (-m release). Each download is zipped on a worker by buck-tools archive under
 # a folder of its own name, so only the zips come back here, and the APK is
-# finalized and signed locally before upload.
+# finalized and signed locally before upload. The native app downloads are
+# also linked with LTO (buck/constraints:lto), which only be-host's binary
+# selects on; the server and `be` keep the release build's configuration.
 
-def _linux_x86_64_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return keep_profile(platform, refs.linux_x86_64[PlatformInfo], refs)
+def _to(name: str, lto: bool):
+    def impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+        kept = keep_profile(platform, getattr(refs, name)[PlatformInfo], refs)
+        return with_modifiers(kept, [refs.lto[ConstraintValueInfo]]) if lto else kept
 
-_linux_x86_64 = transition(
-    impl = _linux_x86_64_impl,
-    refs = {"linux_x86_64": "root//buck/platforms:linux_x86_64"} | PROFILE_REFS,
-)
+    return transition(impl = impl, refs = {name: "root//buck/platforms:" + name} | PROFILE_REFS)
 
-def _linux_arm64_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return keep_profile(platform, refs.linux_arm64[PlatformInfo], refs)
+_linux_x86_64 = _to("linux_x86_64", lto = False)
+_linux_arm64 = _to("linux_arm64", lto = False)
 
-_linux_arm64 = transition(
-    impl = _linux_arm64_impl,
-    refs = {"linux_arm64": "root//buck/platforms:linux_arm64"} | PROFILE_REFS,
-)
+_NATIVE = ["linux_x86_64", "linux_arm64", "macos_arm64", "macos_x86_64", "windows_x86_64", "windows_arm64"]
 
-def _macos_arm64_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return keep_profile(platform, refs.macos_arm64[PlatformInfo], refs)
-
-_macos_arm64 = transition(
-    impl = _macos_arm64_impl,
-    refs = {"macos_arm64": "root//buck/platforms:macos_arm64"} | PROFILE_REFS,
-)
-
-def _macos_x86_64_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return keep_profile(platform, refs.macos_x86_64[PlatformInfo], refs)
-
-_macos_x86_64 = transition(
-    impl = _macos_x86_64_impl,
-    refs = {"macos_x86_64": "root//buck/platforms:macos_x86_64"} | PROFILE_REFS,
-)
-
-def _windows_arm64_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return keep_profile(platform, refs.windows_arm64[PlatformInfo], refs)
-
-_windows_arm64 = transition(
-    impl = _windows_arm64_impl,
-    refs = {"windows_arm64": "root//buck/platforms:windows_arm64"} | PROFILE_REFS,
-)
-
-def _windows_x86_64_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return keep_profile(platform, refs.windows_x86_64[PlatformInfo], refs)
-
-_windows_x86_64 = transition(
-    impl = _windows_x86_64_impl,
-    refs = {"windows_x86_64": "root//buck/platforms:windows_x86_64"} | PROFILE_REFS,
-)
+# buck2 names a transition by the variable it is assigned to, so each has one.
+_linux_x86_64_lto = _to("linux_x86_64", lto = True)
+_linux_arm64_lto = _to("linux_arm64", lto = True)
+_macos_arm64_lto = _to("macos_arm64", lto = True)
+_macos_x86_64_lto = _to("macos_x86_64", lto = True)
+_windows_arm64_lto = _to("windows_arm64", lto = True)
+_windows_x86_64_lto = _to("windows_x86_64", lto = True)
 
 def _deploy_impl(ctx: AnalysisContext) -> list[Provider]:
     server = ctx.attrs.server[DefaultInfo].default_outputs[0]
@@ -89,8 +63,6 @@ def _deploy_impl(ctx: AnalysisContext) -> list[Provider]:
         command.add("--apk-metadata", ctx.attrs.be_linux_x86_64[DefaultInfo].default_outputs[0].project("build-info.json"))
     return [DefaultInfo(), RunInfo(args = command)]
 
-_NATIVE = ["linux_x86_64", "linux_arm64", "macos_arm64", "macos_x86_64", "windows_x86_64", "windows_arm64"]
-
 deploy = rule(
     attrs = {
         # The unsigned APK template, finalized locally with the release key, which builds
@@ -98,12 +70,12 @@ deploy = rule(
         # other downloads are left out when ./scripts/deploy skips them, so
         # that nothing builds them.
         "app_android": attrs.option(attrs.dep(), default = None),
-        "app_linux_arm64": attrs.option(attrs.transition_dep(cfg = _linux_arm64), default = None),
-        "app_linux_x86_64": attrs.option(attrs.transition_dep(cfg = _linux_x86_64), default = None),
-        "app_macos_arm64": attrs.option(attrs.transition_dep(cfg = _macos_arm64), default = None),
-        "app_macos_x86_64": attrs.option(attrs.transition_dep(cfg = _macos_x86_64), default = None),
-        "app_windows_arm64": attrs.option(attrs.transition_dep(cfg = _windows_arm64), default = None),
-        "app_windows_x86_64": attrs.option(attrs.transition_dep(cfg = _windows_x86_64), default = None),
+        "app_linux_arm64": attrs.option(attrs.transition_dep(cfg = _linux_arm64_lto), default = None),
+        "app_linux_x86_64": attrs.option(attrs.transition_dep(cfg = _linux_x86_64_lto), default = None),
+        "app_macos_arm64": attrs.option(attrs.transition_dep(cfg = _macos_arm64_lto), default = None),
+        "app_macos_x86_64": attrs.option(attrs.transition_dep(cfg = _macos_x86_64_lto), default = None),
+        "app_windows_arm64": attrs.option(attrs.transition_dep(cfg = _windows_arm64_lto), default = None),
+        "app_windows_x86_64": attrs.option(attrs.transition_dep(cfg = _windows_x86_64_lto), default = None),
         "be_linux_arm64": attrs.transition_dep(cfg = _linux_arm64),
         "be_linux_x86_64": attrs.transition_dep(cfg = _linux_x86_64),
         "server": attrs.transition_dep(cfg = _linux_x86_64),

@@ -1,0 +1,9 @@
+[package]
+name = "be-lib-crate-pins"
+description = "The crates Cargo.lock names and third-party/rust/downloads.bzl, which pins each by hash and size, and the members index buckify writes"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

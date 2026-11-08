@@ -16,11 +16,19 @@ fn a_file_store_persists_objects_across_reopening() {
     let reopened =
         Vault::new(FileStore::open(&root).unwrap(), keys(8)).with_chunker(ChunkerConfig::SMALL);
     assert_eq!(reopened.read(&manifest).unwrap(), data);
-    assert!(reopened.missing_chunks(&manifest).unwrap().is_empty());
+    assert!(
+        reopened
+            .missing_objects(&manifest, 0, u64::MAX)
+            .unwrap()
+            .is_empty()
+    );
 
-    let dropped = manifest.chunks[0].hash;
+    let dropped = *reopened.objects(&manifest).unwrap().last().unwrap();
     reopened.store().remove(dropped).unwrap();
-    assert_eq!(reopened.missing_chunks(&manifest).unwrap(), vec![dropped]);
+    assert_eq!(
+        reopened.missing_objects(&manifest, 0, u64::MAX).unwrap(),
+        vec![dropped]
+    );
 
     std::fs::remove_dir_all(&root).unwrap();
 }

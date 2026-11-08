@@ -2,8 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use be_host_remap::names::{BUTTON_FIRST, Modifier};
-use be_host_remap::{Input, Source, Wheel};
+use be_lib_remap::names::{BUTTON_FIRST, Modifier};
+use be_lib_remap::{Input, Source, Wheel};
 
 /// The primary (left) mouse button, which always passes so the editor can be clicked.
 const PRIMARY: Source = Source::Button(BUTTON_FIRST + 0x10);

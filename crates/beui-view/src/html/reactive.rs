@@ -7,7 +7,9 @@ use crate::types::{KeyAt, KeyEvent, KeyPhase, NodeId, NodeRef};
 use beui_core_html::keys::KeyHandler;
 
 pub(crate) use beui_core_html::focus::{focus_ancestry, focused_node, set_focus};
-pub(crate) use beui_core_html::frame::{Timer, create_timer, now, pin_wall_clock, wall_clock};
+pub(crate) use beui_core_html::frame::{
+    Timer, create_timer, now, pin_wall_clock, wall_clock, wall_clock_is_pinned,
+};
 pub(crate) use beui_core_html::keys::held_modifiers;
 pub(crate) use beui_core_html::page::{
     pixels_per_point, use_font_revision, use_preference_layers, use_preferences, use_viewport_size,

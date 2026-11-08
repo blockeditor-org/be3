@@ -8,18 +8,41 @@ the server are in guides/blocks/keys.md.
 - **be-block-store**: content-addressed, encrypted objects. `Hash` is the
   SHA-256 of the *ciphertext*, so the server verifies what it holds without
   reading it. `chunker::split` is content-defined, so an edit in the middle of a
-  large file re-uploads one chunk. A `Manifest` (`{content_type, length,
-  chunks}`) plus `Vault::read_range` is how a large block streams. `ObjectStore`
+  large file re-uploads one chunk. A `Manifest` (`{content_type, root}`) names
+  the root of a tree of sealed `Node`s over the chunks, in the shape of the
+  content's parts (guides/blocks/content_types.md, "Parts"); a leaf split over
+  many chunks is grouped under nodes chosen by the chunks' hashes. Unchanged
+  subtrees are shared between commits while the data key stays the same: a
+  write reseals a reused part sealed under another key (`Vault::stale_parts`
+  names them, and `Peer::write_content` fetches their objects first), so after
+  a rotation the next commit, a rekey's seal among them, holds nothing the old
+  key alone opens, and a subtree is always sealed under one key (its top
+  object's, `Vault::sealed_under`). `Vault::objects` lists
+  a tree's nodes and chunks;
+  `missing_objects` names what is absent a level at a time, which
+  `Peer::fetch_range` fetches until none is left. `Vault::read_range` is how a
+  large block streams. `ObjectStore`
   is synchronous; fetching over the network is explicit (`Peer::fetch`).
   Durability rules are on `ObjectStore::sync`.
 - **be-block-commit**: a `Commit` (`{parents, manifest, author, time, kind,
   references, metadata}`) is an encrypted object; `Publish` also sends its
   parents in plaintext, so the server knows every block's history graph.
   `references` are derived from the *sealed* state, so the reference graph
-  always describes content that was stored. `merge` is diff3
+  always describes content that was stored. A commit's `references` are the
+  content's own and its metadata's; the parts of its manifest tree hold the
+  rest in their nodes (`Node::references`), so an unchanged part shares them
+  between commits. `Peer::references_of` lists them all. `merge` is diff3
   (`merge_slices`, with `merge_lines` and `render_conflicts` on top).
-  Retention (`retention::plan`) runs only when a client calls `Peer::prune`,
-  and nothing calls it on a schedule yet.
+  Retention (`retention::plan`, `RetentionPolicy::default()`: one state per
+  minute for the last hour, per 10 minutes for a day, per hour for a week, per
+  day for 30 days, per week after) runs on the server as each publish arrives,
+  in its transaction: the new head wins its slot, so the commit it replaces
+  there is dropped with whatever has aged into a wider slot. The head,
+  bookmarks, merges' parents and everything inside the organization's
+  `history_kept_for` (judged by when the server received it too) stay. A
+  pruned commit truncates a chain; a device merges an offline edit against
+  its last-known remote head, which it holds locally, so the server pruning
+  that head costs nothing (`Peer::reconcile`).
 - **be-block-session**: `Lease` (ownership), `resume` (whether a returning peer
   fast-forwards, publishes or merges, decided from history rather than from
   having been away), and `Sequencer`/`Follower`. Operations carry an `OpId`, so
@@ -194,8 +217,15 @@ counts and records nothing: `upload-urls` did before it signed.
   transports send whatever is queued together, so independent requests cost one
   round trip; only a chain where each needs the last one's answer costs more.
 - **Publishing** is a compare-and-swap on the head: a stale publish comes back
-  `Rejected` with the head to merge against. It writes the head, the edges the
-  commit declares and refcounts for its new chunks.
+  `Rejected` with the head to merge against. It carries what changed since the
+  expected head: an `ObjectChange` (objects added and removed; the server
+  lists the commit's objects in `commit_objects` from the expected head's) and
+  a `ReferenceChange` (references removed, and added at their index in the new
+  list; a moved one is both). It writes the head, refcounts for its new
+  objects and only the edges that changed: `block_edges.position` is spaced
+  (`EDGE_SPACING`), so a reference put between two others takes a position
+  between theirs and the rest stay. A first commit (no expected head) lists
+  everything, replacing the references its block was made with.
 - **Storage** is charged to each block's payer (`blocks.payer`): its parent's
   payer, or at the top its author (an agent's creator), counting each distinct
   object once per payer and every version a block keeps. A move re-charges the
@@ -363,6 +393,15 @@ The session registry (`sessions.rs`) indexes leases by client, so leaving them
 all on a disconnect costs what that client joined, and remembers an empty
 session for its `clean_at` for a day and at most `MAX_EMPTY_SESSIONS`; a peer
 taking over a forgotten one merges rather than fast-forwards.
+
+Each block's journal (guides/blocks/client.md, "The journal") is two tables,
+`block_journals` (tag, generation, base) and `journal_entries`, written by
+`be_server::journal` and deleted with the block. It is kept whether or not
+anyone is in the session, so a crashed owner's edits wait for the next one. An
+`append` is kept only from the current owner of its generation (it is relayed
+either way, as a relay is), refused when the journal is another tag's until
+the owner rebases, and bounded by `MAX_JOURNAL_BYTES`; `read-contents` answers
+journals while they fit in a quarter of a frame.
 
 Nothing the store does blocks the runtime's threads. Its SQL runs as owned
 jobs on tokio's blocking pool, one at a time under the database lock:

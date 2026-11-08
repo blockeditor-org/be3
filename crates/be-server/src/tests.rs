@@ -47,6 +47,7 @@ mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
 mod a_range_get_reads_part_of_an_s3_object;
+mod a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit;
 mod a_refused_call_keeps_the_cached_graph;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
 mod a_removed_agents_blocks_stay_charged_to_its_creator;
@@ -111,7 +112,7 @@ mod password_hashing_refuses_past_its_queue_and_each_addresss_share;
 mod password_reset_is_generic_and_revokes_live_sessions_and_pending_approvals;
 mod passwords_are_validated_on_the_server_without_truncation_or_echoing;
 mod proxy_account_authentication_never_discloses_the_token;
-mod pruning_history_keeps_pinned_commits;
+mod publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_parents;
 mod references_keep_the_order_their_block_lists_them_in;
 mod registering_joins_the_one_personal_organization_as_an_editor;
 mod registration_checks_its_invite_code_before_hashing_the_password;
@@ -455,7 +456,7 @@ impl TestClient {
         let session = client::sessions::Session::new(&self.peer, block);
         let mut events = session.join();
         let joined = match events.recv().await {
-            Some(SessionEvent::Joined { client, state }) => Ok((client, state)),
+            Some(SessionEvent::Joined { client, state, .. }) => Ok((client, state)),
             Some(SessionEvent::Refused(error)) => Err(error),
             other => panic!("joining answered {other:?}"),
         };
@@ -683,6 +684,7 @@ impl TestClient {
     ) -> Result<be_block_protocol::PublishOutcome, Error> {
         self.upload(&author.store, &author.objects_of(commit, &chunks))
             .await;
+        let before = author.held_by(expected);
         self.call(|peer| {
             client::blocks::publish(
                 peer,
@@ -690,10 +692,10 @@ impl TestClient {
                 commit,
                 expected,
                 expected.into_iter().collect(),
-                chunks,
+                objects_change(&before, chunks),
                 time,
                 false,
-                Vec::new(),
+                listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
             )
@@ -749,6 +751,12 @@ async fn get_from(url: String) -> (u16, Vec<u8>) {
     })
     .await
     .unwrap()
+}
+
+/// A commit time that many minutes ago: retention keeps one state per minute for the last hour,
+/// so commits a minute apart are all kept.
+fn minutes_ago(minutes: i64) -> i64 {
+    be_block_commit::now_milliseconds() - minutes * be_block_commit::retention::MINUTE
 }
 
 fn row(id: Uuid, block: Uuid, kind: KeyKind) -> KeyRow {
@@ -809,10 +817,10 @@ impl TestClient {
                     head,
                     None,
                     Vec::new(),
-                    chunks,
+                    objects_change(&[], chunks),
                     1_000,
                     false,
-                    children,
+                    listing(&[], children),
                     Vec::new(),
                     Vec::new(),
                 )
@@ -843,6 +851,14 @@ impl TestClient {
     }
 }
 
+fn objects_change(before: &[Hash], after: Vec<Hash>) -> be_block_protocol::ObjectChange {
+    be_block_protocol::ObjectChange::between(before, &after)
+}
+
+fn listing(before: &[Uuid], after: Vec<Uuid>) -> be_block_protocol::ReferenceChange {
+    be_block_protocol::ReferenceChange::between(before, &after)
+}
+
 struct Author {
     store: MemoryStore,
     commits: CommitStore<MemoryStore>,
@@ -868,7 +884,7 @@ impl Author {
 
     fn compose(&self, text: &[u8], time: i64, parent: Option<CommitId>) -> (CommitId, Vec<Hash>) {
         let manifest = self.commits.vault().write(KEY, CONTENT, text).unwrap();
-        let chunks = manifest.chunk_hashes();
+        let chunks = self.commits.vault().objects(&manifest).unwrap();
         let commit = self
             .commits
             .put(
@@ -877,6 +893,14 @@ impl Author {
             )
             .unwrap();
         (commit, chunks)
+    }
+
+    /// The objects `commit` holds besides itself, as `compose` listed them.
+    fn held_by(&self, commit: Option<CommitId>) -> Vec<Hash> {
+        commit.map_or_else(Vec::new, |commit| {
+            let manifest = self.commits.get(commit).unwrap().manifest;
+            self.commits.vault().objects(&manifest).unwrap()
+        })
     }
 
     fn objects_of(&self, commit: CommitId, chunks: &[Hash]) -> Vec<Hash> {

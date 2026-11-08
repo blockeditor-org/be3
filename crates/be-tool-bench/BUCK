@@ -1,6 +1,8 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_package", "cargo_test")
 load("@root//buck/platforms:profile.bzl", "released")
 load(":defs.bzl", "suite")
+
+cargo_package()
 
 # The benchmark suite (guides/performance.md): what each benchmark reports its
 # metrics through, and the runner that runs them and compares two builds.

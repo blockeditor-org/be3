@@ -1,6 +1,7 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
+load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple")
 load("@toolchains//:defs.bzl", "script")
-load("//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple")
-load(":defs.bzl", "apple_sdk_tool", "llvm_tree", "rust_sysroot")
+load(":defs.bzl", "apple_sdk_tool", "configured_once", "llvm_tree", "rust_sysroot")
 
 # The compilers and tools the build runs. A worker is a container with nothing
 # of this project's in it (defs.bzl), so everything is downloaded here, pinned
@@ -14,7 +15,10 @@ rust_version = "1.98.0"
 
 rust_host = "x86_64-unknown-linux-gnu"
 
-http_archive(
+# The components buck/cargo's cargo shares (configured_once, defs.bzl), which
+# would otherwise be downloaded again for the exec configuration it is built in.
+configured_once(
+    http_archive,
     name = "rustc-component",
     sha256 = "0e37cb339f447fc44d6d781073bacacebfdc5612f2600e4c7e84c266f5f3aced",
     size_bytes = 79745456,
@@ -38,7 +42,8 @@ rust_std = {
 }
 
 [
-    http_archive(
+    configured_once(
+        http_archive,
         name = "rust-std-" + target,
         sha256 = sha256,
         size_bytes = size_bytes,
@@ -54,7 +59,7 @@ rust_sysroot(
     components = [":rustc-component", ":clippy-component"] + [":rust-std-" + target for target in sorted(rust_std)],
 )
 
-# rustfmt, for ./scripts/verify's fixes (buck/dev/fix.sh): the formatter and the
+# rustfmt, for ./scripts/verify's fixes (buck/dev/verify.bzl): the formatter and the
 # rustc libraries it loads, in a sysroot of their own so that the compiler's is
 # unchanged by it.
 http_archive(
@@ -68,26 +73,16 @@ http_archive(
 rust_sysroot(
     name = "rustfmt-sysroot",
     components = [":rustc-component", ":rustfmt-component"],
-    visibility = ["PUBLIC"],
 )
 
 command_alias(
     name = "rustfmt",
     args = ["$(location :rustfmt-sysroot)/bin/rustfmt"],
-    visibility = ["PUBLIC"],
 )
 
 # starlark_fmt, the BUCK files' formatter, from the buck2 release
 # scripts/internal/pins pins. The release is a bare zstd stream, which
-# http_archive does not unpack and the worker has no zstd for, so Ubuntu's own
-# zstd is taken out of its package to do it.
-http_file(
-    name = "zstd.deb",
-    sha256 = "bb14385ff3d6df723a686778dc5f87849f720a0add261b5de9bcd4915a490b2a",
-    size_bytes = 644352,
-    urls = ["https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/libz/libzstd/zstd_1.5.5+dfsg2-2build1_amd64.deb"],
-)
-
+# http_archive does not unpack, so buck-tools does.
 http_file(
     name = "starlark_fmt.zst",
     sha256 = "7235fa17c2d937da5c509a7576049239a1aca854369863075cebf9ff181033ca",
@@ -97,10 +92,9 @@ http_file(
 
 genrule(
     name = "starlark_fmt",
-    cmd = "dpkg-deb -x $(location :zstd.deb) $TMP/zstd && $TMP/zstd/usr/bin/zstd -dq $(location :starlark_fmt.zst) -o $OUT && chmod +x $OUT",
+    cmd = "$(exe //crates/be-tool-buck:bin) unzstd $(location :starlark_fmt.zst) $OUT",
     executable = True,
     out = "starlark_fmt",
-    visibility = ["PUBLIC"],
 )
 
 # wasm-opt, which a release build runs over every app and game module
@@ -118,7 +112,6 @@ http_archive(
 command_alias(
     name = "wasm-opt",
     args = ["$(location :binaryen)/bin/wasm-opt"],
-    visibility = ["PUBLIC"],
 )
 
 # Binaryen's assembler, which turns a test's hand-written WebAssembly text
@@ -126,7 +119,6 @@ command_alias(
 command_alias(
     name = "wasm-as",
     args = ["$(location :binaryen)/bin/wasm-as"],
-    visibility = ["PUBLIC"],
 )
 
 # The targets that are cross-compiled, each with a sysroot of its own: the same
@@ -173,13 +165,11 @@ cross_targets = sorted([cross_triple(name) for name in CROSS_PLATFORMS])
             program = program,
             sdk = ":macos-sdk",
             sysroot = ":rust-" + target,
-            visibility = ["PUBLIC"],
         )
         if "apple" in target
         else command_alias(
             name = "{}-{}".format(program, target),
             args = ["$(location :rust-{})/bin/{}".format(target, program)],
-            visibility = ["PUBLIC"],
         )
         for program in ["rustc", "rustdoc", "clippy-driver"]
     ]
@@ -196,7 +186,6 @@ http_archive(
     size_bytes = 78401020,
     strip_prefix = "MacOSX15.5.sdk",
     urls = ["https://github.com/joseluisq/macosx-sdks/releases/download/15.5/MacOSX15.5.sdk.tar.xz"],
-    visibility = ["PUBLIC"],
 )
 
 # Launchpad's copy of each package rather than the archive's: the archive drops
@@ -255,38 +244,32 @@ prebuilt_cxx_library(
     exported_linker_flags = ["-lstdc++"],
     static_lib = ":libfuzzer.a",
     target_compatible_with = ["prelude//os:linux", "prelude//cpu:x86_64"],
-    visibility = ["PUBLIC"],
 )
 
 # What buck/toolchains/BUCK names.
 command_alias(
     name = "rustc",
     args = ["$(location :rust)/bin/rustc"],
-    visibility = ["PUBLIC"],
 )
 
 command_alias(
     name = "rustdoc",
     args = ["$(location :rust)/bin/rustdoc"],
-    visibility = ["PUBLIC"],
 )
 
 command_alias(
     name = "clippy-driver",
     args = ["$(location :rust)/bin/clippy-driver"],
-    visibility = ["PUBLIC"],
 )
 
 command_alias(
     name = "cc",
     args = ["$(location :llvm)/bin/clang"],
-    visibility = ["PUBLIC"],
 )
 
 command_alias(
     name = "cxx",
     args = ["$(location :llvm)/bin/clang++"],
-    visibility = ["PUBLIC"],
 )
 
 # llvm-ar under the name that makes it take lib.exe's flags, which is how cc-rs
@@ -294,19 +277,16 @@ command_alias(
 command_alias(
     name = "lib",
     args = ["$(location :llvm)/bin/llvm-lib"],
-    visibility = ["PUBLIC"],
 )
 
 command_alias(
     name = "lld-link",
     args = ["$(location :llvm)/bin/lld-link"],
-    visibility = ["PUBLIC"],
 )
 
 command_alias(
     name = "ar",
     args = ["$(location :llvm)/bin/llvm-ar"],
-    visibility = ["PUBLIC"],
 )
 
 # The MSVC C runtime and Windows SDK, laid out by xwin on a worker from a pinned
@@ -347,20 +327,26 @@ http_file(
             "&& rm -rf $OUT.cache",
         ]),
         out = "sdk",
-        visibility = ["PUBLIC"],
     )
     for arch in ["x86_64", "aarch64"]
 ]
 
-# Android's NDK r29, pruned on a worker to the aarch64 sysroot and the compiler
-# runtime (86 of its 780 MB), so no action takes the whole zip as an input.
-genrule(
+# Android's NDK r29, pruned to the aarch64 sysroot and the compiler runtime (86
+# of its 780 MB), so only the action that prunes it takes the whole zip as an
+# input.
+configured_once(
+    http_file,
+    name = "android-ndk.zip",
+    sha256 = "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf",
+    size_bytes = 783549481,
+    urls = ["https://dl.google.com/android/repository/android-ndk-r29-linux.zip"],
+)
+
+configured_once(
+    genrule,
     name = "android-ndk",
-    cmd = "sh $(location :android-ndk.sh) "
-    + "https://dl.google.com/android/repository/android-ndk-r29-linux.zip "
-    + "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf $OUT",
+    cmd = "sh $(location :android-ndk.sh) $(location :android-ndk.zip) $OUT",
     out = "ndk",
-    visibility = ["PUBLIC"],
 )
 
 export_file(
@@ -388,7 +374,6 @@ clang_targets = {
                 "$(location :llvm)/bin/" + driver,
                 "--target=" + target,
             ],
-            visibility = ["PUBLIC"],
         )
         for program, driver in [("cc", "clang"), ("cxx", "clang++")]
     ]
@@ -406,7 +391,6 @@ command_alias(
         "$(location :llvm)/bin/clang",
         "--target=wasm32-wasip1-threads",
     ],
-    visibility = ["PUBLIC"],
 )
 
 command_alias(
@@ -415,7 +399,6 @@ command_alias(
         "$(location :llvm)/bin/clang++",
         "--target=wasm32-wasip1-threads",
     ],
-    visibility = ["PUBLIC"],
 )
 
 # Every wasm link: rust-lld, through crates/be-wasm-link, which drops the
@@ -428,7 +411,6 @@ command_alias(
         "$(exe //crates/be-wasm-link:bin)",
         "$(location :rust)/lib/rustlib/{}/bin/rust-lld".format(rust_host),
     ],
-    visibility = ["PUBLIC"],
 )
 
 # The Python the prelude's own helpers run on. The one tool here that is not a
@@ -437,7 +419,6 @@ command_alias(
 script(
     name = "python3",
     src = "python3",
-    visibility = ["PUBLIC"],
 )
 
 # Caddy, which //crates/be-host:web runs on this machine, so the release
@@ -471,5 +452,6 @@ _caddy_host = "{}_{}".format(
 alias(
     name = "caddy",
     actual = ":caddy-" + _caddy_host,
-    visibility = ["PUBLIC"],
 )
+
+package_fix()

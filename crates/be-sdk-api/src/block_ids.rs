@@ -204,7 +204,7 @@ impl BlockCommand {
                 }
             }
             Self::Place { parent, .. } => visit(BlockIdRole::Existing, parent),
-            Self::Undo | Self::Redo | Self::Artifact { .. } | Self::Restore => {}
+            Self::Undo | Self::Redo | Self::History(_) | Self::Artifact { .. } | Self::Restore => {}
         }
     }
 }

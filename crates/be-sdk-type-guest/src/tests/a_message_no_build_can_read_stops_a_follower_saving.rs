@@ -27,7 +27,7 @@ fn a_message_no_build_can_read_stops_a_follower_saving() {
     assert_eq!(texts(&sim.content(0)), ["kept"]);
     assert!(sim.errors.iter().any(|(device, _)| *device == 1));
 
-    sim.advance(crate::SEAL_INTERVAL);
+    sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(sim.publishes, 1, "the owner still saves its edit");
     assert_eq!(texts(&sim.head_content()), ["kept"]);
 }

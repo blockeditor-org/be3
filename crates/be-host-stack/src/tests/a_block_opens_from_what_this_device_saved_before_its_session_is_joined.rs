@@ -33,7 +33,7 @@ fn a_block_opens_from_what_this_device_saved_before_its_session_is_joined() {
     wait_until("owes a seal for the edit", |shared| shared.owing > 0);
     harness
         .clock
-        .advance(Duration::from_millis(be_sdk_type_guest::SEAL_INTERVAL));
+        .advance(Duration::from_millis(be_sdk_type_guest::QUIET_INTERVAL));
     wait_until("sealed the edit made before joining", |shared| {
         shared.waiting > 0
     });

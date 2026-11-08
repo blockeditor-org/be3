@@ -40,6 +40,7 @@ fn undo_steps_back_through_what_this_peer_did() {
     let only_undo = History {
         can_undo: true,
         can_redo: false,
+        ..History::default()
     };
     reached(block, &["Standup"], only_undo);
 
@@ -50,6 +51,7 @@ fn undo_steps_back_through_what_this_peer_did() {
         History {
             can_undo: true,
             can_redo: true,
+            ..History::default()
         },
     );
     undo(block);
@@ -59,6 +61,7 @@ fn undo_steps_back_through_what_this_peer_did() {
         History {
             can_undo: false,
             can_redo: true,
+            ..History::default()
         },
     );
     redo(block);

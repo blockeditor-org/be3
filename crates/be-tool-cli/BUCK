@@ -1,5 +1,7 @@
-load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_library", "cargo_package", "cargo_test")
 load("@root//buck/program:defs.bzl", "program", "type_bundle")
+
+cargo_package()
 
 cargo_library()
 

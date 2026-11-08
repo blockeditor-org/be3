@@ -5,13 +5,12 @@ fn revision_history_previews_and_restores_a_text_file() {
     let mut host = HostTest::start();
     add_to_my_files(&mut host, "Text");
     host.click("#text.surface");
-    // One input-method commit is one edit, so no saved revision holds half of it: typed text
-    // saves key by key, and the revision taken below could otherwise stop mid-word.
-    host.run(&["ime", "commit", "Original revision"]);
-    host.wait("Original revision");
+    host.type_text("Original revision");
+    // History keeps one state per minute, the last: read the original once its minute is over,
+    // and make the next edit a minute after that.
+    host.pause(60_000);
     host.run(&["scroll", "Tab \"Settings\"", "0", "200"]);
     host.click("Tab \"History\"");
-    host.wait("UTC\" #workspace.revision.");
     host.wait("UTC · Current");
     let original = host
         .tree()
@@ -21,6 +20,7 @@ fn revision_history_previews_and_restores_a_text_file() {
         .and_then(|tail| tail.split_whitespace().next())
         .map(|id| format!("#{id}"))
         .expect("the original content has a saved revision");
+    host.pause(60_000);
     host.click("#text.surface");
     host.key("ctrl+a");
     host.type_text("Latest revision");

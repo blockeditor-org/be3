@@ -55,10 +55,9 @@ format; input comes from Playwright. crates/beui-tests' `:web-test` drives its s
 - `./scripts/buck run //crates/beui-demo:web-html` serves the demo on this core
   (crates/beui-demo-html) on http://127.0.0.1:8075; `./scripts/test //crates/beui-demo-html:web-test`
   drives every page in Chromium.
-- crates/beui-html-spike is the account picker prerendered natively (its `:ssr` program,
-  `beui::html::render_to_string`) and hydrated in the browser (`beui::html::hydrate`):
-  `./scripts/buck run //crates/beui-html-spike:web` serves it on http://127.0.0.1:8060, and its
-  `:web-test` checks hydration kept every element and changed no colour in either scheme.
+- crates/be-server-portal-ui is be-server's account portal, rendered per request on the host
+  (`beui::html::render_to_string`) and hydrated in the browser (`beui::html::hydrate`) from the
+  `:assets` be-server's executable serves (guides/hosting.md).
 
 ## Apps on the page
 
@@ -95,7 +94,7 @@ survives a reload. Traps that shape this code:
   `std::sync::Mutex`, so connections never cross between the page and the worker
   (`be_host_stack::link` keeps them per thread on wasm).
 - An unload cannot wait for the worker, so durability does not depend on it: a replica seals
-  within `SEAL_INTERVAL` of an edit, `beforeunload` asks while anything is unsaved
+  within `APPEND_INTERVAL` of an edit (guides/blocks/client.md, "The journal"), `beforeunload` asks while anything is unsaved
   (`be_host_stack::status().unsaved`), and the worker seals while the browser asks.
 - Every context counts the monotonic clock from `performance.timeOrigin`, so an `Instant` means
   the same time in the page and the worker.

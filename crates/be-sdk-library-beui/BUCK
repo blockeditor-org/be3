@@ -1,4 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
 load("@root//buck/wasm:defs.bzl", "wasm_library")
+
+cargo_package()
 
 # beui and everything under it, FreeType and HarfBuzz, above base
 # (guides/app_libraries.md).

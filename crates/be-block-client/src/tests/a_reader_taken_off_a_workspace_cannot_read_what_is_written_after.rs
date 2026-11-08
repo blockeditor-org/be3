@@ -15,7 +15,7 @@ async fn a_reader_taken_off_a_workspace_cannot_read_what_is_written_after() {
         .await
         .unwrap();
     let before = owner
-        .save(note, &TextBlock::of("before"), None)
+        .bookmark(note, &TextBlock::of("before"), None, "before")
         .await
         .unwrap()
         .published()

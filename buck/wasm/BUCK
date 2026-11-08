@@ -1,1 +1,5 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
+
 # The rules in defs.bzl need a package to live in; nothing is built here.
+
+package_fix()

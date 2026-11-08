@@ -21,7 +21,7 @@ use crate::tracker::Sources;
 
 mod document;
 
-use be_lib_terminal_emulator::Emulator;
+use be_tool_terminal_emulator::Emulator;
 
 const DEFAULT_SIZE: TerminalSize = TerminalSize { cols: 80, rows: 24 };
 const READ_CHUNK: usize = 16 * 1024;

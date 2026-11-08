@@ -23,7 +23,7 @@ fn typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here() 
     wait_for_count(block, 3);
     harness
         .clock
-        .advance(Duration::from_millis(be_sdk_type_guest::SEAL_INTERVAL));
+        .advance(Duration::from_millis(be_sdk_type_guest::QUIET_INTERVAL));
     runtime()
         .block_on(sending.wait_for(|sent| *sent > 0))
         .expect("the counter's owner sent its seal");

@@ -1,4 +1,6 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package", "cargo_test")
+
+cargo_package()
 
 cargo_library()
 
@@ -10,7 +12,6 @@ cargo_test()
     export_file(
         name = path.split("/")[-1],
         src = "src/assets/" + path,
-        visibility = ["PUBLIC"],
     )
     for path in [
         "fonts/Inter-Regular.ttf",

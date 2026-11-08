@@ -1,10 +1,9 @@
-use be_host_dmabuf::testing::vulkan_device;
-
 use super::*;
 
 #[test]
 fn a_shape_is_drawn_once_per_icon_around_its_hotspot() {
-    let (device, queue) = vulkan_device();
+    let (device, queue) =
+        be_lib_dmabuf::testing::vulkan_device(beui_host::native::open_vulkan_device);
     let gpu = Gpu::new(device, queue, FORMAT);
     let mut cursors = Cursors::new(2.0);
     assert!(

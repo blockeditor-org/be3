@@ -81,6 +81,8 @@ impl Instance {
                 .map(|head| *head.hash().as_bytes()),
             can_undo: history.can_undo,
             can_redo: history.can_redo,
+            restarted_at: history.restarted_at.map(|commit| *commit.hash().as_bytes()),
+            lost_edits: history.lost_edits,
         }
     }
 }
@@ -445,8 +447,12 @@ impl Instances {
             let mut shows = std::mem::take(&mut entry.shows);
             Self::translated(scope, false, |visit| {
                 for show in &mut shows {
-                    if let ShowRequest::Block(request) = show {
-                        request.visit_block_ids(visit);
+                    match show {
+                        ShowRequest::Block(request) => request.visit_block_ids(visit),
+                        ShowRequest::History(request) => {
+                            visit(BlockIdRole::Existing, &mut request.block_id)
+                        }
+                        ShowRequest::Panel(_) => {}
                     }
                 }
             });
@@ -465,6 +471,24 @@ impl Instances {
 
     pub fn take_accepted(&mut self) -> Vec<OpId> {
         std::mem::take(&mut self.accepted)
+    }
+
+    /// Asks a shell to show a block's version history, at `commit` when named.
+    pub fn show_history(
+        &mut self,
+        instance: EditorInstanceId,
+        block: Uuid,
+        commit: Option<[u8; 32]>,
+    ) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            ShowRequest::queue(
+                &mut entry.shows,
+                ShowRequest::History(be_sdk_api::blocks::HistoryRequest {
+                    block_id: block.into_bytes(),
+                    commit,
+                }),
+            );
+        }
     }
 
     pub fn show_panel(&mut self, instance: EditorInstanceId, panel: be_sdk_api::HostPanel) {

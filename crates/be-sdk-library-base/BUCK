@@ -1,4 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
 load("@root//buck/wasm:defs.bzl", "wasm_library")
+
+cargo_package()
 
 # The root of every Rust app's closure (guides/app_libraries.md): std,
 # wasi-libc, wgpu and the framework-neutral editor crates. It holds the C++

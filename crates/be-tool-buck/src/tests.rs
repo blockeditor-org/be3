@@ -1,4 +1,14 @@
 use serde_json::{Value, json};
 
+mod a_bundle_records_each_files_length_in_hex;
+mod fix_reports_what_the_fixers_changed_and_deleted;
+mod lint_gate_keeps_warnings_and_errors_but_not_totals;
 mod pdfium_libraries_are_the_compiled_targets_under_the_root;
 mod pdfium_repositories_are_kept_for_what_the_libraries_use;
+mod pdfium_repositories_download_as_github_archives;
+mod plans_pick_crates_by_name_and_examples;
+mod stage_compiled_only_keeps_a_module_only_without_its_cwasm;
+mod stage_lists_every_file_beside_an_executable;
+mod stage_names_libraries_by_their_sha256_and_apps_by_their_id;
+mod stage_refuses_a_module_its_manifest_does_not_name;
+mod unpinned_compares_with_the_pins_lines;

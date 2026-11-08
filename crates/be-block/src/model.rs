@@ -75,6 +75,14 @@ impl<R: Root> BlockContent for Document<R> {
         Document::from_bytes(bytes).map_err(|_| ContentError::Malformed("model document"))
     }
 
+    fn parts(&self) -> crate::Part<'_> {
+        self.vault_parts()
+    }
+
+    fn from_stored(stored: &crate::Stored) -> Result<Self, ContentError> {
+        Document::from_stored(stored).map_err(|_| ContentError::Malformed("model document"))
+    }
+
     fn name(&self) -> Option<String> {
         R::name_in(self)
     }
@@ -145,6 +153,15 @@ impl<R: Root> LiveEdit for Document<R> {
             operation.0.extend(leftover);
         }
         None
+    }
+
+    fn carry_over(
+        operation: &Self::Op,
+        before: &Self,
+        after: &Self,
+        client: u64,
+    ) -> Option<Self::Op> {
+        Document::carry_over(operation, before, after, client)
     }
 
     fn session_state(&self) -> Vec<u8> {
