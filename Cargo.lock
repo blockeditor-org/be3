@@ -1666,14 +1666,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-lib-terminal-emulator"
-version = "0.1.0"
-dependencies = [
- "be-lib-ghostty-vt",
- "be-type-terminal",
-]
-
-[[package]]
 name = "be-lib-ui-keys"
 version = "0.1.0"
 dependencies = [
@@ -2091,12 +2083,12 @@ dependencies = [
  "be-block-sync",
  "be-block-type-host",
  "be-lib-build-id",
- "be-lib-terminal-emulator",
  "be-sdk-manifest",
  "be-sdk-type-api",
  "be-sdk-type-guest",
  "be-sdk-ui-database",
  "be-server",
+ "be-tool-terminal-emulator",
  "be-type-bundle",
  "be-type-database",
  "be-type-terminal",
@@ -2135,8 +2127,8 @@ name = "be-tool-launcher"
 version = "0.1.0"
 dependencies = [
  "be-block",
- "be-lib-terminal-emulator",
  "be-sdk-test",
+ "be-tool-terminal-emulator",
  "be-type-terminal",
  "beui",
  "beui-host",
@@ -2211,6 +2203,14 @@ dependencies = [
 [[package]]
 name = "be-tool-run-test"
 version = "0.1.0"
+
+[[package]]
+name = "be-tool-terminal-emulator"
+version = "0.1.0"
+dependencies = [
+ "be-lib-ghostty-vt",
+ "be-type-terminal",
+]
 
 [[package]]
 name = "be-tool-tls-diamond-app"

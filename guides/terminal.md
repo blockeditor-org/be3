@@ -16,7 +16,7 @@ that need a real terminal on a real machine, such as `claude`, from inside be-ho
 - `be_tool_cli::replica::Session`: one block's replica as `be` holds it, the same
   `be_block_type_host::Replicas` be-host's peer runs, attached as the host's own editor. It needs
   a tokio `LocalSet`.
-- `crates/be-lib-terminal-emulator`: the emulator (be-lib-ghostty-vt fed the PTY's bytes, read
+- `crates/be-tool-terminal-emulator`: the emulator (be-lib-ghostty-vt fed the PTY's bytes, read
   back as `TerminalLine`s) and the key, paste and wheel encoders. The host and be-launcher's
   build output use it; viewers never do.
 - `crates/be-lib-ghostty-vt`: the Ghostty bindings. `struct_layouts_match_the_library` checks
@@ -73,4 +73,4 @@ peeks at the main screen.
 - be-host: `a_terminal_host_answers_this_peer_through_the_blocks_session`.
 - be-app-terminal: drives presence and peer messages through be-sdk-test (`hold`, `set_peers`,
   `take_sent_to_peers`), with paintings of each state.
-- be-lib-ghostty-vt, be-lib-terminal-emulator and be-type-terminal test their own parts.
+- be-lib-ghostty-vt, be-tool-terminal-emulator and be-type-terminal test their own parts.
