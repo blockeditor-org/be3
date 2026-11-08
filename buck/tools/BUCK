@@ -1,6 +1,6 @@
 load("@root//buck/dev:verify.bzl", "package_fix")
-load("@toolchains//:defs.bzl", "script")
 load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple")
+load("@toolchains//:defs.bzl", "script")
 load(":defs.bzl", "apple_sdk_tool", "configured_once", "llvm_tree", "rust_sysroot")
 
 # The compilers and tools the build runs. A worker is a container with nothing
