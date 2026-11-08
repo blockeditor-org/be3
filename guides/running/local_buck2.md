@@ -1,8 +1,7 @@
 # buck2 on this machine
 
 When no build server is reachable, buck2 can run every action locally. Write `.buckconfig.local`
-by hand (git ignores it; a hand-written file makes `./scripts/buck` leave buck2's configuration alone,
-guides/build_server.md):
+by hand (git ignores it, and nothing but a person writes it):
 
     [build]
     execution_platforms = root//buck/platforms:execution_platforms_local
@@ -17,10 +16,14 @@ guides/build_server.md):
 remote execution and the remote cache turned off. It takes the remote platform's label and
 constraints, so the exec configurations, and with them the output paths, are the same as on a
 build server. `fbcode.disable_re_tests` is the prelude's switch that runs tests here rather than
-on the worker toolchains//:remote_test_execution names. The rules tell a local build apart only by
-`execution_platforms` (`LOCAL_BUILD` in
-buck/platforms/profile.bzl), for the two differences below. Then use `./scripts/buck` as usual,
-such as `./scripts/buck run -c be3.apps=text //crates/be-host:dev` (guides/running/drive.md).
+on the worker toolchains//:remote_test_execution names. `./scripts/buck` asks buck2 for the
+configuration in effect (`buck2 audit config`) and, when it names the local list or turns
+remote execution off, asks no build server or waker for anything and writes no
+`target/build-server.buckconfig` (guides/build_server.md). The rules tell a local build apart
+only by `execution_platforms` (`LOCAL_BUILD` in buck/platforms/profile.bzl), in any spelling of
+`root//buck/platforms:execution_platforms` or `:execution_platforms_local`, and fail to load on
+any other value, for the two differences below. Then use `./scripts/buck` as usual, such as
+`./scripts/buck run //crates/be-host:dev` (guides/running/drive.md).
 
 `be3.rustc_threads` is how many threads rustc's frontend runs on (`-Zthreads`). A build server
 always uses eight, whatever this file says, so the cache never splits by who asked. Here buck2
@@ -44,7 +47,7 @@ in the last twelve hours (`--dry-run` says how much first), and `./scripts/buck 
 everything.
 
 Everything downloads and builds here: the toolchains and sysroot (about 500 MB), then the crates.
-A first `:dev-host` build with one app took six minutes on 8 cores. Delete the file to go back to a
+A first `:dev-host-text` build (`-c be3.apps=text`) took six minutes on 8 cores. Delete the file to go back to a
 build server.
 
 `./scripts/verify` runs whole here, with nothing skipped: every compile, lint and test, the host

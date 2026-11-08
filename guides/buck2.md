@@ -40,6 +40,13 @@ The `.bzl` files carry comments on each rule; read them before changing one.
 `-m release` builds with cargo's release profile; it is the `buck/constraints:release`
 constraint, added by a modifier in the root `PACKAGE`, so one build can hold both profiles.
 Everything else is cargo's dev profile with `Cargo.toml`'s `[profile.dev.package]` overrides.
+`-m lto` adds `buck/constraints:lto`, under which be-host's binary is linked with fat LTO over
+one codegen unit (a ten-minute link); `./scripts/deploy`'s native builds have it by their
+transition. Each modifier names the configuration (`linux_x86_64_release_lto`), whether the
+modifier or a transition added it (`MODIFIERS` and `with_modifiers` in
+buck/platforms/profile.bzl). Every transition keeps the profile (`keep_profile`) and drops LTO,
+which nothing but be-host's binary selects on. The default platform is `.buckconfig`'s
+`target_platform_detector_spec`, not a modifier: the root `PACKAGE` says why.
 `--target-platforms root//buck/platforms:<p>` builds for another platform. Everything is built
 for Linux x86_64 unless asked, so any machine shares CI's cache; `run` on another machine builds
 for that machine.
@@ -72,7 +79,9 @@ rebuilds nothing else:
 
 - `id` is the hash of the working tree, untracked files included, not of a commit, so a pull
   request's head and the merge queue's commit share every cached bundle and host test.
-  `./scripts/buck` rewrites it before each command (`BE3_BUILD_ID` overrides). A client and a
+  `./scripts/buck` rewrites it, when it changed, before each command that builds (`build`,
+  `run`, `test`, `bxl`, `install`; a query only needs it to exist), which costs a `git add -A`
+  into a copy of the index, tens of milliseconds (`BE3_BUILD_ID` overrides). A client and a
   server refuse each other unless their ids match.
 - `program_id` is `be-host-dev`, or `be-host` for the deploy (`BE3_PROGRAM_ID`); be-host takes its
   window title and data directory from it.
@@ -82,14 +91,18 @@ rebuilds nothing else:
 
 - **buck2 itself**, the release pinned in `scripts/internal/pins`, in `target/tools/`. A `buck2`
   on `PATH` is not used, since each carries its own prelude.
-- **The build server's** hosts and key in a generated `.buckconfig.local`
-  (guides/build_server.md). A `.buckconfig.local` a person wrote is left alone.
+- **The build server's** hosts and key in `target/build-server.buckconfig`, which `.buckconfig`
+  includes if it exists (guides/build_server.md). `.buckconfig.local` is only ever a person's,
+  such as a local build's (guides/running/local_buck2.md).
 - **An HTTPS proxy relay.** buck2's remote execution client never reads `HTTPS_PROXY`, so when it
   is set `./scripts/buck` builds `scripts/internal/re-relay` with Go (1.24+) and runs two relays
   on ports picked from the checkout's path; errors go to `target/re-relay.log`.
 - **Retries.** buck2 exits 2 on an infrastructure error, such as a reset partway through a
   download, and does not retry; the wrapper runs the command three times in all
-  (`BE3_BUCK_ATTEMPTS`). For `run` it retries the build, not the program.
+  (`BE3_BUCK_ATTEMPTS`). For `run` it retries the build, not the program: it builds with
+  `buck2 run --command-args-file target/run-command-args`, then runs the program, argv and
+  environment that file names itself (taking `--chdir` itself, which buck2 does not allow with
+  the file).
 - **Tests on the workers** for `./scripts/test` (below).
 
 A file's executable bit is part of every action that reads it, and a Windows checkout has none,
@@ -239,7 +252,11 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   with the real one on the crate's hash. A crate that takes in the absolute path of its action's
   directory (`env!("CARGO_MANIFEST_DIR")`, an `include_bytes!` of an absolute path) breaks that,
   and a dependent's link fails with E0460, "found possibly newer version of crate".
-  `fixups.bzl` overlays the third-party crates that did.
+  `fixups.bzl` overlays the third-party crates that did. `-Z` flags (this one, `-Zthreads`,
+  `-Zunstable-options`) need unstable rustc, so the Rust toolchain (`nightly_features` in
+  buck/toolchains/BUCK) has the prelude set `RUSTC_BOOTSTRAP=1` on every rustc compile,
+  third-party crates included, on the stable release rust-toolchain.toml pins: any crate's
+  `#![feature]` compiles here though cargo would refuse it, so code must not use one.
 - **Apps compile at opt-level 0** in dev builds and workspace crates under them at 1
   (`OPT_LEVELS` in buck/platforms/profile.bzl, every opt level the build sets), so a change
   under beui recompiles every app quickly (decisions/dev_builds_compile_apps_unoptimized.md).

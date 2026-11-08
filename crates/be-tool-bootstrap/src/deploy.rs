@@ -41,21 +41,25 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
         std::env::set_var("BE3_PROGRAM_ID", "be-host");
         std::env::set_var("BE3_DEPLOY_DEFAULT_SERVER", "true");
     }
+    // The native downloads are linked with LTO by the deploy target's own
+    // transitions (crates/be-tool-local/defs.bzl), and each skip is a target of
+    // its own, so nothing here is buckconfig.
+    let target = if !downloads {
+        "//crates/be-tool-local:deploy-without-downloads"
+    } else if !android {
+        "//crates/be-tool-local:deploy-without-android"
+    } else {
+        "//crates/be-tool-local:deploy"
+    };
     let mut command = vec![
         "run".to_owned(),
         "-m".to_owned(),
         "release".to_owned(),
         "-c".to_owned(),
-        "be3.lto=true".to_owned(),
-        "-c".to_owned(),
-        format!("be3.deploy_downloads={downloads}"),
-        "-c".to_owned(),
-        format!("be3.deploy_android={android}"),
-        "-c".to_owned(),
         format!("be3.android_id={android_id}"),
         "-c".to_owned(),
         format!("be3.android_label={android_label}"),
-        "//crates/be-tool-local:deploy".to_owned(),
+        target.to_owned(),
         "--".to_owned(),
         "--repository".to_owned(),
         repository().to_string_lossy().into_owned(),

@@ -1,7 +1,7 @@
 load("@root//buck/dev:verify.bzl", "package_fix")
 load("//buck/tools:defs.bzl", "worker_properties")
 load(":cross.bzl", "CROSS_PLATFORMS")
-load(":defs.bzl", "execution_platform", "execution_platforms")
+load(":defs.bzl", "execution_platform", "execution_platforms", "target_platform")
 
 # Where every action runs: a worker of the build server ./scripts/buck picked,
 # Linux on x86_64 whatever the machine that asked, in the image
@@ -12,7 +12,6 @@ execution_platform(
     cpu_configuration = "prelude//cpu:x86_64",
     os_configuration = "prelude//os:linux",
     remote_execution_properties = worker_properties(),
-    visibility = ["PUBLIC"],
 )
 
 execution_platforms(
@@ -46,151 +45,78 @@ execution_platforms(
 # Mac's or Windows machine's builds share CI's cache and its tests can run on a
 # worker. buck2's own default would follow the machine. ./scripts/buck run
 # builds for the machine instead.
-platform(
+target_platform(
     name = "linux_x86_64",
     constraint_values = [
         "prelude//cpu/constraints:cpu[x86_64]",
         "prelude//os/constraints:os[linux]",
     ],
-    visibility = ["PUBLIC"],
-)
-
-config_setting(
-    name = "linux_x86_64_setting",
-    constraint_values = [
-        "prelude//cpu/constraints:cpu[x86_64]",
-        "prelude//os/constraints:os[linux]",
-    ],
-    visibility = ["PUBLIC"],
 )
 
 # Target platforms for WebAssembly. The constraints are the ones
 # prelude//rust:cargo_package.bzl maps to its platform names, "wasi" and
 # "wasm32", which are what buck/cargo's plans are keyed by.
-platform(
+target_platform(
     name = "wasi",
     constraint_values = [
         "prelude//cpu/constraints:cpu[wasm32]",
         "prelude//os/constraints:os[wasi]",
     ],
-    visibility = ["PUBLIC"],
 )
 
 # The same triple as above, and what tells the two apart. An app is built for
-# this one; be-host's web bundle is built for the one above.
-platform(
+# this one; be-host's web bundle is built for the one above. Its setting is the
+# one above's with one more constraint, so select() takes it as the more
+# specific (cross.bzl's PLAN_SETTINGS).
+target_platform(
     name = "wasi_guest",
     constraint_values = [
         "prelude//cpu/constraints:cpu[wasm32]",
         "prelude//os/constraints:os[wasi]",
         "root//buck/constraints:guest",
     ],
-    visibility = ["PUBLIC"],
-)
-
-# What the two wasi plans are told apart by (cross.bzl's PLAN_SETTINGS).
-config_setting(
-    name = "wasi_setting",
-    constraint_values = [
-        "prelude//cpu/constraints:cpu[wasm32]",
-        "prelude//os/constraints:os[wasi]",
-    ],
-    visibility = ["PUBLIC"],
-)
-
-config_setting(
-    name = "wasi_guest_setting",
-    constraint_values = [
-        "prelude//cpu/constraints:cpu[wasm32]",
-        "prelude//os/constraints:os[wasi]",
-        "root//buck/constraints:guest",
-    ],
-    visibility = ["PUBLIC"],
 )
 
 # The browser and the host again, for crates built on beui's HTML core
 # (buck/constraints:html): its wasm module, and its server rendering and string
 # tests. Each is the platform above it with one more constraint, as wasi_guest
 # is, so select() takes its setting as the more specific one.
-platform(
+target_platform(
     name = "wasi_html",
     constraint_values = [
         "prelude//cpu/constraints:cpu[wasm32]",
         "prelude//os/constraints:os[wasi]",
         "root//buck/constraints:html",
     ],
-    visibility = ["PUBLIC"],
 )
 
-config_setting(
-    name = "wasi_html_setting",
-    constraint_values = [
-        "prelude//cpu/constraints:cpu[wasm32]",
-        "prelude//os/constraints:os[wasi]",
-        "root//buck/constraints:html",
-    ],
-    visibility = ["PUBLIC"],
-)
-
-platform(
+target_platform(
     name = "linux_x86_64_html",
     constraint_values = [
         "prelude//cpu/constraints:cpu[x86_64]",
         "prelude//os/constraints:os[linux]",
         "root//buck/constraints:html",
     ],
-    visibility = ["PUBLIC"],
 )
 
-config_setting(
-    name = "linux_x86_64_html_setting",
-    constraint_values = [
-        "prelude//cpu/constraints:cpu[x86_64]",
-        "prelude//os/constraints:os[linux]",
-        "root//buck/constraints:html",
-    ],
-    visibility = ["PUBLIC"],
-)
-
-platform(
+target_platform(
     name = "wasm32",
     constraint_values = [
         "prelude//cpu/constraints:cpu[wasm32]",
         "prelude//os/constraints:os[none]",
     ],
-    visibility = ["PUBLIC"],
 )
 
-config_setting(
-    name = "wasm32_setting",
-    constraint_values = [
-        "prelude//cpu/constraints:cpu[wasm32]",
-        "prelude//os/constraints:os[none]",
-    ],
-    visibility = ["PUBLIC"],
-)
-
-# The platforms that are cross-compiled from a Linux worker. cross.bzl lists
-# them, and says why each has a config_setting beside it.
+# The platforms that are cross-compiled from a Linux worker, which cross.bzl
+# lists.
 [
-    [
-        platform(
-            name = name,
-            constraint_values = [
-                "prelude//cpu/constraints:cpu[{}]".format(cpu),
-                "prelude//os/constraints:os[{}]".format(os),
-            ],
-            visibility = ["PUBLIC"],
-        ),
-        config_setting(
-            name = name + "_setting",
-            constraint_values = [
-                "prelude//cpu/constraints:cpu[{}]".format(cpu),
-                "prelude//os/constraints:os[{}]".format(os),
-            ],
-            visibility = ["PUBLIC"],
-        ),
-    ]
+    target_platform(
+        name = name,
+        constraint_values = [
+            "prelude//cpu/constraints:cpu[{}]".format(cpu),
+            "prelude//os/constraints:os[{}]".format(os),
+        ],
+    )
     for name, (cpu, os, _) in CROSS_PLATFORMS.items()
 ]
 

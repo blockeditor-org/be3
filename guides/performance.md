@@ -214,7 +214,7 @@ as lines of KiB, each wasm guest's memory too, for plotting elsewhere.
 
 ## Size
 
-What ships is `./scripts/deploy`'s `-m release -c be3.lto=true //crates/be-host:native`. In
+What ships is `./scripts/deploy`'s `//crates/be-host:native`, as `-m release -m lto` builds it. In
 October 2026 on Linux x86_64 that was 896 MB (297 MB gzipped): `.cwasm` 595 MB (Cranelift's code
 is about 2.5× the wasm it compiles), `.wasm` 198 MB (mostly apps, each instantiating beui's and
 `beui-reactive`'s generics for its own types; type modules about 1.8 MB each), be-host 102 MB.

@@ -11,15 +11,18 @@ use be_lib_prompt::columns;
 
 use crate::{Result, buck2, env_set, in_ci, repository, server, write_if_changed};
 
-const BUILD_COMMANDS: [&str; 11] = [
-    "build", "run", "test", "bxl", "install", "targets", "query", "cquery", "uquery", "aquery",
-    "audit",
-];
+/// The commands that build, before which buck/program/build-info.json is
+/// brought up to date with the working tree. A query reads no file's contents,
+/// so before one it is only written if missing: buck2 cannot load
+/// //buck/program without it.
+const BUILD_COMMANDS: [&str; 5] = ["build", "run", "test", "bxl", "install"];
 
 pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
     let buck2 = prepare()?;
     let command = arguments.first().cloned().unwrap_or_default();
-    if BUILD_COMMANDS.contains(&command.as_str()) {
+    if BUILD_COMMANDS.contains(&command.as_str())
+        || !repository().join(BUILD_INFO).exists()
+    {
         write_build_id()?;
     }
     let (status, output) = match command.as_str() {
@@ -74,32 +77,76 @@ fn run(buck2: &Path, mut arguments: Vec<String>) -> Result<ExitCode> {
             );
         }
     }
-    let prebuild = !before_separator(&arguments).any(|argument| {
+    let passthrough = before_separator(&arguments).any(|argument| {
         argument == "--emit-shell"
             || argument == "--command-args-file"
             || argument.starts_with("--command-args-file=")
     });
-    if prebuild {
-        let mut build = vec!["run".to_owned(), "--command-args-file".to_owned()];
-        build.push(
-            repository()
-                .join("target/run-command-args")
-                .to_string_lossy()
-                .into_owned(),
-        );
-        build.extend(arguments.iter().skip(1).cloned());
-        let (status, output) = retrying(buck2, &build, false, false, None)?;
+    if passthrough {
+        let (status, output) = retrying(buck2, &arguments, false, false, None)?;
         print_captured(&output);
-        if status != 0 {
-            return Ok(exit_code(status));
+        return Ok(exit_code(status));
+    }
+    // buck2 cannot write the command to a file and change its directory in one
+    // run, so the directory is taken here.
+    let mut chdir = None;
+    let mut build = vec!["run".to_owned(), "--command-args-file".to_owned()];
+    let file = repository().join("target/run-command-args");
+    build.push(file.to_string_lossy().into_owned());
+    let mut rest = arguments.into_iter().skip(1);
+    while let Some(argument) = rest.next() {
+        if argument == "--" {
+            build.push(argument);
+            build.extend(rest.by_ref());
+            break;
+        }
+        if argument == "--chdir" {
+            chdir = rest.next();
+        } else if let Some(directory) = argument.strip_prefix("--chdir=") {
+            chdir = Some(directory.to_owned());
+        } else {
+            build.push(argument);
         }
     }
-    let mut command = Command::new(buck2);
-    command.args(&arguments);
+    let (status, output) = retrying(buck2, &build, false, false, None)?;
+    print_captured(&output);
+    if status != 0 {
+        return Ok(exit_code(status));
+    }
+    let mut command = run_command(&file)?;
+    if let Some(directory) = chdir {
+        command.current_dir(directory);
+    }
     if std::env::var_os("RUST_BACKTRACE").is_none() {
         command.env("RUST_BACKTRACE", "1");
     }
     exec(command)
+}
+
+/// The command `buck2 run --command-args-file` wrote: the program, its whole
+/// argv and the environment buck2 would run it with, in this directory.
+pub fn run_command(file: &Path) -> Result<Command> {
+    let text = std::fs::read_to_string(file)
+        .map_err(|error| format!("could not read {}: {error}", file.display()))?;
+    let invalid = || format!("{} is not the command buck2 run writes", file.display());
+    let value: serde_json::Value = serde_json::from_str(&text).map_err(|_| invalid())?;
+    let path = value["path"].as_str().ok_or_else(invalid)?;
+    let argv = value["argv"].as_array().ok_or_else(invalid)?;
+    let envp = value["envp"].as_object().ok_or_else(invalid)?;
+    let mut command = Command::new(path);
+    for argument in argv.iter().skip(1) {
+        command.arg(argument.as_str().ok_or_else(invalid)?);
+    }
+    #[cfg(unix)]
+    if let Some(first) = argv.first().and_then(|first| first.as_str()) {
+        use std::os::unix::process::CommandExt as _;
+        command.arg0(first);
+    }
+    command.env_clear();
+    for (name, value) in envp {
+        command.env(name, value.as_str().ok_or_else(invalid)?);
+    }
+    Ok(command)
 }
 
 pub fn exec(mut command: Command) -> Result<ExitCode> {
@@ -233,6 +280,8 @@ fn attempt_once(
     Ok((status_code(status), output))
 }
 
+const BUILD_INFO: &str = "buck/program/build-info.json";
+
 pub fn write_build_id() -> Result<()> {
     let id = match std::env::var("BE3_BUILD_ID") {
         Ok(id) if !id.is_empty() => id,
@@ -259,7 +308,7 @@ pub fn write_build_id() -> Result<()> {
         format!("{{\"id\":\"{id}\",\"program_id\":\"{program_id}\"}}\n")
     };
     write_if_changed(
-        &repository().join("buck/program/build-info.json"),
+        &repository().join(BUILD_INFO),
         text.as_bytes(),
     )?;
     Ok(())

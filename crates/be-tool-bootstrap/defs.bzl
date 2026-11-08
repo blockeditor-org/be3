@@ -1,4 +1,5 @@
 load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS")
+load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "with_modifiers")
 
 # The release of the bootstrap for every platform a person or CI runs the
 # scripts on, in cargo's release profile whatever the command asked for, laid
@@ -11,18 +12,11 @@ _PLATFORMS = {
 
 def _released(name: str):
     def impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-        target = getattr(refs, name)[PlatformInfo]
-        release = refs.release[ConstraintValueInfo]
-        constraints = dict(target.configuration.constraints)
-        constraints[release.setting.label] = release
-        return PlatformInfo(
-            configuration = ConfigurationInfo(constraints = constraints, values = target.configuration.values),
-            label = target.label + "_release",
-        )
+        return with_modifiers(getattr(refs, name)[PlatformInfo], [refs.release[ConstraintValueInfo]])
 
     return transition(
         impl = impl,
-        refs = {name: "root//buck/platforms:" + name, "release": "root//buck/constraints:release"},
+        refs = {name: "root//buck/platforms:" + name} | PROFILE_REFS,
     )
 
 _linux_x86_64 = _released("linux_x86_64")
