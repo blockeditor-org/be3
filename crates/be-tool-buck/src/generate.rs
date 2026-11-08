@@ -104,33 +104,6 @@ fn crate_key(package: &Value) -> String {
     format!("{}-{}", text(package, "name"), text(package, "version"))
 }
 
-/// Every registry crate in Cargo.lock, by its key: its name, version and checksum.
-pub(crate) fn checksums(lock: &str) -> BTreeMap<String, (String, String, String)> {
-    let mut found = BTreeMap::new();
-    let mut name = "";
-    let mut version = "";
-    for line in lock.lines().map(str::trim) {
-        let value = |prefix: &str| {
-            line.strip_prefix(prefix)
-                .map(|rest| rest.trim().trim_matches('"'))
-        };
-        if line == "[[package]]" {
-            name = "";
-            version = "";
-        } else if let Some(value) = value("name =") {
-            name = value;
-        } else if let Some(value) = value("version =") {
-            version = value;
-        } else if let Some(value) = value("checksum =") {
-            found.insert(
-                format!("{name}-{version}"),
-                (name.to_owned(), version.to_owned(), value.to_owned()),
-            );
-        }
-    }
-    found
-}
-
 fn sizes(listing: &str) -> BTreeMap<String, u64> {
     listing
         .lines()
@@ -445,7 +418,7 @@ pub fn generate(inputs: &Inputs) -> Result<String, String> {
         }
     }
 
-    let checksums = checksums(&inputs.lock);
+    let locked = be_lib_crate_pins::locked(&inputs.lock);
     let sizes = sizes(&inputs.sizes);
     let mut rendered_third_party = Map::new();
     for (id, facts) in &third_party {
@@ -480,7 +453,7 @@ pub fn generate(inputs: &Inputs) -> Result<String, String> {
                 }
             }
         }
-        if !checksums.contains_key(&key) {
+        if !locked.contains_key(&key) {
             return Err(format!("Cargo.lock has no checksum for {key}"));
         }
         let mut entry = Map::new();
@@ -540,7 +513,7 @@ pub fn generate(inputs: &Inputs) -> Result<String, String> {
         rendered_third_party.insert(key, Value::Object(entry));
     }
 
-    let downloads = downloads(&checksums, &sizes)?;
+    let downloads = be_lib_crate_pins::render(&locked, &sizes)?;
 
     let by_directory: Map<String, Value> = crates
         .into_iter()
@@ -553,33 +526,6 @@ pub fn generate(inputs: &Inputs) -> Result<String, String> {
          crates = {}\n\nthird_party = {}\n\n{}",
         render(&Value::Object(by_directory), 0),
         render(&Value::Object(rendered_third_party), 0),
-        render_downloads(downloads)
+        downloads
     ))
-}
-
-/// Every crate Cargo.lock names, for every platform, built or not: buckify
-/// hands them all to cargo, which reads the whole lockfile
-/// (buck/cargo/buckify.sh).
-pub(crate) fn downloads(
-    checksums: &BTreeMap<String, (String, String, String)>,
-    sizes: &BTreeMap<String, u64>,
-) -> Result<Map<String, Value>, String> {
-    let mut downloads = Map::new();
-    for (key, (name, version, sha256)) in checksums {
-        let size = sizes
-            .get(key)
-            .ok_or_else(|| format!("no size for {key}, which Cargo.lock names"))?;
-        downloads.insert(
-            key.clone(),
-            json!({"name": name, "sha256": sha256, "size_bytes": size, "version": version}),
-        );
-    }
-    Ok(downloads)
-}
-
-/// The last part of crates.bzl, which buck-tools lock rewrites on its own.
-pub(crate) const DOWNLOADS: &str = "downloads = ";
-
-pub(crate) fn render_downloads(downloads: Map<String, Value>) -> String {
-    format!("{DOWNLOADS}{}\n", render(&Value::Object(downloads), 0))
 }

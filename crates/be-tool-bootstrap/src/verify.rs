@@ -2,7 +2,7 @@ use std::process::{Command, ExitCode};
 
 use crate::platform::target_platform;
 use crate::quiet::Quiet;
-use crate::{Result, buck, in_ci, repository};
+use crate::{Result, buck, in_ci, lock, repository};
 
 const VERIFY_USAGE: &str =
     "Usage: ./scripts/verify [--check] [--lint] [--tests] [--app-tests] [--verbose]";
@@ -55,6 +55,8 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         unsafe { std::env::set_var("BE3_VERBOSE", "1") };
     }
 
+    // Before buck2, which reads crates.bzl's downloads from the start.
+    lock::ensure(has("--check"))?;
     let buck2 = buck::prepare()?;
     buck::write_build_id()?;
     let target = repository().join("target");

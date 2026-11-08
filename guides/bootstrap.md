@@ -5,7 +5,9 @@ Every script in `scripts/` is a few lines of `sh` that runs `crates/be-tool-boot
 `switch` are `bootstrap buck ...`, `bootstrap test ...` and so on. It is
 everything that has to happen before buck2 can build: installing buck2,
 picking and waking the build server (guides/build_server.md), the build id,
-retries, cutting buck2's output down, and finding a test's crate. Nothing can
+retries, cutting buck2's output down, finding a test's crate, and keeping
+Cargo.lock and crates.bzl's `downloads` in step with the manifests (the lock
+step, below). Nothing can
 build it at that point, so it is a prebuilt release, and nothing is compiled
 on the machine that runs it, except on the cargo route under Recovery.
 
@@ -88,6 +90,28 @@ on it, runs from main after the pin. A directory the
 release writes into needs a tracked file to keep it in a checkout until a
 release that no longer writes there is pinned.
 
+## The lock step
+
+`bootstrap lock [--check]` (crates/be-tool-bootstrap/src/lock.rs) is what
+buckify's action cannot do without the network, and needs no particular host:
+it brings Cargo.lock up to date with the Cargo.toml files, as `cargo update
+--workspace` does, and pins each crate it names in buck/cargo/crates.bzl's
+`downloads` (guides/buck2.md). `./scripts/verify`, `./scripts/ci` and
+`//:buckify` run it before buck2, which reads those `downloads` from the start;
+it does nothing when `buck/cargo/lock.sha256` is the hash of what it reads (the
+root and `crates/*/Cargo.toml`, Cargo.lock, the `downloads`, the cargo
+release), which takes no cargo, and under `--check` it fails instead of
+writing. Otherwise it runs rust-toolchain.toml's cargo, downloaded once into
+`target/tools/cargo-<version>/` and checked against `cargo_sha256_<triple>` and
+`cargo_size_<triple>` in scripts/internal/pins, with its own `CARGO_HOME` under
+`target/tools/` and the bootstrap itself as its `RUSTC`, answering only `-vV`,
+which is all cargo asks when resolving. Each crate new to Cargo.lock is
+downloaded from crates.io, checked against Cargo.lock's checksum and pinned with
+its size, and the hash is written last. `crates/be-lib-crate-pins` reads and
+writes the `downloads` for it and for be-tool-buck's generate alike. Moving
+rust-toolchain.toml's channel means pinning that release's cargo too, each
+platform's hash as `channel-rust-<version>.toml` lists it.
+
 ## Recovery
 
 When the release cannot be had (the CDN is down, `scripts/internal/pins` has no
@@ -97,9 +121,10 @@ release for this machine, or curl is missing), build the crate with cargo:
 target/tools/bootstrap-cargo` and run that binary in the release's place. It
 needs rustup, which reads the toolchain from rust-toolchain.toml, and
 crates.io, and takes a few seconds once built. The workspace's Cargo.toml and
-Cargo.lock still build this one crate, though cargo builds nothing else here;
-the manual broad check (.github/workflows/broad.yml) builds it the same way to
-see that this keeps working. The binary finds the checkout from its own path,
+Cargo.lock still build this one crate, though cargo builds nothing else here.
+`--locked` refuses a Cargo.lock out of date with the manifests, so after
+changing one, run the lock step with the binary built before
+(`target/tools/bootstrap-cargo/release/bootstrap lock`). The binary finds the checkout from its own path,
 so `target/tools/bootstrap-cargo/release/bootstrap COMMAND ...` runs it too.
 
 A cargo build is not byte for byte the release `:dist` builds, so nothing it

@@ -8461,6 +8461,77 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/be-lib-crate-pins": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_lib_crate_pins",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-lib-crate-pins",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/be-lib-geometry": {
         "binaries": [],
         "edition": "2024",
@@ -13254,13 +13325,17 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13272,13 +13347,17 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13290,13 +13369,17 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13308,13 +13391,17 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13326,13 +13413,17 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13344,13 +13435,17 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13362,13 +13457,17 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//crates/be-lib-prompt:be-lib-prompt",
+                        "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
+                    "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -13514,6 +13613,7 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -13523,6 +13623,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -13538,6 +13639,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -13547,6 +13649,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -13562,6 +13665,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -13571,6 +13675,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -13586,6 +13691,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -13595,6 +13701,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -13610,6 +13717,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -13619,6 +13727,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -13634,6 +13743,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -13643,6 +13753,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
@@ -13658,6 +13769,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "buck-tools": [
+                        "//crates/be-lib-crate-pins:be-lib-crate-pins",
                         "//third-party/rust:flate2-1.1.9",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:sha2-0.10.9",
@@ -13667,6 +13779,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",

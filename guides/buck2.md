@@ -101,10 +101,11 @@ that runs it), `:test-harness` (its binary), `:fix` (the package's autofixes), `
 bundled program (`program()` in buck/program/defs.bzl) has `:native`, `:web`, `:android`, the
 `-dist` build CI publishes, and `:dev`, headless for an agent to drive.
 
-**A dependency**: `cargo add`, then `./scripts/buck run //:buckify`, which regenerates
-`crates.bzl` and `Cargo.lock` on a worker, after pinning any crate new to Cargo.lock. That includes a dev-dependency on a workspace crate:
-until it runs, the crate's `:test` reports it unresolved. `./scripts/verify` regenerates them
-too, but builds with the checked-in copies, so a stale one is fixed by the run after.
+**A dependency**: `cargo add`, then `./scripts/buck run //:buckify`, which brings `Cargo.lock`
+up to date and pins any crate new to it (the bootstrap's lock step), then regenerates
+`crates.bzl` on a worker. That includes a dev-dependency on a workspace crate:
+until it runs, the crate's `:test` reports it unresolved. `./scripts/verify` does both
+too, but builds with the checked-in `crates.bzl`, so a stale one is fixed by the run after.
 
 **A crate**: add it to the workspace, write a `BUCK` beside `Cargo.toml`, run `//:buckify`:
 
@@ -244,10 +245,14 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   Zig packages it builds with (about 65 MB) and wasm-bindgen's `cargo install` (about 35 MB).
 - **crates.bzl's `downloads`** pins every crate Cargo.lock names, for every platform, built or
   not: buckify's action hands them to cargo as a vendored directory and has no network.
-  It brings Cargo.lock up to date from them when it can, so a dependency already in the
-  lockfile needs nothing else. A lockfile that needs a crate they lack makes the action write
-  why into `stale` beside where crates.bzl would be: `./scripts/verify` then fails, and
-  `//:buckify` runs `buck-tools lock` (crates/be-tool-buck/src/lock.rs) on this machine, built
-  by cargo since buck2 would build it from the stale crates.bzl, which
-  brings Cargo.lock up to date with the network, pins each new crate's hash and size in
-  `downloads`, and generates again.
+  Both are host-independent, so the bootstrap keeps them in step with the manifests before
+  buck2 runs (its lock step, crates/be-tool-bootstrap/src/lock.rs): `./scripts/verify`,
+  `./scripts/ci` and `//:buckify` hash the root and `crates/*/Cargo.toml`, `Cargo.lock`, the
+  `downloads` and the cargo release, and when that is not `buck/cargo/lock.sha256` run
+  `cargo update --workspace` with rust-toolchain.toml's cargo (pinned in scripts/internal/pins,
+  downloaded into `target/tools/`, with the bootstrap answering its `rustc -vV`), pin each new
+  crate's hash and size from crates.io, and write the hash; under `--check` they fail instead.
+  A lockfile that still needs a crate the `downloads` lack makes the action write why into
+  `stale` beside where crates.bzl would be, and `./scripts/verify` and `//:buckify` fail with it.
+  The planning itself stays an action on a Linux x86_64 worker: what cargo plans depends on the
+  host.

@@ -15,6 +15,25 @@ buck2_sha256_aarch64_apple_darwin='aacdf7cabe34b9b5dc74866b8dcf7410cdbae3ad2dcce
 buck2_sha256_x86_64_pc_windows_msvc='1f0619b285ee3cbdc562a38b70f2636f73e8233b2f5156aef93e9e8a00079e2c'
 buck2_sha256_aarch64_pc_windows_msvc='58edb0718e3b89a3f875129cc72640f2f4cb80487ec42057eb88447519dff0cf'
 
+# cargo, rust-toolchain.toml's release, which the bootstrap's lock step brings
+# Cargo.lock up to date with (crates/be-tool-bootstrap/src/lock.rs): Rust's own
+# https://static.rust-lang.org/dist/cargo-<version>-<triple>.tar.gz, by its
+# SHA-256, as https://static.rust-lang.org/dist/channel-rust-<version>.toml
+# lists it, and its size in bytes.
+cargo_version='1.98.0'
+cargo_sha256_x86_64_unknown_linux_gnu='18bf1598891b30dd5eb52a337d08a92b4456255ddbe4c1ab996ffb578077031c'
+cargo_sha256_aarch64_unknown_linux_gnu='e271c3c5d50336259a166e68b60ba792a64278ab117686183be3e51a0958d34b'
+cargo_sha256_x86_64_apple_darwin='7fdd094e131f98864fea06c6e0059fcecaba7b0010d07b90023f42215b6f33e8'
+cargo_sha256_aarch64_apple_darwin='ae556d0783f4ab2a6fccd4674158df08cf36526b73de03b7fde0e10b2bfc3d2e'
+cargo_sha256_x86_64_pc_windows_msvc='c50b54520d2748c60cabbc50c3f45fadb522453f048f77ad6d5f4f1b7e3f300b'
+cargo_sha256_aarch64_pc_windows_msvc='91145f927130f6a2c0eaf555725c3a83afe56a1fded4a0450d680b27323a633f'
+cargo_size_x86_64_unknown_linux_gnu='15858529'
+cargo_size_aarch64_unknown_linux_gnu='15833225'
+cargo_size_x86_64_apple_darwin='13345290'
+cargo_size_aarch64_apple_darwin='12993393'
+cargo_size_x86_64_pc_windows_msvc='14552810'
+cargo_size_aarch64_pc_windows_msvc='16125527'
+
 # be, the tracker's command line tool (guides/tracker.md), built from the same
 # tree as the be-server the tracker lives on. The release is that server's
 # build id, written beside be, so the server refuses this be once it is

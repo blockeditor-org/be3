@@ -213,13 +213,18 @@ impl Run {
     fn generated(&mut self) {
         if let Some(generated) = self.built("buckify").first() {
             // buckify's action has no network, so a lockfile that needs a
-            // crate crates.bzl does not download yet is left to //:buckify
-            // (buck/cargo/buckify.sh).
+            // crate crates.bzl does not download yet is left to the
+            // bootstrap's lock step, which runs before buck2 does
+            // (crates/be-tool-bootstrap/src/lock.rs).
             if let Ok(why) = fs::read_to_string(generated.join("stale")) {
                 println!(
-                    "{}\nOut of date: Cargo.lock and buck/cargo/crates.bzl, and updating them needs the network: run ./scripts/buck run //:buckify, then ./scripts/verify{} again.",
+                    "{}\nOut of date: Cargo.lock and buck/cargo/crates.bzl, and updating them needs the network, which the bootstrap's lock step does before buck2 runs: run ./scripts/verify{} again (a bootstrap pinned before that step has none: run it with BE3_BOOTSTRAP=cargo).",
                     why.trim_end(),
-                    if self.options.check { " --check" } else { "" }
+                    if self.options.check {
+                        " without --check"
+                    } else {
+                        ""
+                    }
                 );
                 self.failed = true;
             } else {

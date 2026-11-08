@@ -171,6 +171,7 @@ members = [
     "crates/be-sdk-library-beui",
     "crates/be-sdk-test-runner",
     "crates/be-lib-prompt",
+    "crates/be-lib-crate-pins",
     "crates/beui-reactive",
     "crates/be-host-remap-host",
     "crates/be-host-remap-module",

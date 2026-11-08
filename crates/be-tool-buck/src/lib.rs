@@ -4,7 +4,6 @@ pub mod bundle;
 pub mod compile_fail;
 pub mod fix;
 pub mod generate;
-pub mod lock;
 pub mod pdfium;
 pub mod resolve;
 pub mod rust_project;

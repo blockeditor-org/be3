@@ -42,7 +42,6 @@ command_alias(
     args = [
         "sh",
         "$(location //buck/cargo:update.sh)",
-        "$(location //buck/cargo:cargo)",
     ],
 )
 

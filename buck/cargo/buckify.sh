@@ -70,8 +70,9 @@ mkdir -p "$CARGO_HOME"
 # a developer runs would, changing nothing it does not have to. A lockfile that
 # needs a crate crates.bzl does not download yet, such as a new dependency's,
 # cannot be, so the action writes why into OUT/stale in place of the generated
-# files: //:buckify and ./scripts/verify then update Cargo.lock and crates.bzl's
-# downloads with the network (buck-tools lock) and build this again.
+# files, for //:buckify and ./scripts/verify to fail with: the bootstrap's lock
+# step, which they run before buck2, updates Cargo.lock and crates.bzl's
+# downloads with the network (crates/be-tool-bootstrap/src/lock.rs).
 printf '[source.crates-io]\nreplace-with = "vendored"\n\n[source.vendored]\ndirectory = "%s"\n\n[net]\noffline = true\n' "$vendor" > "$CARGO_HOME/config.toml"
 stale() {
     # Without the scratch directory's name, so the same inputs say the same.

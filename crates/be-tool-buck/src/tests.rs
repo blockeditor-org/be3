@@ -1,7 +1,6 @@
 use serde_json::{Value, json};
 
 mod a_bundle_records_each_files_length_in_hex;
-mod downloads_are_rewritten_as_generated;
 mod fix_reports_what_the_fixers_changed_and_deleted;
 mod pdfium_libraries_are_the_compiled_targets_under_the_root;
 mod pdfium_repositories_are_kept_for_what_the_libraries_use;

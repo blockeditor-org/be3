@@ -14,7 +14,8 @@ load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple", "plan
 # The crates are the downloads the checked-in crates.bzl pins (_vendored),
 # which buck2 keeps across daemons: cargo reads them as a vendored directory,
 # and the action has no network. When the lockfile needs a crate they do not
-# have, the action says so in OUT/stale (buckify.sh), for //:buckify to pin it.
+# have, the action says so in OUT/stale (buckify.sh): the bootstrap's lock step
+# pins it before buck2 runs (crates/be-tool-bootstrap/src/lock.rs).
 
 def _files(ctx, directory: str) -> list[str]:
     found = []
@@ -67,7 +68,7 @@ def generate(ctx, actions):
     files = _files(ctx, "crates")
     crate_dirs = [path.removesuffix("/Cargo.toml") for path in files if path.endswith("/Cargo.toml")]
     real.extend([directory + "/Cargo.toml" for directory in crate_dirs])
-    tools = [path for path in files if path.startswith("crates/be-tool-buck/src/")]
+    tools = [path for path in files if path.startswith("crates/be-tool-buck/src/") or path.startswith("crates/be-lib-crate-pins/src/")]
     real.extend(tools)
     placeholders = [path for path in files if _discovered(path, crate_dirs) and path not in tools]
 

@@ -1617,6 +1617,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-lib-crate-pins"
+version = "0.1.0"
+
+[[package]]
 name = "be-lib-geometry"
 version = "0.1.0"
 dependencies = [
@@ -2030,7 +2034,9 @@ version = "0.1.0"
 name = "be-tool-bootstrap"
 version = "0.1.0"
 dependencies = [
+ "be-lib-crate-pins",
  "be-lib-prompt",
+ "flate2",
  "sha2 0.10.9",
  "zstd",
 ]
@@ -2048,6 +2054,7 @@ dependencies = [
 name = "be-tool-buck"
 version = "0.1.0"
 dependencies = [
+ "be-lib-crate-pins",
  "flate2",
  "serde_json",
  "sha2 0.10.9",

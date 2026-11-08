@@ -9,6 +9,7 @@ name = "buck-tools"
 path = "src/main.rs"
 
 [dependencies]
+be-lib-crate-pins = { path = "../be-lib-crate-pins" }
 flate2 = "1"
 serde_json = "1"
 sha2 = "0.10"
