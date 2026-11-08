@@ -210,6 +210,7 @@ impl Instances {
                 parent,
                 defined,
                 content,
+                owner_only,
             } => {
                 let parent = be_host_stack::app_graph::parent_of(parent);
                 if parent.block().is_some_and(|parent| !self.editable(parent)) {
@@ -225,13 +226,13 @@ impl Instances {
                     defined,
                     ..be_block::BlockMetadata::default()
                 };
-                be_host_stack::create(
-                    block,
-                    Uuid::from_bytes(block_type),
-                    parent,
-                    metadata,
-                    content,
-                );
+                let block_type = Uuid::from_bytes(block_type);
+                match owner_only {
+                    true => be_host_stack::create_owner_only(
+                        block, block_type, parent, metadata, content,
+                    ),
+                    false => be_host_stack::create(block, block_type, parent, metadata, content),
+                }
                 self.acknowledge(reply, Some(true))
             }
             Call::SetParent {

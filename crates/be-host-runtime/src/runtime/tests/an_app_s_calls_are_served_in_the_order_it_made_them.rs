@@ -98,6 +98,7 @@ fn an_app_s_calls_are_served_in_the_order_it_made_them() {
         parent: BlockLocation::Root,
         defined: MetadataEntries::new(),
         content: None,
+        owner_only: false,
     };
     guest.start(Some(editor), BLOCKS_CREATE_BLOCK, encode(&create));
     let read = guest.start(

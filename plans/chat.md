@@ -2,7 +2,8 @@
 
 Depends on: plans/large_blocks.md (the operation that adds a part by its hash,
 `merge3` over parts), for step 1d only; steps 1a to 1c start at once.
-plans/owner_settings.md for step 1c. plans/notifications.md for step 2.
+Owner-only settings, for step 1c, have landed (guides/settings.md, Owner only).
+plans/notifications.md for step 2.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
@@ -96,7 +97,7 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
 
 - Where each person has read up to is theirs, not part of the shared document,
   where it would be a read receipt. It is kept in an owner-only settings kind
-  of chat's own (plans/owner_settings.md), keyed by chat id, so it matches
+  of chat's own (`KindVisibility::Owner`, guides/settings.md), keyed by chat id, so it matches
   across devices; ordinary user settings are escrowed, and administrators
   could read them.
 - The newest message and the counts come from the header, so a sidebar of

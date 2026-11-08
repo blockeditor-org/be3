@@ -1,6 +1,6 @@
 # boat.dev
 
-Depends on: plans/app_network.md (step 1) and plans/owner_settings.md.
+Depends on: plans/app_network.md (step 1). Owner-only settings have landed (guides/settings.md, Owner only).
 
 An app for boat.dev cloud VMs ("sandboxes"): list your VMs and start and stop
 them. Opening a terminal block into one is
@@ -63,7 +63,7 @@ From `https://boat.dev/llms.txt`, `https://boat.dev/openapi.yaml` and
 
 ### The key
 
-- **Kept by the app** in `BoatSettings`, an Owner kind (plans/owner_settings.md)
+- **Kept by the app** in `BoatSettings`, an Owner kind (guides/settings.md, Owner only)
   in the account's settings, so it is per organization and synced. be-host
   knows nothing of boat.
 - **Signing in** is the editor's own page: a link to the API Keys tab

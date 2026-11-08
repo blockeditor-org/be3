@@ -1389,13 +1389,27 @@ impl crate::root_settings::SettingsGraph for Editor {
             .ok()
     }
 
-    fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid {
-        self.blocks().create_with(
-            block_type,
-            Some(content),
-            parent,
-            be_block::BlockMetadata::default(),
-        )
+    fn create(
+        &self,
+        block_type: Uuid,
+        content: Vec<u8>,
+        parent: BlockParent,
+        owner_only: bool,
+    ) -> Uuid {
+        match owner_only {
+            true => self.blocks().create_owner_only(
+                Uuid::now_v7(),
+                block_type,
+                Some(content),
+                parent,
+            ),
+            false => self.blocks().create_with(
+                block_type,
+                Some(content),
+                parent,
+                be_block::BlockMetadata::default(),
+            ),
+        }
     }
 
     fn settings_profile(&self, block: Uuid) -> Option<be_block::SettingsProfile> {

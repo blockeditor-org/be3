@@ -114,6 +114,7 @@ const SCHEMA: &str = "
         version         INTEGER NOT NULL DEFAULT 0,
         key_id          TEXT NOT NULL DEFAULT '',
         payer           TEXT NOT NULL,
+        owner_only      INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, id)
     );
 

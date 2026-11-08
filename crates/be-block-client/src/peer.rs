@@ -649,7 +649,14 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         block: Uuid,
         parent: BlockParent,
+        owner_only: bool,
     ) -> Result<(Uuid, KeySet), ClientError> {
+        if owner_only {
+            let (scope, mut keys) = self.keys.mint_own_scope(block)?;
+            let (data, more) = self.keys.mint_data(block, scope)?;
+            keys.extend(more);
+            return Ok((data, keys));
+        }
         let under = match parent {
             BlockParent::Block(parent) => self.scope_key_under(parent).await?,
             BlockParent::Root | BlockParent::Detached => {
@@ -845,7 +852,32 @@ impl<S: ObjectStore> Peer<S> {
         parent: BlockParent,
         metadata: &BlockMetadata,
     ) -> Result<BlockSummary, ClientError> {
-        let (key, keys) = self.new_keys(block, parent).await?;
+        self.make_block(block, content_type, parent, metadata, false)
+            .await
+    }
+
+    /// Makes a block only this account reads, on any of its devices: its own scope root, whose
+    /// key is sealed to this account alone and never escrowed (`KindVisibility::Owner`).
+    pub async fn create_owner_only(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        parent: BlockParent,
+        metadata: &BlockMetadata,
+    ) -> Result<BlockSummary, ClientError> {
+        self.make_block(block, content_type, parent, metadata, true)
+            .await
+    }
+
+    async fn make_block(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        parent: BlockParent,
+        metadata: &BlockMetadata,
+        owner_only: bool,
+    ) -> Result<BlockSummary, ClientError> {
+        let (key, keys) = self.new_keys(block, parent, owner_only).await?;
         let references = deduplicated(self.resolve(block, metadata.references()));
         let metadata = self.commits.vault().seal(key, &metadata.encode())?;
         let response = crate::ask(client::blocks::create_block(
@@ -857,6 +889,7 @@ impl<S: ObjectStore> Peer<S> {
             references.clone(),
             key,
             keys.clone(),
+            owner_only,
         ))
         .await;
         let response = match response {
@@ -869,6 +902,7 @@ impl<S: ObjectStore> Peer<S> {
                     references,
                     key,
                     keys,
+                    owner_only,
                 });
             }
             response => response?,
@@ -1727,6 +1761,9 @@ impl<S: ObjectStore> Peer<S> {
             BlockParent::Root | BlockParent::Detached => None,
         };
         let mut keys = KeySet::default();
+        if moved.owner_only {
+            return Ok(keys);
+        }
         let under = match (shared, parent_scope) {
             (false, Some(under)) => under,
             (_, parent_scope) => {
@@ -1758,9 +1795,13 @@ impl<S: ObjectStore> Peer<S> {
         while !level.is_empty() {
             let mut below = Vec::new();
             for node in level {
+                if node.id != block && !node.access.can_view() {
+                    continue;
+                }
                 if node.id != block && node.scope == Some(node.id) {
                     if let Some(nested) = self.keys.scope_key(node.id)
                         && !wrapped_under(nested)
+                        && !self.keys.owner_only(nested)
                     {
                         keys.wrapped.push(self.keys.wrap(nested, under)?);
                     }

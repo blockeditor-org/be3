@@ -42,7 +42,7 @@ is the narrowest platform.
   can, and otherwise shows a link the person presses. Checked by hand in a
   browser; tests check the call is made.
 - **Credentials are the app's.** The host adds no tokens and knows no outside
-  service; each app keeps its own (plans/owner_settings.md) and handles 401s,
+  service; each app keeps its own in an owner-only settings kind (guides/settings.md, Owner only) and handles 401s,
   expiry and rotation by its service's rules.
 - **The manifest.** `network` keeps its host list and also takes `"*"`, which
   first-party apps use for now. Both keep the `https://` rule; host tests

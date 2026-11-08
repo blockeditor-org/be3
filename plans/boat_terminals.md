@@ -1,7 +1,7 @@
 # boat.dev terminals
 
-Depends on: plans/boat.md, plans/unfiled.md, plans/block_agents.md and
-plans/owner_settings.md.
+Depends on: plans/boat.md, plans/unfiled.md and plans/block_agents.md.
+Owner-only settings have landed (guides/settings.md, Owner only).
 
 Opening a terminal block into a boat VM from the boat app (plans/boat.md).
 The design follows the constraints.
@@ -75,7 +75,7 @@ The design follows the constraints.
      `.path` unit when its file appears.
 - **The credentials** `create-block-agent` answers, recovery phrase included,
   are kept in the viewer's owner-only `BoatSettings` kind
-  (plans/owner_settings.md), keyed by terminal block, since `be` won't sign in
+  (guides/settings.md, Owner only), keyed by terminal block, since `be` won't sign in
   without the phrase and a rotation answers only a token.
 - **Every resume** leaves the VM without credentials. When the app sees the VM
   running again it calls `rotate-agent-token`, which revokes the old token,

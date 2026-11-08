@@ -247,6 +247,7 @@ impl TestClient {
                             keys: vec![row(KEY, other, KeyKind::Data)],
                             wrapped: Vec::new(),
                         },
+                        false,
                     )
                     .await,
                 ),
@@ -521,6 +522,7 @@ async fn every_call_states_who_may_make_it() {
                     keys: vec![row(key, referrer, KeyKind::Data)],
                     wrapped: Vec::new(),
                 },
+                false,
             )
         })
         .await;

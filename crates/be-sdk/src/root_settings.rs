@@ -9,7 +9,9 @@ pub trait SettingsGraph {
     fn account(&self) -> Uuid;
     fn settings(&self, block: Uuid) -> Option<Settings>;
     fn settings_profile(&self, block: Uuid) -> Option<SettingsProfile>;
-    fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid;
+    /// Makes a block; `owner_only` makes one only this account reads (`KindVisibility::Owner`).
+    fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent, owner_only: bool)
+    -> Uuid;
     fn edit_settings(&self, block: Uuid, edit: Edit);
     fn edit_settings_profile(&self, block: Uuid, edit: Edit);
 }
@@ -79,6 +81,7 @@ impl RootSettings {
             SettingsContent::CONTENT_TYPE,
             SettingsContent::default().encode(),
             BlockParent::Root,
+            false,
         );
         self.created = Some(block);
         Some(block)
@@ -104,6 +107,7 @@ pub struct RootSetting<C> {
     created: Option<Uuid>,
     created_here: Option<Uuid>,
     block: Option<Uuid>,
+    owner_only: bool,
     content: std::marker::PhantomData<C>,
 }
 
@@ -114,7 +118,18 @@ impl<C> Default for RootSetting<C> {
             created: None,
             created_here: None,
             block: None,
+            owner_only: false,
             content: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<C> RootSetting<C> {
+    /// A kind whose blocks only this account reads (`KindVisibility::Owner`).
+    pub fn owner_only() -> Self {
+        Self {
+            owner_only: true,
+            ..Self::default()
         }
     }
 }
@@ -147,6 +162,7 @@ impl<C: BlockContent + Default> RootSetting<C> {
             C::CONTENT_TYPE,
             C::default().encode(),
             BlockParent::Block(settings),
+            self.owner_only,
         );
         graph.edit_settings(settings, Settings::set_kind(C::CONTENT_TYPE, block));
         self.created = Some(block);
@@ -183,6 +199,7 @@ impl<C: BlockContent + Default> RootSetting<C> {
             C::CONTENT_TYPE,
             content.encode(),
             BlockParent::Block(parent),
+            self.owner_only,
         );
         match layer {
             SettingsLayer::EveryDevice => {
@@ -198,3 +215,6 @@ impl<C: BlockContent + Default> RootSetting<C> {
         Some(block)
     }
 }
+
+#[cfg(test)]
+mod tests;

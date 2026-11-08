@@ -75,6 +75,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
         parent: BlockLocation::Block(parent.into_bytes()),
         defined: be_sdk_api::MetadataEntries::new(),
         content: None,
+        owner_only: false,
     };
     let mut created = create(local);
     Instances::translated(scope, true, |visit| created.visit_block_ids(visit));

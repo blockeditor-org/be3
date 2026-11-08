@@ -85,6 +85,17 @@ impl Blocks {
             .create_at(id, block_type, content, parent, metadata)
     }
 
+    pub fn create_owner_only(
+        &self,
+        id: Uuid,
+        block_type: Uuid,
+        content: Option<Vec<u8>>,
+        parent: BlockParent,
+    ) -> Uuid {
+        self.graph
+            .create_owner_only(id, block_type, content, parent)
+    }
+
     pub fn set_parent(&self, id: Uuid, parent: BlockParent) {
         self.graph.set_parent(id, parent);
     }

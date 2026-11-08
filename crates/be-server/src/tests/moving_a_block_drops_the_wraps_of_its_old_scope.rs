@@ -47,6 +47,7 @@ async fn moving_a_block_drops_the_wraps_of_its_old_scope() {
                         block: document,
                         kind: KeyKind::Data,
                         epoch: 2,
+                        owner_only: false,
                     }],
                     wrapped: vec![
                         wrap(

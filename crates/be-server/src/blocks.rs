@@ -46,6 +46,10 @@ impl Visibility {
     fn inherited(&self, graph: &BlockGraph, block: Uuid) -> Access {
         match (graph.contains(block), self.administrator) {
             (false, _) => Access::None,
+            (true, administrator) if graph.closed_to(block, self.account) => match administrator {
+                true => Access::KnowExists,
+                false => graph.inherited(block, self.account).min(Access::KnowExists),
+            },
             (true, true) => Access::Manage,
             (true, false) if crate::organization::in_settings(graph, self.organization, block) => {
                 Access::View
@@ -98,6 +102,7 @@ impl Visibility {
             .get(&block)
             .copied()
             .unwrap_or_default()
+            .max(inherited)
     }
 }
 
@@ -182,6 +187,23 @@ fn require_keeping_settings(
     }
 }
 
+/// Only the author of an owner-only block, or of the one it lies in, moves or shares it, whatever
+/// access anyone else is given (decisions/owner_only_settings_are_never_escrowed.md).
+fn require_owner_of_owner_only(
+    graph: &BlockGraph,
+    identity: Identity,
+    block: Uuid,
+    verb: &str,
+) -> Result<(), ServerError> {
+    match graph.closed_to(block, identity.account) {
+        true => Err(ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            format!("block {block} is readable by its author alone, and only its author {verb} it"),
+        )),
+        false => Ok(()),
+    }
+}
+
 fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockSummary> {
     summary_with(graph, &visibility(identity), block)
 }
@@ -214,6 +236,7 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         sets_access: node.sets_access(),
         size: node.size,
         tree_size: node.tree_size,
+        owner_only: node.owner_only,
     })
 }
 
@@ -229,6 +252,7 @@ impl ServerStore {
         references: Vec<Uuid>,
         key: Uuid,
         keys: KeySet,
+        owner_only: bool,
     ) -> Result<BlockSummary, ServerError> {
         let references = distinct(references);
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
@@ -255,6 +279,7 @@ impl ServerStore {
             }
             let mut node = BlockNode::new(content_type, identity.account, parent);
             node.metadata.clone_from(&metadata);
+            node.owner_only = owner_only;
             graph.insert(block, node)?;
             let (kind, parent_id) = encode_parent(parent);
             let transaction = database.unchecked_transaction()?;
@@ -262,8 +287,8 @@ impl ServerStore {
             transaction.execute(
                 "INSERT INTO blocks
                     (organization_id, id, content_type, author, parent_kind, parent_id, head, metadata,
-                     payer)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8)",
+                     payer, owner_only)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8, ?9)",
                 params![
                     identity.organization.to_string(),
                     block.to_string(),
@@ -273,6 +298,7 @@ impl ServerStore {
                     parent_id,
                     metadata,
                     payer.to_string(),
+                    owner_only,
                 ],
             )?;
             store_edges(
@@ -435,7 +461,9 @@ impl ServerStore {
             };
             let seen = visibility(identity);
             if !seen.can_view(graph, block) {
-                let access = graph.effective_access(block, identity.account);
+                let access = graph
+                    .effective_access(block, identity.account)
+                    .max(seen.access(graph, block));
                 return match access.can_know_exists() {
                     true => Ok(BlockSummary {
                         revision: graph.revision(),
@@ -857,6 +885,7 @@ impl ServerStore {
                         .into(),
                 ));
             }
+            require_owner_of_owner_only(graph, identity, block, "moves")?;
             let access = seen.inherited(graph, block);
             if let Some(refusal) = graph.move_refusal(block, parent, identity.account, access) {
                 return Err(ServerError::Refused(
@@ -1205,6 +1234,15 @@ impl ServerStore {
                     require_edit(graph, &visibility(identity), block)?;
                 }
                 false => require_manage(graph, &visibility(identity), block)?,
+            }
+            if !leaving {
+                require_owner_of_owner_only(graph, identity, block, "shares")?;
+                if graph.owner_only_root(block).is_some() && access > Access::None {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!("block {block} is readable by its author alone, so it is shared with no one"),
+                    ));
+                }
             }
             if account == ANYONE_INSIDE {
                 if graph.settings_owner(block).is_none() || access > Access::View {

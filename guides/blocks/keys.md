@@ -18,8 +18,9 @@ Design records: `decisions/deterministic_seal_nonce.md`,
 - **Data keys (DEKs)**: one per block, made at creation (`CreateBlock` carries
   it; `BlockSummary::key` is the current one). A block keeps every epoch, so its
   history stays readable.
-- **Scope keys (KEKs)**: a scope root is a root block, a detached block, or a
-  block with grants of its own (`BlockSummary::scope`, `BlockGraph::scope`). A
+- **Scope keys (KEKs)**: a scope root is a root block, a detached block, an
+  owner-only block (guides/settings.md, Owner only), or a block with grants of
+  its own (`BlockSummary::scope`, `BlockGraph::scope`). A
   DEK is wrapped under its scope's KEK, a scope root's KEK under its parent
   scope's, and a KEK is sealed to each account that may open it with that
   account's identity key.
@@ -84,6 +85,17 @@ to open the organization makes it (`CreateEscrow`), and `mint_scope` seals
 every new scope key to it too, so administrators open everything. Demoting or
 removing an administrator records an escrow rotation: the next epoch is signed
 by the current one over `EscrowKey::chained`.
+
+An owner-only block is never escrowed
+(decisions/owner_only_settings_are_never_escrowed.md): its scope key
+(`KeyRow::owner_only`, which the server sets when serving rows) is sealed to its
+author alone, not wrapped under the scope above nor sealed to the escrow key
+(`KeyBook::mint_own_scope`; `escrow_wrap` and `Peer`'s moves skip it), and
+`store_keys` refuses any other wrap of it. Key work never lists it as
+unescrowed, a rotation by anyone else leaves it out (it needs nothing from the
+scope above), and the author's own rotation mints it again the same way. A new
+device of the owner opens it through the identity secret, and a new phrase
+reseals it with everything else the account sealed for itself.
 
 A member wraps only under an escrow key it pinned from somewhere the server
 cannot forge: its own, the invitation (`InviteCode::seal_escrow`), an agent's

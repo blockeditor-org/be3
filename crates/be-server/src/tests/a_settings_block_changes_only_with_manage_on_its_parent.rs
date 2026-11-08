@@ -21,6 +21,7 @@ async fn create_settings(
                     keys: vec![row(key, block, KeyKind::Data)],
                     wrapped: Vec::new(),
                 },
+                false,
             )
         })
         .await;

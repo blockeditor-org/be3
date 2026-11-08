@@ -1373,6 +1373,7 @@ impl Client {
                 references,
                 key,
                 keys,
+                owner_only,
             } => {
                 let created = async {
                     prelude?;
@@ -1388,6 +1389,7 @@ impl Client {
                             references,
                             key,
                             keys,
+                            owner_only,
                         )
                         .await?;
                     let mut announced = vec![block.id];
