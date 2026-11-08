@@ -924,7 +924,7 @@ dependencies = [
 name = "be-app-settings"
 version = "0.1.0"
 dependencies = [
- "be-host-remap",
+ "be-lib-remap",
  "be-sdk-beui",
  "be-sdk-database",
  "be-sdk-test",
@@ -1410,28 +1410,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-host-remap"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "serde",
- "toml",
- "toml_edit",
-]
-
-[[package]]
 name = "be-host-remap-host"
 version = "0.1.0"
 dependencies = [
- "be-host-remap",
+ "be-lib-remap",
  "wasmi",
-]
-
-[[package]]
-name = "be-host-remap-module"
-version = "0.1.0"
-dependencies = [
- "be-host-remap",
 ]
 
 [[package]]
@@ -1647,6 +1630,23 @@ version = "0.1.0"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "be-lib-remap"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+ "toml",
+ "toml_edit",
+]
+
+[[package]]
+name = "be-lib-remap-module"
+version = "0.1.0"
+dependencies = [
+ "be-lib-remap",
 ]
 
 [[package]]

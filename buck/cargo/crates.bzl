@@ -995,7 +995,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//crates/be-sdk-beui:be-sdk-beui",
                     "//crates/be-sdk-database:be-sdk-database",
                     "//crates/be-type-settings:be-type-settings",
@@ -6502,170 +6502,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/be-host-remap": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "be_host_remap",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "be-host-remap",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "linux-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "linux-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "macos-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "macos-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "wasm32": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-            "windows-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [
-                    "text",
-                ],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/be-host-remap-host": {
         "binaries": [],
         "edition": "2024",
@@ -6680,7 +6516,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6691,7 +6527,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6702,7 +6538,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6713,7 +6549,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6724,7 +6560,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6735,7 +6571,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
                 ],
                 "examples": {},
@@ -6746,103 +6582,8 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/be-host-remap:be-host-remap",
+                    "//crates/be-lib-remap:be-lib-remap",
                     "//third-party/rust:wasmi-1.1.0",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/be-host-remap-module": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "be_host_remap_module",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "be-host-remap-module",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "wasm32": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/be-host-remap:be-host-remap",
                 ],
                 "examples": {},
                 "features": [],
@@ -8942,6 +8683,265 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:windows-sys-0.61.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-lib-remap": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_lib_remap",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-lib-remap",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-lib-remap-module": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_lib_remap_module",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-lib-remap-module",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-lib-remap:be-lib-remap",
                 ],
                 "examples": {},
                 "features": [],

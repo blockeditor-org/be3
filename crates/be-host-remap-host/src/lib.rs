@@ -1,14 +1,14 @@
 use std::collections::BTreeSet;
 
-use be_host_remap::names::{BUTTON_FIRST, CODE_LIMIT, Modifier};
-use be_host_remap::protocol::{decode, encode};
-use be_host_remap::{Input, Output, Reply, Request, Source, Window};
+use be_lib_remap::names::{BUTTON_FIRST, CODE_LIMIT, Modifier};
+use be_lib_remap::protocol::{decode, encode};
+use be_lib_remap::{Input, Output, Reply, Request, Source, Window};
 use wasmi::{
     Config, Engine, Instance, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder,
     TypedFunc,
 };
 
-pub use be_host_remap;
+pub use be_lib_remap;
 
 pub mod capture;
 

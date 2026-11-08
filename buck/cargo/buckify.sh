@@ -144,7 +144,7 @@ host_packages="--workspace $excluded --exclude be-sdk --exclude be-sdk-beui --ex
 plan test --target x86_64-unknown-linux-gnu $host_packages > "$scratch/host.json"
 plan build --target wasm32-wasip1-threads -p be-host -p beui-web-demo -p be-tool-paint-review-web -p beui-html --lib > "$scratch/wasi.json"
 plan test --target wasm32-wasip1-threads $apps $libraries -p be-sdk -p be-sdk-beui -p beui-demo -p be-tool-paint-review > "$scratch/wasi-guest.json"
-plan build --target wasm32-unknown-unknown $games $types -p be-wasm-gpu-shim -p be-host-remap-module -p be-wasm-guest-echo > "$scratch/wasm32.json"
+plan build --target wasm32-unknown-unknown $games $types -p be-wasm-gpu-shim -p be-lib-remap-module -p be-wasm-guest-echo > "$scratch/wasm32.json"
 # beui's HTML core (buck/constraints:html): the crates that build on it, for
 # the browser and for the host, under the cfg that picks it. cargo evaluates
 # [target.'cfg(beui_html)'.dependencies] against RUSTFLAGS, so each core's

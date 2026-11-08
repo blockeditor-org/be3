@@ -1,7 +1,7 @@
-use be_host_remap::edit::{
+use be_lib_remap::edit::{
     Combo, Editing, GroupField, GroupOutline, RuleEdit, RuleOutline, StepOutline,
 };
-use be_host_remap::text;
+use be_lib_remap::text;
 use be_sdk_beui::Editor;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{ICON_PENCIL, ICON_PLUS, ICON_TRASH};

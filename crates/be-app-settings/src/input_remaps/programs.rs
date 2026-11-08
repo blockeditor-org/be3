@@ -2,7 +2,7 @@
 //! the ones open now or installed, or a pattern for the rare cases a list
 //! can't name.
 
-use be_host_remap::rules::exe_name;
+use be_lib_remap::rules::exe_name;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{ICON_APP_WINDOW, ICON_LAYOUT_GRID, ICON_SEARCH};
 use be_sdk_beui::beui::reactive::*;
