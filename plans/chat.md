@@ -47,7 +47,8 @@ yet.
   recent messages pass a size: messages a..b become segment k, with its hash.
   Only an owner online, and only for messages already confirmed. Every replica
   encodes the segment's bytes itself and checks them against the hash; the
-  operation carrying a part's hash is new, and chat is its first user.
+  operation carrying a part's hash is new (`plans/large_blocks.md`), and chat
+  is its first user.
 - **Rewriting a segment** folds its pending edits, deletions and reactions in
   as one new chunk.
 - **The editor** opens the header and reads segments as the person scrolls
