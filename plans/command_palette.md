@@ -1,5 +1,7 @@
 # One command palette for the whole host
 
+Depends on: none.
+
 Today every editor frame has a command palette of its own (Ctrl+Shift+P in
 `be-sdk-beui`'s `BeuiFrame`). It lists the actions that are live in that
 app's document: the frame's own (undo, redo, rename, share, file details,

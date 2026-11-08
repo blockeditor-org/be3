@@ -1,5 +1,8 @@
 # Connected apps
 
+Depends on: plans/unfiled.md, and a versioned server protocol, which no
+plan covers yet.
+
 A third party's own product (its own website, login and servers) that connects
 to a person's be3 account and reads and edits their blocks. Until block apps
 are established, a company can't justify an app that works only inside

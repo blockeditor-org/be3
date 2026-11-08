@@ -1,10 +1,12 @@
 # boat.dev
 
+Depends on: plans/app_network.md (step 1), plans/owner_settings.md,
+plans/unfiled.md and plans/block_agents.md.
+
 An app for boat.dev cloud VMs ("sandboxes"): list your VMs, start and stop
 them, and open a terminal block into one. It is the first block that mostly
 shows online data and the first that needs an outside account. Not implemented
-yet; it needs plans/app_network.md, plans/owner_settings.md, plans/unfiled.md
-and plans/block_agents.md first.
+yet.
 
 ## What boat offers
 

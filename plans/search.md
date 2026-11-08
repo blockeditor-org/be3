@@ -1,5 +1,7 @@
 # Search
 
+Depends on: plans/large_blocks.md.
+
 A plan for full-text search over names and content. The server never reads
 content (guides/the_new_block_stack.md, goal 5), so clients build the index,
 encrypt it like any block, and search it locally. `plans/daily_driver.md`

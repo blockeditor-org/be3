@@ -1,5 +1,7 @@
 # Windows input
 
+Depends on: none.
+
 Input work left for the desktop shell on Windows. guides/desktop/windows.md
 describes what is built: focus mode (the physical mouse and keyboard drive the
 real window, the cursor clipped to it, a hotkey back), `SendInput` injection

@@ -1,5 +1,7 @@
 # Text on the shared sequence
 
+Depends on: none.
+
 Text and lists share one ordered sequence: `Sequence<T>` in `be-lib-sequence`,
 wrapped by `be-block-model` as the `Text` field and as `Items` for lists. The
 session code is `be-sdk-type-guest/src/replica.rs`. What is left is below.

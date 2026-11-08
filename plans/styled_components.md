@@ -1,5 +1,7 @@
 # Styled component cleanup: what is left
 
+Depends on: none.
+
 The styled component cleanup (behaviour moved into `beui-components-unstyled`,
 product components moved out of beui, merged components, design tokens, one
 text `overflow` prop, modal actions with roles, code outside beui on the

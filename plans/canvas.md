@@ -1,5 +1,7 @@
 # Canvas
 
+Depends on: plans/public_release.md (Web offline), for step 1 only.
+
 A plan to make the infinite canvas (`crates/be-app-infinite-canvas`, model in
 `crates/be-type-infinite-canvas`) a general 2D vector and raster image editor,
 starting with a prototyping profile as quick to reach for as Excalidraw. Each

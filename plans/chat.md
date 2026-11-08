@@ -1,5 +1,8 @@
 # Chat
 
+Depends on: plans/large_blocks.md (the operation that adds a part by its hash,
+`merge3` over parts).
+
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
 (a type can load only its first part, guides/blocks/content_types.md "Parts"),

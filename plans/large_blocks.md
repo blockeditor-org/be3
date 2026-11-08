@@ -1,5 +1,7 @@
 # Large blocks, edited and merged
 
+Depends on: none.
+
 Follow-ups to #804 (large blocks and saving live edits less often), so a block
 of a gigabyte or more can be edited often, merged and kept with history at a
 cost in proportion to what changed. The search index (`plans/search.md`) is

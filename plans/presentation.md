@@ -1,5 +1,7 @@
 # Presentation editor: feature recommendations
 
+Depends on: none.
+
 Recommendations only, not implemented. The deck's model is
 `crates/be-type-presentation/src/presentation.rs`, its editor
 `crates/be-app-presentation/src` (the slide templates are in
