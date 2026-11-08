@@ -1,4 +1,4 @@
-load("//buck/platforms:cross.bzl", "CROSS_PLATFORMS")
+load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS")
 
 # What ./scripts/verify leaves out (decisions/verify_compiles_one_configuration_per_target.md),
 # in one buck2 command, for the manual broad check (.github/workflows/broad.yml):

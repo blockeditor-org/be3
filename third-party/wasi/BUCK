@@ -1,4 +1,4 @@
-load("//buck/tools:defs.bzl", "configured_once")
+load("@root//buck/tools:defs.bzl", "configured_once")
 
 # The WASI sysroot the apps' C (freetype, harfbuzz) and be-host's web build
 # are compiled and linked against. Rust needs none of it.

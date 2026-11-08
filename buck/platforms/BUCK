@@ -1,5 +1,5 @@
 load("@root//buck/dev:verify.bzl", "package_fix")
-load("//buck/tools:defs.bzl", "worker_properties")
+load("@root//buck/tools:defs.bzl", "worker_properties")
 load(":cross.bzl", "CROSS_PLATFORMS")
 load(":defs.bzl", "execution_platform", "execution_platforms", "target_platform")
 

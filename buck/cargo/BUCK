@@ -1,5 +1,5 @@
 load("@root//buck/dev:verify.bzl", "package_fix")
-load("//buck/tools:defs.bzl", "configured_once", "rust_sysroot")
+load("@root//buck/tools:defs.bzl", "configured_once", "rust_sysroot")
 
 # The cargo and nightly buckify.bxl plans the workspace with (--unit-graph is
 # nightly-only), pinned like buck/tools.
@@ -50,7 +50,6 @@ rust_sysroot(
         "//buck/tools:rustc-component",
         "//buck/tools:rust-std-" + host,
     ],
-    visibility = ["PUBLIC"],
 )
 
 # buck2's rust-project, which writes the rust-project.json rust-analyzer reads
@@ -71,7 +70,6 @@ genrule(
     cmd = "$(exe //crates/be-tool-buck:bin) unzstd $(location :rust-project.zst) $OUT",
     executable = True,
     out = "rust-project",
-    visibility = ["PUBLIC"],
 )
 
 # rust-analyzer's standard library, its sources and its proc-macro server, kept
@@ -91,7 +89,6 @@ rust_sysroot(
         "//buck/tools:rustc-component",
         "//buck/tools:rust-std-" + host,
     ],
-    visibility = ["PUBLIC"],
 )
 
 # wasm-bindgen, which writes the JavaScript the browser loads be-host's web
@@ -113,7 +110,6 @@ configured_once(
 command_alias(
     name = "wasm-bindgen",
     args = ["$(location :wasm-bindgen-release)/wasm-bindgen"],
-    visibility = ["PUBLIC"],
 )
 
 package_fix(exclude = ["members.bzl"])

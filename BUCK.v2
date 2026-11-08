@@ -2,9 +2,9 @@
 # way, because a filesystem that ignores case - Windows', and macOS's by
 # default - cannot hold a file named BUCK beside the buck/ directory.
 
-load("//buck/cargo:buckify.bzl", "cargo_plan")
-load("//buck/cargo:members.bzl", "members")
-load("//buck/dev:verify.bzl", "package_fix")
+load("@root//buck/cargo:buckify.bzl", "cargo_plan")
+load("@root//buck/cargo:members.bzl", "members")
+load("@root//buck/dev:verify.bzl", "package_fix")
 
 # The root's own Starlark; every other package's :fix is its own.
 package_fix(starlark = ["BUCK.v2", "PACKAGE"])
@@ -22,14 +22,12 @@ cargo_plan(
 export_file(
     name = "starlark_fmt.json",
     src = "buck/starlark_fmt.json",
-    visibility = ["PUBLIC"],
 )
 
 # clippy.toml reaches the rust toolchain as a file, so it needs a target.
 export_file(
     name = "clippy.toml",
     src = "clippy.toml",
-    visibility = ["PUBLIC"],
 )
 
 # The commands a person runs, started from the root once buck2 has built what

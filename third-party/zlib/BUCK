@@ -1,4 +1,4 @@
-load("//buck/tools:defs.bzl", "configured_once")
+load("@root//buck/tools:defs.bzl", "configured_once")
 
 # zlib's source, for the libpng in third-party/libpng to inflate with.
 configured_once(

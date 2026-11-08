@@ -1,4 +1,4 @@
-load("//buck/dev:test.bzl", "TestRunInfo")
+load("@root//buck/dev:test.bzl", "TestRunInfo")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command,
 # found by query rather than named in a list:

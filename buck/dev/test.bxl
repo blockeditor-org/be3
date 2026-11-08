@@ -1,4 +1,4 @@
-load("//buck/dev:test.bzl", "TestRunInfo", "run_test")
+load("@root//buck/dev:test.bzl", "TestRunInfo", "run_test")
 
 # ./scripts/test --update, in one buck2 command (a plain ./scripts/test is
 # buck2 test, crates/be-tool-bootstrap/src/test.rs): each test it names, run as

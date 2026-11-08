@@ -1,9 +1,9 @@
 load("@prelude//cfg/modifier:cfg_constructor.bzl", "cfg_constructor_pre_constraint_analysis")
 load("@prelude//cfg/modifier:common.bzl", "MODIFIER_METADATA_KEY")
 load("@prelude//rust:cargo_package.bzl", "set_reindeer_platforms")
-load("//buck/platforms:cross.bzl", "PLAN_SETTINGS")
-load("//buck/platforms:modifiers.bzl", "cfg_constructor_named")
-load("//buck/platforms:profile.bzl", "MODIFIERS")
+load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
+load("@root//buck/platforms:modifiers.bzl", "cfg_constructor_named")
+load("@root//buck/platforms:profile.bzl", "MODIFIERS")
 
 # Which platform a configuration is, by the names the crates' facts key
 # cargo's plans by, which is how the third-party rules in third-party/rust pick

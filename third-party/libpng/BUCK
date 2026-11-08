@@ -1,4 +1,4 @@
-load("//buck/tools:defs.bzl", "configured_once")
+load("@root//buck/tools:defs.bzl", "configured_once")
 
 # libpng's source, which freetype-sys's build script compiles beside FreeType
 # (third-party/rust/fixups.bzl) for the colour emoji fonts that keep their
