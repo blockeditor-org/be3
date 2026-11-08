@@ -69,7 +69,26 @@ def _workspace_checks(ctx) -> list[Artifact]:
             checks.append(sub_targets["check"][DefaultInfo].default_outputs[0])
     return checks
 
+# Links run on a worker (remote_linking_cxx_toolchain in
+# buck/toolchains/defs.bzl), which nothing else would notice stopped: the
+# prelude decides where from more than the toolchain's fields. One known
+# binary's link stands for all of them.
+def _check_remote_links(ctx):
+    target = "root//crates/be-tool-buck:bin"
+    for action in ctx.aquery(target_platform = "root//buck/platforms:linux_x86_64").eval(target):
+        attrs = action.attrs
+        if str(getattr(attrs, "category", "")) == "rustc" and str(getattr(attrs, "identifier", "")).startswith("link"):
+            if str(attrs.executor_preference) != "Default":
+                fail(
+                    "{}'s link would run with executor preference {}, not on a worker: see remote_linking_cxx_toolchain in buck/toolchains/defs.bzl".format(
+                        target, attrs.executor_preference
+                    )
+                )
+            return
+    fail("{} has no link action to check".format(target))
+
 def _impl(ctx: bxl.Context):
+    _check_remote_links(ctx)
     args = ctx.cli_args
     actions = ctx.bxl_actions().actions
     printed = [

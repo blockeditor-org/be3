@@ -12,7 +12,10 @@ through cargo's own plans. Every command and target is in guides/common_commands
 - `BUCK.v2`: the `//:` commands, with their scripts in `buck/dev` (`BUCK.v2` because a
   case-insensitive filesystem cannot hold `BUCK` beside `buck/`).
 - `buck/tools`: every compiler and tool, downloaded and pinned by hash and size;
-  `buck/toolchains`: the toolchains built from them.
+  `buck/toolchains`: the toolchains built from them. Their rules check, at analysis, that the
+  prelude's `CxxToolchainInfo`, `LinkerInfo` and `RustToolchainInfo` still have the fields
+  they were written against, and verify.bxl that a known link still runs on a worker, so a
+  buck2 update that changes either stops the build with what changed.
 - `buck/platforms`: the worker's execution platform and every target platform; `cross.bzl`
   lists the cross-compiled ones, and everything else that lists platforms reads it.
 - `buck/sysroot`: the Ubuntu 24.04 packages everything is compiled against.
