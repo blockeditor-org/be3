@@ -45,7 +45,6 @@ The `.bzl` files carry comments on each rule; read them before changing one.
 
 `-m release` builds with cargo's release profile; it is the `buck/constraints:release`
 constraint, added by a modifier in the root `PACKAGE`, so one build can hold both profiles.
-Everything else is cargo's dev profile with `Cargo.toml`'s `[profile.dev.package]` overrides.
 `-m lto` adds `buck/constraints:lto`, under which be-host's binary is linked with fat LTO over
 one codegen unit (a ten-minute link); `./scripts/deploy`'s native builds have it by their
 transition. Each modifier names the configuration (`linux_x86_64_release_lto`), whether the
@@ -53,6 +52,7 @@ modifier or a transition added it (`MODIFIERS` and `with_modifiers` in
 buck/platforms/profile.bzl). Every transition keeps the profile (`keep_profile`) and drops LTO,
 which nothing but be-host's binary selects on. The default platform is `.buckconfig`'s
 `target_platform_detector_spec`, not a modifier: the root `PACKAGE` says why.
+Everything else is cargo's dev profile with `Cargo.toml`'s `[profile.dev.package]` overrides.
 `--target-platforms root//buck/platforms:<p>` builds for another platform. Everything is built
 for Linux x86_64 unless asked, so any machine shares CI's cache; `run` on another machine builds
 for that machine.
@@ -128,7 +128,7 @@ which writes them into the checkout (`--check` fails instead). That includes a d
 a workspace crate: until it runs, the crate's `:test` reports it unresolved. `./scripts/verify`
 does both too, but builds with the checked-in facts, so stale ones are fixed by the run after.
 Until a bootstrap release with the `buckify` command is pinned, run it as
-`BE3_BOOTSTRAP=source ./scripts/buckify`. Its action plans with crates/be-tool-buck as buck2
+`BE3_BOOTSTRAP=cargo ./scripts/buckify`. Its action plans with crates/be-tool-buck as buck2
 builds it from the checked-in facts; when those cannot build it, because its own dependencies
 changed, `./scripts/buckify` plans again with be-tool-buck built by cargo inside the action.
 

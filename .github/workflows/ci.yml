@@ -223,8 +223,9 @@ jobs:
       #
       # The files a credential can be in are deleted first rather than left to
       # .gitignore, because the .gitignore is the pull request's, and one based
-      # on an older main may not ignore them: .buckconfig.local, where
-      # ./scripts/buck writes the build server's header, the scripts' key
+      # on an older main may not ignore them: .buckconfig.local, where an
+      # older bootstrap wrote the build server's header (it now writes
+      # target/build-server.buckconfig, under the ignored target/), the scripts' key
       # files, and the keystore older workflows wrote. Deleted, the most one
       # can stage is its removal.
       - name: Collect what verification changed
