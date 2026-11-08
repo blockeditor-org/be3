@@ -1,6 +1,5 @@
 load("@root//buck/dev:verify.bzl", "package_fix")
 load("//buck/tools:defs.bzl", "configured_once", "rust_sysroot")
-load(":cargo_install.bzl", "cargo_install")
 
 # The cargo and nightly buckify.bxl plans the workspace with (--unit-graph is
 # nightly-only), pinned like buck/tools.
@@ -55,14 +54,23 @@ rust_sysroot(
 )
 
 # buck2's rust-project, which writes the rust-project.json rust-analyzer reads
-# the workspace through: ./scripts/buck run //:rust-project runs it. It is built from the
-# commit the pinned buck2 release was, so it and the prelude it queries agree.
-cargo_install(
+# the workspace through: ./scripts/buck run //:rust-project runs it. It is the
+# one released beside the buck2 scripts/internal/pins pins, so it and the
+# prelude it queries agree. Like starlark_fmt (buck/tools), the release is a
+# bare zstd stream that buck-tools unpacks.
+configured_once(
+    http_file,
+    name = "rust-project.zst",
+    sha256 = "d3300715308a7c2d686b82549e203db904a4bce351091c11e7bfec6059c6e83b",
+    size_bytes = 1110551,
+    urls = ["https://github.com/facebook/buck2/releases/download/2026-09-15/rust-project-x86_64-unknown-linux-gnu.zst"],
+)
+
+genrule(
     name = "rust-project",
-    package = "rust-project",
-    repository = "https://github.com/facebook/buck2.git",
-    revision = "6507dd157a6f81a810c48583edf1758dd0c337c5",
-    toolchain = ":nightly",
+    cmd = "$(exe //crates/be-tool-buck:bin) unzstd $(location :rust-project.zst) $OUT",
+    executable = True,
+    out = "rust-project",
     visibility = ["PUBLIC"],
 )
 
@@ -90,12 +98,21 @@ rust_sysroot(
 # bundle and the gpu shim through. The version has to be the one Cargo.lock has
 # for the wasm-bindgen crate: the two agree on a schema that changes between
 # releases, and the tool refuses a module built against any other.
-cargo_install(
+# The project's own release of it, for Linux x86_64.
+wasm_bindgen_version = "0.2.122"
+
+configured_once(
+    http_archive,
+    name = "wasm-bindgen-release",
+    sha256 = "122a3fe2ea9c6e3e89b50e42dd1a346e499f3f65a54aae0b4eaeb658139d1e0e",
+    size_bytes = 11457701,
+    strip_prefix = "wasm-bindgen-{}-x86_64-unknown-linux-musl".format(wasm_bindgen_version),
+    urls = ["https://github.com/wasm-bindgen/wasm-bindgen/releases/download/{0}/wasm-bindgen-{0}-x86_64-unknown-linux-musl.tar.gz".format(wasm_bindgen_version)],
+)
+
+command_alias(
     name = "wasm-bindgen",
-    binary = "wasm-bindgen",
-    package = "wasm-bindgen-cli",
-    toolchain = ":cargo",
-    version = "0.2.122",
+    args = ["$(location :wasm-bindgen-release)/wasm-bindgen"],
     visibility = ["PUBLIC"],
 )
 
