@@ -25,7 +25,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-store:be-block-store",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "access-bench": {
@@ -34,7 +34,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-block-store:be-block-store",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//third-party/rust:serde-1.0.228",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -51,7 +51,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-store:be-block-store",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "access-bench": {
@@ -60,7 +60,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-block-store:be-block-store",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//third-party/rust:serde-1.0.228",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -77,7 +77,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-store:be-block-store",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "access-bench": {
@@ -86,7 +86,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-block-store:be-block-store",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//third-party/rust:serde-1.0.228",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -103,7 +103,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-store:be-block-store",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -116,7 +116,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-store:be-block-store",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "access-bench": {
@@ -125,7 +125,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-block-store:be-block-store",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//third-party/rust:serde-1.0.228",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -142,7 +142,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-store:be-block-store",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "access-bench": {
@@ -151,7 +151,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-block-store:be-block-store",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//third-party/rust:serde-1.0.228",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -168,7 +168,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-store:be-block-store",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -181,7 +181,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-store:be-block-store",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -194,7 +194,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-store:be-block-store",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -207,7 +207,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-store:be-block-store",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "access-bench": {
@@ -216,7 +216,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-block-store:be-block-store",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//third-party/rust:serde-1.0.228",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -233,7 +233,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-store:be-block-store",
                 "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "access-bench": {
@@ -242,7 +242,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-block-store:be-block-store",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//third-party/rust:serde-1.0.228",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },

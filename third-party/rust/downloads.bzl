@@ -62,6 +62,12 @@ downloads = {
         "size_bytes": 43193,
         "version": "0.26.1",
     },
+    "addr2line-0.27.1": {
+        "name": "addr2line",
+        "sha256": "e567177890eb1617b1f774005b66b26b2377afd138a2ca37aae7d8f0c81429d4",
+        "size_bytes": 43584,
+        "version": "0.27.1",
+    },
     "adler2-2.0.1": {
         "name": "adler2",
         "sha256": "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa",
@@ -146,6 +152,36 @@ downloads = {
         "size_bytes": 5243,
         "version": "0.1.5",
     },
+    "anstream-1.0.0": {
+        "name": "anstream",
+        "sha256": "824a212faf96e9acacdbd09febd34438f8f711fb84e09a8916013cd7815ca28d",
+        "size_bytes": 28916,
+        "version": "1.0.0",
+    },
+    "anstyle-1.0.14": {
+        "name": "anstyle",
+        "sha256": "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000",
+        "size_bytes": 17787,
+        "version": "1.0.14",
+    },
+    "anstyle-parse-1.0.0": {
+        "name": "anstyle-parse",
+        "sha256": "52ce7f38b242319f7cabaa6813055467063ecdc9d355bbb4ce0c68908cd8130e",
+        "size_bytes": 22042,
+        "version": "1.0.0",
+    },
+    "anstyle-query-1.1.5": {
+        "name": "anstyle-query",
+        "sha256": "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc",
+        "size_bytes": 10264,
+        "version": "1.1.5",
+    },
+    "anstyle-wincon-3.0.11": {
+        "name": "anstyle-wincon",
+        "sha256": "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d",
+        "size_bytes": 12638,
+        "version": "3.0.11",
+    },
     "anyhow-1.0.104": {
         "name": "anyhow",
         "sha256": "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470",
@@ -176,6 +212,12 @@ downloads = {
         "size_bytes": 54018,
         "version": "3.6.1",
     },
+    "arc-swap-1.9.4": {
+        "name": "arc-swap",
+        "sha256": "db4c94f57a570fce5d381be3289b3f79aef6332d72948fe82ab5772e423ccf92",
+        "size_bytes": 83471,
+        "version": "1.9.4",
+    },
     "argon2-0.5.3": {
         "name": "argon2",
         "sha256": "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072",
@@ -188,11 +230,11 @@ downloads = {
         "size_bytes": 9186,
         "version": "0.3.9",
     },
-    "arrayvec-0.7.6": {
+    "arrayvec-0.7.8": {
         "name": "arrayvec",
-        "sha256": "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50",
-        "size_bytes": 31237,
-        "version": "0.7.6",
+        "sha256": "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56",
+        "size_bytes": 33260,
+        "version": "0.7.8",
     },
     "as-raw-xcb-connection-1.0.1": {
         "name": "as-raw-xcb-connection",
@@ -314,11 +356,17 @@ downloads = {
         "size_bytes": 38077,
         "version": "4.7.1",
     },
-    "async-trait-0.1.91": {
+    "async-trait-0.1.92": {
         "name": "async-trait",
-        "sha256": "ae36dc4177970ef04fde5178d3e2429882def40e57a451f919c098f72baa6cec",
-        "size_bytes": 32108,
-        "version": "0.1.91",
+        "sha256": "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667",
+        "size_bytes": 32039,
+        "version": "0.1.92",
+    },
+    "atoi-3.1.1": {
+        "name": "atoi",
+        "sha256": "d12c37257553c19e9aee6cba77814fdc9e07844abfc8b3a2c377cd920ee5a993",
+        "size_bytes": 20907,
+        "version": "3.1.1",
     },
     "atomic-polyfill-1.0.3": {
         "name": "atomic-polyfill",
@@ -362,6 +410,12 @@ downloads = {
         "size_bytes": 18911,
         "version": "1.5.1",
     },
+    "backtrace-0.3.77": {
+        "name": "backtrace",
+        "sha256": "42f4220217f3288537b83684130f42fad43320b1c3b805f1910d683d52ded24f",
+        "size_bytes": 90528,
+        "version": "0.3.77",
+    },
     "base64-0.22.1": {
         "name": "base64",
         "sha256": "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6",
@@ -373,6 +427,12 @@ downloads = {
         "sha256": "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5",
         "size_bytes": 93605,
         "version": "0.23.1",
+    },
+    "base64-simd-0.8.0": {
+        "name": "base64-simd",
+        "sha256": "339abbe78e73178762e23bea9dfd08e697eb3f3301cd4be981c0f78ba5859195",
+        "size_bytes": 12531,
+        "version": "0.8.0",
     },
     "base64ct-1.8.3": {
         "name": "base64ct",
@@ -512,11 +572,17 @@ downloads = {
         "size_bytes": 15909,
         "version": "0.1.0",
     },
-    "bytes-1.11.1": {
+    "bytes-1.12.1": {
         "name": "bytes",
-        "sha256": "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33",
-        "size_bytes": 78584,
-        "version": "1.11.1",
+        "sha256": "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04",
+        "size_bytes": 75667,
+        "version": "1.12.1",
+    },
+    "bytestring-1.5.1": {
+        "name": "bytestring",
+        "sha256": "86566c496f2f47d9b8147a4c8b02ffdb69c919fe0c2b2e7195d22cbba0e635c9",
+        "size_bytes": 11481,
+        "version": "1.5.1",
     },
     "calloop-0.14.4": {
         "name": "calloop",
@@ -620,6 +686,12 @@ downloads = {
         "size_bytes": 68485,
         "version": "0.10.1",
     },
+    "chrono-0.4.45": {
+        "name": "chrono",
+        "sha256": "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327",
+        "size_bytes": 240866,
+        "version": "0.4.45",
+    },
     "ciborium-0.2.2": {
         "name": "ciborium",
         "sha256": "42e69ffd6f0917f5c029256a24d0161db17cea3997d185db0d35926308770f0e",
@@ -655,6 +727,30 @@ downloads = {
         "sha256": "157a8ba7b480713b56f4c09fd13fc3e0a22a5dfab8097ba61cbc5feef950788a",
         "size_bytes": 47227,
         "version": "1.9.1",
+    },
+    "clap-4.6.7": {
+        "name": "clap",
+        "sha256": "aa8876b300ab35ba921adea3dfd70157a46249b33f95c9084ae5709785478946",
+        "size_bytes": 65831,
+        "version": "4.6.7",
+    },
+    "clap_builder-4.6.7": {
+        "name": "clap_builder",
+        "sha256": "ec0797fb7aeb1406c84efac526901f7ec3ead2124f946b494e72879d4b54704d",
+        "size_bytes": 171709,
+        "version": "4.6.7",
+    },
+    "clap_derive-4.6.7": {
+        "name": "clap_derive",
+        "sha256": "f9c751b79415d4e559e3d1fcf128e09e720eb673a06d26cf6f392d37d75b66e0",
+        "size_bytes": 33942,
+        "version": "4.6.7",
+    },
+    "clap_lex-1.1.1": {
+        "name": "clap_lex",
+        "sha256": "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486",
+        "size_bytes": 13572,
+        "version": "1.1.1",
     },
     "claxon-0.4.3": {
         "name": "claxon",
@@ -698,6 +794,18 @@ downloads = {
         "size_bytes": 6649,
         "version": "1.1.0",
     },
+    "colorchoice-1.0.5": {
+        "name": "colorchoice",
+        "sha256": "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570",
+        "size_bytes": 8187,
+        "version": "1.0.5",
+    },
+    "colored-3.1.1": {
+        "name": "colored",
+        "sha256": "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34",
+        "size_bytes": 36216,
+        "version": "3.1.1",
+    },
     "combine-4.6.7": {
         "name": "combine",
         "sha256": "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd",
@@ -727,6 +835,18 @@ downloads = {
         "sha256": "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8",
         "size_bytes": 45382,
         "version": "0.9.6",
+    },
+    "const-str-1.1.0": {
+        "name": "const-str",
+        "sha256": "18f12cc9948ed9604230cdddc7c86e270f9401ccbe3c2e98a4378c5e7632212f",
+        "size_bytes": 47483,
+        "version": "1.1.0",
+    },
+    "const-str-proc-macro-1.1.0": {
+        "name": "const-str-proc-macro",
+        "sha256": "1c7e7913ec01ed98b697e62f8d3fd63c86dc6cccaf983c7eebc64d0e563b0ad9",
+        "size_bytes": 7048,
+        "version": "1.1.0",
     },
     "core-foundation-0.9.4": {
         "name": "core-foundation",
@@ -883,6 +1003,18 @@ downloads = {
         "sha256": "b7431dd8c9def94aca43b27915dee0d42103d9b13922cfb044febcd975547d68",
         "size_bytes": 6127,
         "version": "0.135.1",
+    },
+    "crc-fast-1.10.0": {
+        "name": "crc-fast",
+        "sha256": "e75b2483e97a5a7da73ac68a05b629f9c53cff58d8ed1c77866079e18b00dba5",
+        "size_bytes": 1152496,
+        "version": "1.10.0",
+    },
+    "crc32c-0.6.9": {
+        "name": "crc32c",
+        "sha256": "7f132a176423ee852e8f0a35d43088d1850966b50745be818a88b76f64b1c6cb",
+        "size_bytes": 19751,
+        "version": "0.6.9",
     },
     "crc32fast-1.5.0": {
         "name": "crc32fast",
@@ -1075,6 +1207,12 @@ downloads = {
         "sha256": "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61",
         "size_bytes": 14739,
         "version": "0.2.12",
+    },
+    "dotenvy-0.15.7": {
+        "name": "dotenvy",
+        "sha256": "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b",
+        "size_bytes": 20293,
+        "version": "0.15.7",
     },
     "downcast-rs-1.2.1": {
         "name": "downcast-rs",
@@ -1508,6 +1646,12 @@ downloads = {
         "size_bytes": 330197,
         "version": "0.33.0",
     },
+    "gimli-0.34.0": {
+        "name": "gimli",
+        "sha256": "1033caf0b349c518623b5396bfb2cf0bddf44f0306d543a250e5743297aafd10",
+        "size_bytes": 335386,
+        "version": "0.34.0",
+    },
     "gl_generator-0.14.0": {
         "name": "gl_generator",
         "sha256": "1a95dfc23a2b4a9a2f5ab41d194f8bfda3cabec42af4e39f08c339eb2a0c124d",
@@ -1567,6 +1711,12 @@ downloads = {
         "sha256": "c28284f834fe0083db924efe590a684fe81c661c6269fc536ae964ab01adc111",
         "size_bytes": 57506,
         "version": "0.10.1",
+    },
+    "h2-0.4.20": {
+        "name": "h2",
+        "sha256": "7d29020232d6aa3fb1daca64c1127cf662cf97f254ae16c18c05b8ab635fc118",
+        "size_bytes": 180331,
+        "version": "0.4.20",
     },
     "half-2.7.1": {
         "name": "half",
@@ -1664,6 +1814,12 @@ downloads = {
         "size_bytes": 24498,
         "version": "0.2.3",
     },
+    "hex-simd-0.8.0": {
+        "name": "hex-simd",
+        "sha256": "1f7685beb53fc20efc2605f32f5d51e9ba18b8ef237961d1760169d2290d3bee",
+        "size_bytes": 7072,
+        "version": "0.8.0",
+    },
     "hexf-parse-0.2.1": {
         "name": "hexf-parse",
         "sha256": "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df",
@@ -1694,11 +1850,23 @@ downloads = {
         "size_bytes": 39446,
         "version": "3.5.1",
     },
-    "http-1.4.1": {
+    "http-1.5.0": {
         "name": "http",
-        "sha256": "8be7462df143984c4598a256ef469b251d7d7f9e271135073e78fc535414f3d0",
-        "size_bytes": 110181,
-        "version": "1.4.1",
+        "sha256": "918d3568bebf352712bc2ef3d46a8bcf1a75b373be6539de198e9105cbbf9ce0",
+        "size_bytes": 111161,
+        "version": "1.5.0",
+    },
+    "http-body-1.1.0": {
+        "name": "http-body",
+        "sha256": "ca2a8f2913ee65f60facd6a5905613afaa448497a0230cc41ce022d93290bc2c",
+        "size_bytes": 7887,
+        "version": "1.1.0",
+    },
+    "http-body-util-0.1.5": {
+        "name": "http-body-util",
+        "sha256": "23169fe34a5fbcdd3f3862e78fb9b6fccd5f02a6dc6f732547005d45631ce71c",
+        "size_bytes": 18574,
+        "version": "0.1.5",
     },
     "httparse-1.10.1": {
         "name": "httparse",
@@ -1706,11 +1874,41 @@ downloads = {
         "size_bytes": 45190,
         "version": "1.10.1",
     },
+    "httpdate-1.0.3": {
+        "name": "httpdate",
+        "sha256": "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9",
+        "size_bytes": 10639,
+        "version": "1.0.3",
+    },
     "hybrid-array-0.4.15": {
         "name": "hybrid-array",
         "sha256": "27f864f10dfb56725ce5ce5472bc52252c8f93a4ab86327122cebf62c5f59a17",
         "size_bytes": 36801,
         "version": "0.4.15",
+    },
+    "hyper-1.12.0": {
+        "name": "hyper",
+        "sha256": "2c3e324da4c95177d6291d4c8730197c0d1822f8a9766814a4a44fa5ab797c9c",
+        "size_bytes": 172269,
+        "version": "1.12.0",
+    },
+    "hyper-util-0.1.21": {
+        "name": "hyper-util",
+        "sha256": "ddc03d96684f9226b8a787cdb71488417b53ab5ea8fdb1dac946cb9431cc8bff",
+        "size_bytes": 126820,
+        "version": "0.1.21",
+    },
+    "iana-time-zone-0.1.65": {
+        "name": "iana-time-zone",
+        "sha256": "e31bc9ad994ba00e440a8aa5c9ef0ec67d5cb5e5cb0cc7f8b744a35b389cc470",
+        "size_bytes": 34079,
+        "version": "0.1.65",
+    },
+    "iana-time-zone-haiku-0.1.2": {
+        "name": "iana-time-zone-haiku",
+        "sha256": "f31827a206f56af32e590ba56d5d2d085f558508192593743f16b2306495269f",
+        "size_bytes": 7185,
+        "version": "0.1.2",
     },
     "icu_collections-2.4.0": {
         "name": "icu_collections",
@@ -1838,6 +2036,18 @@ downloads = {
         "size_bytes": 797534,
         "version": "1.19.0",
     },
+    "instant-xml-0.7.7": {
+        "name": "instant-xml",
+        "sha256": "2c32db75b7c16c5051ea7b6605eea01f7b5a25abe84c20473c9e7c7987f5850c",
+        "size_bytes": 33245,
+        "version": "0.7.7",
+    },
+    "instant-xml-macros-0.7.2": {
+        "name": "instant-xml-macros",
+        "sha256": "ac3c2e6cbd6e0579ee53a8290fc0015a438cfff0139c8359d5891cae130815d7",
+        "size_bytes": 17134,
+        "version": "0.7.2",
+    },
     "io-extras-0.19.0": {
         "name": "io-extras",
         "sha256": "20fd6de4ccfcc187e38bc21cfa543cb5a302cb86a8b114eb7f0bf0dc9f8ac00f",
@@ -1868,6 +2078,12 @@ downloads = {
         "size_bytes": 31069,
         "version": "2.12.1",
     },
+    "is_terminal_polyfill-1.70.2": {
+        "name": "is_terminal_polyfill",
+        "sha256": "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695",
+        "size_bytes": 7548,
+        "version": "1.70.2",
+    },
     "itertools-0.13.0": {
         "name": "itertools",
         "sha256": "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186",
@@ -1897,6 +2113,36 @@ downloads = {
         "sha256": "47f142fe24a9c9944451e8349de0a56af5f3e7226dc46f3ed4d4ecc0b85af75e",
         "size_bytes": 18811,
         "version": "0.5.3",
+    },
+    "jiff-0.2.41": {
+        "name": "jiff",
+        "sha256": "fcefdcefac59ac8f8401852e3427d55610481fc41e6625c39bac62d2d771623a",
+        "size_bytes": 681776,
+        "version": "0.2.41",
+    },
+    "jiff-core-0.1.4": {
+        "name": "jiff-core",
+        "sha256": "77a24020db0ee88d1c681d677681bd31f9f4ea189a455425223d52ce4f1508aa",
+        "size_bytes": 129786,
+        "version": "0.1.4",
+    },
+    "jiff-static-0.2.41": {
+        "name": "jiff-static",
+        "sha256": "203edf9b0ce4083ec8fbf4adc823eac89768ea994b4953fc0dab1b90083234dd",
+        "size_bytes": 7593,
+        "version": "0.2.41",
+    },
+    "jiff-tzdb-0.1.9": {
+        "name": "jiff-tzdb",
+        "sha256": "fa8377070c6bae868759445e5a77f66d84f0b72f3a054bfb00e6d038b8282da7",
+        "size_bytes": 62876,
+        "version": "0.1.9",
+    },
+    "jiff-tzdb-platform-0.1.3": {
+        "name": "jiff-tzdb-platform",
+        "sha256": "875a5a69ac2bab1a891711cf5eccbec1ce0341ea805560dcd90b7a2e925132e8",
+        "size_bytes": 3179,
+        "version": "0.1.3",
     },
     "jks-0.3.3": {
         "name": "jks",
@@ -2156,11 +2402,17 @@ downloads = {
         "size_bytes": 14308,
         "version": "0.3.4",
     },
-    "memchr-2.8.1": {
+    "md-5-0.11.0": {
+        "name": "md-5",
+        "sha256": "69b6441f590336821bb897fb28fc622898ccceb1d6cea3fde5ea86b090c4de98",
+        "size_bytes": 17404,
+        "version": "0.11.0",
+    },
+    "memchr-2.8.3": {
         "name": "memchr",
-        "sha256": "6b947ae49db0d222b1dbc6b113ce7248a3fc3a6ca21b696717bfc000ba4484d8",
-        "size_bytes": 98743,
-        "version": "2.8.1",
+        "sha256": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98",
+        "size_bytes": 99165,
+        "version": "2.8.3",
     },
     "memfd-0.6.5": {
         "name": "memfd",
@@ -2180,6 +2432,12 @@ downloads = {
         "size_bytes": 9032,
         "version": "0.9.1",
     },
+    "mime-0.3.18": {
+        "name": "mime",
+        "sha256": "d5848f5a9e8117cf94f2f90faac24a87ff81600ff8628c1e3deaab572e76bfa1",
+        "size_bytes": 16648,
+        "version": "0.3.18",
+    },
     "minimal-lexical-0.2.1": {
         "name": "minimal-lexical",
         "sha256": "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a",
@@ -2191,6 +2449,12 @@ downloads = {
         "sha256": "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316",
         "size_bytes": 67132,
         "version": "0.8.9",
+    },
+    "miniz_oxide-0.9.1": {
+        "name": "miniz_oxide",
+        "sha256": "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c",
+        "size_bytes": 70519,
+        "version": "0.9.1",
     },
     "mio-1.2.1": {
         "name": "mio",
@@ -2257,6 +2521,12 @@ downloads = {
         "sha256": "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a",
         "size_bytes": 117570,
         "version": "7.1.3",
+    },
+    "nom-8.0.0": {
+        "name": "nom",
+        "sha256": "df9761775871bdef83bee530e60050f7e54b1105350d6884eb0fb4f46c2f9405",
+        "size_bytes": 135590,
+        "version": "8.0.0",
     },
     "notify-8.2.0": {
         "name": "notify",
@@ -2329,6 +2599,12 @@ downloads = {
         "sha256": "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8",
         "size_bytes": 18789,
         "version": "0.7.6",
+    },
+    "numeric_cast-0.3.0": {
+        "name": "numeric_cast",
+        "sha256": "a3c00a0c9600379bd32f8972de90676a7672cba3bf4886986bc05902afc1e093",
+        "size_bytes": 7278,
+        "version": "0.3.0",
     },
     "objc-sys-0.3.5": {
         "name": "objc-sys",
@@ -2450,6 +2726,12 @@ downloads = {
         "size_bytes": 360376,
         "version": "0.39.1",
     },
+    "object-0.40.0": {
+        "name": "object",
+        "sha256": "dd229a0361b9d0d4396176e02d65897f487eebeab7caa6d443855ee152ca0b9c",
+        "size_bytes": 452431,
+        "version": "0.40.0",
+    },
     "oboe-0.6.1": {
         "name": "oboe",
         "sha256": "e8b61bebd49e5d43f5f8cc7ee2891c16e0f41ec7954d36bcb6c14c5e0de867fb",
@@ -2479,6 +2761,12 @@ downloads = {
         "sha256": "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50",
         "size_bytes": 35010,
         "version": "1.21.4",
+    },
+    "once_cell_polyfill-1.70.2": {
+        "name": "once_cell_polyfill",
+        "sha256": "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe",
+        "size_bytes": 7448,
+        "version": "1.70.2",
     },
     "opaque-debug-0.3.1": {
         "name": "opaque-debug",
@@ -2516,6 +2804,12 @@ downloads = {
         "size_bytes": 19077,
         "version": "0.2.0",
     },
+    "outref-0.5.2": {
+        "name": "outref",
+        "sha256": "1a80800c0488c3a21695ea981a54918fbb37abf04f4d0720c453632255e2ff0e",
+        "size_bytes": 5621,
+        "version": "0.5.2",
+    },
     "owned_ttf_parser-0.25.1": {
         "name": "owned_ttf_parser",
         "sha256": "36820e9051aca1014ddc75770aab4d68bc1e9e632f0f5627c4086bc216fb583b",
@@ -2552,6 +2846,18 @@ downloads = {
         "size_bytes": 26884,
         "version": "0.5.0",
     },
+    "path-absolutize-4.0.1": {
+        "name": "path-absolutize",
+        "sha256": "f808742975794703469f67a28dd14b1d1009a1743c18b0353b4b951dbb0068ad",
+        "size_bytes": 6430,
+        "version": "4.0.1",
+    },
+    "path-dedot-4.0.1": {
+        "name": "path-dedot",
+        "sha256": "03351d0f1c066c114015408dc6a3e101f080fc03ef9d8d799aa58ec760cac5a6",
+        "size_bytes": 5994,
+        "version": "4.0.1",
+    },
     "pbkdf2-0.13.0": {
         "name": "pbkdf2",
         "sha256": "112d82ceb8c5bf524d9af484d4e4970c9fd5a0cc15ba14ad93dccd28873b0629",
@@ -2582,6 +2888,12 @@ downloads = {
         "size_bytes": 24786,
         "version": "0.13.1",
     },
+    "phf-0.14.0": {
+        "name": "phf",
+        "sha256": "010378780309880b08997fae13be7834dba947d36393bd372f2b1556deb2a2f6",
+        "size_bytes": 27393,
+        "version": "0.14.0",
+    },
     "phf_codegen-0.13.1": {
         "name": "phf_codegen",
         "sha256": "49aa7f9d80421bca176ca8dbfebe668cc7a2684708594ec9f3c0db0805d5d6e1",
@@ -2605,6 +2917,12 @@ downloads = {
         "sha256": "e57fef6bc5981e38c2ce2d63bfa546861309f875b8a75f092d1d54ae2d64f266",
         "size_bytes": 16141,
         "version": "0.13.1",
+    },
+    "phf_shared-0.14.0": {
+        "name": "phf_shared",
+        "sha256": "c6fd9027e2d9319be6349febd1db4e8d02aa544921200c9b777720ac34a3aa89",
+        "size_bytes": 20291,
+        "version": "0.14.0",
     },
     "pico-args-0.5.0": {
         "name": "pico-args",
@@ -2827,6 +3145,12 @@ downloads = {
         "sha256": "cdcc8dd4e2f670d309a5f0e83fe36dfdc05af317008fea29144da1a2ac858e5e",
         "size_bytes": 214141,
         "version": "0.39.4",
+    },
+    "quick-xml-0.42.0": {
+        "name": "quick-xml",
+        "sha256": "41b1177fdf999d2321d3fb46ff47159d9c1fb9ad66a4879f8c50a0b504615e9b",
+        "size_bytes": 233019,
+        "version": "0.42.0",
     },
     "quote-1.0.45": {
         "name": "quote",
@@ -3158,6 +3482,60 @@ downloads = {
         "size_bytes": 21096,
         "version": "1.0.22",
     },
+    "rusty-s3-0.11.0": {
+        "name": "rusty-s3",
+        "sha256": "1af5b74b316ee483ae486bd3cb206c8caa5dbb3cf0eab7269a868ae43aeece03",
+        "size_bytes": 61955,
+        "version": "0.11.0",
+    },
+    "ryu-1.0.23": {
+        "name": "ryu",
+        "sha256": "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f",
+        "size_bytes": 52823,
+        "version": "1.0.23",
+    },
+    "s3s-0.17.0": {
+        "name": "s3s",
+        "sha256": "030a43692a1fd97bbd2c594eeaad8f5c1e452a9d29ad6a3eebce1650937c4a77",
+        "size_bytes": 676224,
+        "version": "0.17.0",
+    },
+    "s3s-fs-0.17.0": {
+        "name": "s3s-fs",
+        "sha256": "42664753862217444ecae595cb6b2746faf1b8c2d3c104d696aa10592eb042d8",
+        "size_bytes": 75119,
+        "version": "0.17.0",
+    },
+    "s3s-multipart-0.17.0": {
+        "name": "s3s-multipart",
+        "sha256": "a543079d42c20c81781b7e31704ecacd64b0e3819b2384db5bf4869abf6c6f01",
+        "size_bytes": 65365,
+        "version": "0.17.0",
+    },
+    "s3s-rfc2047-0.17.0": {
+        "name": "s3s-rfc2047",
+        "sha256": "918b207c39474baef4774355100e712dfea46020e3289ddd5b4bc6e21927b826",
+        "size_bytes": 10173,
+        "version": "0.17.0",
+    },
+    "s3s-sigv2-0.17.0": {
+        "name": "s3s-sigv2",
+        "sha256": "0979baf8cdf30e38bdfba8e58ee2776d78e55bb3bd3d1f3502f917829da79933",
+        "size_bytes": 17779,
+        "version": "0.17.0",
+    },
+    "s3s-sigv4-0.17.0": {
+        "name": "s3s-sigv4",
+        "sha256": "330996b9a24804b3df4ad37e62e7817968857d99cf6029c21512b6b64b97f645",
+        "size_bytes": 31042,
+        "version": "0.17.0",
+    },
+    "s3s-test-0.17.0": {
+        "name": "s3s-test",
+        "sha256": "f8b9ba61de2952acfe762d56c3f4743324465be961c685eb26c3ed49ef93d13f",
+        "size_bytes": 25236,
+        "version": "0.17.0",
+    },
     "salsa20-0.11.0": {
         "name": "salsa20",
         "sha256": "2f874456e72520ff1375a06c588eaf074b0f01f9e9e1aada45bd9b7954a6e42c",
@@ -3241,6 +3619,12 @@ downloads = {
         "sha256": "6662b5879511e06e8999a8a235d848113e942c9124f211511b16466ee2995f26",
         "size_bytes": 11025,
         "version": "1.1.1",
+    },
+    "serde_urlencoded-0.7.1": {
+        "name": "serde_urlencoded",
+        "sha256": "d3491c14715ca2294c4d6a88f15e84739788c1d030eed8c110436aafdaa2f3fd",
+        "size_bytes": 12822,
+        "version": "0.7.1",
     },
     "serial2-0.2.38": {
         "name": "serial2",
@@ -3368,11 +3752,11 @@ downloads = {
         "size_bytes": 61862,
         "version": "1.1.1",
     },
-    "smallvec-1.15.1": {
+    "smallvec-1.16.5": {
         "name": "smallvec",
-        "sha256": "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03",
-        "size_bytes": 38116,
-        "version": "1.15.1",
+        "sha256": "149309498a5f7334b12ddae0cad8aba81ce785fe91755068867e017cf98fee46",
+        "size_bytes": 34819,
+        "version": "1.16.5",
     },
     "smithay-0.7.0": {
         "name": "smithay",
@@ -3403,6 +3787,12 @@ downloads = {
         "sha256": "c5482afe85a0b6ce956c945401598dbc527593c77ba51d0a87a586938b1b893a",
         "size_bytes": 18711,
         "version": "0.4.0",
+    },
+    "spin-0.10.1": {
+        "name": "spin",
+        "sha256": "023a211cb3138dbc438680b32560ad89f699977624c9f8dbb95a47d5b4c07dd3",
+        "size_bytes": 40591,
+        "version": "0.10.1",
     },
     "spin-0.9.9": {
         "name": "spin",
@@ -3440,6 +3830,12 @@ downloads = {
         "size_bytes": 18480,
         "version": "1.1.0",
     },
+    "std-next-0.1.9": {
+        "name": "std-next",
+        "sha256": "04082e93ed1a06debd9148c928234b46d2cf260bc65f44e1d1d3fa594c5beebc",
+        "size_bytes": 7669,
+        "version": "0.1.9",
+    },
     "streaming-iterator-0.1.9": {
         "name": "streaming-iterator",
         "sha256": "2b2231b7c3057d5e4ad0156fb3dc807d900806020c5ffa3ee6ff2c8c76fb8520",
@@ -3457,6 +3853,12 @@ downloads = {
         "sha256": "23de088478b31c349c9ba67816fa55d9355232d63c3afea8bf513e31f0f1d2c0",
         "size_bytes": 31797,
         "version": "0.19.0",
+    },
+    "strsim-0.11.1": {
+        "name": "strsim",
+        "sha256": "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f",
+        "size_bytes": 14266,
+        "version": "0.11.1",
     },
     "subtle-2.6.1": {
         "name": "subtle",
@@ -3511,6 +3913,12 @@ downloads = {
         "sha256": "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3",
         "size_bytes": 312999,
         "version": "3.0.3",
+    },
+    "sync_wrapper-1.0.2": {
+        "name": "sync_wrapper",
+        "sha256": "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263",
+        "size_bytes": 6958,
+        "version": "1.0.2",
     },
     "synstructure-0.12.6": {
         "name": "synstructure",
@@ -3680,6 +4088,12 @@ downloads = {
         "size_bytes": 28371,
         "version": "0.23.1",
     },
+    "tokio-util-0.7.20": {
+        "name": "tokio-util",
+        "sha256": "e464cf451ba96ebfc6f9b6542f17ee8b8956e33f1e40d9690624e59d7a7f8a4b",
+        "size_bytes": 149783,
+        "version": "0.7.20",
+    },
     "toml-0.9.12+spec-1.1.0": {
         "name": "toml",
         "sha256": "cf92845e79fc2e2def6a5d828f0801e29a2f8acc037becc5ab08595c7d5e9863",
@@ -3716,6 +4130,24 @@ downloads = {
         "size_bytes": 18968,
         "version": "1.1.2+spec-1.1.0",
     },
+    "tower-0.5.3": {
+        "name": "tower",
+        "sha256": "ebe5ef63511595f1344e2d5cfa636d973292adc0eec1f0ad45fae9f0851ab1d4",
+        "size_bytes": 110488,
+        "version": "0.5.3",
+    },
+    "tower-layer-0.3.3": {
+        "name": "tower-layer",
+        "sha256": "121c2a6cda46980bb0fcd1647ffaf6cd3fc79a013de288782836f6df9c48780e",
+        "size_bytes": 6180,
+        "version": "0.3.3",
+    },
+    "tower-service-0.3.3": {
+        "name": "tower-service",
+        "sha256": "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3",
+        "size_bytes": 6950,
+        "version": "0.3.3",
+    },
     "tracing-0.1.44": {
         "name": "tracing",
         "sha256": "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100",
@@ -3734,6 +4166,12 @@ downloads = {
         "size_bytes": 63967,
         "version": "0.1.36",
     },
+    "tracing-error-0.2.1": {
+        "name": "tracing-error",
+        "sha256": "8b1581020d7a273442f5b45074a6a57d5757ad0a47dac0e9f0bd57b81936f3db",
+        "size_bytes": 14135,
+        "version": "0.2.1",
+    },
     "tracing-log-0.2.0": {
         "name": "tracing-log",
         "sha256": "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3",
@@ -3745,6 +4183,12 @@ downloads = {
         "sha256": "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319",
         "size_bytes": 213773,
         "version": "0.3.23",
+    },
+    "transform-stream-0.3.1": {
+        "name": "transform-stream",
+        "sha256": "c1a814d25437963577f6221d33a2aaa60bfb44acc3330cdc7c334644e9832022",
+        "size_bytes": 7803,
+        "version": "0.3.1",
     },
     "tree-sitter-0.26.11": {
         "name": "tree-sitter",
@@ -3932,17 +4376,23 @@ downloads = {
         "size_bytes": 10437,
         "version": "1.0.4",
     },
-    "uuid-1.23.2": {
-        "name": "uuid",
-        "sha256": "d258b83ceec21034727ecee8c382cfa6c3e133699b0742c64571814fb420c9f7",
-        "size_bytes": 63572,
-        "version": "1.23.2",
+    "utf8parse-0.2.2": {
+        "name": "utf8parse",
+        "sha256": "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821",
+        "size_bytes": 13499,
+        "version": "0.2.2",
     },
-    "uuid-rng-internal-1.29.0": {
+    "uuid-1.29.1": {
+        "name": "uuid",
+        "sha256": "4a06f08a856b009bc7bbaf7d3e79808595d032dd19074c0c2ef26e49e03e6bdc",
+        "size_bytes": 69961,
+        "version": "1.29.1",
+    },
+    "uuid-rng-internal-1.29.1": {
         "name": "uuid-rng-internal",
-        "sha256": "cdf60f3d36825d0911af7e102da39cc817280560cad48e81df1eb5c4d7400f76",
-        "size_bytes": 1826,
-        "version": "1.29.0",
+        "sha256": "fa8259b508bb76483829802a813dcaeeb8c3962f394e4c3eced87cf01ca79cd5",
+        "size_bytes": 1825,
+        "version": "1.29.1",
     },
     "valuable-0.1.1": {
         "name": "valuable",
@@ -3961,6 +4411,12 @@ downloads = {
         "sha256": "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a",
         "size_bytes": 15554,
         "version": "0.9.5",
+    },
+    "vsimd-0.8.0": {
+        "name": "vsimd",
+        "sha256": "5c3082ca00d5a5ef149bb8b555a72ae84c9c59f7250f013ac822ac2e49b19c64",
+        "size_bytes": 21377,
+        "version": "0.8.0",
     },
     "walkdir-2.5.0": {
         "name": "walkdir",
@@ -4970,11 +5426,23 @@ downloads = {
         "size_bytes": 52826,
         "version": "0.8.28",
     },
+    "xmlparser-0.13.6": {
+        "name": "xmlparser",
+        "sha256": "66fee0b777b0f5ac1c69bb06d361268faafa61cd4682ae064a171c16c433e9e4",
+        "size_bytes": 26718,
+        "version": "0.13.6",
+    },
     "xmlwriter-0.1.0": {
         "name": "xmlwriter",
         "sha256": "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9",
         "size_bytes": 6261,
         "version": "0.1.0",
+    },
+    "xxhash-rust-0.8.19": {
+        "name": "xxhash-rust",
+        "sha256": "550a2b930b62486a393c52d5c3b84bff264b28aa437ed64694d31e93b1757af7",
+        "size_bytes": 23487,
+        "version": "0.8.19",
     },
     "yoke-0.8.4": {
         "name": "yoke",

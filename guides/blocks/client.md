@@ -50,8 +50,8 @@ each `due()` until it gives up. The fault relay (guides/blocks/server.md,
   save is one round trip and costs what changed. The outbox keeps a commit's
   full object and reference lists; `send_pending` sends them as changes from
   the expected head's (`held_by`, `references_of`). A merge, or new objects over
-  half a frame, upload first: only what `MissingObjects` says is missing, in
-  `PutObjects` of up to 2 MiB.
+  half a frame, upload first (`push`): only what `MissingObjects` says is
+  missing, through URLs (below).
 - `read_contents` reads many heads at once (one `ReadContents` per 256 blocks,
   chunks that fit in half a frame), so a tree costs one round trip, not three
   per block. Export and `be download` use it.
@@ -59,6 +59,22 @@ each `due()` until it gives up. The fault relay (guides/blocks/server.md,
   payload.
 - `fetch` verifies hashes; `fetch_history` must run before asking history a
   question.
+
+### Objects
+
+Bulk object bytes never travel inside frames (guides/blocks/server.md,
+"Objects over S3"). `fetch` and `try_fetch` ask `download-urls`, at most
+`MAX_OBJECT_URLS` at a time, and GET each with `http::get`, at most
+`MAX_OBJECT_BYTES` and `TRANSFERS` at once (`peer/transfers.rs`); an object
+with no URL, or one the store answers 404 for, is missing, and bytes that do
+not hash to what was asked are `ClientError::Tampered`. `push` and imports ask
+`upload-urls` with each object's length and PUT the bytes with the headers
+given, natively and from the web build alike (`crate::http`: in the browser a
+`fetch` without credentials). An import uploads a batch's objects before
+sending its creates and publishes, since those are sent as soon as they are
+made. A transfer that may succeed later (`http::Error::Failed`: unreachable,
+5xx) is `ClientError::Disconnected`, which callers retry or keep for later;
+any other refusal is `Refused(Storage, ..)`.
 
 ## Live sessions
 

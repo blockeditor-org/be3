@@ -21,7 +21,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-infinite-canvas:be-type-infinite-canvas",
                 "//crates/be-type-presentation:be-type-presentation",
                 "//crates/beui:beui",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],

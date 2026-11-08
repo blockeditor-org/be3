@@ -40,13 +40,13 @@ pub struct BlockRead {
 
 const CARRIED_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 2;
 const CONTENTS_BLOCKS: usize = 256;
-const FETCHING: usize = 64;
 
 mod import;
 mod journal;
 mod offline;
 mod prefixes;
 mod rotation;
+mod transfers;
 
 pub use import::Imported;
 pub use prefixes::Registry;
@@ -1070,66 +1070,6 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Some(head));
         }
         self.remote_head(block).await
-    }
-
-    /// Checks that every object the server returns hashes to the hash asked for: the server is
-    /// not trusted with content, and this is what stops it substituting any.
-    pub async fn fetch(&self, hashes: &[Hash]) -> Result<(), ClientError> {
-        use futures_util::StreamExt;
-        let store = self.commits.vault().store();
-        let mut seen = std::collections::HashSet::new();
-        let mut missing = Vec::new();
-        for hash in hashes {
-            if seen.insert(*hash) && !store.has(*hash)? {
-                missing.push(*hash);
-            }
-        }
-        let connection = self.connection();
-        let connection = &connection;
-        let mut answers = futures_util::stream::iter(missing.into_iter().map(|hash| async move {
-            let answer = crate::ask(client::objects::get_object(connection, hash)).await;
-            (hash, answer)
-        }))
-        .buffered(FETCHING);
-        while let Some((hash, answer)) = answers.next().await {
-            let bytes = answer?.ok_or(ClientError::MissingObject(hash))?;
-            if store.put(&bytes)? != hash {
-                return Err(ClientError::Tampered(hash));
-            }
-        }
-        Ok(())
-    }
-
-    pub async fn push(&self, hashes: &[Hash]) -> Result<(), ClientError> {
-        self.commits.vault().store().sync()?;
-        let missing =
-            client::objects::missing_objects(&self.connection(), hashes.to_vec()).await??;
-        let mut pending = std::collections::VecDeque::new();
-        for group in self.object_groups(&missing)? {
-            if pending.len() >= import::IN_FLIGHT
-                && let Some(sent) = pending.pop_front()
-            {
-                sent.await?;
-            }
-            pending.push_back(self.send_objects(group)?);
-        }
-        for sent in pending {
-            sent.await?;
-        }
-        Ok(())
-    }
-
-    pub async fn try_fetch(&self, hash: Hash) -> Result<bool, ClientError> {
-        if self.commits.vault().store().has(hash)? {
-            return Ok(true);
-        }
-        let Some(bytes) = client::objects::get_object(&self.connection(), hash).await?? else {
-            return Ok(false);
-        };
-        if self.commits.vault().store().put(&bytes)? != hash {
-            return Err(ClientError::Tampered(hash));
-        }
-        Ok(true)
     }
 
     /// Anything that asks history a question (`resume`, `common_ancestor`) needs this first, or

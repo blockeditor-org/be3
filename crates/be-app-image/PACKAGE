@@ -21,7 +21,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-image:be-type-image",
                 "//crates/beui:beui",
                 "//third-party/rust:image-0.25.10",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],

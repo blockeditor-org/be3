@@ -7,6 +7,34 @@ use uuid::Uuid;
 use super::*;
 use be_type_image::{ImageContent, ImageHeader};
 
+/// Uploads `objects` as `Peer::push` does, without keeping them on the device: asks for URLs,
+/// then PUTs each object's bytes.
+async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), ClientError> {
+    let lengths = objects
+        .iter()
+        .map(|bytes| be_block_protocol::ObjectLength {
+            hash: be_block_store::Hash::of(bytes),
+            length: bytes.len() as u64,
+        })
+        .collect();
+    let urls = crate::ask(be_block_protocol::client::objects::upload_urls(
+        &peer.connection(),
+        lengths,
+    ))
+    .await?;
+    for (url, bytes) in urls.into_iter().zip(objects) {
+        let headers: Vec<(String, String)> = url
+            .headers
+            .into_iter()
+            .map(|header| (header.name, header.value))
+            .collect();
+        crate::http::put(&url.url, &headers, bytes)
+            .await
+            .map_err(|error| ClientError::Disconnected(error.to_string()))?;
+    }
+    Ok(())
+}
+
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
 mod a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent;
 mod a_block_made_offline_takes_the_access_the_server_will_give_it;
@@ -56,6 +84,8 @@ mod leaving_a_shared_workspace_leaves_its_rotation_to_who_can_edit_it;
 mod metadata_is_sealed_on_the_server_and_opened_by_members;
 mod metadata_that_does_not_decode_is_an_error_rather_than_blank;
 mod moving_a_block_to_the_top_follows_who_may_make_workspaces;
+mod objects_move_between_devices_and_a_bucket_directly;
+mod objects_move_through_the_servers_own_s3_endpoint;
 mod references_declared_by_content_reach_the_graph;
 mod relayed_messages_reach_one_peer_or_all_of_them_sealed;
 mod removing_a_member_rotates_the_organizations_settings;
@@ -71,8 +101,12 @@ struct Harness {
 
 impl Harness {
     async fn start() -> Self {
+        Self::configured(be_server::ServerConfig::OPEN).await
+    }
+
+    async fn configured(config: be_server::ServerConfig) -> Self {
         be_lib_build_id::install("test");
-        let server = Running::start(be_server::ServerConfig::OPEN).await;
+        let server = Running::start(config).await;
         Self {
             url: format!("ws://{}", server.address),
             server,
@@ -253,6 +287,58 @@ async fn text(peer: &Peer<MemoryStore>, block: Uuid) -> String {
         .unwrap()
         .expect("the block has content");
     be_type_text::TextBlock::text(&opened)
+}
+
+/// A device on `harness` with the default chunker, so a large text is a few large objects.
+async fn device(harness: &Harness, email: &str) -> Peer<MemoryStore> {
+    Peer::connect(
+        PeerConfig::new(
+            &harness.url,
+            identity(email),
+            Credentials::Token(harness.server.register(email, email).await),
+        ),
+        MemoryStore::new(),
+    )
+    .await
+    .unwrap()
+}
+
+/// Another device of `owner`'s account.
+async fn another(harness: &Harness, owner: &Peer<MemoryStore>) -> Peer<MemoryStore> {
+    Peer::connect(
+        PeerConfig::new(
+            &harness.url,
+            owner.keys().identity().clone(),
+            Credentials::Token(owner.token().to_owned()),
+        )
+        .organization(Some(owner.organization())),
+        MemoryStore::new(),
+    )
+    .await
+    .unwrap()
+}
+
+/// A text block in a workspace of its own.
+async fn note(owner: &Peer<MemoryStore>) -> Uuid {
+    let workspace = owner
+        .create_block(
+            Uuid::now_v7(),
+            be_type_workspace::WorkspaceContent::CONTENT_TYPE,
+            BlockParent::Root,
+            &be_block::BlockMetadata::named("Notes"),
+        )
+        .await
+        .unwrap()
+        .id;
+    owner
+        .create::<be_type_text::TextContent>(BlockParent::Block(workspace))
+        .await
+        .unwrap()
+}
+
+/// A text too large to travel inside a publish, so its objects move through URLs.
+fn large_text() -> String {
+    (0..400_000).map(|line| format!("line {line}\n")).collect()
 }
 
 fn identity(email: &str) -> be_block_keys::RecoverySecret {

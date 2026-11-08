@@ -4,6 +4,7 @@ mod client;
 pub mod mail;
 mod portal;
 mod running;
+mod test_bucket;
 use std::{
     borrow::Cow,
     error::Error,
@@ -40,7 +41,9 @@ mod http;
 pub mod journal;
 pub mod keys;
 pub mod limits;
+pub mod objects;
 mod organization;
+pub mod s3;
 pub mod schema;
 pub mod sessions;
 pub mod store;
@@ -50,6 +53,7 @@ pub use blocks::PublishOutcome;
 pub use running::Running;
 pub use sessions::SessionRegistry;
 pub use store::{Identity, ServerStore};
+pub use test_bucket::TestBucket;
 pub use watch::{Place, Push, WatchHub};
 
 use client::Client;
@@ -144,6 +148,14 @@ pub struct ServerConfig {
     /// The fewest seconds between two polls of a browser sign-in, at first; tests that poll
     /// one sign-in again at once set it to zero.
     pub sign_in_poll_interval: Duration,
+    /// Where objects live: this bucket, behind a cache of its `cache_bytes` in
+    /// `DATA/object-cache`, or with none a `FileStore` in `DATA/objects`.
+    pub bucket: Option<objects::BucketConfig>,
+    /// The URL clients reach the server at (`--public-url`), with its path behind a proxy
+    /// (`https://api.be3.pfg.pw/api/be`). With no bucket, clients move object bytes through
+    /// the server's own S3 endpoint below it. None for `http://` and the address it listens
+    /// on, which is right wherever clients connect to it directly.
+    pub public_url: Option<String>,
 }
 
 impl ServerConfig {
@@ -162,6 +174,8 @@ impl ServerConfig {
         ]),
         sign_in_timeout: SIGN_IN_TIMEOUT,
         sign_in_poll_interval: browser_auth::POLL_INTERVAL,
+        bucket: None,
+        public_url: None,
     };
 
     pub const OPEN: Self = Self {
@@ -316,18 +330,32 @@ pub async fn serve_with_mail(
     if let Some(origin) = &config.auth_origin {
         mail::validate_origin(origin).map_err(ServerError::Socket)?;
     }
+    let public_url = public_url(&config, &listener)?;
     let interval = config.sign_in_poll_interval;
+    let store = Arc::new(ServerStore::open_with(
+        data_dir.into(),
+        store::StorageLimits {
+            account_quota: config.account_quota,
+            upload_grace: config.upload_grace,
+        },
+        config.bucket.as_ref(),
+    )?);
     let services = Services {
         portal: config
             .portal
             .map(|portal| Arc::new(portal::Served::new(portal))),
-        store: Arc::new(ServerStore::open_with(
-            data_dir.into(),
-            store::StorageLimits {
-                account_quota: config.account_quota,
-                upload_grace: config.upload_grace,
-            },
-        )?),
+        transfers: match store.objects().bucket() {
+            Some(bucket) => bucket.clone(),
+            None => store.s3_endpoint().transfers(&public_url),
+        },
+        s3: match store.objects() {
+            objects::Objects::Local(_) => Some(s3::service(
+                &store.s3_endpoint(),
+                Arc::new(store.objects().clone()),
+            )),
+            objects::Objects::Bucket(_) => None,
+        },
+        store,
         hub: Arc::new(WatchHub::new()),
         registry: Arc::new(SessionRegistry::new(config.lease)),
         config,
@@ -398,6 +426,28 @@ pub async fn serve_with_mail(
     }
 }
 
+/// The URL clients reach the server at: `ServerConfig::public_url`, or the address `listener`
+/// listens on, as loopback when it listens on every address.
+fn public_url(config: &ServerConfig, listener: &TcpListener) -> Result<url::Url, ServerError> {
+    let url = match &config.public_url {
+        Some(url) => url.clone(),
+        None => {
+            let mut address = listener.local_addr()?;
+            if address.ip().is_unspecified() {
+                address.set_ip(match address {
+                    SocketAddr::V4(_) => IpAddr::V4(Ipv4Addr::LOCALHOST),
+                    SocketAddr::V6(_) => IpAddr::V6(Ipv6Addr::LOCALHOST),
+                });
+            }
+            format!("http://{address}/")
+        }
+    };
+    url::Url::parse(&url)
+        .ok()
+        .filter(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
+        .ok_or_else(|| ServerError::Socket(format!("the public URL {url} is not an http(s) URL")))
+}
+
 /// Sweeps HTTP sessions and abandoned uploads on timers and closes sessions whose account token
 /// is revoked, away from the accept loop so accepting never waits on them.
 async fn upkeep(services: Services) {
@@ -437,6 +487,12 @@ pub(crate) struct Services {
     unsigned: Arc<address::Unsigned>,
     /// One-shot calls (`http::one_shot`) per address.
     calls: Arc<address::Rate>,
+    /// What presigns the URLs clients move object bytes with: the bucket, or with none the
+    /// server's own S3 endpoint at its public URL.
+    transfers: objects::Bucket,
+    /// The S3 endpoint over the server's objects (`s3`), served only when they are kept on its
+    /// own disk: with a bucket, clients move bytes to and from the bucket directly.
+    s3: Option<s3s::service::S3Service>,
 }
 
 /// What a connection was let in with: its place among its address's connections and among

@@ -4,8 +4,8 @@ use be_block_commit::{Commit, CommitId, CommitStore};
 use be_block_graph::BlockParent;
 use be_block_protocol::{
     Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry,
-    KeyKind, KeyRow, KeySet, Listing, OrganizationRole, PairingMessage, SessionEvent, SessionState,
-    WrappedBy, WrappedKey, client,
+    KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, SessionEvent,
+    SessionState, UploadUrl, WrappedBy, WrappedKey, client,
 };
 use be_block_session::{Resume, resume, takeover_needs_merge};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -23,6 +23,7 @@ mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_block_shared_from_a_hidden_folder_is_listed_as_shared;
 mod a_blocks_references_are_listed_and_announced_together;
+mod a_browser_preflight_to_the_s3_endpoint_is_answered;
 mod a_browser_sign_in_waits_on_polls_and_holds_no_connection;
 mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
@@ -45,10 +46,12 @@ mod a_move_past_the_new_payers_quota_is_refused;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
+mod a_range_get_reads_part_of_an_s3_object;
 mod a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit;
 mod a_refused_call_keeps_the_cached_graph;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
 mod a_removed_agents_blocks_stay_charged_to_its_creator;
+mod a_reserved_object_counts_only_once_its_bytes_arrive;
 mod a_rotation_gives_every_block_below_it_a_new_key_or_nothing;
 mod a_server_without_a_portal_answers_its_pages_as_json;
 mod a_session_hands_ownership_over_without_a_merge;
@@ -66,6 +69,8 @@ mod an_editor_sees_only_the_blocks_it_made_or_was_given;
 mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
 mod an_invitation_never_takes_the_id_of_a_contact_link;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
+mod an_object_uploads_and_downloads_with_presigned_s3_urls;
+mod an_s3_upload_that_is_not_its_key_stores_nothing;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
 mod an_upload_is_used_once_and_keeps_its_object_until_collected;
@@ -73,6 +78,7 @@ mod anonymous_mail_requests_never_fill_the_global_cap;
 mod another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashes;
 mod another_build_is_greeted_and_turned_away;
 mod block_sizes_add_up_their_subtrees_and_follow_moves;
+mod blocks_publish_and_read_back_from_a_bucket;
 mod blocks_publish_and_read_back_through_the_server;
 mod browser_forms_enforce_origin_policy_and_deny_sign_in;
 mod browser_pages_escape_codes_and_keep_available_actions;
@@ -126,6 +132,7 @@ mod the_browser_authorization_requires_the_private_secret_and_works_once;
 mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
 mod the_session_registry_forgets_the_longest_empty_sessions_first;
 mod the_trees_owner_pays_for_what_anyone_makes_in_it;
+mod unsigned_or_expired_s3_requests_are_refused;
 mod uploads_no_block_takes_are_collected_after_their_grace;
 mod what_one_account_keeps_on_the_server_is_bounded;
 
@@ -611,13 +618,47 @@ impl TestClient {
             .iter()
             .map(|hash| store.get(*hash).unwrap().unwrap())
             .collect();
-        let response = self
-            .call(|peer| client::objects::put_objects(peer, objects))
-            .await;
-        assert!(
-            matches!(&response, Ok(stored) if stored == hashes),
-            "{response:?}"
-        );
+        let response = self.put(objects).await;
+        assert!(response.is_ok(), "{response:?}");
+    }
+
+    /// Asks for URLs to upload `objects` to, without sending them.
+    async fn reserve(&mut self, objects: &[Vec<u8>]) -> Result<Vec<UploadUrl>, Error> {
+        let lengths = objects
+            .iter()
+            .map(|bytes| ObjectLength {
+                hash: Hash::of(bytes),
+                length: bytes.len() as u64,
+            })
+            .collect();
+        self.call(|peer| client::objects::upload_urls(peer, lengths))
+            .await
+    }
+
+    /// Uploads `objects` as a client does: asks for URLs, then PUTs each one's bytes.
+    async fn put(&mut self, objects: Vec<Vec<u8>>) -> Result<(), Error> {
+        let urls = self.reserve(&objects).await?;
+        assert_eq!(urls.len(), objects.len());
+        for (url, bytes) in urls.into_iter().zip(objects) {
+            let status = put_to(url, bytes).await;
+            assert_eq!(status, 200, "the upload was refused");
+        }
+        Ok(())
+    }
+
+    /// Downloads an object as a client does: asks for its URL, then GETs it. None when the
+    /// server answers no URL; a URL that is not found is a failure.
+    async fn download(&mut self, hash: Hash) -> Result<Option<Vec<u8>>, Error> {
+        let mut urls = self
+            .call(|peer| client::objects::download_urls(peer, vec![hash]))
+            .await?;
+        assert_eq!(urls.len(), 1);
+        let Some(url) = urls.pop().unwrap() else {
+            return Ok(None);
+        };
+        let answer = get_from(url).await;
+        assert_eq!(answer.0, 200, "the download failed");
+        Ok(Some(answer.1))
     }
 
     async fn read_block(&mut self, block: Uuid) -> BlockSummary {
@@ -667,6 +708,49 @@ impl TestClient {
             .await
             .expect("history failed")
     }
+}
+
+/// PUTs `bytes` to an upload URL with its headers, answering the status.
+async fn put_to(url: UploadUrl, bytes: Vec<u8>) -> u16 {
+    tokio::task::spawn_blocking(move || {
+        let mut request = ureq::put(&url.url);
+        // ureq sets Content-Length from the body itself, as a browser does.
+        for header in url
+            .headers
+            .iter()
+            .filter(|header| !header.name.eq_ignore_ascii_case("content-length"))
+        {
+            request = request.set(&header.name, &header.value);
+        }
+        match request.send_bytes(&bytes) {
+            Ok(response) => response.status(),
+            Err(ureq::Error::Status(status, response)) => {
+                let body = response.into_string().unwrap_or_default();
+                eprintln!("the upload was answered {status}: {body}");
+                status
+            }
+            Err(error) => panic!("the upload failed: {error}"),
+        }
+    })
+    .await
+    .unwrap()
+}
+
+/// GETs a download URL, answering the status and the body.
+async fn get_from(url: String) -> (u16, Vec<u8>) {
+    tokio::task::spawn_blocking(move || {
+        let response = match ureq::get(&url).call() {
+            Ok(response) => response,
+            Err(ureq::Error::Status(_, response)) => response,
+            Err(error) => panic!("the download failed: {error}"),
+        };
+        let status = response.status();
+        let mut body = Vec::new();
+        std::io::Read::read_to_end(&mut response.into_reader(), &mut body).unwrap();
+        (status, body)
+    })
+    .await
+    .unwrap()
 }
 
 /// A commit time that many minutes ago: retention keeps one state per minute for the last hour,

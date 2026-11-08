@@ -22,7 +22,7 @@ use super::Frame;
 
 mod http;
 
-pub(crate) use http::post_once;
+pub(crate) use http::{post_once, request};
 
 type Stream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 

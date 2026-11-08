@@ -21,7 +21,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-scene-3d:be-type-scene-3d",
                 "//crates/beui:beui",
                 "//third-party/rust:bytemuck-1.25.0",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
                 "//third-party/rust:wgpu-29.0.3",
             ],
             "examples": {},

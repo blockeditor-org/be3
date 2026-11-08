@@ -23,7 +23,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [
@@ -45,7 +45,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [
@@ -67,7 +67,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [
@@ -89,7 +89,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [
@@ -107,7 +107,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [
@@ -128,7 +128,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [
@@ -149,7 +149,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [
@@ -167,7 +167,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [
@@ -183,7 +183,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -198,7 +198,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [
@@ -219,7 +219,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [

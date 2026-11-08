@@ -20,7 +20,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-sdk-beui:be-sdk-beui",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//crates/beui:beui",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],

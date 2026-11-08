@@ -8,7 +8,7 @@ use be_block_keys::{Party, RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
     ErrorCode, KeyKind, OrganizationKind, OrganizationRole, ServerAccount, WrappedBy,
 };
-use be_block_store::{ContentKey, FileStore, Keyring, Vault};
+use be_block_store::{ContentKey, Keyring, Vault};
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
@@ -87,6 +87,18 @@ impl ServerKey {
         Ok(Self { account, secret })
     }
 
+    /// A secret for `purpose` derived from the server's own, so it lasts as long as the data
+    /// directory without being stored apart from it.
+    pub(crate) fn derived(&self, purpose: &str) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(b"be3.server.derived.v1\0");
+        hasher.update(purpose.as_bytes());
+        hasher.update(b"\0");
+        hasher.update(self.secret.to_bytes());
+        hasher.finalize().into()
+    }
+
     pub(crate) fn described(&self) -> ServerAccount {
         ServerAccount {
             account: self.account,
@@ -148,7 +160,7 @@ impl ServerKey {
     pub(crate) fn read<C: BlockContent>(
         &self,
         connection: &Connection,
-        objects: &FileStore,
+        objects: &crate::objects::Objects,
         graph: &BlockGraph,
         organization: Uuid,
         block: Uuid,

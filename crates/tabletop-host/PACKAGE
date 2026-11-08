@@ -19,7 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
                 "//third-party/rust:wasmi-1.1.0",
             ],
             "examples": {},
@@ -32,7 +32,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
                 "//third-party/rust:wasmi-1.1.0",
             ],
             "examples": {},
@@ -45,7 +45,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
                 "//third-party/rust:wasmi-1.1.0",
             ],
             "examples": {},
@@ -58,7 +58,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
                 "//third-party/rust:wasmi-1.1.0",
             ],
             "examples": {},
@@ -71,7 +71,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
                 "//third-party/rust:wasmi-1.1.0",
             ],
             "examples": {},
@@ -84,7 +84,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
                 "//third-party/rust:wasmi-1.1.0",
             ],
             "examples": {},
@@ -97,7 +97,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
                 "//third-party/rust:wasmi-1.1.0",
             ],
             "examples": {},
@@ -110,7 +110,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
                 "//third-party/rust:wasmi-1.1.0",
             ],
             "examples": {},

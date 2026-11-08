@@ -37,7 +37,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:tokio-1.52.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "scale": {
@@ -65,7 +65,7 @@ write_package_value("be3.cargo", {
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:tokio-1.52.3",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -101,7 +101,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:tokio-1.52.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "scale": {
@@ -129,7 +129,7 @@ write_package_value("be3.cargo", {
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:tokio-1.52.3",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -165,7 +165,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:tokio-1.52.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "scale": {
@@ -193,7 +193,7 @@ write_package_value("be3.cargo", {
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:tokio-1.52.3",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -229,7 +229,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:tokio-1.52.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "scale": {
@@ -257,7 +257,7 @@ write_package_value("be3.cargo", {
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:tokio-1.52.3",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -293,7 +293,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:tokio-1.52.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "scale": {
@@ -321,7 +321,7 @@ write_package_value("be3.cargo", {
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:tokio-1.52.3",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -357,7 +357,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:tokio-1.52.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "scale": {
@@ -385,7 +385,7 @@ write_package_value("be3.cargo", {
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:tokio-1.52.3",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },
@@ -421,7 +421,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:tokio-1.52.3",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {
                 "scale": {
@@ -449,7 +449,7 @@ write_package_value("be3.cargo", {
                         "//third-party/rust:serde-1.0.228",
                         "//third-party/rust:serde_json-1.0.150",
                         "//third-party/rust:tokio-1.52.3",
-                        "//third-party/rust:uuid-1.23.2",
+                        "//third-party/rust:uuid-1.29.1",
                     ],
                     "features": [],
                 },

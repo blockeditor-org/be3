@@ -35,11 +35,17 @@ pub use blocks::*;
 pub use contacts::*;
 pub use keys::*;
 pub use members::*;
+pub use objects::*;
 pub use organizations::*;
 pub use sessions::*;
 pub use types::*;
 
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
+/// The largest object the server stores.
+pub const MAX_OBJECT_BYTES: usize = 8 * 1024 * 1024;
+/// The most objects one `upload-urls` or `download-urls` call names, which keeps its answer
+/// well inside a frame.
+pub const MAX_OBJECT_URLS: usize = 1024;
 
 impl ObjectChange {
     /// What turns the objects `before` holds into those `after` holds.

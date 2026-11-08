@@ -24,9 +24,7 @@ async fn an_agent_stores_against_its_creators_quota() {
     let mut agent = harness.second_connection(&token, personal).await;
 
     let upload = b"what the agent wrote".to_vec();
-    let stored = agent
-        .call(|peer| client::objects::put_objects(peer, vec![upload.clone()]))
-        .await;
+    let stored = agent.put(vec![upload.clone()]).await;
     assert!(stored.is_ok(), "{stored:?}");
     let usage = creator
         .call(|peer| client::account::storage_usage(peer))

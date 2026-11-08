@@ -4,12 +4,35 @@ package be3:server@0.1.0;
 interface objects {
     use types.{block-id, error, hash};
 
-    /// Stores objects, each named by its SHA-256; answers their hashes in
-    /// order.
-    put-objects: async func(objects: list<list<u8>>) -> result<list<hash>, error>;
+    /// An object to upload: its SHA-256 and its length in bytes.
+    record object-length {
+        hash: hash,
+        length: u64,
+    }
 
-    /// An object the caller may read, or none.
-    get-object: async func(hash: hash) -> result<option<list<u8>>, error>;
+    /// A header a presigned request is sent with, exactly as given.
+    record header {
+        name: string,
+        value: string,
+    }
+
+    /// Where to upload one object: a presigned S3 PUT that takes only that
+    /// object's bytes, sent with `headers`, until it expires.
+    record upload-url {
+        url: string,
+        headers: list<header>,
+    }
+
+    /// Reserves room for objects, charged to the uploader until a block
+    /// takes them, and answers a URL to upload each one to, in order. An
+    /// object counts as stored only once its bytes arrived. At most
+    /// `be_block_protocol::MAX_OBJECT_URLS` objects a call.
+    upload-urls: async func(objects: list<object-length>) -> result<list<upload-url>, error>;
+
+    /// A presigned S3 GET for each object the caller may read, in order, and
+    /// none for the rest. At most `be_block_protocol::MAX_OBJECT_URLS` hashes a
+    /// call.
+    download-urls: async func(hashes: list<hash>) -> result<list<option<string>>, error>;
 
     /// Which of `hashes` the server lacks.
     missing-objects: async func(hashes: list<hash>) -> result<list<hash>, error>;

@@ -21,7 +21,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-example-beui-gallery:be-type-example-beui-gallery",
                 "//crates/beui-demo:beui-demo",
                 "//crates/beui:beui",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],

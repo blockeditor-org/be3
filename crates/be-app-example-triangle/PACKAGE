@@ -19,7 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-sdk:be-sdk",
                 "//crates/be-type-example-triangle:be-type-example-triangle",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],

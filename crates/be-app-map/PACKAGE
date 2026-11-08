@@ -22,7 +22,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-type-map:be-type-map",
                 "//crates/beui:beui",
                 "//third-party/rust:flate2-1.1.9",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],

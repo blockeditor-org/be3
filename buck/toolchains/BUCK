@@ -219,6 +219,16 @@ pinned_rust_toolchain(
         # Packed, macOS's default, runs dsymutil after the link, which is
         # Apple's and not something a Linux worker has.
         "prelude//os:macos": ["-Csplit-debuginfo=unpacked"],
+        # rustc always has lld-link write a PDB, and a PDB names the
+        # directory the link ran in and rustc's temporary one, which differ
+        # on every link. /Brepro hashes it into the binary's timestamp and
+        # PDB GUID, so a release linked again was a different file and the
+        # bootstrap's pins changed whenever CI linked it (guides/bootstrap.md).
+        # A release ships no PDB, so it writes none; the last /DEBUG wins.
+        "prelude//os:windows": select({
+            "DEFAULT": [],
+            "root//buck/constraints:release": ["-Clink-arg=/DEBUG:NONE"],
+        }),
     })
     + select({
         "DEFAULT": [],

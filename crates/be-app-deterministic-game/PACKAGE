@@ -22,7 +22,7 @@ write_package_value("be3.cargo", {
                 "//crates/beui:beui",
                 "//crates/tabletop-api:tabletop-api",
                 "//crates/tabletop-host:tabletop-host",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],

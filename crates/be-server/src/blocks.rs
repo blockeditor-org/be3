@@ -6,7 +6,7 @@ use be_block_protocol::{
     AccessEntry, AccessList, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet, ObjectChange,
     OrganizationRole, ReferenceChange,
 };
-use be_block_store::{Hash, ObjectStore};
+use be_block_store::Hash;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use uuid::Uuid;
@@ -505,6 +505,9 @@ impl ServerStore {
     ) -> Result<PublishOutcome, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         let change = held;
+        let mut sent = vec![commit.hash()];
+        sent.extend(change.added.iter().copied());
+        self.confirm_uploads(identity, sent.clone()).await?;
         self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let current = graph.head(block);
@@ -525,8 +528,6 @@ impl ServerStore {
             };
             let mut held = vec![commit.hash()];
             held.extend(change.apply(&base));
-            let mut sent = vec![commit.hash()];
-            sent.extend(change.added.iter().copied());
             // A first commit lists every reference, replacing any its block was made with.
             let listed = match expected {
                 Some(_) => graph.references(block),
@@ -618,31 +619,41 @@ impl ServerStore {
                 &policy,
             )?;
             transaction.commit()?;
-            remove_objects(store.objects(), &freed)?;
             graph.set_references(block, &references)?;
             graph.set_head(block, commit)?;
             graph.set_metadata(block, metadata)?;
             graph.touch(block)?;
+            store.objects().remove_freed(&freed);
             Ok(PublishOutcome::Published(commit, redescribed))
         })
         .await
     }
 
-    pub async fn may_read_object(
+    /// Which of `hashes` the caller may read, in order: those a block it may view holds. A held
+    /// object was confirmed stored before any block could take it (`holdable`), so this asks
+    /// no object store.
+    pub async fn may_read_objects(
         &self,
         identity: Identity,
-        hash: Hash,
-    ) -> Result<bool, ServerError> {
+        hashes: Vec<Hash>,
+    ) -> Result<Vec<bool>, ServerError> {
         // Downloads take neither the database lock nor the graph job's: the holders come from the
         // read-only connection and access from the cached graph, which a revocation changes
         // before its call returns. Only a graph not cached yet costs a graph job.
         let organization = identity.organization;
+        let asked = hashes.clone();
         let cached = self
             .with_reader(move |store, reader| {
-                let holders = holders_of(reader, organization, hash)?;
+                let holders = asked
+                    .iter()
+                    .map(|hash| holders_of(reader, organization, *hash))
+                    .collect::<Result<Vec<_>, _>>()?;
                 let seen = visibility(identity);
                 Ok(store.read_graph(organization, |graph| {
-                    holders.iter().any(|block| seen.can_view(graph, *block))
+                    holders
+                        .iter()
+                        .map(|holders| holders.iter().any(|block| seen.can_view(graph, *block)))
+                        .collect::<Vec<bool>>()
                 }))
             })
             .await?;
@@ -650,7 +661,10 @@ impl ServerStore {
             return Ok(readable);
         }
         self.with_graph(organization, move |_, graph, database| {
-            readable(graph, database, identity, hash)
+            hashes
+                .iter()
+                .map(|hash| readable(graph, database, identity, *hash))
+                .collect()
         })
         .await
     }
@@ -662,6 +676,7 @@ impl ServerStore {
         identity: Identity,
         hashes: Vec<Hash>,
     ) -> Result<Vec<Hash>, ServerError> {
+        self.confirm_uploads(identity, hashes.clone()).await?;
         self.with_graph(identity.organization, move |store, graph, database| {
             let mut missing = Vec::new();
             for hash in hashes {
@@ -749,7 +764,8 @@ impl ServerStore {
         Ok(freed)
     }
 
-    /// Whether the caller may have a block hold `hash`: the server has it, and the caller uploaded
+    /// Whether the caller may have a block hold `hash`: the server has it (its bytes were
+    /// confirmed, `confirm_uploads`), and the caller uploaded
     /// it in this organization or may already read it. Knowing a hash proves nothing, so a hash
     /// someone else stored is not the caller's to hold, publish or then read.
     fn holdable(
@@ -759,7 +775,7 @@ impl ServerStore {
         identity: Identity,
         hash: Hash,
     ) -> Result<bool, ServerError> {
-        Ok(self.objects().has(hash)?
+        Ok(crate::store::stored(database, hash)?
             && (crate::store::uploaded(database, identity, hash)?
                 || readable(graph, database, identity, hash)?))
     }
@@ -789,6 +805,7 @@ impl ServerStore {
         block: Uuid,
         objects: Vec<Hash>,
     ) -> Result<(), ServerError> {
+        self.confirm_uploads(identity, objects.clone()).await?;
         self.with_graph(identity.organization, move |store, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             store.require_holdable(graph, database, identity, &objects, "held")?;
@@ -1148,7 +1165,7 @@ impl ServerStore {
             std::mem::drop(refs);
             let freed = forget_objects(&transaction, &freed)?;
             transaction.commit()?;
-            remove_objects(store.objects(), &freed)?;
+            store.objects().remove_freed(&freed);
             Ok(Collected {
                 blocks: removed,
                 objects: freed.len(),
@@ -1346,7 +1363,7 @@ impl ServerStore {
 }
 
 /// Whether a block the caller can view holds `hash`, by a commit or by `HoldObjects`.
-fn readable(
+pub(crate) fn readable(
     graph: &BlockGraph,
     database: &Connection,
     identity: Identity,
@@ -1615,13 +1632,6 @@ fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
     std::iter::once(block)
         .chain(graph.ancestors(block))
         .collect()
-}
-
-fn remove_objects(objects: &be_block_store::FileStore, freed: &[Hash]) -> Result<(), ServerError> {
-    for hash in freed {
-        objects.remove(*hash)?;
-    }
-    Ok(())
 }
 
 fn persist_refs(

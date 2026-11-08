@@ -101,16 +101,12 @@ async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_
         !kept.contains(&merge),
         "the commit the head replaced in its minute was kept"
     );
-    let response = client
-        .call(|peer| client::objects::get_object(peer, bookmark.hash()))
-        .await;
+    let response = client.download(bookmark.hash()).await;
     assert!(
         matches!(response, Ok(Some(_))),
         "the bookmark's object was deleted"
     );
-    let response = client
-        .call(|peer| client::objects::get_object(peer, merge.hash()))
-        .await;
+    let response = client.download(merge.hash()).await;
     assert!(
         matches!(response, Ok(None)),
         "the pruned commit's object survived"

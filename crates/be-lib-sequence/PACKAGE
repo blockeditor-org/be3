@@ -17,7 +17,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -30,7 +30,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -43,7 +43,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -56,7 +56,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64-html": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -67,7 +67,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -80,7 +80,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -93,7 +93,7 @@ write_package_value("be3.cargo", {
         "wasi": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -104,7 +104,7 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -115,7 +115,7 @@ write_package_value("be3.cargo", {
         "wasi-html": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -126,7 +126,7 @@ write_package_value("be3.cargo", {
         "wasm32": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -137,7 +137,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -150,7 +150,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
-                "//third-party/rust:memchr-2.8.1",
+                "//third-party/rust:memchr-2.8.3",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},

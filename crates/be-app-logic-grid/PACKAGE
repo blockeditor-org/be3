@@ -24,7 +24,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:bytemuck-1.25.0",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:uuid-1.23.2",
+                "//third-party/rust:uuid-1.29.1",
                 "//third-party/rust:wgpu-29.0.3",
             ],
             "examples": {},

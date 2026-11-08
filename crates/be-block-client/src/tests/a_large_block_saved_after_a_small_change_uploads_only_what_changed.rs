@@ -107,7 +107,9 @@ async fn a_large_block_saved_after_a_small_change_uploads_only_what_changed() {
     let before = relay.heard();
     let first = author.save(block, &log, None).await.unwrap();
     let first = first.published().expect("the first save is published");
-    assert!(relay.heard() - before > 4 * 1024 * 1024);
+    // The first save's 4 MiB is more than half a frame, so it is uploaded through presigned
+    // URLs (guides/blocks/client.md, "Objects") and never crosses the relay.
+    assert!(relay.heard() - before < 1024 * 1024);
 
     let mut log = author.open::<Log>(block).await.unwrap().unwrap();
     log.edit(300, pseudorandom(ENTRY, 6));

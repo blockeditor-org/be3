@@ -10,11 +10,37 @@ repository, and deployment leaves them alone.
 home) and `BE3_DEPLOY_UNITS` (`be-server`, restarted with `sudo systemctl`) name where it goes.
 The directory holds only `be-server` and the `build-info.json` it reads beside it.
 
-`--data-dir` holds `metadata.sqlite` and `objects/`. The server adds missing tables, indexes and
+`--data-dir` holds `metadata.sqlite` and `objects/`, or `object-cache/` when objects live in a
+bucket (below). The server adds missing tables, indexes and
 defaulted columns on startup and refuses incompatible schemas; the data and its backups are not
 frozen (guides/frozen_formats.md), so a change may require deleting them. Don't run `CollectDetached` against
 it: be-host never sends it. Publishing prunes history as commits arrive (guides/blocks/server.md);
 backups keep every object they copied.
+
+## Objects in a bucket
+
+Objects can live in an S3-compatible bucket instead of `objects/`: set all of `BE_S3_ENDPOINT`,
+`BE_S3_REGION`, `BE_S3_BUCKET`, `BE_S3_ACCESS_KEY` and `BE_S3_SECRET_KEY` in the service's
+environment (some but not all is an error). The server keeps the objects it used most recently
+in `object-cache/`, `--object-cache BYTES` of them (2 GiB by default); deleting that directory
+loses nothing. `backup`, `restore` and `verify` read the same variables, so run them with the
+service's environment.
+
+For a Bunny storage zone, through its S3 API: the endpoint is the zone's region's S3 host (shown
+with the zone's S3 credentials in the dashboard), the bucket is the zone's name, the access key
+the zone's name too and the secret key its password; the region is whatever the dashboard
+names. Requests are path-style, so no per-zone hostname is needed. Use a zone of its own, not
+the one deployments upload to: the server lists and deletes keys in it. Moving an existing
+server's objects there is a backup and a restore into a fresh data directory with the variables
+set.
+
+With a bucket, clients upload and download objects with URLs the server presigns against the
+bucket, so the bucket must answer browsers too: give the zone a CORS rule allowing the web
+build's origin (`https://be3.pfg.pw`) to `GET`, `HEAD` and `PUT`, with the request headers
+`content-type`, `range` and `x-amz-checksum-sha256` (a PUT that sends the checksum is
+preflighted) and exposing `Content-Length`, `Content-Range` and `ETag`. Requests carry no
+credentials; the signature is the authority. Without a bucket, the server's own S3 endpoint
+answers these itself.
 
 ## Routes, the proxy and the gateway
 
@@ -36,7 +62,13 @@ WebSocket API can't set headers), a host-only cookie on `api.be3.pfg.pw` that vi
 `https://api.be3.pfg.pw/` sets before redirecting to the web build. The public web bundle holds
 no gateway key. Because the page is on another origin, the proxy must allow the web build's
 exact origin with credentials and let preflights through without the cookie; any HTTP fetch
-added for API access must include credentials.
+added for API access must include credentials. The S3 endpoint, `/api/be/storage/*`
+(guides/blocks/server.md, "Objects over S3"), is the exception: its presigned URLs are fetched
+without credentials, so the proxy must pass it through without the gateway check, keeping its
+path, `Host` and query (the signature covers them) and adding no CORS headers of its own. The
+server signs those URLs for the URL clients reach it at, which it can't see behind Caddy: run
+it with `--public-url https://api.be3.pfg.pw/api/be`, or every presigned URL names its
+loopback address.
 
 ### Proxy account credentials
 
@@ -169,6 +201,8 @@ Backups are scheduled on the host; `be-server --help` describes the commands.
   `BUNNY_STORAGE_KEY` and `BUNNY_STORAGE_ENDPOINT` (such as `https://ny.storage.bunnycdn.com`).
   That password can delete what it wrote, so replicate the zone and copy backups somewhere the
   VPS can't reach.
+- With objects in a bucket, a backup reads them from the bucket (through the cache) and a
+  restore writes them to the bucket the variables name.
 - To restore: stop be-server, run
   `be-server restore --from bunny:ZONE --key-file backup.key --data-dir NEW-DIR` (`--snapshot
   NAME` for an older one), then `be-server verify --data-dir NEW-DIR`, point the service at it
