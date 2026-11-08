@@ -212,12 +212,24 @@ impl Run {
 
     fn generated(&mut self) {
         if let Some(generated) = self.built("buckify").first() {
-            let crates = self.update(
-                &generated.join("crates.bzl"),
-                Path::new("buck/cargo/crates.bzl"),
-            );
-            let lock = self.update(&generated.join("Cargo.lock"), Path::new("Cargo.lock"));
-            self.stale_crates = crates || lock;
+            // buckify's action has no network, so a lockfile that needs a
+            // crate crates.bzl does not download yet is left to //:buckify
+            // (buck/cargo/buckify.sh).
+            if let Ok(why) = fs::read_to_string(generated.join("stale")) {
+                println!(
+                    "{}\nOut of date: Cargo.lock and buck/cargo/crates.bzl, and updating them needs the network: run ./scripts/buck run //:buckify, then ./scripts/verify{} again.",
+                    why.trim_end(),
+                    if self.options.check { " --check" } else { "" }
+                );
+                self.failed = true;
+            } else {
+                let crates = self.update(
+                    &generated.join("crates.bzl"),
+                    Path::new("buck/cargo/crates.bzl"),
+                );
+                let lock = self.update(&generated.join("Cargo.lock"), Path::new("Cargo.lock"));
+                self.stale_crates = crates || lock;
+            }
         }
         if let Some(lock) = self.built("sysroot").first() {
             self.update(lock, Path::new("buck/sysroot/packages.bzl"));

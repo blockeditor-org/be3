@@ -42,6 +42,8 @@ command_alias(
     args = [
         "sh",
         "$(location //buck/cargo:update.sh)",
+        "$(exe //crates/be-tool-buck:bin)",
+        "$(location //buck/cargo:cargo)",
     ],
 )
 

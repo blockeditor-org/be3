@@ -99,7 +99,7 @@ bundled program (`program()` in buck/program/defs.bzl) has `:native`, `:web`, `:
 `-dist` build CI publishes, and `:dev`, headless for an agent to drive.
 
 **A dependency**: `cargo add`, then `./scripts/buck run //:buckify`, which regenerates
-`crates.bzl` and `Cargo.lock` on a worker. That includes a dev-dependency on a workspace crate:
+`crates.bzl` and `Cargo.lock` on a worker, after pinning any crate new to Cargo.lock. That includes a dev-dependency on a workspace crate:
 until it runs, the crate's `:test` reports it unresolved. `./scripts/verify` regenerates them
 too, but builds with the checked-in copies, so a stale one is fixed by the run after.
 
@@ -240,6 +240,10 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   What still fetches in an action: pdfium's sources (`git fetch`, about 125 MB), Ghostty and the
   Zig packages it builds with (about 65 MB) and wasm-bindgen's `cargo install` (about 35 MB).
 - **crates.bzl's `downloads`** pins every crate Cargo.lock names, for every platform, built or
-  not: `//:buckify` hands them to cargo as a vendored directory, so it needs no network while
-  Cargo.lock is up to date. A lockfile that needs a crate they lack is resolved against
-  crates.io, which downloads every crate again (about 240 MB).
+  not: buckify's action hands them to cargo as a vendored directory and has no network.
+  It brings Cargo.lock up to date from them when it can, so a dependency already in the
+  lockfile needs nothing else. A lockfile that needs a crate they lack makes the action write
+  why into `stale` beside where crates.bzl would be: `./scripts/verify` then fails, and
+  `//:buckify` runs `buck-tools lock` (crates/be-tool-buck/src/lock.rs) on this machine, which
+  brings Cargo.lock up to date with the network, pins each new crate's hash and size in
+  `downloads`, and generates again.

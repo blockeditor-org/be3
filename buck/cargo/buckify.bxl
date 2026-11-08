@@ -12,9 +12,9 @@ load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple", "plan
 # its own package's files.
 #
 # The crates are the downloads the checked-in crates.bzl pins (_vendored),
-# which buck2 keeps across daemons: cargo reads them as a vendored directory
-# rather than downloading every crate in Cargo.lock again, unless the
-# lockfile needs a crate they do not have (buckify.sh).
+# which buck2 keeps across daemons: cargo reads them as a vendored directory,
+# and the action has no network. When the lockfile needs a crate they do not
+# have, the action says so in OUT/stale (buckify.sh), for //:buckify to pin it.
 
 def _files(ctx, directory: str) -> list[str]:
     found = []

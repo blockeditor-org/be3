@@ -64,26 +64,32 @@ done
 export CARGO_HOME="$scratch/cargo-home"
 mkdir -p "$CARGO_HOME"
 
-# With Cargo.lock up to date with the manifests and every crate it names
-# vendored, cargo reads the vendored crates in place of crates.io and needs no
-# network: buck2 has them already, from builds. A lockfile that needs anything
-# else, such as a new dependency, is resolved against crates.io instead.
-printf '[source.crates-io]\nreplace-with = "vendored"\n\n[source.vendored]\ndirectory = "%s"\n' "$vendor" > "$CARGO_HOME/config.toml"
-if PATH="$toolchain/bin:$PATH" "$toolchain/bin/cargo" metadata --format-version 1 --quiet --locked > /dev/null 2>&1; then
-    cp "$scratch/vendored-sizes" "$scratch/sizes"
-else
-    echo "buckify: Cargo.lock needs crates that buck/cargo/crates.bzl does not download yet, so cargo downloads every crate it names" >&2
-    rm "$CARGO_HOME/config.toml"
-    # Cargo.lock as the cargo a developer runs would leave it: brought up to
-    # date with the manifests, changing nothing it does not have to.
-    PATH="$toolchain/bin:$PATH" "$toolchain/bin/cargo" metadata --format-version 1 --quiet > /dev/null
-    # Every crate archive's size beside its hash, so that buck2 knows each
-    # digest without asking crates.io for it on every new daemon. cargo fetch
-    # downloads every crate Cargo.lock names, for every platform.
-    PATH="$toolchain/bin:$PATH" "$toolchain/bin/cargo" fetch --locked --quiet
-    for crate in "$CARGO_HOME"/registry/cache/*/*.crate; do
-        printf '%s %s\n' "$(basename "$crate" .crate)" "$(wc -c < "$crate")"
-    done > "$scratch/sizes"
+# cargo reads the vendored crates in place of crates.io, and never the
+# network: the action's output depends on its inputs alone. Cargo.lock out of
+# date with the manifests is brought up to date from those crates, as the cargo
+# a developer runs would, changing nothing it does not have to. A lockfile that
+# needs a crate crates.bzl does not download yet, such as a new dependency's,
+# cannot be, so the action writes why into OUT/stale in place of the generated
+# files: //:buckify and ./scripts/verify then update Cargo.lock and crates.bzl's
+# downloads with the network (buck-tools lock) and build this again.
+printf '[source.crates-io]\nreplace-with = "vendored"\n\n[source.vendored]\ndirectory = "%s"\n\n[net]\noffline = true\n' "$vendor" > "$CARGO_HOME/config.toml"
+stale() {
+    # Without the scratch directory's name, so the same inputs say the same.
+    { printf '%s\n' "$1"; [ ! -s "$scratch/cargo.err" ] || sed "s|$scratch/||g" "$scratch/cargo.err"; } > "$out/stale"
+    rm -rf "$scratch"
+    exit 0
+}
+missing="$(awk '
+    /^\[\[package\]\]/ { name = ""; version = "" }
+    /^name = / { name = $3 }
+    /^version = / { version = $3 }
+    /^checksum = / { gsub(/"/, "", name); gsub(/"/, "", version); print name "-" version }
+' Cargo.lock | while IFS= read -r key; do [ -d "$vendor/$key" ] || printf ' %s' "$key"; done)"
+if [ -n "$missing" ]; then
+    stale "Cargo.lock names crates buck/cargo/crates.bzl does not download:$missing"
+fi
+if ! PATH="$toolchain/bin:$PATH" "$toolchain/bin/cargo" metadata --format-version 1 --quiet --offline > /dev/null 2> "$scratch/cargo.err"; then
+    stale "Cargo.lock cannot be brought up to date with the Cargo.toml files from the crates buck/cargo/crates.bzl downloads; cargo said:"
 fi
 # Everything below reads Cargo.lock, and ./scripts/verify's lint writes it
 # back to the checkout.
@@ -159,7 +165,7 @@ for platform in $cross_platforms; do
 done
 CARGO_TARGET_DIR="$scratch/target" PATH="$toolchain/bin:$PATH" \
     "$toolchain/bin/cargo" build --quiet --release --locked -p be-tool-buck
-"$scratch/target/release/buck-tools" generate "$scratch/metadata.json" Cargo.lock "$scratch/sizes" Cargo.toml \
+"$scratch/target/release/buck-tools" generate "$scratch/metadata.json" Cargo.lock "$scratch/vendored-sizes" Cargo.toml \
     "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasi-guest=$scratch/wasi-guest.json" "wasm32=$scratch/wasm32.json" \
     "wasi-html=$scratch/wasi-html.json" "linux-x86_64-html=$scratch/linux-x86_64-html.json" \
     $cross \
