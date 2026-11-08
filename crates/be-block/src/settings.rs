@@ -57,6 +57,14 @@ impl KindVisibility {
     }
 }
 
+/// Whether an owner-only kind may be made under a block of `parent_type` that the maker
+/// authored: its `Settings` block or one of its `SettingsProfile`s, the only places a kind
+/// readable by its owner alone belongs.
+pub fn holds_owner_only(parent_type: Uuid) -> bool {
+    parent_type == <Settings as Root>::CONTENT_TYPE
+        || parent_type == <SettingsProfile as Root>::CONTENT_TYPE
+}
+
 pub fn union<K: Ord + Clone, V: Clone>(upper: &Map<K, V>, lower: &Map<K, V>) -> Map<K, V> {
     lower
         .iter()

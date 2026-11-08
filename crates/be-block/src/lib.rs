@@ -53,7 +53,8 @@ pub use profile::{
 pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{
     Follows, KindRule, KindVisibility, Layered, Resolution, ResolutionLayers, Settings,
-    SettingsContent, SettingsProfile, SettingsProfileContent, SettingsSource, layered,
+    SettingsContent, SettingsProfile, SettingsProfileContent, SettingsSource, holds_owner_only,
+    layered,
 };
 pub use settling::{Landed, Settling};
 pub use streamed::{

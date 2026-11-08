@@ -11,6 +11,7 @@ fn a_session_opens_in_the_editor_its_view_names() {
         BlockParent::Root,
         BlockMetadata::view(DESKTOP_EDITOR, None),
         None,
+        false,
     );
     be_host_stack::hold(session, VIEW_TYPE);
     be_host_stack::wait_until(|shared| shared.blocks.contains_key(&session).then_some(()));

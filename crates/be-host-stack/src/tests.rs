@@ -631,6 +631,7 @@ fn start_versioning(text: &str) -> Versioned {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Notes"),
         Some(listing.encode()),
+        false,
     );
     create(
         note,
@@ -638,6 +639,7 @@ fn start_versioning(text: &str) -> Versioned {
         be_block_graph::BlockParent::Block(folder),
         be_block::BlockMetadata::named("Note"),
         Some(be_type_text::TextBlock::of(text).encode()),
+        false,
     );
     create(
         repository,
@@ -645,6 +647,7 @@ fn start_versioning(text: &str) -> Versioned {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::named("History"),
         Some(be_block::RepositoryContent::default().encode()),
+        false,
     );
     version_since(repository, be_block::RepositoryContent::CONTENT_TYPE, None);
     version(
@@ -810,6 +813,7 @@ fn written(block: Uuid, text: &str) {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Plan"),
         Some(be_type_text::TextBlock::of(text).encode()),
+        false,
     );
     flush();
 }

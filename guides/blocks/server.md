@@ -322,7 +322,8 @@ changing a member closes their connections (`WatchHub::drop_member`) so they
 reconnect with what they now are.
 
 Access is per member (`Visibility` in `blocks.rs`, `be_block_graph::Access`:
-`None < KnowExists < View < Edit < Manage`): administrators manage everything;
+`None < KnowExists < View < Edit < Manage`): administrators manage everything
+but owner-only blocks, which they only know exist (guides/settings.md, Owner only);
 anyone else gets the best grant on the block or an ancestor (a lower grant
 never reduces an inherited one), and `Manage` on what they authored while they
 can view its parent (or it is `Root` or `Detached`), so a member taken off a

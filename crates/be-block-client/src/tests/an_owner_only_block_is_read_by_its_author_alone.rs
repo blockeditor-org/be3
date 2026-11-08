@@ -57,16 +57,18 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
             SETTINGS_TYPE,
             BlockParent::Root,
             &be_block::BlockMetadata::default(),
+            false,
         )
         .await
         .unwrap()
         .id;
     let secret = member
-        .create_owner_only(
+        .create_block(
             Uuid::now_v7(),
             TextContent::CONTENT_TYPE,
             BlockParent::Block(settings),
             &be_block::BlockMetadata::default(),
+            true,
         )
         .await
         .unwrap();
@@ -125,6 +127,34 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
             .await
             .is_err(),
         "an owner-only block is shared with no one"
+    );
+
+    let elsewhere = workspace(&member, "Elsewhere").await;
+    for (maker, parent) in [(&member, elsewhere), (&admin, settings)] {
+        assert!(
+            maker
+                .create_block(
+                    Uuid::now_v7(),
+                    TextContent::CONTENT_TYPE,
+                    BlockParent::Block(parent),
+                    &be_block::BlockMetadata::default(),
+                    true,
+                )
+                .await
+                .is_err(),
+            "an owner-only block is made only in its author's own settings"
+        );
+    }
+    let note = member
+        .create::<TextContent>(BlockParent::Block(elsewhere))
+        .await
+        .unwrap();
+    assert!(
+        member
+            .set_parent(note, BlockParent::Block(secret))
+            .await
+            .is_err(),
+        "nothing moves into an owner-only block"
     );
 
     let laptop = harness.second(&member).await;

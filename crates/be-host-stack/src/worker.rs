@@ -2086,7 +2086,7 @@ async fn apply(
                 return false;
             }
             let created = peer
-                .create_block(to, content_type, BlockParent::Detached, &metadata)
+                .create_block(to, content_type, BlockParent::Detached, &metadata, false)
                 .await;
             if let Err(error) = settled(peer, shared, Some(tasks), to, created).await {
                 record(shared, error);
@@ -2185,16 +2185,9 @@ async fn apply(
                     None => kind.described.derived,
                 };
             }
-            let created = match owner_only {
-                true => {
-                    peer.create_owner_only(block, content_type, parent, &metadata)
-                        .await
-                }
-                false => {
-                    peer.create_block(block, content_type, parent, &metadata)
-                        .await
-                }
-            };
+            let created = peer
+                .create_block(block, content_type, parent, &metadata, owner_only)
+                .await;
             if let Err(error) = settled(peer, shared, Some(tasks), block, created).await {
                 record(shared, error);
                 return false;
@@ -2484,6 +2477,12 @@ async fn export(
     block: Uuid,
 ) -> Result<(String, Vec<u8>), ClientError> {
     let picked = peer.summary(block).await?;
+    if picked.owner_only {
+        return Err(ClientError::Refused(
+            be_block_protocol::ErrorCode::PermissionDenied,
+            "a block only you can read is not exported, since a block file opens for anyone".into(),
+        ));
+    }
     let mut top = picked.clone();
     if let Some(BlockParent::Block(parent)) = picked.parent
         && let Ok(whole) = peer.summary(parent).await
@@ -2503,7 +2502,10 @@ async fn export(
         let mut next = Vec::new();
         for ((_, position), children) in level.into_iter().zip(below) {
             for child in children {
-                if child.access.can_view() && found.iter().all(|(held, _)| held.id != child.id) {
+                if child.access.can_view()
+                    && !child.owner_only
+                    && found.iter().all(|(held, _)| held.id != child.id)
+                {
                     next.push((child.id, found.len()));
                     found.push((child, Some(position)));
                 }

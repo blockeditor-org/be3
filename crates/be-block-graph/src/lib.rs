@@ -70,7 +70,6 @@ pub struct BlockNode {
     pub tree_size: u64,
     /// Readable by its author alone: a scope root of its own whose key is sealed only to the
     /// author, never escrowed (`KindVisibility::Owner`). Set when it is made and kept for life.
-    #[serde(default)]
     pub owner_only: bool,
 }
 

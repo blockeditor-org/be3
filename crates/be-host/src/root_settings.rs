@@ -146,6 +146,7 @@ impl RootSettings {
                 BlockParent::Root,
                 BlockMetadata::default(),
                 Some(SettingsContent::default().encode()),
+                false,
             );
             self.created = Some(block);
         }
@@ -187,7 +188,14 @@ impl RootSettings {
             }
             let mut metadata = BlockMetadata::default();
             metadata.insert(&NAME, &"My files".to_owned());
-            be_host_stack::create(block, WORKSPACE_TYPE, BlockParent::Root, metadata, None);
+            be_host_stack::create(
+                block,
+                WORKSPACE_TYPE,
+                BlockParent::Root,
+                metadata,
+                None,
+                false,
+            );
             self.created_files = Some(block);
         }
         self.my_files()
@@ -381,6 +389,7 @@ impl RootSettings {
             BlockParent::Block(settings),
             BlockMetadata::view(editor, Some(name)),
             None,
+            false,
         );
         Some(session)
     }
@@ -394,6 +403,7 @@ impl RootSettings {
             BlockParent::Block(settings),
             BlockMetadata::named(name),
             Some(content.encode()),
+            false,
         );
         Some(profile)
     }
@@ -461,6 +471,7 @@ impl RootSettings {
                 BlockParent::Block(profile),
                 BlockMetadata::default(),
                 Some(DisplaySettingsContent::new(&display).encode()),
+                false,
             );
             self.set_up = Some(profile);
         }

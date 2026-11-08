@@ -32,6 +32,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     let mut instances = placed_on(block, CounterContent::CONTENT_TYPE);
     next_screens(&mut instances);

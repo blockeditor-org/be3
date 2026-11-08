@@ -75,6 +75,7 @@ mod an_image_round_trips_without_being_re_encoded;
 mod an_offline_edit_merges_against_the_head_it_left_after_the_server_pruned_it;
 mod an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server;
 mod an_owner_only_block_is_read_by_its_author_alone;
+mod collecting_a_removed_members_settings_takes_what_only_they_read;
 mod contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase;
 mod contents_read_together_match_what_each_block_saved;
 mod edits_sealed_offline_are_published_when_the_device_reconnects;
@@ -263,6 +264,7 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
         be_type_workspace::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &be_block::BlockMetadata::named(name),
+        false,
     )
     .await
     .unwrap()
@@ -275,6 +277,7 @@ async fn my_files(peer: &Peer<MemoryStore>) -> Uuid {
         be_type_workspace::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &be_block::BlockMetadata::named("My files"),
+        false,
     )
     .await
     .unwrap()
@@ -327,6 +330,7 @@ async fn note(owner: &Peer<MemoryStore>) -> Uuid {
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
             &be_block::BlockMetadata::named("Notes"),
+            false,
         )
         .await
         .unwrap()

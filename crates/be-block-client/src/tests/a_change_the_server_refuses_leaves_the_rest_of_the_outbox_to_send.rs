@@ -49,6 +49,7 @@ async fn a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send() {
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
             &be_block::BlockMetadata::named("Another"),
+            false,
         )
         .await
         .unwrap()

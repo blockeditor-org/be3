@@ -13,6 +13,7 @@ fn a_block_named_before_it_arrives_is_created_with_that_name() {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
 
     let metadata = node(block).expect("the block is in the graph").metadata;
@@ -26,6 +27,7 @@ fn a_block_named_before_it_arrives_is_created_with_that_name() {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     name_when_created(later, "Ideas".to_owned());
     let metadata = node(later).expect("the block is in the graph").metadata;

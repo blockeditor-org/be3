@@ -178,6 +178,7 @@ where
         Some(content.encode()),
         BlockParent::Block(settings),
         BlockMetadata::default(),
+        false,
     );
     editor
         .content_of::<SettingsContent>(settings)

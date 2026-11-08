@@ -187,6 +187,67 @@ fn require_keeping_settings(
     }
 }
 
+/// Whether `seen` may delete a detached `block` for good: one it may edit, or an owner-only block
+/// (or one inside it) whose place it may edit, since deleting ciphertext nobody else opens
+/// reveals nothing, and leaving it would strand it below a parent that is gone.
+fn may_collect(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> bool {
+    seen.can_edit(graph, block)
+        || graph
+            .owner_only_root(block)
+            .and_then(|root| graph.get(root))
+            .and_then(|root| root.parent.block())
+            .is_some_and(|place| seen.can_edit(graph, place))
+}
+
+/// The `chosen` blocks that can go, children before their parents: a block goes only with every
+/// child it has, so no block is ever left below one that is gone.
+fn removable(graph: &BlockGraph, mut chosen: BTreeSet<Uuid>) -> Vec<Uuid> {
+    loop {
+        let kept: BTreeSet<Uuid> = chosen
+            .iter()
+            .copied()
+            .filter(|block| {
+                graph
+                    .children(BlockParent::Block(*block))
+                    .iter()
+                    .all(|child| chosen.contains(child))
+            })
+            .collect();
+        if kept.len() == chosen.len() {
+            break;
+        }
+        chosen = kept;
+    }
+    let mut ordered: Vec<Uuid> = chosen.into_iter().collect();
+    ordered.sort_by_key(|block| std::cmp::Reverse(graph.ancestors(*block).count()));
+    ordered
+}
+
+/// An owner-only block is made only in its maker's own settings: a `Settings` or
+/// `SettingsProfile` block the maker authored, so no one plants one in a block someone else
+/// pays for and could then neither open nor delete.
+fn require_own_settings(
+    graph: &BlockGraph,
+    identity: Identity,
+    parent: BlockParent,
+) -> Result<(), ServerError> {
+    let own = parent
+        .block()
+        .and_then(|parent| graph.get(parent))
+        .is_some_and(|parent| {
+            parent.author == identity.account
+                && !parent.owner_only
+                && be_block::holds_owner_only(parent.content_type)
+        });
+    match own {
+        true => Ok(()),
+        false => Err(ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            "a block readable by its author alone is made only in the author's own settings".into(),
+        )),
+    }
+}
+
 /// Only the author of an owner-only block, or of the one it lies in, moves or shares it, whatever
 /// access anyone else is given (decisions/owner_only_settings_are_never_escrowed.md).
 fn require_owner_of_owner_only(
@@ -265,6 +326,9 @@ impl ServerStore {
             }
             if let BlockParent::Block(target) = parent {
                 require_parent_of(graph, &visibility(identity), content_type, target)?;
+            }
+            if owner_only {
+                require_own_settings(graph, identity, parent)?;
             }
             store.may_create(graph, database, identity, block, content_type, parent)?;
             if !keys
@@ -895,6 +959,12 @@ impl ServerStore {
             }
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
             match parent {
+                BlockParent::Block(target) if graph.owner_only_root(target).is_some() => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!("block {target} is readable by its author alone, and nothing moves into it"),
+                    ));
+                }
                 BlockParent::Block(target) => {
                     require_parent_of(graph, &seen, node.content_type, target)?;
                 }
@@ -1117,7 +1187,7 @@ impl ServerStore {
                 .policies(graph, database, identity.organization)?
                 .history_kept_for();
             let since = be_block_commit::now_milliseconds() - kept_for;
-            let mut detached = Vec::new();
+            let mut chosen = BTreeSet::new();
             let candidates = match seen.candidates(graph) {
                 None => graph.detached(),
                 Some(blocks) => blocks
@@ -1126,14 +1196,15 @@ impl ServerStore {
                     .collect(),
             };
             for block in candidates {
-                if !seen.inherited(graph, block).can_edit() {
+                if !may_collect(graph, &seen, block) {
                     continue;
                 }
                 if kept_for > 0 && newest_version(database, identity.organization, block)? > since {
                     continue;
                 }
-                detached.push(block);
+                chosen.insert(block);
             }
+            let detached = removable(graph, chosen);
             let transaction = database.unchecked_transaction()?;
             let mut refs = store.object_refs();
             let mut freed = Vec::new();

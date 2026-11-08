@@ -35,6 +35,7 @@ fn a_listing_the_host_could_not_load_reaches_the_app_as_failed() {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     let mut instances = placed_on(folder, CounterContent::CONTENT_TYPE);
     let watch = open_watch(&mut instances, |op| Call::BlocksWatchNew {

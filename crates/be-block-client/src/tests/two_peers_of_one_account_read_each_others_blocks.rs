@@ -14,6 +14,7 @@ async fn two_peers_of_one_account_read_each_others_blocks() {
             WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
             &BlockMetadata::named("My files"),
+            false,
         )
         .await
         .unwrap()
