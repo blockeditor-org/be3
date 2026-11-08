@@ -36,7 +36,7 @@ def _output(ctx, target: str):
     return ctx.analysis(configured).providers()[DefaultInfo].default_outputs[0]
 
 # The action, over every crate below crates/ there is a Cargo.toml for.
-def generate(ctx, actions):
+def _generate(ctx, actions):
     files = _files(ctx, "crates")
     crate_dirs = [path.removesuffix("/Cargo.toml") for path in files if path.endswith("/Cargo.toml")]
     real = ["Cargo.toml", "Cargo.lock"] + [directory + "/Cargo.toml" for directory in crate_dirs]
@@ -54,6 +54,6 @@ def generate(ctx, actions):
     )
 
 def _impl(ctx):
-    ctx.output.print(ctx.output.ensure(generate(ctx, ctx.bxl_actions().actions)).abs_path())
+    ctx.output.print(ctx.output.ensure(_generate(ctx, ctx.bxl_actions().actions)).abs_path())
 
 main = bxl_main(cli_args = {}, impl = _impl)

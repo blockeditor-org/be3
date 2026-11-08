@@ -1,7 +1,7 @@
 # One subtarget of every first-party Rust target in the configurations the
 # tests build, the wasm ones included through transitions; prints
-# "label<TAB>path" per target. ./scripts/verify builds the check subtarget of
-# each (buck/dev/verify.bxl); this is for another one, such as clippy.txt.
+# "label<TAB>path" per target, such as clippy.txt's, which ./scripts/verify
+# does not build (its check pass is _checks in buck/dev/verify.bzl).
 #
 #   ./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.txt
 
@@ -18,14 +18,14 @@ def _platform(target) -> str:
 
 # Every first-party Rust target on those platforms. ./scripts/deploy's target is
 # left out of the universe: it configures be-host for every desktop platform.
-def rust_targets(ctx: bxl.Context) -> list:
+def _rust_targets(ctx: bxl.Context) -> list:
     universe = ctx.target_universe(ctx.uquery().eval("//crates/... - //crates/be-tool-local:deploy"))
     targets = ctx.cquery().kind("^rust_(library|binary|test)$", universe.lookup("//crates/..."))
     return [target for target in targets if _platform(target) in _PLATFORMS]
 
 def _impl(ctx: bxl.Context):
     name = ctx.cli_args.subtarget
-    targets = rust_targets(ctx)
+    targets = _rust_targets(ctx)
     outputs = {}
     for target in targets:
         sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets

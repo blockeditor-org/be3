@@ -1,6 +1,6 @@
 load("@root//buck/cargo:defs.bzl", "cargo_crate")
 
 # The Win32 calls are behind cfg(windows); the mapping, scan codes and the
-# SendInput entries they build are plain Rust tested here on Linux. verify
-# checks the Windows build (_CROSS_CHECKS).
+# SendInput entries they build are plain Rust tested here on Linux. The
+# Windows build is first compiled by the build helper or ./scripts/deploy.
 cargo_crate()

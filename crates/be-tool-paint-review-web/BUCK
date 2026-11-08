@@ -37,7 +37,7 @@ export_file(
     src = "web/Caddyfile",
 )
 
-# What CI uploads for a pull request's paint previews (buck/dev/verify.bxl).
+# What CI uploads for a pull request's paint previews (//:verify[previews], buck/dev/verify.bzl).
 released(
     name = "web-release",
     actual = ":web",

@@ -75,8 +75,8 @@ name that is its content's hash never changes what it points at, and nothing
 deletes them, so every commit's pins keep working.
 
 Every commit is verified with the release pinned before it, so whatever that
-release passes to, reads from or writes into the tree (verify.bxl's
-parameters and the manifest it prints, test.bxl's parameters and its
+release passes to, reads from or writes into the tree (the `//:verify` and
+`//:verify-manifest` parts it builds and the manifests they write, test.bxl's parameters and its
 `target<TAB>directory` lines, each directory holding `log`, `status` and
 `changed/` as crates/be-tool-run-test's `--record` writes them,
 be-tool-verify's flags, the names in scripts/internal/pins,
