@@ -14,5 +14,4 @@ cargo_test(**WIT)
 filegroup(
     name = "wit",
     srcs = glob(["wit/*.wit"]),
-    visibility = ["PUBLIC"],
 )

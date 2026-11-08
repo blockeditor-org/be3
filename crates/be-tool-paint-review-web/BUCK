@@ -41,5 +41,4 @@ export_file(
 released(
     name = "web-release",
     actual = ":web",
-    visibility = ["PUBLIC"],
 )

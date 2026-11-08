@@ -9,5 +9,4 @@ cargo_test()
 filegroup(
     name = "android-java",
     srcs = glob(["android/java/**/*.java"]),
-    visibility = ["PUBLIC"],
 )

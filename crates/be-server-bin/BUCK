@@ -13,7 +13,6 @@ cargo_binary(
 html_host_program(
     name = "bin",
     program = ":html-bin",
-    visibility = ["PUBLIC"],
 )
 
 # What CI and a host ship: the executable as be-server, with the build-info.json

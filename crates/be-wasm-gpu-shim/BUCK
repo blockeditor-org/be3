@@ -14,5 +14,4 @@ wasm32_module(
     name = "module",
     library = ":be-wasm-gpu-shim",
     module = "block_gpu_shim",
-    visibility = ["PUBLIC"],
 )

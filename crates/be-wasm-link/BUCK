@@ -8,4 +8,4 @@ cargo_library()
 
 cargo_test()
 
-cargo_binary(visibility = ["PUBLIC"])
+cargo_binary()

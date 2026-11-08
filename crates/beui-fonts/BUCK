@@ -10,7 +10,6 @@ cargo_test()
     export_file(
         name = path.split("/")[-1],
         src = "src/assets/" + path,
-        visibility = ["PUBLIC"],
     )
     for path in [
         "fonts/Inter-Regular.ttf",

@@ -21,7 +21,6 @@ web_program(
     module = "beui_demo_html",
     role = "html",
     serve = "127.0.0.1:8075",
-    visibility = ["PUBLIC"],
 )
 
 # src/drive/*.drive in Chromium against :web: every page opens, the long modal

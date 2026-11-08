@@ -13,17 +13,14 @@ bootstrap_unpinned(
 export_file(
     name = "build-ghostty-vt.sh",
     src = "build-ghostty-vt.sh",
-    visibility = ["PUBLIC"],
 )
 
 export_file(
     name = "download.sh",
     src = "download.sh",
-    visibility = ["PUBLIC"],
 )
 
 export_file(
     name = "ghostty-vt.patch",
     src = "ghostty-vt.patch",
-    visibility = ["PUBLIC"],
 )

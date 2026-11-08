@@ -143,6 +143,5 @@ def sysroot(name, set_name, packages, **kwargs):
         deb_sysroot,
         name = name,
         packages = [":" + _deb_name(set_name, package) for package, _, _, _ in packages.get(set_name, [])],
-        visibility = ["PUBLIC"],
         **kwargs,
     )

@@ -80,7 +80,6 @@ cxx_library(
     ],
     preferred_linkage = "static",
     target_compatible_with = ["prelude//os/constraints:os[wasi]"],
-    visibility = ["PUBLIC"],
 )
 
 package_fix()

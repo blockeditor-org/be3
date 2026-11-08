@@ -19,5 +19,4 @@ bootstrap_dist(
     macos_x86_64 = ":bin",
     windows_arm64 = ":bin",
     windows_x86_64 = ":bin",
-    visibility = ["PUBLIC"],
 )

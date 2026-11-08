@@ -15,5 +15,4 @@ cargo_binary()
 released(
     name = "release",
     actual = ":bin",
-    visibility = ["PUBLIC"],
 )
