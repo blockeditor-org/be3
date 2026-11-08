@@ -66,9 +66,8 @@ terminals; the notes below are a review's, to settle before building it.
 - **The manifest field** that gates the host calls needs a name.
 - `create-block-agent` needs Manage on the block and answers the agent id,
   which `rotate-agent-token` and `remove-agent` take.
-- **The gateway key.** The credentials an app hands to a machine need the
-  `Be3-Gateway-Authorization` key when the server is behind a gateway
-  (guides/hosting.md), and no app has it.
+- **The gateway key** is not part of the credentials: a machine behind a
+  gateway gets it added by hand (plans/deferred/boat_terminals.md).
 
 ## Order of work
 

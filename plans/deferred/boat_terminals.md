@@ -4,21 +4,26 @@ Depends on: plans/boat.md, plans/unfiled.md and
 plans/deferred/block_agents.md.
 
 Opening a terminal block into a boat VM from the boat app (plans/boat.md). Set
-aside until the blockers below are answered; the design follows them.
+aside until the first constraint below, matching `be`'s build, is solved;
+the design follows them.
 
-## Blockers
+## Constraints
 
 - **`be` in the VM must match the server's build.** The server refuses a `be`
   of another build (guides/tracker.md) and the terminal host and its viewers
   need the same type-module build (guides/terminal.md). The app needs the
   release URL and SHA-256 of `be` for the server it talks to, from a host call
   or a data file; nothing provides it.
-- **The gateway key.** Credentials handed to the VM need the
-  `Be3-Gateway-Authorization` key when the server is behind a gateway
-  (guides/hosting.md); no app has it.
-- **Testing.** A boat VM can't reach a local dev be-server, and production
-  needs the pinned build and the gateway key, so Connect can't be tested end
-  to end on a development machine.
+- **The gateway key.** Credentials handed to the VM carry no
+  `Be3-Gateway-Authorization` key (guides/hosting.md): no app has it, and none
+  is handed out. Behind a gateway, the terminal host fails to connect and says
+  so in its log; the person adds the key by hand (ssh into the VM and set it
+  in the credentials file the service reads). Decided by the user; Connect
+  only says the terminal could not connect.
+- **Testing** runs against a mock of boat's API, never the real one: a fake
+  boat server in the test answers the sandbox, files and commands calls from
+  recorded JSON, and the terminal host runs locally against a test be-server,
+  so Connect, resume and Disconnect are tested end to end without a VM.
 - **Files and secrets.** boat's files API writes only under `/home/user` and
   `/tmp` (400 `invalid_path` elsewhere). Commands run as `user` with
   passwordless sudo, and every command and its output are kept 90 days in
