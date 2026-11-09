@@ -42,6 +42,27 @@ pub(super) fn reconnect_delay(failures: u32, jitter: f64) -> Duration {
     ceiling.mul_f64(0.5 + 0.5 * jitter.clamp(0.0, 1.0))
 }
 
+/// When to try failed version statuses again (`Versions::refresh`), from the deadline
+/// already armed and how many came due in a row: armed once and kept until it comes due, then
+/// moved on by `reconnect_delay`; cleared when nothing transient awaits it or the line is down.
+pub(crate) fn next_retry(
+    awaiting: bool,
+    now: Duration,
+    armed: Option<Duration>,
+    failures: u32,
+    jitter: f64,
+) -> (Option<Duration>, u32) {
+    let due = armed.is_some_and(|at| at <= now);
+    match (awaiting, due || armed.is_none()) {
+        (true, true) => (
+            Some(now + reconnect_delay(failures, jitter)),
+            failures.saturating_add(1),
+        ),
+        (true, false) => (armed, failures),
+        (false, _) => (None, 0),
+    }
+}
+
 fn jitter() -> f64 {
     (Uuid::new_v4().as_u128() as u64 >> 11) as f64 / (1u64 << 53) as f64
 }
@@ -947,6 +968,12 @@ impl Session<'_> {
                         }
                     }
                     for event in heard_all {
+                        if matches!(
+                            event,
+                            Some(Event::HeadChanged { .. } | Event::BlockChanged(_)) | None
+                        ) {
+                            self.versions.announced();
+                        }
                         match &event {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),
@@ -1027,20 +1054,13 @@ impl Session<'_> {
         // the server (`Versions::refresh`) is tried again only when this deadline comes due,
         // less often each time, and not while the line is down: reconnecting forgets those
         // failures and refreshes.
-        match (
+        (self.versions_due, self.version_failures) = next_retry(
             awaiting && self.line.is_up(),
-            due || self.versions_due.is_none(),
-        ) {
-            (true, true) => {
-                self.versions_due = Some(now + reconnect_delay(self.version_failures, jitter()));
-                self.version_failures = self.version_failures.saturating_add(1);
-            }
-            (true, false) => {}
-            (false, _) => {
-                self.versions_due = None;
-                self.version_failures = 0;
-            }
-        }
+            now,
+            self.versions_due,
+            self.version_failures,
+            jitter(),
+        );
     }
 
     fn retry_at(&self) -> Option<Duration> {
