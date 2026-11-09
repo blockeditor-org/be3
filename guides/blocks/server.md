@@ -340,7 +340,8 @@ anyone else gets the best grant on the block or an ancestor (a lower grant
 never reduces an inherited one), and `Manage` on what they authored while they
 can view its parent (or it is `Root` or `Detached`), so a member taken off a
 workspace loses what they wrote inside it. Settings blocks and edit kinds take
-their access from their parent: guides/settings.md, "Access".
+their access from their parent: guides/settings.md, "Access". A search index has
+exactly its parent's access and takes no grants (guides/blocks/host.md, "Search").
 
 - A block someone can view that references another gives them `KnowExists` on
   it, one level only: they learn its id, content type and access

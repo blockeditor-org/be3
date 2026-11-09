@@ -91,6 +91,9 @@ struct Answer {
     read: u64,
     found: Vec<Found>,
     shown: Option<Searched>,
+    /// The graph's revision when it was shown, if some hit was left out for want of its block
+    /// in the mirror: it is shown again once the graph moves.
+    missing: Option<u64>,
 }
 
 /// What the worker keeps for search, in `Shared::search`.
@@ -480,6 +483,13 @@ fn heads(peer: &Peer<Store>, graph: &Graph, indexes: &[Uuid]) -> u64 {
 /// Starts the wanted searches whose answer is missing or read older heads.
 fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -> bool {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    let graph = held.graph.revision;
+    for answer in held.search.answers.values_mut() {
+        if answer.missing.is_some_and(|at| at != graph) {
+            answer.shown = None;
+            answer.missing = None;
+        }
+    }
     let wanted: Vec<SearchAsk> = held.search.wanted().cloned().collect();
     let mut followed = Vec::new();
     let mut started = false;
@@ -510,6 +520,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
                         read,
                         found,
                         shown: None,
+                        missing: None,
                     },
                 );
             }
@@ -589,30 +600,28 @@ async fn show(
     for (asked, found) in unshown {
         let query = Query::parse(&asked.text);
         let mut hits = Vec::new();
+        let mut missing = false;
         for found in found {
             let (content_type, head) = {
                 let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                let node = held.graph.get(found.block);
-                let viewable = node.is_none_or(|node| {
-                    node.access.can_view() && node.parent != Some(BlockParent::Detached)
-                });
+                let Some(node) = held.graph.get(found.block) else {
+                    missing = true;
+                    continue;
+                };
+                let viewable =
+                    node.access.can_view() && node.parent != Some(BlockParent::Detached);
                 let within = asked
                     .within
                     .is_none_or(|within| held.graph.is_within(found.block, within));
                 if !viewable || !within {
                     continue;
                 }
-                (node.map(|node| node.content_type), node.and_then(|node| node.head))
+                (node.content_type, node.head)
             };
             if hits.len() >= SHOWN {
                 break;
             }
-            let text = match content_type {
-                Some(content_type) => {
-                    cached_text(peer, shared, replicas, found.block, content_type, head).await
-                }
-                None => None,
-            };
+            let text = cached_text(peer, shared, replicas, found.block, content_type, head).await;
             let snippet = query.snippet(text.as_deref().unwrap_or_default());
             hits.push(SearchHit {
                 block: found.block,
@@ -622,11 +631,13 @@ async fn show(
             });
         }
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        let graph = held.graph.revision;
         if let Some(answer) = held.search.answers.get_mut(&asked) {
             answer.shown = Some(Searched {
                 hits,
                 complete: false,
             });
+            answer.missing = missing.then_some(graph);
             held.search.revision += 1;
         }
     }

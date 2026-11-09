@@ -57,7 +57,8 @@ pub(crate) struct OpenableBlock {
 /// it this is (0 while the palette lists actions, when a source lists nothing and lets go of
 /// what it read), it answers the blocks to offer, filtered and in order: the palette keeps
 /// that order (`PaletteItem::ranked`), so a source can be a search answering as its results
-/// arrive (plans/search.md). The host's own, `loaded_blocks`, lists the blocks its graph holds.
+/// arrive (plans/search.md). The host's own, `found_blocks`, lists the blocks its graph holds
+/// whose names match, then what the search index finds in content.
 pub(crate) type BlockSource = Rc<dyn Fn(Memo<String>, Memo<u64>) -> Memo<Vec<OpenableBlock>>>;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -68,7 +69,7 @@ enum Shown {
 
 #[component]
 pub(crate) fn HostPalette(
-    #[prop(default = Rc::new(loaded_blocks) as BlockSource)] blocks: BlockSource,
+    #[prop(default = Rc::new(found_blocks) as BlockSource)] blocks: BlockSource,
 ) -> NodeId {
     let open = create_signal(false);
     let shown = create_signal(Shown::Actions);
@@ -219,7 +220,56 @@ fn block_rows(blocks: Vec<OpenableBlock>, from: Option<Uuid>) -> Vec<Row> {
         .collect()
 }
 
-/// The host's own quick open: the blocks its graph holds, read again each time quick open
+/// The host's own quick open: the blocks whose names match (`loaded_blocks`), then the search
+/// index's hits for what is typed (plans/search.md) that are not among them, in the index's
+/// order, each with the text around its match as its detail.
+fn found_blocks(typed: Memo<String>, opened: Memo<u64>) -> Memo<Vec<OpenableBlock>> {
+    let named = loaded_blocks(typed, opened);
+    let searched = super::searched();
+    let asked = create_memo(move || {
+        let text = typed.get().trim().to_owned();
+        (opened.get() != 0 && !text.is_empty()).then_some(be_host_stack::SearchAsk {
+            text,
+            within: None,
+        })
+    });
+    create_effect(move || {
+        be_host_stack::want_searches(
+            be_host_stack::Owner::Host,
+            asked.get().into_iter().collect(),
+        );
+    });
+    on_cleanup(|| be_host_stack::want_searches(be_host_stack::Owner::Host, Vec::new()));
+    create_memo(move || {
+        searched.get();
+        let mut blocks = named.get();
+        let Some(found) = asked.with(|asked| asked.as_ref().and_then(be_host_stack::searched))
+        else {
+            return blocks;
+        };
+        let registry = super::editors::editors().registry();
+        for hit in found.hits {
+            if blocks.iter().any(|block| block.id == hit.block) {
+                continue;
+            }
+            let Some(node) = be_host_stack::node(hit.block) else {
+                continue;
+            };
+            let Some(type_name) = registry.display_name(node.content_type) else {
+                continue;
+            };
+            blocks.push(OpenableBlock {
+                id: node.id,
+                block_type: node.content_type,
+                name: node.metadata.name().unwrap_or_else(|| type_name.to_owned()),
+                detail: hit.snippet,
+            });
+        }
+        blocks
+    })
+}
+
+/// The host's quick open by name: the blocks its graph holds, read again each time quick open
 /// opens, that sit in a folder or at the top (not detached), may be viewed and that an editor
 /// shows (named after themselves, else their type), those open in an editor first, fuzzily
 /// matched against what is typed.

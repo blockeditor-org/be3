@@ -43,8 +43,7 @@ pub(crate) fn ContentHits(editor: Editor, hits: Memo<Vec<SearchHit>>) -> NodeId 
                         "In content"
                     </Text>
                 </Frame>
-            </Show>
-            <Frame padding=PADDING>
+                <Frame padding={Padding::ZERO.top(Space::Xs2).left(PADDING).right(PADDING)}>
                     <List spacing=Space::Xs2>
                         <ForEach keys={keys}>|(block, key): (Uuid, String)| {
                             let hit = create_memo(move || {
@@ -58,7 +57,8 @@ pub(crate) fn ContentHits(editor: Editor, hits: Memo<Vec<SearchHit>>) -> NodeId 
                             view! { <HitRow editor hit block /> }
                         }</ForEach>
                     </List>
-            </Frame>
+                </Frame>
+            </Show>
         </List>
     }
 }
