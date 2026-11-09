@@ -11,14 +11,29 @@ fn a_query_reads_few_blocks_while_skipping_a_common_term() {
             source: None,
             text: Some(Text {
                 name: format!("entry{n}"),
-                body: if n == 777 { "common rare".into() } else { format!("common filler{n}") },
+                body: if n == 777 {
+                    "common rare".into()
+                } else {
+                    format!("common filler{n}")
+                },
             }),
         })
         .collect();
-    apply(&mut index, &mut store, id(1), Batch { put, ..Batch::default() });
+    apply(
+        &mut index,
+        &mut store,
+        id(1),
+        Batch {
+            put,
+            ..Batch::default()
+        },
+    );
     store.reads.borrow_mut().clear();
     let hits = run(index.search(&store, &Query::parse("common rare "), 10)).unwrap();
-    assert_eq!(hits.iter().map(|hit| hit.doc.clone()).collect::<Vec<_>>(), [doc(777)]);
+    assert_eq!(
+        hits.iter().map(|hit| hit.doc.clone()).collect::<Vec<_>>(),
+        [doc(777)]
+    );
     let dictionary = store.count(|kind| *kind == PartKind::Dictionary);
     let postings = store.count(|kind| *kind == PartKind::Postings);
     // "common"'s 1200 postings are ten blocks; the query reads its skip data

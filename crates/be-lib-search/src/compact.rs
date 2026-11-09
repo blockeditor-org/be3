@@ -40,7 +40,10 @@ impl Written {
         let dropped = std::mem::take(&mut self.dropped);
         let added: Vec<_> = self.added.iter().map(|(name, _)| *name).collect();
         self.added.retain(|(name, _)| !dropped.contains(name));
-        self.dropped = dropped.into_iter().filter(|name| !added.contains(name)).collect();
+        self.dropped = dropped
+            .into_iter()
+            .filter(|name| !added.contains(name))
+            .collect();
         self.dropped.sort();
         self.dropped.dedup();
     }
@@ -64,14 +67,19 @@ impl Index {
                     index += 1;
                 }
             }
-            let group = match self.segments.iter().position(|meta| meta.deleted * 2 > meta.docs) {
+            let group = match self
+                .segments
+                .iter()
+                .position(|meta| meta.deleted * 2 > meta.docs)
+            {
                 Some(index) => vec![index],
                 None => {
                     let mut tiers: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
                     for (index, meta) in self.segments.iter().enumerate() {
                         tiers.entry(tier(meta.live())).or_default().push(index);
                     }
-                    let Some(mut group) = tiers.into_values().find(|group| group.len() >= FACTOR) else {
+                    let Some(mut group) = tiers.into_values().find(|group| group.len() >= FACTOR)
+                    else {
                         break;
                     };
                     group.sort_by_key(|&index| self.segments[index].live());
@@ -81,8 +89,14 @@ impl Index {
             };
             n += 1;
             let id = derive(origin, n);
-            let inputs: Vec<Meta> = group.iter().map(|&index| self.segments[index].clone()).collect();
-            let source = Overlay { parts, built: &built };
+            let inputs: Vec<Meta> = group
+                .iter()
+                .map(|&index| self.segments[index].clone())
+                .collect();
+            let source = Overlay {
+                parts,
+                built: &built,
+            };
             let (meta, segment_parts) = merge_segments(&source, &inputs, id, &mut table).await?;
             let mut group = group;
             group.sort_unstable_by(|a, b| b.cmp(a));
@@ -108,7 +122,11 @@ struct Overlay<'a, P> {
 }
 
 impl<P: Parts> Parts for Overlay<'_, P> {
-    async fn read(&self, part: &crate::PartName, range: std::ops::Range<u64>) -> Result<Vec<u8>, Error> {
+    async fn read(
+        &self,
+        part: &crate::PartName,
+        range: std::ops::Range<u64>,
+    ) -> Result<Vec<u8>, Error> {
         if let Some(segment) = self.built.get(&part.origin)
             && let Some((_, bytes)) = segment.iter().find(|(name, _)| name == part)
         {
@@ -136,8 +154,15 @@ async fn merge_segments(
             if deletions.get(local) {
                 continue;
             }
-            let here = Place { segment: meta.id, local };
-            if table.get(parts, &document.doc).await?.is_none_or(|entry| entry.place != Some(here)) {
+            let here = Place {
+                segment: meta.id,
+                local,
+            };
+            if table
+                .get(parts, &document.doc)
+                .await?
+                .is_none_or(|entry| entry.place != Some(here))
+            {
                 continue;
             }
             documents.push(document);
@@ -145,7 +170,8 @@ async fn merge_segments(
         }
     }
     let locals = segment::assign(&documents);
-    let remap: HashMap<(usize, u32), u32> = from.iter().copied().zip(locals.iter().copied()).collect();
+    let remap: HashMap<(usize, u32), u32> =
+        from.iter().copied().zip(locals.iter().copied()).collect();
     let mut terms: BTreeMap<Vec<u8>, Vec<Posting>> = BTreeMap::new();
     for (input, meta) in inputs.iter().enumerate() {
         for (term, list) in meta.read_all(parts).await? {
@@ -165,7 +191,11 @@ async fn merge_segments(
         list.sort_by_key(|posting| posting.doc);
     }
     for (document, &local) in documents.iter().zip(&locals) {
-        let mut entry = table.get(parts, &document.doc).await?.cloned().expect("checked above");
+        let mut entry = table
+            .get(parts, &document.doc)
+            .await?
+            .cloned()
+            .expect("checked above");
         entry.place = Some(Place { segment: id, local });
         table.put(entry);
     }

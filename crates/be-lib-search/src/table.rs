@@ -22,7 +22,12 @@ pub(crate) async fn read_chunk(parts: &impl Parts, chunk: &ChunkRef) -> Result<V
 
 /// Writes `entries` (sorted) as new chunks named under `origin`, numbering
 /// them from `*next`.
-pub(crate) fn write_chunks(entries: &[Entry], origin: Id, next: &mut u32, written: &mut Written) -> Vec<ChunkRef> {
+pub(crate) fn write_chunks(
+    entries: &[Entry],
+    origin: Id,
+    next: &mut u32,
+    written: &mut Written,
+) -> Vec<ChunkRef> {
     entries
         .chunks(CHUNK)
         .map(|chunk| {
@@ -31,7 +36,10 @@ pub(crate) fn write_chunks(entries: &[Entry], origin: Id, next: &mut u32, writte
                 kind: PartKind::Table(*next),
             };
             *next += 1;
-            written.added.push((part, postcard::to_allocvec(chunk).expect("a table chunk encodes")));
+            written.added.push((
+                part,
+                postcard::to_allocvec(chunk).expect("a table chunk encodes"),
+            ));
             ChunkRef {
                 first: chunk[0].doc.clone(),
                 part,
@@ -74,7 +82,11 @@ impl Edit {
         Ok(self.loaded.get_mut(&index).unwrap())
     }
 
-    pub(crate) async fn get(&mut self, parts: &impl Parts, doc: &DocId) -> Result<Option<&Entry>, Error> {
+    pub(crate) async fn get(
+        &mut self,
+        parts: &impl Parts,
+        doc: &DocId,
+    ) -> Result<Option<&Entry>, Error> {
         let entries = self.load(parts, self.chunk_of(doc)).await?;
         Ok(match entries.binary_search_by(|entry| entry.doc.cmp(doc)) {
             Ok(at) => Some(&entries[at]),
@@ -94,7 +106,11 @@ impl Edit {
         self.changed.insert(index);
     }
 
-    pub(crate) async fn entries_of(&mut self, parts: &impl Parts, block: &[u8]) -> Result<Vec<Entry>, Error> {
+    pub(crate) async fn entries_of(
+        &mut self,
+        parts: &impl Parts,
+        block: &[u8],
+    ) -> Result<Vec<Entry>, Error> {
         let start = self.chunk_of(&DocId {
             block: block.to_vec(),
             key: String::new(),
@@ -106,7 +122,12 @@ impl Edit {
         let mut out = Vec::new();
         for index in start..end {
             let entries = self.load(parts, index).await?;
-            out.extend(entries.iter().filter(|entry| entry.doc.block == block).cloned());
+            out.extend(
+                entries
+                    .iter()
+                    .filter(|entry| entry.doc.block == block)
+                    .cloned(),
+            );
         }
         Ok(out)
     }
@@ -124,7 +145,12 @@ impl Edit {
             if let Some(old) = self.dir.get(index) {
                 written.dropped.push(old.part);
             }
-            dir.extend(write_chunks(&self.loaded[&index], origin, &mut next, written));
+            dir.extend(write_chunks(
+                &self.loaded[&index],
+                origin,
+                &mut next,
+                written,
+            ));
         }
         dir
     }

@@ -14,7 +14,12 @@ use crate::{
 impl Index {
     /// The union of `self` and `other`, whose parts `parts` reads alike,
     /// writing what changed under `origin`.
-    pub async fn merge(&self, other: &Index, parts: &impl Parts, origin: Id) -> Result<(Index, Written), Error> {
+    pub async fn merge(
+        &self,
+        other: &Index,
+        parts: &impl Parts,
+        origin: Id,
+    ) -> Result<(Index, Written), Error> {
         let mut written = Written::default();
         let retired: BTreeSet<Id> = self.retired.iter().chain(&other.retired).copied().collect();
         let mut segments: Vec<(Meta, Option<Meta>)> = Vec::new();
@@ -48,7 +53,12 @@ impl Index {
             .table
             .iter()
             .filter(|chunk| !theirs.contains(&chunk.part))
-            .chain(other.table.iter().filter(|chunk| !ours.contains(&chunk.part)));
+            .chain(
+                other
+                    .table
+                    .iter()
+                    .filter(|chunk| !ours.contains(&chunk.part)),
+            );
         for chunk in unshared {
             for entry in table::read_chunk(parts, chunk).await? {
                 let Some(old) = merged.remove(&entry.doc) else {
@@ -56,10 +66,16 @@ impl Index {
                     continue;
                 };
                 let rank = |entry: &Entry| {
-                    let survives = entry.place.is_none_or(|place| surviving.contains(&place.segment));
+                    let survives = entry
+                        .place
+                        .is_none_or(|place| surviving.contains(&place.segment));
                     (entry.commit, survives, std::cmp::Reverse(entry.place))
                 };
-                let (winner, loser) = if rank(&entry) > rank(&old) { (entry, old) } else { (old, entry) };
+                let (winner, loser) = if rank(&entry) > rank(&old) {
+                    (entry, old)
+                } else {
+                    (old, entry)
+                };
                 if let Some(place) = loser.place
                     && loser.place != winner.place
                     && surviving.contains(&place.segment)
@@ -77,12 +93,22 @@ impl Index {
             while let Some(entry) = entries.next_if(|entry| entry.doc < chunk.first) {
                 pending.push(entry);
             }
-            dir.extend(table::write_chunks(&pending, origin, &mut next, &mut written));
+            dir.extend(table::write_chunks(
+                &pending,
+                origin,
+                &mut next,
+                &mut written,
+            ));
             pending.clear();
             dir.push(chunk);
         }
         pending.extend(entries);
-        dir.extend(table::write_chunks(&pending, origin, &mut next, &mut written));
+        dir.extend(table::write_chunks(
+            &pending,
+            origin,
+            &mut next,
+            &mut written,
+        ));
 
         // Deletion bitmaps: both sides' bits and the losers'.
         let mut metas = Vec::with_capacity(segments.len());

@@ -7,7 +7,10 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-use crate::{Batch, Commit, DocId, Error, Id, Index, MemoryParts, PartKind, PartName, Parts, Put, Query, Text, Written};
+use crate::{
+    Batch, Commit, DocId, Error, Id, Index, MemoryParts, PartKind, PartName, Parts, Put, Query,
+    Text, Written,
+};
 
 mod a_query_reads_few_blocks_while_skipping_a_common_term;
 mod a_reindexed_document_no_longer_matches_its_old_words;
@@ -21,7 +24,10 @@ mod queries_parse_words_phrases_and_a_last_prefix;
 /// Runs a future that never waits: every read here is from memory.
 pub(crate) fn run<T>(future: impl Future<Output = T>) -> T {
     let mut future = pin!(future);
-    match future.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+    match future
+        .as_mut()
+        .poll(&mut Context::from_waker(Waker::noop()))
+    {
         Poll::Ready(value) => value,
         Poll::Pending => panic!("a read from memory waited"),
     }
@@ -72,8 +78,9 @@ pub(crate) fn commit(time: i64) -> Commit {
 }
 
 const VOCABULARY: &[&str] = &[
-    "river", "stone", "cloud", "lantern", "harbor", "meadow", "copper", "willow", "ember", "falcon", "glacier", "orchard",
-    "pepper", "quartz", "saddle", "thistle", "violet", "walnut", "yonder", "zephyr",
+    "river", "stone", "cloud", "lantern", "harbor", "meadow", "copper", "willow", "ember",
+    "falcon", "glacier", "orchard", "pepper", "quartz", "saddle", "thistle", "violet", "walnut",
+    "yonder", "zephyr",
 ];
 
 /// Document `n`'s text, version `version`: common words, a unique word
@@ -153,6 +160,10 @@ pub(crate) fn queries(count: u32) -> Vec<String> {
 
 pub(crate) fn same_answers(a: (&Index, &Store), b: (&Index, &Store), count: u32) {
     for query in queries(count) {
-        assert_eq!(found(a.0, a.1, &query), found(b.0, b.1, &query), "{query:?}");
+        assert_eq!(
+            found(a.0, a.1, &query),
+            found(b.0, b.1, &query),
+            "{query:?}"
+        );
     }
 }

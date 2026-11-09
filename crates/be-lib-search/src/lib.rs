@@ -118,7 +118,11 @@ impl std::error::Error for Error {}
 pub trait Parts {
     /// The bytes of `part` in `range`; an end past the part's end reads to
     /// its end.
-    fn read(&self, part: &PartName, range: Range<u64>) -> impl Future<Output = Result<Vec<u8>, Error>>;
+    fn read(
+        &self,
+        part: &PartName,
+        range: Range<u64>,
+    ) -> impl Future<Output = Result<Vec<u8>, Error>>;
 }
 
 /// Parts held in memory, as a test or a type module that loaded them has.
@@ -262,7 +266,12 @@ impl Index {
 
     /// Applies a batch: a new segment for the documents with new text, the
     /// table chunks they change and the deletion bitmaps of what they mask.
-    pub async fn apply(&mut self, parts: &impl Parts, origin: Id, batch: Batch) -> Result<Written, Error> {
+    pub async fn apply(
+        &mut self,
+        parts: &impl Parts,
+        origin: Id,
+        batch: Batch,
+    ) -> Result<Written, Error> {
         let mut written = Written::default();
         let mut table = table::Edit::new(&self.table);
         let mut masks: Vec<Place> = Vec::new();
@@ -319,13 +328,21 @@ impl Index {
             table.put(entry);
         }
         if !fresh.is_empty() {
-            let (meta, segment_parts, places) = segment::build_from_text(origin, fresh.iter().map(|(doc, commit, _, text)| (doc, commit.time, text)));
+            let (meta, segment_parts, places) = segment::build_from_text(
+                origin,
+                fresh
+                    .iter()
+                    .map(|(doc, commit, _, text)| (doc, commit.time, text)),
+            );
             for ((doc, commit, source, _), local) in fresh.into_iter().zip(places) {
                 table.put(Entry {
                     doc,
                     commit,
                     source,
-                    place: Some(Place { segment: origin, local }),
+                    place: Some(Place {
+                        segment: origin,
+                        local,
+                    }),
                 });
             }
             written.added.extend(segment_parts);
@@ -340,7 +357,13 @@ impl Index {
     }
 
     /// Sets the deletion bits of `places`, rewriting each bitmap they touch.
-    async fn mask(&mut self, parts: &impl Parts, origin: Id, places: &[Place], written: &mut Written) -> Result<(), Error> {
+    async fn mask(
+        &mut self,
+        parts: &impl Parts,
+        origin: Id,
+        places: &[Place],
+        written: &mut Written,
+    ) -> Result<(), Error> {
         for segment in &mut self.segments {
             let locals: Vec<u32> = places
                 .iter()

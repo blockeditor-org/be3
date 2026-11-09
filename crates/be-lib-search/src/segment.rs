@@ -42,14 +42,22 @@ pub(crate) struct Meta {
 
 impl Meta {
     pub(crate) fn part(&self, kind: PartKind) -> PartName {
-        PartName { origin: self.id, kind }
+        PartName {
+            origin: self.id,
+            kind,
+        }
     }
 
     pub(crate) fn parts(&self) -> Vec<PartName> {
-        let mut names: Vec<PartName> = [PartKind::Dictionary, PartKind::Postings, PartKind::Positions, PartKind::Documents]
-            .into_iter()
-            .map(|kind| self.part(kind))
-            .collect();
+        let mut names: Vec<PartName> = [
+            PartKind::Dictionary,
+            PartKind::Postings,
+            PartKind::Positions,
+            PartKind::Documents,
+        ]
+        .into_iter()
+        .map(|kind| self.part(kind))
+        .collect();
         names.extend(self.deletions);
         names
     }
@@ -83,7 +91,8 @@ impl Meta {
     pub(crate) fn dictionary(&self) -> Result<Dictionary<'_>, Error> {
         Ok(Dictionary {
             meta: self,
-            top: Map::new(self.top.as_slice()).map_err(|_| Error::Corrupt("top-level dictionary"))?,
+            top: Map::new(self.top.as_slice())
+                .map_err(|_| Error::Corrupt("top-level dictionary"))?,
         })
     }
 
@@ -100,12 +109,17 @@ impl Meta {
     }
 
     pub(crate) async fn documents(&self, parts: &impl Parts) -> Result<Vec<Document>, Error> {
-        let bytes = parts.read(&self.part(PartKind::Documents), 0..u64::MAX).await?;
+        let bytes = parts
+            .read(&self.part(PartKind::Documents), 0..u64::MAX)
+            .await?;
         let count = le(&bytes, 0)? as usize;
         let base = 4 + 4 * (count + 1);
         (0..count)
             .map(|local| {
-                let (start, end) = (le(&bytes, 4 + 4 * local)? as usize, le(&bytes, 8 + 4 * local)? as usize);
+                let (start, end) = (
+                    le(&bytes, 4 + 4 * local)? as usize,
+                    le(&bytes, 8 + 4 * local)? as usize,
+                );
                 let record = bytes
                     .get(base + start..base + end)
                     .ok_or(Error::Corrupt("documents"))?;
@@ -115,10 +129,19 @@ impl Meta {
     }
 
     /// Every term with its postings and positions, for compaction.
-    pub(crate) async fn read_all(&self, parts: &impl Parts) -> Result<BTreeMap<Vec<u8>, Vec<Posting>>, Error> {
-        let dictionary = parts.read(&self.part(PartKind::Dictionary), 0..u64::MAX).await?;
-        let postings = parts.read(&self.part(PartKind::Postings), 0..u64::MAX).await?;
-        let positions = parts.read(&self.part(PartKind::Positions), 0..u64::MAX).await?;
+    pub(crate) async fn read_all(
+        &self,
+        parts: &impl Parts,
+    ) -> Result<BTreeMap<Vec<u8>, Vec<Posting>>, Error> {
+        let dictionary = parts
+            .read(&self.part(PartKind::Dictionary), 0..u64::MAX)
+            .await?;
+        let postings = parts
+            .read(&self.part(PartKind::Postings), 0..u64::MAX)
+            .await?;
+        let positions = parts
+            .read(&self.part(PartKind::Positions), 0..u64::MAX)
+            .await?;
         let mut out = BTreeMap::new();
         for pair in self.blocks.windows(2) {
             let block = dictionary
@@ -131,15 +154,23 @@ impl Meta {
                         .map(<[u8]>::to_vec)
                         .ok_or(Error::Corrupt("postings"))
                 };
-                let skip = decode_skip(&slice(&postings, info.postings, u64::from(info.skip_len))?)?;
+                let skip =
+                    decode_skip(&slice(&postings, info.postings, u64::from(info.skip_len))?)?;
                 let mut list = Vec::with_capacity(info.df as usize);
                 let mut at = info.postings + u64::from(info.skip_len);
                 let mut positions_at = info.positions;
                 let mut previous = 0;
                 for (index, entry) in skip.iter().enumerate() {
                     let count = block_count(info.df, index);
-                    let mut block = decode_block(&slice(&postings, at, u64::from(entry.len))?, count, previous)?;
-                    decode_positions(&slice(&positions, positions_at, u64::from(entry.positions_len))?, &mut block)?;
+                    let mut block = decode_block(
+                        &slice(&postings, at, u64::from(entry.len))?,
+                        count,
+                        previous,
+                    )?;
+                    decode_positions(
+                        &slice(&positions, positions_at, u64::from(entry.positions_len))?,
+                        &mut block,
+                    )?;
                     at += u64::from(entry.len);
                     positions_at += u64::from(entry.positions_len);
                     previous = entry.last;
@@ -296,7 +327,11 @@ pub(crate) fn decode_skip(bytes: &[u8]) -> Result<Vec<Skip>, Error> {
 
 /// A block's postings, without positions. `previous` is the last document of
 /// the block before (0 for the first, whose first delta is its document).
-pub(crate) fn decode_block(bytes: &[u8], count: usize, previous: u32) -> Result<Vec<Posting>, Error> {
+pub(crate) fn decode_block(
+    bytes: &[u8],
+    count: usize,
+    previous: u32,
+) -> Result<Vec<Posting>, Error> {
     let mut reader = varint::Reader::new(bytes);
     let mut doc = previous;
     let mut out = Vec::with_capacity(count);
@@ -349,7 +384,13 @@ pub(crate) struct Dictionary<'a> {
 impl Dictionary<'_> {
     /// The block that would hold `key`, if any could.
     pub(crate) fn block_of(&self, key: &[u8]) -> Option<usize> {
-        let next = self.top.range().gt(key).into_stream().next().map(|(_, index)| index as usize);
+        let next = self
+            .top
+            .range()
+            .gt(key)
+            .into_stream()
+            .next()
+            .map(|(_, index)| index as usize);
         match next {
             Some(0) => None,
             Some(index) => Some(index - 1),
@@ -371,15 +412,25 @@ impl Dictionary<'_> {
         start..end.min(self.meta.blocks.len().saturating_sub(1))
     }
 
-    pub(crate) async fn read_block(&self, parts: &impl Parts, index: usize) -> Result<Vec<(Vec<u8>, TermInfo)>, Error> {
+    pub(crate) async fn read_block(
+        &self,
+        parts: &impl Parts,
+        index: usize,
+    ) -> Result<Vec<(Vec<u8>, TermInfo)>, Error> {
         let range = u64::from(self.meta.blocks[index])..u64::from(self.meta.blocks[index + 1]);
-        let bytes = parts.read(&self.meta.part(PartKind::Dictionary), range).await?;
+        let bytes = parts
+            .read(&self.meta.part(PartKind::Dictionary), range)
+            .await?;
         decode_dictionary_block(&bytes)
     }
 }
 
 /// Builds a segment from documents in local id order and their terms.
-pub(crate) fn build(id: Id, documents: &[Document], terms: &BTreeMap<Vec<u8>, Vec<Posting>>) -> (Meta, Named) {
+pub(crate) fn build(
+    id: Id,
+    documents: &[Document],
+    terms: &BTreeMap<Vec<u8>, Vec<Posting>>,
+) -> (Meta, Named) {
     let mut dictionary = Vec::new();
     let mut postings = Vec::new();
     let mut positions = Vec::new();
@@ -413,7 +464,10 @@ pub(crate) fn build(id: Id, documents: &[Document], terms: &BTreeMap<Vec<u8>, Ve
             varint::put(&mut skip, u64::from(last - previous_last));
             varint::put(&mut skip, (body.len() - body_start) as u64);
             varint::put(&mut skip, (positions.len() - positions_before) as u64);
-            varint::put(&mut skip, u64::from(chunk.iter().map(|posting| posting.tf).max().unwrap()));
+            varint::put(
+                &mut skip,
+                u64::from(chunk.iter().map(|posting| posting.tf).max().unwrap()),
+            );
             skip.push(chunk.iter().map(|posting| posting.norm).min().unwrap());
             previous_last = last;
         }
@@ -434,7 +488,11 @@ pub(crate) fn build(id: Id, documents: &[Document], terms: &BTreeMap<Vec<u8>, Ve
             firsts.push(term.clone());
             0
         } else {
-            previous_term.iter().zip(term).take_while(|(a, b)| a == b).count()
+            previous_term
+                .iter()
+                .zip(term)
+                .take_while(|(a, b)| a == b)
+                .count()
         };
         varint::put(&mut dictionary, shared as u64);
         varint::put(&mut dictionary, (term.len() - shared) as u64);
@@ -445,10 +503,15 @@ pub(crate) fn build(id: Id, documents: &[Document], terms: &BTreeMap<Vec<u8>, Ve
     if !dictionary.is_empty() {
         blocks.push(dictionary.len() as u32);
     }
-    let top = Map::from_iter(firsts.iter().enumerate().map(|(index, first)| (first.as_slice(), index as u64)))
-        .expect("first terms are sorted and distinct")
-        .into_fst()
-        .into_inner();
+    let top = Map::from_iter(
+        firsts
+            .iter()
+            .enumerate()
+            .map(|(index, first)| (first.as_slice(), index as u64)),
+    )
+    .expect("first terms are sorted and distinct")
+    .into_fst()
+    .into_inner();
     let mut records = Vec::new();
     let mut offsets = Vec::with_capacity(4 * (documents.len() + 2));
     offsets.extend_from_slice(&(documents.len() as u32).to_le_bytes());

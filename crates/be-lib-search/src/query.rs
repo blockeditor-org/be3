@@ -60,7 +60,10 @@ impl Query {
             }
             last_outside = !quoted;
         }
-        let open_ended = text.chars().last().is_some_and(|c| !c.is_whitespace() && c != '"');
+        let open_ended = text
+            .chars()
+            .last()
+            .is_some_and(|c| !c.is_whitespace() && c != '"');
         if open_ended
             && last_outside
             && let Some(Clause::Word(word)) = clauses.last()
@@ -98,7 +101,11 @@ struct Lookup<'a> {
 }
 
 impl Lookup<'_> {
-    async fn block(&mut self, parts: &impl Parts, index: usize) -> Result<&[(Vec<u8>, TermInfo)], Error> {
+    async fn block(
+        &mut self,
+        parts: &impl Parts,
+        index: usize,
+    ) -> Result<&[(Vec<u8>, TermInfo)], Error> {
         if !self.blocks.contains_key(&index) {
             let block = self.dictionary.read_block(parts, index).await?;
             self.blocks.insert(index, block);
@@ -136,14 +143,27 @@ struct Cursor {
 }
 
 impl Cursor {
-    async fn open(parts: &impl Parts, meta: &Meta, info: TermInfo, field: u8, weight: f64, average: f64) -> Result<Self, Error> {
+    async fn open(
+        parts: &impl Parts,
+        meta: &Meta,
+        info: TermInfo,
+        field: u8,
+        weight: f64,
+        average: f64,
+    ) -> Result<Self, Error> {
         let postings = meta.part(PartKind::Postings);
         let single = info.df as usize <= segment::POSTINGS_BLOCK;
-        let len = if single { info.postings_len } else { info.skip_len };
+        let len = if single {
+            info.postings_len
+        } else {
+            info.skip_len
+        };
         let bytes = parts
             .read(&postings, info.postings..info.postings + u64::from(len))
             .await?;
-        let skip_bytes = bytes.get(..info.skip_len as usize).ok_or(Error::Corrupt("skip data"))?;
+        let skip_bytes = bytes
+            .get(..info.skip_len as usize)
+            .ok_or(Error::Corrupt("skip data"))?;
         let skip = segment::decode_skip(skip_bytes)?;
         let mut offsets = Vec::with_capacity(skip.len());
         let (mut at, mut positions_at) = (info.postings + u64::from(info.skip_len), info.positions);
@@ -154,10 +174,16 @@ impl Cursor {
         }
         let bounds = skip
             .iter()
-            .map(|entry| weight * tf_part(entry.max_tf, segment::decode_norm(entry.min_norm), average))
+            .map(|entry| {
+                weight * tf_part(entry.max_tf, segment::decode_norm(entry.min_norm), average)
+            })
             .collect();
         let loaded = if single {
-            Some((0, segment::decode_block(&bytes[info.skip_len as usize..], info.df as usize, 0)?, false))
+            Some((
+                0,
+                segment::decode_block(&bytes[info.skip_len as usize..], info.df as usize, 0)?,
+                false,
+            ))
         } else {
             None
         };
@@ -183,7 +209,8 @@ impl Cursor {
         while self.block < self.skip.len() && self.skip[self.block].last < target {
             self.block += 1;
         }
-        (self.block < self.skip.len()).then(|| (self.skip[self.block].last, self.bounds[self.block]))
+        (self.block < self.skip.len())
+            .then(|| (self.skip[self.block].last, self.bounds[self.block]))
     }
 
     async fn next_geq(&mut self, parts: &impl Parts, target: u32) -> Result<Option<u32>, Error> {
@@ -191,13 +218,24 @@ impl Cursor {
             if self.shallow(target).is_none() {
                 return Ok(None);
             }
-            if self.loaded.as_ref().is_none_or(|(index, ..)| *index != self.block) {
+            if self
+                .loaded
+                .as_ref()
+                .is_none_or(|(index, ..)| *index != self.block)
+            {
                 let (start, _) = self.offsets[self.block];
                 let end = start + u64::from(self.skip[self.block].len);
                 let bytes = parts.read(&self.postings, start..end).await?;
-                let previous = self.block.checked_sub(1).map_or(0, |index| self.skip[index].last);
+                let previous = self
+                    .block
+                    .checked_sub(1)
+                    .map_or(0, |index| self.skip[index].last);
                 let count = segment::block_count(self.info.df, self.block);
-                self.loaded = Some((self.block, segment::decode_block(&bytes, count, previous)?, false));
+                self.loaded = Some((
+                    self.block,
+                    segment::decode_block(&bytes, count, previous)?,
+                    false,
+                ));
                 self.at = 0;
             }
             let (_, list, _) = self.loaded.as_ref().unwrap();
@@ -275,7 +313,10 @@ impl Conjunct {
     }
 
     fn df(&self) -> u64 {
-        self.children.iter().map(|child| u64::from(child.info.df)).sum()
+        self.children
+            .iter()
+            .map(|child| u64::from(child.info.df))
+            .sum()
     }
 }
 
@@ -287,7 +328,12 @@ struct Plan {
 }
 
 impl Index {
-    pub async fn search(&self, parts: &impl Parts, query: &Query, limit: usize) -> Result<Vec<Hit>, Error> {
+    pub async fn search(
+        &self,
+        parts: &impl Parts,
+        query: &Query,
+        limit: usize,
+    ) -> Result<Vec<Hit>, Error> {
         if query.clauses.is_empty() || limit == 0 {
             return Ok(Vec::new());
         }
@@ -314,13 +360,15 @@ impl Index {
                 }
                 Clause::Phrase(words) => {
                     let start = plan.conjuncts.len();
-                    plan.conjuncts.extend(words.iter().map(|word| vec![fold(word)]));
+                    plan.conjuncts
+                        .extend(words.iter().map(|word| vec![fold(word)]));
                     plan.phrases.push((start..plan.conjuncts.len()).collect());
                 }
             }
         }
         // Each term's information per segment, and the stats over them all.
-        let mut infos: Vec<BTreeMap<Vec<u8>, TermInfo>> = vec![BTreeMap::new(); self.segments.len()];
+        let mut infos: Vec<BTreeMap<Vec<u8>, TermInfo>> =
+            vec![BTreeMap::new(); self.segments.len()];
         let mut df: BTreeMap<Vec<u8>, u64> = BTreeMap::new();
         for (segment, lookup) in lookups.iter_mut().enumerate() {
             for term in plan.conjuncts.iter().flatten() {
@@ -333,10 +381,23 @@ impl Index {
                 }
             }
         }
-        let docs: u64 = self.segments.iter().map(|meta| u64::from(meta.live())).sum();
-        let all: u64 = self.segments.iter().map(|meta| u64::from(meta.docs)).sum::<u64>().max(1);
+        let docs: u64 = self
+            .segments
+            .iter()
+            .map(|meta| u64::from(meta.live()))
+            .sum();
+        let all: u64 = self
+            .segments
+            .iter()
+            .map(|meta| u64::from(meta.docs))
+            .sum::<u64>()
+            .max(1);
         let averages = [NAME, BODY].map(|field| {
-            let sum: u64 = self.segments.iter().map(|meta| meta.lengths[field as usize]).sum();
+            let sum: u64 = self
+                .segments
+                .iter()
+                .map(|meta| meta.lengths[field as usize])
+                .sum();
             (sum as f64 / all as f64).max(1.0)
         });
         let mut found: Vec<(f64, usize, u32)> = Vec::new();
@@ -353,18 +414,33 @@ impl Index {
                         let boost = if field == NAME { NAME_BOOST } else { 1.0 };
                         let weight = boost * idf(docs.max(1), df[&term_key]);
                         let average = averages[field as usize];
-                        children.push(Cursor::open(parts, meta, *info, field, weight, average).await?);
+                        children
+                            .push(Cursor::open(parts, meta, *info, field, weight, average).await?);
                     }
                 }
                 conjuncts.push(Conjunct { children });
             }
-            if conjuncts.iter().any(|conjunct| conjunct.children.is_empty()) {
+            if conjuncts
+                .iter()
+                .any(|conjunct| conjunct.children.is_empty())
+            {
                 continue;
             }
             let deletions = meta.deletions(parts).await?;
             let threshold = kth(&found, limit);
-            let best = search_segment(parts, &mut conjuncts, &plan.phrases, &deletions, limit, threshold).await?;
-            found.extend(best.into_iter().map(|(score, local)| (score, segment, local)));
+            let best = search_segment(
+                parts,
+                &mut conjuncts,
+                &plan.phrases,
+                &deletions,
+                limit,
+                threshold,
+            )
+            .await?;
+            found.extend(
+                best.into_iter()
+                    .map(|(score, local)| (score, segment, local)),
+            );
         }
         let mut hits = Vec::with_capacity(found.len());
         for (score, segment, local) in found {
@@ -398,7 +474,11 @@ fn kth(found: &[(f64, usize, u32)], limit: usize) -> f64 {
 
 /// The terms a prefix expands to: those starting with it in either field,
 /// the most frequent first.
-async fn expand(parts: &impl Parts, lookups: &mut [Lookup<'_>], prefix: &str) -> Result<Vec<String>, Error> {
+async fn expand(
+    parts: &impl Parts,
+    lookups: &mut [Lookup<'_>],
+    prefix: &str,
+) -> Result<Vec<String>, Error> {
     let mut counts: BTreeMap<String, u64> = BTreeMap::new();
     for lookup in lookups.iter_mut() {
         for field in [NAME, BODY] {
@@ -482,7 +562,12 @@ async fn search_segment(
     Ok(best)
 }
 
-async fn phrases_match(parts: &impl Parts, conjuncts: &mut [Conjunct], phrases: &[Vec<usize>], doc: u32) -> Result<bool, Error> {
+async fn phrases_match(
+    parts: &impl Parts,
+    conjuncts: &mut [Conjunct],
+    phrases: &[Vec<usize>],
+    doc: u32,
+) -> Result<bool, Error> {
     'phrases: for phrase in phrases {
         'fields: for field in [NAME, BODY] {
             let mut lists = Vec::with_capacity(phrase.len());

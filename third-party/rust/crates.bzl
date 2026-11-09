@@ -16307,6 +16307,68 @@ third_party = {
         ],
         "version": "4.1.0",
     },
+    "fst-0.4.7": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2018",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "Andrew Gallant <jamslam@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Use finite state transducers to compactly represents sets or maps of many\nstrings (> 1 billion is possible).\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/BurntSushi/fst",
+            "CARGO_PKG_LICENSE": "Unlicense/MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/BurntSushi/fst",
+        },
+        "library": {
+            "crate": "fst",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "fst",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.7",
+    },
     "futures-0.3.32": {
         "build_script": None,
         "env": {
