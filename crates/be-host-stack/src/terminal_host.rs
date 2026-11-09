@@ -3,7 +3,7 @@
 //! the deployment's copy and its SHA-256 (`build-info.json`'s `terminal_hosts`, which
 //! `./scripts/deploy` writes), and a development build reads one built on this machine.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use be_lib_build_id::{Metadata, TERMINAL_HOST_ARCHES};
 use be_sdk_api::{TerminalHostBe, TerminalHostDownload, TerminalHostSource};
@@ -29,12 +29,13 @@ pub fn build_info() -> Result<String, String> {
 
 /// Where a development build looks for the `be` built for `arch`: `be3/terminal-host/ARCH` in
 /// the user's cache directory.
-fn built() -> Option<PathBuf> {
+#[cfg(not(target_arch = "wasm32"))]
+fn built() -> Option<std::path::PathBuf> {
     let cache = std::env::var_os("XDG_CACHE_HOME")
         .filter(|cache| !cache.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
-        .or_else(|| std::env::var_os("LOCALAPPDATA").map(PathBuf::from))?;
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".cache")))
+        .or_else(|| std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from))?;
     Some(cache.join("be3").join("terminal-host"))
 }
 
