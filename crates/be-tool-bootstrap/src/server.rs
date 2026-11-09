@@ -574,10 +574,10 @@ pub mod relay {
     }
 
     /// Starts, or finds running, the tunnel to the NativeLink build server's hosted port (guides/build_server.md) and
-    /// returns the local address buck2 is pointed at. `cookie` is the proxy's token cookie; it goes to the tunnel in
-    /// its environment so it is not on a command line. The tunnel makes one upgrade before it says it is ready, so a
-    /// scheduler that is stopped or a wrong token is an error here.
-    pub fn ensure_tunnel(url: &str, cookie: &str) -> Result<String> {
+    /// returns the local address buck2 is pointed at. `token` is the bridge's token, empty when a proxy adds it; it
+    /// goes to the tunnel in its environment so it is not on a command line. The tunnel makes one upgrade before it
+    /// says it is ready, so a scheduler that is stopped or a wrong token is an error here.
+    pub fn ensure_tunnel(url: &str, token: &str) -> Result<String> {
         let (relay, version) = build()?;
         let path = repository().to_string_lossy().into_owned();
         let listen = format!("127.0.0.1:{}", 24000 + cksum(path.as_bytes()) % 2000);
@@ -590,7 +590,7 @@ pub mod relay {
             .arg(target.join("re-relay-tunnel.state"))
             .arg("-log")
             .arg(target.join("re-relay.log"))
-            .env("BE3_TUNNEL_COOKIE", cookie)
+            .env("BE3_TUNNEL_TOKEN", token)
             .stdout(Stdio::null())
             .output()
             .map_err(|error| format!("could not start the tunnel: {error}"))?;

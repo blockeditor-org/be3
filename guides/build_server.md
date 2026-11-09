@@ -18,7 +18,7 @@ release is built from (guides/bootstrap.md).
 
 | `BE3_BUILD_SERVER` | Server | Key | In a Claude Code cloud session |
 |---|---|---|---|
-| `nativelink` (default, and CI's) | our NativeLink server on boat, through a WebSocket tunnel | its address `BE3_NL_URL`, and a boat key `BE3_NL_KEY` to wake it | works through the proxy once the address is set; needs Go |
+| `nativelink` (default, and CI's) | our NativeLink server on boat, through a WebSocket tunnel | its address and token `BE3_NL_URL`, and a boat key `BE3_NL_KEY` to wake it | works once the proxy adds both keys (below); needs Go |
 | `api.be3.pfg.pw` | our NativeLink server | gateway header | works with no setup |
 | `blocks.pfg.pw` | our NativeLink build VM, behind its own gateway over WireGuard | its gateway's header | works once the proxy adds the gateway header for it |
 | `namespace` | Namespace's remote execution, no longer reachable | gateway header, to its waker | not working |
@@ -58,18 +58,27 @@ scheduler and the workers meet in a WireGuard network, 10.100.0.0/24: the schedu
 port 50052.
 
 - **A client reaches it through a tunnel**, so it needs no root, no WireGuard and no IPv6, and it works through an
-  HTTPS proxy. Boat's hosted-port proxy puts the scheduler's port 8099 behind a token and carries WebSockets but
-  blocks gRPC, so `nl-tunnel.py` on the scheduler accepts a WebSocket and connects it to NativeLink, and
+  HTTPS proxy. Boat's hosted-port proxy serves the scheduler's port 8099 and carries WebSockets but blocks gRPC, so
+  `nl-tunnel.py` on the scheduler accepts a WebSocket and connects it to NativeLink, and
   scripts/internal/re-relay (`ensure-tunnel`, tunnel.go) listens on 127.0.0.1 here and carries each TCP connection
   buck2 opens inside one WebSocket. buck2's HTTP/2 goes through untouched. The bootstrap
   (`crates/be-tool-bootstrap/src/nativelink.rs`) points buck2 at that local address, and builds the relay with Go
   (1.24 or newer; Go fetches the toolchain itself when it is older).
+- **The bridge checks the token itself.** The port is exposed with `--public`, without boat's own token, because boat
+  takes that only as a cookie or a query parameter and a cloud session's proxy can add only a header. `nl-tunnel.py`
+  refuses any upgrade without `Authorization: Bearer NL_TUNNEL_TOKEN`; the token comes from the `nl-scheduler`
+  environment's secret file `nl-tunnel.env` (`NL_TUNNEL_TOKEN=...`), which `nl-tunnel.service` reads.
 - **Two secrets**, each an environment variable, a file in ~/.config/be3, or a file at the checkout's root.
-  `BE3_NL_URL` (`nl-url`, `.nl-url`) is the hosted port's address with its token, as `host url 8099` prints it on the
-  scheduler: it is what lets a build use the server, so treat it as the gateway's header was. `BE3_NL_KEY` (`nl-key`,
-  `.nl-key`) is a boat key limited to the `nl-scheduler` environment with the actions `sandbox.read` and
-  `sandbox.resume`; it only wakes the scheduler when boat has stopped it, so a running scheduler needs the address
-  alone. `BE3_NL_SCHEDULER` names another scheduler to wake by name prefix.
+  `BE3_NL_URL` (`nl-url`, `.nl-url`) is the hosted port's address with the bridge's token as a query,
+  `https://NAME-8099.on.boat.dev/?_token=TOKEN`; the tunnel sends the token as the `Authorization` header. It is what
+  lets a build use the server, so treat it as the gateway's header was. `BE3_NL_KEY` (`nl-key`, `.nl-key`) is a boat
+  key limited to the `nl-scheduler` environment with the actions `sandbox.read` and `sandbox.resume`; it only wakes
+  the scheduler when boat has stopped it, so a running scheduler needs the address alone. `BE3_NL_SCHEDULER` names
+  another scheduler to wake by name prefix.
+- **In a cloud session** the proxy adds both as network secrets, each `Authorization: Bearer`: the bridge's token for
+  the hosted port's host, and the wake key for `boat.dev`. The session's environment then sets
+  `BE3_BUILD_SERVER=nativelink`, `BE3_NL_URL` to the address without `?_token=` (the tunnel then sends no header and
+  the proxy adds it) and `BE3_NL_KEY` to any placeholder such as `boat_dummy`, which the proxy replaces.
 - **The controller** notices a build (a connection from the tunnel on port 50052), keeps 4 workers alive while it runs
   by extending their 30-minute lifetime, creates replacements, and stops the scheduler after 4 idle hours. Boat
   places a new VM at random and about half cannot reach the scheduler (below), so it creates twice as many workers as
@@ -98,14 +107,17 @@ Things that are not obvious:
   cannot reach it; stopping and resuming it again, or forking it, picks another place.
 - **Boat's start limits** (60 an hour, 200 a day on the $20 plan; `boat limits`) count every VM the controller creates,
   including the ones it deletes at once. A cold fleet is up to 8 starts.
-- **Exposing the tunnel is one manual step** on the scheduler, `host 8099 --localhost`; the address keeps working
-  across stop and resume, but a new scheduler has a new one.
+- **Exposing the tunnel is one manual step** on the scheduler, `host 8099 --localhost --public`; the address keeps
+  working across stop and resume, but a new scheduler has a new one. Never expose it before `nl-tunnel.py` checks the
+  token: the port then lets anyone build and run code on the workers.
 - **After a restore** (boat stopped the VM and started a new machine) enabled services start before the disk has its
   files, so the units retry (`wg-quick-retry.conf`) instead of failing for good.
 
-Setting the VMs up again: `scheduler/setup-scheduler.sh` on a VM made in the `nl-scheduler` environment, then the
-controller (`nl-controller.service`, its worker files in /opt/nl/worker, its boat key logged in under
-/var/lib/nl-controller/sk-home); each file's first lines say what it does.
+Setting the VMs up again: `scheduler/setup-scheduler.sh` on a VM made in the `nl-scheduler` environment, then
+`scheduler/install-controller.sh` (`nl-controller.service`, its worker files in /opt/nl/worker, and its boat key, the
+environment's secret file `nl-controller.key`, logged in under /var/lib/nl-controller/sk-home); each file's first lines
+say what it does. A secret file changed with `boat env set-file` reaches a running scheduler only after
+`boat env upgrade nl-scheduler`; then restart `nl-tunnel`, or run `install-controller.sh` again for a new key.
 
 ### Starting over
 
@@ -118,14 +130,18 @@ it cannot be turned on later) and a boat login that can create sandboxes:
    where FILE holds `BUNNY_S3_RO_SECRET=` and the zone's read-only key. `boat env new nl-scheduler`,
    `boat env set nl-scheduler --github false --secrets true --boat-credentials true --agents-credentials false`
    (the scheduler stops itself with its own token), then `boat env set-file nl-scheduler nl-bunny.env --from FILE` where
-   FILE holds `BUNNY_S3_KEY_ID=be-nativelink-s3` and `BUNNY_S3_SECRET=` with the full-access key.
-2. **Keys**: the controller's, limited to `nl-worker` with `sandbox.create,sandbox.read,sandbox.update,sandbox.delete-own`
-   and `account.read` (without it the controller counts its own starts instead of reading `boat limits`); and the wake
-   key `BE3_NL_KEY`, limited to `nl-scheduler` with `sandbox.read,sandbox.resume`.
-3. `bash scripts/internal/nativelink/new-scheduler.sh NAME CONTROLLER_KEY_FILE` makes the VM, installs NativeLink,
-   the bridge and the controller, and prints what is left.
-4. **Expose the tunnel**: `host 8099 --localhost`, then `host url 8099` prints the address with its token; store it as
-   `BE3_NL_URL`. A new scheduler has a new address.
+   FILE holds `BUNNY_S3_KEY_ID=be-nativelink-s3` and `BUNNY_S3_SECRET=` with the full-access key, and
+   `boat env set-file nl-scheduler nl-tunnel.env --from FILE` where FILE holds `NL_TUNNEL_TOKEN=` and a random token
+   (`openssl rand -hex 32`).
+2. **Keys**, each limited with `--env` to an environment's id (`boat env list --json`; a name is refused): the
+   controller's, limited to `nl-worker` with `sandbox.create,sandbox.read,sandbox.update,sandbox.delete-own,account.read`
+   (without `account.read` the controller counts its own starts instead of reading `boat limits`), stored with
+   `boat env set-file nl-scheduler nl-controller.key`; and the wake key `BE3_NL_KEY`, limited to `nl-scheduler` with
+   `sandbox.read,sandbox.resume`.
+3. `bash scripts/internal/nativelink/new-scheduler.sh NAME` makes the VM, installs NativeLink, the bridge and the
+   controller, and prints what is left.
+4. **Expose the tunnel**: `host 8099 --localhost --public`, then `host url 8099` prints the address; store it with
+   `?_token=` and the bridge's token as `BE3_NL_URL`. A new scheduler has a new address.
 5. Delete the old scheduler (`boat delete`), and the clients' secrets are the only thing that changed.
 
 ### What the controller spends

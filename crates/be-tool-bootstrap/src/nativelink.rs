@@ -1,9 +1,10 @@
 //! The NativeLink build server on boat (guides/build_server.md). buck2 reaches it through a tunnel: the scheduler VM
-//! serves a WebSocket bridge on a port boat hosts behind a token, and scripts/internal/re-relay carries each of
+//! serves a WebSocket bridge on a port boat hosts publicly, and scripts/internal/re-relay carries each of
 //! buck2's TCP connections to it inside one WebSocket. That needs no root, no WireGuard and no IPv6, and it works
 //! through an HTTPS proxy, so it works on a GitHub-hosted runner and in a Claude Code cloud session.
 //!
-//! Two secrets: `BE3_NL_URL` is the hosted port's address with its token, as `host url` prints it on the scheduler;
+//! Two secrets: `BE3_NL_URL` is the hosted port's address with the bridge's token as `?_token=`, which the tunnel sends
+//! as `Authorization: Bearer`. Without a token the tunnel sends no header, for a proxy that adds it (a cloud session's).
 //! `BE3_NL_KEY` is a boat key (limited to the `nl-scheduler` environment, actions `sandbox.read` and
 //! `sandbox.resume`) that wakes the scheduler when boat has stopped it. A running scheduler needs only the address.
 
@@ -52,8 +53,8 @@ pub fn connect() -> Result<String> {
              guides/build_server.md says where to get it."
             .to_owned());
     };
-    let (websocket, cookie) = parse_tunnel_url(&url)?;
-    let first = match relay::ensure_tunnel(&websocket, &cookie) {
+    let (websocket, token) = parse_tunnel_url(&url)?;
+    let first = match relay::ensure_tunnel(&websocket, &token) {
         Ok(listen) => return Ok(listen),
         Err(error) => error,
     };
@@ -71,7 +72,7 @@ pub fn connect() -> Result<String> {
     let deadline = Instant::now() + Duration::from_secs(120);
     let mut last = first;
     while Instant::now() < deadline {
-        match relay::ensure_tunnel(&websocket, &cookie) {
+        match relay::ensure_tunnel(&websocket, &token) {
             Ok(listen) => return Ok(listen),
             Err(error) => last = error,
         }
@@ -84,8 +85,8 @@ pub fn connect() -> Result<String> {
     ))
 }
 
-/// The tunnel's WebSocket address and the proxy's token cookie, from the hosted port's address as `host url`
-/// prints it (`https://NAME-8099.on.boat.dev/?_token=TOKEN`).
+/// The tunnel's WebSocket address and the bridge's token, from `BE3_NL_URL`
+/// (`https://NAME-8099.on.boat.dev/?_token=TOKEN`).
 pub fn parse_tunnel_url(url: &str) -> Result<(String, String)> {
     let url = url.trim();
     let (scheme, rest) = url
@@ -109,12 +110,7 @@ pub fn parse_tunnel_url(url: &str) -> Result<(String, String)> {
     if location.is_empty() || location.contains(char::is_whitespace) {
         return Err("BE3_NL_URL has no host".to_owned());
     }
-    let cookie = if token.is_empty() {
-        String::new()
-    } else {
-        format!("_port_auth={token}")
-    };
-    Ok((format!("{websocket}://{location}/"), cookie))
+    Ok((format!("{websocket}://{location}/"), token.to_owned()))
 }
 
 struct Boat {

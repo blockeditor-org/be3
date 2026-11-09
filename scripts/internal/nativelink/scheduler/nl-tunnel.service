@@ -5,6 +5,9 @@ Wants=wg-quick@wg-sch.service
 StartLimitIntervalSec=0
 
 [Service]
+# The token clients must send (NL_TUNNEL_TOKEN=...), a secret file of the nl-scheduler environment. systemd reads it
+# as root, so it stays private to the user boat writes it as.
+EnvironmentFile=/home/user/nl-tunnel.env
 ExecStart=/usr/bin/python3 /usr/local/bin/nl-tunnel.py
 DynamicUser=yes
 Restart=always

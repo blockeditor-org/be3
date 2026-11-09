@@ -21,27 +21,29 @@ guides/build_server.md has the lasting description; this has what is running, wh
 
 ## What the owner must do before CI can pass
 
-CI fails until all of this is done (it fails with the bootstrap's message about the missing address):
+CI fails until all of this is done (it fails with the bootstrap's message about the missing address). Done already: the
+wake key (`sandbox.read,sandbox.resume` on `nl-scheduler`), and the controller's key with `account.read` as the
+`nl-scheduler` environment's secret file `nl-controller.key`, logged in and restarted on the scheduler.
 
-1. **Expose the tunnel.** On the scheduler VM (`nl-sched-small`, boat sandbox bx_59kjmqmz) run `host 8099 --localhost`, then
-   `host url 8099`, which prints `https://NAME-8099.on.boat.dev/?_token=TOKEN`. That whole string, token included, is the
-   repository secret `BE3_NL_URL`. (The author's tooling was not allowed to expose a port, so this was not done and the
-   path through boat's edge is untested: see Not tested.) Treat the token like the gateway's header: it lets a build use
-   the server and run code on its workers.
-2. **Make the wake key** and store it as the repository secret `BE3_NL_KEY`:
-   `boat api-key create be3-ci --ttl 90d --env <id of the nl-scheduler environment> --actions sandbox.read,sandbox.resume`
-   It can only read and resume the scheduler. The key already made, `nl-wake-upd2`, can do that and more; a narrower one is better.
-3. Optionally `boat billing extra-starts on`: boat's start limits (60 an hour, 200 a day on the $20 plan) count every VM
+1. **The bridge's token**: `printf 'NL_TUNNEL_TOKEN=%s\n' "$(openssl rand -hex 32)" > nl-tunnel.env`, then
+   `boat env set-file nl-scheduler nl-tunnel.env --from nl-tunnel.env` and `boat env upgrade nl-scheduler`.
+2. **Deploy the bridge that checks it** to the scheduler (`bx_59kjmqmz`), from a checkout of this branch:
+   `tar czf - -C scripts/internal/nativelink scheduler worker | boat ssh bx_59kjmqmz 'rm -rf /tmp/nl && mkdir -p /tmp/nl && tar xzf - -C /tmp/nl'`,
+   then `boat ssh bx_59kjmqmz 'cd /tmp/nl/scheduler && chmod 600 ~/nl-tunnel.env && sudo install -m0755 nl-tunnel.py /usr/local/bin/ && sudo install -m0644 nl-tunnel.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart nl-tunnel && systemctl is-active nl-tunnel'`.
+3. **Expose it publicly** only after that: `host 8099 --localhost --public` on the scheduler. Check that
+   `curl -i https://NAME-8099.on.boat.dev/` answers `401` from nl-tunnel.
+4. **Secrets**: the repository secret `BE3_NL_URL` is `https://NAME-8099.on.boat.dev/?_token=` and the bridge's token;
+   `BE3_NL_KEY` is the wake key. In a cloud session, network secrets carry both instead (guides/build_server.md).
+5. Optionally `boat billing extra-starts on`: boat's start limits (60 an hour, 200 a day on the $20 plan) count every VM
    the controller creates, deleted ones too, and a cold fleet is up to 8 starts.
 
-The address of a new scheduler differs, so step 1 and the secret are redone if the scheduler is ever recreated.
+The address of a new scheduler differs, so step 3 and the secret are redone if the scheduler is ever recreated.
 
 ## What is running now
 
 - Scheduler `nl-sched-small` (small, environment `nl-scheduler`): NativeLink (`nativelink-server.service`), the
   controller (`nl-controller.service`), the bridge (`nl-tunnel.service`, 127.0.0.1:8099) and the WireGuard hub `wg-sch`
-  (10.100.0.1) that the workers use. Its boat key for the workers is in `/etc/nativelink/boat-workers.key` (copied by hand:
-  it should be a secret of the `nl-scheduler` environment).
+  (10.100.0.1) that the workers use. Its boat key for the workers is the environment's secret file `~/nl-controller.key`.
 - Workers are created by the controller in environment `nl-worker`, named `nl-w-*`, and expire 30 minutes after the last build.
 - `nl-sched-default` is an older scheduler, stopped; delete it. `nl-client` is the test client.
 - The first NativeLink server, on the VM the author worked in, is still running with the old `wg-nl` network and holds
@@ -59,7 +61,7 @@ The address of a new scheduler differs, so step 1 and the secret are redone if t
 
 ## Not tested
 
-- **Boat's edge**: whether its proxy lets a long-lived WebSocket carrying HTTP/2 through, with the token cookie, and
+- **Boat's edge**: whether its proxy lets a long-lived WebSocket carrying HTTP/2 through, with the token header, and
   whether it cuts idle or long connections. The tunnel pings every 20 s. If connections are cut, buck2 reports an
   infrastructure error and the wrapper retries.
 - A run from a real GitHub-hosted runner and from a Claude Code cloud session (the proxy path is net/http's CONNECT).

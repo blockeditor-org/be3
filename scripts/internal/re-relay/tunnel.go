@@ -1,7 +1,7 @@
 package main
 
 // A tunnel for a machine that cannot reach the build server's WireGuard network. Boat's hosted-port proxy gives the
-// scheduler an HTTPS address behind a token; it carries WebSockets but blocks gRPC, so each TCP connection buck2 opens
+// scheduler an HTTPS address; it carries WebSockets but blocks gRPC, so each TCP connection buck2 opens
 // to the listening address here is carried to the scheduler inside one WebSocket, where
 // scripts/internal/nativelink/scheduler/nl-tunnel.py turns it back into a TCP connection to NativeLink. buck2's HTTP/2
 // goes through untouched, so unlike the relay above this knows nothing about gRPC.
@@ -9,17 +9,20 @@ package main
 //	re-relay serve-tunnel  -listen 127.0.0.1:18981 -url wss://HOST/ -version V
 //	re-relay ensure-tunnel -listen 127.0.0.1:18981 -url wss://HOST/ -version V -state FILE -log FILE
 //
-// The proxy's token travels in the environment, not on a command line: BE3_TUNNEL_COOKIE, such as
-// "_port_auth=TOKEN", is sent as the Cookie of every upgrade. The upgrade is made through net/http, so an HTTPS proxy
-// in the environment (a Claude Code cloud session's) carries it with CONNECT.
+// The bridge's token travels in the environment, not on a command line: BE3_TUNNEL_TOKEN is sent as
+// "Authorization: Bearer TOKEN" with every upgrade. Without it no header is sent, for an HTTPS proxy that adds it (a
+// Claude Code cloud session's network secret). The upgrade is made through net/http, so an HTTPS proxy in the
+// environment carries it with CONNECT.
 
 import (
 	"bufio"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -35,17 +38,17 @@ import (
 )
 
 const (
-	wsGUID       = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-	wsPingEvery  = 20 * time.Second
-	wsChunk      = 32 * 1024
-	wsDialTries  = 3
-	opContinue   = 0x0
-	opText       = 0x1
-	opBinary     = 0x2
-	opClose      = 0x8
-	opPing       = 0x9
-	opPong       = 0xA
-	tunnelCookie = "BE3_TUNNEL_COOKIE"
+	wsGUID      = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+	wsPingEvery = 20 * time.Second
+	wsChunk     = 32 * 1024
+	wsDialTries = 3
+	opContinue  = 0x0
+	opText      = 0x1
+	opBinary    = 0x2
+	opClose     = 0x8
+	opPing      = 0x9
+	opPong      = 0xA
+	tunnelToken = "BE3_TUNNEL_TOKEN"
 )
 
 // tunnelCommand runs the tunnel's subcommands and reports whether name was one of them.
@@ -84,7 +87,9 @@ func parseTunnelFlags(name string, args []string) tunnelFlags {
 // replacing one of another version.
 func tunnelEnsure(args []string) {
 	t := parseTunnelFlags("ensure-tunnel", args)
-	want := t.version + " " + t.url
+	// A changed token replaces the tunnel too; the state file records only its hash.
+	sum := sha256.Sum256([]byte(os.Getenv(tunnelToken)))
+	want := t.version + " " + t.url + " " + hex.EncodeToString(sum[:8])
 	if t.state != "" {
 		if text, err := os.ReadFile(t.state); err == nil {
 			version, pid, _ := strings.Cut(strings.TrimSpace(string(text)), "\n")
@@ -140,9 +145,9 @@ func listening(address string) bool {
 
 func tunnelServe(args []string) {
 	t := parseTunnelFlags("serve-tunnel", args)
-	cookie := os.Getenv(tunnelCookie)
+	token := os.Getenv(tunnelToken)
 	// One upgrade now, so that a wrong address or token is an error here and not a build that hangs.
-	probe, err := wsDial(t.url, cookie)
+	probe, err := wsDial(t.url, token)
 	if err != nil {
 		fmt.Println("error: " + err.Error())
 		os.Stdout.Close()
@@ -162,16 +167,16 @@ func tunnelServe(args []string) {
 		if err != nil {
 			fail("%v", err)
 		}
-		go tunnelConnection(connection, t.url, cookie)
+		go tunnelConnection(connection, t.url, token)
 	}
 }
 
-func tunnelConnection(local net.Conn, url, cookie string) {
+func tunnelConnection(local net.Conn, url, token string) {
 	defer local.Close()
 	var ws *wsConn
 	var err error
 	for try := 0; try < wsDialTries; try++ {
-		if ws, err = wsDial(url, cookie); err == nil {
+		if ws, err = wsDial(url, token); err == nil {
 			break
 		}
 		time.Sleep(time.Duration(try+1) * 300 * time.Millisecond)
@@ -199,7 +204,7 @@ type wsConn struct {
 	write  sync.Mutex
 }
 
-func wsDial(url, cookie string) (*wsConn, error) {
+func wsDial(url, token string) (*wsConn, error) {
 	address := strings.Replace(strings.Replace(url, "wss://", "https://", 1), "ws://", "http://", 1)
 	request, err := http.NewRequest("GET", address, nil)
 	if err != nil {
@@ -212,8 +217,8 @@ func wsDial(url, cookie string) (*wsConn, error) {
 	request.Header.Set("Upgrade", "websocket")
 	request.Header.Set("Sec-WebSocket-Version", "13")
 	request.Header.Set("Sec-WebSocket-Key", key)
-	if cookie != "" {
-		request.Header.Set("Cookie", cookie)
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
 	}
 	response, err := tunnelTransport.RoundTrip(request)
 	if err != nil {
@@ -224,7 +229,7 @@ func wsDial(url, cookie string) (*wsConn, error) {
 		response.Body.Close()
 		hint := ""
 		if response.StatusCode == http.StatusForbidden || response.StatusCode == http.StatusUnauthorized {
-			hint = " (the proxy's token is missing or wrong)"
+			hint = " (the token is missing or wrong)"
 		}
 		return nil, fmt.Errorf("%s answered %d%s: %s", url, response.StatusCode, hint, strings.TrimSpace(string(snippet)))
 	}

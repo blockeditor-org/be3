@@ -73,8 +73,8 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       # The build server: NativeLink on boat, reached through a tunnel over boat's HTTPS proxy
-      # (guides/build_server.md). BE3_NL_URL is the proxy's address with its token, which is what lets a build use
-      # the server, as the gateway's header used to. BE3_NL_KEY is a boat key that can only read and resume the
+      # (guides/build_server.md). BE3_NL_URL is the hosted port's address with the bridge's token, which is what
+      # lets a build use the server, as the gateway's header used to. BE3_NL_KEY is a boat key that can only read and resume the
       # scheduler VM, so a build can wake it. Both are on this job alone, because it runs the pull request's code
       # and a build can read them; a pull request from a fork sees empty values and ./scripts/buck says so rather
       # than building.

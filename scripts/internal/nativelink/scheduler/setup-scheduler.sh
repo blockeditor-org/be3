@@ -1,6 +1,7 @@
 #!/bin/bash
-# Run as root on a new scheduler VM (made in the nl-scheduler environment, so ~/nl-bunny.env is there). Everything it
-# installs is in this directory and ../worker; new-scheduler.sh copies both to the VM and runs this.
+# Run as root on a new scheduler VM (made in the nl-scheduler environment, so its secret files ~/nl-bunny.env and
+# ~/nl-tunnel.env are there). Everything it installs is in this directory and ../worker; new-scheduler.sh copies both to
+# the VM and runs this.
 set -euo pipefail; cd "$(dirname "$(readlink -f "$0")")"; export DEBIAN_FRONTEND=noninteractive
 NL_VERSION=1.8.3
 NL_SHA256=1a6596c96f059d4e99f7352164321e1f1cdff435275667ad8489e83f7e2977c5   # GitHub's published digest of the tarball; worker-bootstrap.sh pins the same
@@ -38,6 +39,9 @@ install -m0755 nl-small-pack.sh nl-small-restore.sh add-peer.sh remove-peer.sh n
 # NativeLink and the Bunny full-access key (the environment delivers it as ~/nl-bunny.env)
 install -d -m0750 -g nativelink /etc/nativelink
 install -m0640 -g nativelink /home/user/nl-bunny.env /etc/nativelink/server.env; chmod 600 /home/user/nl-bunny.env
+# The token clients must send to nl-tunnel.py, which nl-tunnel.service reads from ~/nl-tunnel.env
+[ -s /home/user/nl-tunnel.env ] || { echo "no ~/nl-tunnel.env: set it with boat env set-file nl-scheduler nl-tunnel.env" >&2; exit 1; }
+chmod 600 /home/user/nl-tunnel.env
 install -m0640 -g nativelink server.json5 /etc/nativelink/server.json5
 install -m0644 nativelink-server.service nl-small-pack.service nl-small-pack.timer nl-tunnel.service nl-otelcol.service /etc/systemd/system/
 systemctl daemon-reload; systemctl enable --now nl-otelcol nativelink-server nl-tunnel nl-small-pack.timer
