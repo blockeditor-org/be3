@@ -364,6 +364,58 @@ impl TestClient {
                 "pin-escrow",
                 answered(client::keys::pin_escrow(peer, sealed()).await),
             ),
+            (
+                "push-key",
+                answered(client::notifications::push_key(peer).await),
+            ),
+            (
+                "offers-fcm",
+                answered(client::notifications::offers_fcm(peer).await),
+            ),
+            (
+                "register-endpoint",
+                answered(
+                    client::notifications::register_endpoint(
+                        peer,
+                        be_block_protocol::PushEndpoint {
+                            service: be_block_protocol::PushService::WebPush,
+                            address: "https://push.example.com/endpoint".into(),
+                            p256dh: vec![4; 65],
+                            auth: vec![0; 16],
+                        },
+                    )
+                    .await,
+                ),
+            ),
+            (
+                "unregister-endpoint",
+                answered(
+                    client::notifications::unregister_endpoint(
+                        peer,
+                        "https://push.example.com/endpoint".into(),
+                    )
+                    .await,
+                ),
+            ),
+            (
+                "notify-mode-of",
+                answered(client::notifications::notify_mode_of(peer, block).await),
+            ),
+            (
+                "set-notify-mode",
+                answered(
+                    client::notifications::set_notify_mode(
+                        peer,
+                        block,
+                        be_block_protocol::NotifyMode::Off,
+                    )
+                    .await,
+                ),
+            ),
+            (
+                "notify",
+                answered(client::notifications::notify(peer, block, sealed(), Vec::new()).await),
+            ),
         ];
         let escrow = be_block_protocol::EscrowKey {
             id: other,
@@ -556,6 +608,9 @@ async fn every_call_states_who_may_make_it() {
         "session-relay",
         "session-append",
         "session-rebase-journal",
+        "notify-mode-of",
+        "set-notify-mode",
+        "notify",
     ];
     for (name, answer) in &answers {
         if viewing.contains(name) {
