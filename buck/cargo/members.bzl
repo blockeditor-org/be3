@@ -69,6 +69,7 @@ members = [
     "crates/be-lib-prompt",
     "crates/be-lib-remap",
     "crates/be-lib-remap-module",
+    "crates/be-lib-search",
     "crates/be-lib-sequence",
     "crates/be-lib-stable-hash",
     "crates/be-lib-ui-keys",

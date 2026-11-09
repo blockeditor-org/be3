@@ -175,7 +175,9 @@ Design notes, not done criteria. The target is a tree with a gigabyte of text
 - A batch from an ordinary edit writes one small segment and a few chunks of
   the document table.
 - What does not scale and is accepted: the first index of a large tree, and a
-  large compaction, both resumable.
+  large compaction, both resumable. be-lib-search's compaction is neither
+  yet: it reads its input segments whole into memory and writes the merged
+  one in a single call.
 
 ## What the server learns
 

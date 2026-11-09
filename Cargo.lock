@@ -1752,6 +1752,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-lib-search"
+version = "0.1.0"
+dependencies = [
+ "be-lib-graphemes",
+ "caseless",
+ "postcard",
+ "serde",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "be-lib-sequence"
 version = "0.1.0"
 dependencies = [
