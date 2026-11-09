@@ -64,8 +64,8 @@ rotation of its key.
 
 ## Owner only
 
-A kind with `KindVisibility::Owner` (an app's key for an outside service, where a chat was read
-up to) is readable by the account that made it alone, on any of its devices, administrators and
+A kind with `KindVisibility::Owner` (an app's key for an outside service, such as
+`be-type-boat`'s `BoatSettings`; where a chat was read up to) is readable by the account that made it alone, on any of its devices, administrators and
 the server included (decisions/owner_only_settings_are_never_escrowed.md). Its block is made
 `owner-only`: `RootSetting::owner_only` (which `SettingsLayers` picks from `VISIBILITY`) and
 `ensure_block_kind` pass `owner_only` to `Blocks::create_at`, the app protocol's `create-block`

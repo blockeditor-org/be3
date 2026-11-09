@@ -1,0 +1,37 @@
+{
+  "id": "be3.boat",
+  "name": "boat.dev",
+  "version": "0.1.0",
+  "editors": {
+    "boat": {
+      "id": "d3a51ae3-324a-44a7-a1f4-9b1ce7ff3f7a",
+      "edits": "626f6174-2d62-6c6f-636b-000000000001",
+      "display_name": "boat.dev",
+      "icon": "",
+      "templates": {
+        "main": {}
+      },
+      "views": [
+        "Main"
+      ]
+    }
+  },
+  "block_types": {
+    "boat": {
+      "id": "626f6174-2d62-6c6f-636b-000000000001",
+      "display_name": "boat.dev",
+      "icon": "",
+      "color": [46, 112, 178],
+      "module": "boat_types.wasm"
+    },
+    "boat_settings": {
+      "id": "626f6174-2d73-6574-7469-6e6773000001",
+      "display_name": "boat.dev keys",
+      "icon": "",
+      "color": [46, 112, 178],
+      "module": "boat_types.wasm"
+    }
+  },
+  "entry_point": "boat.wasm",
+  "network": ["*"]
+}

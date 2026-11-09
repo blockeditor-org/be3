@@ -10,6 +10,7 @@ pub fn sources() -> Vec<Source> {
             "be3.beui_gallery",
             be_type_example_beui_gallery::registrations(),
         ),
+        in_process::<be_type_boat::BlockTypes>("be3.boat", be_type_boat::registrations()),
         in_process::<be_type_browser_tab::BlockTypes>(
             "be3.browser-tab",
             be_type_browser_tab::registrations(),
@@ -88,6 +89,7 @@ pub fn knows(content_type: Uuid) -> bool {
     [
         be_type_audio::block_types(),
         be_type_example_beui_gallery::block_types(),
+        be_type_boat::block_types(),
         be_type_browser_tab::block_types(),
         be_type_chat::block_types(),
         be_type_checklist::block_types(),

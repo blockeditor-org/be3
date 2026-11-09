@@ -216,6 +216,20 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
         .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
 }
 
+/// The origin of the page the host runs in, empty natively (`PageOriginWatch`).
+fn page_origin() -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_sys::window()
+            .and_then(|window| window.location().origin().ok())
+            .unwrap_or_default()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        String::new()
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 thread_local! {
     static AUTOMATION: std::cell::RefCell<Option<beui_host::native::drive::Inbox>> =
@@ -3039,6 +3053,7 @@ impl HostCore {
             accounts::link_base(&self.server_url)
         };
         be_host_base::watches::publish::<be_sdk_api::LinkBaseWatch>(&link_base);
+        be_host_base::watches::publish::<be_sdk_api::PageOriginWatch>(&page_origin());
         self.publish_administrator();
         be_host_stack::start(be_host_stack::Config {
             server_url: self.server_url.clone(),

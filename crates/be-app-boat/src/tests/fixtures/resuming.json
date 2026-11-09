@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "type": "sandbox.resuming",
+  "id": "bx_r4t8w3ne",
+  "status": "resuming",
+  "sandbox": {
+    "id": "bx_r4t8w3ne",
+    "name": "research",
+    "state": "provisioning",
+    "desktopAvailable": false,
+    "snapshotAvailable": true
+  }
+}

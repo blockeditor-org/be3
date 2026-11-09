@@ -24,6 +24,15 @@ interface account {
         next: async func() -> string;
     }
 
+    /// The origin of the web page the host runs in (`https://be3.example`),
+    /// empty where the host is not a web page. On the web `fetch` is the
+    /// browser's, so a server answers an app only if its CORS allows this
+    /// origin; an app whose service allows none says it is not available there.
+    resource page-origin-watch {
+        constructor();
+        next: async func() -> string;
+    }
+
     /// The system's and the developer's preference layers.
     resource preference-sources-watch {
         constructor();

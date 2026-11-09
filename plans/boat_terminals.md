@@ -1,10 +1,10 @@
 # boat.dev terminals
 
-Depends on: plans/boat.md. Unfiled has landed (guides/blocks/workspaces.md),
-as have owner-only settings (guides/settings.md, Owner only) and blocks'
-agents (guides/tracker.md, A block's agent).
+Depends on: nothing left. The boat app (`crates/be-app-boat`), Unfiled
+(guides/blocks/workspaces.md), owner-only settings (guides/settings.md, Owner
+only) and blocks' agents (guides/tracker.md, A block's agent) have landed.
 
-Opening a terminal block into a boat VM from the boat app (plans/boat.md).
+Opening a terminal block into a boat VM from the boat app (`crates/be-app-boat`).
 The design follows the constraints.
 
 ## Constraints
@@ -41,10 +41,11 @@ The design follows the constraints.
   the agent. The terminal host's side is the existing `a_terminal_host_*`
   tests, which run as a block's agent (guides/tracker.md, A block's agent). No HTTP fake and no
   end-to-end run in a VM.
-- **Boat key actions.** The sign-in page in plans/boat.md asks only for the
-  list, start and stop actions. Connect also needs the commands and files
-  actions (`exec` and the file write action; verify the names against boat's
-  `openapi.yaml`), so the sign-in page asks for them once this lands, and a
+- **Boat key actions.** The boat app's sign-in page asks only for
+  `sandbox.read`, `sandbox.resume`, `sandbox.stop` and `account.read`
+  (`api::ACTIONS`). Connect also needs `exec` and `file.write` (boat's key
+  scopes, `https://docs.boat.dev/api-keys/scopes.md`), so the sign-in page
+  asks for them once this lands, and a
   key without them shows Reconnect when Connect is pressed.
 - **Files and secrets.** boat's files API writes only under `/home/user` and
   `/tmp` (400 `invalid_path` elsewhere). Commands run as `user` with
