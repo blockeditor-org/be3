@@ -177,8 +177,10 @@ type Nodes<K> = Stored<RefCell<HashMap<K, NodeRef>>>;
 /// and the toggle expand or collapse. Typing jumps to the next visible row whose
 /// label starts with what was typed in the last second, ignoring case; repeating
 /// one letter cycles through its matches. Given `on_edit`, F2 reports it.
-/// A row takes the clipboard formats `pastes` names for it, and a paste
-/// while it has the focus reports `on_paste` with its key.
+/// A row takes the clipboard formats `pastes` names for it, asked once when
+/// the row is built (not reactive: a row whose formats change needs a new
+/// key), and a paste while it has the focus reports `on_paste` with its key.
+/// `TreeApi::focus` moves the focus to a row, so a menu can aim a paste at it.
 #[component]
 pub fn Tree<K>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TreeApi<K>>,

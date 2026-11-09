@@ -675,8 +675,10 @@ impl EditorHost {
         }
     }
 
-    /// How many times an editor read the host's mirrored state on a frame. Tests count it to
-    /// check a frame with nothing pushed reads nothing.
+    /// How many times anything read the state the host pushed (every getter an editor's
+    /// frame can reach counts). A test hook: tests check an editor's frame with nothing
+    /// pushed reads nothing.
+    #[doc(hidden)]
     pub fn reads(&self) -> u64 {
         self.reads.get()
     }
@@ -776,10 +778,12 @@ impl EditorHost {
     }
 
     pub(crate) fn card(&self) -> bool {
+        self.read();
         self.card.get()
     }
 
     pub(crate) fn take_picked(&self) -> Option<BlockPick> {
+        self.read();
         self.picked.borrow_mut().take()
     }
 
@@ -1621,10 +1625,12 @@ impl EditorHost {
     }
 
     pub fn view(&self) -> Option<Rect> {
+        self.read();
         self.framed_view().map(|view| view.rect)
     }
 
     pub fn view_scale(&self) -> Option<f32> {
+        self.read();
         self.framed_view().map(|view| view.scale)
     }
 
@@ -2292,6 +2298,7 @@ impl EditorHost {
     }
 
     pub fn child_status(&self, child: ChildId) -> Option<ChildStatus> {
+        self.read();
         self.child_statuses.borrow().get(&child).cloned()
     }
 
@@ -2512,6 +2519,7 @@ impl EditorHost {
     }
 
     pub fn take_child_bar_actions(&self, child: ChildId) -> Vec<BarAction> {
+        self.read();
         self.child_bars
             .borrow_mut()
             .remove(&child)
@@ -2519,6 +2527,7 @@ impl EditorHost {
     }
 
     pub fn take_child_focus(&self, child: ChildId) -> bool {
+        self.read();
         self.child_focuses.borrow_mut().remove(&child)
     }
 

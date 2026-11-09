@@ -255,6 +255,11 @@ reveal button and reports `on_reveal` for the caller to expand. The file tree
 and the beui inspector are the full examples (row menus, renaming through
 `editing`, `TreeApi`).
 
+A row takes the clipboard formats `pastes` names for its key (asked once, when
+the row is built) and reports a paste while it has the focus as `on_paste`.
+Pastes reach only the focus, so a row menu's Paste calls `TreeApi::focus` on its
+row before `request_paste`, as the file tree's does.
+
 Given `reorder`, rows part to show where a dragged row would land. The tree
 does not carry the drag: whoever follows it (the tree's own `on_drag_move` and
 `on_drop`, or a host's block drag an app only hears as positions) hands each
