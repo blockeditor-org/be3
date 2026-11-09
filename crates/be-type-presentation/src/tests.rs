@@ -3,6 +3,7 @@ use be_block_commit::MergeResult;
 use uuid::Uuid;
 
 mod a_presentation_moves_slides_by_index_and_follows_its_children;
+mod a_slides_notes_are_held_and_follow_its_children;
 mod slides_moved_by_two_peers_at_once_both_move;
 mod slides_moved_on_both_sides_merge_to_both_moves;
 

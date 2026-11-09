@@ -82,7 +82,8 @@ code for this.
 An editor that keeps its own chrome while a child is edited places it with
 `own_frame` in a tab of its dock instead. The presentation does this: a
 locked filmstrip, a stage tab whose body places the slide with `own_frame`,
-and its toolbar as a `DockBar` lent to the slide canvas's pane.
+a notes tab under it placing the slide's notes block the same way, and its
+toolbar as a `DockBar` lent to the slide canvas's pane.
 
 ## Focus
 
@@ -97,7 +98,31 @@ keyboard (one being presented) brings nothing forward. The other way,
 `EditorHost::focus_child` gives a child the keyboard, but only while the
 keyboard is already inside the editor's views and no popover or
 keyboard-taking layer is open, so it never steals focus from elsewhere. `ChildBlock` and `Subregion` in a dock tab ask for it whenever the
-dock gives that tab the keyboard.
+dock gives that tab the keyboard. `EditorHost::focus_block_child` asks the
+same for the child that will show a block, so an editor that makes a block to
+type into ("Add notes") asks in the frame that makes it, before the child
+exists.
+
+While a gift is pending, be-host holds the keys typed into the editor's view
+(`be-host/src/compositor/app_view/held_keys.rs`). Every gift ends explicitly,
+never by a timeout:
+
+- Granted when the child's view takes the keyboard. The child's app hears the
+  held keys, in order and ahead of keys typed into it since, once a text field
+  in it has the keyboard (its view asks for an input method), or, for a child
+  with none, two frames after it had its block's content and the focus.
+- Refused when the person presses in the editor or takes the keyboard
+  elsewhere, when the child or the editor goes or its app stops, and when no
+  child shows a block gift's block by the layout commit after the one it was
+  asked in. The editor hears the held keys if it still has the keyboard;
+  otherwise they are dropped.
+
+Only children placed in a mode that runs an editor count; a gift to a child
+that is placed but never shows a view that takes the keyboard (a view behind
+another that holds it) lasts until the person presses or moves the keyboard.
+Held keys skip the child's input method, so a composition (CJK) started before
+the child shows arrives as its committed text. An empty text block given the
+keyboard puts its caret in its text.
 
 ## Docks across apps
 

@@ -554,6 +554,7 @@ pub struct EditorHost {
     keyboard_gifts: Rc<RefCell<Vec<ChildId>>>,
     host_palette: Rc<Cell<bool>>,
     palette_opens: Rc<RefCell<Vec<be_sdk_api::PaletteMode>>>,
+    block_keyboard_gifts: Rc<RefCell<Vec<Uuid>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
     showing: Rc<Cell<Option<be_sdk_api::View>>>,
     drops: Rc<RefCell<HashMap<ViewId, ViewDrops>>>,
@@ -2282,6 +2283,14 @@ impl EditorHost {
         self.changed();
     }
 
+    /// As [`EditorHost::focus_child`], for the child that will show `block` once this editor
+    /// places it. Ask in the frame that makes the block, so keys typed while the child loads
+    /// wait for it.
+    pub fn focus_block_child(&self, block: Uuid) {
+        self.block_keyboard_gifts.borrow_mut().push(block);
+        self.changed();
+    }
+
     pub(crate) fn request_dismiss(&self) {
         self.dismiss_requested.set(true);
         self.changed();
@@ -2520,6 +2529,10 @@ impl EditorHost {
 
     pub(crate) fn take_palette_opens(&self) -> Vec<be_sdk_api::PaletteMode> {
         std::mem::take(&mut self.palette_opens.borrow_mut())
+    }
+
+    pub(crate) fn take_block_keyboard_gifts(&self) -> Vec<Uuid> {
+        std::mem::take(&mut self.block_keyboard_gifts.borrow_mut())
     }
 
     pub(crate) fn take_keyboard_gifts(&self) -> Vec<ChildId> {

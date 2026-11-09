@@ -1524,13 +1524,18 @@ pub fn TextArea(
         })
     });
 
-    let focus_requests = state.focus_requests();
     create_effect(move || {
-        if focus_requests.get() > 0 {
+        if state.take_focus_request() {
             focused.set(true);
         }
     });
-    create_effect(move || focused.set(focus_request.get()));
+    let requested = StoredCell::new(false);
+    create_effect(move || {
+        let wanted = focus_request.get();
+        if requested.replace(wanted) || wanted {
+            focused.set(wanted);
+        }
+    });
     let content = state.content();
     let shown = create_memo(move || {
         content.get();

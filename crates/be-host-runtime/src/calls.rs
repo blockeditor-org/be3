@@ -181,6 +181,7 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::CloseDialog { instance, .. }
         | ShellCall::DismissChild { instance, .. }
         | ShellCall::FocusChild { instance, .. }
+        | ShellCall::FocusBlockChild { instance, .. }
         | ShellCall::CloseChild { instance, .. }
         | ShellCall::CommitChild { instance, .. }
         | ShellCall::Picked { instance, .. }

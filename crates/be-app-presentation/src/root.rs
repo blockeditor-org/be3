@@ -7,6 +7,8 @@ use be_type_presentation::PresentationContent;
 use uuid::Uuid;
 
 mod slides;
+#[cfg(test)]
+pub(crate) use slides::TEXT_TYPE;
 pub mod templates;
 mod ui;
 

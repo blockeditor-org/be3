@@ -6,6 +6,8 @@ fn detaching_a_slide_takes_it_off_the_deck() {
     let ids = slide_ids(&test);
     test.run();
 
+    test.click(format!("presentation.slide.{}.more", ids[1]));
+    test.run();
     test.click(format!("presentation.slide.{}.remove", ids[1]));
     test.run();
 

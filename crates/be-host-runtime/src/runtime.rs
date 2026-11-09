@@ -392,6 +392,10 @@ struct Pacing {
     asked_in: u64,
     painting: bool,
     needed_again: bool,
+    /// Frames asked of the app and answered by it, so the host can tell when the app has drawn
+    /// a frame that took input it sent: the first answer to a request made after it.
+    asked: u64,
+    answered: u64,
 }
 
 impl Pacing {
@@ -403,6 +407,7 @@ impl Pacing {
         self.requested_at = None;
         self.painting = false;
         self.needed_again = false;
+        self.answered = self.asked;
     }
 
     fn due(&self, now: Duration, pass: u64) -> bool {
@@ -421,6 +426,7 @@ impl Pacing {
     }
 
     fn request(&mut self, now: Duration, pass: u64) {
+        self.asked += 1;
         self.requested_at = Some(now);
         self.animated = pass;
         self.asked_in = pass;
@@ -436,6 +442,7 @@ impl Pacing {
     }
 
     fn ready(&mut self, now: Duration, repaint_after: Option<Duration>) {
+        self.answered = self.asked;
         self.needed = std::mem::take(&mut self.needed_again);
         self.requested_at = None;
         self.drawn_at = now;
@@ -1468,6 +1475,7 @@ impl Runtime {
         });
         changed |= self.instances.refresh_anchoring_views();
         changed |= super::docks::heard(&self.app.identity.id, docks);
+        self.instances.settle_block_focus();
         changed
     }
 
@@ -1704,6 +1712,41 @@ pub fn take_child_focus(
         runtime.instances.take_child_focus(instance, child)
     })
     .unwrap_or(false)
+}
+
+/// Whether the instance asked to give the keyboard to a child it still places whose view has
+/// not taken it yet. A gift ends when the child's view takes it (`take_child_focus`), when it is
+/// refused (`refuse_child_focus`), or when the child, the instance or its app goes.
+pub fn child_focus_pending(app_id: &str, instance: EditorInstanceId) -> bool {
+    with(app_id, |runtime| {
+        runtime.error.is_none() && runtime.instances.child_focus_pending(instance)
+    })
+    .unwrap_or(false)
+}
+
+/// Ends every gift of the keyboard the instance asked for: the person moved on (pressed in the
+/// editor, or took the keyboard elsewhere) before the child's view took it.
+pub fn refuse_child_focus(app_id: &str, instance: EditorInstanceId) {
+    with(app_id, |runtime| {
+        runtime.instances.refuse_child_focus(instance);
+    });
+}
+
+/// Whether the instance's block content, if it edits one, has reached it.
+pub fn content_delivered(app_id: &str, instance: EditorInstanceId) -> bool {
+    with(app_id, |runtime| {
+        runtime.instances.content_delivered(instance)
+    })
+    .unwrap_or(true)
+}
+
+/// The frames asked of the app and the frames it answered: input sent while `asked` was `n`
+/// has been drawn once `answered` exceeds `n`.
+pub fn frames_answered(app_id: &str) -> (u64, u64) {
+    with(app_id, |runtime| {
+        (runtime.pacing.asked, runtime.pacing.answered)
+    })
+    .unwrap_or_default()
 }
 
 pub fn take_child_dismissals(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::ChildId> {
