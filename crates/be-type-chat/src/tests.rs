@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 use crate::{ChatContent, Message};
 
-mod a_message_sent_in_a_live_session_lands_after_those_sequenced_before_it;
 mod a_message_hash_covers_what_it_signs_and_a_sent_message_notes_the_last_one_seen;
+mod a_message_sent_in_a_live_session_lands_after_those_sequenced_before_it;
 mod a_saved_chat_loads_back_from_its_parts;
 mod an_edit_by_someone_other_than_the_author_is_not_shown;
 mod an_edit_made_offline_to_a_message_deleted_elsewhere_stays_deleted;

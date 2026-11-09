@@ -6,8 +6,8 @@ use be_block_commit::MergeResult;
 use std::collections::BTreeMap;
 
 use be_block_model::{
-    Anchor, BlockRef, Change, Document, Edit, LatestMap, List, Model, ObjectId, Series,
-    Step, Touched,
+    Anchor, BlockRef, Change, Document, Edit, LatestMap, List, Model, ObjectId, Series, Step,
+    Touched,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -294,7 +294,13 @@ impl ChatContent {
         (id, change.into())
     }
 
-    pub fn edit(&self, message: ObjectId, author: Uuid, time: i64, body: impl Into<String>) -> Edit {
+    pub fn edit(
+        &self,
+        message: ObjectId,
+        author: Uuid,
+        time: i64,
+        body: impl Into<String>,
+    ) -> Edit {
         let edit = MessageEdit {
             author,
             time,

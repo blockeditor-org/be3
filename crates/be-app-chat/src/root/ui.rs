@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use be_sdk_beui::be_block::ObjectId;
 use be_sdk_beui::beui::NodeId;
+use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
 use be_sdk_beui::beui::icons::{
     Glyph, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_SEND,
@@ -9,7 +10,6 @@ use be_sdk_beui::beui::icons::{
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::{ContentProjection, Editor, utc_offset};
 use be_type_chat::{ChatContent, Message, Shown};
 use beui::{Align, Direction};
@@ -207,16 +207,17 @@ pub fn Chat(editor: Editor) -> NodeId {
 }
 
 fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64) -> Row {
-    let reply = message.message.reply_to.map(|quoted| {
-        match shown.get(&quoted) {
+    let reply = message
+        .message
+        .reply_to
+        .map(|quoted| match shown.get(&quoted) {
             Some(quoted) => format!(
                 "{}: {}",
                 author(quoted.message.author, me),
                 excerpt(&quoted.body)
             ),
             None => "A deleted message".to_owned(),
-        }
-    });
+        });
     let reactions = message
         .reactions
         .iter()
