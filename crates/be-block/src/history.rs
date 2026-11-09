@@ -66,10 +66,12 @@ impl<C: Undo, T: Moment> History<C, T> {
             return;
         }
         let step = match (self.undo.last_mut(), at) {
-            (Some((previous, Some(burst))), Some(now)) if now.within(burst.at, EDIT_BURST) => {
+            (Some((previous, Some(burst))), Some(now))
+                if burst.origin == origin && now.within(burst.at, EDIT_BURST) =>
+            {
                 match C::absorb(previous, step) {
                     Ok(()) => {
-                        *burst = Burst { at: now, origin };
+                        burst.at = now;
                         return;
                     }
                     Err(step) => step,
