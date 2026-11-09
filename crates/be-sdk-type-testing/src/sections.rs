@@ -1,12 +1,13 @@
 //! `Sections`, a block type for tests of types that load and merge by parts: ten sections of
 //! bytes, each saved as a part of its own after a header of their lengths, which is the first
-//! part and all a replica loads. Its plain file is one line per section (`*.sections`).
+//! part and all a replica loads. Its plain file is one line per section (`*.sections`), and
+//! its searchable text one document per section, keyed by its index.
 
 use std::collections::HashMap;
 
 use be_block::{
     BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef,
-    Stored,
+    SearchDocument, Stored,
 };
 use be_block_commit::MergeResult;
 use be_sdk_type_api::PlainFile;
@@ -167,6 +168,41 @@ impl BlockContent for Sections {
                 })
                 .collect(),
         })
+    }
+
+    /// Reads a section only when it is asked for, unloaded and not indexed.
+    fn search_text(
+        &self,
+        keys: Option<&[String]>,
+        indexed: &[PartRef],
+        parts: PartReader,
+    ) -> impl Future<Output = Result<Vec<SearchDocument>, String>> + 'static {
+        let asked: Vec<(String, Section)> = self
+            .sections
+            .iter()
+            .enumerate()
+            .map(|(index, section)| (index.to_string(), section.clone()))
+            .filter(|(key, _)| keys.is_none_or(|keys| keys.contains(key)))
+            .collect();
+        let indexed = indexed.to_vec();
+        async move {
+            let mut documents = Vec::with_capacity(asked.len());
+            for (key, section) in asked {
+                let source = section.saved();
+                let body = match section {
+                    _ if source.is_some_and(|source| indexed.contains(&source)) => None,
+                    Section::Held { bytes, .. } => Some(bytes),
+                    Section::Unloaded(part) => Some(parts.read_all(part).await?),
+                };
+                documents.push(SearchDocument {
+                    key,
+                    source,
+                    name: None,
+                    body: body.map(|body| String::from_utf8_lossy(&body).into_owned()),
+                });
+            }
+            Ok(documents)
+        }
     }
 }
 
