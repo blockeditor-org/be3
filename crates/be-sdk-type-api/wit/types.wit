@@ -62,7 +62,7 @@ interface types {
         /// request handed `loaded` content gets only that part's bytes.
         first-part: bool,
         /// The type merges by parts (`replicas.merge-parts`) rather than whole bytes
-        /// (`replicas.merge3`), and loads only its first part.
+        /// (`replicas.merge3`). Only a type with `first-part` does.
         merges-parts: bool,
     }
 

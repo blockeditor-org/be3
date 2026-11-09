@@ -124,7 +124,9 @@ worker").
   so later and offline queries reuse it.
 - **Snippets** come from the content of the shown hits only: the host asks the
   hit's type for that document's text (`search-text` with its key) and cuts
-  the snippet around the matched terms.
+  the snippet around the matched terms. A type that loads whole (text) is
+  loaded and decoded whole for that, on every query change for quick open, so
+  keep the snippet text per (block, commit, key) rather than asking again.
 - Results are pushed again when an index changes, like any query.
 
 ## UI

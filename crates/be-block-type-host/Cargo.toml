@@ -32,6 +32,7 @@ be-server = { path = "../be-server" }
 be-sdk-type-testing = { path = "../be-sdk-type-testing" }
 be-type-checklist = { path = "../be-type-checklist" }
 be-type-example-counter = { path = "../be-type-example-counter" }
+be-type-text = { path = "../be-type-text" }
 pollster = "0.4"
 tokio = { version = "1", features = ["net", "rt", "sync", "time"] }
 

@@ -1,6 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     future::{Future, ready},
     rc::Rc,
 };
@@ -221,19 +221,9 @@ fn search_text<C: BlockContent>(
             .into_stored()
             .ok_or_else(|| "the host loaded parts that form no tree".to_owned())?;
         let content = C::from_stored(&stored).map_err(|error| error.to_string())?;
-        let mut documents = content
-            .search_text(keys.as_deref(), &indexed, parts)
-            .await?;
-        documents.retain(|document| document.asked(keys.as_deref()));
-        for document in &mut documents {
-            if document
-                .source
-                .is_some_and(|source| indexed.contains(&source))
-            {
-                document.body = None;
-            }
-        }
-        Ok(documents)
+        let keys: Option<HashSet<String>> = keys.map(|keys| keys.into_iter().collect());
+        let indexed: HashSet<be_block::PartRef> = indexed.into_iter().collect();
+        content.search_text(keys.as_ref(), &indexed, parts).await
     })
 }
 
