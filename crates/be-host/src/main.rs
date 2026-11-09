@@ -2877,7 +2877,11 @@ impl HostCore {
         let setting = DisplaySettings::theme_setting();
         let this_device = self.display.layers().this_device.unwrap_or_default();
         let layer = setting.layer(&this_device);
-        let next = match self.display.applied().and_then(|settings| setting.get(settings)) {
+        let next = match self
+            .display
+            .applied()
+            .and_then(|settings| setting.get(settings))
+        {
             None => Some(beui::ThemeKind::Light),
             Some(beui::ThemeKind::Light) => Some(beui::ThemeKind::Dark),
             Some(_) => None,

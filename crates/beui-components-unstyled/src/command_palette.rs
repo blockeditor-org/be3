@@ -173,9 +173,9 @@ pub fn CommandPalette(
             rank(items, &query, |item, query| {
                 item.ranked.or_else(|| score(item, query))
             })
-                .into_iter()
-                .map(|at| items[at].key.clone())
-                .collect::<Vec<_>>()
+            .into_iter()
+            .map(|at| items[at].key.clone())
+            .collect::<Vec<_>>()
         })
     };
     let enabled = move |key: String| state.item(&key).is_some_and(|item| !item.disabled);

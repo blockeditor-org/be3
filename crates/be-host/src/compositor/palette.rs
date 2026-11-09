@@ -216,9 +216,9 @@ fn block_rows(blocks: Vec<OpenableBlock>, from: Option<Uuid>) -> Vec<Row> {
 /// shows (named after themselves, else their type), those open in an editor first, fuzzily
 /// matched against what is typed.
 fn loaded_blocks(typed: ReadSignal<String>, opened: ReadSignal<u64>) -> Memo<Vec<OpenableBlock>> {
-    let loaded = create_memo(move || {
-        opened.get();
-        untrack(graph_blocks)
+    let loaded = create_memo(move || match opened.get() {
+        0 => Vec::new(),
+        _ => untrack(graph_blocks),
     });
     create_memo(move || {
         let typed = typed.get();

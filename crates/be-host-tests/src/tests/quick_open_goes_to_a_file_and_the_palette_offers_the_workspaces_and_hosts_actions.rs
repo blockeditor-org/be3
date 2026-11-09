@@ -19,7 +19,11 @@ fn quick_open_goes_to_a_file_and_the_palette_offers_the_workspaces_and_hosts_act
     add_to_my_files(&mut host, "Text");
     host.click("#dock.tab.2.close");
     host.run(&["settle"]);
-    assert_eq!(host.count("Tab \"Text\""), 1, "one of the two texts is closed");
+    assert_eq!(
+        host.count("Tab \"Text\""),
+        1,
+        "one of the two texts is closed"
+    );
 
     // The workspace's own focus: its tab menu's button, once the menu closes.
     host.click("#dock.editors.menu");
