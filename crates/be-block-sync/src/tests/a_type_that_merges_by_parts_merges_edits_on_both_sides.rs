@@ -1,4 +1,4 @@
-use be_sdk_type_guest::sections::Sections;
+use be_sdk_type_testing::sections::Sections;
 
 use super::*;
 

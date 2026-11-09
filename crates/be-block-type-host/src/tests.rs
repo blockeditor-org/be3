@@ -6,7 +6,8 @@ use be_block_commit::CommitId;
 use be_block_graph::BlockParent;
 use be_block_store::{Manifest, MemoryStore};
 use be_sdk_type_api::{Description, EditorId, Status};
-use be_sdk_type_guest::sections::{self, Sections};
+use be_sdk_type_testing::probe::{self, Probe};
+use be_sdk_type_testing::sections::{self, Sections};
 use be_wasm_threads::Mutex;
 use uuid::Uuid;
 
@@ -75,8 +76,9 @@ impl Host for Quiet {
     fn leaving(_: &Arc<Mutex<Self>>, _: bool) {}
 }
 
-/// Runs `test` with a server, a peer signed in to it and a host holding the `Sections` type.
-fn with_sections<F: Future<Output = ()>>(
+/// Runs `test` with a server, a peer signed in to it and a host holding the `Sections` and
+/// `Probe` types.
+fn with_test_types<F: Future<Output = ()>>(
     test: impl FnOnce(Arc<Peer<MemoryStore>>, Arc<Mutex<Quiet>>, Replicas<Quiet>) -> F,
 ) {
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -98,7 +100,10 @@ fn with_sections<F: Future<Output = ()>>(
         .await
         .expect("the peer signs in");
         let modules = started(
-            vec![in_process::<sections::BlockTypes>("test.sections")],
+            vec![
+                in_process::<sections::BlockTypes>("test.sections"),
+                in_process::<probe::BlockTypes>("test.probe"),
+            ],
             be_block_client::Clock::real(),
         )
         .await;

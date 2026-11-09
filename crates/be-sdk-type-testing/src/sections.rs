@@ -3,7 +3,6 @@
 //! part and all a replica loads. Its plain file is one line per section (`*.sections`).
 
 use std::collections::HashMap;
-use std::sync::Mutex;
 
 use be_block::{
     BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef,
@@ -14,7 +13,7 @@ use be_sdk_type_api::PlainFile;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::FileForm;
+use be_sdk_type_guest::FileForm;
 
 pub const SECTIONS: usize = 10;
 
@@ -61,16 +60,6 @@ impl Default for Sections {
 pub struct SetSection {
     pub index: usize,
     pub bytes: Vec<u8>,
-}
-
-/// Every part a `Sections` merge in this process read, in order, so a test can check what a
-/// merge read (filtering to its own block's parts, since tests share the process).
-static READ: Mutex<Vec<PartRef>> = Mutex::new(Vec::new());
-
-pub fn parts_read() -> Vec<PartRef> {
-    READ.lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clone()
 }
 
 impl Sections {
@@ -214,14 +203,34 @@ fn merged(sections: Vec<Section>, conflicts: usize) -> MergeResult<Sections> {
     }
 }
 
+/// What a section's refs settle without its bytes: a side saved as the base's part is
+/// unchanged, so the other side wins (equal refs mean equal bytes, though not the other way
+/// round: a rotation's reseal gives the same bytes a new ref).
+fn by_refs(base: &Section, ours: &Section, theirs: &Section) -> Option<Section> {
+    let base = base.saved()?;
+    if ours.saved() == Some(base) {
+        return Some(theirs.clone());
+    }
+    if theirs.saved() == Some(base) {
+        return Some(ours.clone());
+    }
+    None
+}
+
 impl Merge for Sections {
+    /// Over what each side holds: a section unloaded on a side that its refs do not settle
+    /// keeps ours as a conflict, where `merge_parts` reads it. A replica merges with this in
+    /// its session (guides/type_modules.md, "Merging by parts").
     fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
         let mut conflicts = 0;
         let mut sections = Vec::with_capacity(SECTIONS);
         for index in 0..SECTIONS {
-            let side = |content: &Self| content.sections[index].clone();
-            let (base, ours, theirs) = (side(base), side(ours), side(theirs));
-            sections.push(match (&base, &ours, &theirs) {
+            let [base, ours, theirs] = [base, ours, theirs].map(|side| &side.sections[index]);
+            if let Some(settled) = by_refs(base, ours, theirs) {
+                sections.push(settled);
+                continue;
+            }
+            sections.push(match (base, ours, theirs) {
                 (
                     Section::Held { bytes: base, .. },
                     Section::Held { bytes: ours, .. },
@@ -231,11 +240,9 @@ impl Merge for Sections {
                     conflicts += usize::from(conflicted);
                     Section::Held { bytes, saved: None }
                 }
-                _ if ours.saved().is_some() && ours.saved() == base.saved() => theirs,
-                _ if theirs.saved().is_some() && theirs.saved() == base.saved() => ours,
                 _ => {
                     conflicts += 1;
-                    ours
+                    ours.clone()
                 }
             });
         }
@@ -244,10 +251,9 @@ impl Merge for Sections {
 }
 
 impl MergeParts for Sections {
-    /// A section saved as one part on every side is kept as that part, unread. Any other is
+    /// A section its refs settle is kept as the winning side's part, unread. Any other is
     /// merged from its bytes, reading each side's part once (sides that share a part share
-    /// the read), since a part's ref changes when it is sealed under a new key while its
-    /// bytes stay the same; it is written anew.
+    /// the read), and written anew.
     fn merge_parts(
         base: Self,
         ours: Self,
@@ -260,9 +266,8 @@ impl MergeParts for Sections {
             let mut sections = Vec::with_capacity(SECTIONS);
             for index in 0..SECTIONS {
                 let sides = [&base, &ours, &theirs].map(|side| side.sections[index].clone());
-                let saved = sides[0].saved();
-                if saved.is_some() && sides.iter().all(|side| side.saved() == saved) {
-                    sections.push(sides[0].clone());
+                if let Some(settled) = by_refs(&sides[0], &sides[1], &sides[2]) {
+                    sections.push(settled);
                     continue;
                 }
                 let mut bytes = Vec::with_capacity(3);
@@ -271,9 +276,6 @@ impl MergeParts for Sections {
                         Section::Held { bytes, .. } => bytes,
                         Section::Unloaded(part) => {
                             if !read.contains_key(&part) {
-                                READ.lock()
-                                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                                    .push(part);
                                 read.insert(part, parts.read_all(part).await?);
                             }
                             read[&part].clone()
@@ -316,4 +318,4 @@ impl FileForm for Sections {
     }
 }
 
-crate::be_block_types![Sections { file, merge_parts }];
+be_sdk_type_guest::be_block_types![Sections { file, merge_parts }];

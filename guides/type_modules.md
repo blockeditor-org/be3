@@ -204,9 +204,18 @@ and `conflicts`. `MergeParts::merge_parts` gets each side as `from_stored`
 decoded it and a `PartReader`; a merged value hands unchanged parts back as
 `Part::Reused`, so the commit uploads only what the merge changed. Equal refs
 mean equal bytes, but not the other way round (a rotation reseals a part under
-a new ref), so a merge that must know reads the bytes. The in-session merges of
-a replica (a rejected seal, a head written offline) still use `Merge::merge3`
-on the values it loaded.
+a new ref), so a merge that must know reads the bytes. The answer may reuse
+only parts of the sides (`Scope::admits`); a merge that reused any other, or
+whose reads failed (offline, a missing key), is not written: the read failure
+comes back as the `ClientError`.
+
+The in-session merges of a replica (a rejected seal, a head written offline)
+still call the synchronous `Merge::merge3` on the values it loaded, so a type
+that loads only its first part writes `merge3` over what it holds: a part
+unloaded on a side is settled by refs where they settle it (a side holding the
+base's part gives way) and otherwise kept as ours with a conflict, never read.
+Its `merge_parts` must agree wherever `merge3` decides without a conflict
+(`Sections` shares one function, `by_refs`, between them).
 
 **`read-part` under a stateless request.** A call a module makes while serving
 a stateless request has that request as its parent (`ops::guest::request()`
@@ -215,14 +224,18 @@ host serves only `read-part` there, and only of the parts of the `loaded`
 content it handed the request: it asks with `Replicas::ask_reading` or
 `Modules::ask_reading` and a `Scope` (`Scope::of` the sides), refuses a read of
 any other part with `OUTSIDE_REQUEST`, and refuses every other call. Any
-stateless request that hands a module `loaded` content asks this way. `be sync`
-hands base and theirs as their commits' first parts and ours as the file's
-bytes, and reads the merged commit's reused parts whole, since it becomes a
-file.
+stateless request that hands a module `loaded` content asks this way, and the
+scope answers what was read (`Scope::read`, `Merged::read`) and the first
+read that failed. A scope whose asker stopped waiting goes when its request
+completes or its module restarts. `be sync` hands base and theirs as their
+commits' first parts and ours as the file's bytes, which have no refs, so a
+type settling by refs reads every part theirs changed (and the base's); it
+then reads the merged commit's reused parts whole, since it becomes a file.
 
-Tests use `be_sdk_type_guest::sections::Sections`, ten sections each a part
-after a header of their lengths, which logs the parts its merges read
-(`parts_read`): be-block-type-host's
+Tests use the types in `crates/be-sdk-type-testing` (a dev-dependency only):
+`Sections`, ten sections each a part after a header of their lengths, and
+`Probe`, whose merge reads a part its content names and makes a call other than
+`read-part`, so a test sees the host refuse both. be-block-type-host's
 `a_merge_over_parts_reads_only_the_parts_each_side_changed` and
 `a_stateless_request_reads_only_parts_of_the_commits_it_was_handed`, and
 be-block-sync's `a_type_that_merges_by_parts_merges_edits_on_both_sides`.
