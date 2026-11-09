@@ -559,13 +559,10 @@ impl Frame<'_> {
         ]
         .map(|value| value.clamp(OPEN[0], OPEN[2]));
         let mut key = [0; 14];
-        for (slot, value) in key.iter_mut().zip(
-            origin
-                .iter()
-                .chain(&bound)
-                .chain(&rect)
-                .chain(&fade.widths),
-        ) {
+        for (slot, value) in key
+            .iter_mut()
+            .zip(origin.iter().chain(&bound).chain(&rect).chain(&fade.widths))
+        {
             *slot = value.to_bits();
         }
         if let Some(slot) = self.slots.get(&key) {

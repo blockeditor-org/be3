@@ -779,7 +779,9 @@ fn cropped(primitives: &mut Vec<Primitive>, rect: [f32; 4]) {
 fn textures_of(primitives: &[Primitive], used: &mut std::collections::BTreeSet<TextureKey>) {
     for primitive in primitives {
         match &primitive.content {
-            Content::Mesh(triangles) => used.extend(triangles.iter().map(|triangle| triangle.texture)),
+            Content::Mesh(triangles) => {
+                used.extend(triangles.iter().map(|triangle| triangle.texture))
+            }
             Content::Glyph(glyph) => {
                 used.insert(glyph.texture);
             }
