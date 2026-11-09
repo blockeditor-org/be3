@@ -1732,7 +1732,7 @@ impl Renderer {
         for step in steps {
             match step {
                 Step::Runs(runs) => {
-                    let mut pass = self.begin(encoder, target, load);
+                    let mut pass = self.begin_at(encoder, target, load, depth);
                     if let Some(scissor) = scissor {
                         clip(&mut pass, scissor);
                     }
@@ -1760,7 +1760,7 @@ impl Renderer {
                     if let Some(effects) = self.effects.get_mut(*index) {
                         effects.record(device, queue, encoder, &prepared, srgb, scissor);
                     }
-                    let mut pass = self.begin(encoder, target, load);
+                    let mut pass = self.begin_at(encoder, target, load, depth);
                     if let Some(scissor) = scissor {
                         clip(&mut pass, scissor);
                     }
@@ -1788,7 +1788,7 @@ impl Renderer {
                         continue;
                     };
                     {
-                        let mut pass = self.begin(encoder, &layer, wgpu::LoadOp::Load);
+                        let mut pass = self.begin_at(encoder, &layer, wgpu::LoadOp::Load, depth + 1);
                         clip(&mut pass, region);
                         if let Some(groups) = &self.groups {
                             groups.clear(&mut pass);
@@ -1804,7 +1804,7 @@ impl Renderer {
                         grouped,
                         depth + 1,
                     );
-                    let mut pass = self.begin(encoder, target, load);
+                    let mut pass = self.begin_at(encoder, target, load, depth);
                     clip(&mut pass, region);
                     if let Some(groups) = &self.groups {
                         groups.compose(&mut pass, depth, *index);
@@ -1815,7 +1815,7 @@ impl Renderer {
             loaded = true;
         }
         if !loaded {
-            drop(self.begin(encoder, target, load));
+            drop(self.begin_at(encoder, target, load, depth));
         }
     }
 
@@ -1866,6 +1866,23 @@ impl Renderer {
             occlusion_query_set: None,
             multiview_mask: None,
         })
+    }
+
+    /// Begins a pass on a target `depth` groups deep: a group's layer may be larger
+    /// than the window's target, so it draws onto the part of it the target's size.
+    fn begin_at<'pass>(
+        &self,
+        encoder: &'pass mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        load: wgpu::LoadOp<wgpu::Color>,
+        depth: usize,
+    ) -> wgpu::RenderPass<'pass> {
+        let mut pass = self.begin(encoder, target, load);
+        let (width, height) = self.target;
+        if depth > 0 && width > 0 && height > 0 {
+            pass.set_viewport(0.0, 0.0, width as f32, height as f32, 0.0, 1.0);
+        }
+        pass
     }
 
     fn draw(&self, pass: &mut wgpu::RenderPass<'_>, runs: &[Run], scissor: Option<[u32; 4]>) {
