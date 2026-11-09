@@ -991,48 +991,48 @@ fn TextInputFixture() -> NodeId {
     let read = create_signal(String::from("Selection unread"));
     view! {
         <List spacing=12.0>
-        <beui::styled::Form on_submit={move || sent.update(|sent| *sent += 1)}>
-            <List spacing=12.0>
-                <Frame width=240.0>
-                    <beui::styled::TextInput @test_id="text_input.field" value={value} api />
-                </Frame>
-                <Frame width=240.0>
-                    <beui::styled::TextInput
-                        @test_id="text_input.password"
-                        value={secret}
-                        label="Password"
-                        kind={beui::styled::InputKind::Password}
-                        name="password"
-                        autocomplete="current-password"
-                    />
-                </Frame>
-                <beui::styled::Button label="Send" submit=true />
-                <Text color={INK}>{report}</Text>
-                <Text color={INK}>{hidden}</Text>
-                <Text color={INK}>{count}</Text>
-            </List>
-        </beui::styled::Form>
-        <beui::styled::Button
-            label="Select 1 to 3"
-            on_click={move || api.get().set_selection(1..3)}
-        />
-        <beui::styled::Button
-            label="Read selection"
-            on_click={move || {
-                let api = api.get();
-                let ranges = api
-                    .selection()
-                    .iter()
-                    .map(|range| format!("{}..{}", range.start, range.end))
-                    .collect::<Vec<_>>();
-                let ranges = match ranges.is_empty() {
-                    true => "none".to_owned(),
-                    false => ranges.join(" "),
-                };
-                read.set(format!("Selection {ranges} caret {}", api.caret()));
-            }}
-        />
-        <Text color={INK}>{read}</Text>
+            <beui::styled::Form on_submit={move || sent.update(|sent| *sent += 1)}>
+                <List spacing=12.0>
+                    <Frame width=240.0>
+                        <beui::styled::TextInput @test_id="text_input.field" value={value} api />
+                    </Frame>
+                    <Frame width=240.0>
+                        <beui::styled::TextInput
+                            @test_id="text_input.password"
+                            value={secret}
+                            label="Password"
+                            kind={beui::styled::InputKind::Password}
+                            name="password"
+                            autocomplete="current-password"
+                        />
+                    </Frame>
+                    <beui::styled::Button label="Send" submit=true />
+                    <Text color={INK}>{report}</Text>
+                    <Text color={INK}>{hidden}</Text>
+                    <Text color={INK}>{count}</Text>
+                </List>
+            </beui::styled::Form>
+            <beui::styled::Button
+                label="Select 1 to 3"
+                on_click={move || api.get().set_selection(1..3)}
+            />
+            <beui::styled::Button
+                label="Read selection"
+                on_click={move || {
+                    let api = api.get();
+                    let ranges = api
+                        .selection()
+                        .iter()
+                        .map(|range| format!("{}..{}", range.start, range.end))
+                        .collect::<Vec<_>>();
+                    let ranges = match ranges.is_empty() {
+                        true => "none".to_owned(),
+                        false => ranges.join(" "),
+                    };
+                    read.set(format!("Selection {ranges} caret {}", api.caret()));
+                }}
+            />
+            <Text color={INK}>{read}</Text>
         </List>
     }
 }

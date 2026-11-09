@@ -14,7 +14,10 @@ pub struct BackHandlerId(u64);
 struct Handler {
     id: BackHandlerId,
     enabled: bool,
-    #[cfg_attr(not(target_arch = "wasm32"), expect(dead_code, reason = "only the browser goes back"))]
+    #[cfg_attr(
+        not(target_arch = "wasm32"),
+        expect(dead_code, reason = "only the browser goes back")
+    )]
     on_back: Callback<BackGesture>,
 }
 
@@ -73,12 +76,21 @@ pub fn remove(id: BackHandlerId) {
 }
 
 fn wanted() -> bool {
-    HANDLERS.with(|handlers| handlers.borrow().handlers.iter().any(|handler| handler.enabled))
+    HANDLERS.with(|handlers| {
+        handlers
+            .borrow()
+            .handlers
+            .iter()
+            .any(|handler| handler.enabled)
+    })
 }
 
 /// The browser went back: the latest enabled handler hears it, if the entry it
 /// popped was the page's own.
-#[cfg_attr(not(target_arch = "wasm32"), expect(dead_code, reason = "only the browser goes back"))]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    expect(dead_code, reason = "only the browser goes back")
+)]
 fn popped() {
     if RETRACTING.with(|retracting| retracting.replace(false)) {
         return;

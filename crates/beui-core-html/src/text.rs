@@ -248,7 +248,10 @@ pub(crate) struct Decor {
 }
 
 impl Decor {
-    #[cfg_attr(not(target_arch = "wasm32"), expect(dead_code, reason = "only the browser draws marks"))]
+    #[cfg_attr(
+        not(target_arch = "wasm32"),
+        expect(dead_code, reason = "only the browser draws marks")
+    )]
     pub(crate) fn all_marks(&self) -> Vec<TextMark> {
         self.marks.iter().chain(&self.selection).cloned().collect()
     }
