@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use be_block_commit::RetentionPolicy;
 use be_block_commit::retention::DAY;
 use be_block_model::{Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
@@ -84,10 +83,6 @@ impl OrganizationPolicies {
 
     pub fn history_kept_for(&self) -> i64 {
         i64::from(self.history_days.unwrap_or(0)) * DAY
-    }
-
-    pub fn retention(&self) -> RetentionPolicy {
-        RetentionPolicy::default().keeping_all_within(self.history_kept_for())
     }
 
     pub fn quota(&self) -> Option<u64> {
