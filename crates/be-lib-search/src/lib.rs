@@ -9,16 +9,32 @@ The index is a small header (`Index`, encoded with `Index::encode`) over
 immutable segments, one per batch, and a document table:
 
 - A segment's parts are its term dictionary (sorted blocks of a few KiB, with
-  an fst of each block's first term in the header), its postings (blocks of
+  each block's first term and highest document frequency in the header), its
+  postings (blocks of
   128 documents with skip data and each block's highest term frequency and
   shortest field, for block-max pruning), its positions (apart, read only for
-  phrases) and its documents (per local id: the document, its time and field
+  phrases) and its documents (per local id: the document, its commit and field
   lengths). A segment's deletion bitmap is a part of its own, rewritten when a
   batch masks one of its documents.
 - The document table, sorted by document and split into chunks named in the
   header, says per document the commit it was indexed at, the part its text
   came from and where its postings are. A removed document keeps a tombstone,
-  so a merge of two indexes knows it was removed rather than never seen.
+  so a merge of two indexes knows it was removed rather than never seen, and
+  a block that left the tree keeps one in the header for the documents of it
+  the index never saw.
+
+Every part may come from another device, so nothing read is trusted: bytes
+that are not what the index wrote are `Error::Corrupt`, never a panic or an
+allocation larger than the bytes read.
+
+The dictionary's top level is a sorted list rather than an fst: fst reads its
+nodes by unchecked index, so a crafted part from another device could panic
+the reader, and the list is validated whole when the header is decoded.
+
+Segments, not one index rewritten in place: a batch adds parts without
+touching the others, and two devices' batches merge as a union. Rejected for
+now: tantivy, which wants a filesystem directory, threads and its own merge
+policy, and whose segments the commit DAG cannot three-way merge.
 
 Terms are a field byte (`NAME` or `BODY`) and the case-folded word. A query
 matches documents holding every clause (a word, a prefix or a phrase) in their
@@ -27,6 +43,7 @@ newer commit on equal scores.
 */
 
 mod compact;
+mod join;
 mod merge;
 mod query;
 mod segment;
@@ -34,7 +51,11 @@ mod table;
 mod tokens;
 mod varint;
 
-use std::{collections::HashMap, future::Future, ops::Range};
+use std::{
+    collections::{BTreeMap, HashMap},
+    future::Future,
+    ops::Range,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -157,6 +178,10 @@ impl Parts for MemoryParts {
 pub struct Written {
     pub added: Vec<(PartName, Vec<u8>)>,
     pub dropped: Vec<PartName>,
+    /// Documents whose text the index does not hold for their newest
+    /// commit (a `Put` without text it had nothing for, or a merge that
+    /// lost it): ask their type for it again.
+    pub needs_text: Vec<DocId>,
 }
 
 /// The searchable fields of a document.
@@ -173,7 +198,8 @@ pub struct Put {
     pub commit: Commit,
     pub source: Option<Hash>,
     /// None when its text is unchanged since it was indexed (its source was
-    /// in `search-text`'s `indexed`): only its commit and source move.
+    /// in `search-text`'s `indexed`): only its commit and source move. With
+    /// nothing indexed for it, it comes back in `Written::needs_text`.
     pub text: Option<Text>,
 }
 
@@ -193,7 +219,11 @@ pub struct Batch {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Entry {
     pub doc: DocId,
+    /// The newest commit the index has seen the document at.
     pub commit: Commit,
+    /// The commit whose text its postings hold: `commit`, or older when a
+    /// `Put` without text moved only `commit`.
+    pub indexed: Commit,
     pub source: Option<Hash>,
     /// None for a removed document.
     place: Option<Place>,
@@ -202,6 +232,16 @@ pub struct Entry {
 impl Entry {
     pub fn is_removed(&self) -> bool {
         self.place.is_none()
+    }
+
+    fn tombstone(doc: DocId, commit: Commit) -> Self {
+        Self {
+            doc,
+            commit,
+            indexed: commit,
+            source: None,
+            place: None,
+        }
     }
 }
 
@@ -214,20 +254,45 @@ struct Place {
 const NAME: u8 = 0;
 const BODY: u8 = 1;
 
+/// A segment compaction replaced, kept so a merge with an index that still
+/// has it does not bring it back, until `Index::forget_before` passes `at`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct Retired {
+    id: Id,
+    /// The watermark when it was retired.
+    at: u64,
+}
+
+/// A block that left the tree, masking its documents at older commits,
+/// those the index never saw too, until `Index::forget_before` passes `at`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct RemovedBlock {
+    block: Vec<u8>,
+    commit: Commit,
+    at: u64,
+}
+
 /// The header of an index: its segments, its document table's chunks and its
 /// watermark.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Index {
     watermark: u64,
     segments: Vec<segment::Meta>,
-    /// Segments compaction replaced, so a merge does not bring them back.
-    retired: Vec<Id>,
+    retired: Vec<Retired>,
+    removed_blocks: Vec<RemovedBlock>,
     table: Vec<table::ChunkRef>,
 }
 
 impl Index {
     pub fn decode(bytes: &[u8]) -> Result<Self, Error> {
-        postcard::from_bytes(bytes).map_err(|_| Error::Corrupt("header"))
+        let index: Self = postcard::from_bytes(bytes).map_err(|_| Error::Corrupt("header"))?;
+        for segment in &index.segments {
+            segment.check()?;
+        }
+        if !index.table.windows(2).all(|pair| pair[0].first < pair[1].first) {
+            return Err(Error::Corrupt("table chunk list"));
+        }
+        Ok(index)
     }
 
     pub fn encode(&self) -> Vec<u8> {
@@ -240,6 +305,14 @@ impl Index {
 
     pub fn segment_count(&self) -> usize {
         self.segments.len()
+    }
+
+    /// Forgets retired segments and removed blocks recorded before
+    /// `watermark`, once no index that predates them can still be merged in
+    /// (the index block's history retention says when).
+    pub fn forget_before(&mut self, watermark: u64) {
+        self.retired.retain(|retired| retired.at >= watermark);
+        self.removed_blocks.retain(|removed| removed.at >= watermark);
     }
 
     /// Every part the header names, the header aside.
@@ -264,91 +337,91 @@ impl Index {
         table.entries_of(parts, block).await
     }
 
+    fn block_removed_at(&self, block: &[u8]) -> Option<Commit> {
+        self.removed_blocks
+            .iter()
+            .filter(|removed| removed.block == block)
+            .map(|removed| removed.commit)
+            .max()
+    }
+
     /// Applies a batch: a new segment for the documents with new text, the
     /// table chunks they change and the deletion bitmaps of what they mask.
-    pub async fn apply(
-        &mut self,
-        parts: &impl Parts,
-        origin: Id,
-        batch: Batch,
-    ) -> Result<Written, Error> {
+    pub async fn apply(&mut self, parts: &impl Parts, origin: Id, batch: Batch) -> Result<Written, Error> {
         let mut written = Written::default();
         let mut table = table::Edit::new(&self.table);
         let mut masks: Vec<Place> = Vec::new();
-        let mut put: Vec<Put> = Vec::new();
-        for item in batch.put {
-            match put.iter_mut().find(|other| other.doc == item.doc) {
-                Some(other) if other.commit < item.commit => *other = item,
-                Some(_) => {}
-                None => put.push(item),
+        for (block, commit) in batch.removed_blocks {
+            if self.block_removed_at(&block).is_some_and(|known| known >= commit) {
+                continue;
             }
+            self.removed_blocks.retain(|removed| removed.block != block);
+            self.removed_blocks.push(RemovedBlock {
+                block: block.clone(),
+                commit,
+                at: self.watermark,
+            });
+            for entry in table.entries_of(parts, &block).await? {
+                if entry.commit < commit {
+                    masks.extend(entry.place);
+                    table.put(Entry::tombstone(entry.doc, commit));
+                }
+            }
+        }
+        let mut latest: BTreeMap<DocId, Change> = BTreeMap::new();
+        for item in batch.put {
+            latest.entry(item.doc.clone()).or_insert(Change::Put(item.clone())).newest(Change::Put(item));
+        }
+        for (doc, commit) in batch.removed {
+            latest.entry(doc.clone()).or_insert(Change::Remove(commit)).newest(Change::Remove(commit));
         }
         let mut fresh = Vec::new();
-        for item in put {
-            let old = table.get(parts, &item.doc).await?.cloned();
-            if old.as_ref().is_some_and(|old| old.commit >= item.commit) {
+        for (doc, change) in latest {
+            if self.block_removed_at(&doc.block).is_some_and(|removed| removed >= change.commit()) {
                 continue;
             }
-            match item.text {
-                Some(text) => {
-                    if let Some(place) = old.and_then(|old| old.place) {
-                        masks.push(place);
-                    }
-                    fresh.push((item.doc, item.commit, item.source, text));
+            let old = table.get(parts, &doc).await?.cloned();
+            if old.as_ref().is_some_and(|old| old.commit >= change.commit()) {
+                continue;
+            }
+            let old_place = old.as_ref().and_then(|old| old.place);
+            match change {
+                Change::Remove(commit) => {
+                    masks.extend(old_place);
+                    table.put(Entry::tombstone(doc, commit));
                 }
-                None => {
-                    if let Some(mut entry) = old.filter(|old| !old.is_removed()) {
-                        entry.commit = item.commit;
-                        entry.source = item.source;
+                Change::Put(Put { text: Some(text), commit, source, .. }) => {
+                    masks.extend(old_place);
+                    fresh.push((doc, commit, source, text));
+                }
+                Change::Put(Put { text: None, commit, source, .. }) => match old {
+                    Some(mut entry) if !entry.is_removed() => {
+                        entry.commit = commit;
+                        entry.source = source;
                         table.put(entry);
                     }
-                }
+                    _ => written.needs_text.push(doc),
+                },
             }
-        }
-        let mut gone: Vec<(Entry, Commit)> = Vec::new();
-        for (doc, commit) in batch.removed {
-            if let Some(entry) = table.get(parts, &doc).await? {
-                gone.push((entry.clone(), commit));
-            }
-        }
-        for (block, commit) in batch.removed_blocks {
-            for entry in table.entries_of(parts, &block).await? {
-                gone.push((entry, commit));
-            }
-        }
-        for (mut entry, commit) in gone {
-            if entry.commit >= commit || fresh.iter().any(|(doc, ..)| *doc == entry.doc) {
-                continue;
-            }
-            if let Some(place) = entry.place.take() {
-                masks.push(place);
-            }
-            entry.commit = commit;
-            entry.source = None;
-            table.put(entry);
         }
         if !fresh.is_empty() {
             let (meta, segment_parts, places) = segment::build_from_text(
                 origin,
-                fresh
-                    .iter()
-                    .map(|(doc, commit, _, text)| (doc, commit.time, text)),
+                fresh.iter().map(|(doc, commit, _, text)| (doc, *commit, text)),
             );
             for ((doc, commit, source, _), local) in fresh.into_iter().zip(places) {
                 table.put(Entry {
                     doc,
                     commit,
+                    indexed: commit,
                     source,
-                    place: Some(Place {
-                        segment: origin,
-                        local,
-                    }),
+                    place: Some(Place { segment: origin, local }),
                 });
             }
             written.added.extend(segment_parts);
             self.segments.push(meta);
         }
-        self.mask(parts, origin, &masks, &mut written).await?;
+        self.mask(parts, origin, &masks, &[], &mut written).await?;
         self.table = table.finish(origin, &mut written);
         if let Some(watermark) = batch.watermark {
             self.watermark = watermark;
@@ -356,30 +429,50 @@ impl Index {
         Ok(written)
     }
 
-    /// Sets the deletion bits of `places`, rewriting each bitmap they touch.
-    async fn mask(
-        &mut self,
-        parts: &impl Parts,
-        origin: Id,
-        places: &[Place],
-        written: &mut Written,
-    ) -> Result<(), Error> {
+    /// Sets the deletion bits of `set` and clears those of `clear`, rewriting
+    /// each bitmap that changes.
+    async fn mask(&mut self, parts: &impl Parts, origin: Id, set: &[Place], clear: &[Place], written: &mut Written) -> Result<(), Error> {
         for segment in &mut self.segments {
-            let locals: Vec<u32> = places
-                .iter()
-                .filter(|place| place.segment == segment.id)
-                .map(|place| place.local)
-                .collect();
-            if locals.is_empty() {
+            let of = |places: &[Place]| -> Vec<u32> {
+                places
+                    .iter()
+                    .filter(|place| place.segment == segment.id)
+                    .map(|place| place.local)
+                    .collect()
+            };
+            let (set, clear) = (of(set), of(clear));
+            if set.is_empty() && clear.is_empty() {
                 continue;
             }
             let mut bits = segment.deletions(parts).await?;
-            for local in locals {
-                bits.set(local);
+            let before = bits.clone();
+            segment.change_bits(&mut bits, &set, &clear);
+            if bits != before {
+                segment.set_deletions(origin, bits, written);
             }
-            segment.set_deletions(origin, bits, written);
         }
         Ok(())
+    }
+}
+
+/// The newest change a batch makes to one document.
+enum Change {
+    Put(Put),
+    Remove(Commit),
+}
+
+impl Change {
+    fn commit(&self) -> Commit {
+        match self {
+            Change::Put(put) => put.commit,
+            Change::Remove(commit) => *commit,
+        }
+    }
+
+    fn newest(&mut self, other: Change) {
+        if other.commit() > self.commit() {
+            *self = other;
+        }
     }
 }
 

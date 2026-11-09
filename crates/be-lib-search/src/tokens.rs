@@ -1,20 +1,42 @@
-//! Splitting text into terms: be-lib-graphemes' words, case folded.
+//! Splitting text into terms: be-lib-graphemes' words, NFKC normalized and
+//! case folded. Until be-lib-graphemes has UAX #29 words, a run of CJK or
+//! Thai is one word, found only by its start (a prefix) or whole.
+
+use unicode_normalization::UnicodeNormalization;
 
 use crate::{BODY, NAME, Text};
 
-/// Longer words are not indexed (hashes, base64, run-together noise).
+/// A longer word is split into terms of at most this many bytes.
 const LONGEST_TERM: usize = 64;
 
 /// The folded form of a word, as terms are kept.
 pub fn fold(word: &str) -> String {
-    caseless::default_case_fold_str(word)
+    let folded = caseless::default_case_fold_str(&word.nfkc().collect::<String>());
+    folded.nfc().collect()
 }
 
 /// The terms of `text` in order, folded.
 pub fn terms(text: &str) -> impl Iterator<Item = String> + '_ {
-    be_lib_graphemes::words(text.as_bytes())
-        .map(|range| fold(&text[range]))
-        .filter(|term| term.len() <= LONGEST_TERM)
+    be_lib_graphemes::words(text.as_bytes()).flat_map(|range| split(fold(&text[range])))
+}
+
+/// A term cut into pieces of at most `LONGEST_TERM` bytes on character
+/// boundaries.
+fn split(term: String) -> Vec<String> {
+    if term.len() <= LONGEST_TERM {
+        return vec![term];
+    }
+    let mut pieces = Vec::new();
+    let mut rest = term.as_str();
+    while !rest.is_empty() {
+        let mut end = rest.len().min(LONGEST_TERM);
+        while !rest.is_char_boundary(end) {
+            end -= 1;
+        }
+        pieces.push(rest[..end].to_owned());
+        rest = &rest[end..];
+    }
+    pieces
 }
 
 /// A term as the dictionary keys it: its field's byte, then the term.

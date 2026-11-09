@@ -3,9 +3,9 @@
 //!
 //! - The dictionary is sorted blocks of entries front-coded against the one
 //!   before (shared length, suffix, then the term's `TermInfo`), each block
-//!   starting a new one past `DICTIONARY_BLOCK` bytes. `Meta::top` is an fst
-//!   of every block's first term to its index and `Meta::blocks` the blocks'
-//!   offsets, so a lookup reads one block.
+//!   starting a new one past `DICTIONARY_BLOCK` bytes. `Meta::firsts` is every
+//!   block's first term, `Meta::max_df` its highest document frequency and
+//!   `Meta::blocks` the blocks' offsets, so a lookup reads one block.
 //! - A term's postings are its skip data (per block of `POSTINGS_BLOCK`: its
 //!   last document, byte length, positions' byte length, highest frequency and
 //!   smallest field length) and then the blocks (per document: the delta from
@@ -17,10 +17,9 @@
 
 use std::collections::BTreeMap;
 
-use fst::{IntoStreamer, Map, Streamer};
 use serde::{Deserialize, Serialize};
 
-use crate::{DocId, Error, Id, PartKind, PartName, Parts, Text, Written, tokens, varint};
+use crate::{Commit, DocId, Error, Id, PartKind, PartName, Parts, Text, Written, tokens, varint};
 
 /// Parts with their bytes, as `Written::added` holds them.
 pub(crate) type Named = Vec<(PartName, Vec<u8>)>;
@@ -35,7 +34,8 @@ pub(crate) struct Meta {
     pub(crate) deleted: u32,
     /// The sum of each field's lengths over the segment's documents.
     pub(crate) lengths: [u64; 2],
-    pub(crate) top: Vec<u8>,
+    pub(crate) firsts: Vec<Vec<u8>>,
+    pub(crate) max_df: Vec<u32>,
     pub(crate) blocks: Vec<u32>,
     pub(crate) deletions: Option<PartName>,
 }
@@ -63,7 +63,27 @@ impl Meta {
     }
 
     pub(crate) fn live(&self) -> u32 {
-        self.docs - self.deleted
+        self.docs.saturating_sub(self.deleted)
+    }
+
+    /// That the header's description of the segment is one `build` writes.
+    pub(crate) fn check(&self) -> Result<(), Error> {
+        let sound = self.blocks.len() == self.firsts.len() + 1
+            && self.max_df.len() == self.firsts.len()
+            && self.blocks.windows(2).all(|pair| pair[0] <= pair[1])
+            && self.firsts.windows(2).all(|pair| pair[0] < pair[1])
+            && self.deleted <= self.docs;
+        if sound { Ok(()) } else { Err(Error::Corrupt("segment header")) }
+    }
+
+    /// Sets and clears deletion bits, ignoring locals the segment lacks.
+    pub(crate) fn change_bits(&self, bits: &mut Bits, set: &[u32], clear: &[u32]) {
+        for &local in set.iter().filter(|&&local| local < self.docs) {
+            bits.set(local);
+        }
+        for &local in clear.iter().filter(|&&local| local < self.docs) {
+            bits.clear(local);
+        }
     }
 
     pub(crate) async fn deletions(&self, parts: &impl Parts) -> Result<Bits, Error> {
@@ -83,24 +103,26 @@ impl Meta {
         {
             written.dropped.push(old);
         }
-        self.deleted = bits.count();
+        self.deleted = bits.count_below(self.docs);
         written.added.retain(|(added, _)| *added != name);
         written.added.push((name, bits.0));
     }
 
-    pub(crate) fn dictionary(&self) -> Result<Dictionary<'_>, Error> {
-        Ok(Dictionary {
-            meta: self,
-            top: Map::new(self.top.as_slice())
-                .map_err(|_| Error::Corrupt("top-level dictionary"))?,
-        })
+    pub(crate) fn dictionary(&self) -> Dictionary<'_> {
+        Dictionary { meta: self }
     }
 
     pub(crate) async fn document(&self, parts: &impl Parts, local: u32) -> Result<Document, Error> {
+        if local >= self.docs {
+            return Err(Error::Corrupt("document id"));
+        }
         let name = self.part(PartKind::Documents);
         let at = 4 + 4 * u64::from(local);
         let offsets = parts.read(&name, at..at + 8).await?;
         let (start, end) = (le(&offsets, 0)?, le(&offsets, 4)?);
+        if start > end {
+            return Err(Error::Corrupt("documents"));
+        }
         let base = 4 + 4 * (u64::from(self.docs) + 1);
         let record = parts
             .read(&name, base + u64::from(start)..base + u64::from(end))
@@ -113,6 +135,9 @@ impl Meta {
             .read(&self.part(PartKind::Documents), 0..u64::MAX)
             .await?;
         let count = le(&bytes, 0)? as usize;
+        if count != self.docs as usize || bytes.len() / 4 <= count {
+            return Err(Error::Corrupt("documents"));
+        }
         let base = 4 + 4 * (count + 1);
         (0..count)
             .map(|local| {
@@ -120,8 +145,10 @@ impl Meta {
                     le(&bytes, 4 + 4 * local)? as usize,
                     le(&bytes, 8 + 4 * local)? as usize,
                 );
-                let record = bytes
-                    .get(base + start..base + end)
+                let record = base
+                    .checked_add(start)
+                    .zip(base.checked_add(end))
+                    .and_then(|(start, end)| bytes.get(start..end))
                     .ok_or(Error::Corrupt("documents"))?;
                 postcard::from_bytes(record).map_err(|_| Error::Corrupt("document"))
             })
@@ -144,35 +171,19 @@ impl Meta {
             .await?;
         let mut out = BTreeMap::new();
         for pair in self.blocks.windows(2) {
-            let block = dictionary
-                .get(pair[0] as usize..pair[1] as usize)
-                .ok_or(Error::Corrupt("dictionary"))?;
+            let block = slice(&dictionary, u64::from(pair[0]), u64::from(pair[1] - pair[0]))?;
             for (term, info) in decode_dictionary_block(block)? {
-                let slice = |bytes: &[u8], start: u64, len: u64| -> Result<Vec<u8>, Error> {
-                    bytes
-                        .get(start as usize..(start + len) as usize)
-                        .map(<[u8]>::to_vec)
-                        .ok_or(Error::Corrupt("postings"))
-                };
-                let skip =
-                    decode_skip(&slice(&postings, info.postings, u64::from(info.skip_len))?)?;
-                let mut list = Vec::with_capacity(info.df as usize);
-                let mut at = info.postings + u64::from(info.skip_len);
+                let skip = decode_skip(slice(&postings, info.postings, u64::from(info.skip_len))?, info.df)?;
+                let mut list = Vec::new();
+                let mut at = add(info.postings, u64::from(info.skip_len))?;
                 let mut positions_at = info.positions;
                 let mut previous = 0;
                 for (index, entry) in skip.iter().enumerate() {
                     let count = block_count(info.df, index);
-                    let mut block = decode_block(
-                        &slice(&postings, at, u64::from(entry.len))?,
-                        count,
-                        previous,
-                    )?;
-                    decode_positions(
-                        &slice(&positions, positions_at, u64::from(entry.positions_len))?,
-                        &mut block,
-                    )?;
-                    at += u64::from(entry.len);
-                    positions_at += u64::from(entry.positions_len);
+                    let mut block = decode_block(slice(&postings, at, u64::from(entry.len))?, count, previous)?;
+                    decode_positions(slice(&positions, positions_at, u64::from(entry.positions_len))?, &mut block)?;
+                    at = add(at, u64::from(entry.len))?;
+                    positions_at = add(positions_at, u64::from(entry.positions_len))?;
                     previous = entry.last;
                     list.extend(block);
                 }
@@ -184,8 +195,24 @@ impl Meta {
 }
 
 fn le(bytes: &[u8], at: usize) -> Result<u32, Error> {
-    let slice = bytes.get(at..at + 4).ok_or(Error::Corrupt("offsets"))?;
+    let slice = bytes
+        .get(at..at.checked_add(4).ok_or(Error::Corrupt("offsets"))?)
+        .ok_or(Error::Corrupt("offsets"))?;
     Ok(u32::from_le_bytes(slice.try_into().unwrap()))
+}
+
+pub(crate) fn add(a: u64, b: u64) -> Result<u64, Error> {
+    a.checked_add(b).ok_or(Error::Corrupt("offset"))
+}
+
+/// `len` bytes of `bytes` from `start`, or Corrupt past its end.
+fn slice(bytes: &[u8], start: u64, len: u64) -> Result<&[u8], Error> {
+    let end = add(start, len)?;
+    let (start, end) = (usize::try_from(start), usize::try_from(end));
+    match (start, end) {
+        (Ok(start), Ok(end)) => bytes.get(start..end).ok_or(Error::Corrupt("part range")),
+        _ => Err(Error::Corrupt("part range")),
+    }
 }
 
 /// A deletion bitmap: bit `local` set when that document is masked.
@@ -207,6 +234,12 @@ impl Bits {
         self.0[index] |= 1 << (local % 8);
     }
 
+    pub(crate) fn clear(&mut self, local: u32) {
+        if let Some(byte) = self.0.get_mut(local as usize / 8) {
+            *byte &= !(1 << (local % 8));
+        }
+    }
+
     pub(crate) fn union(&mut self, other: &Bits) {
         if self.0.len() < other.0.len() {
             self.0.resize(other.0.len(), 0);
@@ -216,8 +249,14 @@ impl Bits {
         }
     }
 
-    pub(crate) fn count(&self) -> u32 {
-        self.0.iter().map(|byte| byte.count_ones()).sum()
+    /// The set bits below `limit`.
+    pub(crate) fn count_below(&self, limit: u32) -> u32 {
+        let whole = (limit / 8) as usize;
+        let mut count: u32 = self.0.iter().take(whole).map(|byte| byte.count_ones()).sum();
+        if let Some(byte) = self.0.get(whole) {
+            count += (byte & ((1u16 << (limit % 8)) - 1) as u8).count_ones();
+        }
+        count
     }
 }
 
@@ -225,7 +264,7 @@ impl Bits {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Document {
     pub(crate) doc: DocId,
-    pub(crate) time: i64,
+    pub(crate) commit: Commit,
     pub(crate) lengths: [u32; 2],
 }
 
@@ -304,16 +343,22 @@ pub(crate) struct Skip {
 }
 
 pub(crate) fn block_count(df: u32, index: usize) -> usize {
-    (df as usize - index * POSTINGS_BLOCK).min(POSTINGS_BLOCK)
+    (df as usize)
+        .saturating_sub(index.saturating_mul(POSTINGS_BLOCK))
+        .min(POSTINGS_BLOCK)
 }
 
-pub(crate) fn decode_skip(bytes: &[u8]) -> Result<Vec<Skip>, Error> {
+/// A term's skip data, which must have one entry per block of `df`.
+pub(crate) fn decode_skip(bytes: &[u8], df: u32) -> Result<Vec<Skip>, Error> {
     let mut reader = varint::Reader::new(bytes);
-    let count = reader.varint()? as usize;
-    let mut last = 0;
-    let mut out = Vec::with_capacity(count);
+    let count = reader.varint()?;
+    if count != (df as u64).div_ceil(POSTINGS_BLOCK as u64) {
+        return Err(Error::Corrupt("skip data"));
+    }
+    let mut last = 0u32;
+    let mut out = Vec::new();
     for _ in 0..count {
-        last += reader.u32()?;
+        last = last.checked_add(reader.u32()?).ok_or(Error::Corrupt("skip data"))?;
         out.push(Skip {
             last,
             len: reader.u32()?,
@@ -334,9 +379,10 @@ pub(crate) fn decode_block(
 ) -> Result<Vec<Posting>, Error> {
     let mut reader = varint::Reader::new(bytes);
     let mut doc = previous;
-    let mut out = Vec::with_capacity(count);
+    // Each posting is at least three bytes.
+    let mut out = Vec::with_capacity(count.min(bytes.len() / 3));
     for _ in 0..count {
-        doc += reader.u32()?;
+        doc = doc.checked_add(reader.u32()?).ok_or(Error::Corrupt("postings"))?;
         out.push(Posting {
             doc,
             tf: reader.u32()?,
@@ -350,13 +396,12 @@ pub(crate) fn decode_block(
 pub(crate) fn decode_positions(bytes: &[u8], block: &mut [Posting]) -> Result<(), Error> {
     let mut reader = varint::Reader::new(bytes);
     for posting in block {
-        let mut position = 0;
-        posting.positions = (0..posting.tf)
-            .map(|_| {
-                position += reader.u32()?;
-                Ok(position)
-            })
-            .collect::<Result<_, Error>>()?;
+        let mut position = 0u32;
+        posting.positions.clear();
+        for _ in 0..posting.tf {
+            position = position.checked_add(reader.u32()?).ok_or(Error::Corrupt("positions"))?;
+            posting.positions.push(position);
+        }
     }
     Ok(())
 }
@@ -368,6 +413,9 @@ fn decode_dictionary_block(bytes: &[u8]) -> Result<Vec<(Vec<u8>, TermInfo)>, Err
     while !reader.done() {
         let shared = reader.varint()? as usize;
         let suffix = reader.varint()? as usize;
+        if shared > term.len() {
+            return Err(Error::Corrupt("dictionary"));
+        }
         term.truncate(shared);
         term.extend_from_slice(reader.bytes(suffix)?);
         out.push((term.clone(), TermInfo::decode(&mut reader)?));
@@ -376,50 +424,45 @@ fn decode_dictionary_block(bytes: &[u8]) -> Result<Vec<(Vec<u8>, TermInfo)>, Err
 }
 
 /// A segment's dictionary, read a block at a time.
+#[derive(Clone, Copy)]
 pub(crate) struct Dictionary<'a> {
     meta: &'a Meta,
-    top: Map<&'a [u8]>,
 }
 
 impl Dictionary<'_> {
     /// The block that would hold `key`, if any could.
     pub(crate) fn block_of(&self, key: &[u8]) -> Option<usize> {
-        let next = self
-            .top
-            .range()
-            .gt(key)
-            .into_stream()
-            .next()
-            .map(|(_, index)| index as usize);
-        match next {
-            Some(0) => None,
-            Some(index) => Some(index - 1),
-            None => self.meta.blocks.len().checked_sub(2),
-        }
+        self.meta
+            .firsts
+            .partition_point(|first| first.as_slice() <= key)
+            .checked_sub(1)
     }
 
-    /// The blocks that may hold terms starting with `prefix`, at most `most`.
-    pub(crate) fn prefix_blocks(&self, prefix: &[u8], most: usize) -> std::ops::Range<usize> {
+    /// The blocks that may hold terms starting with `prefix`: of those, the
+    /// `most` whose most frequent term is the most frequent.
+    pub(crate) fn prefix_blocks(&self, prefix: &[u8], most: usize) -> Vec<usize> {
+        let firsts = &self.meta.firsts;
+        if firsts.is_empty() {
+            return Vec::new();
+        }
         let start = self.block_of(prefix).unwrap_or(0);
         let mut end = start + 1;
-        let mut stream = self.top.range().gt(prefix).into_stream();
-        while let Some((first, index)) = stream.next()
-            && first.starts_with(prefix)
-            && end - start < most
-        {
-            end = index as usize + 1;
+        while end < firsts.len() && firsts[end].starts_with(prefix) {
+            end += 1;
         }
-        start..end.min(self.meta.blocks.len().saturating_sub(1))
+        let mut blocks: Vec<usize> = (start..end).collect();
+        blocks.sort_by_key(|&index| std::cmp::Reverse(self.meta.max_df[index]));
+        blocks.truncate(most);
+        blocks.sort_unstable();
+        blocks
     }
 
-    pub(crate) async fn read_block(
-        &self,
-        parts: &impl Parts,
-        index: usize,
-    ) -> Result<Vec<(Vec<u8>, TermInfo)>, Error> {
-        let range = u64::from(self.meta.blocks[index])..u64::from(self.meta.blocks[index + 1]);
+    pub(crate) async fn read_block(&self, parts: &impl Parts, index: usize) -> Result<Vec<(Vec<u8>, TermInfo)>, Error> {
+        let (Some(&start), Some(&end)) = (self.meta.blocks.get(index), self.meta.blocks.get(index + 1)) else {
+            return Err(Error::Corrupt("dictionary block"));
+        };
         let bytes = parts
-            .read(&self.meta.part(PartKind::Dictionary), range)
+            .read(&self.meta.part(PartKind::Dictionary), u64::from(start)..u64::from(end))
             .await?;
         decode_dictionary_block(&bytes)
     }
@@ -436,6 +479,7 @@ pub(crate) fn build(
     let mut positions = Vec::new();
     let mut blocks = vec![0u32];
     let mut firsts: Vec<Vec<u8>> = Vec::new();
+    let mut max_df: Vec<u32> = Vec::new();
     let mut block_start = 0;
     let mut previous_term: &[u8] = &[];
     for (term, list) in terms {
@@ -450,18 +494,18 @@ pub(crate) fn build(
             let body_start = body.len();
             let positions_before = positions.len();
             for posting in chunk {
-                varint::put(&mut body, u64::from(posting.doc - previous_doc));
+                varint::put(&mut body, u64::from(posting.doc.saturating_sub(previous_doc)));
                 varint::put(&mut body, u64::from(posting.tf));
                 body.push(posting.norm);
                 previous_doc = posting.doc;
                 let mut previous_position = 0;
                 for &position in &posting.positions {
-                    varint::put(&mut positions, u64::from(position - previous_position));
+                    varint::put(&mut positions, u64::from(position.saturating_sub(previous_position)));
                     previous_position = position;
                 }
             }
             let last = chunk.last().unwrap().doc;
-            varint::put(&mut skip, u64::from(last - previous_last));
+            varint::put(&mut skip, u64::from(last.saturating_sub(previous_last)));
             varint::put(&mut skip, (body.len() - body_start) as u64);
             varint::put(&mut skip, (positions.len() - positions_before) as u64);
             varint::put(
@@ -486,6 +530,7 @@ pub(crate) fn build(
         }
         let shared = if dictionary.len() == block_start {
             firsts.push(term.clone());
+            max_df.push(0);
             0
         } else {
             previous_term
@@ -498,20 +543,13 @@ pub(crate) fn build(
         varint::put(&mut dictionary, (term.len() - shared) as u64);
         dictionary.extend_from_slice(&term[shared..]);
         info.encode(&mut dictionary);
+        let block_df = max_df.last_mut().unwrap();
+        *block_df = (*block_df).max(info.df);
         previous_term = term;
     }
     if !dictionary.is_empty() {
         blocks.push(dictionary.len() as u32);
     }
-    let top = Map::from_iter(
-        firsts
-            .iter()
-            .enumerate()
-            .map(|(index, first)| (first.as_slice(), index as u64)),
-    )
-    .expect("first terms are sorted and distinct")
-    .into_fst()
-    .into_inner();
     let mut records = Vec::new();
     let mut offsets = Vec::with_capacity(4 * (documents.len() + 2));
     offsets.extend_from_slice(&(documents.len() as u32).to_le_bytes());
@@ -529,7 +567,8 @@ pub(crate) fn build(
         docs: documents.len() as u32,
         deleted: 0,
         lengths,
-        top,
+        firsts,
+        max_df,
         blocks,
         deletions: None,
     };
@@ -548,7 +587,7 @@ pub(crate) fn assign(documents: &[Document]) -> Vec<u32> {
     let mut order: Vec<usize> = (0..documents.len()).collect();
     order.sort_by(|&a, &b| {
         let (a, b) = (&documents[a], &documents[b]);
-        b.time.cmp(&a.time).then_with(|| a.doc.cmp(&b.doc))
+        b.commit.cmp(&a.commit).then_with(|| a.doc.cmp(&b.doc))
     });
     let mut local = vec![0; documents.len()];
     for (index, &input) in order.iter().enumerate() {
@@ -568,15 +607,15 @@ pub(crate) fn sorted(documents: Vec<Document>, local: &[u32]) -> Vec<Document> {
 /// A segment of fresh documents: its meta, parts, and each input's local id.
 pub(crate) fn build_from_text<'a>(
     id: Id,
-    input: impl Iterator<Item = (&'a DocId, i64, &'a Text)>,
+    input: impl Iterator<Item = (&'a DocId, Commit, &'a Text)>,
 ) -> (Meta, Named, Vec<u32>) {
     let mut documents = Vec::new();
     let mut texts = Vec::new();
-    for (doc, time, text) in input {
+    for (doc, commit, text) in input {
         let (keys, lengths) = tokens::document_terms(text);
         documents.push(Document {
             doc: doc.clone(),
-            time,
+            commit,
             lengths,
         });
         texts.push(keys);

@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crate::{
-    Error, Id, Index, Parts, Place, Written,
+    Error, Id, Index, Parts, Place, Retired, Written,
     segment::{self, Meta, Posting},
     table,
 };
@@ -37,8 +37,8 @@ pub(crate) fn derive(origin: Id, n: u32) -> Id {
 impl Written {
     /// Leaves out parts both added and dropped by the same change.
     pub(crate) fn tidy(&mut self) {
-        let dropped = std::mem::take(&mut self.dropped);
-        let added: Vec<_> = self.added.iter().map(|(name, _)| *name).collect();
+        let dropped: std::collections::HashSet<_> = std::mem::take(&mut self.dropped).into_iter().collect();
+        let added: std::collections::HashSet<_> = self.added.iter().map(|(name, _)| *name).collect();
         self.added.retain(|(name, _)| !dropped.contains(name));
         self.dropped = dropped
             .into_iter()
@@ -62,7 +62,10 @@ impl Index {
                 if self.segments[index].live() == 0 {
                     let meta = self.segments.remove(index);
                     written.dropped.extend(meta.parts());
-                    self.retired.push(meta.id);
+                    self.retired.push(Retired {
+                        id: meta.id,
+                        at: self.watermark,
+                    });
                 } else {
                     index += 1;
                 }
@@ -70,7 +73,7 @@ impl Index {
             let group = match self
                 .segments
                 .iter()
-                .position(|meta| meta.deleted * 2 > meta.docs)
+                .position(|meta| u64::from(meta.deleted) * 2 > u64::from(meta.docs))
             {
                 Some(index) => vec![index],
                 None => {
@@ -103,7 +106,10 @@ impl Index {
             for index in group {
                 let meta = self.segments.remove(index);
                 written.dropped.extend(meta.parts());
-                self.retired.push(meta.id);
+                self.retired.push(Retired {
+                        id: meta.id,
+                        at: self.watermark,
+                    });
             }
             built.insert(id, segment_parts.clone());
             written.added.extend(segment_parts);
@@ -191,13 +197,10 @@ async fn merge_segments(
         list.sort_by_key(|posting| posting.doc);
     }
     for (document, &local) in documents.iter().zip(&locals) {
-        let mut entry = table
-            .get(parts, &document.doc)
-            .await?
-            .cloned()
-            .expect("checked above");
-        entry.place = Some(Place { segment: id, local });
-        table.put(entry);
+        if let Some(mut entry) = table.get(parts, &document.doc).await?.cloned() {
+            entry.place = Some(Place { segment: id, local });
+            table.put(entry);
+        }
     }
     let documents = segment::sorted(documents, &locals);
     Ok(segment::build(id, &documents, &terms))
