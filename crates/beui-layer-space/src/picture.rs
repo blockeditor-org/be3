@@ -503,6 +503,7 @@ fn overlaps(primitive: &Primitive) -> bool {
             },
         ),
         Content::Callback(_) => return false,
+        Content::Group(_) => return true,
     };
     let clip = primitive.clip;
     bounds[0] < clip[2] && bounds[2] > clip[0] && bounds[1] < clip[3] && bounds[3] > clip[1]
@@ -523,6 +524,7 @@ fn faded(content: &mut Content, opacity: f32) {
                 }
             }
         }
+        Content::Group(group) => group.opacity *= opacity,
         Content::Callback(_) => {}
     }
 }

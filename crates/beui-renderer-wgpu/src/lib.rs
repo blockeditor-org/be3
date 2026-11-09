@@ -21,6 +21,7 @@ use beui_types::{Image, ImageId};
 use beui_types::{Rect, Vec2};
 
 pub mod filter;
+mod group;
 pub mod present;
 mod resources;
 
@@ -266,8 +267,7 @@ impl Repainting for WindowOutput {
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub(crate) struct Space {
     translation: [f32; 2],
-    opacity: f32,
-    padding: f32,
+    padding: [f32; 2],
     clip: [f32; 4],
     fade: [f32; 4],
     widths: [f32; 4],
@@ -308,6 +308,8 @@ pub struct Renderer {
     bound: Bound,
     filters: Vec<filter::Prepared>,
     effects: Vec<filter::Effects>,
+    opacities: Vec<f32>,
+    groups: Option<group::Groups>,
     bounds: Option<[u32; 4]>,
     whole: bool,
     scratch: Option<wgpu::Texture>,
@@ -343,6 +345,24 @@ enum Step {
         bottom: bool,
         steps: Vec<Step>,
     },
+    Group {
+        index: usize,
+        steps: Vec<Step>,
+    },
+}
+
+impl Step {
+    fn depth(steps: &[Self]) -> usize {
+        steps
+            .iter()
+            .map(|step| match step {
+                Self::Runs(_) => 0,
+                Self::Filter { steps, .. } => Self::depth(steps),
+                Self::Group { steps, .. } => 1 + Self::depth(steps),
+            })
+            .max()
+            .unwrap_or(0)
+    }
 }
 
 fn push_run(steps: &mut Vec<Step>, run: Run) {
@@ -521,9 +541,10 @@ struct Frame<'a> {
     screen: Vec2,
     pixels_per_point: f32,
     spaces: Vec<Space>,
-    slots: HashMap<[u32; 15], u32>,
+    slots: HashMap<[u32; 14], u32>,
     staging: Vec<Instance>,
     drawings: Vec<(Drawing, DrawAt)>,
+    opacities: Vec<f32>,
     overflow: bool,
 }
 
@@ -537,14 +558,13 @@ impl Frame<'_> {
             fade.rect.max.y,
         ]
         .map(|value| value.clamp(OPEN[0], OPEN[2]));
-        let mut key = [0; 15];
+        let mut key = [0; 14];
         for (slot, value) in key.iter_mut().zip(
             origin
                 .iter()
                 .chain(&bound)
                 .chain(&rect)
-                .chain(&fade.widths)
-                .chain([&fade.opacity]),
+                .chain(&fade.widths),
         ) {
             *slot = value.to_bits();
         }
@@ -554,14 +574,29 @@ impl Frame<'_> {
         let slot = self.spaces.len() as u32;
         self.spaces.push(Space {
             translation: origin,
-            opacity: fade.opacity,
-            padding: 0.0,
+            padding: [0.0; 2],
             clip: bound,
             fade: rect,
             widths: fade.widths,
         });
         self.slots.insert(key, slot);
         slot
+    }
+
+    /// Wraps steps drawn inside a group at `opacity`, unless it has nothing to draw.
+    fn group(&mut self, opacity: f32, steps: Vec<Step>, into: &mut Vec<Step>) {
+        if steps.is_empty() {
+            return;
+        }
+        if opacity >= 1.0 {
+            into.extend(steps);
+            return;
+        }
+        into.push(Step::Group {
+            index: self.opacities.len(),
+            steps,
+        });
+        self.opacities.push(opacity);
     }
 
     fn damages(&self, reach: [f32; 4]) -> bool {
@@ -679,6 +714,8 @@ impl Renderer {
             },
             filters: Vec::new(),
             effects: Vec::new(),
+            opacities: Vec::new(),
+            groups: None,
             bounds: None,
             whole: true,
             scratch: None,
@@ -865,7 +902,7 @@ impl Renderer {
                 )
             }
         };
-        let (instances, steps, frame) = loop {
+        let (instances, steps, mut frame) = loop {
             let mut frame = Frame {
                 queue,
                 damaged: damaged.as_deref(),
@@ -875,6 +912,7 @@ impl Renderer {
                 slots: HashMap::default(),
                 staging: Vec::new(),
                 drawings: Vec::new(),
+                opacities: Vec::new(),
                 overflow: false,
             };
             frame.space([0.0; 2], OPEN, Fade::NONE);
@@ -918,6 +956,7 @@ impl Renderer {
             self.sweep(output, pixels_per_point);
         }
 
+        self.opacities = std::mem::take(&mut frame.opacities);
         self.settle_pictures();
         let origin = self.origin;
         self.whole = damaged.is_none();
@@ -1093,7 +1132,14 @@ impl Renderer {
                     let within = at.group(group, &mut |origin, bound, fade| {
                         frame.space(origin, bound, fade)
                     });
-                    self.emit_layers(frame, inner, within, emitted, steps, false);
+                    match *group {
+                        Group::Mask { opacity, .. } if opacity < 1.0 => {
+                            let mut grouped = Vec::new();
+                            self.emit_layers(frame, inner, within, emitted, &mut grouped, false);
+                            frame.group(opacity, grouped, steps);
+                        }
+                        _ => self.emit_layers(frame, inner, within, emitted, steps, false),
+                    }
                 }
             }
         }
@@ -1206,7 +1252,21 @@ impl Renderer {
                     let within = at.group(group, &mut |origin, bound, fade| {
                         frame.space(origin, bound, fade)
                     });
-                    self.walk_parts(frame, inner, within, (encoded, base), shapes, steps);
+                    match *group {
+                        Group::Mask { opacity, .. } if opacity < 1.0 => {
+                            let mut grouped = Vec::new();
+                            self.walk_parts(
+                                frame,
+                                inner,
+                                within,
+                                (encoded, base),
+                                shapes,
+                                &mut grouped,
+                            );
+                            frame.group(opacity, grouped, steps);
+                        }
+                        _ => self.walk_parts(frame, inner, within, (encoded, base), shapes, steps),
+                    }
                 }
             }
         }
@@ -1547,7 +1607,9 @@ impl Renderer {
         for step in steps {
             match step {
                 Step::Runs(runs) => self.draw(pass, runs, scissor),
-                Step::Filter { steps, .. } => self.draw_steps(pass, steps, scissor),
+                Step::Filter { steps, .. } | Step::Group { steps, .. } => {
+                    self.draw_steps(pass, steps, scissor)
+                }
             }
         }
     }
@@ -1561,7 +1623,7 @@ impl Renderer {
         size: (u32, u32),
         load: wgpu::LoadOp<wgpu::Color>,
     ) {
-        if self.filters.is_empty() {
+        if self.filters.is_empty() && self.opacities.is_empty() {
             self.effects.clear();
             let mut pass = self.begin(encoder, target, load);
             self.paint(&mut pass);
@@ -1569,6 +1631,13 @@ impl Renderer {
         }
         if self.empty() {
             return;
+        }
+        if !self.opacities.is_empty() {
+            let depth = Step::depth(&self.steps);
+            let format = self.format;
+            self.groups
+                .get_or_insert_with(|| group::Groups::new(device, format))
+                .prepare(device, queue, &self.opacities, depth, size);
         }
         let scissors: Vec<Option<[u32; 4]>> = match &self.scissors {
             Some(scissors) => scissors.iter().copied().map(Some).collect(),
@@ -1585,7 +1654,7 @@ impl Renderer {
         let steps = std::mem::take(&mut self.steps);
         let mut load = load;
         for scissor in scissors {
-            self.render_steps(device, queue, encoder, target, load, scissor, &steps);
+            self.render_steps(device, queue, encoder, target, load, scissor, &steps, 0);
             load = wgpu::LoadOp::Load;
         }
         self.steps = steps;
@@ -1601,6 +1670,7 @@ impl Renderer {
         load: wgpu::LoadOp<wgpu::Color>,
         scissor: Option<[u32; 4]>,
         steps: &[Step],
+        depth: usize,
     ) {
         let initial = load;
         let mut load = load;
@@ -1630,7 +1700,7 @@ impl Renderer {
                         (false, _) => wgpu::LoadOp::Load,
                     };
                     self.render_steps(
-                        device, queue, encoder, &scene, scene_load, scissor, filtered,
+                        device, queue, encoder, &scene, scene_load, scissor, filtered, depth,
                     );
                     let (prepared, srgb) = (self.filters[*index], self.srgb);
                     if let Some(effects) = self.effects.get_mut(*index) {
@@ -1642,6 +1712,37 @@ impl Renderer {
                     }
                     if let Some(effects) = self.effects.get(*index) {
                         effects.compose(&mut pass);
+                    }
+                }
+                Step::Group {
+                    index,
+                    steps: grouped,
+                } => {
+                    let Some(layer) = self
+                        .groups
+                        .as_ref()
+                        .and_then(|groups| groups.layer_view(depth))
+                        .cloned()
+                    else {
+                        continue;
+                    };
+                    let clear = wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT);
+                    self.render_steps(
+                        device,
+                        queue,
+                        encoder,
+                        &layer,
+                        clear,
+                        scissor,
+                        grouped,
+                        depth + 1,
+                    );
+                    let mut pass = self.begin(encoder, target, load);
+                    if let Some(scissor) = scissor {
+                        clip(&mut pass, scissor);
+                    }
+                    if let Some(groups) = &self.groups {
+                        groups.compose(&mut pass, depth, *index);
                     }
                 }
             }

@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_field_left_at_its_default_is_not_written;
+mod a_group_paints_its_shapes_as_one_at_its_opacity;
 mod a_painting_keeps_its_texture_pixels_through_encoding;
 mod a_painting_placed_with_a_corner_radius_shows_its_corners_rounded;
 mod a_painting_rasterizes_onto_a_transparent_background;

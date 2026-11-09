@@ -1,4 +1,6 @@
-use crate::{Content, Fade, Frame, Glyph, Pixels, Round, RoundedRect, TextureKey, Vertex};
+use crate::{
+    Content, Fade, Frame, Glyph, Pixels, Primitive, Round, RoundedRect, TextureKey, Vertex,
+};
 
 pub fn rasterize<'a>(
     frame: &Frame,
@@ -6,70 +8,89 @@ pub fn rasterize<'a>(
     textures: impl Fn(TextureKey) -> Option<&'a Pixels>,
 ) -> Result<Pixels, String> {
     let [width, height] = frame.size.map(|side| side.max(1));
-    let mut canvas = Canvas {
-        width,
-        height,
-        pixels: vec![premultiplied(background); (width * height) as usize],
-        fade: Fade::NONE,
-        rounds: Vec::new(),
+    let mut canvas = Canvas::new(width, height, premultiplied(background));
+    let mut painter = Painter {
+        textures: &textures,
+        chains: Default::default(),
+        scale: frame.pixels_per_point,
     };
-    let texture =
-        |key: TextureKey| textures(key).ok_or("the painting is missing a texture it uses");
-    let mut chains: std::collections::BTreeMap<TextureKey, Vec<Pixels>> = Default::default();
-    let scale = frame.pixels_per_point;
-    for primitive in &frame.primitives {
-        canvas.fade = primitive.fade.scaled(scale);
-        canvas.rounds = primitive
-            .rounds
-            .iter()
-            .map(|round| round.scaled(scale))
-            .collect();
-        let clip = canvas.scaled(primitive.clip, scale);
-        match &primitive.content {
-            Content::Mesh(triangles) => {
-                for triangle in triangles {
-                    let base = texture(triangle.texture)?;
-                    let level = minification(&triangle.corners, scale, base.size);
-                    let smaller = match level > 0.0 {
-                        true => chains
-                            .entry(triangle.texture)
-                            .or_insert_with(|| chain(base))
-                            .as_slice(),
-                        false => &[],
-                    };
-                    let sampler = Sampler {
-                        base,
-                        smaller,
-                        level,
-                    };
-                    canvas.fill(clip, triangle.corners, scale, &sampler);
-                }
-            }
-            Content::Callback(rect) => {
-                let rect = canvas.scaled(*rect, scale);
-                canvas.outline(rect);
-            }
-            Content::RoundedRect(shape) => {
-                let corners = [shape.corner_radius; 4];
-                canvas.rounded(exact(primitive.clip, scale), shape, corners, scale);
-            }
-            Content::CorneredRect(shape, corners) => {
-                canvas.rounded(exact(primitive.clip, scale), shape, *corners, scale);
-            }
-            Content::Glyph(glyph) => {
-                canvas.stamp(
-                    exact(primitive.clip, scale),
-                    glyph,
-                    scale,
-                    &Sampler::plain(texture(glyph.texture)?),
-                );
-            }
-        }
-    }
+    painter.paint(&mut canvas, &frame.primitives)?;
     Ok(Pixels {
         size: [width, height],
         rgba: canvas.pixels.into_iter().map(straight).collect(),
     })
+}
+
+struct Painter<'a, 't> {
+    textures: &'t dyn Fn(TextureKey) -> Option<&'a Pixels>,
+    chains: std::collections::BTreeMap<TextureKey, Vec<Pixels>>,
+    scale: f32,
+}
+
+impl<'a> Painter<'a, '_> {
+    fn texture(&self, key: TextureKey) -> Result<&'a Pixels, String> {
+        (self.textures)(key).ok_or_else(|| "the painting is missing a texture it uses".to_owned())
+    }
+
+    fn paint(&mut self, canvas: &mut Canvas, primitives: &[Primitive]) -> Result<(), String> {
+        let scale = self.scale;
+        for primitive in primitives {
+            canvas.fade = primitive.fade.scaled(scale);
+            canvas.rounds = primitive
+                .rounds
+                .iter()
+                .map(|round| round.scaled(scale))
+                .collect();
+            let clip = canvas.scaled(primitive.clip, scale);
+            match &primitive.content {
+                Content::Mesh(triangles) => {
+                    for triangle in triangles {
+                        let base = self.texture(triangle.texture)?;
+                        let level = minification(&triangle.corners, scale, base.size);
+                        let smaller = match level > 0.0 {
+                            true => self
+                                .chains
+                                .entry(triangle.texture)
+                                .or_insert_with(|| chain(base))
+                                .as_slice(),
+                            false => &[],
+                        };
+                        let sampler = Sampler {
+                            base,
+                            smaller,
+                            level,
+                        };
+                        canvas.fill(clip, triangle.corners, scale, &sampler);
+                    }
+                }
+                Content::Callback(rect) => {
+                    let rect = canvas.scaled(*rect, scale);
+                    canvas.outline(rect);
+                }
+                Content::RoundedRect(shape) => {
+                    let corners = [shape.corner_radius; 4];
+                    canvas.rounded(exact(primitive.clip, scale), shape, corners, scale);
+                }
+                Content::CorneredRect(shape, corners) => {
+                    canvas.rounded(exact(primitive.clip, scale), shape, *corners, scale);
+                }
+                Content::Glyph(glyph) => {
+                    canvas.stamp(
+                        exact(primitive.clip, scale),
+                        glyph,
+                        scale,
+                        &Sampler::plain(self.texture(glyph.texture)?),
+                    );
+                }
+                Content::Group(group) => {
+                    let mut layer = Canvas::new(canvas.width, canvas.height, [0; 4]);
+                    self.paint(&mut layer, &group.primitives)?;
+                    canvas.composite(exact(primitive.clip, scale), &layer, group.opacity);
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 fn premultiplied(color: [u8; 4]) -> [u8; 4] {
@@ -112,6 +133,51 @@ struct Canvas {
 }
 
 impl Canvas {
+    fn new(width: u32, height: u32, fill: [u8; 4]) -> Self {
+        Self {
+            width,
+            height,
+            pixels: vec![fill; (width * height) as usize],
+            fade: Fade::NONE,
+            rounds: Vec::new(),
+        }
+    }
+
+    /// Paints a layer of premultiplied pixels over this canvas at `opacity`, under the
+    /// fade and rounds the layer's primitive has, where pixel centres fall in `clip`.
+    fn composite(&mut self, clip: [f32; 4], layer: &Canvas, opacity: f32) {
+        let left = clip[0].floor().max(0.0) as u32;
+        let top = clip[1].floor().max(0.0) as u32;
+        let right = clip[2].ceil().min(self.width as f32).max(0.0) as u32;
+        let bottom = clip[3].ceil().min(self.height as f32).max(0.0) as u32;
+        for y in top..bottom {
+            for x in left..right {
+                let point = [x as f32 + 0.5, y as f32 + 0.5];
+                if point[0] < clip[0]
+                    || point[1] < clip[1]
+                    || point[0] > clip[2]
+                    || point[1] > clip[3]
+                {
+                    continue;
+                }
+                let source = layer.pixels[(y * layer.width + x) as usize];
+                if source[3] == 0 {
+                    continue;
+                }
+                let alpha = self.rounds.iter().fold(
+                    opacity.clamp(0.0, 1.0) * self.fade.alpha(point),
+                    |alpha, round| alpha * covered(round, point),
+                );
+                let behind = 1.0 - source[3] as f32 / 255.0 * alpha;
+                let target = self.pixel(x, y);
+                for (target, source) in target.iter_mut().zip(source) {
+                    let blended = source as f32 * alpha + *target as f32 * behind;
+                    *target = blended.round().clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+    }
+
     fn pixel(&mut self, x: u32, y: u32) -> &mut [u8; 4] {
         &mut self.pixels[(y * self.width + x) as usize]
     }
