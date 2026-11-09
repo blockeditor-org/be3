@@ -8,7 +8,7 @@ use beui_components_unstyled::{MenuItem, PopupTriggerHandle};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Image;
-use beui_view::types::Rect;
+use beui_view::types::{Placement, Rect};
 use beui_view::types::ScrollGesture;
 use beui_view::types::icons::ICON_CHEVRON_DOWN;
 
@@ -27,6 +27,7 @@ pub fn MenuButton(
     #[prop(default = false)] secondary_opens: Prop<bool>,
     #[prop(default = false)] open: Binding<bool>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     leading: Option<Child>,
     items: Children<MenuItem>,
     on_click: ClickCallback,
@@ -48,6 +49,7 @@ pub fn MenuButton(
             click_opens
             secondary_opens
             bounds
+            placement
             menu={menu_style()}
             trigger={move |handle: PopupTriggerHandle| view! {
                 <PopupButtonFace

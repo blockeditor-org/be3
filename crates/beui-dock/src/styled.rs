@@ -8,7 +8,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::icons::{ICON_GRIP_HORIZONTAL, ICON_GRIP_VERTICAL};
-use beui_view::types::{Direction, PointerPress, Rect};
+use beui_view::types::{Direction, Placement, PointerPress, Rect};
 
 use crate::{DockBarControl, use_dock_bar};
 
@@ -81,6 +81,7 @@ pub fn DockBarGrip(
                 size=ButtonSize::Toolbar
                 open
                 bounds
+                placement=Placement::BelowStart
                 click_opens=false
                 secondary_opens=true
                 on_click={move || {
