@@ -73,7 +73,11 @@ impl Meta {
             && self.blocks.windows(2).all(|pair| pair[0] <= pair[1])
             && self.firsts.windows(2).all(|pair| pair[0] < pair[1])
             && self.deleted <= self.docs;
-        if sound { Ok(()) } else { Err(Error::Corrupt("segment header")) }
+        if sound {
+            Ok(())
+        } else {
+            Err(Error::Corrupt("segment header"))
+        }
     }
 
     /// Sets and clears deletion bits, ignoring locals the segment lacks.
@@ -171,17 +175,28 @@ impl Meta {
             .await?;
         let mut out = BTreeMap::new();
         for pair in self.blocks.windows(2) {
-            let block = slice(&dictionary, u64::from(pair[0]), u64::from(pair[1] - pair[0]))?;
+            let block = slice(
+                &dictionary,
+                u64::from(pair[0]),
+                u64::from(pair[1] - pair[0]),
+            )?;
             for (term, info) in decode_dictionary_block(block)? {
-                let skip = decode_skip(slice(&postings, info.postings, u64::from(info.skip_len))?, info.df)?;
+                let skip = decode_skip(
+                    slice(&postings, info.postings, u64::from(info.skip_len))?,
+                    info.df,
+                )?;
                 let mut list = Vec::new();
                 let mut at = add(info.postings, u64::from(info.skip_len))?;
                 let mut positions_at = info.positions;
                 let mut previous = 0;
                 for (index, entry) in skip.iter().enumerate() {
                     let count = block_count(info.df, index);
-                    let mut block = decode_block(slice(&postings, at, u64::from(entry.len))?, count, previous)?;
-                    decode_positions(slice(&positions, positions_at, u64::from(entry.positions_len))?, &mut block)?;
+                    let mut block =
+                        decode_block(slice(&postings, at, u64::from(entry.len))?, count, previous)?;
+                    decode_positions(
+                        slice(&positions, positions_at, u64::from(entry.positions_len))?,
+                        &mut block,
+                    )?;
                     at = add(at, u64::from(entry.len))?;
                     positions_at = add(positions_at, u64::from(entry.positions_len))?;
                     previous = entry.last;
@@ -252,7 +267,12 @@ impl Bits {
     /// The set bits below `limit`.
     pub(crate) fn count_below(&self, limit: u32) -> u32 {
         let whole = (limit / 8) as usize;
-        let mut count: u32 = self.0.iter().take(whole).map(|byte| byte.count_ones()).sum();
+        let mut count: u32 = self
+            .0
+            .iter()
+            .take(whole)
+            .map(|byte| byte.count_ones())
+            .sum();
         if let Some(byte) = self.0.get(whole) {
             count += (byte & ((1u16 << (limit % 8)) - 1) as u8).count_ones();
         }
@@ -358,7 +378,9 @@ pub(crate) fn decode_skip(bytes: &[u8], df: u32) -> Result<Vec<Skip>, Error> {
     let mut last = 0u32;
     let mut out = Vec::new();
     for _ in 0..count {
-        last = last.checked_add(reader.u32()?).ok_or(Error::Corrupt("skip data"))?;
+        last = last
+            .checked_add(reader.u32()?)
+            .ok_or(Error::Corrupt("skip data"))?;
         out.push(Skip {
             last,
             len: reader.u32()?,
@@ -382,7 +404,9 @@ pub(crate) fn decode_block(
     // Each posting is at least three bytes.
     let mut out = Vec::with_capacity(count.min(bytes.len() / 3));
     for _ in 0..count {
-        doc = doc.checked_add(reader.u32()?).ok_or(Error::Corrupt("postings"))?;
+        doc = doc
+            .checked_add(reader.u32()?)
+            .ok_or(Error::Corrupt("postings"))?;
         out.push(Posting {
             doc,
             tf: reader.u32()?,
@@ -399,7 +423,9 @@ pub(crate) fn decode_positions(bytes: &[u8], block: &mut [Posting]) -> Result<()
         let mut position = 0u32;
         posting.positions.clear();
         for _ in 0..posting.tf {
-            position = position.checked_add(reader.u32()?).ok_or(Error::Corrupt("positions"))?;
+            position = position
+                .checked_add(reader.u32()?)
+                .ok_or(Error::Corrupt("positions"))?;
             posting.positions.push(position);
         }
     }
@@ -457,12 +483,21 @@ impl Dictionary<'_> {
         blocks
     }
 
-    pub(crate) async fn read_block(&self, parts: &impl Parts, index: usize) -> Result<Vec<(Vec<u8>, TermInfo)>, Error> {
-        let (Some(&start), Some(&end)) = (self.meta.blocks.get(index), self.meta.blocks.get(index + 1)) else {
+    pub(crate) async fn read_block(
+        &self,
+        parts: &impl Parts,
+        index: usize,
+    ) -> Result<Vec<(Vec<u8>, TermInfo)>, Error> {
+        let (Some(&start), Some(&end)) =
+            (self.meta.blocks.get(index), self.meta.blocks.get(index + 1))
+        else {
             return Err(Error::Corrupt("dictionary block"));
         };
         let bytes = parts
-            .read(&self.meta.part(PartKind::Dictionary), u64::from(start)..u64::from(end))
+            .read(
+                &self.meta.part(PartKind::Dictionary),
+                u64::from(start)..u64::from(end),
+            )
             .await?;
         decode_dictionary_block(&bytes)
     }
@@ -494,13 +529,19 @@ pub(crate) fn build(
             let body_start = body.len();
             let positions_before = positions.len();
             for posting in chunk {
-                varint::put(&mut body, u64::from(posting.doc.saturating_sub(previous_doc)));
+                varint::put(
+                    &mut body,
+                    u64::from(posting.doc.saturating_sub(previous_doc)),
+                );
                 varint::put(&mut body, u64::from(posting.tf));
                 body.push(posting.norm);
                 previous_doc = posting.doc;
                 let mut previous_position = 0;
                 for &position in &posting.positions {
-                    varint::put(&mut positions, u64::from(position.saturating_sub(previous_position)));
+                    varint::put(
+                        &mut positions,
+                        u64::from(position.saturating_sub(previous_position)),
+                    );
                     previous_position = position;
                 }
             }

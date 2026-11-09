@@ -31,7 +31,14 @@ impl Random {
     }
 }
 
-fn batches(random: &mut Random, index: &mut Index, store: &mut Store, first: u32, count: u32, origin: u32) {
+fn batches(
+    random: &mut Random,
+    index: &mut Index,
+    store: &mut Store,
+    first: u32,
+    count: u32,
+    origin: u32,
+) {
     for batch in 0..count {
         let time = i64::from(first + batch) * 10;
         let start = (first + batch) * 30;
@@ -49,7 +56,16 @@ fn batches(random: &mut Random, index: &mut Index, store: &mut Store, first: u32
             }
             removed.push((doc(random.below(start)), commit(time + 6)));
         }
-        apply(index, store, id(origin + batch), Batch { put, removed, ..Batch::default() });
+        apply(
+            index,
+            store,
+            id(origin + batch),
+            Batch {
+                put,
+                removed,
+                ..Batch::default()
+            },
+        );
     }
 }
 

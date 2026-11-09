@@ -20,7 +20,12 @@ use crate::{
 impl Index {
     /// The union of `self` and `other`, whose parts `parts` reads alike,
     /// writing what changed under `origin`.
-    pub async fn merge(&self, other: &Index, parts: &impl Parts, origin: Id) -> Result<(Index, Written), Error> {
+    pub async fn merge(
+        &self,
+        other: &Index,
+        parts: &impl Parts,
+        origin: Id,
+    ) -> Result<(Index, Written), Error> {
         let mut written = Written::default();
         let mut retired: BTreeMap<Id, u64> = BTreeMap::new();
         for Retired { id, at } in self.retired.iter().chain(&other.retired) {
@@ -51,7 +56,8 @@ impl Index {
             }
         }
         let surviving: HashSet<Id> = segments.iter().map(|(meta, _)| meta.id).collect();
-        let survives = |place: &Option<Place>| place.is_some_and(|place| surviving.contains(&place.segment));
+        let survives =
+            |place: &Option<Place>| place.is_some_and(|place| surviving.contains(&place.segment));
 
         // The table: chunks both name are the same; the rest merge by entry.
         let ours: HashSet<_> = self.table.iter().map(|chunk| chunk.part).collect();
@@ -66,8 +72,14 @@ impl Index {
             .table
             .iter()
             .filter(|chunk| !theirs.contains(&chunk.part))
-            .chain(other.table.iter().filter(|chunk| !ours.contains(&chunk.part)));
-        let chunks = crate::join::try_all(unshared.map(|chunk| table::read_chunk(parts, chunk))).await?;
+            .chain(
+                other
+                    .table
+                    .iter()
+                    .filter(|chunk| !ours.contains(&chunk.part)),
+            );
+        let chunks =
+            crate::join::try_all(unshared.map(|chunk| table::read_chunk(parts, chunk))).await?;
         let mut sides: BTreeMap<DocId, Vec<Entry>> = BTreeMap::new();
         for entry in chunks.into_iter().flatten() {
             sides.entry(entry.doc.clone()).or_default().push(entry);
@@ -76,7 +88,13 @@ impl Index {
         let mut keeps: Vec<Place> = Vec::new();
         let mut merged: Vec<Entry> = Vec::with_capacity(sides.len());
         for (doc, mut entries) in sides {
-            let rank = |entry: &Entry| (entry.commit, survives(&entry.place), std::cmp::Reverse(entry.place));
+            let rank = |entry: &Entry| {
+                (
+                    entry.commit,
+                    survives(&entry.place),
+                    std::cmp::Reverse(entry.place),
+                )
+            };
             entries.sort_by_key(|entry| std::cmp::Reverse(rank(entry)));
             let newest = entries[0].clone();
             let mut winner = newest.clone();
@@ -108,20 +126,39 @@ impl Index {
         let mut next = 0;
         let mut entries = merged.into_iter().peekable();
         for chunk in shared {
-            let pending: Vec<Entry> = std::iter::from_fn(|| entries.next_if(|entry| entry.doc < chunk.first)).collect();
-            dir.extend(table::write_chunks(&pending, origin, &mut next, &mut written));
+            let pending: Vec<Entry> =
+                std::iter::from_fn(|| entries.next_if(|entry| entry.doc < chunk.first)).collect();
+            dir.extend(table::write_chunks(
+                &pending,
+                origin,
+                &mut next,
+                &mut written,
+            ));
             dir.push(chunk);
         }
         let pending: Vec<Entry> = entries.collect();
-        dir.extend(table::write_chunks(&pending, origin, &mut next, &mut written));
+        dir.extend(table::write_chunks(
+            &pending,
+            origin,
+            &mut next,
+            &mut written,
+        ));
 
         // Deletion bitmaps: both sides' bits, the losers' set, the winners' clear.
         let mut by_segment: HashMap<Id, (Vec<u32>, Vec<u32>)> = HashMap::new();
         for place in &masks {
-            by_segment.entry(place.segment).or_default().0.push(place.local);
+            by_segment
+                .entry(place.segment)
+                .or_default()
+                .0
+                .push(place.local);
         }
         for place in &keeps {
-            by_segment.entry(place.segment).or_default().1.push(place.local);
+            by_segment
+                .entry(place.segment)
+                .or_default()
+                .1
+                .push(place.local);
         }
         let mut metas = Vec::with_capacity(segments.len());
         for (mut meta, second) in segments {
@@ -143,7 +180,10 @@ impl Index {
         let index = Index {
             watermark: self.watermark.min(other.watermark),
             segments: metas,
-            retired: retired.into_iter().map(|(id, at)| Retired { id, at }).collect(),
+            retired: retired
+                .into_iter()
+                .map(|(id, at)| Retired { id, at })
+                .collect(),
             removed_blocks: removed_blocks.into_values().collect(),
             table: dir,
         };

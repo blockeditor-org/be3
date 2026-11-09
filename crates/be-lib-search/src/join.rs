@@ -31,6 +31,8 @@ pub(crate) async fn all<F: Future>(futures: impl IntoIterator<Item = F>) -> Vec<
 }
 
 /// `all` over fallible futures, failing with the first error.
-pub(crate) async fn try_all<T, E, F: Future<Output = Result<T, E>>>(futures: impl IntoIterator<Item = F>) -> Result<Vec<T>, E> {
+pub(crate) async fn try_all<T, E, F: Future<Output = Result<T, E>>>(
+    futures: impl IntoIterator<Item = F>,
+) -> Result<Vec<T>, E> {
     all(futures).await.into_iter().collect()
 }

@@ -289,7 +289,11 @@ impl Index {
         for segment in &index.segments {
             segment.check()?;
         }
-        if !index.table.windows(2).all(|pair| pair[0].first < pair[1].first) {
+        if !index
+            .table
+            .windows(2)
+            .all(|pair| pair[0].first < pair[1].first)
+        {
             return Err(Error::Corrupt("table chunk list"));
         }
         Ok(index)
@@ -312,7 +316,8 @@ impl Index {
     /// (the index block's history retention says when).
     pub fn forget_before(&mut self, watermark: u64) {
         self.retired.retain(|retired| retired.at >= watermark);
-        self.removed_blocks.retain(|removed| removed.at >= watermark);
+        self.removed_blocks
+            .retain(|removed| removed.at >= watermark);
     }
 
     /// Every part the header names, the header aside.
@@ -347,12 +352,20 @@ impl Index {
 
     /// Applies a batch: a new segment for the documents with new text, the
     /// table chunks they change and the deletion bitmaps of what they mask.
-    pub async fn apply(&mut self, parts: &impl Parts, origin: Id, batch: Batch) -> Result<Written, Error> {
+    pub async fn apply(
+        &mut self,
+        parts: &impl Parts,
+        origin: Id,
+        batch: Batch,
+    ) -> Result<Written, Error> {
         let mut written = Written::default();
         let mut table = table::Edit::new(&self.table);
         let mut masks: Vec<Place> = Vec::new();
         for (block, commit) in batch.removed_blocks {
-            if self.block_removed_at(&block).is_some_and(|known| known >= commit) {
+            if self
+                .block_removed_at(&block)
+                .is_some_and(|known| known >= commit)
+            {
                 continue;
             }
             self.removed_blocks.retain(|removed| removed.block != block);
@@ -370,18 +383,30 @@ impl Index {
         }
         let mut latest: BTreeMap<DocId, Change> = BTreeMap::new();
         for item in batch.put {
-            latest.entry(item.doc.clone()).or_insert(Change::Put(item.clone())).newest(Change::Put(item));
+            latest
+                .entry(item.doc.clone())
+                .or_insert(Change::Put(item.clone()))
+                .newest(Change::Put(item));
         }
         for (doc, commit) in batch.removed {
-            latest.entry(doc.clone()).or_insert(Change::Remove(commit)).newest(Change::Remove(commit));
+            latest
+                .entry(doc.clone())
+                .or_insert(Change::Remove(commit))
+                .newest(Change::Remove(commit));
         }
         let mut fresh = Vec::new();
         for (doc, change) in latest {
-            if self.block_removed_at(&doc.block).is_some_and(|removed| removed >= change.commit()) {
+            if self
+                .block_removed_at(&doc.block)
+                .is_some_and(|removed| removed >= change.commit())
+            {
                 continue;
             }
             let old = table.get(parts, &doc).await?.cloned();
-            if old.as_ref().is_some_and(|old| old.commit >= change.commit()) {
+            if old
+                .as_ref()
+                .is_some_and(|old| old.commit >= change.commit())
+            {
                 continue;
             }
             let old_place = old.as_ref().and_then(|old| old.place);
@@ -390,11 +415,21 @@ impl Index {
                     masks.extend(old_place);
                     table.put(Entry::tombstone(doc, commit));
                 }
-                Change::Put(Put { text: Some(text), commit, source, .. }) => {
+                Change::Put(Put {
+                    text: Some(text),
+                    commit,
+                    source,
+                    ..
+                }) => {
                     masks.extend(old_place);
                     fresh.push((doc, commit, source, text));
                 }
-                Change::Put(Put { text: None, commit, source, .. }) => match old {
+                Change::Put(Put {
+                    text: None,
+                    commit,
+                    source,
+                    ..
+                }) => match old {
                     Some(mut entry) if !entry.is_removed() => {
                         entry.commit = commit;
                         entry.source = source;
@@ -407,7 +442,9 @@ impl Index {
         if !fresh.is_empty() {
             let (meta, segment_parts, places) = segment::build_from_text(
                 origin,
-                fresh.iter().map(|(doc, commit, _, text)| (doc, *commit, text)),
+                fresh
+                    .iter()
+                    .map(|(doc, commit, _, text)| (doc, *commit, text)),
             );
             for ((doc, commit, source, _), local) in fresh.into_iter().zip(places) {
                 table.put(Entry {
@@ -415,7 +452,10 @@ impl Index {
                     commit,
                     indexed: commit,
                     source,
-                    place: Some(Place { segment: origin, local }),
+                    place: Some(Place {
+                        segment: origin,
+                        local,
+                    }),
                 });
             }
             written.added.extend(segment_parts);
@@ -431,7 +471,14 @@ impl Index {
 
     /// Sets the deletion bits of `set` and clears those of `clear`, rewriting
     /// each bitmap that changes.
-    async fn mask(&mut self, parts: &impl Parts, origin: Id, set: &[Place], clear: &[Place], written: &mut Written) -> Result<(), Error> {
+    async fn mask(
+        &mut self,
+        parts: &impl Parts,
+        origin: Id,
+        set: &[Place],
+        clear: &[Place],
+        written: &mut Written,
+    ) -> Result<(), Error> {
         for segment in &mut self.segments {
             let of = |places: &[Place]| -> Vec<u32> {
                 places

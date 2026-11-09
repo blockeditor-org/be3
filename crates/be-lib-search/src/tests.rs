@@ -183,9 +183,15 @@ pub(crate) fn ranked(index: &Index, store: &Store, query: &str, limit: usize) ->
 
 /// What `search` should answer for a query of words and phrases, scoring
 /// every live document of every segment in full.
-pub(crate) fn brute_force(index: &Index, store: &Store, query: &str, limit: usize) -> Vec<(DocId, f64)> {
+pub(crate) fn brute_force(
+    index: &Index,
+    store: &Store,
+    query: &str,
+    limit: usize,
+) -> Vec<(DocId, f64)> {
     use crate::{
-        BODY, NAME, query::{Clause, Stats, boost, idf, tf_part},
+        BODY, NAME,
+        query::{Clause, Stats, boost, idf, tf_part},
         segment::decode_norm,
         tokens::key,
     };
@@ -231,17 +237,27 @@ pub(crate) fn brute_force(index: &Index, store: &Store, query: &str, limit: usiz
                     .get(&key(field, term))
                     .and_then(|list| list.iter().find(|posting| posting.doc == local))
             };
-            if conjuncts.iter().any(|term| posting(term, NAME).is_none() && posting(term, BODY).is_none()) {
+            if conjuncts
+                .iter()
+                .any(|term| posting(term, NAME).is_none() && posting(term, BODY).is_none())
+            {
                 continue;
             }
             let phrase_found = phrases.iter().all(|phrase| {
                 [NAME, BODY].into_iter().any(|field| {
-                    let lists: Option<Vec<&Vec<u32>>> =
-                        phrase.iter().map(|&index| posting(&conjuncts[index], field).map(|posting| &posting.positions)).collect();
+                    let lists: Option<Vec<&Vec<u32>>> = phrase
+                        .iter()
+                        .map(|&index| {
+                            posting(&conjuncts[index], field).map(|posting| &posting.positions)
+                        })
+                        .collect();
                     lists.is_some_and(|lists| {
-                        lists[0]
-                            .iter()
-                            .any(|&start| lists.iter().enumerate().all(|(offset, list)| list.contains(&(start + offset as u32))))
+                        lists[0].iter().any(|&start| {
+                            lists
+                                .iter()
+                                .enumerate()
+                                .all(|(offset, list)| list.contains(&(start + offset as u32)))
+                        })
                     })
                 })
             });
@@ -258,7 +274,12 @@ pub(crate) fn brute_force(index: &Index, store: &Store, query: &str, limit: usiz
                             terms.get(&term_key)?;
                             let weight = boost(field) * idf(stats.docs, df[&term_key]);
                             Some(posting(term, field).map_or(0.0, |posting| {
-                                weight * tf_part(posting.tf, decode_norm(posting.norm), stats.averages[field as usize])
+                                weight
+                                    * tf_part(
+                                        posting.tf,
+                                        decode_norm(posting.norm),
+                                        stats.averages[field as usize],
+                                    )
                             }))
                         })
                         .sum::<f64>()
@@ -267,9 +288,15 @@ pub(crate) fn brute_force(index: &Index, store: &Store, query: &str, limit: usiz
             hits.push((score, document.commit, document.doc.clone()));
         }
     }
-    hits.sort_by(|a, b| b.0.total_cmp(&a.0).then(b.1.cmp(&a.1)).then_with(|| a.2.cmp(&b.2)));
+    hits.sort_by(|a, b| {
+        b.0.total_cmp(&a.0)
+            .then(b.1.cmp(&a.1))
+            .then_with(|| a.2.cmp(&b.2))
+    });
     hits.truncate(limit);
-    hits.into_iter().map(|(score, _, doc)| (doc, score)).collect()
+    hits.into_iter()
+        .map(|(score, _, doc)| (doc, score))
+        .collect()
 }
 
 /// That `search` and the brute force scorer agree, order and scores.

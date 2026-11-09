@@ -122,9 +122,16 @@ pub(crate) struct Stats {
 
 impl Stats {
     pub(crate) fn of(segments: &[Meta]) -> Self {
-        let docs: u64 = segments.iter().map(|meta| u64::from(meta.docs)).sum::<u64>().max(1);
+        let docs: u64 = segments
+            .iter()
+            .map(|meta| u64::from(meta.docs))
+            .sum::<u64>()
+            .max(1);
         let averages = [NAME, BODY].map(|field| {
-            let sum: u64 = segments.iter().map(|meta| meta.lengths[field as usize]).fold(0, u64::saturating_add);
+            let sum: u64 = segments
+                .iter()
+                .map(|meta| meta.lengths[field as usize])
+                .fold(0, u64::saturating_add);
             (sum as f64 / docs as f64).max(1.0)
         });
         Self { docs, averages }
@@ -150,11 +157,16 @@ impl Lookup<'_> {
 
 /// Reads the dictionary blocks in `wanted` (segment, block) that are not read
 /// yet, all at once.
-async fn load_blocks(parts: &impl Parts, lookups: &mut [Lookup<'_>], mut wanted: Vec<(usize, usize)>) -> Result<(), Error> {
+async fn load_blocks(
+    parts: &impl Parts,
+    lookups: &mut [Lookup<'_>],
+    mut wanted: Vec<(usize, usize)>,
+) -> Result<(), Error> {
     wanted.retain(|(segment, block)| !lookups[*segment].blocks.contains_key(block));
     wanted.sort_unstable();
     wanted.dedup();
-    let dictionaries: Vec<Dictionary<'_>> = lookups.iter().map(|lookup| lookup.dictionary).collect();
+    let dictionaries: Vec<Dictionary<'_>> =
+        lookups.iter().map(|lookup| lookup.dictionary).collect();
     let read = join::try_all(
         wanted
             .iter()
@@ -195,19 +207,33 @@ struct Spec {
 
 impl Cursor {
     async fn open(parts: &impl Parts, meta: &Meta, spec: Spec) -> Result<Self, Error> {
-        let Spec { info, field, weight, average } = spec;
+        let Spec {
+            info,
+            field,
+            weight,
+            average,
+        } = spec;
         let postings = meta.part(PartKind::Postings);
         let single = info.df as usize <= segment::POSTINGS_BLOCK;
-        let len = if single { info.postings_len } else { info.skip_len };
+        let len = if single {
+            info.postings_len
+        } else {
+            info.skip_len
+        };
         if info.skip_len > info.postings_len {
             return Err(Error::Corrupt("term information"));
         }
         let end = segment::add(info.postings, u64::from(len))?;
         let bytes = parts.read(&postings, info.postings..end).await?;
-        let skip_bytes = bytes.get(..info.skip_len as usize).ok_or(Error::Corrupt("skip data"))?;
+        let skip_bytes = bytes
+            .get(..info.skip_len as usize)
+            .ok_or(Error::Corrupt("skip data"))?;
         let skip = segment::decode_skip(skip_bytes, info.df)?;
         let mut offsets = Vec::with_capacity(skip.len());
-        let (mut at, mut positions_at) = (segment::add(info.postings, u64::from(info.skip_len))?, info.positions);
+        let (mut at, mut positions_at) = (
+            segment::add(info.postings, u64::from(info.skip_len))?,
+            info.positions,
+        );
         for entry in &skip {
             offsets.push((at, positions_at));
             at = segment::add(at, u64::from(entry.len))?;
@@ -215,10 +241,14 @@ impl Cursor {
         }
         let bounds = skip
             .iter()
-            .map(|entry| weight * tf_part(entry.max_tf, segment::decode_norm(entry.min_norm), average))
+            .map(|entry| {
+                weight * tf_part(entry.max_tf, segment::decode_norm(entry.min_norm), average)
+            })
             .collect();
         let loaded = if single && !skip.is_empty() {
-            let block = bytes.get(info.skip_len as usize..).ok_or(Error::Corrupt("postings"))?;
+            let block = bytes
+                .get(info.skip_len as usize..)
+                .ok_or(Error::Corrupt("postings"))?;
             Some((0, segment::decode_block(block, info.df as usize, 0)?, false))
         } else {
             None
@@ -245,7 +275,8 @@ impl Cursor {
         while self.block < self.skip.len() && self.skip[self.block].last < target {
             self.block += 1;
         }
-        (self.block < self.skip.len()).then(|| (self.skip[self.block].last, self.bounds[self.block]))
+        (self.block < self.skip.len())
+            .then(|| (self.skip[self.block].last, self.bounds[self.block]))
     }
 
     async fn next_geq(&mut self, parts: &impl Parts, target: u32) -> Result<Option<u32>, Error> {
@@ -253,13 +284,24 @@ impl Cursor {
             if self.shallow(target).is_none() {
                 return Ok(None);
             }
-            if self.loaded.as_ref().is_none_or(|(index, ..)| *index != self.block) {
+            if self
+                .loaded
+                .as_ref()
+                .is_none_or(|(index, ..)| *index != self.block)
+            {
                 let (start, _) = self.offsets[self.block];
                 let end = segment::add(start, u64::from(self.skip[self.block].len))?;
                 let bytes = parts.read(&self.postings, start..end).await?;
-                let previous = self.block.checked_sub(1).map_or(0, |index| self.skip[index].last);
+                let previous = self
+                    .block
+                    .checked_sub(1)
+                    .map_or(0, |index| self.skip[index].last);
                 let count = segment::block_count(self.info.df, self.block);
-                self.loaded = Some((self.block, segment::decode_block(&bytes, count, previous)?, false));
+                self.loaded = Some((
+                    self.block,
+                    segment::decode_block(&bytes, count, previous)?,
+                    false,
+                ));
                 self.at = 0;
             }
             let (_, list, _) = self.loaded.as_ref().unwrap();
@@ -299,7 +341,10 @@ impl Cursor {
             segment::decode_positions(&bytes, list)?;
             *read = true;
         }
-        Ok(list.get(self.at).map(|posting| posting.positions.clone()).unwrap_or_default())
+        Ok(list
+            .get(self.at)
+            .map(|posting| posting.positions.clone())
+            .unwrap_or_default())
     }
 }
 
@@ -337,7 +382,10 @@ impl Conjunct {
     }
 
     fn df(&self) -> u64 {
-        self.children.iter().map(|child| u64::from(child.info.df)).sum()
+        self.children
+            .iter()
+            .map(|child| u64::from(child.info.df))
+            .sum()
     }
 }
 
@@ -369,7 +417,12 @@ impl Shared {
 }
 
 impl Index {
-    pub async fn search(&self, parts: &impl Parts, query: &Query, limit: usize) -> Result<Vec<Hit>, Error> {
+    pub async fn search(
+        &self,
+        parts: &impl Parts,
+        query: &Query,
+        limit: usize,
+    ) -> Result<Vec<Hit>, Error> {
         if query.clauses.is_empty() || limit == 0 || self.segments.is_empty() {
             return Ok(Vec::new());
         }
@@ -394,7 +447,9 @@ impl Index {
         for (segment, lookup) in lookups.iter().enumerate() {
             for prefix in &prefixes {
                 for field in [NAME, BODY] {
-                    let blocks = lookup.dictionary.prefix_blocks(&key(field, prefix), PREFIX_BLOCKS);
+                    let blocks = lookup
+                        .dictionary
+                        .prefix_blocks(&key(field, prefix), PREFIX_BLOCKS);
                     wanted.extend(blocks.into_iter().map(|block| (segment, block)));
                 }
             }
@@ -416,7 +471,8 @@ impl Index {
                 }
                 Clause::Phrase(words) => {
                     let start = plan.conjuncts.len();
-                    plan.conjuncts.extend(words.iter().map(|word| vec![fold(word)]));
+                    plan.conjuncts
+                        .extend(words.iter().map(|word| vec![fold(word)]));
                     plan.phrases.push((start..plan.conjuncts.len()).collect());
                 }
             }
@@ -426,13 +482,19 @@ impl Index {
         for (segment, lookup) in lookups.iter().enumerate() {
             for term in plan.conjuncts.iter().flatten() {
                 for field in [NAME, BODY] {
-                    wanted.extend(lookup.dictionary.block_of(&key(field, term)).map(|block| (segment, block)));
+                    wanted.extend(
+                        lookup
+                            .dictionary
+                            .block_of(&key(field, term))
+                            .map(|block| (segment, block)),
+                    );
                 }
             }
         }
         load_blocks(parts, &mut lookups, wanted).await?;
         let mut df: BTreeMap<Vec<u8>, u64> = BTreeMap::new();
-        let mut infos: Vec<BTreeMap<Vec<u8>, TermInfo>> = vec![BTreeMap::new(); self.segments.len()];
+        let mut infos: Vec<BTreeMap<Vec<u8>, TermInfo>> =
+            vec![BTreeMap::new(); self.segments.len()];
         for (segment, lookup) in lookups.iter().enumerate() {
             for term in plan.conjuncts.iter().flatten() {
                 for field in [NAME, BODY] {
@@ -474,10 +536,18 @@ impl Index {
         // Round three: skip data and deletion bitmaps.
         let opened = join::try_all(specs.iter().flat_map(|(segment, conjuncts)| {
             let meta = &self.segments[*segment];
-            conjuncts.iter().flatten().map(move |spec| Cursor::open(parts, meta, *spec))
+            conjuncts
+                .iter()
+                .flatten()
+                .map(move |spec| Cursor::open(parts, meta, *spec))
         }))
         .await?;
-        let deletions = join::try_all(specs.iter().map(|(segment, _)| self.segments[*segment].deletions(parts))).await?;
+        let deletions = join::try_all(
+            specs
+                .iter()
+                .map(|(segment, _)| self.segments[*segment].deletions(parts)),
+        )
+        .await?;
         let mut opened = opened.into_iter();
         let mut searches: Vec<(usize, Vec<Conjunct>, Bits)> = Vec::new();
         for ((segment, conjuncts), deletions) in specs.iter().zip(deletions) {
@@ -495,13 +565,18 @@ impl Index {
             bests: RefCell::new(vec![Vec::new(); searches.len()]),
             threshold: Cell::new(f64::NEG_INFINITY),
         };
-        let bests = join::try_all(searches.iter_mut().enumerate().map(|(slot, (_, conjuncts, deletions))| {
-            search_segment(parts, conjuncts, &plan.phrases, deletions, &shared, slot)
-        }))
+        let bests = join::try_all(searches.iter_mut().enumerate().map(
+            |(slot, (_, conjuncts, deletions))| {
+                search_segment(parts, conjuncts, &plan.phrases, deletions, &shared, slot)
+            },
+        ))
         .await?;
         let mut found: Vec<(f64, usize, u32)> = Vec::new();
         for ((segment, ..), best) in searches.iter().zip(bests) {
-            found.extend(best.into_iter().map(|(score, local)| (score, *segment, local)));
+            found.extend(
+                best.into_iter()
+                    .map(|(score, local)| (score, *segment, local)),
+            );
         }
         found.sort_by(|a, b| b.0.total_cmp(&a.0));
         if let Some(&(last, ..)) = found.get(limit - 1) {
@@ -624,7 +699,12 @@ async fn search_segment(
     Ok(best)
 }
 
-async fn phrases_match(parts: &impl Parts, conjuncts: &mut [Conjunct], phrases: &[Vec<usize>], doc: u32) -> Result<bool, Error> {
+async fn phrases_match(
+    parts: &impl Parts,
+    conjuncts: &mut [Conjunct],
+    phrases: &[Vec<usize>],
+    doc: u32,
+) -> Result<bool, Error> {
     'phrases: for phrase in phrases {
         'fields: for field in [NAME, BODY] {
             let mut lists = Vec::with_capacity(phrase.len());

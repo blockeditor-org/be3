@@ -37,8 +37,10 @@ pub(crate) fn derive(origin: Id, n: u32) -> Id {
 impl Written {
     /// Leaves out parts both added and dropped by the same change.
     pub(crate) fn tidy(&mut self) {
-        let dropped: std::collections::HashSet<_> = std::mem::take(&mut self.dropped).into_iter().collect();
-        let added: std::collections::HashSet<_> = self.added.iter().map(|(name, _)| *name).collect();
+        let dropped: std::collections::HashSet<_> =
+            std::mem::take(&mut self.dropped).into_iter().collect();
+        let added: std::collections::HashSet<_> =
+            self.added.iter().map(|(name, _)| *name).collect();
         self.added.retain(|(name, _)| !dropped.contains(name));
         self.dropped = dropped
             .into_iter()
@@ -107,9 +109,9 @@ impl Index {
                 let meta = self.segments.remove(index);
                 written.dropped.extend(meta.parts());
                 self.retired.push(Retired {
-                        id: meta.id,
-                        at: self.watermark,
-                    });
+                    id: meta.id,
+                    at: self.watermark,
+                });
             }
             built.insert(id, segment_parts.clone());
             written.added.extend(segment_parts);
