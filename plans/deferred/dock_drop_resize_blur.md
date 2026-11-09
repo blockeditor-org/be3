@@ -18,4 +18,6 @@ What it needs:
   CSS `filter: blur()`.
 - **A signal that the panel has redrawn at its new size**, so the unblur waits on it rather than
   on a timer. Panels drawn by beui alone have redrawn by the next frame.
-- **A token for the blur radius and its timing**, and no blur under `Motion::Instant`.
+- **A token for the blur radius and its timing.** Under `Motion::Instant` the blur still
+  happens: it switches straight to the full radius and straight back, with no fade in or out,
+  because it hides the jump rather than decorating it.
