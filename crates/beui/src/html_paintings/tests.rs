@@ -11,6 +11,7 @@ fn painting(size: [u32; 2], root: impl FnOnce() -> crate::primitives::Root) -> B
     BrowserSnapshot::new(size, &page)
 }
 
+mod a_form_posts_the_fields_beui_draws_itself;
 mod a_long_modal_sheet_on_the_html_core;
 mod a_sign_in_form_on_the_html_core;
 mod a_styled_dialog_on_the_html_core;

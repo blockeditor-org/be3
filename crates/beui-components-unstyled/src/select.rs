@@ -2,6 +2,7 @@ use crate as unstyled;
 use crate::ChoiceOption;
 use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle};
 use crate::button::ButtonHandle;
+use crate::form::Posted;
 use crate::scroll::ScrollbarStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle};
 use crate::text_input::{TextInputHandle, TextInputStyle};
@@ -64,6 +65,7 @@ pub fn Select(
     #[prop(default = None)] selected: Binding<Option<usize>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = String::new())] name: Prop<String>,
     search_placeholder: Prop<String>,
     search_content: RenderFn<TextInputHandle>,
     search_style: TextInputStyle,
@@ -158,7 +160,7 @@ pub fn Select(
         })
     };
 
-    view! {
+    let select = view! {
         <List spacing=0.0>
             <unstyled::Button
                 @node_ref={&state.trigger}
@@ -205,6 +207,9 @@ pub fn Select(
                 }
             }</Anchored>
         </List>
+    };
+    view! {
+        <Posted name value={label} content={select} />
     }
 }
 

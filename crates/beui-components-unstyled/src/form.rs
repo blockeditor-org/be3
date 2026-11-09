@@ -22,6 +22,33 @@ pub(crate) fn fill_cell(escape: &Escape) {
     );
 }
 
+/// On the HTML core, `content` with a hidden input that posts `value` under `name`
+/// to the `Form` around it, and nothing while `value` is `None` (an unchecked box);
+/// natively, or without a `name`, just `content`. For a field beui draws itself,
+/// which has no `<input>` of its own to post.
+#[component]
+pub(crate) fn Posted(name: Prop<String>, value: Memo<Option<String>>, content: NodeId) -> NodeId {
+    if CORE != Core::Html || matches!(&name, Prop::Static(name) if name.is_empty()) {
+        return content;
+    }
+    html_escape(move |escape| {
+        fill_cell(escape);
+        let content = escape.embed(content);
+        let name = Prop::dynamic(move || Some(name.get()).filter(|name| !name.is_empty()));
+        view! {
+            <html::Div>
+                <html::Input
+                    r#type="hidden"
+                    name={name}
+                    value={Prop::dynamic(move || value.get())}
+                    disabled={create_memo(move || value.get().is_none())}
+                />
+                {content}
+            </html::Div>
+        }
+    })
+}
+
 /// On the HTML core a `<form method="post" novalidate>` with the `hidden` inputs,
 /// so a server-rendered page posts before wasm loads, and `on_submit` once it
 /// runs. Natively it is no node: Enter in a field inside it and its submit buttons
