@@ -1131,7 +1131,19 @@ impl HostCore {
         }
     }
 
+    /// Why a driver should wait: the host's own work and the block store's, nothing once an
+    /// error screen waits for a person.
     fn busy(&self) -> Vec<String> {
+        let mut reasons = self.own_busy();
+        if self.error.is_none() {
+            reasons.extend(be_host_stack::busy().into_iter().map(str::to_owned));
+        }
+        reasons
+    }
+
+    /// The host's own reasons to be busy, apart from the block store's, which is shared by
+    /// everything in the process and works on its own schedule.
+    fn own_busy(&self) -> Vec<String> {
         if self.error.is_some() {
             return Vec::new();
         }
@@ -1155,7 +1167,6 @@ impl HostCore {
         ]
         .into_iter()
         .filter_map(|(busy, reason)| busy.then_some(reason))
-        .chain(be_host_stack::busy())
         .map(str::to_owned)
         .collect()
     }
