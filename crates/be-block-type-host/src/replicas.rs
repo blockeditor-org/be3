@@ -1465,7 +1465,8 @@ impl<H: Host> Replicas<H> {
         indexed: &[be_block_store::PartRef],
     ) -> Result<Searched, NotSearched> {
         let peer = ctx.0;
-        let no_module = || NotSearched::Type(format!("no type module has the block type {content_type}"));
+        let no_module =
+            || NotSearched::Type(format!("no type module has the block type {content_type}"));
         let kind = self.kind(content_type).await.ok_or_else(no_module)?;
         let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
         let content = kind.load(peer, manifest).await.map_err(NotSearched::Read)?;
@@ -1487,7 +1488,9 @@ impl<H: Host> Replicas<H> {
             }
             Ok(Err(be_sdk_type_api::Failure::UnknownType)) => return Err(no_module()),
             Err(error) => {
-                return Err(NotSearched::Type(format!("the type module answered: {error}")));
+                return Err(NotSearched::Type(format!(
+                    "the type module answered: {error}"
+                )));
             }
         };
         let keys: Option<HashSet<String>> = keys.map(|keys| keys.into_iter().collect());
@@ -1495,7 +1498,10 @@ impl<H: Host> Replicas<H> {
         let mut seen = HashSet::new();
         let mut kept = Vec::with_capacity(documents.len());
         for mut document in documents {
-            if keys.as_ref().is_some_and(|keys| !keys.contains(&document.key)) {
+            if keys
+                .as_ref()
+                .is_some_and(|keys| !keys.contains(&document.key))
+            {
                 continue;
             }
             if !seen.insert(document.key.clone()) {
