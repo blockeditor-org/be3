@@ -1178,6 +1178,7 @@ dependencies = [
  "futures-util",
  "httparse",
  "js-sys",
+ "postcard",
  "rusqlite",
  "rustls",
  "serde",

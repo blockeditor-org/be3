@@ -57,7 +57,7 @@ pub use be_sdk_api::{
     InputCapture, InputCaptureWatch, InputDevicesWatch, InputReach, InputReachWatch,
     InteractionMode, Key, KeyChord, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch,
     LinkBaseWatch, MediaLevel, MediaLevels, MediaRequest, MediaWatch, MenuAsk, MenuCheck,
-    MenuCommand, MenuEntry, MenuPin, MenuSubmenu, Modifiers, NotificationCloseReason,
+    MenuCommand, MenuEntry, MenuPin, MenuSubmenu, Modifiers, NotificationCloseReason, NotifyMode,
     NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
     NotificationUrgency, NotificationsWatch, Occluder, OpenProgram, OpenProgramsWatch, PastedBlock,
     PenPhase, PickedBlock, Picture, PlayerCommand, PointerButton, Pointing, PowerAction,

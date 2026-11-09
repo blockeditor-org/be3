@@ -179,6 +179,28 @@ interface host-services {
     /// app's manifest sets `block_agents`.
     terminal-host-build: async func() -> result<string, failure>;
 
+    /// Which notifications about a block reach the signed-in account.
+    enum notify-mode {
+        all,
+        /// Only those that mention the account.
+        mentions,
+        off,
+    }
+
+    /// Notifies the block's members who are not connected, on their other
+    /// devices: the host shows `text` (at most about 1 KiB) under the block's
+    /// name and the signed-in account's, sealed so only members read it.
+    /// `mentions` names accounts the text mentions, which a member who chose
+    /// `mentions` is notified for. Needs Edit on the block; the host sends it
+    /// once connected and drops it when it cannot.
+    notify: async func(block: block-id, text: string, mentions: list<account-id>);
+
+    /// How the signed-in account is notified about the block.
+    notify-mode-of: async func(block: block-id) -> result<notify-mode, failure>;
+
+    /// Sets how the signed-in account is notified about the block.
+    set-notify-mode: async func(block: block-id, mode: notify-mode) -> result<_, failure>;
+
     /// The files the app ships in its data directory.
     list-data: async func() -> result<list<string>, failure>;
 

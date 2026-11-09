@@ -1182,6 +1182,41 @@ pub fn set_access(block: Uuid, account: Uuid, access: be_block_graph::Access) {
     });
 }
 
+/// Notifies `block`'s members who are not connected (`Peer::notify`), naming the block and the
+/// signed-in account; dropped when the server cannot be reached.
+pub fn notify(block: Uuid, text: String, mentions: Vec<Uuid>) {
+    send(Command::Notify {
+        block,
+        text,
+        mentions,
+    });
+}
+
+/// How the signed-in account is notified about `block`.
+pub fn notify_mode(
+    block: Uuid,
+    reply: impl FnOnce(Result<be_block_protocol::NotifyMode, String>) + Send + 'static,
+) {
+    send(Command::NotifyMode {
+        block,
+        set: None,
+        reply: Box::new(reply),
+    });
+}
+
+/// Sets how the signed-in account is notified about `block`; answers the mode it now has.
+pub fn set_notify_mode(
+    block: Uuid,
+    mode: be_block_protocol::NotifyMode,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
+    send(Command::NotifyMode {
+        block,
+        set: Some(mode),
+        reply: Box::new(move |set| reply(set.map(|_| ()))),
+    });
+}
+
 pub fn leave(block: Uuid) {
     send(Command::Leave(block));
 }
