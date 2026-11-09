@@ -89,6 +89,15 @@ impl<C: Undo, T: Moment> History<C, T> {
         }
     }
 
+    /// Ends the step `origin`'s edits are going into, whether a gesture or a burst, without
+    /// opening a gesture: the next edit starts a step of its own however soon it comes.
+    pub fn split(&mut self, origin: Option<u64>) {
+        self.commit(origin);
+        if let Some((_, at)) = self.undo.last_mut() {
+            *at = None;
+        }
+    }
+
     pub fn cancel(&mut self, content: &C, origin: Option<u64>) -> Vec<C::Op> {
         let Some(gesture) = self.gesture.take_if(|gesture| gesture.origin == origin) else {
             return Vec::new();

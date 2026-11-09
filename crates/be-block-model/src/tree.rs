@@ -88,7 +88,7 @@ impl Tree {
             let Some(Value::Text(held)) = self.value(place.object, place.field) else {
                 return Err(Malformed);
             };
-            let sequence = Sequence::from_state(state, &held.items()).map_err(|_| Malformed)?;
+            let sequence = Sequence::from_state(state, &held.visible()).map_err(|_| Malformed)?;
             adopted.push((place, Value::Text(sequence)));
         }
         for (place, state) in lists {
@@ -102,14 +102,14 @@ impl Tree {
             let Some(Value::Rich(held)) = self.value(place.object, place.field) else {
                 return Err(Malformed);
             };
-            let rich = Rich::from_state(state, &held.text.items()).map_err(|_| Malformed)?;
+            let rich = Rich::from_state(state, &held.text.visible()).map_err(|_| Malformed)?;
             adopted.push((place, Value::Rich(rich)));
         }
         for (place, state) in series {
             let Some(Value::Series(held)) = self.value(place.object, place.field) else {
                 return Err(Malformed);
             };
-            let sequence = Sequence::from_state(state, &held.items()).map_err(|_| Malformed)?;
+            let sequence = Sequence::from_state(state, &held.visible()).map_err(|_| Malformed)?;
             adopted.push((place, Value::Series(sequence)));
         }
         self.refresh_sequences();
@@ -191,7 +191,9 @@ impl Tree {
             | Change::Mark { object, .. }
             | Change::Unmark { object, .. }
             | Change::Series { object, .. } => !locked(object),
-            Change::Insert { place, .. } => !locked(&place.object),
+            Change::Insert { place, .. } | Change::MoveRange { place, .. } => {
+                !locked(&place.object)
+            }
             Change::Remove { object } | Change::RemoveIf { object, .. } => !parent_locked(object),
             Change::Move { object, place, .. } => {
                 !parent_locked(object)
@@ -374,6 +376,15 @@ impl Tree {
                 anchor,
                 client,
             } => self.relocate(*object, *place, *anchor, *client),
+            Change::MoveRange {
+                place,
+                first,
+                last,
+                anchor,
+            } => self.list_mut(*place).is_some_and(|items| {
+                let after = items.resolve(*anchor);
+                items.shift_range(*first, *last, after)
+            }),
         }
     }
 
@@ -609,6 +620,27 @@ impl Tree {
                 anchor,
                 client,
             } => self.inverse_move(*object, *place, *anchor, *client),
+            Change::MoveRange {
+                place,
+                first,
+                last,
+                anchor,
+            } => {
+                let items = self.list(*place)?;
+                let after = items.resolve(*anchor);
+                items.shifts_range(*first, *last, after).then(|| {
+                    let range = |anchor| Change::MoveRange {
+                        place: *place,
+                        first: *first,
+                        last: *last,
+                        anchor,
+                    };
+                    (
+                        range(items.anchor_of(*first)),
+                        range(after.map_or(Anchor::Start, Anchor::Behind)),
+                    )
+                })
+            }
         }
     }
 
@@ -677,6 +709,7 @@ impl Tree {
                 }
                 self.touch_place(*place, out);
             }
+            Change::MoveRange { place, .. } => self.touch_place(*place, out),
         }
     }
 

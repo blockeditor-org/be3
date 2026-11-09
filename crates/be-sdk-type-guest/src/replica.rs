@@ -1815,6 +1815,10 @@ where
                         Vec::new()
                     }
                     Gesture::Cancel => self.history.cancel(&self.visible, Some(editor)),
+                    Gesture::Break => {
+                        self.history.split(Some(editor));
+                        Vec::new()
+                    }
                 };
                 for operation in operations {
                     self.edit(operation, None);

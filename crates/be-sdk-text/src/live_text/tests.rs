@@ -5,7 +5,7 @@ use beui_text_editor_core::schema::basic::{BOLD, ITALIC};
 use beui_text_editor_core::{Document, Expand, Name, Scope, Value};
 use uuid::Uuid;
 
-use super::{FieldOf, LiveText};
+use super::{FieldOf, LiveText, Outgoing};
 
 mod a_format_goes_out_as_a_mark_and_a_peers_mark_lands_on_its_text;
 mod peers_formatting_and_typing_at_once_converge;
@@ -51,7 +51,13 @@ fn formatted(text: &LiveText<FieldOf<Note>>, index: usize, key: &str) -> bool {
 }
 
 fn send(text: &LiveText<FieldOf<Note>>, content: &mut Content<Note>) -> Vec<be_block::Edit> {
-    let operations = text.take_operations();
+    let operations = text.take_outgoing()
+        .into_iter()
+        .filter_map(|outgoing| match outgoing {
+            Outgoing::Edit(edit) => Some(edit),
+            Outgoing::Break => None,
+        })
+        .collect::<Vec<_>>();
     for operation in &operations {
         content.apply(operation);
     }

@@ -114,9 +114,33 @@ pub enum Value {
     Map(BTreeMap<Vec<u8>, Vec<u8>>),
     Grid(Cells),
     Latest(BTreeMap<Vec<u8>, Stamped>),
-    Text(Sequence<u8>),
+    Text(#[serde(with = "text_bytes")] Sequence<u8>),
     Rich(marks::Rich),
     Series(Sequence<Vec<u8>>),
+}
+
+/// A text's bytes as one byte string rather than byte by byte, which postcard writes the
+/// same way but reads at once.
+mod text_bytes {
+    use serde::{Deserializer, Serializer};
+
+    use crate::{Sequence, bytes};
+
+    pub(crate) fn serialize<S: Serializer>(
+        text: &Sequence<u8>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match text.mirrored() {
+            Some(flat) => bytes::serialize(flat, serializer),
+            None => bytes::serialize(&text.items(), serializer),
+        }
+    }
+
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Sequence<u8>, D::Error> {
+        bytes::deserialize(deserializer).map(Sequence::from_items)
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -238,6 +262,16 @@ pub enum Change {
         place: Place,
         anchor: Anchor,
         client: u64,
+    },
+    /// Moves the items of the list at `place` from `first` to `last`, both included, with
+    /// whatever lies between them (removed items, and items inserted there at the same
+    /// time), to behind `anchor`. Refused unless both are shown there, `first` comes no
+    /// later than `last`, and the anchor is outside the range.
+    MoveRange {
+        place: Place,
+        first: ObjectId,
+        last: ObjectId,
+        anchor: Anchor,
     },
     Stamp {
         object: ObjectId,
@@ -449,6 +483,7 @@ impl<R: Model> Document<R> {
             | Change::Paint { .. }
             | Change::Reshape { .. }
             | Change::Move { .. }
+            | Change::MoveRange { .. }
             | Change::Text { .. }
             | Change::Mark { .. }
             | Change::Unmark { .. } => {}
