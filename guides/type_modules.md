@@ -114,8 +114,8 @@ since a pure guest has none.
 
 Stateless requests (`blank`, `merge3`, `merge-parts`, `describe`, `to-file`,
 `search-text`, `claims`, `apply`) are answered in the step that asks, except
-`merge-parts` and `search-text`, which read parts first (below, "Merging by
-parts"). `apply` is how a host that publishes commits rather than joining a
+`merge-parts` and `search-text`, which may read parts first (below, "Merging
+by parts"). `apply` is how a host that publishes commits rather than joining a
 session edits a block (`be sync`, version control).
 
 `search-text` answers a commit's searchable text for the search index
@@ -123,14 +123,17 @@ session edits a block (`be sync`, version control).
 so a type that does not implement it is not content-searchable; a `Document`
 answers `Root::search_text_in`. Each `SearchDocument` has a key stable across
 edits (empty for a block that is one document), the part its text came from
-if it is one, an optional name of its own and its body. `keys` asks for those
-documents only (a snippet), and a document whose source is in `indexed` comes
-back without a body, so a type that loads only its first part reads only the
-parts asked for and not yet indexed; the module enforces both on whatever the
-type answers. The host hands the commit as `loaded`, only its first part for
-such a type (`type-info.first-part`): `Replicas::search_text`, which also
-answers the parts read. Text answers one document (Markdown included);
-`Sections` one per section.
+if it is one, an optional name of its own and its body. The type is handed
+`keys` (the documents asked for, a snippet's one) and `indexed` (parts the
+index already holds text from) as sets, to spare work: a type that loads only
+its first part reads only the parts asked for and not yet indexed (`Sections`
+does). The host, not the type, enforces them: `Replicas::search_text` hands
+the commit as the type loads it (`type-info.first-part`, `Kind::load`, which
+the merges load by too), drops documents outside `keys`, drops a `source`
+that is no part of the commit, clears the body of a document whose source is
+in `indexed`, and refuses an answer naming a key twice or a document with
+neither text nor an indexed source (`NotSearched::Type`; a failed read is
+`NotSearched::Read`). Text, in any language, answers one document.
 
 Each open block is a `replica` resource; every call the module makes for it
 has the replica as parent, which is how the host knows the block. What the
@@ -239,7 +242,7 @@ content it handed the request: it asks with `Replicas::ask_reading` or
 `Modules::ask_reading` and a `Scope` (`Scope::of` the sides), refuses a read of
 any other part with `OUTSIDE_REQUEST`, and refuses every other call. Any
 stateless request that hands a module `loaded` content asks this way, and the
-scope answers what was read (`Scope::read`, `Merged::read`) and the first
+scope answers what was read (`Scope::read`, `Merged::read`, `Searched::read`) and the first
 read that failed. A scope whose asker stopped waiting goes when its request
 completes or its module restarts. `be sync` hands base and theirs as their
 commits' first parts and ours as the file's bytes, which have no refs, so a
@@ -248,11 +251,13 @@ then reads the merged commit's reused parts whole, since it becomes a file.
 
 Tests use the types in `crates/be-sdk-type-testing` (a dev-dependency only):
 `Sections`, ten sections each a part after a header of their lengths, and
-`Probe`, whose merge reads a part its content names and makes a call other than
-`read-part`, so a test sees the host refuse both. be-block-type-host's
+`Probe`, whose merge and search read a part its content names and make a call
+other than `read-part`, so a test sees the host refuse both; its search also
+answers keys not asked for, a foreign source and a key twice. be-block-type-host's
 `a_merge_over_parts_reads_only_the_parts_each_side_changed`,
 `a_stateless_request_reads_only_parts_of_the_commits_it_was_handed` and
-`search_text_reads_only_the_parts_asked_for_and_not_yet_indexed`, and
+`search_text_reads_only_the_parts_asked_for_and_not_yet_indexed` and
+`search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for`, and
 be-block-sync's `a_type_that_merges_by_parts_merges_edits_on_both_sides`.
 
 ## Peers

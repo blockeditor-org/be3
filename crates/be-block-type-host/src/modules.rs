@@ -29,11 +29,26 @@ pub struct Kind {
     pub frozen: bool,
     pub schema: String,
     pub plain: Plain,
-    /// Loads only its first part (`be_block::Loads::FirstPart`).
+    /// Loads only its first part (`be_block::Loads::FirstPart`): `Kind::load`.
     pub first_part: bool,
     pub merges_parts: bool,
     pub blank: Vec<u8>,
     pub described: Description,
+}
+
+impl Kind {
+    /// A commit's stored form as the type loads it, to hand a stateless request: only its
+    /// first part for a type that loads only that, which reads the rest with `read-part`.
+    pub async fn load<S: ObjectStore>(
+        &self,
+        peer: &Peer<S>,
+        manifest: &be_block_store::Manifest,
+    ) -> Result<Loaded, ClientError> {
+        Ok(Loaded::of(match self.first_part {
+            true => peer.load_first_part(manifest).await?,
+            false => peer.load_manifest(manifest).await?,
+        }))
+    }
 }
 
 static REGISTRY: be_wasm_threads::Mutex<BTreeMap<Uuid, Kind>> =

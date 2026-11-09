@@ -1,7 +1,7 @@
 use be_sdk_type_api::{Failure, Loaded, OpError, embed::exports::replicas as module};
 
 use super::*;
-use crate::{OUTSIDE_REQUEST, Scope};
+use crate::{NotSearched, OUTSIDE_REQUEST, Scope};
 
 /// What the probe's merge failed with, which names what the host answered it.
 fn refused(answer: Result<Result<be_sdk_type_api::MergedParts, Failure>, OpError>) -> String {
@@ -76,5 +76,45 @@ fn a_stateless_request_reads_only_parts_of_the_commits_it_was_handed() {
             .await;
         assert_refused(&refused(answer), "be sync");
         assert!(scope.read().is_empty(), "nothing was read: {scope:?}");
+
+        let mut search = async |keys: Option<Vec<String>>| {
+            replicas
+                .search_text(
+                    (&peer, &shared),
+                    Probe::CONTENT_TYPE,
+                    &manifest,
+                    keys,
+                    &[],
+                )
+                .await
+        };
+        let searched = search(Some(vec![
+            probe::REACHED.to_owned(),
+            probe::FOREIGN.to_owned(),
+        ]))
+        .await
+        .expect("the probe answers what it was asked");
+        assert!(searched.read.is_empty(), "nothing was read: {searched:?}");
+        let keys: Vec<&str> = searched.documents.iter().map(|document| document.key.as_str()).collect();
+        assert_eq!(
+            keys,
+            [probe::REACHED, probe::FOREIGN],
+            "the host drops what the type answered but was not asked"
+        );
+        assert_refused(
+            searched.documents[0].body.as_deref().unwrap_or_default(),
+            "search-text",
+        );
+        assert_eq!(
+            searched.documents[1].source, None,
+            "the host drops a source that is no part of the commit"
+        );
+        match search(None).await {
+            Err(NotSearched::Type(error)) => assert!(
+                error.contains("twice"),
+                "a key answered twice is refused: {error}"
+            ),
+            other => panic!("a key answered twice is refused: {other:?}"),
+        }
     });
 }

@@ -111,9 +111,11 @@ interface replicas {
     /// The content's searchable text (`be_block::BlockContent::search_text`); empty for a
     /// type that is not content-searchable. `content` is a commit as `host.load` answers it,
     /// only its first part for a type that loads only that (`type-info.first-part`), which
-    /// reads the others with `read-part` under this request. `keys` asks for those documents
-    /// only, none for every one. A document whose `source` is in `indexed` comes back
-    /// without a body, and its part is not read.
+    /// reads the others with `read-part` under this request. `keys` (none for every
+    /// document) and `indexed` (parts whose text the index holds) let the type spare work:
+    /// it need not answer other documents nor read those parts. The host checks the answer
+    /// itself: it drops documents outside `keys`, sources that are no part of `content` and
+    /// bodies whose source is in `indexed`, and refuses a key answered twice.
     search-text: async func(
         content-type: content-type-id,
         content: loaded,

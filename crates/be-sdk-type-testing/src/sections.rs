@@ -3,7 +3,7 @@
 //! part and all a replica loads. Its plain file is one line per section (`*.sections`), and
 //! its searchable text one document per section, keyed by its index.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use be_block::{
     BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef,
@@ -173,26 +173,29 @@ impl BlockContent for Sections {
     /// Reads a section only when it is asked for, unloaded and not indexed.
     fn search_text(
         &self,
-        keys: Option<&[String]>,
-        indexed: &[PartRef],
+        keys: Option<&HashSet<String>>,
+        indexed: &HashSet<PartRef>,
         parts: PartReader,
     ) -> impl Future<Output = Result<Vec<SearchDocument>, String>> + 'static {
-        let asked: Vec<(String, Section)> = self
+        let asked: Vec<(String, Option<PartRef>, Option<Section>)> = self
             .sections
             .iter()
             .enumerate()
-            .map(|(index, section)| (index.to_string(), section.clone()))
+            .map(|(index, section)| (index.to_string(), section))
             .filter(|(key, _)| keys.is_none_or(|keys| keys.contains(key)))
+            .map(|(key, section)| {
+                let source = section.saved();
+                let unindexed = !source.is_some_and(|source| indexed.contains(&source));
+                (key, source, unindexed.then(|| section.clone()))
+            })
             .collect();
-        let indexed = indexed.to_vec();
         async move {
             let mut documents = Vec::with_capacity(asked.len());
-            for (key, section) in asked {
-                let source = section.saved();
+            for (key, source, section) in asked {
                 let body = match section {
-                    _ if source.is_some_and(|source| indexed.contains(&source)) => None,
-                    Section::Held { bytes, .. } => Some(bytes),
-                    Section::Unloaded(part) => Some(parts.read_all(part).await?),
+                    None => None,
+                    Some(Section::Held { bytes, .. }) => Some(bytes),
+                    Some(Section::Unloaded(part)) => Some(parts.read_all(part).await?),
                 };
                 documents.push(SearchDocument {
                     key,

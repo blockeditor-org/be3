@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{collections::HashSet, error::Error, fmt};
 
 use be_block_commit::MergeResult;
 pub use be_block_store::{LoadedPart, Part, PartRef, Stored};
@@ -152,16 +152,17 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     }
 
     /// The searchable text of the content, one `SearchDocument` per key, which the search
-    /// index holds (plans/search.md); none for a type that is not content-searchable. `keys`
-    /// asks for those documents only, so a snippet reads one part of a large block. A document
-    /// whose `source` is in `indexed` comes back without a body, and its part need not be
-    /// read, so reindexing a large block reads only its changed parts. Content that loads only
-    /// its first part reads the others with `parts`. The module enforces `keys` and `indexed`
-    /// on the answer, so these only spare reads and work.
+    /// index holds (plans/search.md); none for a type that is not content-searchable. Content
+    /// that loads only its first part reads the others with `parts`. `keys` (none for every
+    /// document) and `indexed` (the parts the index already holds text from) only spare work:
+    /// a type need not answer documents outside `keys`, nor read a part in `indexed`, so a
+    /// snippet reads one part of a large block and reindexing it reads only its changed
+    /// parts. The host drops documents outside `keys` and the bodies of documents whose source
+    /// is in `indexed` whatever the type answers.
     fn search_text(
         &self,
-        keys: Option<&[String]>,
-        indexed: &[PartRef],
+        keys: Option<&HashSet<String>>,
+        indexed: &HashSet<PartRef>,
         parts: PartReader,
     ) -> impl Future<Output = Result<Vec<SearchDocument>, String>> + 'static {
         let _ = (keys, indexed, parts);
@@ -180,7 +181,7 @@ pub struct SearchDocument {
     /// The document's own name, such as a section's title. A block's name is indexed from
     /// the block, so a block that is one document leaves this out.
     pub name: Option<String>,
-    /// None when `source` is one of the parts already indexed.
+    /// None when `source` is one of the parts already indexed, whose text the index keeps.
     pub body: Option<String>,
 }
 
@@ -191,11 +192,6 @@ impl SearchDocument {
             body: Some(body),
             ..Self::default()
         }
-    }
-
-    /// Whether `keys` (none for every document) asks for this one.
-    pub fn asked(&self, keys: Option<&[String]>) -> bool {
-        keys.is_none_or(|keys| keys.contains(&self.key))
     }
 }
 

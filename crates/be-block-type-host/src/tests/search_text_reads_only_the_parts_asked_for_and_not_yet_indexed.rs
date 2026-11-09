@@ -32,7 +32,6 @@ fn search_text_reads_only_the_parts_asked_for_and_not_yet_indexed() {
                     &indexed,
                 )
                 .await
-                .expect("the parts read")
                 .expect("the type answers")
         };
 
