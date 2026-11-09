@@ -175,16 +175,17 @@ is sent whether or not anything asks the app to describe: be-sdk-beui-platform
 follows the document's `PublishedActions`, which an effect in beui's action
 registry keeps (`Context::document_actions`), so a label or enabled state
 changing sends the list again with no per-frame comparison. The host keeps
-each view's list for as long as the instance lives, offers a window's or dock
-view's only while it shows that view (the main view's always), and runs one with `app.run-action(screen, id)`, which
+each view's list while it asks the app to draw that view (the main view's
+always), offers a window's or dock view's only while it shows it and an
+anchored view's while it is open, and runs one with `app.run-action(screen, id)`, which
 the guest resolves through `request_action_in` and runs only if still
 enabled. `BeuiTest::described_actions` and `run_action` do what the host does.
 
 be-host draws the one palette (`be-host/src/compositor/palette.rs`, Ctrl+Shift+P
 in a window capture key listener that leaves the chord to a focused Wayland
 window and, pressed again, closes the palette; or `shell.open-palette` from an
-instance that shows a view and has the keyboard or was just picked from its
-frame menu, which reaches the palette through its own signal,
+instance that shows a view and has the keyboard or whose frame menu was picked
+from in its last two layout commits, which reaches the palette through its own signal,
 `compositor::palette_asks`): the live actions of the instance whose view has
 the focus, then of the instance that
 placed it (`Catcher::placer`), out to the root, each under its block's name,
