@@ -1,8 +1,8 @@
 # Chat
 
-Depends on: plans/large_blocks.md (the operation that adds a part by its hash,
-`merge3` over parts), for step 1d only; steps 1a to 1c start at once.
-plans/owner_settings.md for step 1c. plans/notifications.md for step 2.
+Depends on: plans/large_blocks.md (`merge3` over parts), for step 1d only;
+steps 1a to 1c start at once. Owner-only settings, for step 1c, have landed
+(guides/settings.md, Owner only). plans/notifications.md for step 2.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
@@ -57,11 +57,14 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
   stays in the editor until sent.
 - **Closing a segment** is an operation the session owner sequences once the
   recent messages pass a size: messages a..b become segment k, carried by its
-  hash (the operation that adds a part by its hash, plans/large_blocks.md).
+  hash (`put-part`, guides/type_modules.md, "Parts named by hash").
   Only an owner online, and only for messages already confirmed. Every replica
   encodes the segment's bytes itself and checks them against the hash; on a
   mismatch (another build encoding differently) it reads the part with
-  `read-part` instead.
+  `read-part` instead. Missing: `put-part` is reachable only from an editor
+  (`FromEditor::PutPart`), so the owner closing a segment with no editor
+  attached needs a type-side hook first (a `LiveEdit` way to ask for a part
+  and sequence the operation that names it once it is put).
 - **Rewriting a segment** folds its pending edits, deletions and reactions in
   as one new part.
 - **The editor** opens the header and reads segments as the person scrolls
@@ -96,7 +99,7 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
 
 - Where each person has read up to is theirs, not part of the shared document,
   where it would be a read receipt. It is kept in an owner-only settings kind
-  of chat's own (plans/owner_settings.md), keyed by chat id, so it matches
+  of chat's own (`KindVisibility::Owner`, guides/settings.md), keyed by chat id, so it matches
   across devices; ordinary user settings are escrowed, and administrators
   could read them.
 - The newest message and the counts come from the header, so a sidebar of

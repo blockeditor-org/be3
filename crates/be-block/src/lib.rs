@@ -53,7 +53,8 @@ pub use profile::{
 pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{
     Follows, KindRule, KindVisibility, Layered, Resolution, ResolutionLayers, Settings,
-    SettingsContent, SettingsProfile, SettingsProfileContent, SettingsSource, layered,
+    SettingsContent, SettingsProfile, SettingsProfileContent, SettingsSource, holds_owner_only,
+    layered,
 };
 pub use settling::{Landed, Settling};
 pub use streamed::{
@@ -123,6 +124,14 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     /// Decodes stored content, keeping the refs of the parts it was saved in for `parts`.
     fn from_stored(stored: &Stored) -> Result<Self, ContentError> {
         Self::decode(&stored.bytes)
+    }
+
+    /// The bytes of a part this content hands back as `Part::Reused` and holds anyway, such as
+    /// one it rebuilt from an operation that named the part by its hash and found to match
+    /// (guides/type_modules.md, "Parts named by hash"), so reading it needs no `read-part`.
+    fn reused_bytes(&self, part: PartRef) -> Option<std::borrow::Cow<'_, [u8]>> {
+        let _ = part;
+        None
     }
 
     fn references(&self) -> Vec<Uuid> {

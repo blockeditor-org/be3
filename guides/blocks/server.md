@@ -263,8 +263,13 @@ counts and records nothing: `upload-urls` did before it signed.
   upload row names it (`forget_objects`), so a free never races an upload that
   is about to write the same file.
 - **Objects** are served only to a member who can view a block that holds them
-  (by a commit, `commit_objects`, or by `HoldObjects`); anything else reads as
-  missing. A merge commit holds its extra parents' objects, so a stash that was
+  (by a commit, `commit_objects`, or by `HoldObjects`, `block_objects`); anything else reads as
+  missing. A `lasting` hold (a repository's snapshots) lasts as long as the
+  block; an `until-committed` one (`put-part`) ends when a commit of the block
+  holding the object publishes (`release_committed`), or once `upload_grace`
+  passes after its last hold while the block's journal is empty
+  (`collect_holds`, run by `collect_uploads`),
+  uncharging the block and freeing what nothing else holds. A merge commit holds its extra parents' objects, so a stash that was
   never a head stays readable. A block may hold or publish an object only if
   its caller has a proven, unused upload of it there (`object_uploads.proven`)
   or may already read it (`holdable` in `blocks.rs`), and its bytes are
@@ -322,7 +327,8 @@ changing a member closes their connections (`WatchHub::drop_member`) so they
 reconnect with what they now are.
 
 Access is per member (`Visibility` in `blocks.rs`, `be_block_graph::Access`:
-`None < KnowExists < View < Edit < Manage`): administrators manage everything;
+`None < KnowExists < View < Edit < Manage`): administrators manage everything
+but owner-only blocks, which they only know exist (guides/settings.md, Owner only);
 anyone else gets the best grant on the block or an ancestor (a lower grant
 never reduces an inherited one), and `Manage` on what they authored while they
 can view its parent (or it is `Root` or `Detached`), so a member taken off a

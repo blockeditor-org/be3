@@ -1346,12 +1346,13 @@ impl Client {
                 reply,
                 block,
                 objects,
+                hold,
             } => {
                 let held = async {
                     prelude?;
                     connection
                         .store
-                        .hold_objects(connection.identity()?, block, objects)
+                        .hold_objects(connection.identity()?, block, objects, hold)
                         .await
                 }
                 .await;
@@ -1373,6 +1374,7 @@ impl Client {
                 references,
                 key,
                 keys,
+                owner_only,
             } => {
                 let created = async {
                     prelude?;
@@ -1388,6 +1390,7 @@ impl Client {
                             references,
                             key,
                             keys,
+                            owner_only,
                         )
                         .await?;
                     let mut announced = vec![block.id];

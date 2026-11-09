@@ -67,7 +67,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     assert!(reserved.is_ok(), "{reserved:?}");
     let decoy = attacker.create_block(BlockParent::Root).await;
     let held = attacker
-        .call(|peer| client::objects::hold_objects(peer, decoy, hashes.clone()))
+        .call(|peer| client::objects::hold_objects(peer, decoy, hashes.clone(), Hold::Lasting))
         .await;
     assert!(refused_as(&held, ErrorCode::ObjectNotFound), "{held:?}");
     let stolen = attacker
@@ -165,7 +165,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         "{claimed:?}"
     );
     let stolen = viewer
-        .call(|peer| client::objects::hold_objects(peer, block, vec![unheld.hash()]))
+        .call(|peer| client::objects::hold_objects(peer, block, vec![unheld.hash()], Hold::Lasting))
         .await;
     assert!(
         refused_as(&stolen, ErrorCode::PermissionDenied),

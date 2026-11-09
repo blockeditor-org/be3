@@ -68,7 +68,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
     let block = client.create_block(BlockParent::Root).await;
     let hashes: Vec<Hash> = big.iter().map(|bytes| Hash::of(bytes)).collect();
     let taken = client
-        .call(|peer| client::objects::hold_objects(peer, block, hashes))
+        .call(|peer| client::objects::hold_objects(peer, block, hashes, Hold::Lasting))
         .await;
     assert!(taken.is_ok(), "{taken:?}");
     let after = client

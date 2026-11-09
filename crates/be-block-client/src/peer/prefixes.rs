@@ -79,6 +79,7 @@ impl<S: ObjectStore> Peer<S> {
                     PrefixRegistryContent::CONTENT_TYPE,
                     BlockParent::Block(registry.owner),
                     &BlockMetadata::default(),
+                    false,
                 )
                 .await?;
                 self.open_inside(kind, Access::View).await?;

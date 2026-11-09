@@ -46,6 +46,7 @@ async fn main() {
         WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &BlockMetadata::named("Code"),
+        false,
     )
     .await
     .unwrap();

@@ -34,6 +34,7 @@ const CARD_PADDING: Space = Space::Sm;
 const NOTICE_INSET: Space = Space::Xl3;
 
 const NOT_OURS: &str = "These settings belong to another account. This device never uses them, and they stay as they are.";
+const ONLY_YOURS: &str = "Your organization's administrators can recover your settings, except those only you can read, such as an app's key for another service. If you lose your recovery phrase, those are lost.";
 
 trait Layer: LiveEdit + Clone + Default + 'static {
     fn kind(&self, kind: Uuid) -> Option<Uuid>;
@@ -73,6 +74,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
         blocks.watch(BlockQuery::Children(block)),
     ));
     let shown = shown_block(editor);
+    let recoverable = create_memo(move || own.get() && editor.organization_settings().is_some());
     view! {
         <Scroll>
             <Frame padding=PADDING>
@@ -114,6 +116,11 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                         }
                                     }}
                                 />
+                                <Show condition={recoverable}>
+                                    <Text style=TextStyle::CAPTION @test_id={"settings.only-yours"}>
+                                        {ONLY_YOURS}
+                                    </Text>
+                                </Show>
                             </List>
                         </Section>
                     </Show>

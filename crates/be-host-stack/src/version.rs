@@ -369,7 +369,11 @@ impl Versions {
         let mut held = vec![commit.hash()];
         held.extend(context.peer.objects_of(&manifest).await.map_err(failed)?);
         held.extend(tree_objects(context.peer, tree, known).await?);
-        context.peer.hold(repository, &held).await.map_err(failed)?;
+        context
+            .peer
+            .hold(repository, &held, be_block_protocol::Hold::Lasting)
+            .await
+            .map_err(failed)?;
         self.trees.insert(commit, tree.clone());
         Ok(commit)
     }
@@ -384,7 +388,7 @@ impl Versions {
         let id = context.peer.commits().put(key, &commit).map_err(stored)?;
         context
             .peer
-            .hold(repository, &[id.hash()])
+            .hold(repository, &[id.hash()], be_block_protocol::Hold::Lasting)
             .await
             .map_err(failed)?;
         self.commits.insert(id, commit);
@@ -1148,7 +1152,11 @@ impl Versions {
             BlockMetadata::named(name),
         )
         .await?;
-        context.peer.hold(fork, &objects).await.map_err(failed)?;
+        context
+            .peer
+            .hold(fork, &objects, be_block_protocol::Hold::Lasting)
+            .await
+            .map_err(failed)?;
         let state = Repository {
             branches: held
                 .branches
@@ -1215,7 +1223,11 @@ impl Versions {
         }
         let heads: Vec<CommitId> = moved.iter().map(|(_, _, head)| *head).collect();
         let objects = self.reachable(context.peer, &heads, &known).await?;
-        context.peer.hold(into, &objects).await.map_err(failed)?;
+        context
+            .peer
+            .hold(into, &objects, be_block_protocol::Hold::Lasting)
+            .await
+            .map_err(failed)?;
         if !moved.is_empty() {
             let step = Step {
                 checkout: None,
@@ -1845,7 +1857,7 @@ async fn create(
 ) -> Result<(), String> {
     let summary = match context
         .peer
-        .create_block(block, content_type, parent, &metadata)
+        .create_block(block, content_type, parent, &metadata, false)
         .await
     {
         Ok(summary) => summary,

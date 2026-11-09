@@ -128,9 +128,10 @@ impl Link {
                 parent,
                 defined,
                 content,
+                owner_only,
             } => {
                 reply.send(connection, &());
-                store.create_block(block, block_type, parent, defined, content);
+                store.create_block(block, block_type, parent, defined, content, owner_only);
             }
             Call::SetParent {
                 reply,

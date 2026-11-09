@@ -114,6 +114,7 @@ const SCHEMA: &str = "
         version         INTEGER NOT NULL DEFAULT 0,
         key_id          TEXT NOT NULL DEFAULT '',
         payer           TEXT NOT NULL,
+        owner_only      INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, id)
     );
 
@@ -163,6 +164,9 @@ const SCHEMA: &str = "
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,
         hash            TEXT NOT NULL,
+        -- When an `until-committed` hold was last made, which ends `upload_grace` after it;
+        -- NULL for a lasting one.
+        held_since      INTEGER,
         PRIMARY KEY (organization_id, block_id, hash)
     );
 
@@ -231,6 +235,9 @@ const SCHEMA: &str = "
 
     CREATE INDEX block_objects_hash
         ON block_objects (organization_id, hash);
+
+    CREATE INDEX block_objects_held_since
+        ON block_objects (held_since) WHERE held_since IS NOT NULL;
 
     CREATE INDEX organizations_owner
         ON organizations (owner_id);

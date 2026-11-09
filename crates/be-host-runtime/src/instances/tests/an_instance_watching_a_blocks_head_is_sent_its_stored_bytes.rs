@@ -44,6 +44,7 @@ fn an_instance_watching_a_blocks_head_is_sent_its_stored_bytes() {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     be_host_stack::open(block, CounterContent::CONTENT_TYPE);
     add(block, 4);

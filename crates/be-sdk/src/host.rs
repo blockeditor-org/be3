@@ -1256,8 +1256,10 @@ impl EditorHost {
                     })
                     .collect(),
             ),
-            content
-            @ (ToEditor::Snapshot(_) | ToEditor::Operations(_) | ToEditor::Range { .. }) => {
+            content @ (ToEditor::Snapshot(_)
+            | ToEditor::Operations(_)
+            | ToEditor::Range { .. }
+            | ToEditor::PartPut { .. }) => {
                 if self.followed.borrow().contains_key(&block) {
                     self.update_content(block, content);
                 }
@@ -1322,7 +1324,7 @@ impl EditorHost {
             @ (FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_)) => {
                 self.content_operations.borrow_mut().push((block, message));
             }
-            message @ FromEditor::Read { .. } => {
+            message @ (FromEditor::Read { .. } | FromEditor::PutPart { .. }) => {
                 self.content_operations.borrow_mut().push((block, message));
                 self.waker.wake();
             }

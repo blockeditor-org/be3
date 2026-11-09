@@ -57,7 +57,8 @@ first part (a file's header): `from_stored` gets a `Stored` whose `bytes` hold
 that part (`Stored::holds` says which parts it has), `parts` hands the others
 back as `Reused`, and `encode` gives only the loaded bytes, which is what its
 replica's followers and editors are sent. Its editors read the rest by range
-(guides/blocks/apps.md, "Reading a range").
+(guides/blocks/apps.md, "Reading a range"), except a reused part the content
+holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash").
 
 ## Documents: `be_block_model`
 

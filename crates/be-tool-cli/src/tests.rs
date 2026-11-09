@@ -164,6 +164,7 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
         be_type_workspace::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &BlockMetadata::named(name),
+        false,
     )
     .await
     .unwrap();
@@ -207,6 +208,7 @@ async fn database(
         DatabaseContent::CONTENT_TYPE,
         parent,
         &BlockMetadata::named(name),
+        false,
     )
     .await
     .unwrap();
@@ -215,6 +217,7 @@ async fn database(
         DatabaseSchemaContent::CONTENT_TYPE,
         BlockParent::Block(database),
         &BlockMetadata::default(),
+        false,
     )
     .await
     .unwrap();

@@ -36,6 +36,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
         BlockParent::Root,
         BlockMetadata::default(),
         None,
+        false,
     );
     be_host_stack::create(
         copy,
@@ -47,6 +48,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
             metadata
         },
         None,
+        false,
     );
     be_host_stack::create(
         elsewhere,
@@ -54,6 +56,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
         BlockParent::Root,
         BlockMetadata::default(),
         None,
+        false,
     );
     let instances = placed_on(copy, TextContent::CONTENT_TYPE);
     let scope = instances.scope(INSTANCE);
@@ -75,6 +78,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
         parent: BlockLocation::Block(parent.into_bytes()),
         defined: be_sdk_api::MetadataEntries::new(),
         content: None,
+        owner_only: false,
     };
     let mut created = create(local);
     Instances::translated(scope, true, |visit| created.visit_block_ids(visit));

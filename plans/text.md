@@ -1,7 +1,7 @@
 # Text on the shared sequence
 
-Depends on: plans/large_blocks.md (the operation that adds a part by its
-hash), for the oversized edit only.
+Depends on: none. The oversized edit uses the operation that adds a part by
+its hash (`put-part`, guides/type_modules.md, "Parts named by hash").
 
 Text and lists share one ordered sequence: `Sequence<T>` in `be-lib-sequence`,
 wrapped by `be-block-model` as the `Text` field and as `Items` for lists. The
@@ -63,8 +63,12 @@ on the wrong bytes or twice.
 
 Send an oversized operation like any other instead: its payload is uploaded as
 an object and the operation is relayed by its hash (the operation that adds a
-part by its hash, plans/large_blocks.md), so the owner sequences it and every
-replica applies it at the positions it names. The oversized path through
+part by its hash, guides/type_modules.md, "Parts named by hash"), so the
+owner sequences it and every replica applies it at the positions it names.
+A payload part is not served yet: `LiveEdit::apply` is synchronous, so a
+replica must read the payload by its ref (`read-part`) before it applies the
+operation, holding back what is sequenced after it until the read answers.
+Since no commit holds a payload part, its hold lasts the whole upload grace. The oversized path through
 `Moved`, `Then::Absorb` and `replacement` goes; `replace_content` stays for
 real replacements. Done: a test where a follower pastes over 1 MiB while the
 owner has unsealed edits ends with every replica holding the same, intended

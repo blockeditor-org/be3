@@ -51,6 +51,7 @@ async fn write() -> Result<Vec<u8>, String> {
             FolderContent::CONTENT_TYPE,
             BlockParent::Root,
             &BlockMetadata::named(scene::NOTES),
+            false,
         )
         .await
         .map_err(text)?

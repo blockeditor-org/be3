@@ -210,9 +210,12 @@ impl Instances {
                 parent,
                 defined,
                 content,
+                owner_only,
             } => {
                 let parent = be_host_stack::app_graph::parent_of(parent);
-                if parent.block().is_some_and(|parent| !self.editable(parent)) {
+                if parent.block().is_some_and(|parent| !self.editable(parent))
+                    || (owner_only && !own_settings(parent))
+                {
                     return self.acknowledge(reply, None);
                 }
                 let block = Uuid::from_bytes(block);
@@ -231,6 +234,7 @@ impl Instances {
                     parent,
                     metadata,
                     content,
+                    owner_only,
                 );
                 self.acknowledge(reply, Some(true))
             }
@@ -536,4 +540,18 @@ impl Instances {
             entry.offer(Subject::Artifact(block), &state);
         }
     }
+}
+
+/// Whether `parent` is a block of this account's own settings, the only place an owner-only
+/// block is made (guides/settings.md, Owner only).
+fn own_settings(parent: be_block_graph::BlockParent) -> bool {
+    let account = be_host_stack::account();
+    parent
+        .block()
+        .and_then(be_host_stack::node)
+        .is_some_and(|node| {
+            node.author.is_some()
+                && node.author == account
+                && be_block::holds_owner_only(node.content_type)
+        })
 }

@@ -18,6 +18,7 @@ fn blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect() {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Folder"),
         None,
+        false,
     );
     create(
         inside,
@@ -25,6 +26,7 @@ fn blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect() {
         be_block_graph::BlockParent::Block(folder),
         be_block::BlockMetadata::named("Inside"),
         Some(be_type_text::TextBlock::of("inside").encode()),
+        false,
     );
     written(note, "a note");
     wait_until("listed the blocks", |shared| {

@@ -230,7 +230,9 @@ impl TestClient {
             ),
             (
                 "hold-objects",
-                answered(client::objects::hold_objects(peer, block, vec![hash]).await),
+                answered(
+                    client::objects::hold_objects(peer, block, vec![hash], Hold::Lasting).await,
+                ),
             ),
             (
                 "create-block",
@@ -247,6 +249,7 @@ impl TestClient {
                             keys: vec![row(KEY, other, KeyKind::Data)],
                             wrapped: Vec::new(),
                         },
+                        false,
                     )
                     .await,
                 ),
@@ -521,6 +524,7 @@ async fn every_call_states_who_may_make_it() {
                     keys: vec![row(key, referrer, KeyKind::Data)],
                     wrapped: Vec::new(),
                 },
+                false,
             )
         })
         .await;

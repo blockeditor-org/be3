@@ -10,7 +10,7 @@ rewritten, conflicts are data, and every operation can be undone.
 
 - A **repository** (`be_block::Repository`) holds branch heads, an optional
   upstream repository in the same organization, and the operation log. It
-  keeps its history alive with `Peer::hold` (`HoldObjects`), whatever its own
+  keeps its history alive with `Peer::hold` (`HoldObjects`, `Hold::Lasting`), whatever its own
   commits' retention does.
 - A **snapshot** is a `Commit` of kind `Snapshot(description)` whose manifest is
   a `be_block_vcs::Tree`: one entry per block of the versioned subtree, keyed by

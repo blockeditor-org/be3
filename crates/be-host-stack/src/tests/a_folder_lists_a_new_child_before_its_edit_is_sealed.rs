@@ -14,6 +14,7 @@ fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     create(
         child,
@@ -21,6 +22,7 @@ fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {
         be_block_graph::BlockParent::Block(folder),
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     wait_until("knew the folder's type", |_| {
         is_known(FolderContent::CONTENT_TYPE)

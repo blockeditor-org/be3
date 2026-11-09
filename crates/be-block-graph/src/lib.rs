@@ -68,6 +68,9 @@ pub struct BlockNode {
     /// ancestors, and `add_size` adds to every ancestor, so it is kept in O(depth).
     #[serde(default)]
     pub tree_size: u64,
+    /// Readable by its author alone: a scope root of its own whose key is sealed only to the
+    /// author, never escrowed (`KindVisibility::Owner`). Set when it is made and kept for life.
+    pub owner_only: bool,
 }
 
 impl BlockNode {
@@ -84,6 +87,7 @@ impl BlockNode {
             key: None,
             size: 0,
             tree_size: 0,
+            owner_only: false,
         }
     }
 }
@@ -192,6 +196,20 @@ pub fn created_access(
 /// higher, and anything below either
 /// has exactly its parent's access, whatever its own grants say.
 fn level_below(
+    node: &BlockNode,
+    account: Uuid,
+    parent: Access,
+    parent_viewable: bool,
+    in_settings: bool,
+) -> Access {
+    let level = level_below_open(node, account, parent, parent_viewable, in_settings);
+    match node.owner_only && node.author != account {
+        true => level.min(Access::KnowExists),
+        false => level,
+    }
+}
+
+fn level_below_open(
     node: &BlockNode,
     account: Uuid,
     parent: Access,
@@ -352,8 +370,24 @@ impl BlockGraph {
     pub fn is_scope_root(&self, id: Uuid) -> bool {
         self.blocks.get(&id).is_some_and(|node| {
             !matches!(node.parent, BlockParent::Block(_))
+                || node.owner_only
                 || node.grants.values().any(|level| level.can_view())
         })
+    }
+
+    /// The nearest owner-only block at or above `id`.
+    pub fn owner_only_root(&self, id: Uuid) -> Option<Uuid> {
+        std::iter::once(id)
+            .chain(self.ancestors(id))
+            .find(|block| self.blocks.get(block).is_some_and(|node| node.owner_only))
+    }
+
+    /// Whether `id` lies in an owner-only block someone other than `account` made, which
+    /// `account` may at most know exists, whatever its role.
+    pub fn closed_to(&self, id: Uuid, account: Uuid) -> bool {
+        self.owner_only_root(id)
+            .and_then(|root| self.blocks.get(&root))
+            .is_some_and(|root| root.author != account)
     }
 
     pub fn scope(&self, id: Uuid) -> Uuid {
@@ -958,6 +992,12 @@ impl BlockGraph {
     }
 
     pub fn viewers(&self, id: Uuid) -> BTreeSet<Uuid> {
+        if let Some(root) = self
+            .owner_only_root(id)
+            .and_then(|root| self.blocks.get(&root))
+        {
+            return BTreeSet::from([root.author]);
+        }
         let mut viewers = BTreeSet::new();
         let chain: Vec<(Uuid, &BlockNode)> = std::iter::once(id)
             .chain(self.ancestors(id))

@@ -318,6 +318,11 @@ impl ServerStore {
             .await
     }
 
+    /// How long an upload no block took, or an `until-committed` hold, lasts.
+    pub(crate) fn upload_grace(&self) -> Duration {
+        self.limits.upload_grace
+    }
+
     /// How long a presigned URL for an object's bytes stays valid: well inside
     /// `StorageLimits::upload_grace`, so an upload can never land after the reservation it was
     /// signed for was collected and its object deleted.
@@ -423,12 +428,13 @@ impl ServerStore {
     }
 
     /// Deletes uploads no block took within `StorageLimits::upload_grace`, uncharging their
-    /// uploaders. A running server calls it every `UPLOAD_SWEEP_INTERVAL` and when it starts.
-    /// Answers how many objects it deleted.
+    /// uploaders, and ends `until-committed` holds no commit took within it
+    /// (`collect_holds`). A running server calls it every `UPLOAD_SWEEP_INTERVAL` and when it
+    /// starts. Answers how many objects it deleted.
     pub async fn collect_uploads(&self) -> Result<usize, ServerError> {
         let grace = i64::try_from(self.limits.upload_grace.as_millis()).unwrap_or(i64::MAX);
         let cutoff = be_block_commit::now_milliseconds().saturating_sub(grace);
-        let mut deleted = 0;
+        let mut deleted = self.collect_holds().await?;
         loop {
             let (freed, more) = self
                 .with_database(move |store, database| {

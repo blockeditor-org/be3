@@ -33,6 +33,7 @@ mod a_held_block_stays_open_when_its_editors_close;
 mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
 mod a_merge_conflict_shows_both_versions_and_keeps_the_one_chosen;
 mod a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one;
+mod a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it;
 mod a_paste_too_large_to_relay_is_acknowledged_to_its_editor;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
@@ -631,6 +632,7 @@ fn start_versioning(text: &str) -> Versioned {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Notes"),
         Some(listing.encode()),
+        false,
     );
     create(
         note,
@@ -638,6 +640,7 @@ fn start_versioning(text: &str) -> Versioned {
         be_block_graph::BlockParent::Block(folder),
         be_block::BlockMetadata::named("Note"),
         Some(be_type_text::TextBlock::of(text).encode()),
+        false,
     );
     create(
         repository,
@@ -645,6 +648,7 @@ fn start_versioning(text: &str) -> Versioned {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::named("History"),
         Some(be_block::RepositoryContent::default().encode()),
+        false,
     );
     version_since(repository, be_block::RepositoryContent::CONTENT_TYPE, None);
     version(
@@ -810,6 +814,7 @@ fn written(block: Uuid, text: &str) {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Plan"),
         Some(be_type_text::TextBlock::of(text).encode()),
+        false,
     );
     flush();
 }

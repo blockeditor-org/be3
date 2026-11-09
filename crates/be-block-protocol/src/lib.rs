@@ -180,6 +180,18 @@ impl OrganizationRole {
     }
 }
 
+/// Whether `key` names the scope key of an owner-only block. Its maker gives it a version-8 id
+/// (`owner_only_key_id`), and the id is bound into every seal of the key, so a server cannot
+/// pass the key off as an ordinary one to be escrowed, nor an ordinary key off as this.
+pub fn owner_only_key(key: Uuid) -> bool {
+    key.get_version_num() == 8
+}
+
+/// A fresh id for an owner-only block's scope key (`owner_only_key`).
+pub fn owner_only_key_id() -> Uuid {
+    uuid::Builder::from_custom_bytes(*Uuid::new_v4().as_bytes()).into_uuid()
+}
+
 impl BlockSummary {
     pub fn no_access(id: Uuid, content_type: Uuid, access: be_block_graph::Access) -> Self {
         Self {
@@ -200,6 +212,7 @@ impl BlockSummary {
             sets_access: false,
             size: 0,
             tree_size: 0,
+            owner_only: false,
         }
     }
 }

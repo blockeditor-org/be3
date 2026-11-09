@@ -37,6 +37,7 @@ impl Setup {
                 TerminalContent::CONTENT_TYPE,
                 BlockParent::Root,
                 &BlockMetadata::named("Shell"),
+                false,
             )
             .await
             .unwrap();

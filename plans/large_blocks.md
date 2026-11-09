@@ -12,33 +12,9 @@ manifest node, which huge blocks with long history need, is
 Every test here is at small scale: a block of a few parts, counting what is
 read, uploaded or written, never a gigabyte.
 
-## 1. An operation that adds a part by its hash
-
-Chat's replicas encode a closed segment themselves; the search index's writer
-uploads a segment first; a text edit over the relay limit
-(plans/text.md, step 3) uploads its payload and is relayed by hash. One
-operation serves all three: the uploaded bytes may be a part of the stored
-form or an operation's payload, which each replica reads with `read-part` and
-applies.
-
-- **WIT** (`be-sdk-type-api`): the module's `written` already keeps a part by
-  `reused(part-ref)`. Add a way for an operation to name a part by its hash: a
-  host call `put-part(bytes) -> part-ref` that seals and uploads a part under
-  the block's current key before the operation is relayed, and a
-  `part-ref` field the type puts in its own operation payload.
-- **Flow.** The sender calls `put-part`, waits for the upload, then sends the
-  operation carrying the `part-ref`. Each replica that applies it either takes
-  the part as `reused` without reading it (the search index), or rebuilds the
-  bytes itself and checks them against the hash (chat), reading the part with
-  `read-part` when its own encoding differs (another build can encode
-  differently).
-- **Held by the block.** The server holds an uploaded part for the block from
-  the upload (`HoldObjects`, charged as any upload) until a commit that uses it
-  publishes or the upload grace runs out.
-- **Done**: a test type sends an operation adding a part; a second replica
-  saves a commit whose manifest reuses that part without uploading it again;
-  a replica that rebuilds different bytes falls back to `read-part` and ends
-  with the same content.
+Step 1, an operation that adds a part by its hash (`put-part`), is built
+(guides/type_modules.md, "Parts named by hash"); the other steps keep their
+numbers, which other plans cite.
 
 ## 2. `merge3` over parts
 
@@ -111,7 +87,6 @@ that per chunk).
 
 ## Order of work
 
-1. The operation that adds a part by its hash.
 2. `merge3` over parts, with `read-part` under stateless requests.
 3. Per-type retention.
 4. Lazy rekeying, after rewrapping old keys on a move.

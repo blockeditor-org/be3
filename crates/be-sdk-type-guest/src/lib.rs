@@ -502,6 +502,17 @@ impl Module {
                     result: result.and_then(|read| read),
                 });
             }
+            Effect::PutPart {
+                replica,
+                token,
+                bytes,
+            } => {
+                let pending = ops::with_parent(replica, || host::put_part(bytes));
+                self.answer_later(replica, pending, move |result| Input::PartPut {
+                    token,
+                    result: result.and_then(|put| put).map(be_block::PartRef::from),
+                });
+            }
             Effect::Resume {
                 replica,
                 token,

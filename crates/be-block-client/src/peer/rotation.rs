@@ -78,7 +78,11 @@ impl<S: ObjectStore> Peer<S> {
                     .map(|id| self.children(BlockParent::Block(*id))),
             )
             .await?;
-            let children: Vec<BlockSummary> = children.into_iter().flatten().collect();
+            let children: Vec<BlockSummary> = children
+                .into_iter()
+                .flatten()
+                .filter(|child| child.access.can_view())
+                .collect();
             level = children.iter().map(|child| child.id).collect();
             walked.extend(children);
         }
@@ -116,7 +120,10 @@ impl<S: ObjectStore> Peer<S> {
                     },
                     BlockParent::Root | BlockParent::Detached => None,
                 };
-                let (scope, minted) = self.keys.mint_scope(node.id, parent)?;
+                let (scope, minted) = match node.owner_only {
+                    true => self.keys.mint_own_scope(node.id)?,
+                    false => self.keys.mint_scope(node.id, parent)?,
+                };
                 keys.extend(minted);
                 fresh.insert(node.id, scope);
             }

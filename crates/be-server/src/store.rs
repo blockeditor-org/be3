@@ -1415,6 +1415,24 @@ impl ServerStore {
         self.graph_loads.load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    /// Runs `job`, which changes the in-memory `ObjectRefs` beside a transaction of its own.
+    /// When it fails its transaction rolled back, so the counts are read again from the
+    /// database, which holds what was committed.
+    pub(crate) fn keeping_refs<R>(
+        &self,
+        database: &Connection,
+        job: impl FnOnce() -> Result<R, ServerError>,
+    ) -> Result<R, ServerError> {
+        let result = job();
+        if result.is_err() {
+            match load_object_refs(database) {
+                Ok(refs) => *self.object_refs() = refs,
+                Err(error) => tracing::error!(%error, "reading object counts again failed"),
+            }
+        }
+        result
+    }
+
     pub(crate) fn object_refs(&self) -> std::sync::MutexGuard<'_, ObjectRefs> {
         self.object_refs
             .lock()
@@ -1602,7 +1620,8 @@ pub(crate) fn load_graph(
     let mut nodes = Vec::new();
     {
         let mut statement = connection.prepare(
-            "SELECT id, content_type, author, parent_kind, parent_id, head, metadata, version, key_id
+            "SELECT id, content_type, author, parent_kind, parent_id, head, metadata, version, key_id,
+                owner_only
              FROM blocks WHERE organization_id = ?1",
         )?;
         let rows = statement.query_map([organization.to_string()], |row| {
@@ -1616,13 +1635,26 @@ pub(crate) fn load_graph(
                 row.get::<_, Vec<u8>>(6)?,
                 row.get::<_, i64>(7)?,
                 row.get::<_, String>(8)?,
+                row.get::<_, bool>(9)?,
             ))
         })?;
         for row in rows {
             nodes.push(row?);
         }
     }
-    for (id, content_type, author, parent_kind, parent_id, head, metadata, version, key) in &nodes {
+    for (
+        id,
+        content_type,
+        author,
+        parent_kind,
+        parent_id,
+        head,
+        metadata,
+        version,
+        key,
+        owner_only,
+    ) in &nodes
+    {
         let mut node = BlockNode::new(
             parse_uuid(content_type)?,
             parse_uuid(author)?,
@@ -1642,10 +1674,11 @@ pub(crate) fn load_graph(
             true => None,
             false => Some(parse_uuid(key)?),
         };
+        node.owner_only = *owner_only;
         let _ = (parent_kind, parent_id);
         graph.insert(parse_uuid(id)?, node)?;
     }
-    for (id, _, _, parent_kind, parent_id, _, _, _, _) in &nodes {
+    for (id, _, _, parent_kind, parent_id, _, _, _, _, _) in &nodes {
         let parent = decode_parent(*parent_kind, parent_id.clone())?;
         graph.set_parent(parse_uuid(id)?, parent)?;
     }
