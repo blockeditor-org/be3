@@ -1,3 +1,6 @@
+use be_sdk_beui::BlockLocation;
+use be_sdk_test::HostCall;
+
 use super::*;
 
 #[test]

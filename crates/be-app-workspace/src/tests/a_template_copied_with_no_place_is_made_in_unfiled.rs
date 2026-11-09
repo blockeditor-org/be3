@@ -1,7 +1,14 @@
+use be_sdk_beui::be_block::be_block_model::BlockRef;
+use be_sdk_beui::be_block::{
+    BlockContent, Home, HomeContent, SETTINGS, Settings, SettingsContent, WORKSPACE_TYPE,
+};
+use be_sdk_beui::{BlockInfo, BlockLocation};
+use be_sdk_test::HostCall;
+
 use super::*;
 
 #[test]
-fn an_import_or_template_copy_with_no_place_is_made_in_unfiled() {
+fn a_template_copied_with_no_place_is_made_in_unfiled() {
     let (mut fixture, _) = editor();
     fixture.test.catalog(catalog());
     let my_files =
