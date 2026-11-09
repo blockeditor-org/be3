@@ -70,7 +70,7 @@ impl Platform for AppPlatform {
             let mut setup = Setup::new(Waker::new(move || waker.wake()));
             setup.provide(views.clone());
             runner.start(loaded, setup)?;
-            let handler = ModuleRunner {
+            let mut handler = ModuleRunner {
                 runner,
                 views,
                 windows: HashMap::default(),
@@ -91,6 +91,12 @@ impl Platform for AppPlatform {
                 placements: HashMap::default(),
                 ratio: 1.0,
             };
+            // An app holds no keyboard until its host gives one of its views the keyboard
+            // (`Input::Focus` below): a view opened beside the focused one, or in a window
+            // behind, does not have it.
+            handler
+                .runner
+                .push(Incoming::logical(Input::Focus(false)));
             self.host
                 .handle_views(Box::new(Driver::new(self.host.clone(), handler)));
             Ok(())

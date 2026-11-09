@@ -203,6 +203,10 @@ An app has a `Replay` per view but its runner keeps one set of modifiers, so
 the app's replays share one `Heard`: modifiers go out with a press or key only
 when they differ from what the app last heard through any view, and always
 after a view lost the keyboard, since the runner lets go of them then.
+An app's document starts without the keyboard (`use_keyboard()` false) and
+has it while any of its views does, so a view opened beside the focused one or
+in a window behind does not count as focused; `BeuiTest` gives the editor's
+view the keyboard as it opens, and `blur` and `focus` move it.
 
 An event goes through, in order:
 

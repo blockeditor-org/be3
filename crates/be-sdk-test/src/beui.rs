@@ -463,6 +463,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         test.deliver(Inbound::Frames(frames));
         test.place();
         test.run();
+        // The editor's view has the keyboard, as one a person just opened would: an app holds
+        // none until its host gives a view the keyboard (`blur` takes it away).
+        test.focus();
+        test.run();
         test
     }
 
@@ -1454,7 +1458,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
                             if call.changes() {
                                 self.acknowledged.insert(op);
                             }
-                            self.link.call(call, &self.store, connection);
+                            let author = self.host.account_id();
+                            self.link.call(call, &self.store, connection, author);
                             continue;
                         }
                         Some(embed::Call::HostServices(call)) => {
@@ -2262,6 +2267,16 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
         self.next_frame();
         self.up(to, PointerButton::Primary);
+    }
+
+    /// Takes the keyboard from the editor's view, as when its window loses the focus (`drive
+    /// blur`); `focus` gives it back.
+    pub fn blur(&mut self) {
+        self.drive("blur", &[], &[]);
+    }
+
+    pub fn focus(&mut self) {
+        self.drive("focus", &[], &[]);
     }
 
     pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) {
