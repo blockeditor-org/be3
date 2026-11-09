@@ -1,14 +1,13 @@
 # Chat
 
-Depends on: none; merging by parts (guides/type_modules.md, "Merging by
-parts"), which step 1d uses, has landed. Owner-only settings, for step 1c, have landed
-(guides/settings.md, Owner only). plans/notifications.md for step 2.
+Depends on: plans/notifications.md, for step 2. Merging by parts
+(guides/type_modules.md, "Merging by parts"), which step 1d uses, has landed.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
 (a type can load only its first part, guides/blocks/content_types.md "Parts"),
 and it is edited by many people at once, so it saves less often than it is
-edited (the journal, guides/blocks/client.md). Step 1a has landed.
+edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
 
 ## What exists
 
@@ -29,8 +28,21 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
   "Member" and their account's first digits, since no host service names
   members to an app yet. Attachments are in the model but the editor cannot
   add or show them yet.
+- **Sending state (1b).** A message shows "Sending" until the operation that
+  sent it is delivered (`ContentProjection::sent` and `delivered`,
+  guides/blocks/apps.md): confirmed in the session while the device reaches the
+  server, or, sent offline, once the host says a commit holding it is published
+  (`ToEditor::Published`). The editor keeps which of its sends are undelivered
+  only while it is open: one reopened offline shows what it sent before as sent.
+- **Unread counts (1c).** Where the account read each chat up to is the
+  owner-only settings kind `ChatReads` (a `ReadUpTo` per chat: the message and
+  its time, for when it is deleted), never in the chat. `ChatContent::unread`
+  counts others' messages after it. The editor reads the chat while it is
+  scrolled to its newest message, and otherwise shows "N new messages" above
+  the message box, which scrolls to the end. The count lives only in the
+  editor: no sidebar or block row shows it yet.
 - **Member names.** Apps have no way to learn a member's name: the `contacts`
-  watch is the shell's alone. Step 1b or a later one needs a host service that
+  watch is the shell's alone. A later step needs a host service that
   names the accounts in a block's members (contacts by their card, others by
   what the server says, marked unverified), with no framework types.
 - **Loading.** A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads
@@ -111,11 +123,6 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
   message is recent or not, so the ordinary merge keeps that edit by key and
   the next rewrite folds it into the segment. Nothing is lost and nothing
   conflicts.
-- **Sending state.** A message shows as sending until it is confirmed: in a
-  live session, sequenced by the owner (the replica keeps `confirmed` and
-  `visible` apart); offline, published. For the offline case the editor is
-  told the last published head through a new field, `published-head`, beside
-  the head in the content frame (guides/blocks/apps.md).
 - **Arrival time.** The server stamps each relayed operation with when it
   received it, in the relay envelope (commits already have
   `block_commits.received`), and replicas store that time in the message. A
@@ -125,13 +132,8 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
 
 ### Unread counts
 
-- Where each person has read up to is theirs, not part of the shared document,
-  where it would be a read receipt. It is kept in an owner-only settings kind
-  of chat's own (`KindVisibility::Owner`, guides/settings.md), keyed by chat id, so it matches
-  across devices; ordinary user settings are escrowed, and administrators
-  could read them.
 - The newest message and the counts come from the header, so a sidebar of
-  chats reads one small part per chat.
+  chats (not built) reads one small part per chat.
 
 ### Deleting
 
@@ -142,11 +144,6 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
 ## Order of work
 
 1. **The chat type and editor.**
-   - **1b.** Sending state and `published-head`. Done: a host test sends a
-     message while the server is unreachable and the painting shows it as
-     sending until the drain publishes it.
-   - **1c.** Unread counts in an owner-only kind. Done: reading on one device clears
-     the count on another; a painting of the count.
    - **1d.** Segments, closing and rewriting them. Done: a chat of thousands of
      messages opens reading only the header; scrolling back reads segments by
      range; an offline reaction to a message moved into a segment survives the

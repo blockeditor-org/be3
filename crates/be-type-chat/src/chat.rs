@@ -12,6 +12,7 @@ use be_block_model::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::reads::ReadUpTo;
 use crate::signed::{MessageHash, Signed};
 
 /// The chat's header, the first part of its stored form and the only one 1a writes: the
@@ -277,6 +278,35 @@ impl ChatContent {
                 })
             })
             .collect()
+    }
+
+    /// The newest message, as where someone who read it has read up to.
+    pub fn newest(&self) -> Option<ReadUpTo> {
+        let message = *self.messages().last()?;
+        Some(ReadUpTo {
+            message,
+            time: self.message(message)?.time,
+        })
+    }
+
+    /// How many messages others sent after `read`: those after it in order, or, once it is
+    /// gone, those claiming a later time. With nothing read, every message of others'.
+    pub fn unread(&self, read: Option<&ReadUpTo>, me: Uuid) -> usize {
+        let messages = self.messages();
+        let after = match read {
+            None => 0,
+            Some(read) => match messages.iter().position(|id| *id == read.message) {
+                Some(at) => at + 1,
+                None => messages
+                    .iter()
+                    .position(|id| self.message(*id).is_some_and(|sent| sent.time > read.time))
+                    .unwrap_or(messages.len()),
+            },
+        };
+        messages[after..]
+            .iter()
+            .filter(|id| self.message(**id).is_some_and(|sent| sent.author != me))
+            .count()
     }
 
     pub fn hash(&self, chat: Uuid, message: ObjectId) -> Option<MessageHash> {

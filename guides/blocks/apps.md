@@ -29,7 +29,8 @@ the instance and the replica.
   where `applied` counts operations *this instance* sent that the snapshot
   holds, which is how an app tells its own unacknowledged edits from others';
   `Operations` (each marked `mine`, with `unsettled` and, for a peer's
-  operation that goes beneath them, the rebased `beneath`); `Presence`;
+  operation that goes beneath them, the rebased `beneath`); `Published`
+(below, "Delivered"); `Presence`;
   `PeerMessages`; `Range`.
 - `write-content` writes content outright, since it may name a block nothing
   follows (guides/blocks/host.md, "Creating, seeding and replacing").
@@ -44,6 +45,20 @@ reports what it touched (`LiveEdit::apply_touching`), and projections run only
 when something they watch was touched (guides/reactive.md). `read` answers
 `Err(Pending::Loading)` until the first content and `operate` drops edits made
 before then.
+
+### Delivered
+
+`Published(bool)` is the one frame the host writes itself rather than the
+replica (be-block-type-host's `Replicas::tell_published`): false while what
+this device sequences of the block does not reach the server (offline, in a
+session it made up, commits of the block in the outbox, or appends to its own
+journal alone that no commit since holds), true again once that clears, as
+after the drain publishes them. An editor attached while it is false is told
+so. `EditorMirror` numbers the operations it sends (`sent`) and counts them
+`delivered`: confirmed while published, or frozen at the false until the next
+true. `ContentProjection::sent` and `delivered` (a signal) are how an editor
+shows what it sent as still sending (chat's "Sending"); be-sdk-test's
+`ContentStore::set_published` sends the frame in an editor test.
 
 `editor.content_of::<C>(block)` reads and edits another block the same way;
 the host opens that block's replica on the first frame, read-only unless the

@@ -24,6 +24,8 @@ struct Projection<C: LiveEdit> {
     touched: RefCell<Vec<Touched>>,
     announced: Cell<u64>,
     revisions: Callbacks<(), dyn Fn(u64)>,
+    delivered: Cell<u64>,
+    deliveries: Callbacks<(), dyn Fn(u64)>,
     due: RefCell<Option<Rc<dyn Fn()>>>,
     reads: RefCell<HashMap<u64, Box<Read>>>,
 }
@@ -64,6 +66,8 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             touched: RefCell::new(Vec::new()),
             announced: Cell::new(0),
             revisions: Callbacks::default(),
+            delivered: Cell::new(0),
+            deliveries: Callbacks::default(),
             due: RefCell::new(None),
             reads: RefCell::new(HashMap::default()),
         }))
@@ -131,6 +135,23 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
 
     pub fn on_revision(&self, run: impl Fn(u64) + 'static) -> Subscription {
         self.0.revisions.add((), Rc::new(run))
+    }
+
+    /// How many operations this instance sent, counting from its first: right after
+    /// `operate`, the number of the one it sent.
+    pub fn sent(&self) -> u64 {
+        self.0.mirror.borrow().sent()
+    }
+
+    /// How many of the operations this instance sent are delivered: confirmed in the session
+    /// while the server holds all this device holds of the block, or published since
+    /// (`EditorMirror::delivered`). An editor shows what it sent past this as still sending.
+    pub fn delivered(&self) -> u64 {
+        self.0.mirror.borrow().delivered()
+    }
+
+    pub fn on_delivered(&self, run: impl Fn(u64) + 'static) -> Subscription {
+        self.0.deliveries.add((), Rc::new(run))
     }
 
     /// The whole stored form's length, of which a type that loads only its first part
@@ -215,6 +236,12 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     }
 
     fn announce(&self) {
+        let delivered = self.0.mirror.borrow().delivered();
+        if self.0.delivered.replace(delivered) != delivered {
+            for run in self.0.deliveries.all() {
+                run(delivered);
+            }
+        }
         let revision = self.0.mirror.borrow().revision();
         if self.0.announced.replace(revision) == revision {
             return;

@@ -21,7 +21,7 @@ use be_sdk_type_api::{
     },
     ops::{Connection, OpError, OpId, Outcome, Reply, Ticket},
 };
-use be_sdk_type_guest::editor::FromEditor;
+use be_sdk_type_guest::editor::{FromEditor, ToEditor};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
@@ -126,6 +126,9 @@ impl Publishing {
 
 struct Unanswered {
     replica: ReplicaId,
+    block: Uuid,
+    /// How many of the block's offline appends the commit holds (`Replicas::offline`).
+    covers: u64,
     module: usize,
     generation: u64,
     epoch: u64,
@@ -387,6 +390,15 @@ pub struct Replicas<H: Host> {
     changed: bool,
     /// Blocks whose next publish is a bookmark, with its label (`Replicas::bookmark`).
     bookmarks: HashMap<Uuid, String>,
+    /// Per block, how many appends went to this device's journal alone, and how many of
+    /// those a commit since holds: what the server lacks until that commit is published.
+    offline: HashMap<Uuid, (u64, u64)>,
+    /// What each block's editors were last told of `ToEditor::Published`; true when absent.
+    told: HashMap<Uuid, bool>,
+    /// Editors attached since, to tell a block's `Published(false)` too.
+    untold: Vec<(Uuid, EditorId)>,
+    /// Something `published` reads may have changed since `tell_published` last looked.
+    retell: bool,
     pub handled: u64,
     host: std::marker::PhantomData<fn() -> H>,
 }
@@ -420,6 +432,10 @@ impl<H: Host> Replicas<H> {
             kept: false,
             changed: false,
             bookmarks: HashMap::new(),
+            offline: HashMap::new(),
+            told: HashMap::new(),
+            untold: Vec::new(),
+            retell: false,
             handled: 0,
             host: std::marker::PhantomData,
         }
@@ -866,6 +882,7 @@ impl<H: Host> Replicas<H> {
         };
         open.joining = false;
         open.made_up = false;
+        self.retell = true;
         let edited = open.replay.iter().any(Replayed::local_edit);
         let generation = session.generation;
         let early: Vec<Replayed> = std::mem::take(&mut open.early)
@@ -1004,10 +1021,13 @@ impl<H: Host> Replicas<H> {
             return;
         };
         open.editors.insert(editor, editable);
-        let (module, handle) = (open.module, open.handle);
+        let (module, handle, block) = (open.module, open.handle, open.block);
         self.modules.call(module, |connection| {
             handle.attach(connection, editor, editable);
         });
+        if editor != HOST_EDITOR && self.told.get(&block) == Some(&false) {
+            self.untold.push((block, editor));
+        }
     }
 
     fn with_replica(&mut self, replica: ReplicaId, call: impl FnOnce(Replica, &mut Connection)) {
@@ -1280,6 +1300,70 @@ impl<H: Host> Replicas<H> {
         std::mem::take(&mut self.kept)
     }
 
+    /// Tells `tell_published` to look again: the connection came back, or the outbox drained.
+    pub fn retell_published(&mut self) {
+        self.retell = true;
+    }
+
+    /// Whether what this device sequences of `open`'s block reaches the server
+    /// (`ToEditor::Published`): it is connected, in a session it did not make up, keeps no
+    /// commit of the block in its outbox, and a commit published or kept since holds every
+    /// append that went to this device's journal alone.
+    fn published(&self, peer: &Peer<H::Store>, open: &Open) -> bool {
+        !open.made_up
+            && peer.is_attached()
+            && self
+                .offline
+                .get(&open.block)
+                .is_none_or(|(appended, sealed)| sealed >= appended)
+            && peer.pending_commits(open.block).is_empty()
+    }
+
+    fn tell(&self, shared: &Arc<Mutex<H>>, block: Uuid, published: bool) {
+        let Some(open) = self.blocks.get(&block).and_then(|replica| self.open.get(replica)) else {
+            return;
+        };
+        let frame = ToEditor::Published(published).encode();
+        for editor in open.editors.keys().filter(|editor| **editor != HOST_EDITOR) {
+            H::to_editor(shared, block, *editor, frame.clone());
+        }
+    }
+
+    /// Tells each block's editors when `published` changed for it (`ToEditor::Published`),
+    /// and those attached since it last said false.
+    pub fn tell_published(&mut self, (peer, shared): Ctx<'_, H>) {
+        for (block, editor) in std::mem::take(&mut self.untold) {
+            if self.told.get(&block) == Some(&false) {
+                H::to_editor(shared, block, editor, ToEditor::Published(false).encode());
+            }
+        }
+        if !std::mem::take(&mut self.retell) {
+            return;
+        }
+        let changed: Vec<(Uuid, bool)> = self
+            .open
+            .values()
+            .filter(|open| open.editors.keys().any(|editor| *editor != HOST_EDITOR))
+            .filter_map(|open| {
+                let published = self.published(peer, open);
+                (self.told.get(&open.block).copied().unwrap_or(true) != published)
+                    .then_some((open.block, published))
+            })
+            .collect();
+        for (block, published) in changed {
+            match published {
+                true => {
+                    self.told.remove(&block);
+                    self.offline.remove(&block);
+                }
+                false => {
+                    self.told.insert(block, false);
+                }
+            }
+            self.tell(shared, block, published);
+        }
+    }
+
     fn release(&mut self) {
         if !self.keeping {
             return;
@@ -1308,12 +1392,20 @@ impl<H: Host> Replicas<H> {
     ) {
         let Unanswered {
             replica,
+            block,
+            covers,
             module,
             generation,
             epoch,
             reply,
             ..
         } = unanswered;
+        if let Ok(PublishOutcome::Published(_)) = result
+            && let Some(offline) = self.offline.get_mut(&block)
+        {
+            offline.1 = offline.1.max(covers);
+        }
+        self.retell = true;
         let delivered = self.modules.generation(module) == generation;
         if delivered {
             self.modules
@@ -1873,6 +1965,7 @@ impl<H: Host> Replicas<H> {
     }
 
     pub fn disconnected(&mut self) {
+        self.retell = true;
         let replicas: Vec<ReplicaId> = self.open.keys().copied().collect();
         for replica in replicas {
             let Some(open) = self.open.get_mut(&replica) else {
@@ -1953,6 +2046,7 @@ impl<H: Host> Replicas<H> {
             }
         };
         open.made_up = false;
+        self.retell = true;
         let generation = session.generation;
         let early: Vec<Replayed> = early
             .into_iter()
@@ -2267,6 +2361,10 @@ impl<H: Host> Replicas<H> {
                     .append(block, generation, tag, entries, relay, online)
                     .await;
                 self.journaled(shared, appended);
+                if !online {
+                    self.offline.entry(block).or_default().0 += 1;
+                    self.retell = true;
+                }
                 false
             }
             Call::RebaseJournal {
@@ -2365,10 +2463,13 @@ impl<H: Host> Replicas<H> {
                 let publishing = Arc::new(Publishing::default());
                 self.published += 1;
                 let publish = self.published;
+                let covers = self.offline.get(&block).map_or(0, |offline| offline.0);
                 self.publishes.insert(
                     publish,
                     Unanswered {
                         replica,
+                        block,
+                        covers,
                         module,
                         generation: self.modules.generation(module),
                         epoch,

@@ -8,11 +8,13 @@ use uuid::Uuid;
 use crate::root::ChatRoot;
 
 mod a_conversation_shows_each_message_with_its_author_and_time;
+mod a_message_shows_as_sending_until_it_is_delivered;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
 mod a_reply_or_edit_ends_when_its_message_is_deleted_or_the_other_starts;
 mod a_reply_quotes_the_message_it_answers;
 mod messages_are_sent_edited_reacted_to_and_deleted;
 mod reactions_show_under_a_message_with_their_counts;
+mod reading_on_one_device_clears_the_count_on_another;
 
 const ME: Uuid = Uuid::from_u128(0x5a1d_0000_0000_4000_8000_0000_0000_0001);
 const ROSA: Uuid = Uuid::from_u128(0x7e1a_0000_0000_4000_8000_0000_0000_0002);
@@ -20,6 +22,13 @@ const CHAT: Uuid = Uuid::from_u128(0xc4a7_0000_0000_4000_8000_0000_0000_0003);
 const MINUTE: i64 = 60_000;
 /// 09:00 UTC on the day the test wall clock is pinned to, 41 minutes before it.
 const MORNING: i64 = 1_772_442_000_000;
+
+fn host() -> EditorHost {
+    let host = EditorHost::default();
+    host.set_editable(true);
+    host.set_account_id(ME);
+    host
+}
 
 struct Harness {
     editor: BeuiTest<ChatRoot>,
@@ -33,11 +42,8 @@ impl Harness {
             let (_, send) = content.send(CHAT, Message::new(*author, time, *body));
             content.apply(&send);
         }
-        let host = EditorHost::default();
-        host.set_editable(true);
-        host.set_account_id(ME);
         let mut harness = Self {
-            editor: BeuiTest::new(OwnedEditor::new(host, CHAT)),
+            editor: BeuiTest::new(OwnedEditor::new(host(), CHAT)),
         };
         harness
             .editor
@@ -84,6 +90,16 @@ impl Harness {
 
     fn id(&self, index: usize) -> ObjectId {
         self.content().messages()[index]
+    }
+
+    /// The test ids of the messages shown as sending.
+    fn sending(&self) -> Vec<String> {
+        self.editor
+            .test_ids()
+            .iter()
+            .map(|(id, _)| id.to_owned())
+            .filter(|id| id.ends_with(".sending"))
+            .collect()
     }
 
     fn bodies(&self) -> Vec<String> {

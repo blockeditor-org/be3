@@ -1262,7 +1262,8 @@ impl EditorHost {
             content @ (ToEditor::Snapshot(_)
             | ToEditor::Operations(_)
             | ToEditor::Range { .. }
-            | ToEditor::PartPut { .. }) => {
+            | ToEditor::PartPut { .. }
+            | ToEditor::Published(_)) => {
                 if self.followed.borrow().contains_key(&block) {
                     self.update_content(block, content);
                 }
