@@ -12,9 +12,16 @@ use be_sdk_test::BeuiTest;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use super::*;
 use crate::picker::PickerRoot;
 use crate::rename::RenameRoot;
 use crate::root::WorkspaceUiRoot;
+use be_sdk_beui::be_block::be_block_model::BlockRef;
+use be_sdk_beui::be_block::{
+    BlockContent, Home, HomeContent, SETTINGS, Settings, SettingsContent, WORKSPACE_TYPE,
+};
+use be_sdk_beui::{BlockInfo, BlockLocation};
+use be_sdk_test::HostCall;
 
 mod a_block_in_a_tab_points_its_dialogs_at_the_tab;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
@@ -54,8 +61,9 @@ mod a_window_the_host_runs_gets_a_tab_until_its_program_closes_it;
 mod a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it;
 mod a_workspace_opens_on_its_landing_page;
 mod an_import_into_a_folder_is_made_inside_it;
-mod an_import_or_template_copy_with_no_place_is_made_in_unfiled;
 mod an_import_keeps_the_location_it_started_with;
+mod an_import_or_template_copy_with_no_place_is_made_in_unfiled;
+mod an_import_with_no_place_is_made_in_unfiled;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod an_unlocked_tab_moved_into_the_sidebar_is_still_there_when_the_workspace_reopens;
 mod an_unreadable_layout_is_kept_until_the_person_resets_it;

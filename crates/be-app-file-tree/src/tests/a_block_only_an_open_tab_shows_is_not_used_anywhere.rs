@@ -21,7 +21,9 @@ fn a_block_only_an_open_tab_shows_is_not_used_anywhere() {
     profile.set_name("Laptop");
     fixture.test.click("file-tree.unfiled.chevron");
     fixture.settle();
-    fixture.host.set_blocks(BlockQuery::Unfiled, vec![note.clone()]);
+    fixture
+        .host
+        .set_blocks(BlockQuery::Unfiled, vec![note.clone()]);
     fixture.settle();
     fixture
         .host

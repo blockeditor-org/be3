@@ -1303,14 +1303,14 @@ pub fn import(
     parent: be_block_graph::BlockParent,
     created_by: Option<&str>,
 ) -> Result<(Uuid, Uuid), String> {
-    let mut blocks =
-        be_block_client::transfer::renumber(be_block_client::transfer::decode(bytes)?);
+    let mut blocks = be_block_client::transfer::renumber(be_block_client::transfer::decode(bytes)?);
     for block in &mut blocks {
         block.metadata.remove(&be_block::CREATED_BY);
         if block.parent.is_none() {
-            block
-                .metadata
-                .put(&be_block::CREATED_BY, created_by.map(str::to_owned).as_ref());
+            block.metadata.put(
+                &be_block::CREATED_BY,
+                created_by.map(str::to_owned).as_ref(),
+            );
         }
     }
     let author = account().ok_or("Sign in to import blocks.")?;
@@ -1365,7 +1365,10 @@ pub fn import_file(
         return;
     }
     let mut metadata = be_block::BlockMetadata::named(&name);
-    metadata.put(&be_block::CREATED_BY, created_by.map(str::to_owned).as_ref());
+    metadata.put(
+        &be_block::CREATED_BY,
+        created_by.map(str::to_owned).as_ref(),
+    );
     send(Command::ContentOfFile {
         name,
         bytes,
