@@ -623,8 +623,8 @@ mod an_overflowing_toolbar_hands_its_tab_stop_to_its_buttons_and_reveals_them;
 mod an_overlay_laid_out_before_its_anchor_follows_it_in_one_layout;
 mod an_overlay_past_the_windows_edge_is_cut_off;
 mod an_overlay_reports_a_dismiss_only_when_the_user_closes_it;
-mod an_overlay_with_room_on_neither_side_of_its_anchor_covers_it_within_the_window;
 mod an_overlay_whose_opener_moves_keeps_its_content_where_it_is_shown;
+mod an_overlay_with_room_on_neither_side_of_its_anchor_covers_it_within_the_window;
 mod an_unchanged_container_is_not_walked_again_for_accessibility_but_a_moved_one_is;
 mod an_unstyled_scroll_keeps_the_whole_width_for_its_content;
 mod animations_finish_once_and_keep_functional_timers;
@@ -2589,9 +2589,13 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
     }
 }
 
+use crate::Dismiss;
+use crate::base::overlay::OverlayNode;
 use crate::native::Document;
+use crate::primitives::*;
 use crate::unstyled::Scroll;
 use beui::WHEEL_LATCH_TIMEOUT;
+use beui::layer::{OverlayAnchor, Placement};
 
 fn nested() -> Document {
     build_node(move || {

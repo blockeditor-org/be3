@@ -5,7 +5,6 @@ use crate::primitives::*;
 use crate::reactive::*;
 use beui::layer::{OverlayAnchor, Placement};
 
-#[test]
 fn placed(height: f32) -> (f32, f32) {
     let _root = crate::reactive::RootScope::new();
     let overlay = NodeRef::new();
@@ -35,6 +34,7 @@ fn placed(height: f32) -> (f32, f32) {
     let rect = harness.rect(content);
     (rect.top(), rect.bottom())
 }
+
 
 #[test]
 fn an_overlay_with_room_on_neither_side_of_its_anchor_covers_it_within_the_window() {
