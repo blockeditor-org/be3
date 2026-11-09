@@ -242,7 +242,11 @@ index and search it locally.
   newest head and seals the commit into the outbox: it is saved offline-first,
   published by the next drain, and two devices' batches meet as a diverged
   block that merges by parts. A root with no index gets one, made by the first
-  device that seals a commit under it. Metadata-held blocks (settings, edit
+  device that seals a commit under it (in a task) and named in the root's
+  metadata from the loop, as a define command is, so the root's open replica is
+  told its head moved here. The loop takes one block a round and asks only a
+  type whose module already runs (starting one would stall it): a stalled loop
+  holds up the opens and edits behind it. Metadata-held blocks (settings, edit
   kinds, indexes) and detached ones are never indexed.
 - **Searching.** `be_host_stack::want_searches(owner, asks)` names the searches
   an owner shows and `searched` answers each (`search_revision` counts
