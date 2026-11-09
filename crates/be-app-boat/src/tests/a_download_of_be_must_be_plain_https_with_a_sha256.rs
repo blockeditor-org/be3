@@ -13,7 +13,15 @@ fn a_download_of_be_must_be_plain_https_with_a_sha256() {
     ] {
         assert!(be_command("tree", Some(url), BE_SHA256).is_err(), "{url}");
     }
-    for hash in ["", "abc", &BE_SHA256.replacen('9', "z", 1), &format!("{BE_SHA256}0")] {
-        assert!(be_command("tree", Some(DEPLOYED_BE), hash).is_err(), "{hash}");
+    for hash in [
+        "",
+        "abc",
+        &BE_SHA256.replacen('9', "z", 1),
+        &format!("{BE_SHA256}0"),
+    ] {
+        assert!(
+            be_command("tree", Some(DEPLOYED_BE), hash).is_err(),
+            "{hash}"
+        );
     }
 }

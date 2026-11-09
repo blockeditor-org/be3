@@ -17,7 +17,8 @@ async fn a_terminal_host_keeps_its_standing_in_its_status_file() {
         status: Some(status.clone()),
     })
     .unwrap();
-    let refused = async || Err::<(Arc<Peer<FileStore>>, Uuid), String>("the token was revoked".to_owned());
+    let refused =
+        async || Err::<(Arc<Peer<FileStore>>, Uuid), String>("the token was revoked".to_owned());
     let ended = host
         .run(refused, &sources(), std::future::pending::<()>())
         .await;

@@ -1830,12 +1830,11 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
             ))
             .await
             {
-                Ok(_) | Err(be_block_client::ClientError::Refused(
+                Ok(_)
+                | Err(be_block_client::ClientError::Refused(
                     be_block_protocol::ErrorCode::AgentNotFound,
                     _,
-                )) => {
-                    Ok(())
-                }
+                )) => Ok(()),
                 Err(error) => Err(error.to_string()),
             },
         ),

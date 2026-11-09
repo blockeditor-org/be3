@@ -17,8 +17,8 @@ use uuid::Uuid;
 use crate::root::{BoatRoot, CACHE, Listed};
 
 mod a_block_without_a_key_shows_how_to_make_one;
-mod a_download_of_be_must_be_plain_https_with_a_sha256;
 mod a_development_build_uploads_its_own_be;
+mod a_download_of_be_must_be_plain_https_with_a_sha256;
 mod a_key_boat_no_longer_takes_offers_reconnect;
 mod a_key_near_its_expiry_warns_two_weeks_before;
 mod a_key_past_its_expiry_asks_nothing_and_offers_reconnect;
@@ -26,13 +26,13 @@ mod a_key_without_exec_offers_reconnect_when_connecting;
 mod a_long_list_is_read_page_by_page;
 mod a_refused_start_says_why_until_dismissed;
 mod a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token;
+mod a_running_terminal_is_left_alone_and_a_failing_one_is_put_right;
 mod a_terminal_of_a_sandbox_no_longer_listed_can_be_removed;
 mod a_terminal_whose_agent_cannot_be_removed_is_kept;
 mod an_empty_list_says_so;
 mod an_expired_key_offers_reconnect;
 mod an_unchanged_list_is_not_kept_again_until_it_ages;
 mod an_upload_url_that_is_not_https_is_refused;
-mod a_running_terminal_is_left_alone_and_a_failing_one_is_put_right;
 mod connecting_a_terminal_installs_its_host_in_the_sandbox;
 mod connecting_checks_the_key_and_keeps_it_for_its_owner_alone;
 mod on_the_web_it_says_it_is_not_available;
@@ -407,7 +407,11 @@ impl Boat {
         assert!(install.line.contains(&format!(
             "trap 'rm -f /home/user/.cache/be3/terminal-host-{block}.json' EXIT"
         )));
-        assert!(install.line.contains("sudo install -d -m 0700 -o user -g user /run/be3"));
+        assert!(
+            install
+                .line
+                .contains("sudo install -d -m 0700 -o user -g user /run/be3")
+        );
         assert!(
             install
                 .line

@@ -166,10 +166,16 @@ pub(crate) fn install_command(block: Uuid, build: Option<&str>, units: bool) -> 
              /etc/systemd/system/"
         ));
         lines.push("sudo systemctl daemon-reload".to_owned());
-        lines.push(format!("sudo systemctl enable --now be-terminal@{block}.path"));
+        lines.push(format!(
+            "sudo systemctl enable --now be-terminal@{block}.path"
+        ));
     }
-    lines.push(format!("sudo systemctl reset-failed be-terminal@{block}.service || true"));
-    lines.push(format!("sudo systemctl restart be-terminal@{block}.service"));
+    lines.push(format!(
+        "sudo systemctl reset-failed be-terminal@{block}.service || true"
+    ));
+    lines.push(format!(
+        "sudo systemctl restart be-terminal@{block}.service"
+    ));
     lines.join("\n")
 }
 
@@ -238,8 +244,7 @@ pub(crate) fn remove_command(block: Uuid) -> String {
 /// Puts `be` of `build` in place unless it is there: downloaded from `url`, or uploaded
 /// already, and checked against `sha256` either way before it can run.
 pub(crate) fn be_command(build: &str, url: Option<&str>, sha256: &str) -> Result<String, String> {
-    if url.is_some_and(|url| !url.starts_with("https://") || url.contains(['\'', '\\']))
-    {
+    if url.is_some_and(|url| !url.starts_with("https://") || url.contains(['\'', '\\'])) {
         return Err("the host named a download of be that is not a plain https URL".to_owned());
     }
     if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
