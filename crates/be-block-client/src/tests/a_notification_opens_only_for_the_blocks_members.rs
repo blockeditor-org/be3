@@ -30,10 +30,10 @@ async fn a_notification_opens_only_for_the_blocks_members() {
         .unwrap();
     assert_eq!(text(&guest, inside).await, "in the folder");
 
-    let notification = be_block_client::Notification {
+    let notification = crate::Notification {
         title: "Plans".to_owned(),
         author: "Owner".to_owned(),
-        text: "x".repeat(be_block_client::MAX_NOTIFICATION_TEXT + 10),
+        text: "x".repeat(crate::MAX_NOTIFICATION_TEXT + 10),
     };
     let sealed = owner.seal_notification(inside, &notification).await.unwrap();
     assert!(
@@ -45,7 +45,7 @@ async fn a_notification_opens_only_for_the_blocks_members() {
     assert_eq!(opened.author, "Owner");
     assert_eq!(
         opened.text.len(),
-        be_block_client::MAX_NOTIFICATION_TEXT,
+        crate::MAX_NOTIFICATION_TEXT,
         "the text is cut to fit a push"
     );
     assert!(
