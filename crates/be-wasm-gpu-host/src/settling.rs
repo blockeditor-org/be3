@@ -21,6 +21,10 @@ struct Held {
     pending: usize,
     lost: Option<String>,
     stopped: bool,
+    /// Whether the background poller is inside `device.poll`, and how many of its polls have
+    /// ended: a poll that has ended has run every callback it found settled.
+    polling: bool,
+    rounds: u64,
 }
 
 #[derive(Default)]
@@ -252,6 +256,28 @@ impl Settling {
         }
     }
 
+    /// Polls the device, waiting for the work submitted so far when `wait` is set. wgpu runs a
+    /// submission's map and work-done callbacks on whichever thread's poll saw it finish, once
+    /// that poll lets go of the device. So a wait that finds the queue empty because the
+    /// background poller saw the work finish also waits for that poller's round to end, after
+    /// which every callback the work owed has run.
+    pub(crate) fn poll(&self, device: &wgpu::Device, wait: bool) -> Result<(), wgpu::PollError> {
+        if !wait {
+            return device.poll(wgpu::PollType::Poll).map(|_| ());
+        }
+        device.poll(wgpu::PollType::wait_indefinitely())?;
+        let mut held = self.shared.held();
+        let round = held.rounds;
+        while held.polling && held.rounds == round {
+            held = self
+                .shared
+                .changed
+                .wait(held)
+                .unwrap_or_else(|held| held.into_inner());
+        }
+        Ok(())
+    }
+
     #[cfg(target_arch = "wasm32")]
     fn poll_in_background(&mut self, _device: &wgpu::Device) {}
 
@@ -278,8 +304,14 @@ impl Settling {
                         if held.stopped {
                             return;
                         }
+                        held.polling = true;
                     }
                     let _ = device.poll(wgpu::PollType::wait_indefinitely());
+                    let mut held = shared.held();
+                    held.polling = false;
+                    held.rounds += 1;
+                    drop(held);
+                    shared.changed.notify_all();
                 }
             })
             .ok();

@@ -606,11 +606,7 @@ impl Host for Gpu {
     }
 
     fn poll(&mut self, wait: bool) {
-        let poll = match wait {
-            true => wgpu::PollType::wait_indefinitely(),
-            false => wgpu::PollType::Poll,
-        };
-        if let Err(error) = self.device.poll(poll) {
+        if let Err(error) = self.settling.poll(&self.device, wait) {
             self.report(format!("the gpu could not be polled: {error}"));
         }
     }
