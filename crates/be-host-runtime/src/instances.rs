@@ -2030,6 +2030,7 @@ impl Instances {
                             entry.reported_editable = Some(editable);
                             editable
                         },
+                        page_origin: page_origin(),
                     }),
                     InstanceRole::Picker(editor) => {
                         let picker = super::picker_request(instance).unwrap_or_default();
@@ -3975,4 +3976,21 @@ fn entry_menu_holds(instances: &Instances, instance: EditorInstanceId) -> Option
         .menus
         .contains_key(&view)
         .then_some(view)
+}
+
+/// The origin of the web page the host runs in, empty natively (`OpenBlock::page_origin`).
+fn page_origin() -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let global = js_sys::global();
+        js_sys::Reflect::get(&global, &"location".into())
+            .and_then(|location| js_sys::Reflect::get(&location, &"origin".into()))
+            .ok()
+            .and_then(|origin| origin.as_string())
+            .unwrap_or_default()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        String::new()
+    }
 }

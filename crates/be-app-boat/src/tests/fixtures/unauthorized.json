@@ -1,0 +1,16 @@
+{
+  "ok": false,
+  "type": "sandbox.error",
+  "status": 401,
+  "code": "unauthorized",
+  "message": "unauthorized",
+  "error": {
+    "code": "unauthorized",
+    "message": "unauthorized",
+    "status": 401,
+    "details": {
+      "error": "unauthorized"
+    }
+  },
+  "requestId": "req_4f0c2a9e1b7d4c6a8e3f5b2d1c0a9e8f"
+}

@@ -77,6 +77,7 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
             organization_id: [4; 16],
             client_id: [5; 16],
             editable: true,
+            page_origin: String::new(),
         })),
         Delivery::Screens(vec![ScreenRequest {
             screen: ScreenId(1),

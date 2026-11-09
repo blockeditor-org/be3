@@ -1,0 +1,13 @@
+{
+  "ok": false,
+  "type": "sandbox.error",
+  "status": 403,
+  "code": "api_key_expired",
+  "message": "API key expired",
+  "error": {
+    "code": "api_key_expired",
+    "message": "API key expired",
+    "status": 403
+  },
+  "requestId": "req_9a8b7c6d5e4f40312a1b0c9d8e7f6a5b"
+}

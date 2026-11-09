@@ -24,6 +24,7 @@ fn open() -> Opening {
         organization_id: [5; 16],
         client_id: [6; 16],
         editable: true,
+        page_origin: String::new(),
     })
 }
 
