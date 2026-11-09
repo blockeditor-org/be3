@@ -79,7 +79,10 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         .publish(&author, block, commit, taken_objects.clone(), None, 1_000)
         .await;
     assert!(
-        matches!(published, Ok(be_block_protocol::PublishOutcome::Published(_))),
+        matches!(
+            published,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{published:?}"
     );
     assert_eq!(
@@ -102,7 +105,11 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         assert_eq!(held_since(*hash), None, "the commit took the hold");
     }
     for hash in &kept_objects {
-        assert_eq!(held_since(*hash), Some(None), "a lasting hold outlasts the other");
+        assert_eq!(
+            held_since(*hash),
+            Some(None),
+            "a lasting hold outlasts the other"
+        );
     }
 
     // Another store over the same directory, whose grace has passed for every hold.
@@ -140,7 +147,12 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
     );
     let has = |hash: &Hash| impatient.objects().has(*hash).unwrap();
     assert!(!left_objects.iter().any(has));
-    for objects in [&taken_objects, &kept_objects, &shared_objects, &named_objects] {
+    for objects in [
+        &taken_objects,
+        &kept_objects,
+        &shared_objects,
+        &named_objects,
+    ] {
         assert!(objects.iter().all(has));
     }
     assert_eq!(
