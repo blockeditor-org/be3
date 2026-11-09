@@ -43,7 +43,11 @@ impl Query {
         let matches = self.matches(text);
         let first = matches.first().map_or(0, |range| range.start);
         let start = back(text, first, CONTEXT);
-        let end = forward(text, matches.first().map_or(0, |range| range.end), CONTEXT * 2);
+        let end = forward(
+            text,
+            matches.first().map_or(0, |range| range.end),
+            CONTEXT * 2,
+        );
         let mut cut = String::new();
         if start > 0 {
             cut.push('…');
@@ -91,5 +95,7 @@ fn forward(text: &str, at: usize, chars: usize) -> usize {
     if end == text.len() {
         return end;
     }
-    text[at..end].rfind(char::is_whitespace).map_or(end, |gap| at + gap)
+    text[at..end]
+        .rfind(char::is_whitespace)
+        .map_or(end, |gap| at + gap)
 }

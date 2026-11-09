@@ -30,7 +30,11 @@ fn quick_open_finds_a_word_typed_in_a_text_and_opens_it() {
             Some(line[at + ROW.len()..].split_whitespace().next()?.to_owned())
         })
         .collect();
-    assert_eq!(rows.len(), 1, "quick open lists the text by its word: {rows:?}");
+    assert_eq!(
+        rows.len(),
+        1,
+        "quick open lists the text by its word: {rows:?}"
+    );
     host.snapshot("quick_open_lists_a_text_by_a_word_inside_it");
     host.key("Enter");
     host.gone("#host.palette.search");

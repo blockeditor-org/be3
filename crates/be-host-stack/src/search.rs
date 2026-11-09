@@ -23,7 +23,8 @@ use std::{
 };
 
 use be_block::{
-    BlockContent, BlockMetadata, SEARCH_INDEX, be_block_model::BlockRef,
+    BlockContent, BlockMetadata, SEARCH_INDEX,
+    be_block_model::BlockRef,
     search_index::{AsyncRead, SearchIndexContent},
 };
 use be_block_client::{Peer, Write};
@@ -233,7 +234,11 @@ async fn index(
                 Place::Unknown | Place::Skip => continue,
                 Place::Root(root) => root,
             };
-            if !held.graph.get(root).is_some_and(|root| root.access.can_edit()) {
+            if !held
+                .graph
+                .get(root)
+                .is_some_and(|root| root.access.can_edit())
+            {
                 continue;
             }
             match index_of(&held.graph, root) {
@@ -505,7 +510,10 @@ fn heads(peer: &Peer<Store>, graph: &Graph, indexes: &[Uuid]) -> u64 {
     for index in indexes {
         index.hash(&mut hasher);
         peer.local_head(*index).hash(&mut hasher);
-        graph.get(*index).and_then(|node| node.head).hash(&mut hasher);
+        graph
+            .get(*index)
+            .and_then(|node| node.head)
+            .hash(&mut hasher);
     }
     hasher.finish()
 }
@@ -638,8 +646,7 @@ async fn show(
                     missing = true;
                     continue;
                 };
-                let viewable =
-                    node.access.can_view() && node.parent != Some(BlockParent::Detached);
+                let viewable = node.access.can_view() && node.parent != Some(BlockParent::Detached);
                 let within = asked
                     .within
                     .is_none_or(|within| held.graph.is_within(found.block, within));
@@ -705,6 +712,8 @@ async fn cached_text(
     if held.search.texts.len() >= TEXTS {
         held.search.texts.clear();
     }
-    held.search.texts.insert((block, key.to_owned(), head), text.clone());
+    held.search
+        .texts
+        .insert((block, key.to_owned(), head), text.clone());
     text
 }

@@ -4,7 +4,11 @@ use be_block::{SEARCH_INDEX, be_block_model::BlockRef};
 use be_block_graph::{Access, SEARCH_INDEX_TYPE};
 
 async fn index_bytes(peer: &Peer<MemoryStore>, index: Uuid) -> Vec<u8> {
-    let head = peer.newest_head(index).await.unwrap().expect("the index has content");
+    let head = peer
+        .newest_head(index)
+        .await
+        .unwrap()
+        .expect("the index has content");
     let commit = peer.load_commit(head).await.unwrap();
     peer.read_manifest(&commit.manifest).await.unwrap()
 }
@@ -28,7 +32,9 @@ async fn removing_a_member_rotates_a_workspaces_search_index_with_it() {
         .unwrap()
         .id;
     admin
-        .define(team, |metadata| metadata.insert(&SEARCH_INDEX, &BlockRef(index)))
+        .define(team, |metadata| {
+            metadata.insert(&SEARCH_INDEX, &BlockRef(index))
+        })
         .await
         .unwrap();
     let before = admin
@@ -51,14 +57,7 @@ async fn removing_a_member_rotates_a_workspaces_search_index_with_it() {
     assert!(key.is_some());
 
     admin.remove_member(removed.account()).await.unwrap();
-    assert!(
-        admin
-            .key_work()
-            .await
-            .unwrap()
-            .rotations
-            .contains(&team)
-    );
+    assert!(admin.key_work().await.unwrap().rotations.contains(&team));
     admin.tend().await.unwrap();
     assert!(
         admin.key_work().await.unwrap().rotations.is_empty(),

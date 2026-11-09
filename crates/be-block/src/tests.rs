@@ -8,7 +8,6 @@ use uuid::Uuid;
 mod a_blob_saves_its_header_and_payload_as_separate_parts;
 mod a_block_link_is_found_by_its_fragment_whatever_its_host;
 mod a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope;
-mod two_search_indexes_merge_by_parts_into_one_finding_both;
 mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
 mod a_device_class_is_detected_and_brings_its_own_defaults;
 mod a_device_uses_the_settings_profile_and_session_it_picked;
@@ -31,6 +30,7 @@ mod setting_every_pointer_replaces_what_each_device_overrode;
 mod settings_resolve_from_the_organization_the_nearest_block_and_the_viewer;
 mod settings_split_across_two_blocks_read_as_one;
 mod streamed_content_separates_its_header_from_its_payload;
+mod two_search_indexes_merge_by_parts_into_one_finding_both;
 mod visiting_a_block_puts_it_first_in_the_recents_once;
 
 #[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]

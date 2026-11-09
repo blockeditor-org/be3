@@ -207,7 +207,10 @@ impl<F: AsyncRead> Parts for Reader<'_, F> {
             Some(Held::Saved(saved)) => {
                 let end = range.end.min(saved.length());
                 let start = range.start.min(end);
-                self.read.read(*saved, start..end).await.map_err(Error::Read)
+                self.read
+                    .read(*saved, start..end)
+                    .await
+                    .map_err(Error::Read)
             }
             None => Err(Error::Read(format!("the index names no part {part:?}"))),
         }
@@ -260,7 +263,11 @@ impl BlockContent for SearchIndexContent {
     }
 
     fn from_stored(stored: &Stored) -> Result<Self, ContentError> {
-        let Some(root) = stored.root.as_ref().filter(|root| !root.children.is_empty()) else {
+        let Some(root) = stored
+            .root
+            .as_ref()
+            .filter(|root| !root.children.is_empty())
+        else {
             return Self::decode(&stored.bytes);
         };
         let first = &root.children[0];

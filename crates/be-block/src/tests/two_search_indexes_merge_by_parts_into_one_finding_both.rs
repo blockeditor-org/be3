@@ -54,7 +54,10 @@ fn applied(base: &SearchIndexContent, origin: u8, puts: Vec<Put>) -> SearchIndex
         put: puts,
         ..Batch::default()
     };
-    assert_eq!(run(index.apply(&unread(), [origin; 16], batch)), Ok(Vec::new()));
+    assert_eq!(
+        run(index.apply(&unread(), [origin; 16], batch)),
+        Ok(Vec::new())
+    );
     index
 }
 
@@ -66,7 +69,12 @@ fn two_search_indexes_merge_by_parts_into_one_finding_both() {
     let decoded = SearchIndexContent::decode(&ours.encode()).unwrap();
     assert_eq!(found(&decoded, "bananas"), [2]);
 
-    let merged = match run(SearchIndexContent::merge_parts(base, ours, theirs, unread())) {
+    let merged = match run(SearchIndexContent::merge_parts(
+        base,
+        ours,
+        theirs,
+        unread(),
+    )) {
         Ok(MergeResult::Clean(merged)) => merged,
         other => panic!("the indexes did not merge cleanly: {:?}", other.err()),
     };

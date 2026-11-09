@@ -208,13 +208,16 @@ fn require_index_place(
             "a search index lies under the block it indexes".into(),
         ));
     };
-    let held = graph.children(BlockParent::Block(parent)).into_iter().any(|child| {
-        child != index
-            && graph.holds(child)
-            && graph
-                .get(child)
-                .is_some_and(|node| node.content_type == SEARCH_INDEX_TYPE)
-    });
+    let held = graph
+        .children(BlockParent::Block(parent))
+        .into_iter()
+        .any(|child| {
+            child != index
+                && graph.holds(child)
+                && graph
+                    .get(child)
+                    .is_some_and(|node| node.content_type == SEARCH_INDEX_TYPE)
+        });
     match held {
         true => Err(ServerError::Refused(
             ErrorCode::InvalidRequest,
