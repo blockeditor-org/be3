@@ -24,8 +24,8 @@ fn a_terminal_hosts_be_is_the_deployments_or_one_built_here() {
     assert_eq!(beside.id, "tree");
     assert!(answer(&deployed, "riscv64", None).is_err());
 
-    let not_deployed_for_arm = answer(&deployed, "arm64", Some(std::path::Path::new("/nowhere")))
-        .unwrap_err();
+    let not_deployed_for_arm =
+        answer(&deployed, "arm64", Some(std::path::Path::new("/nowhere"))).unwrap_err();
     assert!(
         !not_deployed_for_arm.contains("./scripts/buck"),
         "a deployed build never asks a person to build be: {not_deployed_for_arm}"

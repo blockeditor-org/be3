@@ -156,7 +156,9 @@ pub(crate) fn install_command(
         format!("trap 'rm -f {STAGING}/{name}' EXIT"),
         "sudo install -d -m 0755 /run/be3".to_owned(),
         format!("sudo install -m 0600 -o user -g user {STAGING}/{name} /run/be3/{name}"),
-        format!("echo '{fingerprint}' | sudo tee /run/be3/terminal-host-{block}.sha256 > /dev/null"),
+        format!(
+            "echo '{fingerprint}' | sudo tee /run/be3/terminal-host-{block}.sha256 > /dev/null"
+        ),
     ];
     if let Some(build) = build {
         lines.push(format!("mkdir -p {BE_DIRECTORY}/blocks"));
@@ -170,10 +172,16 @@ pub(crate) fn install_command(
              /etc/systemd/system/"
         ));
         lines.push("sudo systemctl daemon-reload".to_owned());
-        lines.push(format!("sudo systemctl enable --now be-terminal@{block}.path"));
+        lines.push(format!(
+            "sudo systemctl enable --now be-terminal@{block}.path"
+        ));
     }
-    lines.push(format!("sudo systemctl reset-failed be-terminal@{block}.service || true"));
-    lines.push(format!("sudo systemctl restart be-terminal@{block}.service"));
+    lines.push(format!(
+        "sudo systemctl reset-failed be-terminal@{block}.service || true"
+    ));
+    lines.push(format!(
+        "sudo systemctl restart be-terminal@{block}.service"
+    ));
     lines.join("\n")
 }
 
@@ -369,7 +377,13 @@ async fn install(
             be_command(&build, None, &hash)
         }
     };
-    step!(api::command(&host, &account, &sandbox, &command, COMMAND_TIMEOUT));
+    step!(api::command(
+        &host,
+        &account,
+        &sandbox,
+        &command,
+        COMMAND_TIMEOUT
+    ));
     step!(api::write_file(
         &host,
         &account,
@@ -387,9 +401,18 @@ async fn check(
     block: Uuid,
     sandbox: String,
 ) -> Option<Result<(Held, String), Trouble>> {
-    let said = step!(api::command(&host, &account, &sandbox, &check_command(block), 30));
+    let said = step!(api::command(
+        &host,
+        &account,
+        &sandbox,
+        &check_command(block),
+        30
+    ));
     let build_info = step!(host.terminal_host_build());
-    Some(Ok((Held::parse(&said), build_of(&build_info).unwrap_or_default())))
+    Some(Ok((
+        Held::parse(&said),
+        build_of(&build_info).unwrap_or_default(),
+    )))
 }
 
 /// A terminal's row: the viewer's own, or one shared with them.
@@ -478,10 +501,9 @@ impl State {
                         matches!(
                             standing,
                             TerminalStatus::Connecting | TerminalStatus::NotRemoved(_)
-                        )
-                            || own
-                                .get(block)
-                                .is_some_and(|terminal| running.contains(&terminal.sandbox))
+                        ) || own
+                            .get(block)
+                            .is_some_and(|terminal| running.contains(&terminal.sandbox))
                     });
                 });
                 if state.account().is_none() {
@@ -527,7 +549,7 @@ impl State {
                 TerminalStatus::Failed(
                     "boat.dev refused to run a command or write a file in the sandbox with this \
                      key"
-                        .to_owned(),
+                    .to_owned(),
                 )
             }
             Err(Trouble::Boat(error @ BoatError::Reconnect { .. })) => {
@@ -687,7 +709,13 @@ impl State {
 
     /// Writes the kept credentials to the sandbox again, with this build's `be` too when
     /// `refresh`.
-    fn rewrite_terminal(&self, block: Uuid, terminal: TerminalAgent, account: Account, refresh: bool) {
+    fn rewrite_terminal(
+        &self,
+        block: Uuid,
+        terminal: TerminalAgent,
+        account: Account,
+        refresh: bool,
+    ) {
         self.set_status(block, Some(TerminalStatus::Reconnecting));
         let state = *self;
         match refresh {
@@ -707,7 +735,13 @@ impl State {
 
     /// Rotates the agent's token, which revokes the one the sandbox had, keeps the new
     /// credentials and writes them to the sandbox.
-    fn reconnect_terminal(&self, block: Uuid, terminal: TerminalAgent, account: Account, refresh: bool) {
+    fn reconnect_terminal(
+        &self,
+        block: Uuid,
+        terminal: TerminalAgent,
+        account: Account,
+        refresh: bool,
+    ) {
         self.set_status(block, Some(TerminalStatus::Reconnecting));
         let Ok(agent) = Uuid::parse_str(&terminal.agent) else {
             return self.finished(
@@ -729,7 +763,9 @@ impl State {
             if !state.keep_terminal(block, Some(terminal.clone())) {
                 return state.finished(
                     block,
-                    Err(Trouble::Host("your settings have not loaded yet".to_owned())),
+                    Err(Trouble::Host(
+                        "your settings have not loaded yet".to_owned(),
+                    )),
                 );
             }
             state.rewrite_terminal(block, terminal, account, refresh);
