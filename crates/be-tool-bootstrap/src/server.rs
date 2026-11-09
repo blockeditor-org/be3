@@ -47,12 +47,21 @@ pub fn configure(buck2: &Path) -> Result<()> {
     let server = server()?;
     let (engine, storage, header);
     let (mut engine_address, mut storage_address, mut tls);
-    if server == "local" || server == "nativelink" {
-        engine = if server == "nativelink" {
-            crate::nativelink::connect()?
+    if server == "nativelink" {
+        // Always through the relay, sending HTTP/1.1, which is all boat's edge carries gRPC as.
+        let token;
+        (engine, token) = crate::nativelink::connect()?;
+        storage = engine.clone();
+        (engine_address, storage_address) = relay::ensure(&engine, &storage, true)?;
+        header = if token.is_empty() {
+            String::new()
         } else {
-            local_address()?
+            format!("Authorization:Bearer {token}")
         };
+        tls = false;
+        proxy = None;
+    } else if server == "local" {
+        engine = local_address()?;
         storage = engine.clone();
         engine_address = engine.clone();
         storage_address = engine.clone();
@@ -92,7 +101,7 @@ pub fn configure(buck2: &Path) -> Result<()> {
         tls = true;
     }
     if proxy.is_some() {
-        let (engine_relay, storage_relay) = relay::ensure(&engine, &storage)?;
+        let (engine_relay, storage_relay) = relay::ensure(&engine, &storage, false)?;
         engine_address = engine_relay;
         storage_address = storage_relay;
         tls = false;
@@ -208,7 +217,7 @@ fn ask_for_server(saved: &Path) -> Option<String> {
             label: server,
             detail: match *server {
                 "nativelink" => {
-                    "our NativeLink build server on boat (WireGuard, needs root and a boat key)"
+                    "our NativeLink build server on boat (needs its address and token)"
                 }
                 "namespace" => "Namespace's remote execution",
                 "api.be3.pfg.pw" => "our own NativeLink server",
@@ -542,7 +551,9 @@ pub mod relay {
         Ok((relay, version))
     }
 
-    pub fn ensure(engine: &str, storage: &str) -> Result<(String, String)> {
+    /// Starts, or finds running, a relay to each of `engine` and `storage` and returns their local addresses. `http1`
+    /// sends every call as HTTP/1.1 (re-relay's `-http1`).
+    pub fn ensure(engine: &str, storage: &str, http1: bool) -> Result<(String, String)> {
         let (relay, version) = build()?;
         let path = repository().to_string_lossy().into_owned();
         let port = 20000 + cksum(path.as_bytes()) % 2000 * 2;
@@ -557,9 +568,10 @@ pub mod relay {
                     listen,
                     "-upstream",
                     upstream,
+                    if http1 { "-http1=true" } else { "-http1=false" },
                     "-version",
                 ])
-                .arg(format!("{version}-{upstream}"))
+                .arg(format!("{version}-{upstream}-{http1}"))
                 .arg("-log")
                 .arg(&log)
                 .status()
@@ -571,35 +583,5 @@ pub mod relay {
             }
         }
         Ok((engine_address, storage_address))
-    }
-
-    /// Starts, or finds running, the tunnel to the NativeLink build server's hosted port (guides/build_server.md) and
-    /// returns the local address buck2 is pointed at. `token` is the bridge's token, empty when a proxy adds it; it
-    /// goes to the tunnel in its environment so it is not on a command line. The tunnel makes one upgrade before it
-    /// says it is ready, so a scheduler that is stopped or a wrong token is an error here.
-    pub fn ensure_tunnel(url: &str, token: &str) -> Result<String> {
-        let (relay, version) = build()?;
-        let path = repository().to_string_lossy().into_owned();
-        let listen = format!("127.0.0.1:{}", 24000 + cksum(path.as_bytes()) % 2000);
-        let target = repository().join("target");
-        let _ = std::fs::create_dir_all(&target);
-        let output = Command::new(&relay)
-            .args(["ensure-tunnel", "-listen", &listen, "-url", url, "-version"])
-            .arg(version.to_string())
-            .arg("-state")
-            .arg(target.join("re-relay-tunnel.state"))
-            .arg("-log")
-            .arg(target.join("re-relay.log"))
-            .env("BE3_TUNNEL_TOKEN", token)
-            .stdout(Stdio::null())
-            .output()
-            .map_err(|error| format!("could not start the tunnel: {error}"))?;
-        if output.status.success() {
-            return Ok(listen);
-        }
-        Err(String::from_utf8_lossy(&output.stderr)
-            .trim()
-            .trim_start_matches("re-relay: ")
-            .to_owned())
     }
 }

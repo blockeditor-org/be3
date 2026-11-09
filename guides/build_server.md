@@ -18,7 +18,7 @@ release is built from (guides/bootstrap.md).
 
 | `BE3_BUILD_SERVER` | Server | Key | In a Claude Code cloud session |
 |---|---|---|---|
-| `nativelink` (default, and CI's) | our NativeLink server on boat, through a WebSocket tunnel | its address and token `BE3_NL_URL`, and a boat key `BE3_NL_KEY` to wake it | works once the proxy adds both keys (below); needs Go |
+| `nativelink` (default, and CI's) | our NativeLink server on boat, behind Caddy on a hosted port | its address and token `BE3_NL_URL`, and a boat key `BE3_NL_KEY` to wake it | works once the proxy adds both keys (below); needs Go |
 | `api.be3.pfg.pw` | our NativeLink server | gateway header | works with no setup |
 | `blocks.pfg.pw` | our NativeLink build VM, behind its own gateway over WireGuard | its gateway's header | works once the proxy adds the gateway header for it |
 | `namespace` | Namespace's remote execution, no longer reachable | gateway header, to its waker | not working |
@@ -52,34 +52,35 @@ itself for the hosts it has a rule for. BuildBuddy's key is `BE3_BUILD_SERVER_KE
 ## The NativeLink server on boat (`nativelink`)
 
 Everything it runs is in scripts/internal/nativelink/ (none of it is a secret). A small `nl-scheduler` VM runs
-NativeLink (CAS, action cache, scheduler), `nl-controller.py` and `nl-tunnel.py`; boat VMs named `nl-w-*` in the
+NativeLink (CAS, action cache, scheduler), `nl-controller.py` and Caddy; boat VMs named `nl-w-*` in the
 `nl-worker` environment run the actions, each NativeLink's worker inside the image `worker_properties` names. The
 scheduler and the workers meet in a WireGuard network, 10.100.0.0/24: the scheduler is 10.100.0.1 and serves buck2 on
 port 50052.
 
-- **A client reaches it through a tunnel**, so it needs no root, no WireGuard and no IPv6, and it works through an
-  HTTPS proxy. Boat's hosted-port proxy serves the scheduler's port 8099 and carries WebSockets but blocks gRPC, so
-  `nl-tunnel.py` on the scheduler accepts a WebSocket and connects it to NativeLink, and
-  scripts/internal/re-relay (`ensure-tunnel`, tunnel.go) listens on 127.0.0.1 here and carries each TCP connection
-  buck2 opens inside one WebSocket. buck2's HTTP/2 goes through untouched. The bootstrap
-  (`crates/be-tool-bootstrap/src/nativelink.rs`) points buck2 at that local address, and builds the relay with Go
-  (1.24 or newer; Go fetches the toolchain itself when it is older).
-- **The bridge checks the token itself.** The port is exposed with `--public`, without boat's own token, because boat
-  takes that only as a cookie or a query parameter and a cloud session's proxy can add only a header. `nl-tunnel.py`
-  refuses any upgrade without `Authorization: Bearer NL_TUNNEL_TOKEN`; the token comes from the `nl-scheduler`
-  environment's secret file `nl-tunnel.env` (`NL_TUNNEL_TOKEN=...`), which `nl-tunnel.service` reads.
+- **A client reaches it through boat's hosted port 8099**, so it needs no root, no WireGuard and no IPv6, and it works
+  through an HTTPS proxy. Boat's edge carries gRPC only as HTTP/1.1 (over HTTP/2 it is blocked), and a cloud session's
+  proxy drops WebSocket upgrades, so buck2 always goes through scripts/internal/re-relay with `-http1`, which sends each
+  call as HTTP/1.1 (guides/buck2.md); on the scheduler, Caddy (`Caddyfile`, `nl-caddy.service`) forwards it to
+  NativeLink over cleartext HTTP/2. The bootstrap (`crates/be-tool-bootstrap/src/nativelink.rs`) points buck2 at the
+  relay, and builds the relay with Go (1.24 or newer; Go fetches the toolchain itself when it is older).
+- **Caddy checks the token.** The port is exposed with `--public`, without boat's own token, because boat takes that
+  only as a cookie or a query parameter and a cloud session's proxy can add only a header. Caddy answers 401 to any
+  request without `Authorization: Bearer NL_TUNNEL_TOKEN`, and strips the header before NativeLink; the token comes
+  from the `nl-scheduler` environment's secret file `nl-tunnel.env` (`NL_TUNNEL_TOKEN=...`), which `nl-caddy.service`
+  reads.
 - **Two secrets**, each an environment variable, a file in ~/.config/be3, or a file at the checkout's root.
-  `BE3_NL_URL` (`nl-url`, `.nl-url`) is the hosted port's address with the bridge's token as a query,
-  `https://NAME-8099.on.boat.dev/?_token=TOKEN`; the tunnel sends the token as the `Authorization` header. It is what
+  `BE3_NL_URL` (`nl-url`, `.nl-url`) is the hosted port's address with Caddy's token as a query,
+  `https://NAME-8099.on.boat.dev/?_token=TOKEN`; buck2 sends the token as the `Authorization` header. It is what
   lets a build use the server, so treat it as the gateway's header was. `BE3_NL_KEY` (`nl-key`, `.nl-key`) is a boat
   key limited to the `nl-scheduler` environment with the actions `sandbox.read` and `sandbox.resume`; it only wakes
   the scheduler when boat has stopped it, so a running scheduler needs the address alone. `BE3_NL_SCHEDULER` names
   another scheduler to wake by name prefix.
-- **In a cloud session** the proxy adds both as network secrets, each `Authorization: Bearer`: the bridge's token for
+- **In a cloud session** the proxy adds both as network secrets, each `Authorization: Bearer`: Caddy's token for
   the hosted port's host, and the wake key for `boat.dev`. The session's environment then sets
-  `BE3_BUILD_SERVER=nativelink`, `BE3_NL_URL` to the address without `?_token=` (the tunnel then sends no header and
-  the proxy adds it) and `BE3_NL_KEY` to any placeholder such as `boat_dummy`, which the proxy replaces.
-- **The controller** notices a build (a connection from the tunnel on port 50052), keeps 4 workers alive while it runs
+  `BE3_BUILD_SERVER=nativelink`, `BE3_NL_URL` to the address without `?_token=` (buck2 then sends no header and the
+  proxy adds it) and `BE3_NL_KEY` to any placeholder such as `boat_dummy`, which the proxy replaces. A hosted port has
+  two names, `on.boat.dev` and the older `on.ascii.dev`; the network secret's host must be the one `BE3_NL_URL` uses.
+- **The controller** notices a build (a connection from Caddy on port 50052), keeps 4 workers alive while it runs
   by extending their 30-minute lifetime, creates replacements, and stops the scheduler after 4 idle hours. Boat
   places a new VM at random and about half cannot reach the scheduler (below), so it creates twice as many workers as
   it needs and keeps the first that complete a WireGuard handshake. Its own boat key is limited to the `nl-worker`
@@ -88,8 +89,8 @@ port 50052.
   read-only key (the `nl-worker` environment's secret file `worker-ro.env`); the scheduler keeps small objects and the
   action cache in /tmp, persisted as one packed Bunny object every 5 minutes and restored on boot, and writes
   everything else to Bunny with the full-access key (the `nl-scheduler` environment's `nl-bunny.env`).
-- **Speed** (4 default workers, taken through the tunnel's relay and bridge over the scheduler's private address, so
-  boat's public proxy was not in the path; scripts/internal/nativelink/bench/ repeats them):
+- **Speed** (4 default workers, taken before Caddy replaced a WebSocket tunnel, over the scheduler's private address, so
+  boat's public edge was not in the path; scripts/internal/nativelink/bench/ repeats them through the edge):
   - A one-file change to be-lib-geometry, one build alone: 250-350 s with a fresh worker fleet, 190-230 s with a warm one.
   - A new client VM (default size) with a fresh partial clone and a new buck2 daemon, every action already cached:
     clone 4 s, the bootstrap built with cargo 32 s (until a release is pinned), the first command 43 s (buck2 download,
@@ -107,9 +108,9 @@ Things that are not obvious:
   cannot reach it; stopping and resuming it again, or forking it, picks another place.
 - **Boat's start limits** (60 an hour, 200 a day on the $20 plan; `boat limits`) count every VM the controller creates,
   including the ones it deletes at once. A cold fleet is up to 8 starts.
-- **Exposing the tunnel is one manual step** on the scheduler, `host 8099 --localhost --public`; the address keeps
-  working across stop and resume, but a new scheduler has a new one. Never expose it before `nl-tunnel.py` checks the
-  token: the port then lets anyone build and run code on the workers.
+- **Exposing the port is one manual step** on the scheduler, `host 8099 --localhost --public`; the address keeps
+  working across stop and resume, but a new scheduler has a new one. Never expose it before Caddy checks the token:
+  the port then lets anyone build and run code on the workers.
 - **After a restore** (boat stopped the VM and started a new machine) enabled services start before the disk has its
   files, so the units retry (`wg-quick-retry.conf`) instead of failing for good.
 
@@ -117,7 +118,7 @@ Setting the VMs up again: `scheduler/setup-scheduler.sh` on a VM made in the `nl
 `scheduler/install-controller.sh` (`nl-controller.service`, its worker files in /opt/nl/worker, and its boat key, the
 environment's secret file `nl-controller.key`, logged in under /var/lib/nl-controller/sk-home); each file's first lines
 say what it does. A secret file changed with `boat env set-file` reaches a running scheduler only after
-`boat env upgrade nl-scheduler`; then restart `nl-tunnel`, or run `install-controller.sh` again for a new key.
+`boat env upgrade nl-scheduler`; then restart `nl-caddy`, or run `install-controller.sh` again for a new key.
 
 ### Starting over
 
@@ -138,10 +139,10 @@ it cannot be turned on later) and a boat login that can create sandboxes:
    (without `account.read` the controller counts its own starts instead of reading `boat limits`), stored with
    `boat env set-file nl-scheduler nl-controller.key`; and the wake key `BE3_NL_KEY`, limited to `nl-scheduler` with
    `sandbox.read,sandbox.resume`.
-3. `bash scripts/internal/nativelink/new-scheduler.sh NAME` makes the VM, installs NativeLink, the bridge and the
+3. `bash scripts/internal/nativelink/new-scheduler.sh NAME` makes the VM, installs NativeLink, Caddy and the
    controller, and prints what is left.
-4. **Expose the tunnel**: `host 8099 --localhost --public`, then `host url 8099` prints the address; store it with
-   `?_token=` and the bridge's token as `BE3_NL_URL`. A new scheduler has a new address.
+4. **Expose the port**: `host 8099 --localhost --public`, then `host url 8099` prints the address; store it with
+   `?_token=` and Caddy's token as `BE3_NL_URL`. A new scheduler has a new address.
 5. Delete the old scheduler (`boat delete`), and the clients' secrets are the only thing that changed.
 
 ### What the controller spends
@@ -158,7 +159,7 @@ adds some when they average 75% busy and removes the least busy after five minut
 
 ## When a build keeps failing
 
-Behind an HTTPS proxy, as in a cloud session, buck2 reaches the server through
+Behind an HTTPS proxy, as in a cloud session, and always for `nativelink`, buck2 reaches the server through
 `scripts/internal/re-relay` (guides/buck2.md), whose errors are in `target/re-relay.log`.
 
 - **`unexpected EOF`, `context canceled`, a connection reset**: a dropped call. buck2 fails with

@@ -115,7 +115,7 @@ def hub_ipv6():
 
 
 def build_running():
-    """Is a client connected to the frontend port? A client reaches it through nl-tunnel.py, whose connections come
+    """Is a client connected to the frontend port? A client reaches it through Caddy, whose connections come
     from this VM itself; the workers connect too, but from their own address range."""
     _, out, _ = run(["ss", "-Htn", "state", "established", f"( sport = :{FRONTEND_PORT} )"])
     for line in out.splitlines():

@@ -102,7 +102,8 @@ rebuilds nothing else:
   such as a local build's (guides/running/local_buck2.md).
 - **An HTTPS proxy relay.** buck2's remote execution client never reads `HTTPS_PROXY`, so when it
   is set `./scripts/buck` builds `scripts/internal/re-relay` with Go (1.24+) and runs two relays
-  on ports picked from the checkout's path; errors go to `target/re-relay.log`.
+  on ports picked from the checkout's path; errors go to `target/re-relay.log`. The `nativelink`
+  server always goes through them, with `-http1` (guides/build_server.md).
 - **Retries.** buck2 exits 2 on an infrastructure error, such as a reset partway through a
   download, and does not retry; the wrapper runs the command three times in all
   (`BE3_BUCK_ATTEMPTS`). For `run` it retries the build, not the program: it builds with

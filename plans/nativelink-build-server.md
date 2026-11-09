@@ -7,16 +7,16 @@ guides/build_server.md has the lasting description; this has what is running, wh
 
 ## What the pull request does
 
-- `crates/be-tool-bootstrap`: a `nativelink` server, now the default. buck2 reaches the scheduler through a tunnel: the
-  scheduler VM serves a WebSocket bridge (`nl-tunnel.py`) on a port boat hosts behind a token, and
-  `scripts/internal/re-relay` (`ensure-tunnel`, `tunnel.go`) carries each of buck2's TCP connections to it inside one
-  WebSocket. No root, WireGuard or IPv6 on the client, and it works through an HTTPS proxy, so it works on GitHub-hosted
+- `crates/be-tool-bootstrap`: a `nativelink` server, now the default. buck2 reaches the scheduler through
+  `scripts/internal/re-relay -http1`, which sends each gRPC call as HTTP/1.1 to boat's public hosted port, where Caddy
+  checks a bearer token and forwards it to NativeLink. No root, WireGuard or IPv6 on the client, and it works through an
+  HTTPS proxy, so it works on GitHub-hosted
   runners and in Claude Code cloud sessions. The bootstrap wakes a stopped scheduler with a boat key that can only read
   and resume it.
 - `.github/workflows/ci.yml`: the `ci` job (still on `ubuntu-24.04`) uses `BE3_BUILD_SERVER=nativelink`, `BE3_NL_URL`,
   `BE3_NL_KEY` and `BE3_BOOTSTRAP: cargo` (the checkout's own bootstrap, because the pinned one would refuse the new
   server's name). `broad.yml` still names `api.be3.pfg.pw` and is unchanged.
-- `scripts/internal/nativelink/`: the scheduler (NativeLink config, units, the controller, the tunnel bridge, the
+- `scripts/internal/nativelink/`: the scheduler (NativeLink config, units, the controller, Caddy, the
   WireGuard scripts the workers use) and the worker (config, bootstrap script) exactly as running.
 
 ## What the owner must do before CI can pass
@@ -25,14 +25,13 @@ CI fails until all of this is done (it fails with the bootstrap's message about 
 wake key (`sandbox.read,sandbox.resume` on `nl-scheduler`), and the controller's key with `account.read` as the
 `nl-scheduler` environment's secret file `nl-controller.key`, logged in and restarted on the scheduler.
 
-1. **The bridge's token**: `printf 'NL_TUNNEL_TOKEN=%s\n' "$(openssl rand -hex 32)" > nl-tunnel.env`, then
-   `boat env set-file nl-scheduler nl-tunnel.env --from nl-tunnel.env` and `boat env upgrade nl-scheduler`.
-2. **Deploy the bridge that checks it** to the scheduler (`bx_59kjmqmz`), from a checkout of this branch:
+1. **Caddy's token**: done (the secret file `nl-tunnel.env`, delivered with `boat env upgrade nl-scheduler`).
+2. **Deploy Caddy** to the scheduler (`bx_59kjmqmz`) in place of the WebSocket bridge, from a checkout of this branch:
    `tar czf - -C scripts/internal/nativelink scheduler worker | boat ssh bx_59kjmqmz 'rm -rf /tmp/nl && mkdir -p /tmp/nl && tar xzf - -C /tmp/nl'`,
-   then `boat ssh bx_59kjmqmz 'cd /tmp/nl/scheduler && chmod 600 ~/nl-tunnel.env && sudo install -m0755 nl-tunnel.py /usr/local/bin/ && sudo install -m0644 nl-tunnel.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart nl-tunnel && systemctl is-active nl-tunnel'`.
-3. **Expose it publicly** only after that: `host 8099 --localhost --public` on the scheduler. Check that
-   `curl -i https://NAME-8099.on.boat.dev/` answers `401` from nl-tunnel.
-4. **Secrets**: the repository secret `BE3_NL_URL` is `https://NAME-8099.on.boat.dev/?_token=` and the bridge's token;
+   then run the Caddy lines of `setup-scheduler.sh` there, install `nl-caddy.service`, and stop and remove `nl-tunnel`.
+3. **Expose it publicly**: `host 8099 --localhost --public` (done). Check that `curl -i https://NAME-8099.on.boat.dev/`
+   answers `401` from nl-caddy.
+4. **Secrets**: the repository secret `BE3_NL_URL` is `https://NAME-8099.on.boat.dev/?_token=` and Caddy's token;
    `BE3_NL_KEY` is the wake key. In a cloud session, network secrets carry both instead (guides/build_server.md).
 5. Optionally `boat billing extra-starts on`: boat's start limits (60 an hour, 200 a day on the $20 plan) count every VM
    the controller creates, deleted ones too, and a cold fleet is up to 8 starts.
@@ -42,7 +41,7 @@ The address of a new scheduler differs, so step 3 and the secret are redone if t
 ## What is running now
 
 - Scheduler `nl-sched-small` (small, environment `nl-scheduler`): NativeLink (`nativelink-server.service`), the
-  controller (`nl-controller.service`), the bridge (`nl-tunnel.service`, 127.0.0.1:8099) and the WireGuard hub `wg-sch`
+  controller (`nl-controller.service`), Caddy (`nl-caddy.service`, 127.0.0.1:8099) and the WireGuard hub `wg-sch`
   (10.100.0.1) that the workers use. Its boat key for the workers is the environment's secret file `~/nl-controller.key`.
 - Workers are created by the controller in environment `nl-worker`, named `nl-w-*`, and expire 30 minutes after the last build.
 - `nl-sched-default` is an older scheduler, stopped; delete it. `nl-client` is the test client.
@@ -51,18 +50,19 @@ The address of a new scheduler differs, so step 3 and the secret are redone if t
 
 ## Tested
 
-- The tunnel on loopback, Go client against the Python bridge: frame sizes at every length boundary (125, 126, 127, 65535,
-  65536, 65537), 5 MB with an identical hash, 25 concurrent connections, 45 idle seconds across keepalive pings, a wrong
-  address failing at start with a message, a version change replacing the tunnel.
-- The whole chain with the real bootstrap and buck2, using `boat forward` to reach the bridge instead of a public
-  address: a cached build (12 of 12 from cache) and a one-file change (3 actions run remotely, 41 cached), after which the
-  controller saw the build from the tunnel's connections and kept its workers alive.
+- Caddy's front locally (the pinned 2.11.7 and this Caddyfile, against an HTTP/2 backend): no token, a wrong one and an
+  empty `Bearer ` get 401, also with the variable unset; the right token reaches the backend as HTTP/2 without its
+  `Authorization` header. The token stays a runtime placeholder, so it is never in Caddy's adapted config.
+- From a cloud session: the proxy adds the token on `on.boat.dev`, and an HTTP/1.1 gRPC request crosses boat's edge to
+  the scheduler; the WebSocket upgrade does not (the session's proxy drops it), which is why the tunnel went.
+- Earlier, with the WebSocket tunnel and `boat forward` instead of the public address: a cached build and a one-file
+  change through the real bootstrap and buck2, with the controller keeping its workers alive.
 - `./scripts/verify` passes against this server. The controller's spawn, trim and extend logic, and a cold-resumed scheduler.
 
 ## Not tested
 
-- **Boat's edge**: whether its proxy lets a long-lived WebSocket carrying HTTP/2 through, with the token header, and
-  whether it cuts idle or long connections. The tunnel pings every 20 s. If connections are cut, buck2 reports an
+- **Boat's edge**: whether it keeps long streaming calls (`Execute`, `ByteStream`) open as HTTP/1.1, and whether it
+  cuts idle or long connections. The relay repeats an `Execute` that breaks off. If connections are cut, buck2 reports an
   infrastructure error and the wrapper retries.
 - A run from a real GitHub-hosted runner and from a Claude Code cloud session (the proxy path is net/http's CONNECT).
 - A **cold wake-up**: boat keeps a stopped VM for a while; after that a resume is a new machine at a random place and may

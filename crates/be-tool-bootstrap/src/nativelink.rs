@@ -1,10 +1,10 @@
-//! The NativeLink build server on boat (guides/build_server.md). buck2 reaches it through a tunnel: the scheduler VM
-//! serves a WebSocket bridge on a port boat hosts publicly, and scripts/internal/re-relay carries each of
-//! buck2's TCP connections to it inside one WebSocket. That needs no root, no WireGuard and no IPv6, and it works
-//! through an HTTPS proxy, so it works on a GitHub-hosted runner and in a Claude Code cloud session.
+//! The NativeLink build server on boat (guides/build_server.md). Boat hosts the scheduler's port 8099 publicly, where
+//! Caddy checks a bearer token and forwards each call to NativeLink. Boat's edge carries gRPC only as HTTP/1.1, so buck2
+//! always reaches it through scripts/internal/re-relay with `-http1`, which also takes an HTTPS proxy's way out. That
+//! needs no root, no WireGuard and no IPv6, so it works on a GitHub-hosted runner and in a Claude Code cloud session.
 //!
-//! Two secrets: `BE3_NL_URL` is the hosted port's address with the bridge's token as `?_token=`, which the tunnel sends
-//! as `Authorization: Bearer`. Without a token the tunnel sends no header, for a proxy that adds it (a cloud session's).
+//! Two secrets: `BE3_NL_URL` is the hosted port's address with Caddy's token as `?_token=`, which buck2 sends as
+//! `Authorization: Bearer`. Without a token no header is sent, for a proxy that adds it (a cloud session's).
 //! `BE3_NL_KEY` is a boat key (limited to the `nl-scheduler` environment, actions `sandbox.read` and
 //! `sandbox.resume`) that wakes the scheduler when boat has stopped it. A running scheduler needs only the address.
 
@@ -16,7 +16,6 @@ use be_lib_prompt::Saved;
 use serde_json::{Value, json};
 
 use crate::download::curl_error;
-use crate::server::relay;
 use crate::{Result, repository};
 
 const API: &str = "https://boat.dev/api/v1";
@@ -43,8 +42,8 @@ pub fn key() -> Saved<'static> {
     }
 }
 
-/// Makes the scheduler reachable from this machine and returns the local address buck2 is pointed at.
-pub fn connect() -> Result<String> {
+/// The scheduler's host and its token (empty when a proxy adds it), once it answers; wakes it if boat stopped it.
+pub fn connect() -> Result<(String, String)> {
     let saved = address();
     let why = "buck2 builds on the NativeLink build server, and needs its address (guides/build_server.md).";
     let Some(url) = saved.stored().or_else(|| saved.ask(why)) else {
@@ -53,10 +52,10 @@ pub fn connect() -> Result<String> {
              guides/build_server.md says where to get it."
             .to_owned());
     };
-    let (websocket, token) = parse_tunnel_url(&url)?;
-    let first = match relay::ensure_tunnel(&websocket, &token) {
-        Ok(listen) => return Ok(listen),
-        Err(error) => error,
+    let (host, token) = parse_address(&url)?;
+    let first = match probe(&host, &token)? {
+        None => return Ok((host, token)),
+        Some(error) => error,
     };
     // Not answering: boat may have stopped the scheduler. Wake it if there is a key to.
     let key = key();
@@ -72,9 +71,9 @@ pub fn connect() -> Result<String> {
     let deadline = Instant::now() + Duration::from_secs(120);
     let mut last = first;
     while Instant::now() < deadline {
-        match relay::ensure_tunnel(&websocket, &token) {
-            Ok(listen) => return Ok(listen),
-            Err(error) => last = error,
+        match probe(&host, &token)? {
+            None => return Ok((host, token)),
+            Some(error) => last = error,
         }
         std::thread::sleep(Duration::from_secs(4));
     }
@@ -85,32 +84,68 @@ pub fn connect() -> Result<String> {
     ))
 }
 
-/// The tunnel's WebSocket address and the bridge's token, from `BE3_NL_URL`
-/// (`https://NAME-8099.on.boat.dev/?_token=TOKEN`).
-pub fn parse_tunnel_url(url: &str) -> Result<(String, String)> {
-    let url = url.trim();
-    let (scheme, rest) = url
-        .split_once("://")
-        .ok_or_else(|| "BE3_NL_URL is not an address: it should start with https://".to_owned())?;
-    let websocket = match scheme {
-        "https" | "wss" => "wss",
-        "http" | "ws" => "ws",
-        _ => {
+/// One request to the scheduler's front: `None` when it answers, the reason when it does not. A refused token is an
+/// error at once, since waking cannot help. The token goes to curl on stdin, never on its command line.
+fn probe(host: &str, token: &str) -> Result<Option<String>> {
+    let mut config = format!(
+        "url = \"https://{host}/\"\nsilent\nshow-error\nmax-time = 30\noutput = \"{}\"\n\
+         write-out = \"%{{http_code}}\"\n",
+        if cfg!(windows) { "NUL" } else { "/dev/null" }
+    );
+    if !token.is_empty() {
+        config.push_str(&format!(
+            "header = \"Authorization: Bearer {}\"\n",
+            curl_quote(token)
+        ));
+    }
+    let mut child = Command::new("curl")
+        .args(["--config", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(curl_error)?;
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(config.as_bytes());
+    }
+    let output = child.wait_with_output().map_err(curl_error)?;
+    let status: u16 = String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .parse()
+        .unwrap_or(0);
+    Ok(match status {
+        401 => {
             return Err(format!(
-                "BE3_NL_URL has the scheme {scheme}, which is not https"
+                "The build server at {host} refused its token. BE3_NL_URL's ?_token= must be the scheduler's\n\
+                 NL_TUNNEL_TOKEN, or, in a cloud session, the proxy's network secret for {host} (guides/build_server.md)."
             ));
         }
-    };
+        200..=499 => None,
+        0 => Some(String::from_utf8_lossy(&output.stderr).trim().to_owned()),
+        _ => Some(format!("{host} answered {status}")),
+    })
+}
+
+/// The scheduler's host and Caddy's token, from `BE3_NL_URL` (`https://NAME-8099.on.boat.dev/?_token=TOKEN`).
+pub fn parse_address(url: &str) -> Result<(String, String)> {
+    let url = url.trim();
+    let rest = url.strip_prefix("https://").ok_or_else(|| {
+        "BE3_NL_URL is not an address: it should start with https://".to_owned()
+    })?;
     let (location, query) = rest.split_once('?').unwrap_or((rest, ""));
     let token = query
         .split('&')
         .find_map(|pair| pair.strip_prefix("_token="))
         .unwrap_or_default();
-    let location = location.trim_end_matches('/');
-    if location.is_empty() || location.contains(char::is_whitespace) {
-        return Err("BE3_NL_URL has no host".to_owned());
+    let host = location.trim_end_matches('/');
+    if host.is_empty()
+        || !host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+    {
+        return Err("BE3_NL_URL should be https://HOST/ with no path or port".to_owned());
     }
-    Ok((format!("{websocket}://{location}/"), token.to_owned()))
+    Ok((host.to_owned(), token.to_owned()))
 }
 
 struct Boat {

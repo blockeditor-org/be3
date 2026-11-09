@@ -20,7 +20,15 @@ echo "$OC_SHA256  /tmp/otelcol.tgz" | sha256sum -c -
 tar xzf /tmp/otelcol.tgz -C /tmp otelcol-contrib
 install -m0755 /tmp/otelcol-contrib /usr/local/bin/otelcol-contrib
 install -d /etc/otelcol; install -m0644 otelcol.yaml /etc/otelcol/config.yaml
-# The WireGuard hub the workers join (clients do not: they come through nl-tunnel.py)
+# Caddy, the front door boat's hosted port serves: it checks the token and forwards calls to NativeLink (Caddyfile)
+CADDY_VERSION=2.11.7
+CADDY_SHA256=727b91701a392de6ebc5027509f548bf39979e5216340d0faed8fa5e69c84f8b   # checked against the release's checksums file
+curl -fsSL --retry 3 -o /tmp/caddy.tgz "https://github.com/caddyserver/caddy/releases/download/v$CADDY_VERSION/caddy_${CADDY_VERSION}_linux_amd64.tar.gz"
+echo "$CADDY_SHA256  /tmp/caddy.tgz" | sha256sum -c -
+tar xzf /tmp/caddy.tgz -C /tmp caddy
+install -m0755 /tmp/caddy /usr/local/bin/caddy
+install -d /etc/caddy; install -m0644 Caddyfile /etc/caddy/Caddyfile
+# The WireGuard hub the workers join (clients do not: they come through Caddy)
 install -d -m700 /etc/wireguard
 [ -f /etc/wireguard/wg-sch.key ] || { umask 077; wg genkey > /etc/wireguard/wg-sch.key; }
 wg pubkey < /etc/wireguard/wg-sch.key > /etc/wireguard/wg-sch.pub
@@ -35,16 +43,16 @@ CONF
 install -d /etc/systemd/system/wg-quick@wg-sch.service.d
 install -m0644 wg-quick-retry.conf /etc/systemd/system/wg-quick@wg-sch.service.d/retry.conf
 systemctl daemon-reload; systemctl enable --now wg-quick@wg-sch
-install -m0755 nl-small-pack.sh nl-small-restore.sh add-peer.sh remove-peer.sh nl-tunnel.py /usr/local/bin/
+install -m0755 nl-small-pack.sh nl-small-restore.sh add-peer.sh remove-peer.sh /usr/local/bin/
 # NativeLink and the Bunny full-access key (the environment delivers it as ~/nl-bunny.env)
 install -d -m0750 -g nativelink /etc/nativelink
 install -m0640 -g nativelink /home/user/nl-bunny.env /etc/nativelink/server.env; chmod 600 /home/user/nl-bunny.env
-# The token clients must send to nl-tunnel.py, which nl-tunnel.service reads from ~/nl-tunnel.env
+# The token clients must send to Caddy, which nl-caddy.service reads from ~/nl-tunnel.env
 [ -s /home/user/nl-tunnel.env ] || { echo "no ~/nl-tunnel.env: set it with boat env set-file nl-scheduler nl-tunnel.env" >&2; exit 1; }
 chmod 600 /home/user/nl-tunnel.env
 install -m0640 -g nativelink server.json5 /etc/nativelink/server.json5
-install -m0644 nativelink-server.service nl-small-pack.service nl-small-pack.timer nl-tunnel.service nl-otelcol.service /etc/systemd/system/
-systemctl daemon-reload; systemctl enable --now nl-otelcol nativelink-server nl-tunnel nl-small-pack.timer
-sleep 6; systemctl is-active nativelink-server nl-tunnel
-# By hand, by someone allowed to expose a port: `host 8099 --localhost`, then `host url 8099` prints the address (with
-# its token) that clients keep as BE3_NL_URL (guides/build_server.md, "Starting over").
+install -m0644 nativelink-server.service nl-small-pack.service nl-small-pack.timer nl-caddy.service nl-otelcol.service /etc/systemd/system/
+systemctl daemon-reload; systemctl enable --now nl-otelcol nativelink-server nl-caddy nl-small-pack.timer
+sleep 6; systemctl is-active nativelink-server nl-caddy
+# By hand, by someone allowed to expose a port: `host 8099 --localhost --public`, then `host url 8099` prints the address
+# that clients keep, with ?_token= and the token, as BE3_NL_URL (guides/build_server.md, "Starting over").
