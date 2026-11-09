@@ -21,6 +21,7 @@ mod nudge;
 pub mod offline_choice;
 mod replicas;
 pub mod revisions;
+pub mod terminal_host;
 #[cfg(feature = "testing")]
 pub mod testing;
 pub mod types;

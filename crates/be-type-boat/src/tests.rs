@@ -3,6 +3,7 @@ use be_block_commit::MergeResult;
 
 use crate::{Boat, BoatContent, BoatKey, BoatSettings, BoatSettingsContent};
 
+mod a_connected_terminal_is_a_reference;
 mod keys_pasted_on_two_devices_for_two_accounts_are_both_kept;
 mod the_label_filter_is_a_key_and_a_value;
 

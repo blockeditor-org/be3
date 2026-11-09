@@ -5,15 +5,29 @@ use std::{
 
 pub const FILE: &str = "build-info.json";
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Metadata {
     pub id: String,
     pub program_id: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_server: Option<DefaultServer>,
+    /// Where a deployed build's `be` is, per Linux architecture, which `./scripts/deploy`
+    /// writes once it has uploaded them: a terminal host the host installs on a machine of an
+    /// app's (guides/terminal.md) must be of the same build. Empty in other builds.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub terminal_hosts: Vec<TerminalHostBinary>,
 }
 
-#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
+/// A deployed `be` for one architecture: `x86_64` or `arm64`, its URL and its SHA-256 in
+/// lower-case hex.
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub struct TerminalHostBinary {
+    pub arch: String,
+    pub url: String,
+    pub sha256: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, PartialEq)]
 pub struct DefaultServer {
     pub name: String,
     pub api_url: String,
@@ -30,7 +44,29 @@ impl Metadata {
         }
         Ok(info)
     }
+
+    /// The deployed `be` for a Linux machine of `arch`, if this build was deployed with one.
+    pub fn terminal_host(&self, arch: &str) -> Option<&TerminalHostBinary> {
+        self.terminal_hosts.iter().find(|binary| binary.arch == arch)
+    }
+
+    /// This metadata as the `build-info.json` of a `be` of the same build: what names the
+    /// build, without the deployment's own `be`s.
+    pub fn for_be(&self) -> String {
+        let mut metadata = self.clone();
+        metadata.terminal_hosts.clear();
+        let mut json = serde_json::to_string(&metadata).unwrap_or_default();
+        json.push('\n');
+        json
+    }
 }
+
+/// The Linux architectures a terminal host is built for, as the host names them, with the
+/// target triple each `be` is built for.
+pub const TERMINAL_HOST_ARCHES: [(&str, &str); 2] = [
+    ("x86_64", "x86_64-unknown-linux-gnu"),
+    ("arm64", "aarch64-unknown-linux-gnu"),
+];
 
 static CURRENT: OnceLock<Result<Metadata, String>> = OnceLock::new();
 
@@ -50,6 +86,7 @@ pub fn install(id: &str) {
         id: id.to_owned(),
         program_id: "be-host-dev".to_owned(),
         default_server: None,
+        terminal_hosts: Vec::new(),
     }));
 }
 

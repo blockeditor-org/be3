@@ -153,6 +153,9 @@ platform in release in one buck2 command, then:
 
 1. uploads `be` for Linux x86_64 and arm64 to the Bunny storage zone under `data/BUILD/`, reads
    each back to check its hash, and pins it in `scripts/internal/pins` (guides/tracker.md);
+   every download's `build-info.json` (the APK's too) names each `be`'s URL and SHA-256
+   (`terminal_hosts`), so the host installs a terminal host of its own build
+   (guides/terminal.md, A terminal host in a boat.dev sandbox);
 2. uploads be-host's downloads (every desktop platform, the web bundle, and the release-signed
    Android APK, id `com.be3.host`) to `data/BUILD/app/` with an index page, and the unpacked
    web bundle to `data/BUILD/web/`;

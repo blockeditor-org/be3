@@ -2,16 +2,18 @@
 //! reading itself, which polls while the editor is on screen.
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use std::time::Duration;
 
 use be_sdk_beui::be_block::{SettingsLayer, ViewState};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::{ContentProjection, Editor, KeptEdit, LayeredSettings, Task};
-use be_type_boat::{Boat, BoatContent, BoatKey, BoatSettings};
+use be_type_boat::{Boat, BoatContent, BoatKey, BoatSettings, BoatTerminal, TerminalAgent};
+use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 
+use super::terminals::{self, TerminalStatus};
 use crate::api::{self, Account, Action, BoatError, Phase, Sandbox};
 use crate::time::{self, DAY};
 
@@ -72,6 +74,8 @@ pub(crate) enum KeyStanding {
     Expired,
     /// boat no longer takes it.
     Refused,
+    /// It lacks the actions a terminal needs (`exec`, `file.write`).
+    Lacking,
 }
 
 #[derive(Clone, Copy)]
@@ -96,9 +100,21 @@ pub(crate) struct State {
     pub notice: Signal<Option<String>>,
     /// The wall clock as of the last reading, for the list's age.
     pub now: Signal<i64>,
-    fetched: Signal<Option<Listed>>,
+    /// The viewer's own terminals, from their owner-only settings, by terminal block.
+    pub own_terminals: Memo<BTreeMap<Uuid, TerminalAgent>>,
+    /// The terminals the block references, by terminal block id.
+    pub content_terminals: ReadSignal<BTreeMap<String, BoatTerminal>>,
+    /// The referenced terminals the viewer can open.
+    pub visible_terminals: Memo<BTreeSet<Uuid>>,
+    /// How the viewer's own terminals stand in this editor.
+    pub terminal_status: Signal<BTreeMap<Uuid, TerminalStatus>>,
+    /// Terminals whose agent is being made, by sandbox.
+    pub connecting: Signal<BTreeMap<String, Uuid>>,
+    /// boat refused a terminal's command for the key's actions: it needs a new key.
+    pub lacking: Signal<bool>,
+    pub(super) fetched: Signal<Option<Listed>>,
     reading: Stored<RefCell<Option<Task>>>,
-    settings: LayeredSettings<BoatSettings>,
+    pub(super) settings: LayeredSettings<BoatSettings>,
     polling: StoredCell<Option<Timer>>,
 }
 
@@ -149,6 +165,19 @@ impl State {
             asked: create_signal(BTreeMap::new()),
             notice: create_signal(None),
             now: create_signal(time::now()),
+            own_terminals: terminals::own_terminals(held),
+            content_terminals: content.project(|content| {
+                content
+                    .root()
+                    .terminals
+                    .iter()
+                    .map(|(block, terminal)| (block.clone(), terminal.clone()))
+                    .collect()
+            }),
+            visible_terminals: terminals::visible_terminals(editor),
+            terminal_status: create_signal(BTreeMap::new()),
+            connecting: create_signal(BTreeMap::new()),
+            lacking: create_signal(false),
             fetched,
             reading: store(RefCell::new(None)),
             settings,
@@ -180,6 +209,7 @@ impl State {
             true => clock.start(CLOCK),
             false => clock.stop(),
         });
+        state.watch_terminals();
         let reading = state.reading;
         on_cleanup(move || {
             if let Some(task) = reading
@@ -231,6 +261,7 @@ impl State {
         Some(match self.failure.get() {
             Some(BoatError::Reconnect { expired: true }) => KeyStanding::Expired,
             Some(BoatError::Reconnect { expired: false }) => KeyStanding::Refused,
+            _ if self.lacking.get() => KeyStanding::Lacking,
             _ if key.expires > 0 && key.expires <= now => KeyStanding::Expired,
             _ if key.expires > 0 && key.expires - now <= WARN_BEFORE => {
                 KeyStanding::Expiring(key.expires)
@@ -368,6 +399,7 @@ impl State {
             return false;
         }
         self.failure.set(None);
+        self.lacking.set(false);
         self.reconnecting.set(false);
         self.now.set(time::now());
         true
