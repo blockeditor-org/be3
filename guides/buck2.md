@@ -103,7 +103,9 @@ rebuilds nothing else:
 - **An HTTPS proxy relay.** buck2's remote execution client never reads `HTTPS_PROXY`, so when it
   is set `./scripts/buck` builds `scripts/internal/re-relay` with Go (1.24+) and runs two relays
   on ports picked from the checkout's path; errors go to `target/re-relay.log`. The `nativelink`
-  server always goes through them, with `-http1` (guides/build_server.md).
+  server always goes through them, with `-http1` (guides/build_server.md). A relay remembers which blobs the
+  server holds and answers `FindMissingBlobs` about them itself, and holds back a caller asking
+  about a blob another is uploading, so a slow link carries each blob once (`cas.go`).
 - **Retries.** buck2 exits 2 on an infrastructure error, such as a reset partway through a
   download, and does not retry; the wrapper runs the command three times in all
   (`BE3_BUCK_ATTEMPTS`). For `run` it retries the build, not the program: it builds with
