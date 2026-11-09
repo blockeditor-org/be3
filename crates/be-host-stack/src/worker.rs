@@ -73,6 +73,7 @@ pub(super) struct Inbox {
 }
 
 type AccessReply = Box<dyn FnOnce(Result<AccessList, String>) + Send>;
+type NotifyModeReply = Box<dyn FnOnce(Result<be_block_protocol::NotifyMode, String>) + Send>;
 
 type ExportReply = Box<dyn FnOnce(Result<(String, Vec<u8>), String>) + Send>;
 
@@ -199,6 +200,17 @@ pub(super) enum Command {
         block: Uuid,
         reply: AccessReply,
     },
+    Notify {
+        block: Uuid,
+        text: String,
+        mentions: Vec<Uuid>,
+    },
+    /// Reads, or with `set` sets, how the account is notified about `block`.
+    NotifyMode {
+        block: Uuid,
+        set: Option<be_block_protocol::NotifyMode>,
+        reply: NotifyModeReply,
+    },
     ReadHead {
         block: Uuid,
         commit: CommitId,
@@ -315,6 +327,8 @@ impl Command {
             | Command::Define { block, .. }
             | Command::SetAccess { block, .. }
             | Command::ListAccess { block, .. }
+            | Command::Notify { block, .. }
+            | Command::NotifyMode { block, .. }
             | Command::ReadHead { block, .. }
             | Command::CreateBlockAgent { block, .. }
             | Command::PlainFile { block, .. }
@@ -1451,6 +1465,9 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
                 Some(NEEDS_CONNECTION.to_owned());
         }
         Command::ListAccess { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::NotifyMode { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        // A notification is about now: one that cannot go now is dropped.
+        Command::Notify { .. } => {}
         Command::Members(
             MembersCommand::List(reply)
             | MembersCommand::SetRole { reply, .. }
@@ -1526,6 +1543,42 @@ impl Ran<'_> {
                     self.tasks.refresh(self.peer, self.shared, block);
                 }
                 reply(created.map_err(|error| error.to_string()));
+                be_host_base::host::wake();
+                false
+            }
+            Command::Notify {
+                block,
+                text,
+                mentions,
+            } => {
+                let title = self
+                    .shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .get(block)
+                    .and_then(|node| node.metadata.name())
+                    .unwrap_or_default();
+                let notification = be_block_client::Notification {
+                    title,
+                    author: self.config.display_name.clone(),
+                    text,
+                };
+                // A notification is about now: one the server refuses is dropped, not shown as
+                // the device's error.
+                let _ = self.peer.notify(block, &notification, mentions).await;
+                false
+            }
+            Command::NotifyMode { block, set, reply } => {
+                let answered = match set {
+                    Some(mode) => self
+                        .peer
+                        .set_notify_mode(block, mode)
+                        .await
+                        .map(|()| mode),
+                    None => self.peer.notify_mode(block).await,
+                };
+                reply(answered.map_err(|error| error.to_string()));
                 be_host_base::host::wake();
                 false
             }
@@ -1979,6 +2032,8 @@ async fn apply(
         | Command::CreateAgent { .. }
         | Command::CreateBlockAgent { .. }
         | Command::BlockAgent { .. }
+        | Command::Notify { .. }
+        | Command::NotifyMode { .. }
         | Command::Storage
         | Command::Sync => false,
         Command::Leave(block) => {

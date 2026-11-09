@@ -43,10 +43,13 @@ const CONTENTS_BLOCKS: usize = 256;
 
 mod import;
 mod journal;
+mod notifications;
 mod offline;
 mod prefixes;
 mod rotation;
 mod transfers;
+
+pub use notifications::{MAX_NOTIFICATION_TEXT, Notification};
 
 pub use import::Imported;
 pub use prefixes::Registry;

@@ -17,7 +17,7 @@ use be_sdk_api::TopBar;
 use be_sdk_api::guest::{host_services, network};
 use be_sdk_api::ops::OpError;
 use be_sdk_api::{
-    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
+    AccessLevel, AccessListing, ArtifactAction, NotifyMode, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
     FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView,
@@ -1860,6 +1860,29 @@ impl EditorHost {
         self.ask(|| {
             host_services::set_access(block_id.into_bytes(), account.into_bytes(), access).detach()
         });
+    }
+
+    /// Notifies `block_id`'s members who are not connected, on their other devices: the host
+    /// shows `text` under the block's name and the account's, sealed so only members read it.
+    /// `mentions` names the accounts the text mentions. Needs Edit on the block.
+    pub fn notify(&self, block_id: Uuid, text: impl Into<String>, mentions: &[Uuid]) {
+        let text = text.into();
+        let mentions = mentions.iter().map(|account| account.into_bytes()).collect();
+        self.ask(|| host_services::notify(block_id.into_bytes(), text, mentions).detach());
+    }
+
+    /// How the signed-in account is notified about `block_id`.
+    pub fn notify_mode(&self, block_id: Uuid) -> Asked<Result<NotifyMode, Failure>> {
+        Asked::of(self.ask(|| host_services::notify_mode_of(block_id.into_bytes())))
+    }
+
+    /// Sets how the signed-in account is notified about `block_id`.
+    pub fn set_notify_mode(
+        &self,
+        block_id: Uuid,
+        mode: NotifyMode,
+    ) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::set_notify_mode(block_id.into_bytes(), mode)))
     }
 
     pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {
