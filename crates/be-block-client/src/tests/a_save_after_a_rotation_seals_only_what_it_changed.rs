@@ -97,10 +97,7 @@ async fn a_save_after_a_rotation_seals_only_what_it_changed() {
         }
     }
 
-    leaver
-        .refresh_keys(Some(vec![block, team]))
-        .await
-        .unwrap();
+    leaver.refresh_keys(Some(vec![block, team])).await.unwrap();
     assert!(
         !leaver.keys().has(new_key),
         "the section written after the rotation is under a key the leaver never gets"
@@ -123,7 +120,10 @@ async fn a_save_after_a_rotation_seals_only_what_it_changed() {
         .unwrap();
     owner.tend().await.unwrap();
     let third_key = owner.summary(block).await.unwrap().key.unwrap();
-    assert_ne!(third_key, new_key, "the second rotation gave the block a newer key");
+    assert_ne!(
+        third_key, new_key,
+        "the second rotation gave the block a newer key"
+    );
     let mut sections = owner.open::<Sections>(block).await.unwrap().unwrap();
     sections.set(5, "FIVE");
     owner

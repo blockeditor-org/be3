@@ -142,7 +142,10 @@ pub enum ClientError {
     /// escrow, or not at all, so it leaves the work to a device that trusts every epoch.
     Untrusted(uuid::Uuid),
     Unexpected,
-    Incompatible { ours: String, theirs: String },
+    Incompatible {
+        ours: String,
+        theirs: String,
+    },
     NoBuild(String),
 }
 
