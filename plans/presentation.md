@@ -14,7 +14,7 @@ arrow/space/home/end navigation and controls shown on hover. A slide is
 `Slide { block: Option<Uuid> }` in a `List`; the list object is its id, and
 `block: None` shows as "Broken link". No code in be-app-presentation registers
 an `Action` today; registering Present, Next and Add slide as actions would also
-list them in the host's command palette (plans/command_palette.md), and is
+list them in the host's command palette (guides/apps/editor.md, Actions and the palette), and is
 optional here.
 
 ## 1. Duplicate slide

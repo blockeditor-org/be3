@@ -107,7 +107,8 @@ pub fn describe(context: &beui::native::Context) {
                     .map(|action| ActionInfo {
                         id: action.id.clone(),
                         label: action.label.clone(),
-                        shortcut: action.shortcut.clone(),
+                        glyph: action.glyph.clone(),
+                        shortcut: action.shortcut,
                         enabled: action.enabled,
                         checked: action.checked,
                         live: action.live,

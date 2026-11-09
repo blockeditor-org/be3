@@ -34,8 +34,11 @@ workspace hands it to its dock with `dock_menu`, adding what only it knows
 behind a tab's More on a desktop and the stacked bar on a phone.
 
 Keys: undo owns Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y for the block only after the
-focused control has had the key (so a text area keeps its own undo);
-Ctrl+Shift+P opens the frame's palette. Intercepting actions reach an
+focused control has had the key (so a text area keeps its own undo).
+Ctrl+Shift+P opens the command palette: the host's when `open-block` says
+`host-palette` (be-host's always does; see Actions and the palette below),
+whose menu entry asks for it with `shell.open-palette`, otherwise the frame's
+own, as in app tests. Intercepting actions reach an
 instance whatever has the keyboard (guides/beui_keyboard.md); be-host honours
 them for the shell's frame only. The system Back gesture reaches an app's
 `on_back` handlers: the host sends it to the last screen it drew that has one,
@@ -161,6 +164,46 @@ editor's block URLs) rewrites them and answers true.
 
 beui has no IME output yet, so a beui editor cannot report an IME area.
 
+## Actions and the palette
+
+Each composited view's `FrameReport` carries `actions`, the
+`described-action`s of the actions registered in its window (the main view
+also those registered outside any window): id, label, glyph name, first
+shortcut as a `key-chord`, enabled, checked, and `live` (answering where the
+focus is). It is `none` when nothing changed since the view's last report, and
+is sent whether or not anything asks the app to describe: be-sdk-beui-platform
+follows the document's `PublishedActions`, which an effect in beui's action
+registry keeps (`Context::document_actions`), so a label or enabled state
+changing sends the list again with no per-frame comparison. The host keeps
+each instance's lists and runs one with `app.run-action(screen, id)`, which
+the guest resolves through `request_action_in` and runs only if still
+enabled. `BeuiTest::described_actions` and `run_action` do what the host does.
+
+be-host draws the one palette (`be-host/src/compositor/palette.rs`, Ctrl+Shift+P
+in a window capture key listener that leaves the chord to a focused Wayland
+window, or `shell.open-palette` from an instance showing a view): the live
+actions of the instance whose view has the focus, then of the instance that
+placed it (`Catcher::placer`), out to the root, each under its block's name,
+every shown view's of an instance with the placing view's first. Ids repeat across instances (each
+has its Undo; the innermost lists first), never within one. Choosing one gives
+the focus back to that view and runs it in the view it came from. The host's own
+live actions follow (switch account, lock, the theme, which cycles the
+display settings' theme through the system's, light and dark, written as the
+Settings app writes it and applied by `sync_ui_settings`). A containing app's
+chords do not reach it while a child has the focus
+(plans/deferred/command_palette_shortcuts.md).
+
+`open-palette(instance, blocks)` is quick open: the workspace's Ctrl+P (while
+the workspace itself has the focus) asks for it, and the host lists blocks to
+open from a `BlockSource` (`palette.rs`): handed the query and a count of
+openings, it answers a memo of blocks already filtered and ordered, which the
+palette keeps (`PaletteItem::ranked`). The default, `loaded_blocks`, reads the
+graph's placed, viewable blocks of a type an editor shows each time quick
+open opens (open ones first) and matches them fuzzily; plans/search.md swaps in
+search hits. The workspace's other commands (Settings, Show files, New file) are its
+own actions, and the tab keys and Split right, Split down and Close tab are
+beui-dock-host's (guides/beui/docking.md).
+
 ## Accessibility
 
 While a screen reader or a driver (guides/running/drive.md) is attached, the
@@ -170,7 +213,8 @@ the editor's own node ids. be-sdk-beui-platform fills it from the document's
 tree, so a beui editor needs only the labels and `@test_id`s it already has;
 another framework fills `Frame::description` itself. The host renumbers the
 nodes into its own tree, repairs whatever the app sent, shows each view as a
-pane named after the app, and calls back `node-action` and `run-action`.
+pane named after the app with its actions, and calls back `node-action` and
+`run-action`.
 
 ## Holding the pointer and sound
 

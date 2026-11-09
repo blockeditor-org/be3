@@ -185,6 +185,7 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::CommitChild { instance, .. }
         | ShellCall::Picked { instance, .. }
         | ShellCall::ShowCard { instance, .. }
+        | ShellCall::OpenPalette { instance, .. }
         | ShellCall::ArtifactDescribed { instance, .. }
         | ShellCall::ArtifactEdited { instance, .. }
         | ShellCall::ChildStatusesWatchNew { instance, .. }

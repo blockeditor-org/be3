@@ -1,8 +1,7 @@
 # Search
 
 Depends on: plans/search_library.md; plans/large_blocks.md steps 2 to 4
-(`merge3` over parts, per-type retention, lazy rekeying); plans/command_palette.md for step 4 only (quick
-open, which search fills with results).
+(`merge3` over parts, per-type retention, lazy rekeying).
 
 Full-text search over names and content. The server never reads content
 (guides/the_new_block_stack.md, goal 5), so clients build the index, encrypt
@@ -130,7 +129,12 @@ worker").
 
 - The file tree's filter field (today it matches loaded rows by name only)
   answers from the index once it exists.
-- Quick open (`plans/command_palette.md`) lists search hits.
+- Quick open lists search hits: a `BlockSource` for be-host's palette
+  (`be-host/src/compositor/palette.rs`, guides/apps/editor.md, Actions and the
+  palette), a memo of the hits for the query signal it is handed, in the
+  index's order, each with its matched text as `detail`. Opening a hit at its
+  location needs `OpenableBlock` and `EditorAction::OpenBlock` to carry one;
+  neither does yet.
 - Opening a hit opens the block at its document and highlights the match where
   the editor supports a location.
 

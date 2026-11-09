@@ -133,6 +133,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     views_children: Vec<(ViewId, Vec<ChildPlacement>)>,
     occluders: Vec<Occluder>,
     report: Option<FrameReport>,
+    actions: Vec<be_sdk_api::DescribedAction>,
     window: be_sdk_api::WindowRequests,
     intrinsic: Option<Vec2>,
     exited: bool,
@@ -314,6 +315,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     client_id,
                     editable: host.editable(),
                     page_origin: host.page_origin(),
+                    host_palette: host.host_palette(),
                 })
             }
             Kind::Creation => Opening::Creation(OpenCreation {
@@ -429,6 +431,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             views_children: Vec::new(),
             occluders: Vec::new(),
             report: None,
+            actions: Vec::new(),
             window: be_sdk_api::WindowRequests::default(),
             intrinsic: None,
             exited: false,
@@ -1295,11 +1298,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 .filter(|placement| !hidden(placement))
                 .collect();
         }
-        if let Some(report) = commit
+        if let Some(mut report) = commit
             .reports
             .into_iter()
             .find(|report| report.screen == SCREEN)
         {
+            if let Some(actions) = report.actions.take() {
+                self.actions = actions;
+            }
             self.report = Some(report);
         }
         self.desk_intercepts(&commit.windows);
@@ -1674,6 +1680,36 @@ impl<A: BeuiRoot> BeuiTest<A> {
             }
         });
         self.run();
+    }
+
+    /// The actions the editor's view last described to the host (`frame-report.actions`), sent
+    /// whether or not the host asks it to describe, as be-host's palette lists them.
+    pub fn described_actions(&self) -> &[be_sdk_api::DescribedAction] {
+        &self.actions
+    }
+
+    pub fn described_action(&self, id: &str) -> be_sdk_api::DescribedAction {
+        self.actions
+            .iter()
+            .find(|action| action.id == id)
+            .cloned()
+            .unwrap_or_else(|| panic!("the view describes no action {id:?}"))
+    }
+
+    /// Runs an action by id as the host's palette does (`app.run-action`).
+    pub fn run_action(&mut self, id: &str) {
+        be_sdk_api::embed::exports::app::run_action(&mut self.connection, SCREEN, id.to_owned());
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
+        self.run();
+    }
+
+    /// The palettes the editor asked the host to open (`shell.open-palette`).
+    pub fn take_palette_opens(&mut self) -> Vec<be_sdk_api::PaletteMode> {
+        self.take_calls(|call| match call {
+            ShellCall::OpenPalette { mode, .. } => Some(*mode),
+            _ => None,
+        })
     }
 
     pub fn take_cards(&mut self) -> Vec<bool> {

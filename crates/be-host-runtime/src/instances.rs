@@ -128,6 +128,9 @@ struct Instance {
     simulated: Vec<(Uuid, AccessLevel)>,
     reported_focus: Option<Focus>,
     reported_editable: Option<bool>,
+    /// The actions each view last described (`frame-report.actions`), kept while nothing asks
+    /// the app to describe.
+    actions: HashMap<ViewId, Vec<DescribedAction>>,
     focus_reports: Vec<Focus>,
     artifact_watch: Option<Vec<Uuid>>,
     heads: Heads,
@@ -286,6 +289,7 @@ impl Instance {
             simulated: Vec::new(),
             reported_focus: None,
             reported_editable: None,
+            actions: HashMap::default(),
             focus_reports: Vec::new(),
             artifact_watch: None,
             heads: Heads::default(),
@@ -1028,11 +1032,20 @@ impl Instances {
     }
 
     pub(super) fn unmount(&mut self, instance: EditorInstanceId, region: ViewId) {
-        if let Some(screen) = self.screen_mut(instance, region) {
-            screen.mounted = screen.mounted.saturating_sub(1);
-            if screen.mounted == 0 {
-                screen.unplace();
-            }
+        let Some(screen) = self.screen_mut(instance, region) else {
+            return;
+        };
+        screen.mounted = screen.mounted.saturating_sub(1);
+        if screen.mounted > 0 {
+            return;
+        }
+        screen.unplace();
+        // A window or dock view the host no longer shows offers no actions until it is shown
+        // again, when the app sends them anew; the main view's stand for the instance.
+        if !region.is_main()
+            && let Some(entry) = self.entries.get_mut(&instance)
+        {
+            entry.actions.remove(&region);
         }
     }
 
@@ -2031,6 +2044,7 @@ impl Instances {
                             editable
                         },
                         page_origin: page_origin(),
+                        host_palette: crate::host_draws_palette(),
                     }),
                     InstanceRole::Picker(editor) => {
                         let picker = super::picker_request(instance).unwrap_or_default();
@@ -3046,14 +3060,23 @@ impl Instances {
                 .as_mut()
                 .and_then(|description| description.tree.take())
                 .map(beui::accesskit::TreeUpdate::from);
+            let actions = report.actions.take();
             for entry in self.entries.values_mut() {
-                let anchored = entry.anchored.iter_mut().map(|held| &mut held.screen);
-                if let Some(screen) = entry
+                let anchored = entry
+                    .anchored
+                    .iter_mut()
+                    .map(|held| (held.view, &mut held.screen));
+                if let Some((view, screen)) = entry
                     .screens
-                    .values_mut()
+                    .iter_mut()
+                    .map(|(view, screen)| (*view, screen))
                     .chain(anchored)
-                    .find(|screen| screen.request.screen == report.screen)
+                    .find(|(_, screen)| screen.request.screen == report.screen)
                 {
+                    if let Some(actions) = actions.clone() {
+                        entry.actions.insert(view, actions);
+                        changed = true;
+                    }
                     if let Some(tree) = tree.take() {
                         screen.accessibility.update(tree);
                         changed = true;
@@ -3085,14 +3108,79 @@ impl Instances {
         region: ViewId,
     ) -> Option<Described<'_>> {
         let focused = self.view_focused(instance, region);
-        let screen = self.any_screen_mut(instance, region)?;
-        let description = screen.report.as_ref()?.description.as_ref()?;
+        let entry = self.entries.get_mut(&instance)?;
+        let actions = entry
+            .actions
+            .get(&region)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let screen = match entry.screens.get_mut(&region) {
+            Some(screen) => screen,
+            None => entry
+                .anchored
+                .iter_mut()
+                .find(|held| held.view == region)
+                .map(|held| &mut held.screen)?,
+        };
+        screen.report.as_ref()?.description.as_ref()?;
         Some(Described {
             screen: screen.request.screen,
-            actions: &description.actions,
+            actions,
             focused,
             tree: &mut screen.accessibility,
         })
+    }
+
+    /// The actions every view of the instance last described, the view `first` names first,
+    /// each with the view it came from. A window or dock view the host stopped showing offers
+    /// none (`unmount`).
+    pub(super) fn instance_actions(
+        &self,
+        instance: EditorInstanceId,
+        first: ViewId,
+    ) -> Vec<(ViewId, DescribedAction)> {
+        let Some(entry) = self.entries.get(&instance) else {
+            return Vec::new();
+        };
+        let mut views: Vec<ViewId> = entry.actions.keys().copied().collect();
+        views.sort_by_key(|view| (*view != first, view.0));
+        views
+            .into_iter()
+            .flat_map(|view| {
+                entry.actions[&view]
+                    .iter()
+                    .map(move |action| (view, action.clone()))
+            })
+            .collect()
+    }
+
+    /// Whether the instance may open the host's palette (`shell.open-palette`): it shows a view,
+    /// and is no revision preview.
+    pub(super) fn may_open_palette(&self, instance: EditorInstanceId) -> bool {
+        self.entries.get(&instance).is_some_and(|entry| {
+            let preview = entry
+                .role
+                .block()
+                .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
+            !preview && entry.screens.values().any(|screen| screen.mounted > 0)
+        })
+    }
+
+    /// The screen that runs the view's action `id`, while the view still describes it.
+    pub(super) fn action_screen(
+        &self,
+        instance: EditorInstanceId,
+        region: ViewId,
+        id: &str,
+    ) -> Option<ScreenId> {
+        let entry = self.entries.get(&instance)?;
+        entry
+            .actions
+            .get(&region)?
+            .iter()
+            .any(|action| action.id == id)
+            .then_some(())?;
+        Some(entry.screens.get(&region)?.request.screen)
     }
 
     pub(super) fn request_focus(&mut self, screen: ScreenId) {
@@ -3621,6 +3709,7 @@ impl Instances {
                 ack(reply);
                 self.ask_child_focus(instance, child);
             }
+            ShellCall::OpenPalette { reply, .. } => ack(reply),
             ShellCall::ShowCard { reply, card, .. } => {
                 ack(reply);
                 if entry.card == card {

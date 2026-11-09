@@ -489,7 +489,7 @@ impl MenuMirror {
                     Shape::Command {
                         id: command.id.clone(),
                         label: None,
-                        glyph: Glyph::from_codepoint(&command.glyph),
+                        glyph: beui::icons::named(&command.glyph),
                         check,
                         shortcut: command.shortcut,
                         pin: command.pin,
@@ -498,7 +498,7 @@ impl MenuMirror {
                 MenuEntry::Submenu(submenu) => Shape::Submenu {
                     id: submenu.id.clone(),
                     label: submenu.label.clone(),
-                    glyph: Glyph::from_codepoint(&submenu.glyph),
+                    glyph: beui::icons::named(&submenu.glyph),
                     entries: self.shape_of(&submenu.entries),
                 },
                 MenuEntry::Separator => Shape::Separator,

@@ -53,6 +53,7 @@ fn opened(runtime: &mut Runtime, guest: &mut Connection) -> OpId {
         client_id: [6; 16],
         editable: true,
         page_origin: String::new(),
+        host_palette: false,
     }));
     match carry(wire.take_outbound(), guest).as_slice() {
         [Incoming::Started(started)] => started.op,

@@ -4,6 +4,7 @@ package be3:app@0.1.0;
 /// do there: AccessKit's shapes, as the app and host exchange them.
 interface accessibility {
     use be3:shared/ids@0.1.0.{uuid};
+    use be3:ui/types@0.1.0.{key-chord};
 
     /// A tree's id, AccessKit's uuid.
     type tree-id = uuid;
@@ -515,19 +516,24 @@ interface accessibility {
         focus: node-id,
     }
 
-    /// An action a screen offers outside its tree, such as a menu command.
+    /// An action a screen offers outside its tree, such as a menu command:
+    /// what the host lists in its command palette, a driver lists and a
+    /// screen reader offers, and runs with `app.run-action`.
     record described-action {
         id: string,
         label: string,
-        shortcut: option<string>,
+        /// The icon's name, as the icon library names it.
+        glyph: option<string>,
+        shortcut: option<key-chord>,
         enabled: bool,
         checked: option<bool>,
+        /// Whether it answers where the focus is now; the host's palette
+        /// lists only these, a driver all of them.
         live: bool,
     }
 
     /// What a screen describes to assistive technology.
     record description {
         tree: option<tree-update>,
-        actions: list<described-action>,
     }
 }

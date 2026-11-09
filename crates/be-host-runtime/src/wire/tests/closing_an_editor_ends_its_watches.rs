@@ -27,6 +27,7 @@ fn open() -> Opening {
         client_id: [6; 16],
         editable: true,
         page_origin: String::new(),
+        host_palette: false,
     })
 }
 

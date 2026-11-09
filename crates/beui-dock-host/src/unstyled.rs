@@ -591,13 +591,20 @@ impl State {
             let host = entry.and_then(|entry| dock.standing_tab(entry));
             let mut items = dock_menu_items(dock.menus.read_only(), inner);
             if host != inner {
-                let held = dock_menu_items(dock.menus.read_only(), host);
-                if !items.is_empty() && !held.is_empty() {
-                    items.push(MenuNode::Separator);
-                }
+                // The group's host and the tab inside it may offer the same entries (a
+                // workspace adds its block's References and Access to both): each shows once.
+                let listed: be_lib_stable_hash::HashSet<String> = items
+                    .iter()
+                    .filter_map(|node| node.id().map(str::to_owned))
+                    .collect();
+                let held: Vec<MenuNode> = dock_menu_items(dock.menus.read_only(), host)
+                    .into_iter()
+                    .filter(|node| node.id().is_none_or(|id| !listed.contains(id)))
+                    .collect();
+                items.push(MenuNode::Separator);
                 items.extend(held);
             }
-            items
+            tidy_menu(items)
         })
     }
 
@@ -1095,14 +1102,14 @@ impl State {
         rect.kept_in(rect.size(), bounds)
     }
 
-    fn cycle(&self, backwards: bool) -> bool {
+    fn cycle(&self, backwards: bool) {
         let state = self.state.get_untracked();
         let Some(leaf) = state.focused_leaf() else {
-            return false;
+            return;
         };
         let count = state.entries(leaf).len();
         if count < 2 {
-            return false;
+            return;
         }
         let index = state.active_index(leaf);
         let next = match backwards {
@@ -1110,7 +1117,20 @@ impl State {
             false => (index + 1) % count,
         };
         self.edit(|state| state.set_active_index(leaf, next));
-        true
+    }
+
+    /// The focused pane, when it holds more than one entry, and the one it shows.
+    fn shown_entry(&self) -> Option<(LeafId, Entry)> {
+        self.state.with(|state| {
+            let leaf = state.focused_leaf()?;
+            Some((leaf, state.active_entry(leaf)?))
+        })
+    }
+
+    fn split_shown(&self, side: Side) {
+        if let Some((leaf, entry)) = untrack(|| self.shown_entry()) {
+            self.edit(|state| state.drop_entry(entry, DockDrop::Split { leaf, side }));
+        }
     }
 
     fn dragged_title(&self, dragged: DockDragged) -> String {
@@ -1929,12 +1949,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     dock.start_lifting();
     dock.bring_forward_when_shown();
     api.fill(DockApi(dock));
-    on_shortcut(move |press: KeyPress| {
-        if !press.pressed || press.key != Key::Tab || !press.modifiers.ctrl || press.modifiers.alt {
-            return false;
-        }
-        dock.cycle(press.modifiers.shift)
-    });
+    let area = NodeRef::new();
+    tab_actions(dock, area);
     create_effect(move || {
         let mut tabs = state.with(DockState::all_tabs);
         tabs.extend(hosts.get());
@@ -1949,7 +1965,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dock.keep_bar_panels(&[]);
     });
     let built = view! {
-        <List spacing=0.0>
+        <List @node_ref=&area spacing=0.0>
             <ListItem grow=1.0>
                 <DockBarred dock leaf={None} holder={BarHolder::Dock}>
                     <Frame padding=inset>
@@ -4177,4 +4193,56 @@ fn modifier_claims(modifiers: Memo<Option<Modifiers>>) -> Memo<Vec<Claim>> {
             .map(|held| vec![Claim::holding(held, true)])
             .unwrap_or_default()
     })
+}
+
+/// The dock's tab keys as actions, answering while the focus is anywhere in the dock and
+/// before the focused control (`.capture()`), so they work from a text input in a pane but
+/// not past a dialog; a palette lists them.
+fn tab_actions(dock: State, area: NodeRef) {
+    let several = create_memo(move || {
+        dock.state.with(|state| {
+            state
+                .focused_leaf()
+                .is_some_and(|leaf| state.entries(leaf).len() > 1)
+        })
+    });
+    let closable = create_memo(move || {
+        dock.state.with(|state| {
+            state
+                .focused_tab()
+                .is_some_and(|tab| dock.closable.call(tab))
+        })
+    });
+    let at = KeyAt::Node(area);
+    Action::new("dock.tab.next", "Next tab", move || dock.cycle(false))
+        .shortcut(Chord::ctrl(Key::Tab))
+        .enabled(several)
+        .at(at.clone())
+        .capture()
+        .register();
+    Action::new("dock.tab.previous", "Previous tab", move || {
+        dock.cycle(true)
+    })
+    .shortcut(Chord::ctrl(Key::Tab).shift())
+    .enabled(several)
+    .at(at)
+    .capture()
+    .register();
+    Action::new("dock.tab.split-right", "Split right", move || {
+        dock.split_shown(Side::Right)
+    })
+    .enabled(several)
+    .register();
+    Action::new("dock.tab.split-down", "Split down", move || {
+        dock.split_shown(Side::Below)
+    })
+    .enabled(several)
+    .register();
+    Action::new("dock.tab.close", "Close tab", move || {
+        if let Some((_, entry)) = untrack(|| dock.shown_entry()) {
+            dock.close_entry(entry);
+        }
+    })
+    .enabled(closable)
+    .register();
 }

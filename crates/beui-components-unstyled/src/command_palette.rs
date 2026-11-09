@@ -25,6 +25,10 @@ pub struct PaletteItem {
     pub shortcut: String,
     pub checked: Option<bool>,
     pub disabled: bool,
+    /// The item's place as its source ranked it (higher first), which the palette keeps
+    /// instead of scoring the item against what was typed: a source that searches itself, such
+    /// as a full-text index, filters and orders its own results.
+    pub ranked: Option<u32>,
 }
 
 impl PaletteItem {
@@ -166,10 +170,12 @@ pub fn CommandPalette(
     });
     let ranked = move |query: String| {
         listed.with(|items| {
-            rank(items, &query, score)
-                .into_iter()
-                .map(|at| items[at].key.clone())
-                .collect::<Vec<_>>()
+            rank(items, &query, |item, query| {
+                item.ranked.or_else(|| score(item, query))
+            })
+            .into_iter()
+            .map(|at| items[at].key.clone())
+            .collect::<Vec<_>>()
         })
     };
     let enabled = move |key: String| state.item(&key).is_some_and(|item| !item.disabled);

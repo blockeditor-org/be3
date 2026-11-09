@@ -1,6 +1,7 @@
 # Ancestor shortcuts across apps
 
-Depends on: plans/command_palette.md.
+Depends on: none (the host palette is done; guides/apps/editor.md, Actions and
+the palette).
 
 Set aside until the user decides. Keys go only to the focused instance, which
 runs its own actions. A containing app's shortcut (the workspace's Ctrl+P while

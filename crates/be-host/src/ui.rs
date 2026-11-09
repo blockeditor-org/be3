@@ -16,7 +16,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use uuid::Uuid;
 
-use crate::compositor::{AnchoredViews, ShellDisplay};
+use crate::compositor::{AnchoredViews, HostPalette, ShellDisplay};
 use be_host_base::host_state::{SavedAccount, ServerLocation};
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 
@@ -430,6 +430,8 @@ pub(crate) enum UiCommand {
     KeepDisplay(u64),
     RevertDisplay(u64),
     LockScreen,
+    /// Cycles the theme setting through the system's, light and dark.
+    CycleTheme,
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Unlock(be_host_base::password::Password),
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
@@ -613,9 +615,34 @@ pub(crate) fn Root(view: HostUiStore) -> NodeId {
                 <onboarding::RemoveAccountDialog view />
                 <onboarding::AddAccountDialog view />
                 <DisplayChrome view area primary=true />
+                <HostActions view />
+                <HostPalette />
                 <Host::WindowActions />
             </List>
         </Frame>
+    }
+}
+
+/// The host's own actions, which its palette lists after every app's.
+#[component]
+fn HostActions(view: HostUiStore) -> NodeId {
+    let screen = view.screen;
+    let signed_in = create_memo(move || screen.get() == Screen::Organization);
+    Action::new("host.switch-account", "Switch account", || {
+        send(UiCommand::SwitchAccount)
+    })
+    .glyph(beui::icons::ICON_USERS)
+    .enabled(signed_in)
+    .register();
+    Action::new(
+        "host.theme",
+        "Switch between system, light and dark theme",
+        || send(UiCommand::CycleTheme),
+    )
+    .glyph(beui::icons::ICON_SUN_MOON)
+    .register();
+    view! {
+        <Frame />
     }
 }
 

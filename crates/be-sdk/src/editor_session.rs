@@ -90,6 +90,8 @@ struct ViewState {
     report: Option<FrameReport>,
     reported_frame: Option<FrameReport>,
     tree: Option<TreeUpdate>,
+    /// Actions the view described that the host has yet to hear (`frame-report.actions`).
+    actions: Option<Vec<be_sdk_api::DescribedAction>>,
     epoch: u64,
     window: be_sdk_api::WindowRequests,
     reported_window: Option<be_sdk_api::WindowRequests>,
@@ -273,6 +275,10 @@ impl EditorSession {
 
     pub(crate) fn set_editable(&self, editable: bool) {
         self.host.set_editable(editable);
+    }
+
+    pub(crate) fn set_host_palette(&self, host_palette: bool) {
+        self.host.set_host_palette(host_palette);
     }
 
     pub(crate) fn set_focused_block(&self, focused: crate::host::FocusedBlock) {
@@ -480,6 +486,9 @@ impl EditorSession {
         for child in self.host.take_keyboard_gifts() {
             shell::focus_child(instance, child).detach();
         }
+        for mode in self.host.take_palette_opens() {
+            shell::open_palette(instance, mode).detach();
+        }
         if let Some(artifact) = &mut self.artifact {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {
                 artifact.described = Some(artifact.data.clone());
@@ -686,11 +695,15 @@ impl EditorSession {
             let Some(report) = &state.report else {
                 continue;
             };
-            if state.reported_frame.as_ref() == Some(report) && state.tree.is_none() {
+            if state.reported_frame.as_ref() == Some(report)
+                && state.tree.is_none()
+                && state.actions.is_none()
+            {
                 continue;
             }
             state.reported_frame = Some(report.clone());
             let mut report = report.clone();
+            report.actions = state.actions.take();
             if let Some(description) = &mut report.description {
                 description.tree = state.tree.take().as_ref().map(Into::into);
             }
@@ -971,6 +984,9 @@ impl EditorSession {
             Some(state) if holds_content_anyway(state) => Some(reported_content.unwrap_or(content)),
             _ => reported_content,
         };
+        if let (Some(actions), Some(state)) = (frame.actions.take(), self.views.get_mut(&view)) {
+            state.actions = Some(actions);
+        }
         if let (Some(state), Some(screen)) = (self.views.get_mut(&view), screen) {
             state.children = placed;
             state.occluders = occluders;
@@ -1006,12 +1022,11 @@ impl EditorSession {
                         rect: claim.rect,
                     })
                     .collect(),
-                description: frame.description.as_ref().map(|description| {
-                    be_sdk_api::accessibility::Description {
-                        tree: None,
-                        actions: description.actions.clone(),
-                    }
-                }),
+                description: frame
+                    .description
+                    .as_ref()
+                    .map(|_| be_sdk_api::accessibility::Description { tree: None }),
+                actions: None,
                 anchored: state.anchored,
                 work_area: frame
                     .work_area

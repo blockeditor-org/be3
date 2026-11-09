@@ -3,6 +3,7 @@ pub(crate) mod app_view;
 pub(crate) mod desktop;
 mod editors;
 mod intercept;
+mod palette;
 
 use std::{
     cell::{Cell, RefCell},
@@ -19,6 +20,7 @@ pub(crate) use desktop::DesktopPlace;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };
+pub(crate) use palette::HostPalette;
 
 type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;
 
@@ -34,6 +36,7 @@ thread_local! {
 }
 
 pub(crate) fn install() {
+    be_host_runtime::draw_palette(true);
     desktop::install();
     anchored::install();
     let signal = create_signal(0u64);

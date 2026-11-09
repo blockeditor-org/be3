@@ -591,6 +591,7 @@ impl Screens {
                 session.set_view_block(open.view_block.map(Uuid::from_bytes));
                 session.set_editable(open.editable);
                 session.set_page_origin(open.page_origin);
+                session.set_host_palette(open.host_palette);
                 session.connect(
                     Uuid::from_bytes(open.block_id),
                     Uuid::from_bytes(open.block_type),

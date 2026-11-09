@@ -13,14 +13,10 @@ use crate::types::{ActionGroup, ActionInfo, Key, KeyPhase, KeyPress, Modifiers, 
 
 type KeyHandler = dyn Fn(KeyEvent) -> bool;
 
-pub(crate) type Describe = dyn Fn(
-    &[(Option<WindowId>, String)],
-    &[NodeId],
-    &[WindowId],
-    &[(WindowId, WindowId)],
-) -> Described;
-
-pub(crate) type Described = (Vec<String>, Vec<ActionGroup>);
+/// Runs the actions asked for by id (`Context::request_action_in`), each in the window it names,
+/// and answers the ids it ran.
+pub(crate) type RunRequested =
+    dyn Fn(&[(Option<WindowId>, String)], &[NodeId], &[(WindowId, WindowId)]) -> Vec<String>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Chord {
@@ -87,21 +83,7 @@ impl Chord {
     }
 
     pub fn label(self) -> String {
-        let mut parts = Vec::new();
-        if self.logo {
-            parts.push("Super".to_owned());
-        }
-        if self.ctrl {
-            parts.push("Ctrl".to_owned());
-        }
-        if self.alt {
-            parts.push("Alt".to_owned());
-        }
-        if self.shift {
-            parts.push("Shift".to_owned());
-        }
-        parts.push(key_label(self.key));
-        parts.join("+")
+        self.key_chord().label()
     }
 
     fn typed(self) -> bool {
@@ -140,53 +122,6 @@ impl From<KeyChord> for Chord {
             tap: chord.tap,
         }
     }
-}
-
-fn key_label(key: Key) -> String {
-    let symbol = match key {
-        Key::ArrowDown => "Down",
-        Key::ArrowLeft => "Left",
-        Key::ArrowRight => "Right",
-        Key::ArrowUp => "Up",
-        Key::BracketLeft => "[",
-        Key::BracketRight => "]",
-        Key::Minus => "-",
-        Key::Plus => "+",
-        Key::Zero => "0",
-        Key::One => "1",
-        Key::Two => "2",
-        Key::Three => "3",
-        Key::Four => "4",
-        Key::Five => "5",
-        Key::Six => "6",
-        Key::Seven => "7",
-        Key::Eight => "8",
-        Key::Nine => "9",
-        Key::Backtick => "`",
-        Key::Comma => ",",
-        Key::Period => ".",
-        Key::Slash => "/",
-        Key::Backslash => "\\",
-        Key::Semicolon => ";",
-        Key::Quote => "'",
-        Key::PageDown => "Page Down",
-        Key::PageUp => "Page Up",
-        Key::BrowserBack => "Back",
-        Key::ContextMenu => "Menu",
-        Key::VolumeUp => "Volume Up",
-        Key::VolumeDown => "Volume Down",
-        Key::VolumeMute => "Mute",
-        Key::MicMute => "Mic Mute",
-        Key::BrightnessUp => "Brightness Up",
-        Key::BrightnessDown => "Brightness Down",
-        Key::MediaPlayPause => "Play/Pause",
-        Key::MediaNext => "Next Track",
-        Key::MediaPrevious => "Previous Track",
-        Key::MediaStop => "Stop",
-        Key::Logo => "Super",
-        _ => return format!("{key:?}"),
-    };
-    symbol.to_owned()
 }
 
 thread_local! {
@@ -585,13 +520,14 @@ impl Registry {
 
     fn actions(&self, focus_path: &[NodeId]) -> Vec<Action> {
         let mut listed: Vec<Action> = Vec::new();
+        let mut seen = be_lib_stable_hash::HashSet::default();
         let scoped = self
             .active(focus_path)
             .into_iter()
             .flat_map(|scope| scope.actions.borrow().clone());
         let global = self.all().into_iter().filter(Action::is_global);
         for action in scoped.chain(global) {
-            if !listed.iter().any(|seen| seen.id() == action.id()) {
+            if seen.insert(action.id().to_owned()) {
                 listed.push(action);
             }
         }
@@ -650,13 +586,12 @@ impl Registry {
         chords
     }
 
-    fn describe(
+    fn run_requested(
         &self,
         requests: &[(Option<WindowId>, String)],
         focus_path: &[NodeId],
-        windows: &[WindowId],
         hosts: &[(WindowId, WindowId)],
-    ) -> Described {
+    ) -> Vec<String> {
         let live = self.actions(focus_path);
         let all = self.all();
         let host = |own: WindowId| host_of(hosts, own);
@@ -679,17 +614,36 @@ impl Registry {
                 ran.push(requested.clone());
             }
         }
+        ran
+    }
+
+    /// What the document describes outside itself: the actions live where the focus is,
+    /// innermost first, then every other one marked not live; and the actions of each window
+    /// they were registered in. Reads each action's label, enabled and checked state tracked, so
+    /// an effect around it follows them.
+    fn groups(&self, focus_path: &[NodeId], hosts: &[(WindowId, WindowId)]) -> Vec<ActionGroup> {
+        let live = self.actions(focus_path);
+        let all: Vec<Action> = self.all().into_iter().filter(Action::is_alive).collect();
+        let live: Vec<Action> = live.into_iter().filter(Action::is_alive).collect();
+        let host = |own: WindowId| host_of(hosts, own);
+        let hosted = |action: &Action| action.window().map(host);
         let info = |action: &Action, live: bool| ActionInfo {
             id: action.id().to_owned(),
-            label: action.label().get_untracked(),
-            shortcut: action.shortcut_label(),
-            enabled: action.is_enabled(),
-            checked: action.checked().map(|checked| checked.get_untracked()),
+            label: action.label().get(),
+            glyph: action
+                .glyph()
+                .and_then(|glyph| glyph.name())
+                .map(str::to_owned),
+            shortcut: action.shortcuts().first().map(|chord| chord.key_chord()),
+            enabled: action.enabled().get(),
+            checked: action.checked().map(|checked| checked.get()),
             live,
         };
+        let live_keys: be_lib_stable_hash::HashSet<u64> = live.iter().map(Action::key).collect();
+        let mut listed: be_lib_stable_hash::HashSet<&str> = live.iter().map(Action::id).collect();
         let mut actions: Vec<ActionInfo> = live.iter().map(|action| info(action, true)).collect();
         for action in &all {
-            if !actions.iter().any(|listed| listed.id == action.id()) {
+            if listed.insert(action.id()) {
                 actions.push(info(action, false));
             }
         }
@@ -698,21 +652,26 @@ impl Registry {
             window: None,
             actions,
         }];
+        let mut windows: Vec<WindowId> = Vec::new();
+        let mut seen_windows = be_lib_stable_hash::HashSet::default();
+        for window in all.iter().filter_map(hosted) {
+            if seen_windows.insert(window) {
+                windows.push(window);
+            }
+        }
         for window in windows {
             let actions: Vec<ActionInfo> = all
                 .iter()
-                .filter(|action| hosted(action) == Some(*window))
-                .map(|action| info(action, live.contains(action)))
+                .filter(|action| hosted(action) == Some(window))
+                .map(|action| info(action, live_keys.contains(&action.key())))
                 .collect();
-            if !actions.is_empty() {
-                groups.push(ActionGroup {
-                    name: String::new(),
-                    window: Some(*window),
-                    actions,
-                });
-            }
+            groups.push(ActionGroup {
+                name: String::new(),
+                window: Some(window),
+                actions,
+            });
         }
-        (ran, groups)
+        groups
     }
 
     fn all(&self) -> Vec<Action> {
@@ -775,20 +734,23 @@ fn install(registry: &Registry) {
         listen(at, KeyPhase::Bubble);
     }
     let weak = Rc::downgrade(&registry.0);
-    let described: Rc<Describe> = Rc::new(
+    let run: Rc<RunRequested> = Rc::new(
         move |requests: &[(Option<WindowId>, String)],
               path: &[NodeId],
-              windows: &[WindowId],
               hosts: &[(WindowId, WindowId)]| match weak.upgrade() {
-            Some(registry) => Registry(registry).describe(requests, path, windows, hosts),
-            None => (Vec::new(), Vec::new()),
+            Some(registry) => Registry(registry).run_requested(requests, path, hosts),
+            None => Vec::new(),
         },
     );
-    *registry.0.described.borrow_mut() = Some(crate::core::actions::register(described));
+    *registry.0.described.borrow_mut() = Some(crate::core::actions::register(run));
     let intercepted = crate::core::actions::intercepted_keys();
+    let publish = crate::core::actions::publish_actions();
     let weak = Rc::downgrade(&registry.0);
     let reported = RefCell::new(Vec::new());
+    let published = RefCell::new(None::<Vec<ActionGroup>>);
     crate::core::actions::in_document_scope(Box::new(move || {
+        let focused = crate::core::actions::watch_focused();
+        let following = weak.clone();
         create_effect(move || {
             let Some(registry) = weak.upgrade() else {
                 return;
@@ -799,6 +761,21 @@ fn install(registry: &Registry) {
             if *reported.borrow() != chords {
                 reported.replace(chords.clone());
                 intercepted(chords);
+            }
+        });
+        create_effect(move || {
+            let Some(registry) = following.upgrade() else {
+                return;
+            };
+            let registry = Registry(registry);
+            registry.0.version.get();
+            focused.get();
+            let path = untrack(crate::core::actions::focus_ancestry);
+            let hosts = untrack(crate::core::actions::window_hosts);
+            let groups = registry.groups(&path, &hosts);
+            if published.borrow().as_ref() != Some(&groups) {
+                published.replace(Some(groups.clone()));
+                publish(groups);
             }
         });
     }));
