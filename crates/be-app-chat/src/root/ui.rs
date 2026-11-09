@@ -6,8 +6,8 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
 use be_sdk_beui::beui::icons::{
-    Glyph, ICON_ARROW_DOWN, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_SEND,
-    ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
+    Glyph, ICON_ARROW_DOWN, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL,
+    ICON_REPLY, ICON_SEND, ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -262,7 +262,8 @@ fn unread_count(
         if !at_end.get() || !shown.get() || !keyboard.get() || unread.get().is_none() {
             return;
         }
-        let (here, places) = read.with(|reads| (reads.read_here(block, device), reads.places(block)));
+        let (here, places) =
+            read.with(|reads| (reads.read_here(block, device), reads.places(block)));
         let moved = chat.read(|content| {
             let newest = content
                 .newest()

@@ -58,12 +58,10 @@ fn reading_on_one_device_clears_the_count_on_another() {
 
     // The phone reads the chat: its place syncs to the laptop as any edit does.
     let newest = laptop.content().newest().expect("the chat has messages");
-    laptop
-        .editor
-        .edit::<ChatReadsContent>(
-            Some(reads),
-            &ChatReads::set_read(CHAT, PHONE, newest, &[Uuid::nil()]),
-        );
+    laptop.editor.edit::<ChatReadsContent>(
+        Some(reads),
+        &ChatReads::set_read(CHAT, PHONE, newest, &[Uuid::nil()]),
+    );
     laptop.run();
     assert!(
         !laptop.editor.shown("chat.unread"),
