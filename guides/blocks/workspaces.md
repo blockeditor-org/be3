@@ -17,15 +17,24 @@ not a system block (`be_sdk_beui::sections::is_workspace`); its name is its
 Only workspaces and an account's own `Settings` are put at the root, though
 the server accepts any block there, so an old one left at the root shows as a
 workspace. Opening an organization ensures the account's "My files"
-(`RootSettings::ensure_my_files`, the `MY_FILES` key).
+(`RootSettings::ensure_my_files`, the `MY_FILES` key) and its Unfiled
+(`ensure_unfiled`): another derived root, `be_block::unfiled(organization,
+account)` of `UNFILED_TYPE`, reserved for that account by the server as My
+files is. Unfiled has no content; it holds every block whose parent names it
+(see guides/blocks/server.md, Liveness), so making a block there edits nothing
+anyone else must be able to edit.
 
 The files pane (`crates/be-app-file-tree`) shows a section per visible
 workspace (My files first, never another account's), Shared with me
 (`BlockQuery::Shared`), Recently Deleted, and System (the account's own
 `SYSTEM_TYPES` roots, for debugging). Pressing a folder, workspace or section
-zooms into it rather than opening it. Every picker places a new block in a
-workspace (My files when none is named); moving between workspaces is the
-host's `move_block`. The folder editor is `crates/be-app-workspace-index`.
+zooms into it rather than opening it. A picker places a new block where it is
+asked; a block made without a place the person chose (a pick with no place, an
+editor with no block of its own, "New file here" beside a block nothing holds)
+goes to Unfiled through `block-location::unfiled`, which the host resolves to
+the account's own, so My files holds only what the person put there. Deleting
+from Unfiled detaches the block with `DELETED_FROM` naming Unfiled, and
+Restore puts it back. Moving between workspaces is the host's `move_block`. The folder editor is `crates/be-app-workspace-index`.
 
 ## The account's Settings block and device profiles
 

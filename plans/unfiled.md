@@ -3,7 +3,8 @@
 Depends on: none.
 
 A place for blocks made without a place the person chose, so My files only
-ever holds what they put there themselves. Not implemented yet.
+ever holds what they put there themselves. Partly implemented; see Order of
+work.
 
 ## What exists
 
@@ -61,19 +62,20 @@ ever holds what they put there themselves. Not implemented yet.
 
 ## Order of work
 
-1. The derived root, the reserved id, its liveness rule in `holds`, delete and
-   restore, `block-location::unfiled`, and the server keeping it. Done: server
-   tests that a block made in Unfiled stays live with no content edit, is
-   collected only after a delete, restores to Unfiled, and that nobody else
-   can make or write to another account's Unfiled.
-2. Pickers with no place, and every other creating call site, go to Unfiled.
-   The PR lists every site that creates a block and which it changed, with a
-   test per changed site.
-3. The files pane section and leftovers, with paintings.
-4. Update guides/blocks/workspaces.md (where pickers put blocks) and
-   guides/blocks/server.md (liveness), amend
-   decisions/block_reclamation_by_reference_counting.md, and add a decision:
-   My files holds only what the person put there.
+Done: the derived root and its reserved id, the server keeping it, its
+liveness rule in `holds`, delete and restore, `block-location::unfiled`, the
+guides and decisions. Pickers with no place, editors with no block of their
+own, "New file here" beside a block nothing holds, and new database views go
+to Unfiled.
+
+1. Every other creating call site goes to Unfiled where the person chose no
+   place: a terminal an app makes for a connection, an exported dynamic
+   artifact, a recording, a file pasted or dropped where nothing takes it. The
+   PR lists every site that creates a block and which it changed, with a test
+   per changed site.
+2. The files pane section (a flat list, newest first, `CREATED_BY` and where
+   each is used) and leftovers, with paintings. Until then a block in Unfiled
+   is not shown anywhere in the files pane.
 
 ## Not planned here
 

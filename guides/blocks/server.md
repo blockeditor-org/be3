@@ -55,7 +55,9 @@ the server are in guides/blocks/keys.md.
 
 A block is live when its parent chain reaches `BlockParent::Root` and every
 link holds: a parent holds a child only while the parent's references list it
-(`BlockGraph::holds`). So deleting a block is an edit to its parent's content
+(`BlockGraph::holds`). The one exception is an account's Unfiled
+(`BlockNode::unfiled`, set by the server when the reserved id is made), which
+holds every child whose parent names it, listed or not. So deleting a block is an edit to its parent's content
 that drops it (`ChildChange::Delete`), and undo or Restore lists it again. A
 block whose parent is `Detached` or no longer lists it is in the trash with its
 subtree, and keeps its parent. Any other reference is a link: navigation and
