@@ -82,8 +82,10 @@ port 50052.
   two names, `on.boat.dev` and the older `on.ascii.dev`; the network secret's host must be the one `BE3_NL_URL` uses.
 - **The controller** notices a build (a connection from Caddy on port 50052), keeps 4 workers alive while it runs
   by extending their 30-minute lifetime, creates replacements, and stops the scheduler after 4 idle hours. Boat
-  places a new VM at random and about half cannot reach the scheduler (below), so it creates twice as many workers as
-  it needs and keeps the first that complete a WireGuard handshake. Its own boat key is limited to the `nl-worker`
+  places a new VM at random and about half cannot reach the scheduler (below), so it creates as many workers as are
+  missing, deletes the ones that do not complete a WireGuard handshake within `NL_HANDSHAKE_WAIT` (60 s), and makes
+  the shortfall in the next round (up to `NL_SPAWN_ROUNDS`, 4, a tick). It never deletes a VM that reached the
+  scheduler, so each start that goes to a reachable VM is kept. Its own boat key is limited to the `nl-worker`
   environment (create, read, update, delete-own).
 - **Storage**: the workers read objects of 16 KB and up straight from the Bunny zone `be-nativelink-s3` with its
   read-only key (the `nl-worker` environment's secret file `worker-ro.env`); the scheduler keeps small objects and the
@@ -104,10 +106,10 @@ Things that are not obvious:
 
 - **Boat's network** blackholes about half of the VM pairs, both ways and for good, with no pattern we found. That
   does not touch clients, whose traffic goes through boat's proxy, but it does touch the scheduler and its workers,
-  which is why workers are over-provisioned. A scheduler that boat resumed as a new machine can land where its workers
+  which is why the controller replaces the workers that cannot reach it. A scheduler that boat resumed as a new machine can land where its workers
   cannot reach it; stopping and resuming it again, or forking it, picks another place.
 - **Boat's start limits** (60 an hour, 200 a day on the $20 plan; `boat limits`) count every VM the controller creates,
-  including the ones it deletes at once. A cold fleet is up to 8 starts.
+  including the ones it deletes at once. A cold fleet of 4 is about 8 starts, in a few rounds.
 - **Exposing the port is one manual step** on the scheduler, `host 8099 --localhost --public`; the address keeps
   working across stop and resume, but a new scheduler has a new one. Never expose it before Caddy checks the token:
   the port then lets anyone build and run code on the workers.
@@ -150,12 +152,13 @@ it cannot be turned on later) and a boat login that can create sandboxes:
 Every VM it creates is a start. Past the plan's included starts a start costs $0.03 (up to 1.5 times the included
 number), $0.05 (up to 2 times) or $0.07 (up to 6 times, 3 times a minute), and fails above that; the price is the highest
 of the per-minute, per-hour and per-day ones (docs.boat.dev/limits#extra-starts). A VM created and deleted at once (one
-that could not reach the scheduler) is a start too, so the controller learns what share of new VMs reach the scheduler
-and creates only as many as that share needs. Its default is never to pay: it leaves 40 starts of the day and 10 of the
+that could not reach the scheduler) is a start too; the controller logs the share of new VMs that reach the scheduler. Its default is never to pay: it leaves 40 starts of the day and 10 of the
 hour for everybody else's VMs and stops creating when the rest is used. `NL_MAX_START_PRICE` (the dearest start it will
 buy) and `NL_EXTRA_START_BUDGET` (dollars a month) let it buy more; with `account.read` it asks boat what the next
 start costs, without it it can only count its own. Between `NL_WORKERS_BASE` (4) and `NL_WORKERS_CAP` (12) workers it
-adds some when they average 75% busy and removes the least busy after five minutes under 35%.
+scales on NativeLink's queue (read through `nl-otelcol`): once actions have waited 20 s and every worker it wants is
+connected, it raises the target to what the queue needs, and it lowers it after five minutes without a queue. Work
+queued only because workers are still being made, or because no starts are left, does not raise it.
 
 ## When a build keeps failing
 

@@ -45,6 +45,7 @@ EXTEND_WHEN_LEFT = int(os.environ.get("NL_EXTEND_WHEN_LEFT", "900"))   # extend 
 SCHEDULER_IDLE_STOP = int(os.environ.get("NL_SCHEDULER_IDLE_STOP", str(4 * 3600)))
 TICK = int(os.environ.get("NL_TICK", "15"))
 HANDSHAKE_WAIT = int(os.environ.get("NL_HANDSHAKE_WAIT", "60"))        # a good worker handshakes within ~25 s of creation
+ROUNDS = int(os.environ.get("NL_SPAWN_ROUNDS", "4"))                   # rounds of replacing VMs that cannot reach it
 METRICS_URL = os.environ.get("NL_METRICS_URL", "http://127.0.0.1:8889/metrics")   # nl-otelcol: NativeLink's queue depth
 
 # Starts. Every VM created is a start, and boat counts them per minute, hour and day against what the plan includes.
@@ -266,66 +267,65 @@ def demand():
 
 
 def spawn(missing, burst=False):
-    """Create enough VMs to expect `missing` that reach the scheduler (a share p of them do, which it learns), keep
-    the ones that handshake, delete the rest, within the start allowance."""
+    """Create `missing` workers, within the start allowance. About a share p of new VMs can reach the scheduler (boat's
+    network blackholes some pairs of VMs, for good), so each round creates only as many as are still missing, waits for
+    their WireGuard handshakes, deletes the ones that cannot reach the scheduler and makes the shortfall in the next
+    round. No start is spent on a VM that worked and was then deleted; a round that falls short costs HANDSHAKE_WAIT."""
     st = load_state()
-    now = time.time()
-    st["creates"] = [t for t in st["creates"] if now - t < 86400]
-    st["extra_spend"] = [(t, d) for t, d in st.get("extra_spend", []) if now - t < 30 * 86400]
-    if st.get("backoff_until", 0) > now:
-        log(f"  boat refused a start recently; waiting {int(st['backoff_until'] - now)}s")
-        return
-    p = min(0.9, max(0.35, st.get("p", 0.5)))
-    want = min(3 * missing, max(missing, math.ceil(missing / p)))
-    make, price, extra = start_allowance(want, st)
-    if make < want:
-        log(f"  start budget: wanted {want} starts (reachable share {p:.2f}), may use {make}"
-            + (f", {extra} of them at ${price:.2f}" if extra else ""))
-    if make == 0:
-        return
-    peers, _ = wg_peers()
-    ips = free_ips(peers)
-    if len(ips) < make:
-        log("  not enough free worker addresses")
-        return
-    hub = hub_ipv6()
-    stamp = int(now)
-    names = [f"nl-w-{'b' if burst else ''}{stamp}-{i}" for i in range(make)]
-    ttl = BURST_TTL if burst else WORKER_TTL
-    if DRY:
-        log(f"  [dry-run] would create {make} candidates {names[0]}.. for {missing} workers")
-        return
-    with tempfile.TemporaryDirectory() as tmp, cf.ThreadPoolExecutor(max_workers=make) as pool:
-        ids = list(pool.map(lambda a: create_candidate(a[0], a[1], hub, tmp, ttl), zip(names, ips)))
-    created = {n: i for n, i in zip(names, ids) if i}
-    st["creates"] += [now] * len(created)
-    if extra:
-        st["extra_spend"] += [(now, price)] * min(extra, len(created))
-    if len(created) < make:
-        st["backoff_until"] = now + 600        # boat refused some: its limits are reached
-    log(f"  created {len(created)}/{make}; waiting up to {HANDSHAKE_WAIT}s for handshakes")
-    good = []
-    deadline = time.time() + HANDSHAKE_WAIT
-    while time.time() < deadline and len(good) < len(created):
-        peers, age = wg_peers()
-        for n in created:
-            if n not in good and n in peers and age.get(peers[n][0]) is not None and age[peers[n][0]] < 120:
-                good.append(n)
-        if len(good) >= missing + 1:
+    st["creates"] = [t for t in st["creates"] if time.time() - t < 86400]
+    st["extra_spend"] = [(t, d) for t, d in st.get("extra_spend", []) if time.time() - t < 30 * 86400]
+    kept = []
+    for round_number in range(1, ROUNDS + 1):
+        now = time.time()
+        if st.get("backoff_until", 0) > now:
+            log(f"  boat refused a start recently; waiting {int(st['backoff_until'] - now)}s")
             break
-        time.sleep(3)
-    if created:
-        time.sleep(4)       # the stragglers of this round: they reach the scheduler within seconds or not at all
-        peers, age = wg_peers()
-        good = [n for n in created if n in peers and age.get(peers[n][0]) is not None and age[peers[n][0]] < 120]
-        st["p"] = 0.7 * p + 0.3 * (len(good) / len(created))
-    kept = good[: missing + 1]       # a spare that already cost a start is kept: the fleet may grow
-    for n, i in created.items():
-        if n not in kept:
-            boat("delete", "--yes", i)
-            run(["/usr/local/bin/remove-peer.sh", n])
+        want = missing - len(kept)
+        make, price, extra = start_allowance(want, st)
+        if make < want:
+            log(f"  start budget: wanted {want} starts, may use {make}"
+                + (f", {extra} of them at ${price:.2f}" if extra else ""))
+        if make == 0:
+            break
+        peers, _ = wg_peers()
+        ips = free_ips(peers)
+        if len(ips) < make:
+            log("  not enough free worker addresses")
+            break
+        hub = hub_ipv6()
+        names = [f"nl-w-{'b' if burst else ''}{int(now)}-{round_number}-{i}" for i in range(make)]
+        ttl = BURST_TTL if burst else WORKER_TTL
+        if DRY:
+            log(f"  [dry-run] would create {make} workers {names[0]}..")
+            break
+        with tempfile.TemporaryDirectory() as tmp, cf.ThreadPoolExecutor(max_workers=make) as pool:
+            ids = list(pool.map(lambda a: create_candidate(a[0], a[1], hub, tmp, ttl), zip(names, ips)))
+        created = {n: i for n, i in zip(names, ids) if i}
+        st["creates"] += [now] * len(created)
+        if extra:
+            st["extra_spend"] += [(now, price)] * min(extra, len(created))
+        if len(created) < make:
+            st["backoff_until"] = now + 600        # boat refused some: its limits are reached
+        log(f"  round {round_number}: created {len(created)}/{make}; waiting up to {HANDSHAKE_WAIT}s for handshakes")
+        good = []
+        deadline = time.time() + HANDSHAKE_WAIT
+        while created and time.time() < deadline and len(good) < len(created):
+            time.sleep(3)
+            peers, age = wg_peers()
+            good = [n for n in created if n in peers and age.get(peers[n][0]) is not None and age[peers[n][0]] < 120]
+        for n, i in created.items():
+            if n not in good:
+                boat("delete", "--yes", i)
+                run(["/usr/local/bin/remove-peer.sh", n])
+        if created:
+            st["p"] = 0.7 * st.get("p", 0.5) + 0.3 * (len(good) / len(created))
+        kept += good
+        save_state(st)
+        log(f"  round {round_number}: {len(good)} of {len(created)} reached the scheduler, deleted the rest; "
+            f"{len(kept)} of {missing} made; reachable share now {st['p']:.2f}")
+        if len(kept) >= missing or len(created) < make:
+            break
     save_state(st)
-    log(f"  kept {len(kept)} for {missing} needed; deleted {len(created) - len(kept)}; reachable share now {st['p']:.2f}")
 
 
 def reap_and_extend(workers, active, wanted):
