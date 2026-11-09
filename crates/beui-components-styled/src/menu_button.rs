@@ -8,9 +8,9 @@ use beui_components_unstyled::{MenuItem, PopupTriggerHandle};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Image;
-use beui_view::types::{Placement, Rect};
 use beui_view::types::ScrollGesture;
 use beui_view::types::icons::ICON_CHEVRON_DOWN;
+use beui_view::types::{Placement, Rect};
 
 #[component]
 pub fn MenuButton(

@@ -26,7 +26,8 @@ pub fn MenuButton(
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     /// `Placement::Menu`, or `BelowStart` for a button whose menu must keep clear of it,
     /// such as a bar's grip.
-    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
+    #[prop(default = Placement::Menu)]
+    placement: Prop<Placement>,
     accessibility: Option<Prop<Node>>,
     on_click: ClickCallback,
     on_secondary_click: ClickCallback,
