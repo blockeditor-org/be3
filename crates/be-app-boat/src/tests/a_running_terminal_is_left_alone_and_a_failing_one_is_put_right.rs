@@ -17,7 +17,10 @@ fn a_running_terminal_is_left_alone_and_a_failing_one_is_put_right() {
 
     // Another device installed another build and token, and the host runs connected.
     boat.resumed();
-    boat.checked(block, &said("present\nanother-build\nconnected\nactive\n1800000000\n"));
+    boat.checked(
+        block,
+        &said("present\nanother-build\nconnected\nactive\n1800000000\n"),
+    );
     assert_eq!(rotations(&mut boat), 0);
     assert!(!boat.test.has_fetches(), "a working terminal is left alone");
     assert_eq!(
@@ -29,9 +32,7 @@ fn a_running_terminal_is_left_alone_and_a_failing_one_is_put_right() {
     boat.resumed();
     boat.checked(
         block,
-        &said(
-            "present\nanother-build\noffline the server refused the token\nactive\n1800000000\n",
-        ),
+        &said("present\nanother-build\noffline the server refused the token\nactive\n1800000000\n"),
     );
     let (reply, _) = boat.host_call("the token rotated", |call| match call {
         HostCall::RotateAgentToken { reply, agent } => Ok((reply, agent)),

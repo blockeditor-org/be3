@@ -44,9 +44,7 @@ fn connecting_a_terminal_installs_its_host_in_the_sandbox() {
     }));
     let download = boat.ran("set -e", DONE);
     assert!(download.contains("cd /home/user/.local/lib/be3/builds/tree"));
-    assert!(download.contains(&format!(
-        "curl -fsSL -o be.part.{block} '{DEPLOYED_BE}'"
-    )));
+    assert!(download.contains(&format!("curl -fsSL -o be.part.{block} '{DEPLOYED_BE}'")));
     assert!(download.contains(&format!(
         "echo '{BE_SHA256}  be.part.{block}' | sha256sum -c"
     )));
