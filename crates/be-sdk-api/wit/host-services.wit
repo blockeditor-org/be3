@@ -173,6 +173,12 @@ interface host-services {
     /// sets `block_agents`.
     terminal-host-binary: async func(arch: string) -> result<terminal-host-be, failure>;
 
+    /// The `build-info.json` a `be` of the host's own build carries, which
+    /// names the build: what an app compares with the `be` a machine of its
+    /// own runs, without `terminal-host-binary`'s bytes. Denied unless the
+    /// app's manifest sets `block_agents`.
+    terminal-host-build: async func() -> result<string, failure>;
+
     /// The files the app ships in its data directory.
     list-data: async func() -> result<list<string>, failure>;
 

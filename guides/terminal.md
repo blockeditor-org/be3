@@ -68,41 +68,58 @@ sandbox (decisions/a_sandboxs_terminal_host_is_a_block_bound_agent.md):
 1. Connect makes a terminal block in the viewer's Unfiled and, when they may edit the boat
    block, adds it to its content (`Boat::terminals`) as a reference. A viewer sees their own
    terminal for a sandbox, else the first referenced one they can open; anyone else connects
-   their own. The host lets an app make an agent for a block it made (`CREATED_BY`) as well as
-   for its own block and those below it.
+   their own. Besides its own block and those below it, the host lets an app make an agent for
+   a block it made (`CREATED_BY`) only while that block sits directly in the account's own
+   Unfiled, authored by the account, with nothing below it
+   (`be_host_stack::made_by_app_in_unfiled`): anyone who may edit a block can set `CREATED_BY`,
+   and it stays on a block wherever it moves.
 2. `create-block-agent(terminal, "boat VM <id>")`; the credentials, recovery phrase included,
    go in the viewer's owner-only `BoatSettings::terminals`, keyed by terminal block, since `be`
-   signs in only with the phrase and a rotation answers only a token.
+   signs in only with the phrase and a rotation answers only a token. When they can't be kept
+   (the settings haven't loaded) the agent and the block are removed again.
 3. `uname -m`, then `terminal-host-binary(arch)`: a deployed build answers the URL and SHA-256
    of its own `be` (`build-info.json`'s `terminal_hosts`, which `./scripts/deploy` writes into
-   the downloads), which a command downloads and checks; a development build answers the bytes
-   of a `be` built into `~/.cache/be3/terminal-host/ARCH` (`./scripts/buck build
-   //crates/be-tool-cli:native --target-platforms root//buck/platforms:linux_ARCH --out
-   ~/.cache/be3/terminal-host/ARCH`; the failure names it), uploaded through an upload URL. `be`
-   and its `build-info.json` go in `/home/user/.local/lib/be3`.
+   the downloads); a development build answers the bytes of a `be` built into
+   `~/.cache/be3/terminal-host/ARCH` (`./scripts/buck build //crates/be-tool-cli:native
+   --target-platforms root//buck/platforms:linux_ARCH --out ~/.cache/be3/terminal-host/ARCH`;
+   the failure names it), which goes up through an https upload URL. Either way a command
+   checks the SHA-256 before `be` can run. Each build's `be` and `build-info.json` go in
+   `/home/user/.local/lib/be3/builds/BUILD`, and `blocks/BLOCK` links the build a terminal runs,
+   so a terminal connected from another build never replaces another's `be`.
 4. The units `be-terminal@.service` and `be-terminal@.path` and the credentials file (the agent's
    credentials with `block` and `boat_id`) are written with the files API under
    `/home/user/.cache/be3`, then one command installs the units, moves the credentials to
-   `/run/be3/terminal-host-BLOCK.json` (mode 0600, owned by `user`), deletes the staged copy and
-   starts the service. boat keeps every command and its output 90 days, so no secret is ever in
-   a command line. `/run` is in memory, so no snapshot carries the credentials, and the `.path`
-   unit starts the service when they appear.
+   `/run/be3/terminal-host-BLOCK.json` (mode 0600, owned by `user`), writes the SHA-256 of their
+   token beside them (`.sha256`), links the build, deletes the staged copy and starts the
+   service. When that command doesn't run, another deletes the staged copy, and every check
+   deletes one left behind. boat keeps every command and its output 90 days, so no secret is
+   ever in a command line. `/run` is in memory, so no snapshot carries the credentials, and the
+   `.path` unit starts the service when they appear.
 
-The service runs `be BLOCK terminal-host` as `user` with the file as `BE3_AGENT_CREDENTIALS`.
-`be` refuses to start when `BOAT_ID` (passed through from the service manager) names another
-sandbox than the credentials' `boat_id`, so a fork runs no copy of another sandbox's terminal.
-Behind a gateway the host fails to connect and says so in its log; the person adds the key by
-hand, as `BE3_AUTHORIZATION=...` in `/home/user/.config/be3/gateway`, which the service loads.
+The service runs `be BLOCK terminal-host` as `user` with the file as `BE3_AGENT_CREDENTIALS`,
+and stops after five failed starts in ten minutes (a revoked token). `be` refuses to start when
+`BOAT_ID` names another sandbox than the credentials' `boat_id`; it is passed through from the
+service manager, which boat may not give it, and `be` starts when it is absent, so this guards
+only a fork whose services see its new id. Behind a gateway the host fails to connect and says
+so in its log; the person adds the key by hand, as `BE3_AUTHORIZATION=...` in
+`/home/user/.config/be3/gateway`, which the service loads.
 
 Every resume leaves the sandbox without credentials. Each time the editor sees a sandbox with
-one of the viewer's terminals running, it asks whether `/run/be3/terminal-host-BLOCK.json` is
-there; when it isn't, the row says "Terminal offline, reconnecting…" while the app calls
-`rotate-agent-token`, which revokes the old token, keeps the new credentials and writes the
-file again. A resume from outside be-host waits until someone opens the boat block. Disconnect
-removes the agent at once, stops the service while the sandbox runs and forgets the terminal;
-the block stays in Unfiled. A terminal whose sandbox the list no longer shows offers Remove,
-which does the same. Connect needs the key's `exec` and `file.write` actions; a key without
-them offers Reconnect.
+one of the viewer's terminals running, it asks the sandbox for the token fingerprint beside the
+credentials and the build `blocks/BLOCK` links, and asks the host for its own build
+(`terminal-host-build`). Without credentials the row says "Terminal offline, reconnecting…"
+while the app calls `rotate-agent-token`, which revokes the old token, keeps the new
+credentials and writes them again. A fingerprint other than the kept token's (another editor
+rotated too) writes the kept credentials again without rotating, so the last writer wins; another
+build installs this build's `be` too. A resume from outside be-host waits until someone opens
+the boat block.
+
+Disconnect stops the service while the sandbox runs and removes the agent; only once the agent
+is gone (or the server no longer has it) is the terminal forgotten, and the block stays in
+Unfiled. A terminal whose sandbox an unfiltered list no longer shows offers Remove, which does
+the same; a list with a name or label filter calls no terminal gone. Connect needs the key's
+`exec` and `file.write` actions; boat.dev's API refusing a command or file (403) offers
+Reconnect.
 
 Tests answer boat's calls with recorded JSON and the host calls with `be-sdk-test`'s
 `HostCall`s (`connecting_a_terminal_installs_its_host_in_the_sandbox`,

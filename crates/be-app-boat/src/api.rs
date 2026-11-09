@@ -152,6 +152,8 @@ pub(crate) enum BoatError {
     Reconnect { expired: bool },
     /// boat refused or failed the request.
     Refused { status: u16, message: String },
+    /// The sandbox refused a file sent to an upload URL, or the URL was not one to send it to.
+    Upload(String),
 }
 
 impl std::fmt::Display for BoatError {
@@ -162,7 +164,7 @@ impl std::fmt::Display for BoatError {
             Self::Reconnect { expired: false } => {
                 formatter.write_str("boat.dev no longer accepts this key")
             }
-            Self::Refused { message, .. } => formatter.write_str(message),
+            Self::Refused { message, .. } | Self::Upload(message) => formatter.write_str(message),
         }
     }
 }
@@ -437,6 +439,11 @@ pub(crate) fn upload(
             Ok(upload) => upload,
             Err(error) => return Some(Err(error)),
         };
+        if !upload.url.starts_with("https://") {
+            return Some(Err(BoatError::Upload(
+                "boat.dev answered an upload URL that is not https".to_owned(),
+            )));
+        }
         let put = Request::put(upload.url)
             .header("Content-Type", "application/octet-stream")
             .with_body(bytes);
@@ -445,13 +452,14 @@ pub(crate) fn upload(
             Err(failure) => return Some(Err(BoatError::Offline(failure.to_string()))),
         };
         let status = response.head.status;
-        let body = match response.bytes().await? {
-            Ok(body) => body,
-            Err(failure) => return Some(Err(BoatError::Offline(failure.to_string()))),
-        };
+        if let Err(failure) = response.bytes().await? {
+            return Some(Err(BoatError::Offline(failure.to_string())));
+        }
         Some(match (200..300).contains(&status) {
             true => Ok(()),
-            false => Err(refused(status, &body)),
+            false => Err(BoatError::Upload(format!(
+                "The sandbox refused the upload of be: HTTP {status}"
+            ))),
         })
     }
 }

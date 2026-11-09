@@ -23,6 +23,7 @@ write_package_value("be3.cargo", {
                 "//crates/beui:beui",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
+                "//third-party/rust:sha2-0.10.9",
                 "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},

@@ -25,6 +25,8 @@ mod a_key_without_exec_offers_reconnect_when_connecting;
 mod a_long_list_is_read_page_by_page;
 mod a_refused_start_says_why_until_dismissed;
 mod a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token;
+mod a_terminal_whose_agent_cannot_be_removed_is_kept;
+mod another_editors_token_or_another_build_is_put_right;
 mod a_terminal_of_a_sandbox_no_longer_listed_can_be_removed;
 mod an_empty_list_says_so;
 mod an_expired_key_offers_reconnect;
@@ -61,6 +63,9 @@ const FORBIDDEN: &str = include_str!("tests/fixtures/forbidden.json");
 const RUNNING: &str = "bx_k7m2p9qa";
 const DEPLOYED_BE: &str = "https://be3.example/data/tree/be-x86_64-unknown-linux-gnu/be";
 const BE_SHA256: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+const PHRASE: &str =
+    "abandon ability able about above absent absorb abstract absurd abuse access accident";
+const UPLOAD_URL_HTTP: &str = include_str!("tests/fixtures/upload_url_http.json");
 const BUILD_INFO: &str = "{\"id\":\"tree\",\"program_id\":\"be-host\"}\n";
 
 const SECRET: &str = "boat_test_0123456789abcdef";
@@ -73,6 +78,31 @@ struct Boat {
     view: Uuid,
     /// The key the editor is expected to call boat with.
     secret: &'static str,
+    /// Every command line the editor ran in a sandbox, none of which may hold a secret.
+    lines: Vec<String>,
+}
+
+impl Drop for Boat {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            return;
+        }
+        let secrets = ["first-token", "second-token"]
+            .into_iter()
+            .chain(PHRASE.split(' '))
+            .collect::<Vec<_>>();
+        for line in &self.lines {
+            let words = line
+                .split(|character: char| !character.is_ascii_alphanumeric() && character != '-')
+                .collect::<Vec<_>>();
+            for secret in &secrets {
+                assert!(
+                    !words.contains(secret),
+                    "a command line holds a secret ({secret}): {line}"
+                );
+            }
+        }
+    }
 }
 
 fn host(view: Uuid, origin: &str) -> EditorHost {
@@ -105,6 +135,7 @@ impl Boat {
             block,
             view,
             secret: SECRET,
+            lines: Vec::new(),
         }
     }
 
@@ -121,6 +152,7 @@ impl Boat {
             block: self.block,
             view: self.view,
             secret: self.secret,
+            lines: Vec::new(),
         }
     }
 
@@ -258,6 +290,7 @@ impl Boat {
             .to_owned();
         let body: serde_json::Value = serde_json::from_slice(&fetch.request.body).unwrap();
         let line = body["command"].as_str().unwrap().to_owned();
+        self.lines.push(line.clone());
         Command {
             fetch,
             sandbox,
@@ -350,22 +383,22 @@ impl Boat {
     }
 
     /// Answers the files and commands that put the units and credentials in place, answering
-    /// the credentials written.
+    /// the credentials written. `units` is a Connect's, with the link to the `tree` build.
     fn install_answered(&mut self, block: Uuid, units: bool) -> serde_json::Value {
         if units {
             let service = self.write_answered("/home/user/.cache/be3/be-terminal@.service");
             assert!(service.contains("ExecStart="));
+            assert!(service.contains("/home/user/.local/lib/be3/blocks/%i/be %i terminal-host"));
             assert!(service.contains("EnvironmentFile=-/home/user/.config/be3/gateway"));
+            assert!(service.contains("StartLimitBurst="));
             let path = self.write_answered("/home/user/.cache/be3/be-terminal@.path");
             assert!(path.contains("PathExists=/run/be3/terminal-host-%i.json"));
         }
         let credentials =
             self.write_answered(&format!("/home/user/.cache/be3/terminal-host-{block}.json"));
+        let parsed: serde_json::Value = serde_json::from_str(&credentials).unwrap();
+        let token = parsed["token"].as_str().unwrap();
         let install = self.command();
-        assert!(
-            !install.line.contains("token"),
-            "no secret goes in a command line"
-        );
         assert!(install.line.contains(&format!(
             "sudo install -m 0600 -o user -g user /home/user/.cache/be3/terminal-host-{block}.json \
              /run/be3/terminal-host-{block}.json"
@@ -373,6 +406,22 @@ impl Boat {
         assert!(install.line.contains(&format!(
             "trap 'rm -f /home/user/.cache/be3/terminal-host-{block}.json' EXIT"
         )));
+        assert!(
+            install.line.contains(&format!(
+                "echo '{}' | sudo tee /run/be3/terminal-host-{block}.sha256",
+                crate::root::sha256(token.as_bytes())
+            )),
+            "the token's fingerprint is kept beside it: {}",
+            install.line
+        );
+        assert_eq!(
+            install.line.contains(&format!(
+                "ln -sfn ../builds/tree /home/user/.local/lib/be3/blocks/{block}"
+            )),
+            units,
+            "{}",
+            install.line
+        );
         assert_eq!(
             install.line.contains("enable --now"),
             units,
@@ -385,7 +434,7 @@ impl Boat {
                 .contains(&format!("systemctl restart be-terminal@{block}.service"))
         );
         self.answer(&install.fetch, 200, DONE);
-        serde_json::from_str(&credentials).unwrap()
+        parsed
     }
 
     /// Connects a terminal to the running sandbox with a deployed build's `be`.
@@ -397,9 +446,23 @@ impl Boat {
             sha256: BE_SHA256.to_owned(),
         }));
         self.ran("set -e", DONE);
-        self.write_answered("/home/user/.local/lib/be3/build-info.json");
+        self.write_answered("/home/user/.local/lib/be3/builds/tree/build-info.json");
         self.install_answered(block, true);
         block
+    }
+
+    /// Answers the check of what the sandbox holds of `block` with `body`, and the host's
+    /// build as `tree`.
+    fn checked(&mut self, block: Uuid, body: &str) {
+        let line = self.ran("rm -f /home/user/.cache/be3/terminal-host-", body);
+        assert!(line.contains(&format!("/run/be3/terminal-host-{block}.json")));
+        let reply = self.host_call("the host's build", |call| match call {
+            HostCall::TerminalHostBuild { reply } => Ok(reply),
+            call => Err(call),
+        });
+        self.test.answer(reply, Ok(BUILD_INFO.to_owned()));
+        self.test.run();
+        self.test.settle();
     }
 
     /// The viewer's terminals as their settings keep them.
@@ -423,7 +486,14 @@ fn credentials(token: &str) -> String {
         "organization": "0b7e5c1a-3f2d-4c8e-9a61-5d4f2e8b7c31",
         "account": "5d4f2e8b-7c30-4c8e-9a61-0b7e5c1a3f2d",
         "token": token,
-        "recovery_phrase": "abandon ability able about above absent absorb abstract absurd abuse access accident",
+        "recovery_phrase": PHRASE,
     })
     .to_string()
+}
+
+/// A finished command that printed `stdout`.
+fn said(stdout: &str) -> String {
+    let mut done: serde_json::Value = serde_json::from_str(DONE).unwrap();
+    done["stdout"] = stdout.into();
+    done.to_string()
 }

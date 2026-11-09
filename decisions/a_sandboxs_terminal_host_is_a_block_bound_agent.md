@@ -7,7 +7,9 @@ that installs it. The app keeps the agent's credentials in the person's owner-on
 writes them into the machine's memory (`/run`), rotates the token after every resume and
 removes the agent on Disconnect. The terminal block is made in the person's Unfiled, so the
 agent reaches that block and nothing else, and the host lets an app make an agent for a block it
-made itself as well as for its own block and those below it.
+made that still sits alone in the person's Unfiled, as well as for its own block and those below
+it. `CREATED_BY` alone is not enough: anyone who may edit a block can set it, and it stays on a
+block wherever it moves.
 
 ## Why
 

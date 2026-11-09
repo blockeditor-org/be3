@@ -119,6 +119,7 @@ impl crate::embed::host_services::Call {
             | Self::RotateAgentToken { .. }
             | Self::RemoveAgent { .. }
             | Self::TerminalHostBinary { .. }
+            | Self::TerminalHostBuild { .. }
             | Self::ListData { .. }
             | Self::ReadData { .. } => {}
         }

@@ -1849,6 +1849,12 @@ impl EditorHost {
         Asked::of(self.ask(|| host_services::terminal_host_binary(arch)))
     }
 
+    /// The `build-info.json` a `be` of the host's own build carries, to compare with the one a
+    /// machine runs. Needs the manifest's `block_agents`.
+    pub fn terminal_host_build(&self) -> Asked<Result<String, Failure>> {
+        Asked::of(self.ask(host_services::terminal_host_build))
+    }
+
     pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {
         self.ask(|| {
             host_services::set_access(block_id.into_bytes(), account.into_bytes(), access).detach()
