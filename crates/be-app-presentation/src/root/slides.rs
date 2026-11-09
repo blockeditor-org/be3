@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use be_sdk_beui::be_block::BlockMetadata;
 use be_sdk_beui::be_block::ObjectId;
 use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::be_block::BlockMetadata;
 use be_sdk_beui::{BlockList, BlockParent, BlockQuery, ChildTarget, ContentProjection, Editor};
 use be_type_presentation::{Presentation, PresentationContent};
 use uuid::Uuid;

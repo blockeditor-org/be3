@@ -29,7 +29,11 @@ fn adding_notes_makes_a_text_block_and_gives_it_the_keyboard() {
             })
             .collect()
     };
-    assert_eq!(texts(&test), Vec::<Uuid>::new(), "no notes block is made for untouched slides");
+    assert_eq!(
+        texts(&test),
+        Vec::<Uuid>::new(),
+        "no notes block is made for untouched slides"
+    );
 
     test.click("presentation.notes.add");
     test.settle();
@@ -37,7 +41,11 @@ fn adding_notes_makes_a_text_block_and_gives_it_the_keyboard() {
         .try_into()
         .unwrap_or_else(|made: Vec<_>| panic!("one notes block is made, made {made:?}"));
     let info = test.store().block(made).expect("the notes block is made");
-    assert_eq!(info.block_type, crate::root::TEXT_TYPE, "notes start as text");
+    assert_eq!(
+        info.block_type,
+        crate::root::TEXT_TYPE,
+        "notes start as text"
+    );
     assert_eq!(info.parent, Some(BlockParent::Block(editor.block_id())));
     assert_eq!(
         notes(&test),
@@ -71,7 +79,11 @@ fn adding_notes_makes_a_text_block_and_gives_it_the_keyboard() {
         .expect("a deck follows its children");
     test.edit::<PresentationContent>(None, &deleted);
     test.settle();
-    assert_eq!(notes(&test), [None, None], "deleting the notes block clears the link");
+    assert_eq!(
+        notes(&test),
+        [None, None],
+        "deleting the notes block clears the link"
+    );
     assert_eq!(slide_ids(&test).len(), 2, "and keeps the slide");
     assert!(test.shown("presentation.notes.add"));
 }
