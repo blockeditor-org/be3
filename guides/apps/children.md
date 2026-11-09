@@ -105,14 +105,24 @@ exists.
 
 While a gift is pending, be-host holds the keys typed into the editor's view
 (`be-host/src/compositor/app_view/held_keys.rs`). Every gift ends explicitly,
-never by a timeout: granted when the child's view takes the keyboard, whose
-app then hears the held keys, in order and ahead of keys typed into it
-since, once it has drawn a frame that took the focus; refused when the
-person presses in the editor or takes the keyboard elsewhere, or the child,
-the editor or its app goes, and the editor hears them. Held keys skip the
-child's input method, so a composition (CJK) started before the child shows
-arrives as its committed text. An empty text block given the keyboard puts
-its caret in its text.
+never by a timeout:
+
+- Granted when the child's view takes the keyboard. The child's app hears the
+  held keys, in order and ahead of keys typed into it since, once a text field
+  in it has the keyboard (its view asks for an input method), or, for a child
+  with none, two frames after it had its block's content and the focus.
+- Refused when the person presses in the editor or takes the keyboard
+  elsewhere, when the child or the editor goes or its app stops, and when no
+  child shows a block gift's block by the layout commit after the one it was
+  asked in. The editor hears the held keys if it still has the keyboard;
+  otherwise they are dropped.
+
+Only children placed in a mode that runs an editor count; a gift to a child
+that is placed but never shows a view that takes the keyboard (a view behind
+another that holds it) lasts until the person presses or moves the keyboard.
+Held keys skip the child's input method, so a composition (CJK) started before
+the child shows arrives as its committed text. An empty text block given the
+keyboard puts its caret in its text.
 
 ## Docks across apps
 

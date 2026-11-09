@@ -120,7 +120,10 @@ struct Instance {
     child_dismissals: Vec<ChildId>,
     child_closes: Vec<ChildId>,
     child_focus: Vec<ChildId>,
-    block_focus: Vec<Uuid>,
+    /// Blocks the editor asked to give the keyboard to once a child shows them, each with
+    /// whether a layout commit has gone by since: a gift whose block no child shows by the
+    /// commit after that ends.
+    block_focus: Vec<(Uuid, bool)>,
     created: Option<Result<Uuid, String>>,
     screens: HashMap<ViewId, Screen>,
     anchored: Vec<AnchoredScreen>,
@@ -2675,11 +2678,10 @@ impl Instances {
                 }),
                 sheet: layer.is_some_and(|layer| layer.edge),
                 anchor,
-                focus_asked: self.entries.get(&instance).is_some_and(|entry| {
-                    entry.child_focus.contains(&child.child)
-                        || shown_block(&child.content)
-                            .is_some_and(|block| entry.block_focus.contains(&block))
-                }),
+                focus_asked: self
+                    .entries
+                    .get(&instance)
+                    .is_some_and(|entry| entry.child_focus.contains(&child.child)),
                 fullscreen: child.fullscreen,
             });
         }
@@ -2905,7 +2907,7 @@ impl Instances {
                         .children
                         .children
                         .iter()
-                        .any(|placed| placed.child == *asked)
+                        .any(|placed| placed.child == *asked && placed.mode != ChildMode::Preview)
                 })
             })
         })
@@ -2924,17 +2926,52 @@ impl Instances {
         };
         let asked = entry.child_focus.contains(&child);
         entry.child_focus.retain(|asked| *asked != child);
-        let anchored = entry.anchored.iter().map(|held| &held.screen);
-        let block = entry
-            .screens
-            .values()
-            .chain(anchored)
-            .flat_map(|screen| &screen.children.children)
-            .find(|placed| placed.child == child)
-            .and_then(|placed| shown_block(&placed.content));
-        let by_block = block.is_some_and(|block| entry.block_focus.contains(&block));
-        entry.block_focus.retain(|asked| Some(*asked) != block);
-        asked || by_block
+        asked
+    }
+
+    /// After a layout commit: a block gift whose block a child now shows becomes a gift to that
+    /// child; one whose block no child showed by the commit after the one it was asked in ends,
+    /// as when the block was never made or the editor stopped showing it.
+    pub(super) fn settle_block_focus(&mut self) {
+        for entry in self.entries.values_mut() {
+            if entry.block_focus.is_empty() {
+                continue;
+            }
+            let anchored = entry.anchored.iter().map(|held| &held.screen);
+            let shown: Vec<(ChildId, Uuid)> = entry
+                .screens
+                .values()
+                .chain(anchored)
+                .flat_map(|screen| &screen.children.children)
+                .filter(|placed| placed.mode != ChildMode::Preview)
+                .filter_map(|placed| Some((placed.child, shown_block(&placed.content)?)))
+                .collect();
+            let mut given = Vec::new();
+            entry.block_focus.retain_mut(|(block, seen)| {
+                if let Some((child, _)) = shown.iter().find(|(_, shows)| shows == block) {
+                    given.push(*child);
+                    return false;
+                }
+                let first = !*seen;
+                *seen = true;
+                first
+            });
+            for child in given {
+                if !entry.child_focus.contains(&child) {
+                    entry.child_focus.push(child);
+                }
+            }
+        }
+    }
+
+    /// Whether the instance's block content, if it edits one, has reached it.
+    pub(super) fn content_delivered(&self, instance: EditorInstanceId) -> bool {
+        self.entries.get(&instance).is_none_or(|entry| {
+            entry
+                .content
+                .as_ref()
+                .is_none_or(|link| link.attached.is_none() || link.delivered)
+        })
     }
 
     pub(super) fn take_child_commits(&mut self, instance: EditorInstanceId) -> Vec<ChildCommit> {
@@ -3789,8 +3826,8 @@ impl Instances {
             ShellCall::FocusBlockChild { reply, block, .. } => {
                 ack(reply);
                 let block = Uuid::from_bytes(block);
-                if !entry.block_focus.contains(&block) {
-                    entry.block_focus.push(block);
+                if !entry.block_focus.iter().any(|(asked, _)| *asked == block) {
+                    entry.block_focus.push((block, false));
                 }
             }
             ShellCall::ShowCard { reply, card, .. } => {
