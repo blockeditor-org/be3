@@ -20,14 +20,17 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
     let failure = state.failure;
     let now = state.now;
     let whose = create_memo(move || {
-        let login = state.key.with(|key| key.as_ref().map(|key| key.login.clone()));
+        let login = state
+            .key
+            .with(|key| key.as_ref().map(|key| key.login.clone()));
         let organization = state.filters.with(|filters| filters.organization.clone());
         match (login.unwrap_or_default(), organization.is_empty()) {
             (login, true) => login,
             (login, false) => format!("{organization}, as {login}"),
         }
     });
-    let offline = create_memo(move || failure.with(|failure| matches!(failure, Some(BoatError::Offline(_)))));
+    let offline =
+        create_memo(move || failure.with(|failure| matches!(failure, Some(BoatError::Offline(_)))));
     let status = create_memo(move || {
         let fetched = listed.with(|listed| listed.as_ref().map(|listed| listed.fetched));
         let failed = failure.with(|failure| match failure {
@@ -52,7 +55,13 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
                 .collect::<Vec<_>>()
         })
     });
-    let empty = create_memo(move || listed.with(|listed| listed.as_ref().is_some_and(|listed| listed.sandboxes.is_empty())));
+    let empty = create_memo(move || {
+        listed.with(|listed| {
+            listed
+                .as_ref()
+                .is_some_and(|listed| listed.sandboxes.is_empty())
+        })
+    });
     let notice = state.notice;
     let noticed = create_memo(move || notice.with(Option::is_some));
     let notice_text = create_memo(move || notice.get().unwrap_or_default());
@@ -94,9 +103,15 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
                 <Card>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <ListItem grow=1.0>
-                            <Text color=TextColor::Danger @test_id="boat.notice">{notice_text}</Text>
+                            <Text color=TextColor::Danger @test_id="boat.notice">
+                                {notice_text}
+                            </Text>
                         </ListItem>
-                        <Button label="Dismiss" variant=ButtonVariant::Ghost on_click={move || notice.set(None)} />
+                        <Button
+                            label="Dismiss"
+                            variant=ButtonVariant::Ghost
+                            on_click={move || notice.set(None)}
+                        />
                     </List>
                 </Card>
             </Show>
@@ -120,7 +135,9 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
 #[component]
 fn KeyNotice(state: State) -> NodeId {
     let standing = create_memo(move || state.standing());
-    let shown = create_memo(move || standing.with(|standing| !matches!(standing, None | Some(KeyStanding::Good))));
+    let shown = create_memo(move || {
+        standing.with(|standing| !matches!(standing, None | Some(KeyStanding::Good)))
+    });
     let message = create_memo(move || match standing.get() {
         Some(KeyStanding::Expiring(expires)) => format!(
             "This boat.dev key expires on {}. Make a new one and reconnect before then.",
@@ -134,31 +151,33 @@ fn KeyNotice(state: State) -> NodeId {
         }
         _ => String::new(),
     });
-    let urgent = create_memo(move || standing.with(|standing| !matches!(standing, Some(KeyStanding::Expiring(_)))));
+    let urgent = create_memo(move || {
+        standing.with(|standing| !matches!(standing, Some(KeyStanding::Expiring(_))))
+    });
     let color = create_memo(move || match urgent.get() {
         true => TextColor::Danger,
         false => TextColor::Warning,
     });
     view! {
         <List spacing=Space::None>
-        <Show condition={shown}>
-            <Card>
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Text color={color}>
-                        <Icon glyph=ICON_TRIANGLE_ALERT />
-                    </Text>
-                    <ListItem grow=1.0>
-                        <Text @test_id="boat.key-notice">{message}</Text>
-                    </ListItem>
-                    <Button
-                        label="Reconnect"
-                        variant=ButtonVariant::Primary
-                        @test_id="boat.reconnect"
-                        on_click={move || state.reconnecting.set(true)}
-                    />
-                </List>
-            </Card>
-        </Show>
+            <Show condition={shown}>
+                <Card>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <Text color={color}>
+                            <Icon glyph=ICON_TRIANGLE_ALERT />
+                        </Text>
+                        <ListItem grow=1.0>
+                            <Text @test_id="boat.key-notice">{message}</Text>
+                        </ListItem>
+                        <Button
+                            label="Reconnect"
+                            variant=ButtonVariant::Primary
+                            @test_id="boat.reconnect"
+                            on_click={move || state.reconnecting.set(true)}
+                        />
+                    </List>
+                </Card>
+            </Show>
         </List>
     }
 }
@@ -256,7 +275,9 @@ fn SandboxRow(state: State, id: String) -> NodeId {
                     <ListItem grow=1.0>
                         <List spacing=Space::Xs>
                             <Text weight=Weight::Bold overflow=Overflow::Ellipsis>{name}</Text>
-                            <Text style=TextStyle::CAPTION @test_id={row_id("detail")}>{detail}</Text>
+                            <Text style=TextStyle::CAPTION @test_id={row_id("detail")}>
+                                {detail}
+                            </Text>
                         </List>
                     </ListItem>
                     <Show condition={startable}>

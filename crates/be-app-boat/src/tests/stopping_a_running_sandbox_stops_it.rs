@@ -12,5 +12,8 @@ fn stopping_a_running_sandbox_stops_it() {
         stop.request.url,
         "https://boat.dev/api/v1/sandboxes/bx_k7m2p9qa/stop"
     );
-    assert!(boat.label("boat.sandbox.bx_k7m2p9qa.detail").starts_with("Stopping"));
+    assert!(
+        boat.label("boat.sandbox.bx_k7m2p9qa.detail")
+            .starts_with("Stopping")
+    );
 }

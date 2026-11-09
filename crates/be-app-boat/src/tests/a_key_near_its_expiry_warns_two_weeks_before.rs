@@ -10,7 +10,8 @@ fn a_key_near_its_expiry_warns_two_weeks_before() {
     boat.answer(&poll, 200, SANDBOXES);
 
     assert!(
-        boat.label("boat.key-notice").starts_with("This boat.dev key expires on "),
+        boat.label("boat.key-notice")
+            .starts_with("This boat.dev key expires on "),
         "{}",
         boat.label("boat.key-notice")
     );
