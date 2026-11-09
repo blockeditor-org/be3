@@ -1524,9 +1524,8 @@ pub fn TextArea(
         })
     });
 
-    let focus_requests = state.focus_requests();
     create_effect(move || {
-        if focus_requests.get() > 0 {
+        if state.take_focus_request() {
             focused.set(true);
         }
     });

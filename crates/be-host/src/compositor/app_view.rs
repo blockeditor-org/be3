@@ -781,12 +781,20 @@ pub(crate) fn AppView(
     });
     let steering = StoredCell::new(Steering::IDLE);
     let handing = StoredCell::new(handoff::Handoff::default());
+    let pointed = StoredCell::new((false, None::<Pos2>));
     let forward = move |mut input: ForwardedInput| {
+        pointed.set((input.hovered, input.pointer));
         let app = app_id.value();
         let pending = be_host_runtime::child_focus_pending(&app, instance);
-        let frames = be_host_runtime::frames_answered(&app);
         let own = catcher.try_get();
-        if held_keys::route(&app, instance, own, pending, frames, &mut input).refuse {
+        let routed = held_keys::route(
+            (&app, instance),
+            own,
+            pending,
+            held_keys_app(&app, instance, state),
+            &mut input,
+        );
+        if routed.refuse {
             be_host_runtime::refuse_child_focus(&app, instance);
         }
         let mut handed = handing.get();
@@ -831,24 +839,28 @@ pub(crate) fn AppView(
         }
     };
     let forward = Callback::new(forward);
+    let typing = create_memo(move || state.with(|view| view.ime.is_some()));
     create_effect(move || {
         revision.get();
+        typing.get();
         let Some(node) = catcher.try_get() else {
             return;
         };
         untrack(|| {
             let app = app_id.value();
             let pending = be_host_runtime::child_focus_pending(&app, instance);
-            let (_, answered) = be_host_runtime::frames_answered(&app);
-            let owed = held_keys::owed_now(&app, instance, node, pending, answered);
-            let focused = try_with_document(|document| document.focus_is_within(node));
-            if let (Some(modifiers), Some(true)) = (owed, focused) {
+            let focused = try_with_document(|document| document.focus_is_within(node))
+                .unwrap_or(false);
+            let ready = held_keys_app(&app, instance, state);
+            let owed = held_keys::owed_now((&app, instance), node, pending, ready, focused);
+            if let Some(modifiers) = owed {
+                let (hovered, pointer) = pointed.get();
                 forward.call(ForwardedInput {
                     events: Vec::new(),
                     rect: state.with(|view| view.rect),
-                    hovered: false,
+                    hovered,
                     focused: true,
-                    pointer: None,
+                    pointer,
                     modifiers,
                 });
             }
@@ -1629,8 +1641,9 @@ fn focus_when_given(
                 return;
             }
             let placing = placer.app.value();
+            let editor = (placing.as_str(), placer.instance);
             if WANTING_KEYBOARD.with_borrow(|views| !views.is_empty()) {
-                held_keys::refused(&placing, placer.instance);
+                held_keys::refused(editor, |_| false);
                 return;
             }
             try_with_document(|document| {
@@ -1640,8 +1653,12 @@ fn focus_when_given(
                         view == node || (catcher.instance == own && catcher.app == *app.value())
                     })
                 });
-                if document.focus_is_within(node) || inside {
-                    held_keys::given(&placing, placer.instance, node);
+                if document.focus_is_within(node) {
+                    held_keys::given(editor, node, true);
+                    return;
+                }
+                if inside {
+                    held_keys::refused(editor, |_| false);
                     return;
                 }
                 let placer_holds = held.is_none_or(|held| {
@@ -1654,14 +1671,22 @@ fn focus_when_given(
                 });
                 if placer_holds {
                     document.focus_focusable(node);
-                    held_keys::given(&placing, placer.instance, node);
+                    held_keys::given(editor, node, false);
                     passing.set(true);
                 } else {
-                    held_keys::refused(&placing, placer.instance);
+                    held_keys::refused(editor, |owner| document.focus_is_within(owner));
                 }
             });
         });
     });
+}
+
+fn held_keys_app(app: &str, instance: EditorInstanceId, view: Memo<PlacedView>) -> held_keys::App {
+    held_keys::App {
+        frames: be_host_runtime::frames_answered(app),
+        content: be_host_runtime::content_delivered(app, instance),
+        typing: view.with_untracked(|view| view.ime.is_some()),
+    }
 }
 
 fn filling_child(view: &PlacedView) -> Option<ChildId> {

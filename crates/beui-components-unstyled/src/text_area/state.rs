@@ -166,6 +166,7 @@ struct Inner {
     reveal: Cell<Option<Rect>>,
     reveals: Signal<u64>,
     focus_requests: Signal<u64>,
+    focus_handled: Cell<u64>,
     content: Signal<u64>,
     content_counter: Cell<u64>,
     cursors: Signal<u64>,
@@ -223,6 +224,7 @@ impl TextAreaState {
             reveal: Cell::new(None),
             reveals,
             focus_requests,
+            focus_handled: Cell::new(0),
             content,
             content_counter: Cell::new(0),
             cursors,
@@ -460,6 +462,16 @@ impl TextAreaState {
     pub fn focus_requests(&self) -> ReadSignal<u64> {
         let inner = self.0.value();
         inner.focus_requests.read_only()
+    }
+
+    /// Whether `focus` was asked since the text area last took a request: each request focuses
+    /// once, so a text area mounted again later (a hidden view shown again) does not take the
+    /// keyboard for a request an earlier mount handled. A request made before the first mount
+    /// still counts once.
+    pub fn take_focus_request(&self) -> bool {
+        let inner = self.0.value();
+        let asked = inner.focus_requests.get();
+        inner.focus_handled.replace(asked) != asked
     }
 
     pub fn reveals(&self) -> ReadSignal<u64> {
