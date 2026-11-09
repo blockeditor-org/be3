@@ -52,9 +52,16 @@ interface notifications {
     /// Forgets the endpoint at `address`, as the device stops taking pushes.
     unregister-endpoint: async func(address: string) -> result<_, error>;
 
-    /// How the signed-in account is notified about `block`: `all` until it
-    /// says otherwise.
-    notify-mode-of: async func(block: block-id) -> result<notify-mode, error>;
+    /// A block whose notifications the account set to other than `all`.
+    record block-notify-mode {
+        block: block-id,
+        mode: notify-mode,
+    }
+
+    /// Every block in the open organization whose mode the signed-in account
+    /// set to other than `all`, which every other block is: one call when a
+    /// device starts, rather than one per block shown.
+    notify-modes: async func() -> result<list<block-notify-mode>, error>;
 
     set-notify-mode: async func(block: block-id, mode: notify-mode) -> result<_, error>;
 

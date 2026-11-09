@@ -1192,27 +1192,43 @@ pub fn notify(block: Uuid, text: String, mentions: Vec<Uuid>) {
     });
 }
 
-/// How the signed-in account is notified about `block`.
+/// How the signed-in account is notified about `block`: from the modes read once (one call for
+/// every block, `Command::NotifyModes`), so showing a block asks the server nothing.
 pub fn notify_mode(
     block: Uuid,
     reply: impl FnOnce(Result<be_block_protocol::NotifyMode, String>) + Send + 'static,
 ) {
-    send(Command::NotifyMode {
-        block,
-        set: None,
-        reply: Box::new(reply),
+    let reply: worker::NotifyModeReply = Box::new(reply);
+    let asked = with_shared_mut(move |shared| match &shared.notify_modes {
+        Some(modes) => Err((
+            reply,
+            modes
+                .get(&block)
+                .copied()
+                .unwrap_or(be_block_protocol::NotifyMode::All),
+        )),
+        None => {
+            let first = shared.notify_waiting.is_empty();
+            shared.notify_waiting.push((block, reply));
+            Ok(first)
+        }
     });
+    match asked {
+        Some(Ok(true)) => send(Command::NotifyModes),
+        Some(Ok(false)) | None => {}
+        Some(Err((reply, mode))) => reply(Ok(mode)),
+    }
 }
 
-/// Sets how the signed-in account is notified about `block`; answers the mode it now has.
+/// Sets how the signed-in account is notified about `block`.
 pub fn set_notify_mode(
     block: Uuid,
     mode: be_block_protocol::NotifyMode,
     reply: impl FnOnce(Result<(), String>) + Send + 'static,
 ) {
-    send(Command::NotifyMode {
+    send(Command::SetNotifyMode {
         block,
-        set: Some(mode),
+        mode,
         reply: Box::new(move |set| reply(set.map(|_| ()))),
     });
 }

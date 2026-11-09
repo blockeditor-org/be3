@@ -2,7 +2,9 @@
 //! carried with the keys this device holds, and the server's endpoints and modes.
 //! guides/blocks/server.md, "Notifications".
 
-use be_block_protocol::{MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, client};
+use be_block_protocol::{
+    BlockNotifyMode, MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, client,
+};
 use be_block_store::ObjectStore;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -89,8 +91,9 @@ impl<S: ObjectStore> Peer<S> {
         Notification::decode(&self.commits.vault().open(sealed)?)
     }
 
-    pub async fn notify_mode(&self, block: Uuid) -> Result<NotifyMode, ClientError> {
-        Ok(client::notifications::notify_mode_of(&self.connection(), block).await??)
+    /// The blocks whose mode the account set to other than `all`.
+    pub async fn notify_modes(&self) -> Result<Vec<BlockNotifyMode>, ClientError> {
+        Ok(client::notifications::notify_modes(&self.connection()).await??)
     }
 
     pub async fn set_notify_mode(&self, block: Uuid, mode: NotifyMode) -> Result<(), ClientError> {

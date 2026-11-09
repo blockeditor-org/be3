@@ -40,7 +40,7 @@ const REACHING_PAST: &[&str] = &[
     "offers-fcm",
     "register-endpoint",
     "unregister-endpoint",
-    "notify-mode-of",
+    "notify-modes",
     "set-notify-mode",
 ];
 

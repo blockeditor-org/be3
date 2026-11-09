@@ -24,9 +24,14 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
         member.register_endpoint(endpoint(name)).await;
         member.set_notify_mode(block, mode).await;
         let read = member
-            .call(|peer| client::notifications::notify_mode_of(peer, block))
-            .await;
-        assert_eq!(read, Ok(mode));
+            .call(|peer| client::notifications::notify_modes(peer))
+            .await
+            .unwrap();
+        let listed: Vec<_> = read.iter().map(|row| (row.block, row.mode)).collect();
+        match mode {
+            NotifyMode::All => assert!(listed.is_empty(), "{listed:?}"),
+            mode => assert_eq!(listed, [(block, mode)]),
+        }
         accounts.push(account);
     }
     let mut stranger = harness.client().await;
