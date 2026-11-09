@@ -23,9 +23,13 @@ pub enum Group {
         scale: f32,
         raster: f32,
     },
+    /// Fades what it holds: toward the edges `fade` names, shape by shape, and
+    /// by `opacity` as one group, composited offscreen first so overlapping
+    /// shapes inside do not show through each other.
     Mask {
         space: SpaceId,
         fade: Fade,
+        opacity: f32,
     },
     Filter(Filter),
 }
@@ -184,14 +188,14 @@ impl Display {
     pub fn flatten(&self, at: Vec2, into: &mut Vec<Shape>) {
         let mut faded = Vec::new();
         self.flatten_faded(at, &mut faded);
-        into.extend(faded.into_iter().map(|(shape, _)| shape));
+        Flat::shapes(faded, into);
     }
 
-    pub fn flatten_faded(&self, at: Vec2, into: &mut Vec<(Shape, Fade)>) {
+    pub fn flatten_faded(&self, at: Vec2, into: &mut Vec<Flat>) {
         self.flatten_within(at, Rect::EVERYTHING, Fade::NONE, into);
     }
 
-    fn flatten_within(&self, at: Vec2, clip: Rect, fade: Fade, into: &mut Vec<(Shape, Fade)>) {
+    fn flatten_within(&self, at: Vec2, clip: Rect, fade: Fade, into: &mut Vec<Flat>) {
         self.flatten_parts(&self.parts, at, clip, fade, into);
     }
 
@@ -201,7 +205,7 @@ impl Display {
         at: Vec2,
         clip: Rect,
         fade: Fade,
-        into: &mut Vec<(Shape, Fade)>,
+        into: &mut Vec<Flat>,
     ) {
         for part in parts {
             match part {
@@ -248,8 +252,15 @@ impl Display {
                     Group::Transform { offset, scale } => {
                         self.flatten_scaled(inner, at + offset, scale, clip, fade, into);
                     }
-                    Group::Mask { fade: mask, .. } => {
-                        self.flatten_parts(inner, at, clip, fade.within(mask.translate(at)), into)
+                    Group::Mask {
+                        fade: mask,
+                        opacity,
+                        ..
+                    } => {
+                        let fade = fade.within(mask.translate(at));
+                        let mut grouped = Vec::new();
+                        self.flatten_parts(inner, at, clip, fade, &mut grouped);
+                        push_group(into, opacity, grouped);
                     }
                     Group::Filter(_) => self.flatten_parts(inner, at, clip, fade, into),
                 },
@@ -264,18 +275,17 @@ impl Display {
         scale: f32,
         clip: Rect,
         fade: Fade,
-        into: &mut Vec<(Shape, Fade)>,
+        into: &mut Vec<Flat>,
     ) {
         let mut scaled = Vec::new();
         self.flatten_parts(parts, Vec2::ZERO, Rect::EVERYTHING, Fade::NONE, &mut scaled);
-        for (mut shape, inner) in scaled {
+        Flat::placed(scaled, into, &mut |mut shape, inner| {
             scale_shape(&mut shape, scale);
-            push_shown(
-                into,
+            (
                 placed_shape(&shape, at, clip),
                 fade.within(inner.scaled(scale, at)),
-            );
-        }
+            )
+        });
     }
 
     pub fn same_tree(&self, other: &Self) -> bool {
@@ -283,9 +293,56 @@ impl Display {
     }
 }
 
-fn push_shown(into: &mut Vec<(Shape, Fade)>, shape: Shape, fade: Fade) {
+/// A window's shapes in paint order, each with the edge fade it is drawn
+/// under, and the groups an opacity composites as one.
+#[derive(Clone)]
+pub enum Flat {
+    Shape(Shape, Fade),
+    Group(f32, Vec<Flat>),
+}
+
+impl Flat {
+    pub fn shapes(items: Vec<Flat>, into: &mut Vec<Shape>) {
+        for item in items {
+            match item {
+                Self::Shape(shape, _) => into.push(shape),
+                Self::Group(_, inner) => Self::shapes(inner, into),
+            }
+        }
+    }
+
+    fn placed(
+        items: Vec<Flat>,
+        into: &mut Vec<Flat>,
+        place: &mut impl FnMut(Shape, Fade) -> (Shape, Fade),
+    ) {
+        for item in items {
+            match item {
+                Self::Shape(shape, fade) => {
+                    let (shape, fade) = place(shape, fade);
+                    push_shown(into, shape, fade);
+                }
+                Self::Group(opacity, inner) => {
+                    let mut grouped = Vec::new();
+                    Self::placed(inner, &mut grouped, place);
+                    push_group(into, opacity, grouped);
+                }
+            }
+        }
+    }
+}
+
+fn push_shown(into: &mut Vec<Flat>, shape: Shape, fade: Fade) {
     if crate::damage::bounds(&shape).is_positive() || matches!(shape, Shape::Drawing { .. }) {
-        into.push((shape, fade));
+        into.push(Flat::Shape(shape, fade));
+    }
+}
+
+fn push_group(into: &mut Vec<Flat>, opacity: f32, grouped: Vec<Flat>) {
+    match opacity >= 1.0 {
+        true => into.extend(grouped),
+        false if grouped.is_empty() || opacity <= 0.0 => {}
+        false => into.push(Flat::Group(opacity, grouped)),
     }
 }
 
@@ -396,21 +453,26 @@ impl Layer {
     pub fn flatten(&self, into: &mut Vec<Shape>) {
         let mut faded = Vec::new();
         self.flatten_faded(&mut faded);
-        into.extend(faded.into_iter().map(|(shape, _)| shape));
+        Flat::shapes(faded, into);
     }
 
-    pub fn flatten_faded(&self, into: &mut Vec<(Shape, Fade)>) {
+    pub fn flatten_faded(&self, into: &mut Vec<Flat>) {
         match self {
-            Self::Shape(shape) => into.push((shape.clone(), Fade::NONE)),
+            Self::Shape(shape) => into.push(Flat::Shape(shape.clone(), Fade::NONE)),
             Self::Display(at, display) => display.flatten_faded(*at, into),
             Self::Group(group, layers) => {
                 let mut inner = Vec::new();
                 for layer in layers.iter() {
                     layer.flatten_faded(&mut inner);
                 }
-                for (mut shape, fade) in inner {
+                let mut placed = Vec::new();
+                Flat::placed(inner, &mut placed, &mut |mut shape, fade| {
                     group.place_shape(&mut shape);
-                    push_shown(into, shape, group.place_fade(fade));
+                    (shape, group.place_fade(fade))
+                });
+                match *group {
+                    Group::Mask { opacity, .. } => push_group(into, opacity, placed),
+                    _ => into.extend(placed),
                 }
             }
         }
@@ -429,13 +491,12 @@ impl Layer {
 }
 
 pub fn flatten(layers: &[Layer]) -> Vec<Shape> {
-    flatten_faded(layers)
-        .into_iter()
-        .map(|(shape, _)| shape)
-        .collect()
+    let mut shapes = Vec::new();
+    Flat::shapes(flatten_faded(layers), &mut shapes);
+    shapes
 }
 
-pub fn flatten_faded(layers: &[Layer]) -> Vec<(Shape, Fade)> {
+pub fn flatten_faded(layers: &[Layer]) -> Vec<Flat> {
     let mut shapes = Vec::new();
     for layer in layers {
         layer.flatten_faded(&mut shapes);

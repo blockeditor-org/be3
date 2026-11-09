@@ -29,7 +29,7 @@ pub struct Seen {
 
 struct Node {
     shapes: Vec<(usize, Shape)>,
-    fades: Vec<Fade>,
+    fades: Vec<Masked>,
     children: Vec<Key>,
     subtree: (usize, Rect),
 }
@@ -102,7 +102,7 @@ impl Place {
 }
 
 impl Walk {
-    fn node(&mut self, display: &Display, at: Place, clip: Rect, fades: &[Fade]) -> Key {
+    fn node(&mut self, display: &Display, at: Place, clip: Rect, fades: &[Masked]) -> Key {
         let occurrence = self.occurrences.entry(display.node).or_insert(0);
         let key = (display.node, *occurrence);
         *occurrence += 1;
@@ -123,7 +123,7 @@ impl Walk {
         parts: &[Part],
         at: Place,
         clip: Rect,
-        fades: &[Fade],
+        fades: &[Masked],
         node: &mut Node,
     ) {
         for part in parts {
@@ -134,7 +134,7 @@ impl Walk {
                         let index = self.count;
                         self.count += 1;
                         if let Some(area) = self.area
-                            && fades.iter().all(|fade| fade.is_none())
+                            && fades.iter().all(Masked::is_none)
                             && opaque_cover(&placed, area)
                         {
                             self.seen.cover = Some(index);
@@ -163,9 +163,12 @@ impl Walk {
                     Group::Transform { offset, scale } => {
                         self.parts(display, inner, at.within(offset, scale), clip, fades, node);
                     }
-                    Group::Mask { fade, .. } => {
+                    Group::Mask { fade, opacity, .. } => {
                         let mut within = fades.to_vec();
-                        within.push(fade.scaled(at.scale, at.at));
+                        within.push(Masked {
+                            fade: fade.scaled(at.scale, at.at),
+                            opacity,
+                        });
                         self.parts(display, inner, at, clip, &within, node);
                     }
                     Group::Filter(_) => self.parts(display, inner, at, clip, fades, node),
@@ -310,8 +313,14 @@ impl Compare<'_> {
                 .filter(|(index, _)| self.visible_new(*index))
                 .cloned()
                 .collect();
-            let shifted_fades: Vec<Fade> =
-                was.fades.iter().map(|fade| fade.translate(by)).collect();
+            let shifted_fades: Vec<Masked> = was
+                .fades
+                .iter()
+                .map(|mask| Masked {
+                    fade: mask.fade.translate(by),
+                    ..*mask
+                })
+                .collect();
             if shifted_fades != now.fades {
                 let reach = reach(&[&shifted, &shown]);
                 for fade in fade_changes(&shifted_fades, &now.fades) {
@@ -348,7 +357,31 @@ impl Compare<'_> {
     }
 }
 
-fn fade_changes(was: &[Fade], now: &[Fade]) -> Vec<Rect> {
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct Masked {
+    fade: Fade,
+    opacity: f32,
+}
+
+impl Masked {
+    const NONE: Self = Self {
+        fade: Fade::NONE,
+        opacity: 1.0,
+    };
+
+    fn is_none(&self) -> bool {
+        self.fade.is_none() && self.opacity >= 1.0
+    }
+
+    fn reach(self, other: Self) -> Vec<Rect> {
+        match self.opacity == other.opacity {
+            true => self.fade.bands(),
+            false => vec![Rect::EVERYTHING],
+        }
+    }
+}
+
+fn fade_changes(was: &[Masked], now: &[Masked]) -> Vec<Rect> {
     let mut changed = Vec::new();
     for index in 0..was.len().max(now.len()) {
         let (old, new) = (was.get(index), now.get(index));
@@ -360,7 +393,9 @@ fn fade_changes(was: &[Fade], now: &[Fade]) -> Vec<Rect> {
                 changed.extend(old.reach(*new));
                 changed.extend(new.reach(*old));
             }
-            (Some(fade), None) | (None, Some(fade)) => changed.extend(fade.reach(Fade::NONE)),
+            (Some(mask), None) | (None, Some(mask)) => {
+                changed.extend(mask.reach(Masked::NONE));
+            }
             (None, None) => {}
         }
     }
