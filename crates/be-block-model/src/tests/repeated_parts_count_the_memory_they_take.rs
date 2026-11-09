@@ -3,8 +3,16 @@ use crate::{SPLICE, Stored, to_cbor};
 
 #[test]
 fn repeated_parts_count_the_memory_they_take() {
-    assert_eq!(most_repeated(0), 64 << 20, "a small document may still repeat 64 MiB");
-    assert_eq!(most_repeated(10 << 20), 160 << 20, "a large one 16 times its size");
+    assert_eq!(
+        most_repeated(0),
+        64 << 20,
+        "a small document may still repeat 64 MiB"
+    );
+    assert_eq!(
+        most_repeated(10 << 20),
+        160 << 20,
+        "a large one 16 times its size"
+    );
 
     let small = to_cbor(&Stored::Array(vec![Stored::Integer(0.into()); 2_000]));
     let name = Stored::Bytes(be_block_store::Hash::of(&small).as_bytes().to_vec());
