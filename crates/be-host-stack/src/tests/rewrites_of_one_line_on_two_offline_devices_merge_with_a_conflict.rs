@@ -4,7 +4,9 @@ use super::*;
 
 #[test]
 fn rewrites_of_one_line_on_two_offline_devices_merge_with_a_conflict() {
-    let mut harness = Harness::start();
+    // On the manual clock the host only tries the server again at `retry_now`, so it cannot
+    // publish before the other device does and leave that device's drain `Diverged`.
+    let mut harness = Harness::start().on_manual_clock();
     harness.connect();
     let address = harness.address();
     let note = Uuid::new_v4();
@@ -13,7 +15,9 @@ fn rewrites_of_one_line_on_two_offline_devices_merge_with_a_conflict() {
     other.read(note);
 
     harness.stop_server();
-    wait_until("noticed the server was gone", |shared| !shared.connected);
+    wait_until("tried the server and found it gone", |shared| {
+        !shared.connected && shared.error.is_some()
+    });
     open(note, TextContent::CONTENT_TYPE);
     replace(
         note,
