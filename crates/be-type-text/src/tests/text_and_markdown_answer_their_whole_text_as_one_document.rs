@@ -1,17 +1,10 @@
-use be_block::{BlockContent, Stored};
-use be_sdk_type_guest::api::{Loaded, SearchDocument, guest::exports::replicas::Guest};
+use be_block::{BlockContent, PartReader, SearchDocument};
 
 use super::*;
 
-fn search(content: &TextContent, keys: Option<Vec<String>>) -> Vec<SearchDocument> {
-    let loaded = Loaded::of(Stored::unsaved(content.encode()));
-    pollster::block_on(crate::block_types().search_text(
-        TextContent::CONTENT_TYPE,
-        loaded,
-        keys,
-        Vec::new(),
-    ))
-    .expect("the text answers")
+fn search(content: &TextContent, keys: Option<&[String]>) -> Vec<SearchDocument> {
+    let parts = PartReader::new(|_, _, _| panic!("text is loaded whole and reads no part"));
+    pollster::block_on(content.search_text(keys, &[], parts)).expect("the text answers")
 }
 
 #[test]
@@ -30,12 +23,12 @@ fn text_and_markdown_answer_their_whole_text_as_one_document() {
             "{language:?} is one document of its whole text"
         );
         assert_eq!(
-            search(&content, Some(vec![String::new()])).len(),
+            search(&content, Some(&[String::new()])).len(),
             1,
             "asked for its one key, it answers it"
         );
         assert_eq!(
-            search(&content, Some(vec!["other".to_owned()])),
+            search(&content, Some(&["other".to_owned()])),
             Vec::new(),
             "asked for another key, it answers nothing"
         );
