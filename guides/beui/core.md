@@ -203,7 +203,8 @@ be-tool-fix-rust-source enforces the layout:
   server-rendered page and both cores agree; on HTML they become `var(--…)`
   and follow the scheme without a redraw.
 
-The inspector and app hosting are native only. On HTML a `Window` shows as its
+The inspector and app hosting are native only; `beui::can_open_inspector()`
+says in advance whether one opens. On HTML a `Window` shows as its
 overlay and `window_of` is always the main window.
 
 ### The HTML core
