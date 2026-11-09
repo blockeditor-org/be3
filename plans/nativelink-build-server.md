@@ -34,7 +34,7 @@ wake key (`sandbox.read,sandbox.resume` on `nl-scheduler`), and the controller's
 4. **Secrets**: the repository secret `BE3_NL_URL` is `https://NAME-8099.on.boat.dev/?_token=` and Caddy's token;
    `BE3_NL_KEY` is the wake key. In a cloud session, network secrets carry both instead (guides/build_server.md).
 5. Optionally `boat billing extra-starts on`: boat's start limits (60 an hour, 200 a day on the $20 plan) count every VM
-   the controller creates, deleted ones too, and a cold fleet is up to 8 starts.
+   the controller creates, deleted ones too, and a cold fleet of 2 large workers is about 4 starts.
 
 The address of a new scheduler differs, so step 3 and the secret are redone if the scheduler is ever recreated.
 

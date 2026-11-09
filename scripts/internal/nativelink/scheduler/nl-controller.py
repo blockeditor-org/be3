@@ -33,13 +33,15 @@ import tempfile
 import time
 import urllib.request
 
-BASE = int(os.environ.get("NL_WORKERS_BASE", "4"))           # workers kept while any build runs
-CAP = int(os.environ.get("NL_WORKERS_CAP", "12"))            # the most it will burst to
+BASE = int(os.environ.get("NL_WORKERS_BASE", "2"))           # workers kept while any build runs
+CAP = int(os.environ.get("NL_WORKERS_CAP", "6"))             # the most it will burst to
 UP_AFTER = int(os.environ.get("NL_UP_AFTER", "20"))          # seconds work must have waited before adding workers
 UP_EVERY = int(os.environ.get("NL_UP_EVERY", "45"))          # seconds between adding workers
 DOWN_AFTER = int(os.environ.get("NL_DOWN_AFTER", "300"))     # seconds with spare workers before they are let go
 BURST_TTL = int(os.environ.get("NL_BURST_TTL", "600"))       # a burst worker lives this long, and is extended while wanted
-WORKER_TYPE = os.environ.get("NL_WORKER_TYPE", "default")
+# large: boat prices every size the same per CPU, so fewer, bigger workers cost the same and use fewer starts (each
+# VM created is one, whether or not it reaches the scheduler). max_inflight_tasks in worker-direct.json5 matches it.
+WORKER_TYPE = os.environ.get("NL_WORKER_TYPE", "large")
 WORKER_TTL = int(os.environ.get("NL_WORKER_TTL", "1800"))    # a worker's lifetime, extended while builds run
 EXTEND_WHEN_LEFT = int(os.environ.get("NL_EXTEND_WHEN_LEFT", "900"))   # extend when less than this is left
 SCHEDULER_IDLE_STOP = int(os.environ.get("NL_SCHEDULER_IDLE_STOP", str(4 * 3600)))

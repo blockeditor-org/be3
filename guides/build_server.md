@@ -80,7 +80,7 @@ port 50052.
   `BE3_BUILD_SERVER=nativelink`, `BE3_NL_URL` to the address without `?_token=` (buck2 then sends no header and the
   proxy adds it) and `BE3_NL_KEY` to any placeholder such as `boat_dummy`, which the proxy replaces. A hosted port has
   two names, `on.boat.dev` and the older `on.ascii.dev`; the network secret's host must be the one `BE3_NL_URL` uses.
-- **The controller** notices a build (a connection from Caddy on port 50052), keeps 4 workers alive while it runs
+- **The controller** notices a build (a connection from Caddy on port 50052), keeps 2 large workers (8 CPUs, 16 actions each) alive while it runs
   by extending their 30-minute lifetime, creates replacements, and stops the scheduler after 4 idle hours. Boat
   places a new VM at random and about half cannot reach the scheduler (below), so it creates as many workers as are
   missing, deletes the ones that do not complete a WireGuard handshake within `NL_HANDSHAKE_WAIT` (60 s), and makes
@@ -91,7 +91,7 @@ port 50052.
   read-only key (the `nl-worker` environment's secret file `worker-ro.env`); the scheduler keeps small objects and the
   action cache in /tmp, persisted as one packed Bunny object every 5 minutes and restored on boot, and writes
   everything else to Bunny with the full-access key (the `nl-scheduler` environment's `nl-bunny.env`).
-- **Speed** (4 default workers, taken before Caddy replaced a WebSocket tunnel, over the scheduler's private address, so
+- **Speed** (4 default-size workers, the same 16 CPUs as 2 large ones, taken before Caddy replaced a WebSocket tunnel, over the scheduler's private address, so
   boat's public edge was not in the path; scripts/internal/nativelink/bench/ repeats them through the edge):
   - A one-file change to be-lib-geometry, one build alone: 250-350 s with a fresh worker fleet, 190-230 s with a warm one.
   - A new client VM (default size) with a fresh partial clone and a new buck2 daemon, every action already cached:
@@ -109,7 +109,8 @@ Things that are not obvious:
   which is why the controller replaces the workers that cannot reach it. A scheduler that boat resumed as a new machine can land where its workers
   cannot reach it; stopping and resuming it again, or forking it, picks another place.
 - **Boat's start limits** (60 an hour, 200 a day on the $20 plan; `boat limits`) count every VM the controller creates,
-  including the ones it deletes at once. A cold fleet of 4 is about 8 starts, in a few rounds.
+  including the ones it deletes at once. A cold fleet of 2 is about 4 starts, in a few rounds. Workers are `large` because boat prices
+  every size the same per CPU, so bigger ones cost the same and use fewer starts.
 - **Exposing the port is one manual step** on the scheduler, `host 8099 --localhost --public`; the address keeps
   working across stop and resume, but a new scheduler has a new one. Never expose it before Caddy checks the token:
   the port then lets anyone build and run code on the workers.
@@ -155,7 +156,7 @@ of the per-minute, per-hour and per-day ones (docs.boat.dev/limits#extra-starts)
 that could not reach the scheduler) is a start too; the controller logs the share of new VMs that reach the scheduler. Its default is never to pay: it leaves 40 starts of the day and 10 of the
 hour for everybody else's VMs and stops creating when the rest is used. `NL_MAX_START_PRICE` (the dearest start it will
 buy) and `NL_EXTRA_START_BUDGET` (dollars a month) let it buy more; with `account.read` it asks boat what the next
-start costs, without it it can only count its own. Between `NL_WORKERS_BASE` (4) and `NL_WORKERS_CAP` (12) workers it
+start costs, without it it can only count its own. Between `NL_WORKERS_BASE` (2) and `NL_WORKERS_CAP` (6) workers (`NL_WORKER_TYPE`, `large`) it
 scales on NativeLink's queue (read through `nl-otelcol`): once actions have waited 20 s and every worker it wants is
 connected, it raises the target to what the queue needs, and it lowers it after five minutes without a queue. Work
 queued only because workers are still being made, or because no starts are left, does not raise it.
