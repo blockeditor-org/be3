@@ -600,7 +600,7 @@ impl ServerStore {
         let mut sent = vec![commit.hash()];
         sent.extend(change.added.iter().copied());
         self.confirm_uploads(identity, sent.clone()).await?;
-        self.with_graph(identity.organization, move |store, graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| store.keeping_refs(database, || {
             require_edit(graph, &visibility(identity), block)?;
             let current = graph.head(block);
             if current != expected {
@@ -721,7 +721,7 @@ impl ServerStore {
             graph.touch(block)?;
             store.objects().remove_freed(&freed);
             Ok(PublishOutcome::Published(commit, redescribed))
-        })
+        }))
         .await
     }
 
@@ -907,7 +907,7 @@ impl ServerStore {
             Hold::Lasting => None,
             Hold::UntilCommitted => Some(be_block_commit::now_milliseconds()),
         };
-        self.with_graph(identity.organization, move |store, graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| store.keeping_refs(database, || {
             require_edit(graph, &visibility(identity), block)?;
             store.require_holdable(graph, database, identity, &objects, "held")?;
             let transaction = database.unchecked_transaction()?;
@@ -959,12 +959,15 @@ impl ServerStore {
             )?;
             transaction.commit()?;
             Ok(())
-        })
+        }))
         .await
     }
 
     /// Ends the `until-committed` holds past their grace (`hold_objects`), uncharging their
-    /// blocks, and deletes what nothing holds any more. Answers how many objects it deleted.
+    /// blocks, and deletes what nothing holds any more. A block whose journal holds entries keeps
+    /// its holds, since an operation there may name a part no commit took yet: they end once a
+    /// commit rebases the journal and the grace has passed. Answers how many objects it
+    /// deleted.
     pub(crate) async fn collect_holds(&self) -> Result<usize, ServerError> {
         let grace = i64::try_from(self.upload_grace().as_millis()).unwrap_or(i64::MAX);
         let cutoff = be_block_commit::now_milliseconds().saturating_sub(grace);
@@ -972,7 +975,10 @@ impl ServerStore {
             .with_database(move |_, database| {
                 let mut statement = database.prepare(
                     "SELECT DISTINCT organization_id FROM block_objects
-                     WHERE held_since IS NOT NULL AND held_since <= ?1",
+                     WHERE held_since IS NOT NULL AND held_since <= ?1
+                     AND NOT EXISTS(SELECT 1 FROM journal_entries
+                         WHERE journal_entries.organization_id = block_objects.organization_id
+                           AND journal_entries.block_id = block_objects.block_id)",
                 )?;
                 let rows = statement.query_map([cutoff], |row| row.get::<_, String>(0))?;
                 rows.map(|row| parse_uuid(&row?)).collect()
@@ -981,13 +987,16 @@ impl ServerStore {
         let mut deleted = 0;
         for organization in organizations {
             deleted += self
-                .with_graph(organization, move |store, graph, database| {
+                .with_graph(organization, move |store, graph, database| store.keeping_refs(database, || {
                     let mut expired: BTreeMap<Uuid, Vec<Hash>> = BTreeMap::new();
                     {
                         let mut statement = database.prepare(
                             "SELECT block_id, hash FROM block_objects
                              WHERE organization_id = ?1 AND held_since IS NOT NULL
-                               AND held_since <= ?2",
+                               AND held_since <= ?2
+                               AND NOT EXISTS(SELECT 1 FROM journal_entries
+                                   WHERE journal_entries.organization_id = block_objects.organization_id
+                                     AND journal_entries.block_id = block_objects.block_id)",
                         )?;
                         let rows = statement
                             .query_map(params![organization.to_string(), cutoff], |row| {
@@ -1036,7 +1045,7 @@ impl ServerStore {
                     transaction.commit()?;
                     store.objects().remove_freed(&freed);
                     Ok(freed.len())
-                })
+                }))
                 .await?;
         }
         Ok(deleted)
@@ -1291,7 +1300,7 @@ impl ServerStore {
     }
 
     pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {
-        self.with_graph(identity.organization, move |store, graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| store.keeping_refs(database, || {
             let seen = visibility(identity);
             let kept_for = store
                 .policies(graph, database, identity.organization)?
@@ -1381,7 +1390,7 @@ impl ServerStore {
                 objects: freed.len(),
                 revision: graph.revision(),
             })
-        })
+        }))
         .await
     }
 

@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 
 /// Segments added by an operation that names each by the part it was put as, with the hash of
 /// its bytes and what to rebuild them from, as chat closes a segment. Its first part is the
-/// list of segments; each segment is a part of its own, kept as it was put.
+/// number of segments; each segment is a part of its own, kept as it was put. Its refs come
+/// from the parts it loaded (`from_stored`), never from its own bytes: a save after a rotation
+/// reseals a reused part under a new ref.
 #[derive(Clone, Debug, Default)]
 struct Shelf {
     segments: Vec<Segment>,
@@ -14,7 +16,8 @@ struct Shelf {
 
 #[derive(Clone, Debug)]
 struct Segment {
-    part: PartRef,
+    /// None only in an editor's copy, decoded from the first part alone.
+    part: Option<PartRef>,
     /// The bytes this replica rebuilt, kept only when they hash to what the operation said.
     held: Option<Vec<u8>>,
 }
@@ -45,22 +48,38 @@ impl BlockContent for Shelf {
     const LOADS: be_block::Loads = be_block::Loads::FirstPart;
 
     fn encode(&self) -> Vec<u8> {
-        let parts: Vec<PartRef> = self.segments.iter().map(|segment| segment.part).collect();
-        postcard::to_stdvec(&parts).unwrap()
+        postcard::to_stdvec(&(self.segments.len() as u32)).unwrap()
     }
 
     fn decode(bytes: &[u8]) -> Result<Self, ContentError> {
         if bytes.is_empty() {
             return Ok(Self::default());
         }
-        let parts: Vec<PartRef> =
+        let count: u32 =
             postcard::from_bytes(bytes).map_err(|_| ContentError::Malformed("shelf"))?;
+        let unknown = Segment {
+            part: None,
+            held: None,
+        };
         Ok(Self {
-            segments: parts
-                .into_iter()
-                .map(|part| Segment { part, held: None })
-                .collect(),
+            segments: vec![unknown; count as usize],
         })
+    }
+
+    fn from_stored(stored: &be_block::Stored) -> Result<Self, ContentError> {
+        let mut shelf = Self::decode(&stored.bytes)?;
+        let saved = stored
+            .root
+            .as_ref()
+            .map(|root| root.children.iter().skip(1).map(|part| part.reference).collect())
+            .unwrap_or_else(Vec::new);
+        if saved.len() != shelf.segments.len() {
+            return Err(ContentError::Malformed("shelf parts"));
+        }
+        for (segment, part) in shelf.segments.iter_mut().zip(saved) {
+            segment.part = Some(part);
+        }
+        Ok(shelf)
     }
 
     fn parts(&self) -> Part<'_> {
@@ -68,13 +87,16 @@ impl BlockContent for Shelf {
         parts.extend(
             self.segments
                 .iter()
-                .map(|segment| Part::Reused(segment.part)),
+                .filter_map(|segment| segment.part.map(Part::Reused)),
         );
         Part::node(parts)
     }
 
     fn reused_bytes(&self, part: PartRef) -> Option<std::borrow::Cow<'_, [u8]>> {
-        let segment = self.segments.iter().find(|segment| segment.part == part)?;
+        let segment = self
+            .segments
+            .iter()
+            .find(|segment| segment.part == Some(part))?;
         segment.held.as_deref().map(std::borrow::Cow::Borrowed)
     }
 }
@@ -86,7 +108,10 @@ impl LiveEdit for Shelf {
         let ShelfOp::Add { part, hash, recipe } = operation;
         let rebuilt = encoded(recipe);
         let held = (*Hash::of(&rebuilt).as_bytes() == *hash).then_some(rebuilt);
-        self.segments.push(Segment { part: *part, held });
+        self.segments.push(Segment {
+            part: Some(*part),
+            held,
+        });
     }
 }
 
@@ -167,7 +192,7 @@ fn an_operation_adds_a_part_by_its_hash() {
     );
     let mut expected = Shelf {
         segments: vec![Segment {
-            part: first,
+            part: Some(first),
             held: None,
         }],
     }
@@ -187,11 +212,11 @@ fn an_operation_adds_a_part_by_its_hash() {
     let mut expected = Shelf {
         segments: vec![
             Segment {
-                part: first,
+                part: Some(first),
                 held: None,
             },
             Segment {
-                part: second,
+                part: Some(second),
                 held: None,
             },
         ],
