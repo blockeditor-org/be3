@@ -847,7 +847,7 @@ fn build(
             .take_while(|((opened, _), wanted)| opened == *wanted)
             .count();
         while open.len() > common + 1 {
-            close(&mut open);
+            close(&mut open, &mut shapes);
         }
         for opened in &wanted[common..] {
             open.push((*opened, Vec::new()));
@@ -880,7 +880,7 @@ fn build(
         }
     }
     while open.len() > 1 {
-        close(&mut open);
+        close(&mut open, &mut shapes);
     }
     let (_, parts) = open.pop().expect("the root stays open");
     (shapes, parts)
@@ -892,15 +892,45 @@ enum Opened {
     Scope(u64, Group),
 }
 
-fn close(open: &mut Vec<(Opened, Vec<Part>)>) {
+fn close(open: &mut Vec<(Opened, Vec<Part>)>, shapes: &mut [Shape]) {
     let (opened, parts) = open.pop().expect("a group is open");
     let group = match opened {
-        Opened::Scope(_, group) => group,
+        Opened::Scope(_, group) => folded(group, &parts, shapes),
         Opened::Root => unreachable!("the root is never closed"),
     };
     if !parts.is_empty() {
         let into = &mut open.last_mut().expect("the root stays open").1;
         into.push(Part::Group(group, parts.into_boxed_slice()));
+    }
+}
+
+/// A faded group that holds one shape which cannot overlap itself paints the same
+/// with its opacity in the shape's own colour, so it skips compositing offscreen.
+fn folded(group: Group, parts: &[Part], shapes: &mut [Shape]) -> Group {
+    let Group::Mask {
+        space,
+        fade,
+        opacity,
+    } = group
+    else {
+        return group;
+    };
+    let [Part::Shapes { start, end, .. }] = parts else {
+        return group;
+    };
+    if opacity >= 1.0 || end - start != 1 {
+        return group;
+    }
+    let color = match &mut shapes[*start as usize] {
+        Shape::Rect { color, .. } | Shape::Line { color, .. } => color,
+        Shape::Image { tint, .. } => tint,
+        _ => return group,
+    };
+    *color = color.scale_alpha(opacity);
+    Group::Mask {
+        space,
+        fade,
+        opacity: 1.0,
     }
 }
 

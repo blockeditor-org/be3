@@ -13,6 +13,7 @@ pub fn rasterize<'a>(
         textures: &textures,
         chains: Default::default(),
         scale: frame.pixels_per_point,
+        layers: Vec::new(),
     };
     painter.paint(&mut canvas, &frame.primitives)?;
     Ok(Pixels {
@@ -25,6 +26,8 @@ struct Painter<'a, 't> {
     textures: &'t dyn Fn(TextureKey) -> Option<&'a Pixels>,
     chains: std::collections::BTreeMap<TextureKey, Vec<Pixels>>,
     scale: f32,
+    /// Layers groups painted onto before, kept for the next group at that depth.
+    layers: Vec<Canvas>,
 }
 
 impl<'a> Painter<'a, '_> {
@@ -83,9 +86,16 @@ impl<'a> Painter<'a, '_> {
                     );
                 }
                 Content::Group(group) => {
-                    let mut layer = Canvas::new(canvas.width, canvas.height, [0; 4]);
-                    self.paint(&mut layer, &group.primitives)?;
-                    canvas.composite(exact(primitive.clip, scale), &layer, group.opacity);
+                    let clip = exact(primitive.clip, scale);
+                    let mut layer = self
+                        .layers
+                        .pop()
+                        .unwrap_or_else(|| Canvas::new(canvas.width, canvas.height, [0; 4]));
+                    layer.clear(clip);
+                    let painted = self.paint(&mut layer, &group.primitives);
+                    canvas.composite(clip, &layer, group.opacity);
+                    self.layers.push(layer);
+                    painted?;
                 }
             }
         }
@@ -143,23 +153,33 @@ impl Canvas {
         }
     }
 
+    /// Makes the pixels in `clip` transparent, and the fade and rounds none.
+    fn clear(&mut self, clip: [f32; 4]) {
+        self.fade = Fade::NONE;
+        self.rounds.clear();
+        let [left, top, right, bottom] = self.covering(clip);
+        for y in top..bottom {
+            let row = (y * self.width) as usize;
+            self.pixels[row + left as usize..row + right as usize].fill([0; 4]);
+        }
+    }
+
+    /// The whole pixels `clip` touches, within the canvas.
+    fn covering(&self, clip: [f32; 4]) -> [u32; 4] {
+        let left = clip[0].floor().clamp(0.0, self.width as f32) as u32;
+        let top = clip[1].floor().clamp(0.0, self.height as f32) as u32;
+        let right = clip[2].ceil().clamp(0.0, self.width as f32) as u32;
+        let bottom = clip[3].ceil().clamp(0.0, self.height as f32) as u32;
+        [left, top, right.max(left), bottom.max(top)]
+    }
+
     /// Paints a layer of premultiplied pixels over this canvas at `opacity`, under the
     /// fade and rounds the layer's primitive has, where pixel centres fall in `clip`.
     fn composite(&mut self, clip: [f32; 4], layer: &Canvas, opacity: f32) {
-        let left = clip[0].floor().max(0.0) as u32;
-        let top = clip[1].floor().max(0.0) as u32;
-        let right = clip[2].ceil().min(self.width as f32).max(0.0) as u32;
-        let bottom = clip[3].ceil().min(self.height as f32).max(0.0) as u32;
+        let [left, top, right, bottom] = self.covering(clip);
         for y in top..bottom {
             for x in left..right {
                 let point = [x as f32 + 0.5, y as f32 + 0.5];
-                if point[0] < clip[0]
-                    || point[1] < clip[1]
-                    || point[0] > clip[2]
-                    || point[1] > clip[3]
-                {
-                    continue;
-                }
                 let source = layer.pixels[(y * layer.width + x) as usize];
                 if source[3] == 0 {
                     continue;

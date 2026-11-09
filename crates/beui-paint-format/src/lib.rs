@@ -159,9 +159,12 @@ pub struct Group {
 
 impl Group {
     /// The primitive that paints `primitives` as one group at `opacity`, clipped to what
-    /// they show, or none when they show nothing.
+    /// they show and the fringe around it, or none when they show nothing.
     pub fn primitive(opacity: f32, primitives: Vec<Primitive>) -> Option<Primitive> {
-        let clip = primitives
+        // A point past what the primitives show keeps the pixels their antialiased
+        // edges reach.
+        const FRINGE: f32 = 1.0;
+        let [left, top, right, bottom] = primitives
             .iter()
             .map(Primitive::shown)
             .filter(|shown| shown[0] < shown[2] && shown[1] < shown[3])
@@ -174,7 +177,7 @@ impl Group {
                 ]
             })?;
         Some(Primitive {
-            clip,
+            clip: [left - FRINGE, top - FRINGE, right + FRINGE, bottom + FRINGE],
             fade: Fade::NONE,
             rounds: Vec::new(),
             content: Content::Group(Self {

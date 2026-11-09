@@ -5,7 +5,8 @@ struct Uniforms {
 
 struct Space {
     translation: vec2<f32>,
-    padding: vec2<f32>,
+    opacity: f32,
+    padding: f32,
     clip: vec4<f32>,
     fade: vec4<f32>,
     widths: vec4<f32>,
@@ -85,7 +86,7 @@ fn ramp(distance: vec2<f32>, width: vec2<f32>) -> vec2<f32> {
 fn faded(point: vec2<f32>) -> f32 {
     let near = ramp(point - space.fade.xy, space.widths.xy);
     let far = ramp(space.fade.zw - point, space.widths.zw);
-    return near.x * near.y * far.x * far.y;
+    return near.x * near.y * far.x * far.y * space.opacity;
 }
 
 fn cross2(left: vec2<f32>, right: vec2<f32>) -> f32 {
