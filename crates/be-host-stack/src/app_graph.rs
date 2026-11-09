@@ -54,6 +54,22 @@ pub fn access_of(level: AccessLevel) -> be_block_graph::Access {
     }
 }
 
+pub fn notify_mode_of(mode: be_sdk_api::NotifyMode) -> be_block_protocol::NotifyMode {
+    match mode {
+        be_sdk_api::NotifyMode::All => be_block_protocol::NotifyMode::All,
+        be_sdk_api::NotifyMode::Mentions => be_block_protocol::NotifyMode::Mentions,
+        be_sdk_api::NotifyMode::Off => be_block_protocol::NotifyMode::Off,
+    }
+}
+
+pub fn notify_mode_to(mode: be_block_protocol::NotifyMode) -> be_sdk_api::NotifyMode {
+    match mode {
+        be_block_protocol::NotifyMode::All => be_sdk_api::NotifyMode::All,
+        be_block_protocol::NotifyMode::Mentions => be_sdk_api::NotifyMode::Mentions,
+        be_block_protocol::NotifyMode::Off => be_sdk_api::NotifyMode::Off,
+    }
+}
+
 pub fn grants_of(
     listed: Result<be_block_protocol::AccessList, String>,
 ) -> Result<be_sdk_api::AccessListing, String> {

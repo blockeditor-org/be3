@@ -20,7 +20,7 @@ use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
     AccessLevel, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost,
     Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, PickAnchor,
-    PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch,
+    NotifyMode, PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch,
 };
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, ChildTarget};
 use uuid::Uuid;
@@ -60,6 +60,8 @@ struct State {
     saved_titles: RefCell<HashMap<TabId, String>>,
     next_ask: Cell<u64>,
     share_asks: RefCell<Vec<be_sdk_beui::Task>>,
+    /// The asks for each block's notification mode, answered or not: a block is asked once.
+    notify_asks: RefCell<HashMap<Uuid, be_sdk_beui::Task>>,
 }
 
 #[derive(Clone, Copy)]
@@ -70,6 +72,8 @@ pub struct Workspace {
     views: Signal<HashMap<TabId, Uuid>>,
     pub(crate) titles: Signal<HashMap<TabId, String>>,
     simulated: Signal<HashMap<Uuid, AccessLevel>>,
+    /// How the account is notified about each block the host answered for (`notify_mode`).
+    notify_modes: Signal<HashMap<Uuid, NotifyMode>>,
     error: Signal<Option<String>>,
     routes: Signal<u64>,
     pub(crate) phone: Signal<bool>,
@@ -127,12 +131,14 @@ impl Workspace {
                 saved_titles: RefCell::new(HashMap::new()),
                 next_ask: Cell::new(0),
                 share_asks: RefCell::new(Vec::new()),
+                notify_asks: RefCell::new(HashMap::new()),
             }),
             editor,
             tabs,
             views,
             titles,
             simulated,
+            notify_modes: create_signal(HashMap::new()),
             error,
             routes,
             phone,
@@ -1023,6 +1029,42 @@ impl Workspace {
             Some(AccessLevel::Edit) => AccessLevel::Edit.min(ceiling),
             Some(AccessLevel::Manage) | None => ceiling,
         }
+    }
+
+    /// How the account is notified about `block`, once the host answered; the first read asks.
+    pub(crate) fn notify_mode(&self, block: Uuid) -> Option<NotifyMode> {
+        let known = self.notify_modes.with(|modes| modes.get(&block).copied());
+        if known.is_none() {
+            let state = self.state.value();
+            let mut asks = state.notify_asks.borrow_mut();
+            if !asks.contains_key(&block) {
+                let modes = self.notify_modes;
+                let asked = self.host().notify_mode(block);
+                let task = self.editor.then(asked, move |mode| {
+                    if let Ok(mode) = mode {
+                        modes.update(|modes| {
+                            modes.insert(block, mode);
+                        });
+                    }
+                });
+                asks.insert(block, task);
+            }
+        }
+        known
+    }
+
+    /// Sets how the account is notified about `block`, showing it at once.
+    pub(crate) fn set_notify_mode(&self, block: Uuid, mode: NotifyMode) {
+        self.notify_modes.update(|modes| {
+            modes.insert(block, mode);
+        });
+        let asked = self.host().set_notify_mode(block, mode);
+        let task = self.editor.then(asked, |_| {});
+        self.state
+            .value()
+            .notify_asks
+            .borrow_mut()
+            .insert(block, task);
     }
 
     pub(crate) fn simulate(&self, id: Uuid, level: AccessLevel) {
