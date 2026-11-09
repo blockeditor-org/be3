@@ -225,7 +225,9 @@ struct Inner {
     pending_resize: Cell<Option<Vec2>>,
     pending_presence: Cell<Option<bool>>,
     pending_reveal: Cell<Option<u64>>,
-    seen: Cell<Option<(u64, f32)>>,
+    pushed: Rc<Cell<bool>>,
+    _pushes: Subscription,
+    seen_ratio: Cell<Option<f32>>,
     shown_rect: Cell<Option<Rect>>,
     shown: RefCell<ShownEditor>,
     on_shown: Callbacks<(), dyn Fn(&ShownEditor)>,
@@ -246,6 +248,15 @@ impl EditorCore {
         scale: Rc<Cell<PointScale>>,
         contents: Rc<ContentCache>,
     ) -> Self {
+        let pushed = Rc::new(Cell::new(true));
+        let pushes = host.on_changed({
+            let pushed = Rc::downgrade(&pushed);
+            move || {
+                if let Some(pushed) = pushed.upgrade() {
+                    pushed.set(true);
+                }
+            }
+        });
         Self(Rc::new(Inner {
             shown: RefCell::new(ShownEditor::of(&host)),
             host,
@@ -258,7 +269,9 @@ impl EditorCore {
             pending_resize: Cell::new(None),
             pending_presence: Cell::new(None),
             pending_reveal: Cell::new(None),
-            seen: Cell::new(None),
+            pushed,
+            _pushes: pushes,
+            seen_ratio: Cell::new(None),
             shown_rect: Cell::new(None),
             on_shown: Callbacks::default(),
             on_pumped: Callbacks::default(),
@@ -552,8 +565,8 @@ impl EditorCore {
     pub fn begin_frame(&self) {
         let inner = &self.0;
         let ratio = self.ratio();
-        let seen = Some((inner.host.changes(), ratio));
-        let pushed = inner.seen.replace(seen) != seen;
+        let rescaled = inner.seen_ratio.replace(Some(ratio)) != Some(ratio);
+        let pushed = inner.pushed.replace(false) | rescaled;
         if pushed {
             inner.host.flush_graph();
         }

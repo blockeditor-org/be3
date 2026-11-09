@@ -1305,7 +1305,6 @@ struct CreationSignals {
     core: CreationCore,
     children: OwnedEditor,
     pushed: Mirror,
-    seen: Cell<Option<u64>>,
 }
 
 impl Creation {
@@ -1321,7 +1320,6 @@ impl Creation {
             pushed: Mirror::new(&host),
             children: OwnedEditor::new(host.clone(), Uuid::nil()),
             core: CreationCore::new(host, template),
-            seen: Cell::new(None),
         }))
     }
 
@@ -1338,10 +1336,7 @@ impl Creation {
     }
 
     pub fn begin_frame(&self) {
-        let changes = Some(self.0.core.host().changes());
-        if self.0.seen.replace(changes) != changes {
-            self.0.pushed.sync();
-        }
+        self.0.pushed.sync();
         self.0.children.begin_frame();
     }
 
