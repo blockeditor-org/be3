@@ -9,8 +9,13 @@ pub type Wake = Arc<dyn Fn() + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq)]
 enum State {
-    Pending,
-    Mapped { range: Range<u64>, writable: bool },
+    /// Waiting for the map numbered so: a buffer unmapped and mapped again can still hear its
+    /// earlier map's callback, which must not settle the later one.
+    Pending(u64),
+    Mapped {
+        range: Range<u64>,
+        writable: bool,
+    },
 }
 
 #[derive(Default)]
@@ -18,6 +23,7 @@ struct Held {
     states: HashMap<u32, State>,
     work: HashMap<u64, bool>,
     tickets: u64,
+    maps: u64,
     pending: usize,
     lost: Option<String>,
     stopped: bool,
@@ -138,7 +144,7 @@ impl Settling {
         let pending = held
             .states
             .values()
-            .filter(|state| **state == State::Pending)
+            .filter(|state| matches!(state, State::Pending(_)))
             .count();
         held.pending -= pending;
         held.states.clear();
@@ -157,7 +163,7 @@ impl Settling {
     pub(crate) fn state(&self, buffer: u32) -> abi::MapState {
         match self.shared.held().states.get(&buffer) {
             None => abi::MapState::Unmapped,
-            Some(State::Pending) => abi::MapState::Pending,
+            Some(State::Pending(_)) => abi::MapState::Pending,
             Some(State::Mapped { .. }) => abi::MapState::Mapped,
         }
     }
@@ -170,16 +176,19 @@ impl Settling {
         mode: abi::MapMode,
         range: Range<u64>,
     ) -> Result<(), String> {
-        {
+        let number = {
             let mut held = self.shared.held();
             if held.states.contains_key(&handle) {
                 return Err(format!(
                     "buffer {handle} was asked to map while it is mapped or mapping"
                 ));
             }
-            held.states.insert(handle, State::Pending);
+            held.maps += 1;
+            let number = held.maps;
+            held.states.insert(handle, State::Pending(number));
             held.pending += 1;
-        }
+            number
+        };
         let shared = Arc::clone(&self.shared);
         let wake = self.wake.clone();
         let writable = mode == abi::MapMode::Write;
@@ -191,7 +200,7 @@ impl Settling {
         buffer.map_async(mode, range, move |result| {
             {
                 let mut held = shared.held();
-                if held.states.get(&handle) == Some(&State::Pending) {
+                if held.states.get(&handle) == Some(&State::Pending(number)) {
                     held.pending -= 1;
                     match result {
                         Ok(()) => held.states.insert(
@@ -251,7 +260,7 @@ impl Settling {
 
     pub(crate) fn forget(&mut self, buffer: u32) {
         let mut held = self.shared.held();
-        if held.states.remove(&buffer) == Some(State::Pending) {
+        if let Some(State::Pending(_)) = held.states.remove(&buffer) {
             held.pending -= 1;
         }
     }
