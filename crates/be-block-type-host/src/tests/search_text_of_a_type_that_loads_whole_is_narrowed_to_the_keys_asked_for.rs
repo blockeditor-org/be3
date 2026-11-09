@@ -49,8 +49,15 @@ fn search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for() {
             }],
             "the whole commit is handed over, and its text is one document"
         );
-        assert_eq!(whole.read, Vec::new(), "a type handed its whole commit reads nothing");
-        assert_eq!(search(Some(vec![String::new()])).await.documents, whole.documents);
+        assert_eq!(
+            whole.read,
+            Vec::new(),
+            "a type handed its whole commit reads nothing"
+        );
+        assert_eq!(
+            search(Some(vec![String::new()])).await.documents,
+            whole.documents
+        );
         assert_eq!(
             search(Some(vec!["other".to_owned()])).await.documents,
             Vec::new(),

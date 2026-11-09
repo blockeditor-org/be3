@@ -79,13 +79,7 @@ fn a_stateless_request_reads_only_parts_of_the_commits_it_was_handed() {
 
         let mut search = async |keys: Option<Vec<String>>| {
             replicas
-                .search_text(
-                    (&peer, &shared),
-                    Probe::CONTENT_TYPE,
-                    &manifest,
-                    keys,
-                    &[],
-                )
+                .search_text((&peer, &shared), Probe::CONTENT_TYPE, &manifest, keys, &[])
                 .await
         };
         let searched = search(Some(vec![
@@ -95,7 +89,11 @@ fn a_stateless_request_reads_only_parts_of_the_commits_it_was_handed() {
         .await
         .expect("the probe answers what it was asked");
         assert!(searched.read.is_empty(), "nothing was read: {searched:?}");
-        let keys: Vec<&str> = searched.documents.iter().map(|document| document.key.as_str()).collect();
+        let keys: Vec<&str> = searched
+            .documents
+            .iter()
+            .map(|document| document.key.as_str())
+            .collect();
         assert_eq!(
             keys,
             [probe::REACHED, probe::FOREIGN],
