@@ -238,9 +238,20 @@ pub(crate) struct Decor {
     pub(crate) hang: usize,
     pub(crate) marks: Vec<TextMark>,
     pub(crate) carets: Vec<TextCaret>,
+    /// `TreeNode::set_text_selection`'s highlight, drawn as one more mark.
+    pub(crate) selection: Option<TextMark>,
+    /// `TreeNode::set_text_selection_handles`, drawn as carets with handles.
+    pub(crate) handles: Vec<TextCaret>,
     pub(crate) font: Option<FontId>,
     #[cfg(target_arch = "wasm32")]
     pub(crate) shown: web::Shown,
+}
+
+impl Decor {
+    #[cfg_attr(not(target_arch = "wasm32"), expect(dead_code, reason = "only the browser draws marks"))]
+    pub(crate) fn all_marks(&self) -> Vec<TextMark> {
+        self.marks.iter().chain(&self.selection).cloned().collect()
+    }
 }
 
 pub struct TextModel {
@@ -403,6 +414,8 @@ impl TextModel {
         if self.overlay.borrow().is_some() {
             return;
         }
+        crate::document::set_style(self.node, "position", Some("relative".to_owned()));
+        crate::document::set_style(self.node, "z-index", Some("0".to_owned()));
         let overlay = Node::element("div");
         overlay.set_attribute("class", Some("beui-text-decor".to_owned()));
         overlay.set_attribute("aria-hidden", Some("true".to_owned()));
@@ -431,6 +444,18 @@ impl TextModel {
 
     pub fn set_carets(&self, carets: Vec<TextCaret>) {
         self.decor.borrow_mut().carets = carets;
+    }
+
+    pub fn set_selection(self: &Rc<Self>, selection: Option<TextMark>) {
+        self.decorate();
+        self.decor.borrow_mut().selection = selection;
+        crate::frame::request_frame();
+    }
+
+    pub fn set_handles(self: &Rc<Self>, handles: Vec<TextCaret>) {
+        self.decorate();
+        self.decor.borrow_mut().handles = handles;
+        crate::frame::request_frame();
     }
 
     pub fn set_font(&self, font: FontId) {

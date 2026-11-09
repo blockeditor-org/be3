@@ -86,6 +86,7 @@ mod stack;
 mod table;
 mod text;
 mod text_area;
+mod text_hooks;
 mod text_input;
 mod text_item;
 mod time_list;
