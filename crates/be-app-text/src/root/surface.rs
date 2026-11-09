@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use be_sdk_beui::{Drag, be_sdk_ui::BlockLabel};
 use beui::NodeId;
 use beui::reactive::*;
@@ -103,12 +101,6 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
 fn caret_when_given_the_keyboard(state: State) {
     let keyboard = use_keyboard();
     let read_only = state.editor.read_only();
-    let focusing = create_timer(move || {
-        if focused_node().is_none() {
-            state.text.focus();
-        }
-        None
-    });
     let armed = StoredCell::new(false);
     let had = StoredCell::new(false);
     create_effect(move || {
@@ -129,7 +121,7 @@ fn caret_when_given_the_keyboard(state: State) {
             armed.set(false);
             let empty = state.text.bytes().is_empty();
             if empty && !read_only.get() && focused_node().is_none() {
-                focusing.start(Duration::ZERO);
+                state.text.focus();
             }
         });
     });

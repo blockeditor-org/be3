@@ -9,7 +9,7 @@ fn typing_right_after_adding_notes_reaches_the_notes() {
     host.click("MenuItem \"Title page\"");
     host.gone("#picker.slides");
     host.wait("#infinite-canvas.dock");
-    host.click("#presentation.notes.add");
+    host.run(&["--no-settle", "click", "#presentation.notes.add"]);
     host.type_text("Thank the team");
     host.wait("Thank the team");
     host.run(&["settle"]);

@@ -690,6 +690,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
+    pub fn take_block_child_focus(&mut self) -> Vec<Uuid> {
+        self.take_calls(|call| match call {
+            ShellCall::FocusBlockChild { block, .. } => Some(Uuid::from_bytes(*block)),
+            _ => None,
+        })
+    }
+
     pub fn take_child_closes(&mut self) -> Vec<ChildId> {
         self.take_calls(|call| match call {
             ShellCall::CloseChild { child, .. } => Some(*child),

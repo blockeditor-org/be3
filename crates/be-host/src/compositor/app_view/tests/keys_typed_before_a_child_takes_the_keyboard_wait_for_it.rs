@@ -1,14 +1,14 @@
-use std::time::{Duration, Instant};
+use beui::{Event, Forwarded, ForwardedInput, KeyPress, Modifiers, NodeId};
 
-use beui::{Event, Forwarded, ForwardedInput, KeyPress, NodeId};
-
-use super::super::held_keys;
+use super::super::held_keys::{self, Routed};
 use be_sdk_api::EditorInstanceId;
 
 const DECK: &str = "be3.presentation";
+const TEXT: &str = "be3.text";
 const PLACER: EditorInstanceId = EditorInstanceId(6);
-const OWN: NodeId = NodeId::new(90, 1);
-const NOTES: NodeId = NodeId::new(120, 1);
+const NOTES_EDITOR: EditorInstanceId = EditorInstanceId(10);
+const DECK_VIEW: NodeId = NodeId::new(90, 1);
+const NOTES_VIEW: NodeId = NodeId::new(120, 1);
 
 fn input(events: Vec<Forwarded>) -> ForwardedInput {
     ForwardedInput {
@@ -17,7 +17,7 @@ fn input(events: Vec<Forwarded>) -> ForwardedInput {
         hovered: false,
         focused: true,
         pointer: None,
-        modifiers: beui::Modifiers::NONE,
+        modifiers: Modifiers::NONE,
     }
 }
 
@@ -27,100 +27,69 @@ fn letter(text: &str) -> Forwarded {
             key: beui::Key::A,
             pressed: true,
             repeat: false,
-            modifiers: beui::Modifiers::NONE,
+            modifiers: Modifiers::NONE,
         },
         evdev: None,
         text: Some(text.to_owned()),
     })
 }
 
+fn deck(pending: bool, events: Vec<Forwarded>) -> (Vec<Forwarded>, Routed) {
+    let mut input = input(events);
+    let routed = held_keys::route(DECK, PLACER, Some(DECK_VIEW), pending, (4, 4), &mut input);
+    (input.events, routed)
+}
+
+fn notes(frames: (u64, u64), events: Vec<Forwarded>) -> Vec<Forwarded> {
+    let mut input = input(events);
+    held_keys::route(TEXT, NOTES_EDITOR, Some(NOTES_VIEW), false, frames, &mut input);
+    input.events
+}
+
 #[test]
 fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
-    let start = Instant::now();
-    let at = |ms: u64| start + Duration::from_millis(ms);
+    assert_eq!(deck(true, vec![letter("T")]).0, [], "the deck does not hear a key meant for its notes");
+    assert_eq!(deck(true, vec![letter("h")]).0, []);
 
-    let kept = held_keys::route(
-        DECK,
-        PLACER,
-        Some(OWN),
-        true,
-        at(0),
-        input(vec![letter("T")]),
-    );
-    assert!(
-        kept.events.is_empty(),
-        "the deck does not hear a key meant for its notes"
-    );
-    let kept = held_keys::route(
-        DECK,
-        PLACER,
-        Some(OWN),
-        true,
-        at(10),
-        input(vec![letter("h")]),
-    );
-    assert!(kept.events.is_empty());
-
-    held_keys::given(DECK, PLACER, NOTES, at(20));
-    let early = held_keys::route(
-        "be3.text",
-        EditorInstanceId(10),
-        Some(NOTES),
-        false,
-        at(25),
-        input(vec![Forwarded::Focus(true)]),
-    );
+    held_keys::given(DECK, PLACER, NOTES_VIEW);
     assert_eq!(
-        early.events,
+        notes((7, 6), vec![Forwarded::Focus(true), letter("a")]),
         [Forwarded::Focus(true)],
-        "the keys wait until the notes can take text"
-    );
-    assert!(!held_keys::owed_now(NOTES, false, at(30)));
-    assert!(
-        held_keys::owed_now(NOTES, true, at(40)),
-        "the notes asked for an input method"
-    );
-    let given = held_keys::route(
-        "be3.text",
-        EditorInstanceId(10),
-        Some(NOTES),
-        false,
-        at(40),
-        input(Vec::new()),
+        "until the notes' app has drawn a frame that took the focus, their own keys wait behind the held ones"
     );
     assert_eq!(
-        given.events,
-        [letter("T"), letter("h")],
+        held_keys::owed_now(TEXT, NOTES_EDITOR, NOTES_VIEW, false, 7),
+        None,
+        "the frame asked before the focus arrived does not count"
+    );
+    assert_eq!(
+        held_keys::owed_now(TEXT, NOTES_EDITOR, NOTES_VIEW, false, 8),
+        Some(Modifiers::NONE)
+    );
+    assert_eq!(
+        notes((8, 8), Vec::new()),
+        [letter("T"), letter("h"), letter("a")],
         "in the order they were typed"
     );
+    assert_eq!(notes((8, 8), vec![letter("n")]), [letter("n")]);
 
-    let after = held_keys::route(
-        DECK,
-        PLACER,
-        Some(OWN),
-        false,
-        at(50),
-        input(vec![letter("x")]),
-    );
-    assert_eq!(
-        after.events,
-        [letter("x")],
-        "with no gift pending the deck hears its keys"
-    );
+    assert_eq!(deck(false, vec![letter("x")]).0, [letter("x")], "with no gift pending the deck hears its keys");
 
-    held_keys::route(
-        DECK,
-        PLACER,
-        Some(OWN),
-        true,
-        at(60),
-        input(vec![letter("y")]),
-    );
-    held_keys::refused(DECK, PLACER, at(70));
-    let back = held_keys::route(DECK, PLACER, Some(OWN), false, at(80), input(Vec::new()));
+    assert_eq!(deck(true, vec![letter("y")]).0, []);
+    held_keys::refused(DECK, PLACER);
+    assert_eq!(held_keys::owed_now(DECK, PLACER, DECK_VIEW, false, 4), Some(Modifiers::NONE));
+    assert_eq!(deck(false, Vec::new()).0, [letter("y")], "a gift that falls through gives the deck its keys back");
+
+    assert_eq!(deck(true, vec![letter("z")]).0, []);
+    let (events, routed) = deck(true, vec![Forwarded::Focus(false)]);
+    assert!(routed.refuse, "taking the keyboard elsewhere ends the gift");
+    assert_eq!(events, [letter("z"), Forwarded::Focus(false)], "and the deck hears its keys before it lets go");
+
+    assert_eq!(deck(true, vec![letter("w")]).0, []);
     assert_eq!(
-        back.events,
-        [letter("y")],
-        "a gift that falls through gives the deck its keys back"
+        held_keys::owed_now(DECK, PLACER, DECK_VIEW, false, 4),
+        Some(Modifiers::NONE),
+        "a gift that ends because the child went gives the keys back"
     );
+    assert_eq!(deck(false, Vec::new()).0, [letter("w")]);
 }

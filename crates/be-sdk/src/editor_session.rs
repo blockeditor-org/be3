@@ -489,6 +489,9 @@ impl EditorSession {
         for mode in self.host.take_palette_opens() {
             shell::open_palette(instance, mode).detach();
         }
+        for block in self.host.take_block_keyboard_gifts() {
+            shell::focus_block_child(instance, block.into_bytes()).detach();
+        }
         if let Some(artifact) = &mut self.artifact {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {
                 artifact.described = Some(artifact.data.clone());

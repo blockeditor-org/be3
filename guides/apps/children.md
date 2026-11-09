@@ -98,14 +98,21 @@ keyboard (one being presented) brings nothing forward. The other way,
 `EditorHost::focus_child` gives a child the keyboard, but only while the
 keyboard is already inside the editor's views and no popover or
 keyboard-taking layer is open, so it never steals focus from elsewhere. `ChildBlock` and `Subregion` in a dock tab ask for it whenever the
-dock gives that tab the keyboard. Until the child's view takes the keyboard
-(a child still loading), be-host holds the keys typed into the editor's view
-and hands them to the child once its view has the keyboard and asks for an
-input method (a focused text field), or half a second after it took the
-keyboard; or back to the editor if the gift falls through or takes over two
-seconds (`be-host/src/compositor/app_view/held_keys.rs`). So an editor that
-makes a block and gives it the keyboard ("Add notes") loses no keystroke. An
-empty text block given the keyboard puts its caret in its text.
+dock gives that tab the keyboard. `EditorHost::focus_block_child` asks the
+same for the child that will show a block, so an editor that makes a block to
+type into ("Add notes") asks in the frame that makes it, before the child
+exists.
+
+While a gift is pending, be-host holds the keys typed into the editor's view
+(`be-host/src/compositor/app_view/held_keys.rs`). Every gift ends explicitly,
+never by a timeout: granted when the child's view takes the keyboard, whose
+app then hears the held keys, in order and ahead of keys typed into it
+since, once it has drawn a frame that took the focus; refused when the
+person presses in the editor or takes the keyboard elsewhere, or the child,
+the editor or its app goes, and the editor hears them. Held keys skip the
+child's input method, so a composition (CJK) started before the child shows
+arrives as its committed text. An empty text block given the keyboard puts
+its caret in its text.
 
 ## Docks across apps
 

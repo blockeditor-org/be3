@@ -35,7 +35,6 @@ pub struct Slides {
     store: KeyedStore<Uuid, Slide>,
     selected: Signal<Option<Uuid>>,
     made_notes: StoredCell<Option<ChildTarget>>,
-    focus_notes: Signal<Option<Uuid>>,
 }
 
 impl Slides {
@@ -48,17 +47,11 @@ impl Slides {
             store: KeyedStore::new(),
             selected,
             made_notes: StoredCell::new(None),
-            focus_notes: create_signal(None),
         };
         let dependencies = editor
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
         create_binding(move || slides.refresh(&dependencies));
-        let focus_notes = slides.focus_notes;
-        create_effect(move || {
-            selected.get();
-            focus_notes.set(None);
-        });
         slides
     }
 
@@ -244,8 +237,9 @@ impl Slides {
             .with_untracked(|keys| keys.iter().position(|key| *key == id))
     }
 
-    /// Makes an empty text block inside the deck as the slide's notes and asks for the keyboard
-    /// to go into its editor once it is placed.
+    /// Makes an empty text block inside the deck as the slide's notes and asks, in the same
+    /// frame, for the keyboard to go into its editor once it is placed, so what is typed while
+    /// it loads lands there.
     pub fn add_notes(&self, id: Uuid) {
         let notes = self.editor.blocks().create_with(
             TEXT_TYPE,
@@ -255,16 +249,11 @@ impl Slides {
         );
         self.made_notes
             .set(Some(ChildTarget::new(notes, TEXT_TYPE)));
-        self.focus_notes.set(Some(notes));
+        self.editor.host().focus_block_child(notes);
         self.block.operate(Presentation::set_notes(
             ObjectId::from_uuid(id),
             Some(notes),
         ));
-    }
-
-    /// The notes block the keyboard should go into once its editor is placed.
-    pub fn focus_notes(&self) -> Signal<Option<Uuid>> {
-        self.focus_notes
     }
 
     fn refresh(&self, dependencies: &BlockList) {
