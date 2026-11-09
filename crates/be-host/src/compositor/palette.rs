@@ -228,10 +228,8 @@ fn found_blocks(typed: Memo<String>, opened: Memo<u64>) -> Memo<Vec<OpenableBloc
     let searched = super::searched();
     let asked = create_memo(move || {
         let text = typed.get().trim().to_owned();
-        (opened.get() != 0 && !text.is_empty()).then_some(be_host_stack::SearchAsk {
-            text,
-            within: None,
-        })
+        (opened.get() != 0 && !text.is_empty())
+            .then_some(be_host_stack::SearchAsk { text, within: None })
     });
     create_effect(move || {
         be_host_stack::want_searches(

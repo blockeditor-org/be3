@@ -1,7 +1,10 @@
 use super::*;
 use be_block_graph::{Access, SEARCH_INDEX_TYPE};
 
-async fn create_index(client: &mut TestClient, parent: Uuid) -> (Uuid, Result<BlockSummary, Error>) {
+async fn create_index(
+    client: &mut TestClient,
+    parent: Uuid,
+) -> (Uuid, Result<BlockSummary, Error>) {
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
     let response = client
@@ -42,7 +45,11 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
     owner.register("owner@example.com").await;
     owner.personal().await;
     let mut accounts = Vec::new();
-    for email in ["editor@example.com", "viewer@example.com", "inside@example.com"] {
+    for email in [
+        "editor@example.com",
+        "viewer@example.com",
+        "inside@example.com",
+    ] {
         let mut client = harness.client().await;
         let account = client.register(email).await;
         client.personal().await;
@@ -50,8 +57,11 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
         let _ = client.accept(link, &[]).await;
         accounts.push((client, account));
     }
-    let [(mut editor, editor_id), (mut viewer, viewer_id), (mut inside, inside_id)]: [_; 3] =
-        accounts.try_into().ok().unwrap();
+    let [
+        (mut editor, editor_id),
+        (mut viewer, viewer_id),
+        (mut inside, inside_id),
+    ]: [_; 3] = accounts.try_into().ok().unwrap();
 
     let workspace = owner.create_block(BlockParent::Root).await;
     let note = owner.create_block(BlockParent::Block(workspace)).await;
@@ -108,7 +118,12 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
     assert!(matches!(created, Ok(_)), "{created:?}");
     let moved = editor
         .call(|peer| {
-            client::blocks::set_parent(peer, loose, BlockParent::Block(workspace), KeySet::default())
+            client::blocks::set_parent(
+                peer,
+                loose,
+                BlockParent::Block(workspace),
+                KeySet::default(),
+            )
         })
         .await;
     assert!(

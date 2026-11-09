@@ -37,7 +37,11 @@ fn note(workspace: Uuid, text: &str) -> Uuid {
         false,
     );
     assert_eq!(
-        change_child(workspace, FolderContent::CONTENT_TYPE, ChildChange::Add(block)),
+        change_child(
+            workspace,
+            FolderContent::CONTENT_TYPE,
+            ChildChange::Add(block)
+        ),
         Some(true)
     );
     open(block, TextContent::CONTENT_TYPE);
@@ -93,9 +97,12 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     let elderberries = Uuid::new_v4();
     other.runtime.block_on(async {
         let peer = std::sync::Arc::clone(&other.peer.borrow());
-        peer.create_with_id::<TextContent>(elderberries, be_block_graph::BlockParent::Block(workspace))
-            .await
-            .expect("the other device makes a note");
+        peer.create_with_id::<TextContent>(
+            elderberries,
+            be_block_graph::BlockParent::Block(workspace),
+        )
+        .await
+        .expect("the other device makes a note");
         let saved = peer
             .save(elderberries, &TextBlock::of("elderberries"), None)
             .await
