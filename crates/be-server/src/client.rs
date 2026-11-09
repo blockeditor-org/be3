@@ -73,9 +73,9 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
                 Rule::SignedIn
             }
             notifications::Call::RegisterEndpoint { .. }
-            | notifications::Call::UnregisterEndpoint { .. } => Rule::Organization,
-            notifications::Call::NotifyModeOf { block: of, .. }
-            | notifications::Call::SetNotifyMode { block: of, .. } => block(*of, Access::View),
+            | notifications::Call::UnregisterEndpoint { .. }
+            | notifications::Call::NotifyModes { .. } => Rule::Organization,
+            notifications::Call::SetNotifyMode { block: of, .. } => block(*of, Access::View),
             notifications::Call::Notify { block: of, .. } => block(*of, Access::Edit),
         },
         Call::Account(call) => match call {
@@ -201,7 +201,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | notifications::Call::OffersFcm { .. }
             | notifications::Call::RegisterEndpoint { .. }
             | notifications::Call::UnregisterEndpoint { .. }
-            | notifications::Call::NotifyModeOf { .. }
+            | notifications::Call::NotifyModes { .. }
             | notifications::Call::SetNotifyMode { .. } => false,
         },
         Call::Account(call) => match call {
@@ -2217,16 +2217,16 @@ impl Client {
                 .await;
                 self.reply(reply, unregistered);
             }
-            Call::NotifyModeOf { reply, block } => {
-                let mode = async {
+            Call::NotifyModes { reply } => {
+                let modes = async {
                     prelude?;
                     connection
                         .store
-                        .notify_mode(connection.identity()?, block)
+                        .notify_modes(connection.identity()?)
                         .await
                 }
                 .await;
-                self.reply(reply, mode);
+                self.reply(reply, modes);
             }
             Call::SetNotifyMode { reply, block, mode } => {
                 let set = async {

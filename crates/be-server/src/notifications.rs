@@ -3,8 +3,8 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use be_block_protocol::{ErrorCode, NotifyMode, PushEndpoint, PushService};
-use rusqlite::{Connection, OptionalExtension, params};
+use be_block_protocol::{BlockNotifyMode, ErrorCode, NotifyMode, PushEndpoint, PushService};
+use rusqlite::{Connection, params};
 use uuid::Uuid;
 
 use crate::{Identity, ServerError, limits::MAX_PUSH_ENDPOINTS, store::ServerStore};
@@ -153,25 +153,32 @@ impl ServerStore {
             .await
     }
 
-    pub(crate) async fn notify_mode(
+    /// Every block in `identity`'s organization whose mode its account set to other than `all`.
+    pub(crate) async fn notify_modes(
         &self,
         identity: Identity,
-        block: Uuid,
-    ) -> Result<NotifyMode, ServerError> {
+    ) -> Result<Vec<BlockNotifyMode>, ServerError> {
         self.with_database(move |_, database| {
-            let mode: Option<String> = database
-                .query_row(
-                    "SELECT mode FROM notify_modes
-                     WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3",
-                    params![
-                        identity.organization.to_string(),
-                        block.to_string(),
-                        identity.account.to_string()
-                    ],
-                    |row| row.get(0),
-                )
-                .optional()?;
-            mode.map_or(Ok(NotifyMode::All), |mode| mode_of(&mode))
+            let mut statement = database.prepare_cached(
+                "SELECT block_id, mode FROM notify_modes
+                 WHERE organization_id = ?1 AND account_id = ?2",
+            )?;
+            let rows = statement.query_map(
+                params![
+                    identity.organization.to_string(),
+                    identity.account.to_string()
+                ],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )?;
+            let mut modes = Vec::new();
+            for row in rows {
+                let (block, mode) = row?;
+                modes.push(BlockNotifyMode {
+                    block: crate::store::parse_uuid(&block)?,
+                    mode: mode_of(&mode)?,
+                });
+            }
+            Ok(modes)
         })
         .await
     }
