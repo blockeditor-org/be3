@@ -4220,12 +4220,14 @@ fn tab_actions(dock: State, area: NodeRef) {
         .at(at.clone())
         .capture()
         .register();
-    Action::new("dock.tab.previous", "Previous tab", move || dock.cycle(true))
-        .shortcut(Chord::ctrl(Key::Tab).shift())
-        .enabled(several)
-        .at(at)
-        .capture()
-        .register();
+    Action::new("dock.tab.previous", "Previous tab", move || {
+        dock.cycle(true)
+    })
+    .shortcut(Chord::ctrl(Key::Tab).shift())
+    .enabled(several)
+    .at(at)
+    .capture()
+    .register();
     Action::new("dock.tab.split-right", "Split right", move || {
         dock.split_shown(Side::Right)
     })

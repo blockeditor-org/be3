@@ -216,10 +216,7 @@ fn loaded_blocks(_typed: &str) -> Vec<OpenableBlock> {
             .filter(|node| node.access.can_view())
             .filter_map(|node| {
                 let type_name = registry.display_name(node.content_type)?;
-                let name = node
-                    .metadata
-                    .name()
-                    .unwrap_or_else(|| type_name.to_owned());
+                let name = node.metadata.name().unwrap_or_else(|| type_name.to_owned());
                 let place = match node.parent {
                     Some(be_block_graph::BlockParent::Block(parent)) => graph
                         .get(parent)

@@ -240,15 +240,21 @@ fn workspace_actions(workspace: Workspace) {
     .glyph(ICON_SEARCH)
     .shortcut(Chord::ctrl(Key::P))
     .register();
-    Action::new("workspace.settings", "Settings", move || workspace.show(SETTINGS))
-        .glyph(ICON_SETTINGS)
-        .register();
-    Action::new("workspace.files", "Show files", move || workspace.show(FILES))
-        .glyph(ICON_FOLDER)
-        .register();
-    Action::new("workspace.new-file", "New file", move || workspace.new_file())
-        .glyph(ICON_FILE_PLUS)
-        .register();
+    Action::new("workspace.settings", "Settings", move || {
+        workspace.show(SETTINGS)
+    })
+    .glyph(ICON_SETTINGS)
+    .register();
+    Action::new("workspace.files", "Show files", move || {
+        workspace.show(FILES)
+    })
+    .glyph(ICON_FOLDER)
+    .register();
+    Action::new("workspace.new-file", "New file", move || {
+        workspace.new_file()
+    })
+    .glyph(ICON_FILE_PLUS)
+    .register();
 }
 
 #[component]

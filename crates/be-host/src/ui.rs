@@ -635,9 +635,11 @@ fn HostActions(view: HostUiStore) -> NodeId {
     .glyph(beui::icons::ICON_USERS)
     .enabled(signed_in)
     .register();
-    Action::new("host.theme", "Switch between system, light and dark theme", || {
-        send(UiCommand::CycleTheme)
-    })
+    Action::new(
+        "host.theme",
+        "Switch between system, light and dark theme",
+        || send(UiCommand::CycleTheme),
+    )
     .glyph(beui::icons::ICON_SUN_MOON)
     .register();
     view! {
