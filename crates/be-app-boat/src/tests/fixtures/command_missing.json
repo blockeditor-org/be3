@@ -6,7 +6,7 @@
   "exitCode": 0,
   "signal": null,
   "oomKilled": false,
-  "stdout": "missing\ntree\nnone\ninactive\n",
+  "stdout": "missing\ntree\nnone\ninactive\n1800000000\n",
   "stderr": "",
   "stdoutTruncated": false,
   "stderrTruncated": false,
