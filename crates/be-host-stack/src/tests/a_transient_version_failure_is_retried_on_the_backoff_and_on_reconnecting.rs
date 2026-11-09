@@ -48,7 +48,10 @@ fn a_transient_version_failure_is_retried_on_the_backoff_and_on_reconnecting() {
     );
     assert_eq!(statuses.failed(BLOCK, INPUTS, timed_out()), None);
     let shown = statuses.failed(BLOCK, INPUTS, timed_out());
-    assert!(shown.is_some(), "a transient failure that keeps failing shows why");
+    assert!(
+        shown.is_some(),
+        "a transient failure that keeps failing shows why"
+    );
 
     statuses.reconnected();
     assert_eq!(
