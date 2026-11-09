@@ -429,6 +429,10 @@ fn TreeRow(
     });
     let glyph_size = glyph_size();
     let (detail, detailed, inline) = detail(editor, row);
+    let beside = create_memo(move || match inline.get() {
+        true => format!("  {}", detail.get()),
+        false => String::new(),
+    });
     let generated_color = TextColor::Muted;
     let access_color = TextColor::Muted;
     let color = create_memo(move || match muted.get() {
@@ -439,18 +443,12 @@ fn TreeRow(
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <ListItem grow=1.0>
                 <List spacing=Space::None>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                        <Text color={color} weight={weight} overflow=Overflow::Ellipsis>
-                            {before}
-                            <Span background=ColorRole::AccentSoft>{hit}</Span>
-                            {after}
-                        </Text>
-                        <Show condition={inline}>
-                            <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
-                                {detail}
-                            </Text>
-                        </Show>
-                    </List>
+                    <Text color={color} weight={weight} overflow=Overflow::Ellipsis>
+                        {before}
+                        <Span background=ColorRole::AccentSoft>{hit}</Span>
+                        {after}
+                        <Span size=TextSize::Sm color=TextColor::Muted>{beside}</Span>
+                    </Text>
                     <Show condition={detailed}>
                         <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                     </Show>
