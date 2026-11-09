@@ -10,9 +10,7 @@ async fn a_block_agent_never_becomes_an_administrator() {
     let (account, token) = owner.block_agent(organization, terminal).await.unwrap();
 
     let response = owner
-        .call(|peer| {
-            client::members::set_role(peer, account, OrganizationRole::Administrator)
-        })
+        .call(|peer| client::members::set_role(peer, account, OrganizationRole::Administrator))
         .await;
     assert!(
         refused_as(&response, ErrorCode::PermissionDenied),

@@ -175,9 +175,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
 /// Everything that reaches past the block is refused: agents, contact links and contacts,
 /// organizations, members, pairing, access, escrows, a new recovery key, collecting.
 pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
-    use embed::{
-        Call, account, blocks, contacts, keys, members, objects, organizations, sessions,
-    };
+    use embed::{Call, account, blocks, contacts, keys, members, objects, organizations, sessions};
     match call {
         Call::Connection(embed::connection::Call::Ping { .. }) => true,
         Call::Account(call) => match call {

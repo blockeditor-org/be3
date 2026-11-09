@@ -1850,8 +1850,8 @@ pub(crate) fn forget_orphaned_block_agents(
             .is_some_and(|access| *access > Access::None);
         // An agent reaches no further than its creator: one whose creator no longer manages
         // its block would keep the creator an editor there. In the trash it waits for Restore.
-        let orphaned = graph.is_live(block)
-            && !manages(graph, connection, creator, organization, block)?;
+        let orphaned =
+            graph.is_live(block) && !manages(graph, connection, creator, organization, block)?;
         if !granted || orphaned {
             delete_agent(graph, connection, organization, agent)?;
             forgotten.push(agent);

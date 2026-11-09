@@ -11,7 +11,9 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
     // A child is in the trash unless its parent holds it.
     let author = Author::new(me);
     let (head, chunks) = author.compose(b"the folder", 1_000, None);
-    owner.upload(&author.store, &author.objects_of(head, &chunks)).await;
+    owner
+        .upload(&author.store, &author.objects_of(head, &chunks))
+        .await;
     let published = owner
         .call(|peer| {
             client::blocks::publish(

@@ -738,8 +738,11 @@ impl ServerStore {
                             before,
                         });
                     }
-                    let forgotten =
-                        crate::store::forget_orphaned_block_agents(graph, &transaction, organization)?;
+                    let forgotten = crate::store::forget_orphaned_block_agents(
+                        graph,
+                        &transaction,
+                        organization,
+                    )?;
                     transaction.commit()?;
                     if !forgotten.is_empty() {
                         store.sessions_changed();
