@@ -35,7 +35,10 @@ fn paste(fixture: &mut Fixture, folder: Uuid, block: Uuid, moved: bool) {
         .unwrap_or_else(|asked: Vec<_>| panic!("the paste asks the host once, asked {asked:?}"));
     assert_eq!(
         (blocks, parent),
-        (vec![block.into_bytes()], BlockParent::Block(folder).encode()),
+        (
+            vec![block.into_bytes()],
+            BlockParent::Block(folder).encode()
+        ),
         "the clip goes into the folder the menu was opened on"
     );
     fixture.test.answer(
