@@ -65,6 +65,7 @@ fn a_terminal_host_takes_over_a_session_this_peer_opened_first() {
                 command: vec!["sh".to_owned()],
                 machine: "build-box".to_owned(),
                 user: "agent".to_owned(),
+                status: None,
             })
             .expect("the host starts");
             let sources = super::super::types::sources().await;

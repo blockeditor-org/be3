@@ -44,6 +44,9 @@ interface types {
         over-quota,
         /// A sign-in was polled sooner than its interval allows.
         slow-down,
+        /// No agent of the caller's has that account: it was removed, or
+        /// collected with its block.
+        agent-not-found,
     }
 
     /// A connection, as the server numbers them; a session's participants and

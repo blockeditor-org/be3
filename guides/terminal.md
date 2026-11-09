@@ -89,15 +89,16 @@ sandbox (decisions/a_sandboxs_terminal_host_is_a_block_bound_agent.md):
 4. The units `be-terminal@.service` and `be-terminal@.path` and the credentials file (the agent's
    credentials with `block` and `boat_id`) are written with the files API under
    `/home/user/.cache/be3`, then one command installs the units, moves the credentials to
-   `/run/be3/terminal-host-BLOCK.json` (mode 0600, owned by `user`), writes the SHA-256 of their
-   token beside them (`.sha256`), links the build, deletes the staged copy and starts the
-   service. When that command doesn't run, another deletes the staged copy, and every check
+   `/run/be3/terminal-host-BLOCK.json` (mode 0600, owned by `user`), links the build (deleting
+   builds no terminal links), deletes the staged copy and starts the service. When that command doesn't run, another deletes the staged copy, and every check
    deletes one left behind. boat keeps every command and its output 90 days, so no secret is
    ever in a command line. `/run` is in memory, so no snapshot carries the credentials, and the
    `.path` unit starts the service when they appear.
 
 The service runs `be BLOCK terminal-host` as `user` with the file as `BE3_AGENT_CREDENTIALS`,
-and stops after five failed starts in ten minutes (a revoked token). `be` refuses to start when
+and stops after five failed starts in ten minutes (a revoked token). The host writes its
+standing to `BE3_TERMINAL_STATUS` (`/run/be3/terminal-host-BLOCK.status`): `connected`, or
+`offline` and why, which it keeps retrying. `be` refuses to start when
 `BOAT_ID` names another sandbox than the credentials' `boat_id`; it is passed through from the
 service manager, which boat may not give it, and `be` starts when it is absent, so this guards
 only a fork whose services see its new id. Behind a gateway the host fails to connect and says
@@ -105,17 +106,21 @@ so in its log; the person adds the key by hand, as `BE3_AUTHORIZATION=...` in
 `/home/user/.config/be3/gateway`, which the service loads.
 
 Every resume leaves the sandbox without credentials. Each time the editor sees a sandbox with
-one of the viewer's terminals running, it asks the sandbox for the token fingerprint beside the
-credentials and the build `blocks/BLOCK` links, and asks the host for its own build
-(`terminal-host-build`). Without credentials the row says "Terminal offline, reconnecting…"
+one of the viewer's terminals running, it asks the sandbox whether the credentials are there,
+the build `blocks/BLOCK` links, the host's standing and `systemctl is-active`, and asks the host
+for its own build (`terminal-host-build`). A host that is active and not offline is left alone,
+whatever token or build another device would have written, so a device with stale settings or
+an older build never breaks a working terminal. Otherwise (a resume, a revoked token, a build
+the server refuses, a service that gave up) the row says "Terminal offline, reconnecting…"
 while the app calls `rotate-agent-token`, which revokes the old token, keeps the new
-credentials and writes them again. A fingerprint other than the kept token's (another editor
-rotated too) writes the kept credentials again without rotating, so the last writer wins; another
-build installs this build's `be` too. A resume from outside be-host waits until someone opens
-the boat block.
+credentials and writes them again, with this build's `be` when the sandbox links another. Build
+ids carry no order, so an older device may install its build over a newer one, but only for a
+terminal that wasn't working. A resume from outside be-host waits until someone opens the boat
+block. An answer for a terminal disconnected meanwhile is dropped, and Disconnect waits for a
+check in flight.
 
 Disconnect stops the service while the sandbox runs and removes the agent; only once the agent
-is gone (or the server no longer has it) is the terminal forgotten, and the block stays in
+is gone (or the server no longer has it, `agent-not-found`) is the terminal forgotten, and the block stays in
 Unfiled. A terminal whose sandbox an unfiltered list no longer shows offers Remove, which does
 the same; a list with a name or label filter calls no terminal gone. Connect needs the key's
 `exec` and `file.write` actions; boat.dev's API refusing a command or file (403) offers

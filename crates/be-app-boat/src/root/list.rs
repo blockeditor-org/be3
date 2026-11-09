@@ -235,7 +235,11 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
     let busy = create_memo(move || {
         matches!(
             status.get(),
-            Some(TerminalStatus::Connecting | TerminalStatus::Reconnecting)
+            Some(
+                TerminalStatus::Checking
+                    | TerminalStatus::Connecting
+                    | TerminalStatus::Reconnecting
+            )
         )
     });
     let disconnectable = create_memo(move || own.get() && !busy.get());

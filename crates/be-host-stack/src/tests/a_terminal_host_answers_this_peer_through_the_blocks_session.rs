@@ -63,6 +63,7 @@ fn a_terminal_host_answers_this_peer_through_the_blocks_session() {
                 command: vec!["sh".to_owned()],
                 machine: "build-box".to_owned(),
                 user: "agent".to_owned(),
+                status: None,
             })
             .expect("the host starts");
             ready.send(()).expect("the test waits for the host");

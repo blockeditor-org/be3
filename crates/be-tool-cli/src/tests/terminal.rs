@@ -77,6 +77,7 @@ pub(super) fn host(machine: &str) -> Host {
         command: vec!["sh".to_owned()],
         machine: machine.to_owned(),
         user: "agent".to_owned(),
+        status: None,
     })
     .unwrap()
 }

@@ -91,6 +91,7 @@ StartLimitBurst=5
 User=user
 EnvironmentFile=-/home/user/.config/be3/gateway
 PassEnvironment=BOAT_ID
+Environment=BE3_TERMINAL_STATUS=/run/be3/terminal-host-%i.status
 ExecStart=/bin/sh -c 'BE3_AGENT_CREDENTIALS=\"$$(cat /run/be3/terminal-host-%i.json)\" exec /home/user/.local/lib/be3/blocks/%i/be %i terminal-host'
 Restart=on-failure
 RestartSec=10
@@ -116,16 +117,6 @@ pub(crate) fn sha256(bytes: &[u8]) -> String {
         .collect()
 }
 
-/// What the sandbox keeps beside the credentials to say which token they hold, without
-/// holding it: the SHA-256 of the token.
-pub(crate) fn fingerprint(credentials: &str) -> String {
-    let token = serde_json::from_str::<serde_json::Value>(credentials)
-        .ok()
-        .and_then(|credentials| credentials["token"].as_str().map(str::to_owned))
-        .unwrap_or_default();
-    sha256(token.as_bytes())
-}
-
 /// A build id from `build-info.json`, if it is one that is safe in a path and a command.
 fn build_of(build_info: &str) -> Option<String> {
     let id = serde_json::from_str::<serde_json::Value>(build_info)
@@ -141,30 +132,33 @@ fn build_of(build_info: &str) -> Option<String> {
     safe.then_some(id)
 }
 
-/// The command that moves the staged credentials into place, notes their token's
-/// fingerprint, links the build the terminal runs and (when connecting) installs the units,
-/// and starts the terminal's service. The staged copy is deleted however it ends.
-pub(crate) fn install_command(
-    block: Uuid,
-    fingerprint: &str,
-    build: Option<&str>,
-    units: bool,
-) -> String {
+/// Deletes every build in the sandbox that no terminal's link names.
+fn prune_command() -> String {
+    format!(
+        "used=$(for link in {BE_DIRECTORY}/blocks/*; do test -L \"$link\" && basename \"$(readlink \"$link\")\"; done); \
+         for build in {BE_DIRECTORY}/builds/*; do test -d \"$build\" || continue; \
+         printf '%s\\n' \"$used\" | grep -qxF \"$(basename \"$build\")\" || rm -rf \"$build\"; done"
+    )
+}
+
+/// The command that moves the staged credentials into place, links the build the terminal
+/// runs (pruning builds no terminal runs) and, when connecting, installs the units, and
+/// starts the terminal's service. The staged copy is deleted however it ends.
+pub(crate) fn install_command(block: Uuid, build: Option<&str>, units: bool) -> String {
     let name = credentials_name(block);
     let mut lines = vec![
         "set -e".to_owned(),
         format!("trap 'rm -f {STAGING}/{name}' EXIT"),
-        "sudo install -d -m 0755 /run/be3".to_owned(),
+        "sudo install -d -m 0700 -o user -g user /run/be3".to_owned(),
         format!("sudo install -m 0600 -o user -g user {STAGING}/{name} /run/be3/{name}"),
-        format!(
-            "echo '{fingerprint}' | sudo tee /run/be3/terminal-host-{block}.sha256 > /dev/null"
-        ),
+        format!("rm -f /run/be3/terminal-host-{block}.status"),
     ];
     if let Some(build) = build {
         lines.push(format!("mkdir -p {BE_DIRECTORY}/blocks"));
         lines.push(format!(
             "ln -sfn ../builds/{build} {BE_DIRECTORY}/blocks/{block}"
         ));
+        lines.push(format!("{} || true", prune_command()));
     }
     if units {
         lines.push(format!(
@@ -172,16 +166,10 @@ pub(crate) fn install_command(
              /etc/systemd/system/"
         ));
         lines.push("sudo systemctl daemon-reload".to_owned());
-        lines.push(format!(
-            "sudo systemctl enable --now be-terminal@{block}.path"
-        ));
+        lines.push(format!("sudo systemctl enable --now be-terminal@{block}.path"));
     }
-    lines.push(format!(
-        "sudo systemctl reset-failed be-terminal@{block}.service || true"
-    ));
-    lines.push(format!(
-        "sudo systemctl restart be-terminal@{block}.service"
-    ));
+    lines.push(format!("sudo systemctl reset-failed be-terminal@{block}.service || true"));
+    lines.push(format!("sudo systemctl restart be-terminal@{block}.service"));
     lines.join("\n")
 }
 
@@ -190,18 +178,18 @@ pub(crate) fn unstage_command(block: Uuid) -> String {
     format!("rm -f {STAGING}/{}", credentials_name(block))
 }
 
-/// What the sandbox holds of a terminal: the fingerprint of its credentials' token
-/// (`missing` without credentials), then the build its `be` is. Deletes credentials left
-/// staged first.
+/// What the sandbox holds of a terminal, a line each: `present` or `missing` credentials, the
+/// build its link names, the standing the host last wrote (`connected`, `offline ...`, or
+/// `none`), and the service's state (`systemctl is-active`). Deletes credentials left staged
+/// first.
 pub(crate) fn check_command(block: Uuid) -> String {
     let name = credentials_name(block);
     [
         unstage_command(block),
-        format!(
-            "if test -s /run/be3/{name}; then cat /run/be3/terminal-host-{block}.sha256 \
-             2>/dev/null || echo unknown; else echo missing; fi"
-        ),
+        format!("test -s /run/be3/{name} && echo present || echo missing"),
         format!("basename \"$(readlink {BE_DIRECTORY}/blocks/{block})\""),
+        format!("head -n 1 /run/be3/terminal-host-{block}.status 2>/dev/null || echo none"),
+        format!("systemctl is-active be-terminal@{block}.service || true"),
     ]
     .join("\n")
 }
@@ -209,20 +197,30 @@ pub(crate) fn check_command(block: Uuid) -> String {
 /// What `check_command` answered.
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Held {
-    /// The fingerprint of the token the sandbox holds, none without credentials.
-    pub fingerprint: Option<String>,
+    pub credentials: bool,
     pub build: String,
+    /// What the host last wrote of itself.
+    pub standing: String,
+    /// The service's `ActiveState`.
+    pub active: String,
 }
 
 impl Held {
     pub(crate) fn parse(said: &str) -> Self {
         let mut lines = said.lines().map(str::trim);
-        let fingerprint = lines.next().unwrap_or("missing");
+        let mut next = || lines.next().unwrap_or_default().to_owned();
         Self {
-            fingerprint: (fingerprint != "missing" && !fingerprint.is_empty())
-                .then(|| fingerprint.to_owned()),
-            build: lines.next().unwrap_or_default().to_owned(),
+            credentials: next() == "present",
+            build: next(),
+            standing: next(),
+            active: next(),
         }
+    }
+
+    /// Whether the host runs and hasn't said it lost the server: such a terminal is left
+    /// alone, whatever token or build another device would have written.
+    pub(crate) fn healthy(&self) -> bool {
+        self.credentials && self.active == "active" && !self.standing.starts_with("offline")
     }
 }
 
@@ -230,20 +228,28 @@ impl Held {
 pub(crate) fn remove_command(block: Uuid) -> String {
     format!(
         "sudo systemctl disable --now be-terminal@{block}.path be-terminal@{block}.service; \
-         sudo rm -f /run/be3/{name} /run/be3/terminal-host-{block}.sha256; \
-         rm -f {STAGING}/{name} {BE_DIRECTORY}/blocks/{block}",
+         sudo rm -f /run/be3/{name} /run/be3/terminal-host-{block}.status; \
+         rm -f {STAGING}/{name} {BE_DIRECTORY}/blocks/{block}; {}",
+        prune_command(),
         name = credentials_name(block)
     )
 }
 
 /// Puts `be` of `build` in place unless it is there: downloaded from `url`, or uploaded
 /// already, and checked against `sha256` either way before it can run.
-pub(crate) fn be_command(build: &str, url: Option<&str>, sha256: &str) -> String {
+pub(crate) fn be_command(build: &str, url: Option<&str>, sha256: &str) -> Result<String, String> {
+    if url.is_some_and(|url| !url.starts_with("https://") || url.contains(['\'', '\\']))
+    {
+        return Err("the host named a download of be that is not a plain https URL".to_owned());
+    }
+    if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("the host named no SHA-256 for be".to_owned());
+    }
     let fetch = match url {
         Some(url) => format!("curl -fsSL -o be.part '{url}'"),
         None => "test -f be.part".to_owned(),
     };
-    [
+    Ok([
         "set -e".to_owned(),
         format!("mkdir -p {BE_DIRECTORY}/builds/{build}"),
         format!("cd {BE_DIRECTORY}/builds/{build}"),
@@ -252,7 +258,7 @@ pub(crate) fn be_command(build: &str, url: Option<&str>, sha256: &str) -> String
         "chmod 0755 be.part".to_owned(),
         "mv be.part be".to_owned(),
     ]
-    .join("\n")
+    .join("\n"))
 }
 
 /// The file the terminal host reads, as `BE3_AGENT_CREDENTIALS`: the agent's credentials with
@@ -326,12 +332,7 @@ async fn install_credentials(
                 &host,
                 &account,
                 &sandbox,
-                &install_command(
-                    block,
-                    &fingerprint(&terminal.credentials),
-                    build.as_deref(),
-                    units,
-                ),
+                &install_command(block, build.as_deref(), units),
                 COMMAND_TIMEOUT,
             )
             .await?
@@ -376,6 +377,10 @@ async fn install(
             ));
             be_command(&build, None, &hash)
         }
+    };
+    let command = match command {
+        Ok(command) => command,
+        Err(message) => return Some(Err(Trouble::Host(message))),
     };
     step!(api::command(
         &host,
@@ -542,6 +547,9 @@ impl State {
     /// Ends a chain: online, or why not. boat.dev's API refusing a command or a file (403)
     /// means the key lacks `exec` or `file.write`, which Reconnect fixes.
     fn finished(&self, block: Uuid, answer: Result<(), Trouble>) {
+        if !self.owns(block) {
+            return self.set_status(block, None);
+        }
         let status = match answer {
             Ok(()) => TerminalStatus::Online,
             Err(Trouble::Boat(BoatError::Refused { status: 403, .. })) => {
@@ -561,6 +569,13 @@ impl State {
             Err(Trouble::Host(message)) => TerminalStatus::Failed(message),
         };
         self.set_status(block, Some(status));
+    }
+
+    /// Whether the viewer still has the terminal: an answer for one disconnected meanwhile is
+    /// dropped.
+    fn owns(&self, block: Uuid) -> bool {
+        self.own_terminals
+            .with_untracked(|own| own.contains_key(&block))
     }
 
     fn keep_terminal(&self, block: Uuid, terminal: Option<TerminalAgent>) -> bool {
@@ -668,10 +683,10 @@ impl State {
         self.install_terminal(block, terminal, account);
     }
 
-    /// Asks the sandbox what it holds of the terminal. Without credentials (a resume) the
-    /// token is rotated and written again; with another token than the one kept (another
-    /// editor rotated it too) the kept one is written, so the last to write wins; with
-    /// another build's `be` this build's is installed.
+    /// Asks the sandbox what it holds of the terminal and how its host stands. A host that
+    /// runs connected is left alone; otherwise (a resume left no credentials, the token was
+    /// revoked, the server refuses the build) the token is rotated and written again, with
+    /// this build's `be` when the sandbox runs another.
     fn check_terminal(&self, block: Uuid) {
         let Some(account) = untrack(|| self.account()) else {
             return;
@@ -691,19 +706,19 @@ impl State {
             terminal.sandbox.clone(),
         );
         self.editor.then(asked, move |answer| {
+            if !state.owns(block) {
+                return;
+            }
             let (held, build) = match answer {
                 Ok(answer) => answer,
                 Err(trouble) => return state.finished(block, Err(trouble)),
             };
-            let refresh = held.build != build;
-            match held.fingerprint {
-                None => state.reconnect_terminal(block, terminal, account, refresh),
-                Some(_) if refresh => state.rewrite_terminal(block, terminal, account, true),
-                Some(fingerprint) if fingerprint != self::fingerprint(&terminal.credentials) => {
-                    state.rewrite_terminal(block, terminal, account, false);
-                }
-                Some(_) => state.set_status(block, Some(TerminalStatus::Online)),
+            if held.healthy() {
+                return state.set_status(block, Some(TerminalStatus::Online));
             }
+            // Only a host that isn't running, or has lost the server, is put right: a new
+            // token (the old one may be revoked) and, when it runs another build, this one's.
+            state.reconnect_terminal(block, terminal, account, held.build != build);
         });
     }
 
@@ -756,6 +771,10 @@ impl State {
                 Ok(token) => token,
                 Err(failure) => return state.finished(block, Err(failure.into())),
             };
+            if !state.owns(block) {
+                // Disconnected meanwhile: its agent is going, and nothing brings it back.
+                return;
+            }
             let terminal = TerminalAgent {
                 credentials: with_token(&terminal.credentials, &token),
                 ..terminal

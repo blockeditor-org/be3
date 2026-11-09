@@ -14,7 +14,7 @@ mod ui;
 #[cfg(test)]
 pub(crate) use state::{CACHE, Listed};
 #[cfg(test)]
-pub(crate) use terminals::sha256;
+pub(crate) use terminals::{be_command, sha256};
 
 pub struct BoatRoot;
 

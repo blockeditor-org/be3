@@ -90,7 +90,8 @@ Notes on particular calls:
   `BE3_AGENT_CREDENTIALS` holds) to a machine of its own.
   `terminal_host_binary(arch)` answers the `be` of the host's own build for
   that machine and `terminal_host_build()` just the build it is
-  (guides/terminal.md, A terminal host in a boat.dev sandbox). The host denies them unless the
+  (guides/terminal.md, A terminal host in a boat.dev sandbox). Removing an
+  agent the server no longer has (`agent-not-found`) answers success. The host denies them unless the
   manifest sets `"block_agents": true`, and refuses to rotate or remove an
   agent the Agents menu lists.
 - Web views can be placed (`SubregionContent::WebView`) but no host shows one

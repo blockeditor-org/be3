@@ -17,6 +17,7 @@ use uuid::Uuid;
 use crate::root::{BoatRoot, CACHE, Listed};
 
 mod a_block_without_a_key_shows_how_to_make_one;
+mod a_download_of_be_must_be_plain_https_with_a_sha256;
 mod a_development_build_uploads_its_own_be;
 mod a_key_boat_no_longer_takes_offers_reconnect;
 mod a_key_near_its_expiry_warns_two_weeks_before;
@@ -31,7 +32,7 @@ mod an_empty_list_says_so;
 mod an_expired_key_offers_reconnect;
 mod an_unchanged_list_is_not_kept_again_until_it_ages;
 mod an_upload_url_that_is_not_https_is_refused;
-mod another_editors_token_or_another_build_is_put_right;
+mod a_running_terminal_is_left_alone_and_a_failing_one_is_put_right;
 mod connecting_a_terminal_installs_its_host_in_the_sandbox;
 mod connecting_checks_the_key_and_keeps_it_for_its_owner_alone;
 mod on_the_web_it_says_it_is_not_available;
@@ -398,7 +399,6 @@ impl Boat {
         let credentials =
             self.write_answered(&format!("/home/user/.cache/be3/terminal-host-{block}.json"));
         let parsed: serde_json::Value = serde_json::from_str(&credentials).unwrap();
-        let token = parsed["token"].as_str().unwrap();
         let install = self.command();
         assert!(install.line.contains(&format!(
             "sudo install -m 0600 -o user -g user /home/user/.cache/be3/terminal-host-{block}.json \
@@ -407,13 +407,12 @@ impl Boat {
         assert!(install.line.contains(&format!(
             "trap 'rm -f /home/user/.cache/be3/terminal-host-{block}.json' EXIT"
         )));
+        assert!(install.line.contains("sudo install -d -m 0700 -o user -g user /run/be3"));
         assert!(
-            install.line.contains(&format!(
-                "echo '{}' | sudo tee /run/be3/terminal-host-{block}.sha256",
-                crate::root::sha256(token.as_bytes())
-            )),
-            "the token's fingerprint is kept beside it: {}",
-            install.line
+            install
+                .line
+                .contains(&format!("rm -f /run/be3/terminal-host-{block}.status")),
+            "a standing from before is forgotten"
         );
         assert_eq!(
             install.line.contains(&format!(

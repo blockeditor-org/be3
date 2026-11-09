@@ -1820,14 +1820,24 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
             .await
             .map_err(|error| error.to_string()),
         ),
+        // An agent the server no longer has (removed, or collected with its block) is as
+        // removed as asked.
         AgentChange::Remove(reply) => reply(
-            ask(client::members::remove_agent(
+            match ask(client::members::remove_agent(
                 &connection,
                 organization,
                 agent,
             ))
             .await
-            .map_err(|error| error.to_string()),
+            {
+                Ok(_) | Err(be_block_client::ClientError::Refused(
+                    be_block_protocol::ErrorCode::AgentNotFound,
+                    _,
+                )) => {
+                    Ok(())
+                }
+                Err(error) => Err(error.to_string()),
+            },
         ),
     }
 }

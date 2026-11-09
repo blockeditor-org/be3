@@ -18,6 +18,12 @@ fn a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token() {
     boat.wait(Duration::from_secs(15));
     let list = boat.fetch();
     boat.answer(&list, 200, SANDBOXES);
+    assert!(
+        !boat
+            .test
+            .shown(&format!("boat.sandbox.{RUNNING}.terminal.disconnect")),
+        "nothing disconnects while a check is on its way"
+    );
     boat.checked(block, MISSING);
 
     let (reply, rotated) = boat.host_call("the token rotated", |call| match call {

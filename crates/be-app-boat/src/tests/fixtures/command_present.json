@@ -6,7 +6,7 @@
   "exitCode": 0,
   "signal": null,
   "oomKilled": false,
-  "stdout": "7a35833597e6687c599a0988b7a53b9b6a7ec18b88ca2a8e60f3265c8be6d527\ntree\n",
+  "stdout": "present\ntree\nconnected\nactive\n",
   "stderr": "",
   "stdoutTruncated": false,
   "stderrTruncated": false,
