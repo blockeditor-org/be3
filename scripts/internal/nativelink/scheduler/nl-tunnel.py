@@ -9,6 +9,8 @@ Only the standard library, so the scheduler needs nothing installed.
 Boat's proxy is what authenticates a client (its token cookie); this listens on the loopback address only.
 
   NL_TUNNEL_PORT    the port to listen on (default 8099), which `host` then exposes
+  NL_TUNNEL_BIND    the address to listen on (default 127.0.0.1; a second instance on 10.100.0.1 serves clients inside
+                    the WireGuard network, which is how the timings in guides/build_server.md were taken)
   NL_TUNNEL_TARGET  host:port of the frontend (default 10.100.0.1:50052)
 """
 import asyncio
@@ -19,6 +21,7 @@ import struct
 import sys
 
 PORT = int(os.environ.get("NL_TUNNEL_PORT", "8099"))
+BIND = os.environ.get("NL_TUNNEL_BIND", "127.0.0.1")
 HOST, _, TARGET_PORT = os.environ.get("NL_TUNNEL_TARGET", "10.100.0.1:50052").rpartition(":")
 GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 CHUNK = 65536
@@ -136,8 +139,8 @@ async def client(reader, writer):
 
 
 async def main():
-    server = await asyncio.start_server(client, "127.0.0.1", PORT, limit=1 << 20)
-    log(f"nl-tunnel: 127.0.0.1:{PORT} -> {HOST}:{TARGET_PORT}")
+    server = await asyncio.start_server(client, BIND, PORT, limit=1 << 20)
+    log(f"nl-tunnel: {BIND}:{PORT} -> {HOST}:{TARGET_PORT}")
     async with server:
         await server.serve_forever()
 

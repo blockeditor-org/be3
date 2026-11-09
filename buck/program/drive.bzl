@@ -60,7 +60,7 @@ _web_drive_test = rule(
 
 def web_drive_test(name, bundle, scripts, checks = False):
     _web_drive_test(name = name + "-harness", bundle = bundle, checks = checks, scripts = scripts)
-    be_test(name = name, harness = ":" + name + "-harness", env = _BROWSER_ENV)
+    be_test(name = name, env = _BROWSER_ENV, harness = ":" + name + "-harness")
 
 # A page that checks itself in Chromium: files are staged into one directory
 # (the name each is served as, to its source, which may be a directory such as
@@ -83,4 +83,4 @@ _page_test = rule(
 
 def page_test(name, files):
     _page_test(name = name + "-harness", files = files)
-    be_test(name = name, harness = ":" + name + "-harness", env = _BROWSER_ENV)
+    be_test(name = name, env = _BROWSER_ENV, harness = ":" + name + "-harness")
