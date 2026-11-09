@@ -243,7 +243,7 @@ interface shell-types {
 
 /// What an editor tells the shell around it.
 interface shell {
-    use types.{block-location, block-pick, child-id, editor-instance-id, size, view-id, web-view-id};
+    use types.{block-location, block-pick, child-id, editor-instance-id, palette-mode, size, view-id, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id};
     use be3:ui/types@0.1.0.{rect};
     use shell-types.{
@@ -384,6 +384,11 @@ interface shell {
     /// The editor, opened as a picker, answers its pick: the block chosen, or
     /// none when the user cancelled.
     picked: async func(instance: editor-instance-id, pick: block-pick);
+
+    /// Opens the host's command palette (`open-block.host-palette`) on the
+    /// instance's actions and those of the instances around it, or on
+    /// blocks to open.
+    open-palette: async func(instance: editor-instance-id, mode: palette-mode);
 
     /// The editor, opened as a picker, says whether it shows a card, which the
     /// editor that placed it frames, rather than a menu that draws its own

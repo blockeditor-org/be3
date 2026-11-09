@@ -143,6 +143,8 @@ struct Inner {
     next_present: Cell<Option<Instant>>,
     prepared: Cell<Option<Instant>>,
     actions: RefCell<Vec<ActionGroup>>,
+    document_actions: RefCell<Vec<(u32, Vec<ActionGroup>)>>,
+    actions_version: Cell<u64>,
     action_requests: RefCell<Vec<(Option<WindowId>, String)>>,
     hit_query: Cell<Option<Pos2>>,
     hit_answers: RefCell<Vec<String>>,
@@ -278,6 +280,8 @@ pub struct FrameOutput {
     pub repaint_after: Duration,
     pub animating: bool,
     accessibility: Vec<Fragment>,
+    /// While automated, every document's actions (`every_document_action`), then what the host
+    /// published this frame (`publish_actions`).
     pub actions: Vec<ActionGroup>,
     pub unran_actions: Vec<String>,
     pub hits: Option<Vec<String>>,
@@ -439,6 +443,8 @@ impl Context {
                 next_present: Cell::new(None),
                 prepared: Cell::new(None),
                 actions: RefCell::new(Vec::new()),
+                document_actions: RefCell::new(Vec::new()),
+                actions_version: Cell::new(0),
                 action_requests: RefCell::new(Vec::new()),
                 hit_query: Cell::new(None),
                 hit_answers: RefCell::new(Vec::new()),
@@ -555,6 +561,47 @@ impl Context {
 
     pub fn publish_actions(&self, group: ActionGroup) {
         self.inner.actions.borrow_mut().push(group);
+    }
+
+    /// A document's actions (`Document::published_actions`) when they changed, kept from frame
+    /// to frame.
+    pub fn document_actions(&self, document: u32, groups: &[ActionGroup]) {
+        let mut held = self.inner.document_actions.borrow_mut();
+        match held.iter_mut().find(|(id, _)| *id == document) {
+            Some((_, kept)) => groups.clone_into(kept),
+            None => held.push((document, groups.to_vec())),
+        }
+        self.inner
+            .actions_version
+            .set(self.inner.actions_version.get() + 1);
+    }
+
+    pub fn forget_document_actions(&self, document: u32) {
+        let mut held = self.inner.document_actions.borrow_mut();
+        let before = held.len();
+        held.retain(|(id, _)| *id != document);
+        if held.len() != before {
+            self.inner
+                .actions_version
+                .set(self.inner.actions_version.get() + 1);
+            self.request_repaint();
+        }
+    }
+
+    /// How often any document's actions changed: a host of the context reads
+    /// `every_document_action` again when this moves.
+    pub fn actions_version(&self) -> u64 {
+        self.inner.actions_version.get()
+    }
+
+    /// Every document's actions, as each last published them.
+    pub fn every_document_action(&self) -> Vec<ActionGroup> {
+        self.inner
+            .document_actions
+            .borrow()
+            .iter()
+            .flat_map(|(_, groups)| groups.iter().cloned())
+            .collect()
     }
 
     pub fn request_action(&self, id: String) {
@@ -875,7 +922,13 @@ impl Context {
             raise_requested: self.inner.raise_requested.get(),
             repaint: self.inner.repaint.get(),
             accessibility,
-            actions: std::mem::take(&mut *self.inner.actions.borrow_mut()),
+            actions: {
+                let published = std::mem::take(&mut *self.inner.actions.borrow_mut());
+                match self.automated() {
+                    true => self.every_document_action().into_iter().chain(published).collect(),
+                    false => published,
+                }
+            },
             unran_actions: std::mem::take(&mut *self.inner.action_requests.borrow_mut())
                 .into_iter()
                 .map(|(_, id)| id)

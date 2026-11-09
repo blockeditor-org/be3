@@ -220,7 +220,74 @@ impl KeyChord {
     pub fn matches(self, press: KeyPress) -> bool {
         !self.tap && press.key == self.key && press.modifiers == self.modifiers
     }
+
+    /// How a menu or a screen reader names the chord: "Ctrl+Shift+P", "Super".
+    pub fn label(self) -> String {
+        let mut parts = Vec::new();
+        if self.modifiers.logo {
+            parts.push("Super".to_owned());
+        }
+        if self.modifiers.ctrl {
+            parts.push("Ctrl".to_owned());
+        }
+        if self.modifiers.alt {
+            parts.push("Alt".to_owned());
+        }
+        if self.modifiers.shift {
+            parts.push("Shift".to_owned());
+        }
+        parts.push(key_label(self.key));
+        parts.join("+")
+    }
 }
+
+fn key_label(key: Key) -> String {
+    let symbol = match key {
+        Key::ArrowDown => "Down",
+        Key::ArrowLeft => "Left",
+        Key::ArrowRight => "Right",
+        Key::ArrowUp => "Up",
+        Key::BracketLeft => "[",
+        Key::BracketRight => "]",
+        Key::Minus => "-",
+        Key::Plus => "+",
+        Key::Zero => "0",
+        Key::One => "1",
+        Key::Two => "2",
+        Key::Three => "3",
+        Key::Four => "4",
+        Key::Five => "5",
+        Key::Six => "6",
+        Key::Seven => "7",
+        Key::Eight => "8",
+        Key::Nine => "9",
+        Key::Backtick => "`",
+        Key::Comma => ",",
+        Key::Period => ".",
+        Key::Slash => "/",
+        Key::Backslash => "\\",
+        Key::Semicolon => ";",
+        Key::Quote => "'",
+        Key::PageDown => "Page Down",
+        Key::PageUp => "Page Up",
+        Key::BrowserBack => "Back",
+        Key::ContextMenu => "Menu",
+        Key::VolumeUp => "Volume Up",
+        Key::VolumeDown => "Volume Down",
+        Key::VolumeMute => "Mute",
+        Key::MicMute => "Mic Mute",
+        Key::BrightnessUp => "Brightness Up",
+        Key::BrightnessDown => "Brightness Down",
+        Key::MediaPlayPause => "Play/Pause",
+        Key::MediaNext => "Next Track",
+        Key::MediaPrevious => "Previous Track",
+        Key::MediaStop => "Stop",
+        Key::Logo => "Super",
+        _ => return format!("{key:?}"),
+    };
+    symbol.to_owned()
+}
+
 
 #[cfg(test)]
 mod tests;

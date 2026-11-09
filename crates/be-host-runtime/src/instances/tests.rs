@@ -385,6 +385,7 @@ fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
                 drawing: Vec::new(),
                 claims: Vec::new(),
                 description: None,
+                actions: None,
                 anchored: Some(layer.placement),
                 work_area: None,
                 backdrop: None,

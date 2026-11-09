@@ -28,7 +28,7 @@ use beui_types::window::{
     HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
     WindowRequests,
 };
-use beui_types::{Pos2, Rect, Vec2, vec2};
+use beui_types::{ActionGroup, Pos2, Rect, Vec2, vec2};
 
 use be_sdk_beui_platform_api::{
     AppRuntime, View, ViewRunner, Views, anchored_layer, anchored_view, window_view,
@@ -77,6 +77,9 @@ impl Platform for AppPlatform {
                 sized: HashMap::default(),
                 origins: HashMap::default(),
                 described: Vec::new(),
+                actions: Vec::new(),
+                actions_version: 0,
+                sent_actions: HashMap::default(),
                 focused: HashSet::default(),
                 toggles: HashMap::default(),
                 toggled: 0,
@@ -163,6 +166,12 @@ struct ModuleRunner {
     sized: HashMap<WindowId, (Vec2, f32)>,
     origins: HashMap<WindowId, Pos2>,
     described: Vec<(ViewRef, u64)>,
+    /// Every window's actions as the document last published them, at which of the context's
+    /// `actions_version`.
+    actions: Vec<ActionGroup>,
+    actions_version: u64,
+    /// What each view last sent of them, at which change.
+    sent_actions: HashMap<ViewRef, (u64, Vec<DescribedAction>)>,
     focused: HashSet<ViewRef>,
     toggles: HashMap<ViewRef, u32>,
     toggled: u32,
@@ -543,26 +552,55 @@ impl ModuleRunner {
             let tree = output.window_accessibility_tree(window, "", region.rect.size() * ratio);
             placed(tree, ratio)
         });
-        let actions = window
-            .zip(output)
-            .map(|(window, output)| {
-                output
-                    .actions
-                    .iter()
-                    .filter(|group| group.window == Some(window))
-                    .flat_map(|group| &group.actions)
-                    .map(|action| DescribedAction {
-                        id: action.id.clone(),
-                        label: action.label.clone(),
-                        shortcut: action.shortcut.clone(),
-                        enabled: action.enabled,
-                        checked: action.checked,
-                        live: action.live,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        Description { tree, actions }
+        Description { tree }
+    }
+
+    fn follow_actions(&mut self) {
+        let context = self.runner.context();
+        let version = context.actions_version();
+        if version != self.actions_version {
+            self.actions = context.every_document_action();
+            self.actions_version = version;
+        }
+    }
+
+    /// The view's actions when they changed since it last sent them: those registered in its
+    /// window, and for the main view those registered outside any window too.
+    fn changed_actions(&mut self, id: ViewRef) -> Option<Vec<DescribedAction>> {
+        let changed = self.actions_version;
+        if self
+            .sent_actions
+            .get(&id)
+            .is_some_and(|(seen, _)| *seen == changed)
+        {
+            return None;
+        }
+        let window = self.windows.get(&id).copied();
+        let main = id.view.is_main();
+        let mut actions: Vec<DescribedAction> = Vec::new();
+        for group in self.actions.iter().filter(|group| {
+            (window.is_some() && group.window == window) || (main && group.window.is_none())
+        }) {
+            for action in &group.actions {
+                if actions.iter().any(|listed| listed.id == action.id) {
+                    continue;
+                }
+                actions.push(DescribedAction {
+                    id: action.id.clone(),
+                    label: action.label.clone(),
+                    glyph: action.glyph.clone(),
+                    shortcut: action.shortcut,
+                    enabled: action.enabled,
+                    checked: action.checked,
+                    live: action.live,
+                });
+            }
+        }
+        let sent = self
+            .sent_actions
+            .insert(id, (changed, actions.clone()))
+            .map(|(_, sent)| sent);
+        (sent.as_ref() != Some(&actions)).then_some(actions)
     }
 
     fn region_frame(
@@ -632,6 +670,7 @@ impl ModuleRunner {
             work_area: report.work_area.map(to_region),
             window: self.requests(id, keyboard, ratio),
             description: region.describe.map(|_| self.describe(id, region, ratio)),
+            actions: self.changed_actions(id),
             anchored,
             fitted,
             backdrop,
@@ -682,7 +721,6 @@ impl ModuleRunner {
                     layer.rect.min,
                     space.to_host,
                 ),
-                actions: Vec::new(),
             });
         }
         match self.anchored_shown(region.id()) {
@@ -835,6 +873,7 @@ impl Regions for ModuleRunner {
             return Err(self.stopped());
         };
         self.match_windows(ratio, regions, active);
+        self.follow_actions();
         self.count_toggles(regions, active);
         self.overflows = self
             .runner

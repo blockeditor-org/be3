@@ -56,6 +56,7 @@ fn report(anchored: Option<AnchoredPlacement>) -> be_sdk_api::FrameReport {
         drawing: Vec::new(),
         claims: Vec::new(),
         description: None,
+        actions: None,
         anchored,
         work_area: None,
         backdrop: None,

@@ -92,7 +92,7 @@ pub use types::{
     DockPlacedBar, DockRequest, DockSplit, DockSplitSize, DockTab, DockTabPath, DockTree,
     DockViewRequest, DockWindow,
 };
-pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin};
+pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin, PaletteMode};
 pub use types::{
     ViewRef, WindowEdge, WindowOpen, WindowOver, WindowPlace, WindowPlacement, WindowRequest,
     WindowResize, WindowResizeBegin,
@@ -326,7 +326,6 @@ impl MenuEntry {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Description {
     pub tree: Option<accesskit::TreeUpdate>,
-    pub actions: Vec<DescribedAction>,
 }
 
 impl ScreenPlacement {

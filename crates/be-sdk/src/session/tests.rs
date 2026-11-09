@@ -32,6 +32,7 @@ fn opening(instance: EditorInstanceId) -> Delivery {
         client_id: [5; 16],
         editable: true,
         page_origin: String::new(),
+        host_palette: false,
     }))
 }
 

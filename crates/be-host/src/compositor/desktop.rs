@@ -347,6 +347,12 @@ pub(crate) struct Catcher {
     pub(crate) zoom: f32,
     pub(crate) rect: Rect,
     pub(crate) parent: Option<NodeId>,
+    /// The block the instance shows, and the app's name, which the host palette groups the
+    /// instance's actions under.
+    pub(crate) block: Option<uuid::Uuid>,
+    pub(crate) app_name: String,
+    /// The view that placed this one as its child: its app, instance and view.
+    pub(crate) placer: Option<(String, EditorInstanceId, ViewId)>,
 }
 
 pub(crate) fn register_catcher(node: NodeId, catcher: Catcher) {

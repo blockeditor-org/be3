@@ -154,6 +154,9 @@ pub struct Frame {
     pub work_area: Option<Rect>,
     pub window: WindowRequests,
     pub description: Option<be_sdk_api::Description>,
+    /// The view's actions when they changed since its last frame, whether or not the host asks
+    /// the app to describe (`frame-report.actions`).
+    pub actions: Option<Vec<be_sdk_api::DescribedAction>>,
     pub stopped: Option<be_sdk_api::Stopped>,
     pub asks: Vec<be_sdk_api::WindowRequest>,
     pub anchored: Vec<Anchored>,

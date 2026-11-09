@@ -105,13 +105,20 @@ pub(crate) fn FrameChrome(
         false => Density::Compact,
     }));
     let palette = create_signal(false);
-    let opener = Action::new("editor.palette", "Command palette", move || {
-        palette.set(true)
-    })
-    .glyph(ICON_TERMINAL)
-    .shortcut(PALETTE)
-    .register();
     let host = editor.host();
+    let host_palette = host.host_palette();
+    let asking = host.clone();
+    let opener = Action::new("editor.palette", "Command palette", move || {
+        match host_palette {
+            true => asking.open_palette(be_sdk_api::PaletteMode::Actions),
+            false => palette.set(true),
+        }
+    })
+    .glyph(ICON_TERMINAL);
+    let opener = match host_palette {
+        true => opener.detached(),
+        false => opener.shortcut(PALETTE).register(),
+    };
     let releasing = Rc::clone(&docked);
     let hosting = Rc::clone(&docked);
     create_effect(move || {

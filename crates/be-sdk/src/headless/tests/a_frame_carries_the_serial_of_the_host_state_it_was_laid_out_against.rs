@@ -107,6 +107,7 @@ fn a_frame_carries_the_serial_of_the_host_state_it_was_laid_out_against() {
         client_id: [5; 16],
         editable: true,
         page_origin: String::new(),
+        host_palette: false,
     }))
     .unwrap();
 

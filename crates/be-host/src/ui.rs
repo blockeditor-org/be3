@@ -16,7 +16,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use uuid::Uuid;
 
-use crate::compositor::{AnchoredViews, ShellDisplay};
+use crate::compositor::{AnchoredViews, HostPalette, ShellDisplay};
 use be_host_base::host_state::{SavedAccount, ServerLocation};
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 
@@ -613,6 +613,7 @@ pub(crate) fn Root(view: HostUiStore) -> NodeId {
                 <onboarding::RemoveAccountDialog view />
                 <onboarding::AddAccountDialog view />
                 <DisplayChrome view area primary=true />
+                <HostPalette />
                 <Host::WindowActions />
             </List>
         </Frame>

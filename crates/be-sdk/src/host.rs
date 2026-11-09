@@ -552,6 +552,8 @@ pub struct EditorHost {
     child_dismissals: Rc<RefCell<Vec<ChildId>>>,
     child_closes: Rc<RefCell<Vec<ChildId>>>,
     keyboard_gifts: Rc<RefCell<Vec<ChildId>>>,
+    host_palette: Rc<Cell<bool>>,
+    palette_opens: Rc<RefCell<Vec<be_sdk_api::PaletteMode>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
     showing: Rc<Cell<Option<be_sdk_api::View>>>,
     drops: Rc<RefCell<HashMap<ViewId, ViewDrops>>>,
@@ -2498,6 +2500,26 @@ impl EditorHost {
 
     pub(crate) fn take_child_closes(&self) -> Vec<ChildId> {
         std::mem::take(&mut self.child_closes.borrow_mut())
+    }
+
+    /// Whether the host draws the command palette (`open-block.host-palette`), so the frame
+    /// keeps none of its own and asks for the host's with `open_palette`.
+    pub fn host_palette(&self) -> bool {
+        self.host_palette.get()
+    }
+
+    pub fn set_host_palette(&self, host_palette: bool) {
+        self.host_palette.set(host_palette);
+    }
+
+    /// Asks the host to open its command palette (`shell.open-palette`).
+    pub fn open_palette(&self, mode: be_sdk_api::PaletteMode) {
+        self.palette_opens.borrow_mut().push(mode);
+        self.changed();
+    }
+
+    pub(crate) fn take_palette_opens(&self) -> Vec<be_sdk_api::PaletteMode> {
+        std::mem::take(&mut self.palette_opens.borrow_mut())
     }
 
     pub(crate) fn take_keyboard_gifts(&self) -> Vec<ChildId> {

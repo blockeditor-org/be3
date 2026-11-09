@@ -128,6 +128,9 @@ struct Instance {
     simulated: Vec<(Uuid, AccessLevel)>,
     reported_focus: Option<Focus>,
     reported_editable: Option<bool>,
+    /// The actions each view last described (`frame-report.actions`), kept while nothing asks
+    /// the app to describe.
+    actions: HashMap<ViewId, Vec<DescribedAction>>,
     focus_reports: Vec<Focus>,
     artifact_watch: Option<Vec<Uuid>>,
     heads: Heads,
@@ -286,6 +289,7 @@ impl Instance {
             simulated: Vec::new(),
             reported_focus: None,
             reported_editable: None,
+            actions: HashMap::default(),
             focus_reports: Vec::new(),
             artifact_watch: None,
             heads: Heads::default(),
@@ -2031,6 +2035,7 @@ impl Instances {
                             editable
                         },
                         page_origin: page_origin(),
+                        host_palette: crate::host_draws_palette(),
                     }),
                     InstanceRole::Picker(editor) => {
                         let picker = super::picker_request(instance).unwrap_or_default();
@@ -3046,14 +3051,23 @@ impl Instances {
                 .as_mut()
                 .and_then(|description| description.tree.take())
                 .map(beui::accesskit::TreeUpdate::from);
+            let actions = report.actions.take();
             for entry in self.entries.values_mut() {
-                let anchored = entry.anchored.iter_mut().map(|held| &mut held.screen);
-                if let Some(screen) = entry
+                let anchored = entry
+                    .anchored
+                    .iter_mut()
+                    .map(|held| (held.view, &mut held.screen));
+                if let Some((view, screen)) = entry
                     .screens
-                    .values_mut()
+                    .iter_mut()
+                    .map(|(view, screen)| (*view, screen))
                     .chain(anchored)
-                    .find(|screen| screen.request.screen == report.screen)
+                    .find(|(_, screen)| screen.request.screen == report.screen)
                 {
+                    if let Some(actions) = actions.clone() {
+                        entry.actions.insert(view, actions);
+                        changed = true;
+                    }
                     if let Some(tree) = tree.take() {
                         screen.accessibility.update(tree);
                         changed = true;
@@ -3085,14 +3099,60 @@ impl Instances {
         region: ViewId,
     ) -> Option<Described<'_>> {
         let focused = self.view_focused(instance, region);
-        let screen = self.any_screen_mut(instance, region)?;
-        let description = screen.report.as_ref()?.description.as_ref()?;
+        let entry = self.entries.get_mut(&instance)?;
+        let actions = entry
+            .actions
+            .get(&region)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let screen = match entry.screens.get_mut(&region) {
+            Some(screen) => screen,
+            None => entry
+                .anchored
+                .iter_mut()
+                .find(|held| held.view == region)
+                .map(|held| &mut held.screen)?,
+        };
+        screen.report.as_ref()?.description.as_ref()?;
         Some(Described {
             screen: screen.request.screen,
-            actions: &description.actions,
+            actions,
             focused,
             tree: &mut screen.accessibility,
         })
+    }
+
+    /// The actions every view of the instance last described, the view `first` names first,
+    /// each with the view it came from.
+    pub(super) fn instance_actions(
+        &self,
+        instance: EditorInstanceId,
+        first: ViewId,
+    ) -> Vec<(ViewId, DescribedAction)> {
+        let Some(entry) = self.entries.get(&instance) else {
+            return Vec::new();
+        };
+        let mut views: Vec<ViewId> = entry.actions.keys().copied().collect();
+        views.sort_by_key(|view| (*view != first, view.0));
+        views
+            .into_iter()
+            .flat_map(|view| {
+                entry.actions[&view]
+                    .iter()
+                    .map(move |action| (view, action.clone()))
+            })
+            .collect()
+    }
+
+    /// The actions the view last described, and the screen that runs them.
+    pub(super) fn view_actions(
+        &self,
+        instance: EditorInstanceId,
+        region: ViewId,
+    ) -> Option<(ScreenId, Vec<DescribedAction>)> {
+        let entry = self.entries.get(&instance)?;
+        let screen = entry.screens.get(&region)?.request.screen;
+        Some((screen, entry.actions.get(&region).cloned().unwrap_or_default()))
     }
 
     pub(super) fn request_focus(&mut self, screen: ScreenId) {
@@ -3621,6 +3681,7 @@ impl Instances {
                 ack(reply);
                 self.ask_child_focus(instance, child);
             }
+            ShellCall::OpenPalette { reply, .. } => ack(reply),
             ShellCall::ShowCard { reply, card, .. } => {
                 ack(reply);
                 if entry.card == card {
