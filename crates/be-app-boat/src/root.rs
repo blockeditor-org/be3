@@ -10,9 +10,8 @@ mod sign_in;
 mod state;
 mod ui;
 
-pub(crate) use state::CACHE;
 #[cfg(test)]
-pub(crate) use state::Listed;
+pub(crate) use state::{CACHE, Listed};
 
 pub struct BoatRoot;
 

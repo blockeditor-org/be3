@@ -17,12 +17,16 @@ use crate::time::DAY;
 pub(super) fn SignIn(state: State) -> NodeId {
     let editor = state.editor;
     let read_only = editor.read_only();
-    let organization = create_memo(move || state.filters.with(|filters| filters.organization.clone()));
+    let organization =
+        create_memo(move || state.filters.with(|filters| filters.organization.clone()));
     let organization_draft = create_signal(organization.get_untracked());
     create_effect(move || organization_draft.set(organization.get()));
     let secret = create_signal(String::new());
     let today = Date::today();
-    let expiry = create_signal(Some(DateTime::new(today.add_days(KEY_DAYS), Time::MIDNIGHT)));
+    let expiry = create_signal(Some(DateTime::new(
+        today.add_days(KEY_DAYS),
+        Time::MIDNIGHT,
+    )));
     let checking = create_signal(false);
     let problem = create_signal(None::<String>);
     let reconnecting = state.reconnecting;
@@ -30,16 +34,20 @@ pub(super) fn SignIn(state: State) -> NodeId {
         true => "Reconnect to boat.dev".to_owned(),
         false => "Connect to boat.dev".to_owned(),
     });
-    let whose = create_memo(move || match organization.get() {
+    let whose = create_memo(move || {
+        match organization.get() {
         organization if organization.is_empty() => {
             "Make the key in your own boat.dev account, or name an organization below to show its sandboxes instead.".to_owned()
         }
         organization => format!("Make the key in the {organization} organization: an organization's key sees only that organization."),
+    }
     });
     let actions = ACTIONS.join(", ");
     let command = api::create_command();
     let unchecked = create_memo(move || {
-        checking.get() || secret.with(|secret| secret.trim().is_empty()) || expiry.with(Option::is_none)
+        checking.get()
+            || secret.with(|secret| secret.trim().is_empty())
+            || expiry.with(Option::is_none)
     });
     let connect = move || {
         let key = secret.get_untracked().trim().to_owned();
@@ -102,7 +110,11 @@ pub(super) fn SignIn(state: State) -> NodeId {
                     <Step number=1 title="Open boat.dev's API Keys tab">
                         <List spacing=SPACING>
                             <Text style=TextStyle::CAPTION>{whose}</Text>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=SPACING
+                            >
                                 <Button
                                     label="Open API Keys"
                                     glyph=ICON_EXTERNAL_LINK
@@ -128,7 +140,9 @@ pub(super) fn SignIn(state: State) -> NodeId {
                     </Step>
                     <Step number=2 title="Make a key with these actions">
                         <List spacing=SPACING>
-                            <Text style=TextStyle::CODE @test_id="boat.sign-in.actions">{actions}</Text>
+                            <Text style=TextStyle::CODE @test_id="boat.sign-in.actions">
+                                {actions}
+                            </Text>
                             <Text style=TextStyle::CAPTION>
                                 {format!("Set it to expire in {KEY_DAYS} days, the longest boat.dev allows. Or make it with boat's command line:")}
                             </Text>
@@ -163,7 +177,9 @@ pub(super) fn SignIn(state: State) -> NodeId {
                         </List>
                     </Step>
                     <Show condition={has_problem}>
-                        <Text color=TextColor::Danger @test_id="boat.sign-in.problem">{problem_text}</Text>
+                        <Text color=TextColor::Danger @test_id="boat.sign-in.problem">
+                            {problem_text}
+                        </Text>
                     </Show>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Button

@@ -331,7 +331,10 @@ impl State {
     /// Where a sandbox shows as being, counting a start or stop asked for and not yet seen.
     pub(crate) fn phase(&self, sandbox: &Sandbox) -> Phase {
         let phase = sandbox.phase();
-        match (self.asked.with(|asked| asked.get(&sandbox.id).copied()), phase) {
+        match (
+            self.asked.with(|asked| asked.get(&sandbox.id).copied()),
+            phase,
+        ) {
             (Some(Action::Resume), Phase::Stopped) => Phase::Starting,
             (Some(Action::Stop), Phase::Running) => Phase::Stopping,
             _ => phase,

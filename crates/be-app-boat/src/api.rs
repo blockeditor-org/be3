@@ -203,7 +203,10 @@ impl Account {
     }
 }
 
-async fn send<T: DeserializeOwned>(host: EditorHost, request: Request) -> Option<Result<T, BoatError>> {
+async fn send<T: DeserializeOwned>(
+    host: EditorHost,
+    request: Request,
+) -> Option<Result<T, BoatError>> {
     let response = match host.fetch(request).await? {
         Ok(response) => response,
         Err(failure) => return Some(Err(BoatError::Offline(failure.to_string()))),
@@ -216,10 +219,12 @@ async fn send<T: DeserializeOwned>(host: EditorHost, request: Request) -> Option
     if !(200..300).contains(&status) {
         return Some(Err(refused(status, &body)));
     }
-    Some(serde_json::from_slice(&body).map_err(|error| BoatError::Refused {
-        status,
-        message: format!("boat.dev answered something unexpected: {error}"),
-    }))
+    Some(
+        serde_json::from_slice(&body).map_err(|error| BoatError::Refused {
+            status,
+            message: format!("boat.dev answered something unexpected: {error}"),
+        }),
+    )
 }
 
 /// Whose key it is: `GET /me`, answered with the login and display name.
@@ -235,10 +240,12 @@ pub(crate) fn me(
             Err(error) => return Some(Err(error)),
         };
         let user = me.user;
-        Some(Ok(match user.display_name.filter(|name| !name.is_empty()) {
-            Some(name) if name != user.login => format!("{name} ({})", user.login),
-            _ => user.login,
-        }))
+        Some(Ok(
+            match user.display_name.filter(|name| !name.is_empty()) {
+                Some(name) if name != user.login => format!("{name} ({})", user.login),
+                _ => user.login,
+            },
+        ))
     }
 }
 
@@ -305,17 +312,14 @@ pub(crate) fn act(
         Action::Stop => "stop",
     };
     let request = account
-        .request(Request::post(format!("{API}/sandboxes/{}/{verb}", encoded(sandbox))))
+        .request(Request::post(format!(
+            "{API}/sandboxes/{}/{verb}",
+            encoded(sandbox)
+        )))
         .header("Content-Type", "application/json")
         .with_body(b"{}".to_vec());
     let host = host.clone();
-    async move {
-        Some(
-            send::<Ignored>(host, request)
-                .await?
-                .map(|_| ()),
-        )
-    }
+    async move { Some(send::<Ignored>(host, request).await?.map(|_| ())) }
 }
 
 /// `text` as a URL's query value or path segment.

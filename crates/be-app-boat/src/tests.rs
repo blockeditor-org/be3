@@ -3,11 +3,11 @@
 
 use std::time::Duration;
 
+use be_sdk_beui::be_block::Root;
 use be_sdk_beui::be_block::{EditorView, EditorViewContent};
 use be_sdk_beui::network::ResponseHead;
 use be_sdk_beui::{EditorHost, Failure, OwnedEditor, PageOriginWatch};
 use be_sdk_test::{BeuiTest, Fetch};
-use be_sdk_beui::be_block::Root;
 use be_type_boat::{BoatContent, BoatSettings, BoatSettingsContent};
 use uuid::Uuid;
 
@@ -139,9 +139,9 @@ impl Boat {
             .created()
             .into_iter()
             .filter(|block| {
-                store.block(*block).is_some_and(|info| {
-                    info.block_type == BoatSettings::CONTENT_TYPE
-                })
+                store
+                    .block(*block)
+                    .is_some_and(|info| info.block_type == BoatSettings::CONTENT_TYPE)
             })
             .collect()
     }

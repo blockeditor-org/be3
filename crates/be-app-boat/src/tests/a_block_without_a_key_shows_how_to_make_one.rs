@@ -17,5 +17,6 @@ fn a_block_without_a_key_shows_how_to_make_one() {
         boat.test.take_opened_urls(),
         ["https://boat.dev/dashboard?tab=api-keys"]
     );
-    boat.test.snapshot("a_block_without_a_key_shows_how_to_make_one");
+    boat.test
+        .snapshot("a_block_without_a_key_shows_how_to_make_one");
 }

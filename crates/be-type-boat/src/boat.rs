@@ -25,9 +25,7 @@ impl Boat {
     }
 
     pub fn set_name_prefix(prefix: impl Into<String>) -> Edit {
-        Self::NAME_PREFIX
-            .set(ObjectId::ROOT, &prefix.into())
-            .into()
+        Self::NAME_PREFIX.set(ObjectId::ROOT, &prefix.into()).into()
     }
 
     pub fn set_label(label: impl Into<String>) -> Edit {

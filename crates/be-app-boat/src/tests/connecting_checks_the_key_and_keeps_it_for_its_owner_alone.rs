@@ -10,7 +10,10 @@ fn connecting_checks_the_key_and_keeps_it_for_its_owner_alone() {
     assert_eq!(refused.request.url, "https://boat.dev/api/v1/me");
     boat.answer(&refused, 401, UNAUTHORIZED);
     assert!(boat.test.shown("boat.sign-in.problem"));
-    assert!(boat.settings_blocks().is_empty(), "a refused key is not kept");
+    assert!(
+        boat.settings_blocks().is_empty(),
+        "a refused key is not kept"
+    );
 
     boat.test.click("boat.sign-in.connect");
     boat.test.run();
