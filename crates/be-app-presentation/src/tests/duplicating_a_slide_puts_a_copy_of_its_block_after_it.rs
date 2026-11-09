@@ -23,7 +23,11 @@ fn copied(test: &mut Harness, deck: Uuid, source: Uuid, copy: Uuid, block_type: 
         .try_into()
         .unwrap_or_else(|asked: Vec<_>| panic!("duplicating asks for one copy, asked {asked:?}"));
     assert_eq!(asked, source, "the slide's own block is copied");
-    assert_eq!(parent, BlockLocation::Block(deck.into_bytes()), "into the deck");
+    assert_eq!(
+        parent,
+        BlockLocation::Block(deck.into_bytes()),
+        "into the deck"
+    );
     test.answer(
         reply,
         Ok(Some(ImportedBlock {
