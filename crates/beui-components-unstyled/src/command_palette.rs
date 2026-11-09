@@ -156,10 +156,11 @@ pub fn CommandPalette(
     };
     api.fill(CommandPaletteApi(state));
 
-    create_effect(move || {
-        if open.get() {
-            untrack(|| start(state));
-        }
+    // Closed from outside (its `open` set false), it lets go of its search field too, so
+    // opening it again focuses the field afresh.
+    create_effect(move || match open.get() {
+        true => untrack(|| start(state)),
+        false => untrack(|| state.searching.set(false)),
     });
 
     let search_placeholder = create_memo(move || search_placeholder.get());
