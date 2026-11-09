@@ -39,9 +39,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   (Xvfb, installed with apt on the test machine and started by the test,
   skipping with a message when absent) reads both targets from one clip;
   Windows compiles.
-- **Paste in the files pane.** `be-app-file-tree` copies and cuts blocks
-  (`root/menu.rs`) but takes no paste. Done: Paste on a folder places a
-  `be3/blocks` clip there through `paste-blocks`.
 - **Block ids inside any clip, inside a checkout.** The host translates the
   ids of a clip crossing the app protocol for an instance in a checkout
   (guides/blocks/version_control.md, "Scopes and local ids"), but only for

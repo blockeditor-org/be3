@@ -1,9 +1,11 @@
 use be_sdk_beui::be_block::{self, BlockContent, SettingsContent};
 use be_sdk_beui::beui::icons::{
-    ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE,
+    ICON_CLIPBOARD_PASTE, ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE,
     ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK, ICON_SCISSORS, ICON_SETTINGS, ICON_SHARE_2,
     ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
 };
+use be_sdk_beui::beui::ClipItem;
+use be_sdk_beui::beui::clipboard::Blocks;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{BlockParent, Editor};
@@ -26,6 +28,7 @@ pub(crate) struct RowTools {
     pub(crate) inspected_from: NodeRef,
     pub(crate) zoom: Zoom,
     pub(crate) renaming: Renaming,
+    pub(crate) tree_api: ComponentRef<TreeApi<RowKey>>,
 }
 
 #[component]
@@ -208,6 +211,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
         inspect,
         inspected_from,
         renaming,
+        tree_api,
         ..
     } = tools;
     let leavable = leavable(editor, row);
@@ -292,6 +296,15 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
     let copy_row = move || {
         if let Some((id, shown)) = shown() {
             editor.copy_blocks(&[(id, shown.block_type, shown.label.clone())]);
+        }
+    };
+    let paste = move || {
+        // The paste reaches the focus, so the row the menu was opened on takes it.
+        if let Some((_, shown)) = shown().filter(|(_, shown)| shown.can_add) {
+            if let Some(api) = tree_api.try_get() {
+                api.focus(shown.key);
+            }
+            be_sdk_beui::beui::reactive::request_paste();
         }
     };
     let cut = move || {
@@ -385,6 +398,13 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                 row_test_id={"file-tree.cut".to_owned()}
                 on_click={cut}
             />
+            <MenuItem
+                label="Paste"
+                glyph=ICON_CLIPBOARD_PASTE
+                disabled={add}
+                row_test_id={"file-tree.paste".to_owned()}
+                on_click={paste}
+            />
             <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} on_click={share} />
             <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} on_click={unlink} />
             <MenuItem
@@ -473,4 +493,21 @@ fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) ->
     view! {
         <MenuItem label="Settings" glyph=ICON_SETTINGS disabled row_test_id on_click={open} />
     }
+}
+
+/// Pastes a `be3/blocks` clip into the folder `row` shows, through the host
+/// (`paste-blocks`), which moves a cut block there and adds a reference to any
+/// other.
+pub(crate) fn paste_into(editor: Editor, row: Option<Row>, pasted: ClipItem) {
+    let Some(folder) = row.filter(|row| row.can_add).and_then(|row| row.id) else {
+        return;
+    };
+    let Some(blocks) = pasted.decode::<Blocks>() else {
+        return;
+    };
+    let ids: Vec<Uuid> = blocks.blocks.iter().map(|block| block.id).collect();
+    let asked = editor
+        .host()
+        .paste_blocks(&ids, BlockParent::Block(folder));
+    let _ = editor.then(asked, |_| ());
 }

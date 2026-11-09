@@ -140,6 +140,8 @@ struct State<K: 'static> {
     on_rename: Callback<(K, String)>,
     on_cancel_edit: Callback<K>,
     menu: Option<TreeMenus<K>>,
+    pastes: Option<Func<K, Vec<String>>>,
+    on_paste: Callback<(K, ClipItem)>,
     typeahead: Stored<RefCell<Typeahead>>,
     spacing: f32,
     parting: Stored<Cell<Option<ReorderHandle<K, ()>>>>,
@@ -175,6 +177,8 @@ type Nodes<K> = Stored<RefCell<HashMap<K, NodeRef>>>;
 /// and the toggle expand or collapse. Typing jumps to the next visible row whose
 /// label starts with what was typed in the last second, ignoring case; repeating
 /// one letter cycles through its matches. Given `on_edit`, F2 reports it.
+/// A row takes the clipboard formats `pastes` names for it, and a paste
+/// while it has the focus reports `on_paste` with its key.
 #[component]
 pub fn Tree<K>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TreeApi<K>>,
@@ -186,6 +190,8 @@ pub fn Tree<K>(
     #[prop(default = None)] editing: Prop<Option<K>>,
     #[prop(default = None)] menu: Option<TreeMenus<K>>,
     #[prop(default = false)] reorder: bool,
+    #[prop(default = None)] pastes: Option<Func<K, Vec<String>>>,
+    on_paste: Callback<(K, ClipItem)>,
     on_select: Callback<K>,
     on_open: Callback<K>,
     on_expand: Callback<(K, bool)>,
@@ -253,6 +259,8 @@ where
         on_rename,
         on_cancel_edit,
         menu,
+        pastes,
+        on_paste,
         typeahead: store(RefCell::default()),
         spacing,
         parting: store(Cell::new(None)),
@@ -413,6 +421,12 @@ where
                 style: menus.style,
             })
     });
+    let pastes = state
+        .pastes
+        .map(|pastes| pastes.call(row_key.clone()))
+        .unwrap_or_default();
+    let paste_key = row_key.clone();
+    let pasted = move |pasted: ClipItem| state.on_paste.call((paste_key.clone(), pasted));
     let has_focus = create_signal(false);
     let built = NodeRef::new();
     nodes.value().borrow_mut().insert(nodes_key, built);
@@ -453,6 +467,8 @@ where
             on_activate={chosen}
             on_key={move |event: KeyPress| key_press(state, &press_key, event)}
             on_text={move |text: String| typeahead(state, &typed_key, &text)}
+            pastes
+            on_paste={pasted}
         >
             {content}
         </Interactive>
@@ -922,6 +938,11 @@ impl<K: Clone + Eq + Hash + 'static> TreeApi<K> {
 
     pub fn focused(&self) -> Option<K> {
         self.0.focus.get()
+    }
+
+    /// Moves the keyboard focus to the row of `key`.
+    pub fn focus(&self, key: K) {
+        self.0.focus.set(Some(key));
     }
 
     pub fn node(&self) -> NodeId {
