@@ -148,9 +148,10 @@ commit(drop) }`; `preview(None)` puts back what an applying site wrote. The sour
      was laid out at, clipped to the pane's animated rect, and only resizes it for real when the
      drop commits. Resizing the panels every frame would make every app in a pane, and every
      Wayland program in a tab, lay out and present again on each frame of the drag (the host
-     waits for each app's answer before painting, guides/apps/runtime.md, Settling). A panel
-     drawn by beui alone could resize once its candidate has held still for a moment;
-     decide that after trying it.
+     waits for each app's answer before painting, guides/apps/runtime.md, Settling). No panel
+     resizes before the drop, not even one drawn by beui alone: a drop the user has not
+     committed to must not make anything lay out at a new size. Hiding the jump at the
+     resize is deferred (plans/deferred/dock_drop_resize_blur.md).
    - **Keys and bars:** Alt while dropping keeps the tab floating. Dock bars belonging to a tab
      move with its pane in the preview.
 
