@@ -361,7 +361,7 @@ impl Layer {
             return;
         }
         let name = self.anchor_target();
-        let placement = self.placement.get().against(&self.anchor.borrow());
+        let placement = self.placement.get();
         let styles = anchored_styles(placement, name.as_deref());
         for property in PLACED {
             // `measured` places a menu: leave where it put it, or each placing would move it
@@ -489,7 +489,12 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
         }
         // CSS anchor positioning flips but cannot cover the anchor, so a menu is placed from
         // its measured size (`measured`, `layer::resolve_rect`) as the native core places it.
-        Placement::Menu => {}
+        // `max-content` keeps that size its rows' own wherever the menu last stood: a fixed box
+        // of automatic width shrinks to the room right of its `left`.
+        Placement::Menu => {
+            put("width", "max-content".to_owned());
+            put("max-width", "100vw".to_owned());
+        }
         Placement::RightStart => {
             put("position-area", "right span-bottom".to_owned());
             put(
@@ -815,7 +820,7 @@ mod web {
     }
 
     fn fit(layer: &Layer) {
-        let placement = layer.placement.get().against(&layer.anchor.borrow());
+        let placement = layer.placement.get();
         let room = anchor_rect(layer).and_then(|anchor| {
             beui_types::layer::room_beside(crate::dom::viewport(), anchor, placement)
         });
@@ -825,7 +830,7 @@ mod web {
     }
 
     fn measured(layer: &Layer, dialog: &web_sys::Element) {
-        let placement = layer.placement.get().against(&layer.anchor.borrow());
+        let placement = layer.placement.get();
         if matches!(
             placement,
             Placement::Center | Placement::Fill | Placement::Edge(_)
@@ -977,7 +982,7 @@ mod web {
         }
         fit(layer);
         let anchors = anchors_supported();
-        if !anchors || layer.placement.get().against(&layer.anchor.borrow()) == Placement::Menu {
+        if !anchors || layer.placement.get() == Placement::Menu {
             measured(layer, &dialog);
         }
         point_beak(layer, &dialog, anchors);

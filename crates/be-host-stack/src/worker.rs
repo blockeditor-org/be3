@@ -1010,27 +1010,30 @@ impl Session<'_> {
 
     async fn refresh_versions(&mut self) {
         let (peer, shared) = (self.peer, self.shared);
-        let retry = self
+        let now = self.config.clock.now();
+        let due = self.versions_due.is_some_and(|at| at <= now);
+        let awaiting = self
             .versions
-            .refresh(&mut Context {
-                peer,
-                shared,
-                replicas: &mut *self.replicas,
-            })
+            .refresh(
+                &mut Context {
+                    peer,
+                    shared,
+                    replicas: &mut *self.replicas,
+                },
+                due,
+            )
             .await;
-        // Most inputs of a status wake the session when they change (commands, finished
-        // tasks, announcements, reconnecting), and those refresh it. A read that failed for
-        // want of something no event announces (an object fetched from the server that did not
-        // come, a commit the store had not written yet) is tried again later, less often each
-        // time; while the line is down, reconnecting refreshes it.
-        match retry && self.line.is_up() {
-            true => {
-                self.versions_due = Some(
-                    self.config.clock.now() + reconnect_delay(self.version_failures, jitter()),
-                );
+        // A status whose inputs change is computed again at once; one that failed for want of
+        // the server (`Versions::refresh`) is tried again only when this deadline comes due,
+        // less often each time, and not while the line is down: reconnecting forgets those
+        // failures and refreshes.
+        match (awaiting && self.line.is_up(), due || self.versions_due.is_none()) {
+            (true, true) => {
+                self.versions_due = Some(now + reconnect_delay(self.version_failures, jitter()));
                 self.version_failures = self.version_failures.saturating_add(1);
             }
-            false => {
+            (true, false) => {}
+            (false, _) => {
                 self.versions_due = None;
                 self.version_failures = 0;
             }
@@ -1129,6 +1132,7 @@ impl Session<'_> {
             .await;
         }
         self.replicas.pump((peer, shared)).await;
+        self.versions.reconnected();
         self.refresh_versions().await;
         report(peer, shared);
         self.changed.notify_all();

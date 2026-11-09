@@ -344,7 +344,7 @@ impl OverlayNode {
         };
         let placement = match centred {
             true => Placement::CenterOn,
-            false => self.placement.against(&self.anchor),
+            false => self.placement,
         };
         let rect = beui_types::layer::resolve_rect(area, anchor_rect, placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);

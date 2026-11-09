@@ -55,6 +55,7 @@ pub fn ContextMenu(
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     on_close: ClickCallback,
     #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
     on_toolbar_close: ClickCallback,
@@ -71,6 +72,7 @@ pub fn ContextMenu(
             toolbar_at
             opens_on_hold
             bounds
+            placement
             on_close={on_close}
             on_select={on_select}
             on_toolbar_close={on_toolbar_close}
