@@ -1,0 +1,8 @@
+# A paste reaches the focused node's on_paste as the first format it takes that
+# the clip holds: plain text here, since the clipboard holds no HTML.
+clock stop
+wait 'value="Pasted nothing"'
+clipboard hello there
+click '#paste.target'
+key ctrl+v
+wait 'value="Pasted text/plain hello there"'
