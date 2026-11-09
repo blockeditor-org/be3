@@ -16,6 +16,9 @@ of the service: `fetch` adds no credentials (guides/apps/host_services.md).
 - Owner-only settings already give the right reader (the person, never escrowed) and sync, so no
   second secret store is needed. Losing the recovery phrase loses the key, which costs only a
   reconnect.
+- The reader is the person's account, not the app: any app that account runs can read a kind
+  in its settings, `BoatSettings` included. Apps are trusted to that extent today; a kind
+  readable by one app alone would need the host to tell apps apart when they read blocks.
 
 ## Rejected
 

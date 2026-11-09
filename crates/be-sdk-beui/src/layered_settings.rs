@@ -348,7 +348,9 @@ where
                     _ => None,
                 };
                 changes.with(|changes| match answer {
-                    Some(answer) => changes.log.answer(answer, |kept| this.keep_here(kept)),
+                    Some(answer) => changes.log.answer(answer, |kept| {
+                        this.keep_here(kept);
+                    }),
                     None => changes.log.dismiss(),
                 });
             }),
@@ -360,7 +362,9 @@ where
         let this = *self;
         let undo = {
             let (setting, old) = (setting.clone(), old.clone());
-            move || this.write(SettingsLayer::EveryDevice, &setting, old.clone())
+            move || {
+                this.write(SettingsLayer::EveryDevice, &setting, old.clone());
+            }
         };
         let here = {
             let setting = setting.clone();
@@ -373,11 +377,25 @@ where
             .with(|changes| changes.log.note(setting.key(), setting.name(), undo, here));
     }
 
-    fn keep_here(&self, kept: &[KeptEdit<R>]) {
+    // A LayeredSettings waits for its blocks before anything it backs is shown (`ready`), so
+    // its writes land; one that couldn't (a block made on another device not yet loaded) is
+    // what a person sees as a setting not taking, and is tried again on the next change.
+    fn keep_here(&self, kept: &[KeptEdit<R>]) -> bool {
         untrack(|| {
             self.blocks
                 .with(|blocks| blocks.write_all(&self.editor, SettingsLayer::ThisDevice, kept))
-        });
+        })
+    }
+
+    /// Applies `edits` to this kind in `layer` as whole edits of its content (a map entry, say,
+    /// where a `Setting` names one value), making the blocks it needs. False when what it
+    /// writes to hasn't loaded yet (`SettingsLayers::write_all`).
+    #[must_use]
+    pub fn write_all(&self, layer: SettingsLayer, edits: &[KeptEdit<R>]) -> bool {
+        untrack(|| {
+            self.blocks
+                .with(|blocks| blocks.write_all(&self.editor, layer, edits))
+        })
     }
 
     fn ensure(&self, layer: SettingsLayer) -> Option<Uuid> {
@@ -392,18 +410,23 @@ where
         layer: SettingsLayer,
         setting: &Setting<R, V>,
         value: Option<V>,
-    ) {
+    ) -> bool {
         untrack(|| {
             self.blocks
                 .with(|blocks| blocks.write(&self.editor, layer, setting, value))
-        });
+        })
     }
 
-    fn write_block<V: Clone>(&self, block: Uuid, setting: &Setting<R, V>, value: Option<V>) {
+    fn write_block<V: Clone>(
+        &self,
+        block: Uuid,
+        setting: &Setting<R, V>,
+        value: Option<V>,
+    ) -> bool {
         untrack(|| {
             self.blocks
                 .with(|blocks| blocks.write_block(block, setting, value))
-        });
+        })
     }
 }
 

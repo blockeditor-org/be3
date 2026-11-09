@@ -241,6 +241,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
         test
     }
 
+    /// Another editor run beside `beside`, on the blocks it holds: the same block reopened, or
+    /// one it made.
+    pub fn new_beside<B: BeuiRoot>(beside: &BeuiTest<B>, editor: OwnedEditor) -> Self {
+        beside.store.forget_answers();
+        SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
+        Self::new(editor)
+    }
+
     pub fn rename_beside<B: BeuiRoot>(beside: &BeuiTest<B>, host: EditorHost, block: Uuid) -> Self {
         beside.store.forget_answers();
         SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
@@ -305,6 +313,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     organization_id,
                     client_id,
                     editable: host.editable(),
+                    page_origin: host.page_origin(),
                 })
             }
             Kind::Creation => Opening::Creation(OpenCreation {

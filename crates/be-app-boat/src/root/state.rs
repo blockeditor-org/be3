@@ -6,12 +6,11 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::time::Duration;
 
-use be_sdk_beui::be_block::{Layered, SettingsLayer, ViewState};
+use be_sdk_beui::be_block::{SettingsLayer, ViewState};
 use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::{ContentProjection, Editor, KeptEdit, PageOriginWatch, SettingsLayers, Task};
-use be_type_boat::{Boat, BoatContent, BoatKey, BoatSettings, BoatSettingsContent};
+use be_sdk_beui::{ContentProjection, Editor, KeptEdit, LayeredSettings, Task};
+use be_type_boat::{Boat, BoatContent, BoatKey, BoatSettings};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::api::{self, Account, Action, BoatError, Phase, Sandbox};
 use crate::time::{self, DAY};
@@ -22,6 +21,8 @@ pub(crate) const CACHE: &str = "boat.sandboxes";
 const POLL: Duration = Duration::from_secs(15);
 /// How often while a sandbox starts or stops.
 const POLL_MOVING: Duration = Duration::from_secs(3);
+/// How often the clock the list's age and the key's expiry are told by moves on.
+const CLOCK: Duration = Duration::from_secs(60);
 /// How old the kept list may grow before an unchanged reading is kept again, so its age
 /// stays close to the truth without writing the view block on every poll.
 const KEEP_AGAIN: i64 = 5 * 60;
@@ -35,6 +36,8 @@ pub(crate) struct Listed {
     pub fetched: i64,
     pub filters: Filters,
     pub sandboxes: Vec<Sandbox>,
+    /// More sandboxes are listed than the editor reads (`api::PAGES` pages).
+    pub cut_off: bool,
 }
 
 /// What the block asks to see.
@@ -95,8 +98,7 @@ pub(crate) struct State {
     pub now: Signal<i64>,
     fetched: Signal<Option<Listed>>,
     reading: Stored<RefCell<Option<Task>>>,
-    /// A key boat accepted, for this account, until the settings read it back.
-    keeping: Signal<Option<(String, BoatKey)>>,
+    settings: LayeredSettings<BoatSettings>,
     polling: StoredCell<Option<Timer>>,
 }
 
@@ -107,29 +109,16 @@ impl State {
             let read = content.project(|content| Filters::of(&content.root()));
             create_memo(move || read.get())
         };
-        let settings = store(SettingsLayers::<BoatSettings>::new(editor.core()));
-        let held = create_memo(move || {
-            let blocks = settings.with(|settings| settings.layer_blocks(&editor));
-            let read = |block: Option<Uuid>| {
-                block.and_then(|block| {
-                    editor
-                        .content_of::<BoatSettingsContent>(block)
-                        .read(|content| content.root())
-                        .ok()
-                })
-            };
-            let every = read(blocks.every_device).unwrap_or_default();
-            match read(blocks.this_device) {
-                Some(here) => here.over(&every),
-                None => every,
-            }
-        });
+        // Waits for the viewer's settings, so a key already kept shows the list at once
+        // rather than the sign-in page first.
+        let settings = LayeredSettings::<BoatSettings>::this_device(editor);
+        let held = settings.effective();
         let key = create_memo(move || {
             let organization = filters.with(|filters| filters.organization.clone());
             held.with(|held| held.key(&organization).cloned())
         });
-        let origin = editor.watch::<PageOriginWatch>();
-        let web = create_memo(move || origin.with(|origin| !origin.is_empty()));
+        let on_the_web = !editor.host().page_origin().is_empty();
+        let web = create_memo(move || on_the_web);
         let kept = create_memo(move || {
             editor
                 .view_state(CACHE)
@@ -162,26 +151,9 @@ impl State {
             now: create_signal(time::now()),
             fetched,
             reading: store(RefCell::new(None)),
-            keeping: create_signal(None),
+            settings,
             polling: StoredCell::new(None),
         };
-        let keeping = state.keeping;
-        create_effect(move || {
-            let Some((organization, key)) = keeping.get() else {
-                return;
-            };
-            if held.with(|held| held.key(&organization) == Some(&key)) {
-                keeping.set(None);
-                return;
-            }
-            // Making the settings blocks takes a few tries while what it reads loads; each
-            // read here wakes the effect again.
-            let edit: KeptEdit<BoatSettings> =
-                Rc::new(move |_| BoatSettings::set_key(&organization, Some(&key)));
-            settings.with(|settings| {
-                settings.write_all(&editor, SettingsLayer::EveryDevice, &[edit]);
-            });
-        });
         let polling = create_timer(move || {
             state.read(false);
             state.visible().then(|| state.interval())
@@ -197,6 +169,16 @@ impl State {
         create_effect(move || match shown.get() && connected.get() {
             true => polling.start(untrack(|| state.interval())),
             false => polling.stop(),
+        });
+        // The list's age and the key's expiry move on between readings too.
+        let now = state.now;
+        let clock = create_timer(move || {
+            now.set(time::now());
+            state.visible().then_some(CLOCK)
+        });
+        create_effect(move || match shown.get() {
+            true => clock.start(CLOCK),
+            false => clock.stop(),
         });
         let reading = state.reading;
         on_cleanup(move || {
@@ -236,7 +218,7 @@ impl State {
             return None;
         }
         let key = self.key.get()?;
-        let expired = key.expires > 0 && key.expires <= self.now.get_untracked();
+        let expired = key.expires > 0 && key.expires <= time::now();
         (!self.refused.get() && !expired).then(|| Account {
             key: key.secret,
             organization: self.filters.with(|filters| filters.organization.clone()),
@@ -285,10 +267,11 @@ impl State {
             let now = time::now();
             state.now.set(now);
             match answer {
-                Ok(sandboxes) => state.listed_now(Listed {
+                Ok((sandboxes, cut_off)) => state.listed_now(Listed {
                     fetched: now,
                     filters,
                     sandboxes,
+                    cut_off,
                 }),
                 Err(error) => state.failure.set(Some(error)),
             }
@@ -375,13 +358,19 @@ impl State {
     }
 
     /// Keeps a key boat accepted for the block's account, in the viewer's own owner-only
-    /// settings.
-    pub(crate) fn keep_key(&self, key: BoatKey) {
+    /// settings; false when the settings it goes in haven't loaded yet.
+    #[must_use]
+    pub(crate) fn keep_key(&self, key: BoatKey) -> bool {
         let organization = self.filters.get_untracked().organization;
-        self.keeping.set(Some((organization, key)));
+        let edit: KeptEdit<BoatSettings> =
+            Rc::new(move |_| BoatSettings::set_key(&organization, Some(&key)));
+        if !self.settings.write_all(SettingsLayer::EveryDevice, &[edit]) {
+            return false;
+        }
         self.failure.set(None);
         self.reconnecting.set(false);
         self.now.set(time::now());
+        true
     }
 
     pub(crate) fn set_organization(&self, organization: String) {

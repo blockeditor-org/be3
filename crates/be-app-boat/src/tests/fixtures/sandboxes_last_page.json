@@ -1,0 +1,63 @@
+{
+  "ok": true,
+  "type": "sandbox.list",
+  "sandboxes": [
+    {
+      "id": "bx_h6j9c2vd",
+      "name": "nightly-build",
+      "state": "archived",
+      "error": "Resume failed: incremental restore failed: timeout waiting for lazyfs mount",
+      "dataExpiredAt": null,
+      "stoppedAt": "2026-03-01T23:05:40.611Z",
+      "labels": {
+        "env": "ci"
+      },
+      "health": "ok",
+      "healthReason": null,
+      "degradedSince": null,
+      "hydrated": true,
+      "hydratedAt": null,
+      "hydration": null,
+      "type": "default",
+      "vcpu": 4,
+      "memoryGB": 8,
+      "billingMultiplier": 1,
+      "machineProvider": "baremetal",
+      "url": null,
+      "ip": null,
+      "sshEndpoint": null,
+      "createdAt": "2026-02-12T09:00:03.441Z",
+      "updatedAt": "2026-03-01T23:05:40.700Z",
+      "archiveAfter": null,
+      "ttlSeconds": 10800,
+      "desktopAvailable": false,
+      "desktopUrl": null,
+      "snapshots": false,
+      "monitoring": true,
+      "snapshotAvailable": true,
+      "snapshotCompletedAt": null,
+      "snapshotVerifiedAt": null,
+      "lastSnapshotAttemptAt": null,
+      "lastSnapshotStatus": null,
+      "lastReboot": null,
+      "subdomain": "box-node-2c3d4e5f60718293",
+      "team": null,
+      "createdBy": "Sam Sailor",
+      "createdById": "0b7e5c1a-3f2d-4c8e-9a61-5d4f2e8b7c30",
+      "access": "owner",
+      "holdsCreatorLogins": false,
+      "visibility": null,
+      "wipePendingUntilRestart": false,
+      "setupStatus": "done",
+      "setupError": null,
+      "environment": "base",
+      "environmentVersion": 4,
+      "stop": null
+    }
+  ],
+  "pageInfo": {
+    "nextCursor": null,
+    "hasMore": false,
+    "limit": 200
+  }
+}

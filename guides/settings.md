@@ -77,7 +77,10 @@ subtree takes it with its parent. The block protocol's
 block is a scope root of its own whose key is sealed to its author alone (guides/blocks/keys.md,
 Escrow). Everyone else, administrators too, at most knows it exists
 (`BlockGraph::closed_to`, `Visibility::inherited` in `be-server/src/blocks.rs`); only the
-author moves it, and no one is granted it, by `set-access` or a contact link. Like every kind it syncs to every device unless a
+author moves it, and no one is granted it, by `set-access` or a contact link. `RootSetting` and `SettingsLayers` make a kind's
+block for an account with no `Settings` yet together with its `Settings`, whose first version
+already lists it, since a block just made can't be read back to edit; `write_all` answers false
+when what it writes to hasn't loaded, rather than dropping the write. Like every kind it syncs to every device unless a
 profile keeps it, and belongs to one organization. Losing the recovery phrase loses it, which
 the Settings list says in a company organization (`ONLY_YOURS` in `root/ui.rs`); an app holding
 a key just asks to connect again.

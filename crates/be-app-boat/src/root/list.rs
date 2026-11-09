@@ -11,7 +11,7 @@ use be_sdk_beui::beui::{Align, Direction, NodeId, Overflow};
 
 use super::state::{KeyStanding, State};
 use super::ui::{SECTION_SPACING, SPACING};
-use crate::api::{Action, BoatError, Phase, Sandbox};
+use crate::api::{self, Action, BoatError, Phase, Sandbox};
 use crate::time;
 
 #[component]
@@ -37,14 +37,25 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
             Some(BoatError::Refused { message, .. }) => Some(message.clone()),
             _ => None,
         });
-        match (fetched, offline.get(), failed) {
+        let cut_off = listed.with(|listed| listed.as_ref().is_some_and(|listed| listed.cut_off));
+        let status = match (fetched, offline.get(), failed) {
             (None, true, _) => "Offline, and no list was kept from before".to_owned(),
             (None, _, Some(message)) => message,
             (None, _, None) => "Reading the list...".to_owned(),
             (Some(fetched), true, _) => {
                 format!("Offline: the list from {}", time::ago(fetched, now.get()))
             }
-            (Some(fetched), false, _) => format!("Updated {}", time::ago(fetched, now.get())),
+            (Some(fetched), false, Some(message)) => {
+                format!("{message}. The list from {}", time::ago(fetched, now.get()))
+            }
+            (Some(fetched), false, None) => format!("Updated {}", time::ago(fetched, now.get())),
+        };
+        match cut_off {
+            true => format!(
+                "{status}. Only the first {} are shown",
+                api::PAGES * api::PAGE
+            ),
+            false => status,
         }
     });
     let ids = create_memo(move || {
@@ -110,6 +121,7 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
                         <Button
                             label="Dismiss"
                             variant=ButtonVariant::Ghost
+                            @test_id="boat.notice.dismiss"
                             on_click={move || notice.set(None)}
                         />
                     </List>
@@ -245,8 +257,12 @@ fn SandboxRow(state: State, id: String) -> NodeId {
     let phase = create_memo(move || sandbox.with(|sandbox| state.phase(sandbox)));
     let name = create_memo(move || sandbox.with(|sandbox| sandbox.name.clone()));
     let detail = create_memo(move || sandbox.with(|sandbox| detail(sandbox, phase.get())));
-    let editable = state.editor.editable();
     let confirming = create_signal(false);
+    create_effect(move || {
+        if phase.get() != Phase::Stopped {
+            confirming.set(false);
+        }
+    });
     let startable = create_memo(move || phase.get() == Phase::Stopped && !confirming.get());
     let stoppable = create_memo(move || phase.get() == Phase::Running);
     let asking = create_memo(move || confirming.get() && phase.get() == Phase::Stopped);
@@ -256,7 +272,9 @@ fn SandboxRow(state: State, id: String) -> NodeId {
             name.get()
         )
     });
-    let disabled = create_memo(move || !editable.get() || state.account().is_none());
+    // Starting and stopping use the viewer's own key and change nothing in the block, so a
+    // read-only viewer may do them too.
+    let disabled = create_memo(move || state.account().is_none());
     let id = store(id);
     let row_id = move |part: &str| id.with(|id| format!("boat.sandbox.{id}.{part}"));
     let start = move || {

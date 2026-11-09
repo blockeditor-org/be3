@@ -23,9 +23,9 @@ pub(crate) const ACTIONS: [&str; 4] = [
 /// The longest a key may live, and what the sign-in page asks for.
 pub(crate) const KEY_DAYS: i64 = 365;
 /// The most sandboxes one page lists, boat's own limit.
-const PAGE: usize = 200;
-/// Pages read before the list stops, so a runaway cursor ends.
-const PAGES: usize = 10;
+pub(crate) const PAGE: usize = 200;
+/// Pages read before the list stops, so a runaway cursor ends; the list says it was cut off.
+pub(crate) const PAGES: usize = 10;
 
 /// The `boat` command that makes the key the sign-in page describes.
 pub(crate) fn create_command() -> String {
@@ -185,10 +185,19 @@ fn refused(status: u16, body: &[u8]) -> BoatError {
 }
 
 /// The key and account every call is made with.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub(crate) struct Account {
     pub key: String,
     pub organization: String,
+}
+
+impl std::fmt::Debug for Account {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Account")
+            .field("organization", &self.organization)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Account {
@@ -249,14 +258,14 @@ pub(crate) fn me(
     }
 }
 
-/// Every sandbox the account shows, through every page of `GET /sandboxes`, with the
-/// block's filters.
+/// Every sandbox the account shows, through the pages of `GET /sandboxes`, with the block's
+/// filters, and whether more were listed than `PAGES` pages hold.
 pub(crate) fn sandboxes(
     host: &EditorHost,
     account: &Account,
     name_prefix: &str,
     label: Option<(&str, &str)>,
-) -> impl Future<Output = Option<Result<Vec<Sandbox>, BoatError>>> + 'static {
+) -> impl Future<Output = Option<Result<(Vec<Sandbox>, bool), BoatError>>> + 'static {
     let mut query = format!("limit={PAGE}");
     if !name_prefix.is_empty() {
         query.push_str(&format!("&namePrefix={}", encoded(name_prefix)));
@@ -285,10 +294,10 @@ pub(crate) fn sandboxes(
                 .filter(|info| info.has_more)
                 .and_then(|info| info.next_cursor);
             if cursor.is_none() {
-                break;
+                return Some(Ok((listed, false)));
             }
         }
-        Some(Ok(listed))
+        Some(Ok((listed, true)))
     }
 }
 

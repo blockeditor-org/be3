@@ -12,6 +12,7 @@ fn open_messages_round_trip() {
         organization_id: [4; 16],
         client_id: [5; 16],
         editable: true,
+        page_origin: String::new(),
     });
     round_trips(&message);
 }

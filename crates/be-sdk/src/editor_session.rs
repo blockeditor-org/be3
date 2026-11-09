@@ -267,6 +267,10 @@ impl EditorSession {
         self.host.set_organization_id(organization);
     }
 
+    pub(crate) fn set_page_origin(&self, origin: String) {
+        self.host.set_page_origin(origin);
+    }
+
     pub(crate) fn set_editable(&self, editable: bool) {
         self.host.set_editable(editable);
     }

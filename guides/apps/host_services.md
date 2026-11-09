@@ -56,8 +56,9 @@ Notes on particular calls:
   (`be-host-runtime/src/instances/network.rs`); a connection, and each read
   and write on it, times out after 30 seconds of silence, not the whole
   download.
-- The web is where CORS applies: `editor.watch::<PageOriginWatch>()` is the
-  origin of the page the host runs in, empty natively. An app whose service
+- The web is where CORS applies: `editor.host().page_origin()` (the
+  opening's `page-origin`) is the origin of the page the host runs in, empty
+  natively. An app whose service
   answers no browser page (boat.dev) says it is not available there rather
   than failing each fetch (`crates/be-app-boat`, which also shows an app
   holding its own key: decisions/an_app_owns_its_credentials_for_outside_services.md).
