@@ -91,5 +91,5 @@ node's own references (`Part::Node { references }`,
 `be-block-model/src/parts.rs`), so such a document drops only the unloaded
 parts' references from `references_in`. Done: a document with a lazy list opens
 without reading that list's parts, and saving it reuses them with their
-references. Until this lands, plans/large_blocks.md's merge over parts merges
-documents as whole bytes.
+references. Until this lands, documents merge as whole bytes (`merge3`), not by parts
+(guides/type_modules.md, "Merging by parts").

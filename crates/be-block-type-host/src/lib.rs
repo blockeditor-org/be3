@@ -13,9 +13,10 @@ pub mod replicas;
 
 pub use be_sdk_type_api::{Plain, PlainFile};
 pub use modules::{
-    Kind, Modules, Source, in_process, is_known, kind_of, kinds_revision, plain_of, started, tag_of,
+    Kind, Modules, OUTSIDE_REQUEST, PartRead, Scope, Source, Under, in_process, is_known, kind_of,
+    kinds_revision, plain_of, started, tag_of,
 };
-pub use replicas::{Ctx, EARLY_OPEN, HOST_EDITOR, Replicas};
+pub use replicas::{Ctx, EARLY_OPEN, HOST_EDITOR, Merged, Replicas};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Conflict {
