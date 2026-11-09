@@ -43,6 +43,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//crates/be-type-image:be-type-image",
@@ -80,6 +81,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//crates/be-type-image:be-type-image",
@@ -117,6 +119,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//crates/be-type-image:be-type-image",
@@ -154,6 +157,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//crates/be-type-image:be-type-image",
@@ -191,6 +195,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//crates/be-type-image:be-type-image",
@@ -258,6 +263,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//crates/be-type-image:be-type-image",
@@ -295,6 +301,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//crates/be-type-image:be-type-image",

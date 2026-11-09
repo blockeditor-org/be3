@@ -12,12 +12,11 @@ the server are in guides/blocks/keys.md.
   the root of a tree of sealed `Node`s over the chunks, in the shape of the
   content's parts (guides/blocks/content_types.md, "Parts"); a leaf split over
   many chunks is grouped under nodes chosen by the chunks' hashes. Unchanged
-  subtrees are shared between commits while the data key stays the same: a
-  write reseals a reused part sealed under another key (`Vault::stale_parts`
-  names them, and `Peer::write_content` fetches their objects first), so after
-  a rotation the next commit, a rekey's seal among them, holds nothing the old
-  key alone opens, and a subtree is always sealed under one key (its top
-  object's, `Vault::sealed_under`). `Vault::objects` lists
+  subtrees are shared between commits, across rotations too: a write seals
+  only what it makes new, under the current key, and a reused part keeps the
+  key it was sealed under (decisions/reused_parts_keep_their_key.md), so a tree
+  mixes epochs and a reader needs each (`Vault::sealed_under` is one object's
+  key; a part a write made new is sealed whole under one). `Vault::objects` lists
   a tree's nodes and chunks;
   `missing_objects` names what is absent a level at a time, which
   `Peer::fetch_range` fetches until none is left. `Vault::read_range` is how a
@@ -40,6 +39,10 @@ the server are in guides/blocks/keys.md.
   there is dropped with whatever has aged into a wider slot. The head,
   bookmarks, merges' parents and everything inside the organization's
   `history_kept_for` (judged by when the server received it too) stay. A
+  content type whose old states are worth little has a shorter policy built
+  into the server (`be_server::retention`, by the content types `be-block-graph`
+  names: the search index keeps a few states of its last day, dropping older
+  ones with `drop_after`), never keeping less than `history_kept_for`. A
   pruned commit truncates a chain; a device merges an offline edit against
   its last-known remote head, which it holds locally, so the server pruning
   that head costs nothing (`Peer::reconcile`).

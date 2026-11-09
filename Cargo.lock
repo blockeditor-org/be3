@@ -1164,6 +1164,7 @@ dependencies = [
  "be-block-sqlite-schema",
  "be-block-store",
  "be-lib-build-id",
+ "be-sdk-type-testing",
  "be-server",
  "be-type-example-counter",
  "be-type-image",

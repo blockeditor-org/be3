@@ -125,6 +125,7 @@ mod password_reset_is_generic_and_revokes_live_sessions_and_pending_approvals;
 mod passwords_are_validated_on_the_server_without_truncation_or_echoing;
 mod proxy_account_authentication_never_discloses_the_token;
 mod publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_parents;
+mod a_type_with_a_short_retention_keeps_only_its_recent_states;
 mod references_keep_the_order_their_block_lists_them_in;
 mod registering_joins_the_one_personal_organization_as_an_editor;
 mod registration_checks_its_invite_code_before_hashing_the_password;
@@ -603,12 +604,23 @@ impl TestClient {
     }
 
     async fn create_keyed(&mut self, block: Uuid, parent: BlockParent, key: Uuid, keys: KeySet) {
+        self.create_typed(block, CONTENT, parent, key, keys).await;
+    }
+
+    async fn create_typed(
+        &mut self,
+        block: Uuid,
+        content_type: Uuid,
+        parent: BlockParent,
+        key: Uuid,
+        keys: KeySet,
+    ) {
         let response = self
             .call(|peer| {
                 client::blocks::create_block(
                     peer,
                     block,
-                    CONTENT,
+                    content_type,
                     parent,
                     Vec::new(),
                     Vec::new(),

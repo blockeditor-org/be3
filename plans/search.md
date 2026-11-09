@@ -1,7 +1,6 @@
 # Search
 
-Depends on: plans/search_library.md; plans/large_blocks.md steps 3 and 4
-(per-type retention, lazy rekeying); plans/command_palette.md for step 4 only (quick
+Depends on: plans/search_library.md; plans/command_palette.md for step 4 only (quick
 open, which search fills with results).
 
 Full-text search over names and content. The server never reads content
@@ -72,8 +71,9 @@ move or a revocation).
   document table entries. Two indexers online at once are sequenced by the
   session owner; offline batches merge by parts (`MergeParts`, guides/type_modules.md,
   "Merging by parts"), as `be-lib-search` merges two indexes.
-- **History**: a short per-type retention policy (large_blocks step 3). Old
-  index commits would keep terms of blocks that left the tree.
+- **History**: the server keeps few states of `SEARCH_INDEX_TYPE`
+  (`be_server::retention`, built: those of its last day), since old index
+  commits would keep terms of blocks that left the tree.
 - Charged to the tree's owner like everything in the tree
   (decisions/storage_is_charged_to_the_trees_owner.md).
 
@@ -103,9 +103,9 @@ worker").
   Catching up masks what other devices missed.
 - **Rotation.** When a member loses access to the root, the index block rotates
   with the root's subtree (`Peer::rotate`); metadata-held blocks such as
-  settings must be covered, and step 1's test checks it. Keys update lazily
-  (large_blocks step 4), so a rotation costs the index nothing until parts are
-  rewritten.
+  settings must be covered, and step 1's test checks it. A reused part keeps
+  its key (decisions/reused_parts_keep_their_key.md), so a rotation costs the
+  index nothing until parts are rewritten.
 
 ## Querying: the app protocol
 
@@ -138,7 +138,8 @@ worker").
 
 Each step is one PR.
 
-1. **The index block type and its access.** `SEARCH_INDEX_TYPE`, the
+1. **The index block type and its access.** `SEARCH_INDEX_TYPE` (the constant
+   is in `be-block-graph` already, for retention), the
    `SEARCH_INDEX` key, `level_below` and the server checks. Done: server tests
    that Edit on a root gives Edit on its index and View gives View, that a
    grant or authorship on the index raises nothing, that someone shared one

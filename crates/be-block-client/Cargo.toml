@@ -59,6 +59,7 @@ web-sys = { version = "0.3", features = [
 be-server = { path = "../be-server" }
 be-type-example-counter = { path = "../be-type-example-counter" }
 be-block-fault-relay = { path = "../be-block-fault-relay" }
+be-sdk-type-testing = { path = "../be-sdk-type-testing" }
 be-type-image = { path = "../be-type-image" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 be-type-text = { path = "../be-type-text" }

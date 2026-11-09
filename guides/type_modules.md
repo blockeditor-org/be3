@@ -166,8 +166,7 @@ or one whose replica has not joined yet, is refused.
 Each replica that applies the operation keeps the part in its parts as
 `Part::Reused`, so whoever commits next saves a manifest reusing it, uploading
 nothing (the server holds it, so `missing-objects` names none of it) and
-downloading its nodes, never its chunks: its top object to learn its key, and
-the rest to list the commit's objects. That needs the server, so an owner
+downloading its nodes, never its chunks, to list the commit's objects. That needs the server, so an owner
 offline cannot seal a commit reusing a part it never fetched. A type that only
 keeps the part (the search index) never reads it. A type that can rebuild the
 bytes (chat) puts a hash of them in the operation, rebuilds them on applying it
@@ -176,8 +175,8 @@ and keeps them when they match, answering reads of the part from
 keeps nothing and reads go to `read-part`. Such a type loads only its first
 part (`Loads::FirstPart`), so `encode` never needs the bytes. It takes its
 parts' refs from what it loaded (`from_stored`'s `Stored::root`), never from
-refs it wrote into its own bytes: after a rotation a save reseals a reused part
-under a new ref.
+refs it wrote into its own bytes: the same bytes sealed under another epoch
+have another ref.
 
 A part that is an operation's payload rather than a part of the content (an
 oversized text edit) is not served yet: `LiveEdit::apply` is synchronous and
@@ -203,8 +202,8 @@ parts the merge kept as they were, with its references and derived metadata,
 and `conflicts`. `MergeParts::merge_parts` gets each side as `from_stored`
 decoded it and a `PartReader`; a merged value hands unchanged parts back as
 `Part::Reused`, so the commit uploads only what the merge changed. Equal refs
-mean equal bytes, but not the other way round (a rotation reseals a part under
-a new ref), so a merge that must know reads the bytes. The answer may reuse
+mean equal bytes, but not the other way round (the same bytes
+written anew under another epoch have another ref), so a merge that must know reads the bytes. The answer may reuse
 only parts of the sides (`Scope::admits`); a merge that reused any other, or
 whose reads failed (offline, a missing key), is not written: the read failure
 comes back as the `ClientError`.

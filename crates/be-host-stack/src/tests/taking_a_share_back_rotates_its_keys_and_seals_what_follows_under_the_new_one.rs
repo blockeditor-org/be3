@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn taking_a_share_back_rotates_its_keys_and_reseals_the_open_block() {
+fn taking_a_share_back_rotates_its_keys_and_seals_what_follows_under_the_new_one() {
     let harness = Harness::start();
     let guest = Someone::register(
         &harness.directory.join("server"),
@@ -38,13 +38,19 @@ fn taking_a_share_back_rotates_its_keys_and_reseals_the_open_block() {
     wait_until("opened the block", |shared| {
         shared.blocks.contains_key(&block)
     });
-    let before = node(block).and_then(|node| node.head);
     set_access(block, guest.session.account, be_block_graph::Access::None);
     flush();
     assert_eq!(status().error, None);
-    wait_until("resealed the open block under its new key", |shared| {
+    // The rotation reseals nothing it already wrote (decisions/reused_parts_keep_their_key.md):
+    // what is written after it is sealed under the new key.
+    let before = node(block).and_then(|node| node.head);
+    let mut editor = Editor::<be_type_text::TextContent>::attach(block);
+    type_into(&mut editor, 0, "then ");
+    flush();
+    wait_until("sealed the edit made after the rotation", |shared| {
         shared.graph.get(block).and_then(|node| node.head) != before
     });
+    drop(editor);
 
     let mine = runtime
         .block_on(be_block_client::Peer::connect(
@@ -70,7 +76,7 @@ fn taking_a_share_back_rotates_its_keys_and_reseals_the_open_block() {
     assert_eq!(
         be_block_store::sealed_key(&sealed).ok(),
         summary.key,
-        "the open block's head was not sealed again under its new key"
+        "what was written after the rotation was not sealed under the new key"
     );
     assert!(
         runtime

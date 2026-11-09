@@ -782,26 +782,7 @@ impl<S: ObjectStore> Peer<S> {
         parts: impl Into<Part<'a>>,
     ) -> Result<Manifest, ClientError> {
         let key = self.sealing_key(block).await?;
-        let parts = parts.into();
-        let vault = self.commits.vault();
-        // A reused part this device never read (one another device put) names its key in its
-        // top object alone: fetch those first, so only a part sealed under another key is
-        // fetched whole.
-        let tops: Vec<Hash> = vault
-            .stale_parts(key, &parts)?
-            .iter()
-            .map(|part| part.hash())
-            .collect();
-        self.fetch(&tops).await?;
-        let stale = vault.stale_parts(key, &parts)?;
-        for part in stale {
-            let manifest = Manifest {
-                content_type,
-                root: Some(part),
-            };
-            self.fetch_range(&manifest, 0, u64::MAX).await?;
-        }
-        Ok(vault.write(key, content_type, parts)?)
+        Ok(self.commits.vault().write(key, content_type, parts)?)
     }
 
     pub fn account(&self) -> Uuid {
@@ -1817,7 +1798,18 @@ impl<S: ObjectStore> Peer<S> {
             }
         };
         let wrapped_under = |key: Uuid| self.keys.wrapped_by(key).contains(&WrappedBy::Key(under));
-        if moved.key.is_some_and(wrapped_under) {
+        // A head's reused parts keep the key they were sealed under, any older epoch
+        // (decisions/reused_parts_keep_their_key.md), so a move wraps every epoch this device
+        // trusts, not only the current one: a device that reads the head holds them all.
+        let unwrapped = |block: Uuid| {
+            self.keys
+                .keys_of(block, KeyKind::Data)
+                .into_iter()
+                .filter(|row| self.keys.trusted(row.id) && !wrapped_under(row.id))
+                .map(|row| row.id)
+                .collect::<Vec<Uuid>>()
+        };
+        if moved.key.is_some_and(wrapped_under) && unwrapped(block).is_empty() {
             return Ok(keys);
         }
         let mut level = vec![moved];
@@ -1836,12 +1828,10 @@ impl<S: ObjectStore> Peer<S> {
                     }
                     continue;
                 }
+                for key in unwrapped(node.id) {
+                    keys.wrapped.push(self.keys.wrap(key, under)?);
+                }
                 if !node.key.is_some_and(wrapped_under) {
-                    for row in self.keys.keys_of(node.id, KeyKind::Data) {
-                        if self.keys.trusted(row.id) && !wrapped_under(row.id) {
-                            keys.wrapped.push(self.keys.wrap(row.id, under)?);
-                        }
-                    }
                     let (_, fresh) = self.keys.mint_data(node.id, under)?;
                     keys.extend(fresh);
                 }

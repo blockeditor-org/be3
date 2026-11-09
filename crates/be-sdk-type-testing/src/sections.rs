@@ -205,7 +205,7 @@ fn merged(sections: Vec<Section>, conflicts: usize) -> MergeResult<Sections> {
 
 /// What a section's refs settle without its bytes: a side saved as the base's part is
 /// unchanged, so the other side wins (equal refs mean equal bytes, though not the other way
-/// round: a rotation's reseal gives the same bytes a new ref).
+/// round: the same bytes written anew under another epoch have another ref).
 fn by_refs(base: &Section, ours: &Section, theirs: &Section) -> Option<Section> {
     let base = base.saved()?;
     if ours.saved() == Some(base) {

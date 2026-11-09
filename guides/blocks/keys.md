@@ -65,16 +65,21 @@ on connect, `ContactsChanged`, `KeyWorkChanged` and after its own changes.
 
 `Peer::rotate` sends one `Rotate` for a subtree: new epochs of every scope key,
 every data key rewrapped, a new data key per block. The server takes it only
-whole. Content is not resealed, except that the owner of a live session on a
-rekeyed block seals once more (`Session::rekey`), which reseals the parts it
-reuses under the new key (`Vault::write`). A rotation nobody can do yet
+whole. Content is not resealed: the owner of a live session on a rekeyed block
+seals once more (`Session::rekey`), which seals only the parts it writes new
+under the new key, and every reused part keeps the epoch it was sealed under
+(decisions/reused_parts_keep_their_key.md). Since every data key is rewrapped
+under the new scope epoch, a viewer let in after the rotation still opens them. A rotation nobody can do yet
 waits until a client that may edit the block tends. A kind open inside
 (guides/settings.md) is also offered by any viewer to its own contacts among
 the viewers, since the owner's editors may know none of them.
 
-Not built yet: a move into another scope lists the subtree a level at a time,
-and old data keys of a block this device cannot open are not rewrapped, so
-that history stays closed to the new scope.
+A move into another scope rewraps every data key of each moved block the
+device trusts, not only its current one, since a head can be sealed under any
+older epoch; a device that reads the head holds them all. Not built yet: the
+move lists the subtree a level at a time, and old data keys this device cannot
+open (or holds only through escrow) are not rewrapped, so that history stays
+closed to the new scope.
 
 ### Escrow (company organizations)
 

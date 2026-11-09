@@ -192,8 +192,9 @@ impl<S: ObjectStore> Vault<S> {
         self.keys.open(sealed)
     }
 
-    /// Seals the new parts of `parts` and writes the manifest tree over them, keeping every
-    /// `Part::Reused` as it was.
+    /// Seals the new parts of `parts` under `key` and writes the manifest tree over them,
+    /// keeping every `Part::Reused` as it was, under whatever key sealed it: after a rotation
+    /// a save seals only what it writes new (decisions/reused_parts_keep_their_key.md).
     pub fn write<'a>(
         &self,
         key: Uuid,
@@ -222,10 +223,7 @@ impl<S: ObjectStore> Vault<S> {
                 }
                 self.group(key, sealing, chunks)
             }
-            Part::Reused(part) => match self.sealed_under(part.hash())? == key {
-                true => Ok(Some(*part)),
-                false => self.reseal(key, sealing, *part).map(Some),
-            },
+            Part::Reused(part) => Ok(Some(*part)),
             Part::Node {
                 parts: children,
                 references,
@@ -294,9 +292,9 @@ impl<S: ObjectStore> Vault<S> {
         }
     }
 
-    /// The key an object was sealed under. A subtree is sealed under one key, since a write
-    /// reseals every reused part sealed under another, so its top object's key is all of
-    /// its keys.
+    /// The key one object was sealed under. A tree mixes keys (a reused part keeps the key it
+    /// was sealed under), but a part a write made new is sealed whole under one key, so the
+    /// key of a part's top object is its own, not its reused parts'.
     pub fn sealed_under(&self, hash: Hash) -> Result<Uuid, StoreError> {
         if let Some(key) = self.sealed.read().expect("never poisoned").get(&hash) {
             return Ok(*key);
@@ -320,78 +318,6 @@ impl<S: ObjectStore> Vault<S> {
             .expect("never poisoned")
             .insert(hash, key);
         Ok(hash)
-    }
-
-    /// The reused parts of `part` sealed under a key other than `key`, which a write under
-    /// `key` reseals and so needs every object of: a part whose top object is missing is
-    /// listed too, since its key is unknown.
-    pub fn stale_parts(&self, key: Uuid, part: &Part<'_>) -> Result<Vec<PartRef>, StoreError> {
-        let mut stale = Vec::new();
-        let mut parts = vec![part];
-        while let Some(part) = parts.pop() {
-            match part {
-                Part::Bytes(_) => {}
-                Part::Reused(reused) => {
-                    let current = match self.store.has(reused.hash())? {
-                        true => self.sealed_under(reused.hash())? == key,
-                        false => false,
-                    };
-                    if !current {
-                        stale.push(*reused);
-                    }
-                }
-                Part::Node {
-                    parts: children, ..
-                } => parts.extend(children),
-            }
-        }
-        Ok(stale)
-    }
-
-    /// Seals every object of a saved part again under `key`: after a rotation, a part kept
-    /// from the head must not stay readable with the old key alone.
-    fn reseal(
-        &self,
-        key: Uuid,
-        sealing: &ContentKey,
-        part: PartRef,
-    ) -> Result<PartRef, StoreError> {
-        match part {
-            PartRef::Chunk(chunk) => {
-                let sealed = self
-                    .store
-                    .get(chunk.hash)?
-                    .ok_or(StoreError::MissingObject(chunk.hash))?;
-                let plain = self.open(&sealed)?;
-                if plain.len() != chunk.length as usize {
-                    return Err(StoreError::Corrupt);
-                }
-                let hash = self.put_sealed(key, &sealing.seal(key, &plain))?;
-                Ok(PartRef::Chunk(ChunkRef {
-                    hash,
-                    length: chunk.length,
-                }))
-            }
-            PartRef::Chunks(held) | PartRef::Node(held) => {
-                let node = self.node(held)?;
-                let mut parts = Vec::with_capacity(node.parts.len());
-                for child in node.parts {
-                    parts.push(self.reseal(key, sealing, child)?);
-                }
-                let resealed = self.put_node(
-                    key,
-                    sealing,
-                    Node {
-                        parts,
-                        references: node.references,
-                    },
-                )?;
-                Ok(match part {
-                    PartRef::Chunks(_) => PartRef::Chunks(resealed),
-                    _ => PartRef::Node(resealed),
-                })
-            }
-        }
     }
 
     fn put_node(&self, key: Uuid, sealing: &ContentKey, node: Node) -> Result<NodeRef, StoreError> {
