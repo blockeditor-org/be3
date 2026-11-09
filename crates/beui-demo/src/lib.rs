@@ -77,7 +77,6 @@ const PAGE_SPACING: Space = Space::Xl3;
 const SECTION_SPACING: Space = Space::Lg;
 const ROW_SPACING: Space = Space::Lg;
 const CODE_PADDING: Space = Space::Lg;
-const STAND_IN: Color32 = Color32::from_rgb(255, 105, 180);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Page {
@@ -774,7 +773,6 @@ fn DemoToolbar(pages: Pages) -> NodeId {
     });
     let narrow = narrower_than(NARROW_WIDTH);
     let wide = create_memo(move || !narrow.get());
-    let inspector_missing = create_signal(false);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
             <Text style=TextStyle::TITLE>"beui"</Text>
@@ -803,11 +801,8 @@ fn DemoToolbar(pages: Pages) -> NodeId {
                 glyph=ICON_BUG
                 label="Open the inspector"
                 variant=ButtonVariant::Ghost
-                on_click={move || {
-                    if !beui::open_inspector() {
-                        inspector_missing.set(true);
-                    }
-                }}
+                disabled={!beui::can_open_inspector()}
+                on_click={beui::open_inspector}
             />
             <Button
                 label="Reset layout"
@@ -816,32 +811,6 @@ fn DemoToolbar(pages: Pages) -> NodeId {
                 variant=ButtonVariant::Secondary
                 on_click={move || pages.reset()}
             />
-            <Show condition={inspector_missing}>
-                <Dialog
-                    open=true
-                    title="Inspector"
-                    id="demo.inspector.missing"
-                    on_dismiss={move || inspector_missing.set(false)}
-                >
-                    <InspectorStandIn />
-                </Dialog>
-            </Show>
-        </List>
-    }
-}
-
-#[component]
-fn InspectorStandIn() -> NodeId {
-    view! {
-        <List spacing=SECTION_SPACING>
-            <Frame
-                @test_id="demo.inspector.stand_in"
-                fill={ColorRole::Custom(STAND_IN.into())}
-                height=Size::Custom(120.0)
-            />
-            <Text style=TextStyle::CAPTION>
-                "The inspector reads beui's native document, which this core does not have: the browser's developer tools show this page's elements instead."
-            </Text>
         </List>
     }
 }
