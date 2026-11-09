@@ -14,8 +14,18 @@ fn texts(cards: &List<Card>) -> Vec<&str> {
 fn appended(document: &Document<Log>, anchor: Anchor, texts: &[&str]) -> Document<Log> {
     let mut document = document.clone();
     for text in texts {
-        document.apply(&Log::LINES.insert(ObjectId::ROOT, anchor, &card(text)).1.into());
-        document.apply(&Log::CARDS.insert(ObjectId::ROOT, anchor, &card(text)).1.into());
+        document.apply(
+            &Log::LINES
+                .insert(ObjectId::ROOT, anchor, &card(text))
+                .1
+                .into(),
+        );
+        document.apply(
+            &Log::CARDS
+                .insert(ObjectId::ROOT, anchor, &card(text))
+                .1
+                .into(),
+        );
     }
     document
 }
@@ -33,7 +43,11 @@ fn a_list_that_merges_appends_puts_each_sides_additions_after_the_others() {
                 .insert(ObjectId::ROOT, Anchor::After(first), &card("theirs early"))
                 .1,
             Log::CARDS
-                .insert(ObjectId::ROOT, Anchor::After(first_card), &card("theirs early"))
+                .insert(
+                    ObjectId::ROOT,
+                    Anchor::After(first_card),
+                    &card("theirs early"),
+                )
                 .1,
         ]
         .into_iter()

@@ -14,13 +14,18 @@ fn a_reply_quotes_the_message_it_answers() {
 
     let reply = chat.id(2);
     assert_eq!(
-        chat.content().message(reply).and_then(|message| message.reply_to),
+        chat.content()
+            .message(reply)
+            .and_then(|message| message.reply_to),
         Some(keys)
     );
     assert!(
         chat.row(reply)
             .contains("Member 7e1a: Who has the keys to the lab?")
     );
-    assert!(!chat.editor.shown("chat.reply.cancel"), "sending ends the reply");
+    assert!(
+        !chat.editor.shown("chat.reply.cancel"),
+        "sending ends the reply"
+    );
     chat.snapshot("a_reply_quotes_the_message_it_answers");
 }

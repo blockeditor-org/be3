@@ -267,7 +267,8 @@ impl ChatContent {
             time,
             signature: Signature::default(),
         };
-        let mut changes = vec![ChatHeader::DELETIONS.put(ObjectId::ROOT, &message, Some(&deletion))];
+        let mut changes =
+            vec![ChatHeader::DELETIONS.put(ObjectId::ROOT, &message, Some(&deletion))];
         if self.message(message).is_some() {
             changes.push(Change::remove(message));
         }
@@ -411,8 +412,7 @@ impl LiveEdit for ChatContent {
 
 impl Merge for ChatContent {
     fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
-        match <Document<ChatHeader> as Merge>::merge3(&base.header, &ours.header, &theirs.header)
-        {
+        match <Document<ChatHeader> as Merge>::merge3(&base.header, &ours.header, &theirs.header) {
             MergeResult::Clean(header) => MergeResult::Clean(Self { header }),
             MergeResult::Conflicted { value, conflicts } => MergeResult::Conflicted {
                 value: Self { header: value },

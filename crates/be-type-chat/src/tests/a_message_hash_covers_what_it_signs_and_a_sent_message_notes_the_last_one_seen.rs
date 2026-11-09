@@ -12,7 +12,10 @@ fn a_message_hash_covers_what_it_signs_and_a_sent_message_notes_the_last_one_see
     assert!(first.signature.0.is_empty(), "nothing signs messages yet");
 
     let hash = first.hash(CHAT, hello);
-    assert_eq!(hash, crate::MessageHash::of(&first.signed_bytes(CHAT, hello)));
+    assert_eq!(
+        hash,
+        crate::MessageHash::of(&first.signed_bytes(CHAT, hello))
+    );
     let changed = [
         Message {
             body: "hullo".to_owned(),

@@ -38,7 +38,10 @@ impl Harness {
         let mut harness = Self {
             editor: BeuiTest::new(OwnedEditor::new(host, CHAT)),
         };
-        harness.editor.store().register(be_type_chat::registrations());
+        harness
+            .editor
+            .store()
+            .register(be_type_chat::registrations());
         harness.editor.hold(None, content);
         harness.editor.set_size(vec2(480.0, 560.0));
         harness.run();

@@ -10,7 +10,9 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 /// A message's hash: SHA-256 over its signed bytes.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
+)]
 pub struct MessageHash(#[serde(with = "serde_bytes")] pub [u8; 32]);
 
 impl MessageHash {
@@ -41,8 +43,7 @@ impl Signed {
     }
 
     pub(crate) fn text(&mut self, text: &str) -> &mut Self {
-        self.0
-            .extend_from_slice(&(text.len() as u64).to_be_bytes());
+        self.0.extend_from_slice(&(text.len() as u64).to_be_bytes());
         self.0.extend_from_slice(text.as_bytes());
         self
     }

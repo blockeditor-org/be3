@@ -2,8 +2,8 @@ use be_sdk_beui::be_block::ObjectId;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
 use be_sdk_beui::beui::icons::{
-    Glyph, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY,
-    ICON_SEND, ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
+    Glyph, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_SEND,
+    ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -102,7 +102,9 @@ pub fn Chat(editor: Editor) -> NodeId {
                     <Frame padding={Padding::all(Space::Xl)}>
                         <List spacing=Space::Md>
                             <Show condition={empty}>
-                                <Text style=TextStyle::CAPTION>"No messages yet. Say hello below."</Text>
+                                <Text style=TextStyle::CAPTION>
+                                    "No messages yet. Say hello below."
+                                </Text>
                             </Show>
                             <ForEach keys={ids} view={message_rows} />
                         </List>
@@ -173,14 +175,15 @@ pub fn Chat(editor: Editor) -> NodeId {
 
 fn row(content: &ChatContent, me: Uuid, id: ObjectId) -> Option<Row> {
     let message = content.message(id)?;
-    let reply = message.reply_to.map(|quoted| {
-        match (content.message(quoted), content.body(quoted)) {
-            (Some(quoted), Some(body)) => {
-                format!("{}: {}", author(quoted.author, me), excerpt(&body))
-            }
-            _ => "A deleted message".to_owned(),
-        }
-    });
+    let reply =
+        message.reply_to.map(
+            |quoted| match (content.message(quoted), content.body(quoted)) {
+                (Some(quoted), Some(body)) => {
+                    format!("{}: {}", author(quoted.author, me), excerpt(&body))
+                }
+                _ => "A deleted message".to_owned(),
+            },
+        );
     let reactions = content
         .reactions(id)
         .into_iter()
@@ -239,7 +242,8 @@ fn submit(chat: &Chat, block: Uuid, me: Uuid, composer: Composer) {
             composer.editing.set(None);
         }
         None => {
-            let message = Message::new(me, now(), body).replying_to(composer.replying.get_untracked());
+            let message =
+                Message::new(me, now(), body).replying_to(composer.replying.get_untracked());
             if let Ok((_, send)) = chat.read(|content| content.send(block, message)) {
                 chat.operate(send);
             }
@@ -414,13 +418,22 @@ fn MessageRow(
                     </Show>
                 </List>
                 <Show condition={replies}>
-                    <Frame fill=ColorRole::Shade radius=Radius::Sm padding={Padding::symmetric(Space::Md, Space::Xs)}>
+                    <Frame
+                        fill=ColorRole::Shade
+                        radius=Radius::Sm
+                        padding={Padding::symmetric(Space::Md, Space::Xs)}
+                    >
                         <Text style=TextStyle::CAPTION>{quote}</Text>
                     </Frame>
                 </Show>
                 <Text>{body}</Text>
                 <Show condition={reacted}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm wrap=true>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=Space::Sm
+                        wrap=true
+                    >
                         <ForEach keys={reactions} view={reaction_chips} />
                     </List>
                 </Show>

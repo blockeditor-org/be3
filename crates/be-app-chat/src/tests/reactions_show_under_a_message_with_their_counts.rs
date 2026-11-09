@@ -2,13 +2,14 @@ use super::*;
 
 #[test]
 fn reactions_show_under_a_message_with_their_counts() {
-    let mut chat = Harness::new(&[
-        (ROSA, "The release is out!"),
-        (ME, "Thanks everyone"),
-    ]);
+    let mut chat = Harness::new(&[(ROSA, "The release is out!"), (ME, "Thanks everyone")]);
     let (release, thanks) = (chat.id(0), chat.id(1));
     let other = Uuid::from_u128(0x3b0c_0000_0000_4000_8000_0000_0000_0004);
-    for (author, reaction) in [(ROSA, "party-popper"), (other, "party-popper"), (other, "heart")] {
+    for (author, reaction) in [
+        (ROSA, "party-popper"),
+        (other, "party-popper"),
+        (other, "heart"),
+    ] {
         chat.arrive(ChatContent::react(release, author, reaction, MORNING));
     }
     chat.click(&format!("chat.message.{release}.reaction.heart"));

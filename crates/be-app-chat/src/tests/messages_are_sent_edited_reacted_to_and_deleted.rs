@@ -50,7 +50,9 @@ fn messages_are_sent_edited_reacted_to_and_deleted() {
     assert_eq!(chat.bodies(), ["Is the build green?", "Almost three there"]);
     assert!(chat.content().deletion_of(not_yet).is_some());
     assert!(
-        !chat.editor.shown(&format!("chat.message.{question}.delete")),
+        !chat
+            .editor
+            .shown(&format!("chat.message.{question}.delete")),
         "only my own messages can be deleted"
     );
 }

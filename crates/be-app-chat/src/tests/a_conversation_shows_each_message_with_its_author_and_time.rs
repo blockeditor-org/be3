@@ -13,6 +13,9 @@ fn a_conversation_shows_each_message_with_its_author_and_time() {
         chat.row(first),
         "Member 7e1a 09:00 Morning! Is the release still on for today?"
     );
-    assert_eq!(chat.row(second), "You 09:03 It is. I'm writing the notes now.");
+    assert_eq!(
+        chat.row(second),
+        "You 09:03 It is. I'm writing the notes now."
+    );
     chat.snapshot("a_conversation_shows_each_message_with_its_author_and_time");
 }

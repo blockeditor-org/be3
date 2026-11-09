@@ -2,8 +2,8 @@ mod chat;
 mod signed;
 
 pub use chat::{
-    ChatContent, ChatHeader, Deletion, Message, MessageEdit, Reaction, ReactionKey,
-    Segment, Signature,
+    ChatContent, ChatHeader, Deletion, Message, MessageEdit, Reaction, ReactionKey, Segment,
+    Signature,
 };
 pub use signed::MessageHash;
 

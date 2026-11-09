@@ -6,12 +6,7 @@ use be_lib_sequence::marks::{Rich, Scope, Seed};
 
 use crate::{Items, Kept, Kind, Object, ObjectId, Objects, Place, Sequence, Tree, Value};
 
-pub(crate) fn merge3(
-    root: fn() -> Kind,
-    base: &Tree,
-    ours: &Tree,
-    theirs: &Tree,
-) -> (Tree, usize) {
+pub(crate) fn merge3(root: fn() -> Kind, base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
     let mut conflicts = 0;
     let ids: BTreeSet<ObjectId> = base
         .objects()
@@ -617,7 +612,10 @@ fn append_order(
 ) -> Vec<ObjectId> {
     let based: HashSet<ObjectId> = before.iter().copied().collect();
     let in_base = |ids: &[ObjectId]| -> Vec<ObjectId> {
-        ids.iter().filter(|id| based.contains(id)).copied().collect()
+        ids.iter()
+            .filter(|id| based.contains(id))
+            .copied()
+            .collect()
     };
     let mut order = merge_order(before, &in_base(mine), &in_base(other), conflicts);
     let mut placed: HashSet<ObjectId> = order.iter().copied().collect();
