@@ -750,6 +750,7 @@ fn install(registry: &Registry) {
     let published = RefCell::new(None::<Vec<ActionGroup>>);
     crate::core::actions::in_document_scope(Box::new(move || {
         let focused = crate::core::actions::watch_focused();
+        let hosting = crate::core::actions::watch_window_hosts();
         let following = weak.clone();
         create_effect(move || {
             let Some(registry) = weak.upgrade() else {
@@ -771,7 +772,10 @@ fn install(registry: &Registry) {
             registry.0.version.get();
             focused.get();
             let path = untrack(crate::core::actions::focus_ancestry);
-            let hosts = untrack(crate::core::actions::window_hosts);
+            let hosts = match hosting {
+                Some(hosting) => hosting.get(),
+                None => untrack(crate::core::actions::window_hosts),
+            };
             let groups = registry.groups(&path, &hosts);
             if published.borrow().as_ref() != Some(&groups) {
                 published.replace(Some(groups.clone()));
