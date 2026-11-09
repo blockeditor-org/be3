@@ -64,8 +64,6 @@ pub struct TabInfo {
     pub backrefs: Refs,
     pub artifact: Option<ArtifactState>,
     pub deleted: Option<Deleted>,
-    /// How the account is notified about the block, once the host answered.
-    pub notify: Option<be_sdk_beui::NotifyMode>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -185,10 +183,6 @@ fn read_item_info(
             workspace.host().artifact(item.id)
         },
         deleted,
-        notify: match access.can_view() {
-            true => workspace.notify_mode(item.id),
-            false => None,
-        },
     })
 }
 
