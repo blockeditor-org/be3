@@ -73,7 +73,11 @@ async fn a_save_after_a_rotation_seals_only_what_it_changed() {
         .expect("the edit publishes");
     let vault = owner.commits().vault();
     let manifest = |commit| owner.commits().get(commit).unwrap().manifest;
-    let old: HashSet<_> = vault.objects(&manifest(first)).unwrap().into_iter().collect();
+    let old: HashSet<_> = vault
+        .objects(&manifest(first))
+        .unwrap()
+        .into_iter()
+        .collect();
     let new: HashSet<_> = vault
         .objects_besides(&manifest(second), &old)
         .unwrap()
