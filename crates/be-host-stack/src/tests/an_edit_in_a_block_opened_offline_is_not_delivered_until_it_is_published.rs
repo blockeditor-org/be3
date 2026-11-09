@@ -18,9 +18,13 @@ fn an_edit_in_a_block_opened_offline_is_not_delivered_until_it_is_published() {
     assert!(!status().connected);
     open(block, CounterContent::CONTENT_TYPE);
     let mut editor = Editor::<CounterContent>::attach(block);
-    editor.wait("was sent the counter", |counter| counter.root().value() == 2);
+    editor.wait("was sent the counter", |counter| {
+        counter.root().value() == 2
+    });
     editor.operate(Counter::add(4));
-    editor.until("the edit was confirmed", |editor| editor.mirror.pending() == 0);
+    editor.until("the edit was confirmed", |editor| {
+        editor.mirror.pending() == 0
+    });
     flush();
     editor.pump();
     assert_eq!(

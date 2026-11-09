@@ -22,7 +22,10 @@ fn unread_counts_from_the_furthest_message_read_by_order_not_by_claimed_time() {
         "the furthest of the devices' places counts"
     );
     assert!(chat.reads_further(two, Some(one)));
-    assert!(!chat.reads_further(one, Some(two)), "a place never moves back");
+    assert!(
+        !chat.reads_further(one, Some(two)),
+        "a place never moves back"
+    );
 
     let deleted = edited(&chat, [chat.delete(two, ADA, 11)]);
     assert_eq!(

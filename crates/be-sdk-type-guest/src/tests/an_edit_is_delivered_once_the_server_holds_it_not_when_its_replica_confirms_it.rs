@@ -24,7 +24,11 @@ fn an_edit_is_delivered_once_the_server_holds_it_not_when_its_replica_confirms_i
     sim.operate(1, 1, add("on my way"));
     sim.settle();
     let follower = &sim.editors[&(1, 1)];
-    assert_eq!(follower.pending(), 0, "the follower's replica confirmed the edit");
+    assert_eq!(
+        follower.pending(),
+        0,
+        "the follower's replica confirmed the edit"
+    );
     assert_eq!(
         follower.delivered(),
         0,

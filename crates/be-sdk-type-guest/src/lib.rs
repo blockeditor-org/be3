@@ -634,7 +634,8 @@ impl Module {
                     .map(|entry| entry.sequence)
                     .max()
                     .unwrap_or_default();
-                let pending = ops::with_parent(replica, || host::append(generation, entries, relay));
+                let pending =
+                    ops::with_parent(replica, || host::append(generation, entries, relay));
                 self.answer_later(replica, pending, move |held| Input::Appended {
                     through,
                     held: held == Ok(true),

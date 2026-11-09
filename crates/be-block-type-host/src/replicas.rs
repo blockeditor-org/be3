@@ -2757,7 +2757,8 @@ async fn reset<H: Host>(
 /// Whether this device keeps commits of `block` the server lacks: in its outbox, or in the
 /// unsent area after the server refused them.
 fn kept_here<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> bool {
-    !peer.pending_commits(block).is_empty() || peer.unsent().iter().any(|unsent| unsent.block == block)
+    !peer.pending_commits(block).is_empty()
+        || peer.unsent().iter().any(|unsent| unsent.block == block)
 }
 
 /// The journal to open `head` on, and whether it is this device's, holding entries the server
@@ -2787,7 +2788,9 @@ fn journal_for<S: be_block_store::ObjectStore>(
         }
         (Some(server), _) => (Some(server), false),
         (None, local) => {
-            let kept = local.as_ref().is_some_and(|local| !local.entries.is_empty());
+            let kept = local
+                .as_ref()
+                .is_some_and(|local| !local.entries.is_empty());
             (local, kept)
         }
     }

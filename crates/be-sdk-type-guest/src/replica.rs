@@ -2167,7 +2167,10 @@ where
 
     /// The server holds every operation up to `sequence`.
     fn server_holds(&mut self, sequence: u64) {
-        if self.awaiting_through.is_some_and(|through| through <= sequence) {
+        if self
+            .awaiting_through
+            .is_some_and(|through| through <= sequence)
+        {
             self.awaiting_through = None;
         }
         if self.lost_through.is_some_and(|through| through <= sequence) {
@@ -2179,8 +2182,12 @@ where
         match held {
             true => self.server_holds(through),
             false => {
-                self.lost_through = Some(self.lost_through.map_or(through, |lost| lost.max(through)));
-                if self.awaiting_through.is_some_and(|awaiting| awaiting <= through) {
+                self.lost_through =
+                    Some(self.lost_through.map_or(through, |lost| lost.max(through)));
+                if self
+                    .awaiting_through
+                    .is_some_and(|awaiting| awaiting <= through)
+                {
                     self.awaiting_through = None;
                 }
             }

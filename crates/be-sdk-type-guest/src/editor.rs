@@ -445,7 +445,8 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         for _ in 0..taken.min(self.pending.len() as u64) {
             self.pending.pop_front();
         }
-        self.counted_from = (self.sent - self.pending.len() as u64).saturating_sub(snapshot.applied);
+        self.counted_from =
+            (self.sent - self.pending.len() as u64).saturating_sub(snapshot.applied);
         if let Some(held) = snapshot.held {
             self.held(held);
         }
