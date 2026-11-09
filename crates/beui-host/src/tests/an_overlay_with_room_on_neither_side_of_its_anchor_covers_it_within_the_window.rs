@@ -35,7 +35,6 @@ fn placed(height: f32) -> (f32, f32) {
     (rect.top(), rect.bottom())
 }
 
-
 #[test]
 fn an_overlay_with_room_on_neither_side_of_its_anchor_covers_it_within_the_window() {
     assert_eq!(
