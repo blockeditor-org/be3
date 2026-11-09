@@ -159,7 +159,10 @@ impl Groups {
         if size.0 > self.size.0 || size.1 > self.size.1 {
             let most = device.limits().max_texture_dimension_2d;
             let grown = |wanted: u32, held: u32| {
-                wanted.max(held).next_multiple_of(GROWTH).min(most.max(wanted))
+                wanted
+                    .max(held)
+                    .next_multiple_of(GROWTH)
+                    .min(most.max(wanted))
             };
             self.size = (grown(size.0, self.size.0), grown(size.1, self.size.1));
             self.layers.clear();
