@@ -7,7 +7,9 @@ use be_sdk_beui::beui::dock::{
     DockEntry, DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId,
 };
 use be_sdk_beui::beui::dock_host::styled::DockHost;
-use be_sdk_beui::beui::icons::{ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS};
+use be_sdk_beui::beui::icons::{
+    ICON_FILE_PLUS, ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SEARCH, ICON_SETTINGS,
+};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::root_settings::own_settings_blocks;
@@ -19,7 +21,7 @@ use be_sdk_shell::{
     BlockTab, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, UnshownWindows,
     WindowDialog, Workspace, WorkspaceDialogs,
 };
-use beui::Align;
+use beui::{Align, Key};
 use uuid::Uuid;
 
 use crate::phone::{DetailsSheet, PhoneSheet};
@@ -151,6 +153,7 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
     });
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
+    workspace_actions(workspace);
     let failure = workspace.error();
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
@@ -225,6 +228,27 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
             </List>
         </Frame>
     }
+}
+
+/// What the workspace offers the host's palette and its keys. Quick open asks the host for its
+/// palette of blocks; the tab keys are the dock's.
+fn workspace_actions(workspace: Workspace) {
+    let host = workspace.host();
+    Action::new("workspace.quick-open", "Go to a file", move || {
+        host.open_palette(be_sdk_beui::PaletteMode::Blocks)
+    })
+    .glyph(ICON_SEARCH)
+    .shortcut(Chord::ctrl(Key::P))
+    .register();
+    Action::new("workspace.settings", "Settings", move || workspace.show(SETTINGS))
+        .glyph(ICON_SETTINGS)
+        .register();
+    Action::new("workspace.files", "Show files", move || workspace.show(FILES))
+        .glyph(ICON_FOLDER)
+        .register();
+    Action::new("workspace.new-file", "New file", move || workspace.new_file())
+        .glyph(ICON_FILE_PLUS)
+        .register();
 }
 
 #[component]

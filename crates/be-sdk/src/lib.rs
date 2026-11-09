@@ -73,8 +73,8 @@ pub use be_sdk_api::{
     WindowOrigin, WindowRequests, WindowsWatch,
 };
 pub use be_sdk_api::{
-    AnchorSpace, AnchoredPlacement, HostTransform, HostView, ParentView, Scrim, View, ViewAnchor,
-    ViewEdge, ViewId, ViewPlacement, ViewRef,
+    AnchorSpace, AnchoredPlacement, HostTransform, HostView, PaletteMode, ParentView, Scrim, View,
+    ViewAnchor, ViewEdge, ViewId, ViewPlacement, ViewRef,
 };
 pub use be_sdk_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSourcesWatch, Preferences, ThemeKind,

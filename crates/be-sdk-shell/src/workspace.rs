@@ -1040,6 +1040,11 @@ impl Workspace {
         )
     }
 
+    /// Starts a new file in My files, as the files' add menu does.
+    pub fn new_file(&self) {
+        self.create_in(BlockParent::Root);
+    }
+
     pub fn new_file_near(&self, id: Uuid) {
         let holds_children = self
             .known_type(id)

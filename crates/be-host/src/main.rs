@@ -3297,6 +3297,15 @@ impl HostCore {
             }
             UiCommand::CancelDiscardUnsent => self.discarding_unsent = None,
             UiCommand::DismissToast(id) => notices::dismiss(id),
+            UiCommand::CycleTheme => {
+                let mut layer = context.preference_layer(beui::PreferenceSource::Program);
+                layer.theme = match layer.theme {
+                    None => Some(beui::ThemeKind::Light),
+                    Some(beui::ThemeKind::Light) => Some(beui::ThemeKind::Dark),
+                    Some(_) => None,
+                };
+                context.set_preference_layer(beui::PreferenceSource::Program, layer);
+            }
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),
             #[cfg(target_os = "linux")]

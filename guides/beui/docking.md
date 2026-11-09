@@ -99,7 +99,10 @@ there it shows its tab (`DockTabControl::show`) or, in an empty pane's view, foc
 group has no tab, so `DockState::focused_or_host` stands the group's host tab in for it: that is
 what `DockingLayout::focused` and `DockHosted::focused` report.
 
-Ctrl+Tab walks the focused pane's tabs (an `on_shortcut`, so it works from inside a text input).
+The dock's tab commands are actions (`tab_actions` in `beui-dock-host/src/unstyled.rs`), so a
+command palette lists them: Ctrl+Tab and Ctrl+Shift+Tab walk the focused pane's tabs (at the
+dock's node with `.capture()`, so they work from inside a text input), and Split right, Split
+down and Close tab act on the tab the focused pane shows.
 The dock binds no other key: the switcher and window actions are actions the shell binds.
 
 ## Modes

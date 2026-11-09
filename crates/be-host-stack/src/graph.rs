@@ -533,6 +533,11 @@ impl Graph {
         self.nodes.get(&block)
     }
 
+    /// Every block the host has loaded, in no order.
+    pub fn nodes(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.values()
+    }
+
     pub fn query(&self, query: Query) -> Vec<Node> {
         let mut found: Vec<Node> = match query {
             Query::Roots => self.with_parent(BlockParent::Root),

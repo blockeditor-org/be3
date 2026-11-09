@@ -93,8 +93,9 @@ reaches it, so only host and window capture listeners hear its keys; with
 window for everything but media keys.
 
 `on_shortcut(handler)` is a tree capture listener at the registering component,
-seeing every press before the focused control (the dock's Ctrl+Tab, which works from a text input
-in a pane but not past a dialog; guides/beui/docking.md). `on_global_key(handler)` is a
+seeing every press before the focused control; a command the palette should list is an
+action at that node with `.capture()` instead (the dock's Ctrl+Tab, which works from a text
+input in a pane but not past a dialog; guides/beui/docking.md). `on_global_key(handler)` is a
 window capture listener, handed a `KeyEvent` with the target's kind (typing,
 program). `held_modifiers()` is a signal of the modifiers held; hold-and-release
 shortcuts (a switcher) are built from these two.
