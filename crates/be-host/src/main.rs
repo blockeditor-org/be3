@@ -3785,9 +3785,9 @@ fn restore_to(
         Some(be_block::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
             RestoreTo::Into(parent)
         }
-        Some(be_block::DeletedFrom::Root | be_block::DeletedFrom::Block(_)) | None => {
-            restoring.unfiled.map_or(RestoreTo::Nowhere, RestoreTo::Unfiled)
-        }
+        Some(be_block::DeletedFrom::Root | be_block::DeletedFrom::Block(_)) | None => restoring
+            .unfiled
+            .map_or(RestoreTo::Nowhere, RestoreTo::Unfiled),
     }
 }
 

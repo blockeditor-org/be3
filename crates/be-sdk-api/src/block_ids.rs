@@ -143,7 +143,7 @@ impl BlockQuery {
             | Self::Parents(block_id)
             | Self::Block(block_id)
             | Self::OpenSettings(block_id) => visit(BlockIdRole::Existing, block_id),
-            Self::Roots | Self::Detached | Self::Shared => {}
+            Self::Roots | Self::Detached | Self::Shared | Self::Unfiled => {}
         }
     }
 }

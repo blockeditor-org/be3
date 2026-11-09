@@ -44,20 +44,29 @@ fn unfiled_lists_what_no_one_placed_and_moves_the_unused_to_recently_deleted() {
     fixture.settle();
     fixture.settle();
 
-    let top = |fixture: &Fixture, id: Uuid| fixture.test.rect_of(&format!("file-tree.{id}.row")).top();
+    let top =
+        |fixture: &Fixture, id: Uuid| fixture.test.rect_of(&format!("file-tree.{id}.row")).top();
     assert!(
-        top(&fixture, note.id) < top(&fixture, grid.id) && top(&fixture, grid.id) < top(&fixture, shell.id),
+        top(&fixture, note.id) < top(&fixture, grid.id)
+            && top(&fixture, grid.id) < top(&fixture, shell.id),
         "newest first"
     );
     assert!(
-        fixture.test.rect_of(&format!("file-tree.{MY_FILES}.row")).top()
+        fixture
+            .test
+            .rect_of(&format!("file-tree.{MY_FILES}.row"))
+            .top()
             < fixture.test.rect_of("file-tree.unfiled.row").top(),
         "below My files"
     );
     let document = fixture.test.document();
     let root = document.root().expect("the files pane has a root");
     assert!(says_within(&document, root, "boat.dev · used in Dev VMs"));
-    assert!(says_within(&document, root, "be3.logic-grid · not used anywhere"));
+    assert!(says_within(
+        &document,
+        root,
+        "be3.logic-grid · not used anywhere"
+    ));
     assert!(says_within(&document, root, "Not used anywhere"));
     drop(document);
     fixture.test.settle();

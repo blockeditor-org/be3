@@ -9,10 +9,8 @@ fn a_new_file_beside_a_workspace_on_a_phone_goes_to_unfiled() {
     let mut info = be_sdk_beui::BlockInfo::new(notes, SHOWN_TYPE, BlockParent::Root);
     info.set_name("Notes");
     fixture.test.store().add_block(info);
-    let my_files = be_sdk_beui::be_block::my_files(
-        fixture.host.organization_id(),
-        fixture.host.account_id(),
-    );
+    let my_files =
+        be_sdk_beui::be_block::my_files(fixture.host.organization_id(), fixture.host.account_id());
     fixture.test.store().add_block(be_sdk_beui::BlockInfo::new(
         my_files,
         be_sdk_beui::be_block::WORKSPACE_TYPE,

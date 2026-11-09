@@ -1,4 +1,3 @@
-use be_sdk_beui::{BlockParent, Editor};
 use be_sdk_beui::be_block::{self, BlockContent, SettingsContent};
 use be_sdk_beui::beui::icons::{
     ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE,
@@ -7,6 +6,7 @@ use be_sdk_beui::beui::icons::{
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::{BlockParent, Editor};
 use uuid::Uuid;
 
 use super::export::Exporter;

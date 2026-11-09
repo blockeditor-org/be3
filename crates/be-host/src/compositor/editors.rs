@@ -477,9 +477,9 @@ impl Editors {
                     Some(parent) => match child.creation.create() {
                         Ok(Some(block)) => {
                             be_host_stack::set_parent(block, parent);
-                        if let Some(name) = commit.name.clone() {
-                            be_host_stack::name_when_created(block, name);
-                        }
+                            if let Some(name) = commit.name.clone() {
+                                be_host_stack::name_when_created(block, name);
+                            }
                             CreationProgress::Created(block.into_bytes())
                         }
                         Ok(None) => CreationProgress::Working,

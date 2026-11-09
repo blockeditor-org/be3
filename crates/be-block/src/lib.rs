@@ -37,9 +37,9 @@ pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
 pub use metadata::{
-    ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE, Entries,
-    ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME, Origin,
-    ROW_PREFIX, SCHEMA, SETTINGS, THUMBHASH, Thumbhash, VIEW_EDITOR,
+    ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
+    EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES,
+    MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, SETTINGS, THUMBHASH, Thumbhash, VIEW_EDITOR,
 };
 pub use model::Root;
 pub use organization::{

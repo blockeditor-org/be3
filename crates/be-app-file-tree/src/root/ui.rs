@@ -580,7 +580,8 @@ fn detail(editor: Editor, row: Memo<Option<Row>>) -> (Memo<String>, Memo<bool>) 
             false => format!("{kind} · {size}"),
         }
     });
-    let own = create_memo(move || row.with(|row| row.as_ref().is_some_and(|row| row.detail.is_some())));
+    let own =
+        create_memo(move || row.with(|row| row.as_ref().is_some_and(|row| row.detail.is_some())));
     let detailed = create_memo(move || {
         (own.get() || density.get() == Density::Comfortable) && !detail.with(String::is_empty)
     });

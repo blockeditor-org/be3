@@ -7,9 +7,9 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use be_sdk_beui::Press;
-use be_sdk_beui::be_block::{CREATED_BY, SETTINGS};
 use be_sdk_beui::be_block::metadata::ICON_COLOR;
 use be_sdk_beui::be_block::{BlockContent, HomeContent, SettingsContent};
+use be_sdk_beui::be_block::{CREATED_BY, SETTINGS};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::icons::{
     ICON_BOXES, ICON_DATABASE, ICON_INBOX, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
@@ -326,6 +326,7 @@ impl Tree {
                 due: None,
             };
             let listed = clock.listed(&roots);
+            let roots_listed = listed.is_ok();
             let held = listed.clone().unwrap_or_default();
             let sections = workspaces(
                 held.clone(),
@@ -391,7 +392,7 @@ impl Tree {
                 .find(|section| section.id == my_files)
                 .or(sections.last())
                 .map(|section| section.id);
-            if listed.is_ok() && unfiled_after.is_none() {
+            if roots_listed && unfiled_after.is_none() {
                 builder.push_unfiled(unfiled_open);
             }
             for section in sections {

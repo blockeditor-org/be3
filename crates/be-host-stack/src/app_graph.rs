@@ -38,9 +38,7 @@ pub fn location_of(parent: be_block_graph::BlockParent, unfiled: Option<Uuid>) -
     match parent {
         be_block_graph::BlockParent::Root => BlockLocation::Root,
         be_block_graph::BlockParent::Detached => BlockLocation::Detached,
-        be_block_graph::BlockParent::Block(id) if unfiled == Some(id) => {
-            BlockLocation::Unfiled
-        }
+        be_block_graph::BlockParent::Block(id) if unfiled == Some(id) => BlockLocation::Unfiled,
         be_block_graph::BlockParent::Block(id) => BlockLocation::Block(id.into_bytes()),
     }
 }

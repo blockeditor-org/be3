@@ -1321,7 +1321,7 @@ pub fn import(bytes: &[u8], parent: be_block_graph::BlockParent) -> Result<(Uuid
                 sets_access: false,
                 size: 0,
                 tree_size: 0,
-                });
+            });
         });
         if let Some(bytes) = &block.content {
             with_shared_mut(|shared| {

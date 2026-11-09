@@ -404,6 +404,7 @@ fn shown_rects(instances: &Instances) -> Vec<Rect> {
         .collect()
 }
 
+mod a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise;
 mod a_block_is_named_after_its_content_until_someone_names_it;
 mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
 mod a_child_asked_full_screen_or_closed_reaches_the_host;
@@ -436,7 +437,6 @@ mod an_app_hears_every_sample_only_while_it_asks;
 mod an_app_is_told_when_the_pointer_leaves_it;
 mod an_app_makes_a_blocks_agent_only_if_its_manifest_allows_and_only_for_its_own_block;
 mod an_app_reaches_only_the_hosts_its_manifest_names;
-mod a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise;
 mod an_app_seeds_only_blocks_it_holds;
 mod an_editor_can_read_and_edit_a_block_it_watches;
 mod an_editor_is_only_sent_messages_its_app_session_accepts;

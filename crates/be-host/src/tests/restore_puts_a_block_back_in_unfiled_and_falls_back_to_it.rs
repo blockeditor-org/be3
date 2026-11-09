@@ -32,7 +32,10 @@ fn restore_puts_a_block_back_in_unfiled_and_falls_back_to_it() {
         "a block whose folder is gone goes to Unfiled, not My files"
     );
     assert_eq!(
-        restored(Some(BlockParent::Detached), Some(be_block::DeletedFrom::Root)),
+        restored(
+            Some(BlockParent::Detached),
+            Some(be_block::DeletedFrom::Root)
+        ),
         RestoreTo::Unfiled(UNFILED),
         "so does a block that may not stand at the top"
     );

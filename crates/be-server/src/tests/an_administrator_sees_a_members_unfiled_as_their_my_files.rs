@@ -50,9 +50,21 @@ async fn an_administrator_sees_a_members_unfiled_as_their_my_files() {
 
     let my_files = be_block::my_files(organization, member_id);
     let unfiled = be_block::unfiled(organization, member_id);
-    let made = make(&mut member, my_files, be_block::WORKSPACE_TYPE, BlockParent::Root).await;
+    let made = make(
+        &mut member,
+        my_files,
+        be_block::WORKSPACE_TYPE,
+        BlockParent::Root,
+    )
+    .await;
     assert!(made.is_ok(), "{made:?}");
-    let made = make(&mut member, unfiled, be_block::UNFILED_TYPE, BlockParent::Root).await;
+    let made = make(
+        &mut member,
+        unfiled,
+        be_block::UNFILED_TYPE,
+        BlockParent::Root,
+    )
+    .await;
     assert!(made.is_ok(), "{made:?}");
     let filed = member.create_block(BlockParent::Block(my_files)).await;
     let unplaced = member.create_block(BlockParent::Block(unfiled)).await;

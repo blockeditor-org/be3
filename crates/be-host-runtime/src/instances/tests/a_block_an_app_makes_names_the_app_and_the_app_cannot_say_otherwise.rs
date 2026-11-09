@@ -30,14 +30,19 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
     );
     be_host_stack::flush();
 
-    let created_by = be_host_stack::wait_until(|shared| {
+    let global = be_host_stack::wait_until(|shared| {
         shared
             .graph
-            .get(made)
-            .map(|node| node.metadata.get(&be_block::CREATED_BY))
+            .query(be_host_stack::Query::Detached)
+            .into_iter()
+            .find(|node| node.metadata.contains(&be_block::CREATED_BY))
+            .map(|node| node.id)
     });
+    let created_by = || {
+        be_host_stack::node(global).and_then(|node| node.metadata.get(&be_block::CREATED_BY))
+    };
     assert_eq!(
-        created_by.as_deref(),
+        created_by().as_deref(),
         Some("example.maker"),
         "the host names the app that made the block, whatever the app sent"
     );
@@ -52,9 +57,7 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
     );
     be_host_stack::flush();
     assert_eq!(
-        be_host_stack::node(made)
-            .and_then(|node| node.metadata.get(&be_block::CREATED_BY))
-            .as_deref(),
+        created_by().as_deref(),
         Some("example.maker"),
         "nor can it rename the maker later"
     );
