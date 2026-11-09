@@ -4,12 +4,14 @@
 # the build server works. Usage: fresh-client.sh BRANCH NL_URL
 set -uo pipefail
 branch=${1:?branch}; url=${2:?BE3_NL_URL}
+# A new boat VM already has a ~/be3 of the environment's; this clones a checkout of its own.
+dir=${BE3_DIR:-$HOME/nl-be3}
 now() { date +%s.%N; }
 took() { printf '%-52s %7.1f s\n' "$1" "$(echo "$(now) - $2" | bc)"; }
 export PATH="$HOME/.cargo/bin:/usr/local/cargo/bin:$PATH"
 t=$(now); git -c credential.helper='!gh auth git-credential' clone -q --filter=blob:none --branch "$branch" \
-  https://github.com/blockeditor-org/be3.git be3; took "git clone, partial" "$t"
-cd be3
+  https://github.com/blockeditor-org/be3.git "$dir"; took "git clone, partial" "$t"
+cd "$dir"
 t=$(now); cargo build -q --locked --release -p be-tool-bootstrap --target-dir target/tools/bootstrap-cargo 2>/dev/null
 took "the bootstrap built with cargo (until a release is pinned)" "$t"
 export BE3_BUILD_SERVER=nativelink BE3_NL_URL="$url" BE3_BOOTSTRAP=cargo

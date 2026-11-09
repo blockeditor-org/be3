@@ -83,6 +83,21 @@ The address of a new scheduler differs, so step 1 and the secret are redone if t
 
 ## Measured
 
-A one-file change to be-lib-geometry with 4 default workers reading Bunny directly: 250-350 s with a fresh fleet, 190-230 s
-with a warm one. A `small` scheduler used at most 0.7 of its 2 vCPU and under 1 GB. 2 large workers were as fast or faster
-than 4 default ones when warm (141-190 s) but a single run each, so the difference is not established.
+One build alone, a one-file change to be-lib-geometry with 4 default workers reading Bunny directly: 250-350 s with a fresh
+fleet, 190-230 s warm. A new client VM with a fresh clone and daemon and a fully warm cache: 12 s to `verify` after about 80 s
+of setup (clone, the cargo bootstrap, buck2 and the relay). 8 builds at once from 3 VMs: 860-888 s each, scaling 4 to 9
+workers on CPU. A `small` scheduler used at most 0.7 of its 2 vCPU and under 1 GB. 2 large workers were as fast or faster
+than 4 default ones when warm (141-190 s), single runs.
+
+## Scaling on the queue (written, not yet running)
+
+The controller in this branch scales on NativeLink's queue depth, as NativeLink's docs advise, and not on CPU: worker CPU
+cannot say whether work is waiting (the 8-build run above averaged 45-72% busy and crossed the scale-up threshold once).
+NativeLink exports `execution.active.count` by `execution.stage` over gRPC OTLP, an OpenTelemetry collector
+(`scheduler/otelcol.yaml`, `nl-otelcol.service`, downloaded by setup-scheduler.sh against GitHub's published digest) serves it
+as `nativelink_execution_active_count`, and the workers take a fixed number of actions at once (`max_inflight_tasks` in
+worker-direct.json5) so that extra work queues. What is done: the parsing is tested, the units and configs are written, the
+controller reads the queue and scales to `ceil((queued + executing) / slots)` with burst workers that expire. What is not:
+none of it has run, because the tooling used here would not download and run the collector. Deploying it is the setup
+script's steps by hand on the scheduler, after which the 8-build run above should be repeated to compare with these numbers
+(and `max_inflight_tasks` tuned: 8 per 4 vCPU is a guess).

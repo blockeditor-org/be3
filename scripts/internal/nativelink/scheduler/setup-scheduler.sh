@@ -11,6 +11,14 @@ curl -fsSL --retry 3 -o /tmp/nl.tgz "$NL_URL"
 echo "$NL_SHA256  /tmp/nl.tgz" | sha256sum -c -
 tar xzf /tmp/nl.tgz -C /tmp nativelink
 install -m0755 /tmp/nativelink /usr/local/bin/nativelink
+# The OpenTelemetry collector that turns NativeLink's metrics into something the controller can read
+OC_VERSION=0.165.0
+OC_SHA256=bd6e73d94bf3359ad6fac25529a8ee308adb9b0b8a0e8af034ed3891fbe5aa33   # GitHub's published digest of the tarball
+curl -fsSL --retry 3 -o /tmp/otelcol.tgz "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v$OC_VERSION/otelcol-contrib_${OC_VERSION}_linux_amd64.tar.gz"
+echo "$OC_SHA256  /tmp/otelcol.tgz" | sha256sum -c -
+tar xzf /tmp/otelcol.tgz -C /tmp otelcol-contrib
+install -m0755 /tmp/otelcol-contrib /usr/local/bin/otelcol-contrib
+install -d /etc/otelcol; install -m0644 otelcol.yaml /etc/otelcol/config.yaml
 # The WireGuard hub the workers join (clients do not: they come through nl-tunnel.py)
 install -d -m700 /etc/wireguard
 [ -f /etc/wireguard/wg-sch.key ] || { umask 077; wg genkey > /etc/wireguard/wg-sch.key; }
@@ -31,8 +39,8 @@ install -m0755 nl-small-pack.sh nl-small-restore.sh add-peer.sh remove-peer.sh n
 install -d -m0750 -g nativelink /etc/nativelink
 install -m0640 -g nativelink /home/user/nl-bunny.env /etc/nativelink/server.env; chmod 600 /home/user/nl-bunny.env
 install -m0640 -g nativelink server.json5 /etc/nativelink/server.json5
-install -m0644 nativelink-server.service nl-small-pack.service nl-small-pack.timer nl-tunnel.service /etc/systemd/system/
-systemctl daemon-reload; systemctl enable --now nativelink-server nl-tunnel nl-small-pack.timer
+install -m0644 nativelink-server.service nl-small-pack.service nl-small-pack.timer nl-tunnel.service nl-otelcol.service /etc/systemd/system/
+systemctl daemon-reload; systemctl enable --now nl-otelcol nativelink-server nl-tunnel nl-small-pack.timer
 sleep 6; systemctl is-active nativelink-server nl-tunnel
 # By hand, by someone allowed to expose a port: `host 8099 --localhost`, then `host url 8099` prints the address (with
 # its token) that clients keep as BE3_NL_URL (guides/build_server.md, "Starting over").

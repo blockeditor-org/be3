@@ -79,8 +79,16 @@ port 50052.
   read-only key (the `nl-worker` environment's secret file `worker-ro.env`); the scheduler keeps small objects and the
   action cache in /tmp, persisted as one packed Bunny object every 5 minutes and restored on boot, and writes
   everything else to Bunny with the full-access key (the `nl-scheduler` environment's `nl-bunny.env`).
-- **Speed**: a one-file change to be-lib-geometry took 250-350 s with a fresh worker fleet and 190-230 s with a warm
-  one.
+- **Speed** (4 default workers, taken through the tunnel's relay and bridge over the scheduler's private address, so
+  boat's public proxy was not in the path; scripts/internal/nativelink/bench/ repeats them):
+  - A one-file change to be-lib-geometry, one build alone: 250-350 s with a fresh worker fleet, 190-230 s with a warm one.
+  - A new client VM (default size) with a fresh partial clone and a new buck2 daemon, every action already cached:
+    clone 4 s, the bootstrap built with cargo 32 s (until a release is pinned), the first command 43 s (buck2 download,
+    the relay built with Go, the daemon started), then `./scripts/verify` 12 s, and 0.4 s again. About a minute from a
+    pinned release.
+  - 8 such builds at once from 3 VMs, each a different one-file change so that nothing is shared: all passed, in 860-888 s
+    each, about half the time of running them one after another (8 x 190-230 s). The workers went from 4 to 6 to 9 on
+    CPU (average 45-72% busy), and the burst and its client VMs used 10 starts.
 
 Things that are not obvious:
 

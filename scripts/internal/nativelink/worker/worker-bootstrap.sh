@@ -4,7 +4,6 @@
 #   ~/nl-wg.conf          the WireGuard spoke config (its own key, the scheduler as the hub)
 #   ~/nl-worker.json5     the worker config (hub address filled in)
 #   ~/nl-worker.service   the systemd unit
-#   ~/nl-load.py, ~/nl-load.service   what tells the controller how busy this worker is
 # and the nl-worker environment supplies the read-only Bunny key as ~/worker-ro.env. Nothing here needs a credential.
 set -euo pipefail
 exec > >(tee -a /tmp/nl-bootstrap.log) 2>&1
@@ -26,13 +25,10 @@ sudo install -d /etc/nativelink /var/lib/nativelink-worker
 sudo install -m0644 nl-worker.json5 /etc/nativelink/worker.json5
 sudo install -m0600 worker-ro.env /etc/nativelink/worker.env
 sudo install -m0644 nl-worker.service /etc/systemd/system/nativelink-worker.service
-sudo install -m0755 nl-load.py /usr/local/bin/nl-load.py
-sudo install -m0644 nl-load.service /etc/systemd/system/nl-load.service
 sudo ufw allow 51820/udp >/dev/null 2>&1 || true
-sudo ufw allow in on wg-sch to any port 9100 proto tcp >/dev/null 2>&1 || true
 sudo docker pull -q "$IMAGE" >/dev/null
 sudo systemctl daemon-reload
 sudo systemctl enable --now wg-quick@wg-sch
-sudo systemctl enable --now nativelink-worker nl-load
+sudo systemctl enable --now nativelink-worker
 sleep 3; ping -c1 -W3 10.100.0.1 >/dev/null && echo "wg ok" || echo "wg unreachable"
 systemctl is-active nativelink-worker

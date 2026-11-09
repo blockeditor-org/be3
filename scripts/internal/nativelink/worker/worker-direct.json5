@@ -64,6 +64,9 @@
         cas_fast_slow_store: "WORKER_FAST_SLOW_STORE",
         upload_action_result: { ac_store: "SERVER_AC" },
         work_directory: "/work/run",
+        // How many actions a worker runs at once. Past it, work waits in the scheduler's queue, and the queue's depth is
+        // what the controller scales on (nl-controller.py reads this number to turn depth into workers).
+        max_inflight_tasks: 8,
         // Actions start with an empty environment; the toolchain scripts use `env bash`.
         additional_environment: { PATH: { value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" } },
         platform_properties: {

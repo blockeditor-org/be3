@@ -3,9 +3,11 @@
 
 What it does, every tick:
   * A build is running when some client holds a connection to the scheduler's frontend port from a client address.
-  * While a build runs it keeps BASE worker VMs alive and scales between BASE and CAP on how busy they are (each
-    worker's nl-load.py reports its CPU): it extends their lifetime before it runs out, creates replacements for any
-    that are gone, adds workers when they are saturated and removes the least busy when they idle.
+  * While a build runs it keeps BASE worker VMs alive and scales between BASE and CAP on the queue: NativeLink reports
+    how many actions are queued (waiting for a worker) and executing, each worker takes SLOTS at once, and work that
+    has waited means more workers are needed. It extends their lifetime before it runs out and creates replacements for
+    any that are gone. Workers beyond BASE are a burst: they live a short time and are simply not extended once the
+    queue has been short for a while.
   * A new worker is created with its WireGuard config and bootstrap script handed over at creation (no SSH, which its
     key does not have). Boat places a new VM at random, and about half of them cannot reach the scheduler, so the
     controller creates enough to expect the ones it needs (it learns the share), keeps the ones that complete a
@@ -33,17 +35,17 @@ import urllib.request
 
 BASE = int(os.environ.get("NL_WORKERS_BASE", "4"))           # workers kept while any build runs
 CAP = int(os.environ.get("NL_WORKERS_CAP", "12"))            # the most it will burst to
-UP_BUSY = float(os.environ.get("NL_UP_BUSY", "75"))          # workers this busy on average: add more
-DOWN_BUSY = float(os.environ.get("NL_DOWN_BUSY", "35"))      # this idle on average for DOWN_AFTER: remove one
+UP_AFTER = int(os.environ.get("NL_UP_AFTER", "20"))          # seconds work must have waited before adding workers
 UP_EVERY = int(os.environ.get("NL_UP_EVERY", "45"))          # seconds between adding workers
-DOWN_AFTER = int(os.environ.get("NL_DOWN_AFTER", "300"))
+DOWN_AFTER = int(os.environ.get("NL_DOWN_AFTER", "300"))     # seconds with spare workers before they are let go
+BURST_TTL = int(os.environ.get("NL_BURST_TTL", "600"))       # a burst worker lives this long, and is extended while wanted
 WORKER_TYPE = os.environ.get("NL_WORKER_TYPE", "default")
 WORKER_TTL = int(os.environ.get("NL_WORKER_TTL", "1800"))    # a worker's lifetime, extended while builds run
 EXTEND_WHEN_LEFT = int(os.environ.get("NL_EXTEND_WHEN_LEFT", "900"))   # extend when less than this is left
 SCHEDULER_IDLE_STOP = int(os.environ.get("NL_SCHEDULER_IDLE_STOP", str(4 * 3600)))
 TICK = int(os.environ.get("NL_TICK", "15"))
 HANDSHAKE_WAIT = int(os.environ.get("NL_HANDSHAKE_WAIT", "60"))        # a good worker handshakes within ~25 s of creation
-LOAD_PORT = os.environ.get("NL_LOAD_PORT", "9100")                     # nl-load.py on each worker
+METRICS_URL = os.environ.get("NL_METRICS_URL", "http://127.0.0.1:8889/metrics")   # nl-otelcol: NativeLink's queue depth
 
 # Starts. Every VM created is a start, and boat counts them per minute, hour and day against what the plan includes.
 # A start over that costs $0.03 (up to 1.5x the included number), $0.05 (up to 2x) or $0.07 (up to 6x, 3x a minute),
@@ -62,6 +64,17 @@ NET = "10.100.0."
 WG_IF = "wg-sch"
 WG_CONF = f"/etc/wireguard/{WG_IF}.conf"
 FILES = os.environ.get("NL_FILES", "/opt/nl/worker")
+
+
+def worker_slots():
+    """How many actions a worker runs at once: max_inflight_tasks in its config, which is what makes work queue."""
+    try:
+        return max(1, int(re.search(r"max_inflight_tasks:\s*(\d+)", open(os.path.join(FILES, "worker-direct.json5")).read()).group(1)))
+    except (OSError, AttributeError):
+        return 8
+
+
+SLOTS = worker_slots()
 SK_HOME = os.environ.get("NL_BOAT_HOME", "/var/lib/nl-controller/sk-home")
 STATE = os.environ.get("NL_STATE", "/var/lib/nl-controller/state.json")
 
@@ -174,7 +187,7 @@ def free_ips(peers):
     return [f"{NET}{n}" for n in range(WORKER_RANGE[0], WORKER_RANGE[1] + 1) if f"{NET}{n}" not in used]
 
 
-def create_candidate(name, ip, hub, tmp):
+def create_candidate(name, ip, hub, tmp, ttl):
     """Create one worker VM. Returns its sandbox id, or None."""
     rc, conf, err = run(["/usr/local/bin/add-peer.sh", name, ip, hub])
     if rc != 0:
@@ -189,13 +202,11 @@ def create_candidate(name, ip, hub, tmp):
     with open(cfg, "w") as f:
         f.write(text)
     rc, out, err = boat("new", "--name", name, "--environment", "nl-worker", "--type", WORKER_TYPE,
-                        "--ttl", str(WORKER_TTL), "--no-snapshots",
+                        "--ttl", str(ttl), "--no-snapshots",
                         "--setup-file", os.path.join(FILES, "worker-bootstrap.sh"),
                         "--file", f"/home/user/nl-wg.conf={wg}",
                         "--file", f"/home/user/nl-worker.json5={cfg}",
-                        "--file", f"/home/user/nl-worker.service={os.path.join(FILES, 'nativelink-worker-sch.service')}",
-                        "--file", f"/home/user/nl-load.py={os.path.join(FILES, 'nl-load.py')}",
-                        "--file", f"/home/user/nl-load.service={os.path.join(FILES, 'nl-load.service')}")
+                        "--file", f"/home/user/nl-worker.service={os.path.join(FILES, 'nativelink-worker-sch.service')}")
     # The CLI exits with an error after the VM is up (it tries an exec this key may not run), so read the id from the
     # events and do not trust the exit code.
     for ev in json_lines(out):
@@ -238,20 +249,23 @@ def start_allowance(want, st):
     return allowed + extra, price, extra
 
 
-def poll_loads(alive, peers):
-    """name -> CPU busy percent, from nl-load.py on each connected worker."""
-    def ask(worker):
-        ip = peers[worker["name"]][1]
-        try:
-            with urllib.request.urlopen(f"http://{ip}:{LOAD_PORT}/load", timeout=2) as response:
-                return worker["name"], float(json.load(response)["busy"])
-        except (OSError, ValueError, KeyError):
-            return worker["name"], None
-    with cf.ThreadPoolExecutor(max_workers=max(1, len(alive))) as pool:
-        return {n: b for n, b in pool.map(ask, alive) if b is not None}
+def demand():
+    """(queued, executing) actions, from NativeLink's execution.active.count as the collector serves it, or None."""
+    try:
+        with urllib.request.urlopen(METRICS_URL, timeout=3) as response:
+            text = response.read().decode()
+    except OSError:
+        return None
+    totals = {}
+    for line in text.splitlines():
+        m = re.match(r"nativelink_execution_active_count\{([^}]*)\}\s+([0-9.eE+-]+)", line)
+        stage = re.search(r'execution_stage="([^"]*)"', m.group(1)) if m else None
+        if stage:
+            totals[stage.group(1)] = totals.get(stage.group(1), 0.0) + float(m.group(2))
+    return max(0, round(totals.get("queued", 0))), max(0, round(totals.get("executing", 0)))
 
 
-def spawn(missing):
+def spawn(missing, burst=False):
     """Create enough VMs to expect `missing` that reach the scheduler (a share p of them do, which it learns), keep
     the ones that handshake, delete the rest, within the start allowance."""
     st = load_state()
@@ -276,12 +290,13 @@ def spawn(missing):
         return
     hub = hub_ipv6()
     stamp = int(now)
-    names = [f"nl-w-{stamp}-{i}" for i in range(make)]
+    names = [f"nl-w-{'b' if burst else ''}{stamp}-{i}" for i in range(make)]
+    ttl = BURST_TTL if burst else WORKER_TTL
     if DRY:
         log(f"  [dry-run] would create {make} candidates {names[0]}.. for {missing} workers")
         return
     with tempfile.TemporaryDirectory() as tmp, cf.ThreadPoolExecutor(max_workers=make) as pool:
-        ids = list(pool.map(lambda a: create_candidate(a[0], a[1], hub, tmp), zip(names, ips)))
+        ids = list(pool.map(lambda a: create_candidate(a[0], a[1], hub, tmp, ttl), zip(names, ips)))
     created = {n: i for n, i in zip(names, ids) if i}
     st["creates"] += [now] * len(created)
     if extra:
@@ -332,11 +347,12 @@ def reap_and_extend(workers, active, wanted):
     for w in workers:
         if w["name"] not in wanted:
             continue
+        burst = w["name"].startswith("nl-w-b")
         left = (parse_time(w.get("archiveAfter")) or 0) - time.time()
-        if left < EXTEND_WHEN_LEFT:
+        if left < (BURST_TTL // 2 if burst else EXTEND_WHEN_LEFT):
             log(f"  extending {w['name']} ({int(left)}s left)")
             if not DRY:
-                boat("extend", w["id"], "--ttl", str(WORKER_TTL))
+                boat("extend", w["id"], "--ttl", str(BURST_TTL if burst else WORKER_TTL))
 
 
 def tick(state, force_active):
@@ -349,51 +365,41 @@ def tick(state, force_active):
     alive = [w for w in workers if w["name"] in peers and age.get(peers[w["name"]][0]) is not None
              and age[peers[w["name"]][0]] < 180]
     starting = [w for w in workers if w not in alive and now - (parse_time(w.get("createdAt")) or 0) < 120]
-    loads = poll_loads(alive, peers) if active else {}
-    if loads:
-        average = sum(loads.values()) / len(loads)
-        state["ema"] = average if state.get("ema") is None else 0.6 * state["ema"] + 0.4 * average
-    if not active:
-        state.update(target=BASE, ema=None, low_since=None)
-    else:
-        target = max(BASE, state.get("target", BASE))
-        ema = state.get("ema")
-        if ema is not None and len(loads) >= max(1, len(alive) // 2) and not starting:
-            if ema >= UP_BUSY and now - state.get("last_up", 0) >= UP_EVERY and target < CAP:
-                target = min(CAP, target + max(1, round(target * 0.5)))
-                state["last_up"] = now
-                log(f"  workers {ema:.0f}% busy: scaling up to {target}")
-            if ema <= DOWN_BUSY:
-                state.setdefault("low_since", now)
-                if now - state["low_since"] >= DOWN_AFTER and target > BASE:
-                    target -= 1
-                    state["low_since"] = now
-                    log(f"  workers {ema:.0f}% busy for {DOWN_AFTER}s: scaling down to {target}")
-            else:
-                state["low_since"] = None
-        state["target"] = target
-    target = state.get("target", BASE)
-    log(f"build running: {active} | workers: {len(workers)} ({len(alive)} connected, {len(starting)} starting)"
-        + (f" | target {target}, busy {state['ema']:.0f}%" if active and state.get("ema") is not None else
-           f" | target {target}" if active else ""))
-    # Over target (a scale-down): delete the least busy of the older workers rather than waiting out their lifetime.
-    surplus = len(alive) + len(starting) - target
-    if active and surplus > 0 and loads:
-        settled = [w for w in alive if now - (parse_time(w.get("createdAt")) or 0) > 300 and w["name"] in loads]
-        for w in sorted(settled, key=lambda w: loads[w["name"]])[:surplus]:
-            log(f"  removing {w['name']} ({loads[w['name']]:.0f}% busy): over the target")
-            if not DRY:
-                boat("delete", "--yes", w["id"])
-                run(["/usr/local/bin/remove-peer.sh", w["name"]])
-        alive = [w for w in alive if w["name"] in {x["name"] for x in alive} and w["name"] not in
-                 {x["name"] for x in sorted(settled, key=lambda w: loads[w["name"]])[:surplus]}] if not DRY else alive
+    queue = demand() if active else None
+    target = max(BASE, state.get("target", BASE)) if active else BASE
+    note = ""
+    if active and queue is not None:
+        queued, executing = queue
+        needed = math.ceil((queued + executing) / SLOTS)
+        note = f" | queued {queued}, executing {executing} (needs {needed} at {SLOTS} each)"
+        # Work that has waited: add workers, as many as the demand needs, at most every UP_EVERY seconds.
+        state["queued_since"] = (state.get("queued_since") or now) if queued > 0 else None
+        if (queued > 0 and now - state["queued_since"] >= UP_AFTER and now - state.get("last_up", 0) >= UP_EVERY
+                and target < CAP and not starting):
+            target = min(CAP, max(target + 1, needed))
+            state["last_up"] = now
+            log(f"  {queued} actions have waited {int(now - state['queued_since'])}s: scaling up to {target}")
+        # Spare workers: not extended once there has been no queue and room to spare for DOWN_AFTER.
+        if queued == 0 and needed < target and target > BASE:
+            state["slack_since"] = state.get("slack_since") or now
+            if now - state["slack_since"] >= DOWN_AFTER:
+                target = max(BASE, needed)
+                state["slack_since"] = None
+                log(f"  no queue for {DOWN_AFTER}s: scaling down to {target}")
+        else:
+            state["slack_since"] = None
+    elif active:
+        note = " | no queue metrics (nl-otelcol), holding at the base"
+        target = BASE
+    state["target"] = target
+    log(f"build running: {active} | workers: {len(workers)} ({len(alive)} connected, {len(starting)} starting) | target {target}{note}")
     wanted = {w["name"] for w in sorted(alive + starting, key=lambda w: parse_time(w.get("createdAt")) or 0)[:target]}
     reap_and_extend(workers, active, wanted)
     if active:
         missing = target - len(alive) - len(starting)
         if missing > 0:
             log(f"  need {missing} more workers")
-            spawn(missing)
+            spawn(missing, burst=len(alive) + len(starting) >= BASE)
     elif not workers and now - state["last_active"] > SCHEDULER_IDLE_STOP:
         log("idle past the limit with no workers: stopping the scheduler")
         if not DRY:
