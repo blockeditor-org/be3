@@ -123,11 +123,12 @@ impl Searching {
         self.dirty.insert(block);
     }
 
-    /// Whether a batch is being written or a wanted search is not answered yet. Queued blocks
-    /// are not: the round that queues them takes them, but for those waiting on their root's
-    /// index to be made or listed.
+    /// Whether blocks wait to be indexed, a batch is being written or a wanted search is not
+    /// answered yet. A queued block never waits long: the round that queues it takes it, unless
+    /// its root's index is still being made or listed, which the store is busy with anyway.
     pub(crate) fn busy(&self) -> bool {
-        !self.writing.is_empty()
+        (!self.off && !self.dirty.is_empty())
+            || !self.writing.is_empty()
             || !self.running.is_empty()
             || self.wanted().any(|asked| {
                 self.answers
