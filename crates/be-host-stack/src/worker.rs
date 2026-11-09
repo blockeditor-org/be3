@@ -32,9 +32,6 @@ use uploads::Uploads;
 const RECONNECT_FIRST: Duration = Duration::from_millis(500);
 const RECONNECT_MOST: Duration = Duration::from_secs(30);
 pub(super) const OUTBOX_RETRY: Duration = Duration::from_secs(30);
-/// How soon a version status that could not be computed yet is tried again
-/// (`Versions::refresh`).
-const VERSION_RETRY: Duration = Duration::from_millis(100);
 
 /// Doubles from `RECONNECT_FIRST` to `RECONNECT_MOST`, randomly shortened by up to half so
 /// clients a server dropped together do not come back together.
@@ -569,6 +566,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             tasks: Tasks::new(),
             drained_at: Duration::ZERO,
             versions_due: None,
+            version_failures: 0,
             rejoin: false,
         };
         session.run(open).await;
@@ -759,8 +757,11 @@ struct Session<'a> {
     line: Line,
     tasks: (Tasks, UnboundedReceiver<()>),
     drained_at: Duration,
-    /// When to refresh the version statuses again, set while one could not be computed.
+    /// When to refresh the version statuses again, set while one could not be computed and
+    /// the line is up: backing off as reconnecting does (`reconnect_delay`), from
+    /// `version_failures` refreshes in a row that failed.
     versions_due: Option<Duration>,
+    version_failures: u32,
     rejoin: bool,
 }
 
@@ -1017,7 +1018,23 @@ impl Session<'_> {
                 replicas: &mut *self.replicas,
             })
             .await;
-        self.versions_due = retry.then(|| self.config.clock.now() + VERSION_RETRY);
+        // Most inputs of a status wake the session when they change (commands, finished
+        // tasks, announcements, reconnecting), and those refresh it. A read that failed for
+        // want of something no event announces (an object fetched from the server that did not
+        // come, a commit the store had not written yet) is tried again later, less often each
+        // time; while the line is down, reconnecting refreshes it.
+        match retry && self.line.is_up() {
+            true => {
+                self.versions_due = Some(
+                    self.config.clock.now() + reconnect_delay(self.version_failures, jitter()),
+                );
+                self.version_failures = self.version_failures.saturating_add(1);
+            }
+            false => {
+                self.versions_due = None;
+                self.version_failures = 0;
+            }
+        }
     }
 
     fn retry_at(&self) -> Option<Duration> {

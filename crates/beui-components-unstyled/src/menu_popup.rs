@@ -77,7 +77,7 @@ pub fn MenuPopup(
     items: Run<MenuItem>,
     menu: MenuStyle,
     anchor: Prop<OverlayAnchor>,
-    #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     open: Prop<bool>,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,

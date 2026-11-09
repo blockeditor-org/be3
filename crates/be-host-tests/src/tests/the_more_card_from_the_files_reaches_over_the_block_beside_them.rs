@@ -9,6 +9,9 @@ fn the_more_card_from_the_files_reaches_over_the_block_beside_them() {
     let (_, button_y, _, button_height) = host.place(NEW);
     host.click("#picker.more");
     host.wait("#picker.search");
+    // The title names My files only once the picker has read it, which settling does not
+    // wait for.
+    host.wait("Add a block to My files");
     let (files_x, _, files_width, _) = host.place("#workspace.files");
     let (search_x, search_y, search_width, _) = host.place("#picker.search");
     assert!(
