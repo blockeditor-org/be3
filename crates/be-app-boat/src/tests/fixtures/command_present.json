@@ -6,7 +6,7 @@
   "exitCode": 0,
   "signal": null,
   "oomKilled": false,
-  "stdout": "present\ntree\nconnected\nactive\n",
+  "stdout": "present\ntree\nconnected\nactive\n1800000000\n",
   "stderr": "",
   "stdoutTruncated": false,
   "stderrTruncated": false,

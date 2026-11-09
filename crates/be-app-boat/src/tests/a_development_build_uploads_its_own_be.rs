@@ -6,6 +6,8 @@ fn a_development_build_uploads_its_own_be() {
     let block = boat.connect_terminal(Uuid::new_v4());
     boat.ran("uname -m", UNAME);
     boat.answer_be(TerminalHostSource::Bytes(b"\x7fELF be".to_vec()));
+    let held = boat.ran("echo '", &said("missing\n"));
+    assert!(held.contains("/home/user/.local/lib/be3/builds/tree/be"));
 
     let asked = boat.fetch();
     assert_eq!(
@@ -15,7 +17,7 @@ fn a_development_build_uploads_its_own_be() {
     let body: serde_json::Value = serde_json::from_slice(&asked.request.body).unwrap();
     assert_eq!(
         body["path"],
-        "/home/user/.local/lib/be3/builds/tree/be.part"
+        format!("/home/user/.local/lib/be3/builds/tree/be.part.{block}")
     );
     boat.answer(&asked, 200, UPLOAD_URL);
 
@@ -34,10 +36,10 @@ fn a_development_build_uploads_its_own_be() {
     boat.answer(&upload, 200, "{}");
 
     let checked = boat.ran("set -e", DONE);
-    assert!(checked.contains("test -f be.part"));
+    assert!(checked.contains(&format!("test -f be.part.{block}")));
     assert!(
         checked.contains(&format!(
-            "echo '{}  be.part' | sha256sum -c",
+            "echo '{}  be.part.{block}' | sha256sum -c",
             crate::root::sha256(b"\x7fELF be")
         )),
         "an uploaded be is checked before it runs: {checked}"

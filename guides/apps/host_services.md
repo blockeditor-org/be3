@@ -91,9 +91,9 @@ Notes on particular calls:
   `terminal_host_binary(arch)` answers the `be` of the host's own build for
   that machine and `terminal_host_build()` just the build it is
   (guides/terminal.md, A terminal host in a boat.dev sandbox). Removing an
-  agent the server no longer has (`agent-not-found`) answers success. The host denies them unless the
-  manifest sets `"block_agents": true`, and refuses to rotate or remove an
-  agent the Agents menu lists.
+  agent the server no longer has (`agent-not-found`) answers success. The
+  host denies them unless the manifest sets `"block_agents": true`, and
+  refuses to rotate or remove an agent the Agents menu lists.
 - Web views can be placed (`SubregionContent::WebView`) but no host shows one
   yet: every open fails, and the editor shows that in its place.
 - A revision preview is a temporary, read-only block id: the host isolates it

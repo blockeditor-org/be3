@@ -53,6 +53,13 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
         .call(|peer| client::members::remove_agent(peer, organization, agent.account))
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
+    let response = owner
+        .call(|peer| client::members::remove_agent(peer, organization, agent.account))
+        .await;
+    assert!(
+        refused_as(&response, ErrorCode::AgentNotFound),
+        "an agent removed already is not found: {response:?}"
+    );
     let mut again = harness.client().await;
     let response = again
         .call(|peer| client::account::authenticate(peer, Some(token)))

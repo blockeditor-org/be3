@@ -17,6 +17,7 @@ use uuid::Uuid;
 use crate::root::{BoatRoot, CACHE, Listed};
 
 mod a_block_without_a_key_shows_how_to_make_one;
+mod a_development_build_already_in_the_sandbox_is_not_uploaded_again;
 mod a_development_build_uploads_its_own_be;
 mod a_download_of_be_must_be_plain_https_with_a_sha256;
 mod a_key_boat_no_longer_takes_offers_reconnect;
@@ -28,6 +29,7 @@ mod a_refused_start_says_why_until_dismissed;
 mod a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token;
 mod a_running_terminal_is_left_alone_and_a_failing_one_is_put_right;
 mod a_terminal_of_a_sandbox_no_longer_listed_can_be_removed;
+mod a_terminal_whose_build_is_missing_gets_it_again;
 mod a_terminal_whose_agent_cannot_be_removed_is_kept;
 mod an_empty_list_says_so;
 mod an_expired_key_offers_reconnect;
@@ -500,4 +502,17 @@ fn said(stdout: &str) -> String {
     let mut done: serde_json::Value = serde_json::from_str(DONE).unwrap();
     done["stdout"] = stdout.into();
     done.to_string()
+}
+
+impl Boat {
+    /// Stops and starts the running sandbox as the list sees it.
+    fn resumed(&mut self) {
+        let stopped = SANDBOXES.replacen("\"state\": \"idle\"", "\"state\": \"archived\"", 1);
+        self.wait(Duration::from_secs(15));
+        let list = self.fetch();
+        self.answer(&list, 200, &stopped);
+        self.wait(Duration::from_secs(15));
+        let list = self.fetch();
+        self.answer(&list, 200, SANDBOXES);
+    }
 }
