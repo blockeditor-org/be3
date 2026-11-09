@@ -42,16 +42,104 @@ pub(super) struct Versions {
     commits: HashMap<CommitId, Commit>,
     watching: Arc<Mutex<HashSet<Uuid>>>,
     roots: HashSet<Uuid>,
+    statuses: Statuses,
+}
+
+/// Which watched statuses are current, and which could not be computed, by the inputs they
+/// failed with: tried again when those inputs change, or, for a transient failure, when the
+/// session's backoff comes due (`refresh`'s `retry`).
+#[derive(Default)]
+pub(crate) struct Statuses {
     computed: HashMap<Uuid, Signature>,
-    /// Statuses that could not be computed, by the inputs they failed with: tried again when
-    /// those inputs change, or, for a transient failure, when the session's backoff comes due
-    /// (`refresh`'s `retry`).
     failed: HashMap<Uuid, Failed>,
 }
 
-/// What a watched block's status is computed from: the graph's revision and the revisions of
-/// the block's and its repository's content.
-type Signature = (u64, u64, u64);
+/// What `refresh` does with a watched block's status.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum Due {
+    /// It is current.
+    Current,
+    /// It failed with these inputs and is not tried again yet; `transient` when the backoff
+    /// will try it.
+    Waiting { transient: bool },
+    /// Compute it.
+    Compute,
+}
+
+impl Statuses {
+    pub(crate) fn due(&self, block: Uuid, signature: Signature, retry: bool) -> Due {
+        if self.computed.get(&block) == Some(&signature) {
+            return Due::Current;
+        }
+        match self.failed.get(&block) {
+            Some(failed)
+                if failed.signature == signature && !(failed.failure.transient() && retry) =>
+            {
+                Due::Waiting {
+                    transient: failed.failure.transient(),
+                }
+            }
+            _ => Due::Compute,
+        }
+    }
+
+    /// Records a status computed with `signature`; answers the error this bookkeeping showed
+    /// for it, which the status should no longer carry.
+    pub(crate) fn computed(&mut self, block: Uuid, signature: Signature) -> Option<String> {
+        self.computed.insert(block, signature);
+        self.failed.remove(&block).and_then(|failed| failed.shown)
+    }
+
+    /// Records a status that failed with `signature`; answers the error to show in it once
+    /// the failure is permanent or has repeated `SHOWN_AFTER` times.
+    pub(crate) fn failed(
+        &mut self,
+        block: Uuid,
+        signature: Signature,
+        failure: Failure,
+    ) -> Option<String> {
+        self.computed.remove(&block);
+        let (attempts, previous) = self
+            .failed
+            .get(&block)
+            .map_or((0, None), |failed| (failed.attempts, failed.shown.clone()));
+        let attempts = attempts.saturating_add(1);
+        let shown = match !failure.transient() || attempts >= SHOWN_AFTER {
+            true => Some(format!(
+                "Could not read this block's versions: {}",
+                failure.message
+            )),
+            false => previous,
+        };
+        self.failed.insert(
+            block,
+            Failed {
+                signature,
+                failure,
+                attempts,
+                shown: shown.clone(),
+            },
+        );
+        shown
+    }
+
+    /// Forgets which statuses failed for want of the server, once it can be reached again.
+    pub(crate) fn reconnected(&mut self) {
+        self.failed.retain(|_, failed| !failed.failure.transient());
+    }
+
+    /// Forgets which statuses failed for want of an object, once a block's head is
+    /// announced: the object may be what was uploaded.
+    pub(crate) fn announced(&mut self) {
+        self.failed
+            .retain(|_, failed| failed.failure.kind != FailureKind::Object);
+    }
+}
+
+/// What a watched block's status is computed from: the graph's revision, the revisions of
+/// the block's and its repository's content, and the keyring's (`KeyBook::revision`), so a
+/// read that failed for want of a key is tried again once keys arrive.
+pub(crate) type Signature = (u64, u64, u64, u64);
 
 struct Failed {
     signature: Signature,
@@ -64,32 +152,63 @@ struct Failed {
 /// How many transient failures in a row a status takes before it shows the error.
 const SHOWN_AFTER: u32 = 3;
 
-/// Why a status could not be computed, and whether trying again could succeed with none of
-/// its inputs changed: a request that broke off or timed out may, an object the server lacks,
-/// a missing key or bytes that do not decode will not.
+/// Why a status could not be computed, and what could make trying again succeed.
 #[derive(Clone, Debug)]
-pub(super) struct Failure {
+pub(crate) struct Failure {
     message: String,
-    transient: bool,
+    kind: FailureKind,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FailureKind {
+    /// A request that broke off, timed out or found the server or the disk busy: nothing
+    /// announces that it would now succeed, so it is tried again on the session's backoff.
+    Transient,
+    /// An object neither the store nor the server has yet: tried again when a block's head
+    /// is announced (`Versions::announced`), which is how an upload of it arrives.
+    Object,
+    /// Anything else: a missing key (keys arriving move the signature), bytes that do not
+    /// decode. Tried again only when its inputs change.
+    Lasting,
 }
 
 impl Failure {
-    fn client(error: ClientError) -> Self {
-        let transient = matches!(
-            error,
-            ClientError::Disconnected(_) | ClientError::TimedOut(_) | ClientError::Contended
-        );
+    pub(crate) fn client(error: ClientError) -> Self {
+        let kind = match &error {
+            ClientError::Disconnected(_)
+            | ClientError::TimedOut(_)
+            | ClientError::Contended
+            | ClientError::Refused(ErrorCode::Storage | ErrorCode::SlowDown, _) => {
+                FailureKind::Transient
+            }
+            ClientError::Store(stored) => return Self::stored_as(stored, error.to_string()),
+            ClientError::MissingObject(_) | ClientError::Refused(ErrorCode::ObjectNotFound, _) => {
+                FailureKind::Object
+            }
+            _ => FailureKind::Lasting,
+        };
         Self {
             message: error.to_string(),
-            transient,
+            kind,
         }
     }
 
     fn stored(error: be_block_store::StoreError) -> Self {
-        Self {
-            message: error.to_string(),
-            transient: false,
-        }
+        let message = error.to_string();
+        Self::stored_as(&error, message)
+    }
+
+    fn stored_as(error: &be_block_store::StoreError, message: String) -> Self {
+        let kind = match error {
+            be_block_store::StoreError::Io(_) => FailureKind::Transient,
+            be_block_store::StoreError::MissingObject(_) => FailureKind::Object,
+            _ => FailureKind::Lasting,
+        };
+        Self { message, kind }
+    }
+
+    fn transient(&self) -> bool {
+        self.kind == FailureKind::Transient
     }
 }
 
@@ -1403,22 +1522,20 @@ impl Versions {
                     held.graph.revision,
                     revision_of(Some(block)),
                     revision_of(repository),
+                    context.peer.keys().revision(),
                 )
             };
-            if self.computed.get(&block) == Some(&signature) {
-                continue;
-            }
-            if let Some(failed) = self.failed.get(&block)
-                && failed.signature == signature
-                && !(failed.failure.transient && retry)
-            {
-                awaiting |= failed.failure.transient;
-                continue;
+            match self.statuses.due(block, signature, retry) {
+                Due::Current => continue,
+                Due::Waiting { transient } => {
+                    awaiting |= transient;
+                    continue;
+                }
+                Due::Compute => {}
             }
             match self.status(context, block).await {
                 Ok(status) => {
-                    let shown = self.failed.remove(&block).and_then(|failed| failed.shown);
-                    self.computed.insert(block, signature);
+                    let shown = self.statuses.computed(block, signature);
                     show_status(context, block, |entry| {
                         let error = match entry.error.take() {
                             Some(error) if Some(&error) == shown.as_ref() => None,
@@ -1432,50 +1549,25 @@ impl Versions {
                     });
                 }
                 Err(failure) => {
-                    self.computed.remove(&block);
-                    let attempts = self
-                        .failed
-                        .get(&block)
-                        .map_or(0, |failed| failed.attempts)
-                        .saturating_add(1);
-                    let previous = self
-                        .failed
-                        .get(&block)
-                        .and_then(|failed| failed.shown.clone());
-                    let shows = !failure.transient || attempts >= SHOWN_AFTER;
-                    let shown = match shows {
-                        true => {
-                            let message = format!(
-                                "Could not read this block's versions: {}",
-                                failure.message
-                            );
-                            show_status(context, block, |entry| VersionStatus {
-                                error: Some(message.clone()),
-                                ..entry.clone()
-                            });
-                            Some(message)
-                        }
-                        false => previous,
-                    };
-                    awaiting |= failure.transient;
-                    self.failed.insert(
-                        block,
-                        Failed {
-                            signature,
-                            failure,
-                            attempts,
-                            shown,
-                        },
-                    );
+                    awaiting |= failure.transient();
+                    if let Some(message) = self.statuses.failed(block, signature, failure) {
+                        show_status(context, block, |entry| VersionStatus {
+                            error: Some(message),
+                            ..entry.clone()
+                        });
+                    }
                 }
             }
         }
         awaiting
     }
 
-    /// Forgets which statuses failed for want of the server, once it can be reached again.
     pub(super) fn reconnected(&mut self) {
-        self.failed.retain(|_, failed| !failed.failure.transient);
+        self.statuses.reconnected();
+    }
+
+    pub(super) fn announced(&mut self) {
+        self.statuses.announced();
     }
 
     async fn status(
