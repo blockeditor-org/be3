@@ -21,6 +21,10 @@ pub const SETTINGS_TYPE: Uuid = Uuid::from_u128(0x7365_7474_696e_6773_2d62_6c6f_
 /// only View.
 pub const ANYONE_INSIDE: Uuid = Uuid::from_u128(0x616e_796f_6e65_2d69_6e73_6964_652d_3031);
 
+/// The search index's block type (plans/search.md), whose old states the server keeps few of
+/// (be-server's `retention`).
+pub const SEARCH_INDEX_TYPE: Uuid = Uuid::from_u128(0x7365_6172_6368_2d69_6e64_6578_2d30_3031);
+
 pub const PREFIXES_TYPE: Uuid = Uuid::from_u128(0x7072_6566_6978_6573_2d6b_696e_642d_3031);
 
 pub const TAGS_TYPE: Uuid = Uuid::from_u128(0x7461_6773_2d6b_696e_642d_6265_3364_3031);

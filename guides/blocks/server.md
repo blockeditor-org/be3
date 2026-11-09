@@ -40,6 +40,10 @@ the server are in guides/blocks/keys.md.
   there is dropped with whatever has aged into a wider slot. The head,
   bookmarks, merges' parents and everything inside the organization's
   `history_kept_for` (judged by when the server received it too) stay. A
+  content type whose old states are worth little has a shorter policy built
+  into the server (`be_server::retention`, by the content types `be-block-graph`
+  names: the search index keeps a few states of its last day, dropping older
+  ones with `drop_after`), never keeping less than `history_kept_for`. A
   pruned commit truncates a chain; a device merges an offline edit against
   its last-known remote head, which it holds locally, so the server pruning
   that head costs nothing (`Peer::reconcile`).

@@ -43,6 +43,7 @@ pub mod keys;
 pub mod limits;
 pub mod objects;
 mod organization;
+pub mod retention;
 pub mod s3;
 pub mod schema;
 pub mod sessions;
