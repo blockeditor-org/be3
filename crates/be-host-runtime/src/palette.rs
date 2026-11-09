@@ -60,7 +60,7 @@ pub fn instance_actions(
 /// Runs one of the view's actions by id (`app.run-action`), on the screen that shows the view.
 pub fn run_view_action(app_id: &str, instance: EditorInstanceId, view: ViewId, id: &str) {
     crate::runtime::with(app_id, |runtime| {
-        if let Some((screen, _)) = runtime.instances.view_actions(instance, view) {
+        if let Some(screen) = runtime.instances.action_screen(instance, view, id) {
             runtime.run_action(screen, id.to_owned());
         }
     });

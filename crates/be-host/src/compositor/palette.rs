@@ -6,11 +6,10 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use be_sdk_api::{EditorInstanceId, PaletteMode, ViewId};
-use beui::icons::ICON_TERMINAL;
 use beui::native::try_with_document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Key, KeyAt, NodeId};
+use beui::{Key, KeyEvent, KeyInput, NodeId};
 
 const PALETTE: Chord = Chord::ctrl(Key::P).shift();
 
@@ -44,14 +43,16 @@ pub(crate) fn HostPalette() -> NodeId {
         rows.set(Rc::new(actions_from(from)));
         open.set(true);
     };
-    Action::new("host.palette", "Command palette", move || {
-        show(focused_catcher())
-    })
-    .glyph(ICON_TERMINAL)
-    .shortcut(PALETTE)
-    .at(KeyAt::Window)
-    .capture()
-    .register();
+    on_global_key(move |event: KeyEvent| {
+        let KeyInput::Press(press) = event.input else {
+            return false;
+        };
+        if event.held() || !PALETTE.matches(press) || leaves_to_program(event) {
+            return false;
+        }
+        show(focused_catcher());
+        true
+    });
     let any = super::any();
     create_effect(move || {
         any.get();
@@ -96,6 +97,15 @@ fn choose(rows: Signal<Rc<Vec<Row>>>, key: &str) {
         }
         None => {}
     }
+}
+
+/// Whether the key goes to a focused program other than an app's view (a Wayland window),
+/// which keeps its own Ctrl+Shift+P: the host's palette opens over be3's views only.
+fn leaves_to_program(event: KeyEvent) -> bool {
+    event.target.program
+        && !try_with_document(|document| document.focused_node())
+            .flatten()
+            .is_some_and(|node| super::desktop::catcher(node).is_some())
 }
 
 /// The view that has the keyboard: the innermost app view on the focus path.

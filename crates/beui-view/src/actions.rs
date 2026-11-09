@@ -520,13 +520,14 @@ impl Registry {
 
     fn actions(&self, focus_path: &[NodeId]) -> Vec<Action> {
         let mut listed: Vec<Action> = Vec::new();
+        let mut seen = std::collections::HashSet::new();
         let scoped = self
             .active(focus_path)
             .into_iter()
             .flat_map(|scope| scope.actions.borrow().clone());
         let global = self.all().into_iter().filter(Action::is_global);
         for action in scoped.chain(global) {
-            if !listed.iter().any(|seen| seen.id() == action.id()) {
+            if seen.insert(action.id().to_owned()) {
                 listed.push(action);
             }
         }
@@ -629,15 +630,17 @@ impl Registry {
         let info = |action: &Action, live: bool| ActionInfo {
             id: action.id().to_owned(),
             label: action.label().get(),
-            glyph: action.glyph().map(|glyph| glyph.name().to_owned()),
+            glyph: action.glyph().and_then(|glyph| glyph.name()).map(str::to_owned),
             shortcut: action.shortcuts().first().map(|chord| chord.key_chord()),
             enabled: action.enabled().get(),
             checked: action.checked().map(|checked| checked.get()),
             live,
         };
+        let live_keys: std::collections::HashSet<u64> = live.iter().map(Action::key).collect();
+        let mut listed: std::collections::HashSet<&str> = live.iter().map(Action::id).collect();
         let mut actions: Vec<ActionInfo> = live.iter().map(|action| info(action, true)).collect();
         for action in &all {
-            if !actions.iter().any(|listed| listed.id == action.id()) {
+            if listed.insert(action.id()) {
                 actions.push(info(action, false));
             }
         }
@@ -647,8 +650,9 @@ impl Registry {
             actions,
         }];
         let mut windows: Vec<WindowId> = Vec::new();
+        let mut seen_windows = std::collections::HashSet::new();
         for window in all.iter().filter_map(hosted) {
-            if !windows.contains(&window) {
+            if seen_windows.insert(window) {
                 windows.push(window);
             }
         }
@@ -656,7 +660,7 @@ impl Registry {
             let actions: Vec<ActionInfo> = all
                 .iter()
                 .filter(|action| hosted(action) == Some(window))
-                .map(|action| info(action, live.contains(action)))
+                .map(|action| info(action, live_keys.contains(&action.key())))
                 .collect();
             groups.push(ActionGroup {
                 name: String::new(),

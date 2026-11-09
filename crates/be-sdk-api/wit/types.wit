@@ -34,6 +34,8 @@ interface types {
         radio(bool),
     }
 
+    /// `glyph` is an icon's name as the icon library names it (Lucide's),
+    /// empty for none.
     record menu-command {
         id: string,
         label: string,
@@ -44,7 +46,8 @@ interface types {
         pin: menu-pin,
     }
 
-    /// A submenu's own fields; its entries follow it.
+    /// A submenu's own fields, `glyph` named as `menu-command`'s; its entries
+    /// follow it.
     record menu-heading {
         id: string,
         label: string,

@@ -1320,6 +1320,7 @@ impl Runtime {
                     self.instances.translate(&mut call, true);
                     if let be_sdk_api::embed::shell::Call::OpenPalette { instance, mode, .. } =
                         &call
+                        && self.instances.may_open_palette(*instance)
                     {
                         crate::palette::ask(self.id(), *instance, *mode);
                     }

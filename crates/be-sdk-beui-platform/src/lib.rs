@@ -171,7 +171,7 @@ struct ModuleRunner {
     actions: Vec<ActionGroup>,
     actions_version: u64,
     /// What each view last sent of them, at which change.
-    sent_actions: HashMap<ViewRef, (u64, Vec<DescribedAction>)>,
+    sent_actions: HashMap<ViewRef, (SentActions, Vec<DescribedAction>)>,
     focused: HashSet<ViewRef>,
     toggles: HashMap<ViewRef, u32>,
     toggled: u32,
@@ -183,6 +183,10 @@ struct ModuleRunner {
     placements: HashMap<ViewRef, ViewPlacement>,
     ratio: f32,
 }
+
+/// What a view's actions were last worked out from: the context's `actions_version` and the
+/// view's window.
+type SentActions = (u64, Option<WindowId>);
 
 struct Floated {
     region: ViewRef,
@@ -555,7 +559,11 @@ impl ModuleRunner {
         Description { tree }
     }
 
-    fn follow_actions(&mut self) {
+    fn follow_actions(&mut self, regions: &[ShownView]) {
+        // A view the host stops showing forgets its actions, so it sends them again when it
+        // is shown again.
+        self.sent_actions
+            .retain(|view, _| regions.iter().any(|region| region.id() == *view));
         let context = self.runner.context();
         let version = context.actions_version();
         if version != self.actions_version {
@@ -567,7 +575,8 @@ impl ModuleRunner {
     /// The view's actions when they changed since it last sent them: those registered in its
     /// window, and for the main view those registered outside any window too.
     fn changed_actions(&mut self, id: ViewRef) -> Option<Vec<DescribedAction>> {
-        let changed = self.actions_version;
+        let window = self.windows.get(&id).copied();
+        let changed = (self.actions_version, window);
         if self
             .sent_actions
             .get(&id)
@@ -575,14 +584,14 @@ impl ModuleRunner {
         {
             return None;
         }
-        let window = self.windows.get(&id).copied();
         let main = id.view.is_main();
+        let mut listed = HashSet::default();
         let mut actions: Vec<DescribedAction> = Vec::new();
         for group in self.actions.iter().filter(|group| {
             (window.is_some() && group.window == window) || (main && group.window.is_none())
         }) {
             for action in &group.actions {
-                if actions.iter().any(|listed| listed.id == action.id) {
+                if !listed.insert(action.id.as_str()) {
                     continue;
                 }
                 actions.push(DescribedAction {
@@ -873,7 +882,7 @@ impl Regions for ModuleRunner {
             return Err(self.stopped());
         };
         self.match_windows(ratio, regions, active);
-        self.follow_actions();
+        self.follow_actions(regions);
         self.count_toggles(regions, active);
         self.overflows = self
             .runner

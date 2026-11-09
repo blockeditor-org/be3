@@ -146,7 +146,12 @@ switches a canvas tool.
 `.at(KeyAt::Window)` hears what nothing in the tree took, dialogs included, and
 the palette lists it everywhere. `.at(KeyAt::Window).capture()` is the opt-in to
 take a key from a focused program (the desktop's Super+F and media keys); only
-chords with Ctrl, Alt or Super, or media keys, are offered over a program. With
+chords with Ctrl, Alt or Super, or media keys, are offered over a program. A
+window capture Ctrl chord is so taken from every program, a Wayland window's
+own shortcuts included; a key the program should keep is a window capture
+`on_global_key` that answers `false` when `KeyEvent::target.program` says so
+(be-host's Ctrl+Shift+P opens its palette over app views but leaves it to a
+focused Wayland window). With
 `inhibits_shortcuts` (a remote desktop, a VM) only `.at(KeyAt::Host).capture()`
 actions answer: be-host's Super+L lock and be-host-wayland's Super+Escape
 (guides/desktop/wayland.md, Input).

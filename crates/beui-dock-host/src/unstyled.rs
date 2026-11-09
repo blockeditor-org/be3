@@ -591,13 +591,20 @@ impl State {
             let host = entry.and_then(|entry| dock.standing_tab(entry));
             let mut items = dock_menu_items(dock.menus.read_only(), inner);
             if host != inner {
-                let held = dock_menu_items(dock.menus.read_only(), host);
-                if !items.is_empty() && !held.is_empty() {
-                    items.push(MenuNode::Separator);
-                }
+                // The group's host and the tab inside it may offer the same entries (a
+                // workspace adds its block's References and Access to both): each shows once.
+                let listed: std::collections::HashSet<String> = items
+                    .iter()
+                    .filter_map(|node| node.id().map(str::to_owned))
+                    .collect();
+                let held: Vec<MenuNode> = dock_menu_items(dock.menus.read_only(), host)
+                    .into_iter()
+                    .filter(|node| node.id().is_none_or(|id| !listed.contains(id)))
+                    .collect();
+                items.push(MenuNode::Separator);
                 items.extend(held);
             }
-            items
+            tidy_menu(items)
         })
     }
 

@@ -36,9 +36,13 @@ fn the_host_palette_lists_a_text_on_a_canvas_before_the_canvas() {
     host.run(&["settle"]);
     let listed = rows(&mut host);
     let first = |app: &str| listed.iter().position(|key| key.starts_with(app));
+    let last = |app: &str| listed.iter().rposition(|key| key.starts_with(app));
     assert!(
-        first(TEXT) == Some(0) && first(WORKSPACE) > first(TEXT),
-        "searching puts the text's File details above the workspace's: {listed:?}"
+        first(TEXT) == Some(0)
+            && first(CANVAS) > last(TEXT)
+            && first(WORKSPACE) > last(CANVAS),
+        "searching lists the text's File details, then the canvas's, then the workspace's: \
+         {listed:?}"
     );
     host.snapshot("the_host_palette_lists_a_text_on_a_canvas_before_the_canvas");
 

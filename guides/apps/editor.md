@@ -180,10 +180,11 @@ the guest resolves through `request_action_in` and runs only if still
 enabled. `BeuiTest::described_actions` and `run_action` do what the host does.
 
 be-host draws the one palette (`be-host/src/compositor/palette.rs`, Ctrl+Shift+P
-as a window capture action, or `shell.open-palette`): the live actions of the
-instance whose view has the focus, then of the instance that placed it
-(`Catcher::placer`), out to the root, each under its block's name, every view's
-of an instance with the placing view's first. Ids repeat across instances (each
+in a window capture key listener that leaves the chord to a focused Wayland
+window, or `shell.open-palette` from an instance showing a view): the live
+actions of the instance whose view has the focus, then of the instance that
+placed it (`Catcher::placer`), out to the root, each under its block's name,
+every shown view's of an instance with the placing view's first. Ids repeat across instances (each
 has its Undo; the innermost lists first), never within one. Choosing one gives
 the focus back to that view and runs it in the view it came from. A containing
 app's chords do not reach it while a child has the focus

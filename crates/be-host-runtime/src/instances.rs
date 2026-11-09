@@ -1032,11 +1032,20 @@ impl Instances {
     }
 
     pub(super) fn unmount(&mut self, instance: EditorInstanceId, region: ViewId) {
-        if let Some(screen) = self.screen_mut(instance, region) {
-            screen.mounted = screen.mounted.saturating_sub(1);
-            if screen.mounted == 0 {
-                screen.unplace();
-            }
+        let Some(screen) = self.screen_mut(instance, region) else {
+            return;
+        };
+        screen.mounted = screen.mounted.saturating_sub(1);
+        if screen.mounted > 0 {
+            return;
+        }
+        screen.unplace();
+        // A window or dock view the host no longer shows offers no actions until it is shown
+        // again, when the app sends them anew; the main view's stand for the instance.
+        if !region.is_main()
+            && let Some(entry) = self.entries.get_mut(&instance)
+        {
+            entry.actions.remove(&region);
         }
     }
 
@@ -3123,7 +3132,8 @@ impl Instances {
     }
 
     /// The actions every view of the instance last described, the view `first` names first,
-    /// each with the view it came from.
+    /// each with the view it came from. A window or dock view the host stopped showing offers
+    /// none (`unmount`).
     pub(super) fn instance_actions(
         &self,
         instance: EditorInstanceId,
@@ -3144,18 +3154,33 @@ impl Instances {
             .collect()
     }
 
-    /// The actions the view last described, and the screen that runs them.
-    pub(super) fn view_actions(
+    /// Whether the instance may open the host's palette (`shell.open-palette`): it shows a view,
+    /// and is no revision preview.
+    pub(super) fn may_open_palette(&self, instance: EditorInstanceId) -> bool {
+        self.entries.get(&instance).is_some_and(|entry| {
+            let preview = entry
+                .role
+                .block()
+                .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
+            !preview && entry.screens.values().any(|screen| screen.mounted > 0)
+        })
+    }
+
+    /// The screen that runs the view's action `id`, while the view still describes it.
+    pub(super) fn action_screen(
         &self,
         instance: EditorInstanceId,
         region: ViewId,
-    ) -> Option<(ScreenId, Vec<DescribedAction>)> {
+        id: &str,
+    ) -> Option<ScreenId> {
         let entry = self.entries.get(&instance)?;
-        let screen = entry.screens.get(&region)?.request.screen;
-        Some((
-            screen,
-            entry.actions.get(&region).cloned().unwrap_or_default(),
-        ))
+        entry
+            .actions
+            .get(&region)?
+            .iter()
+            .any(|action| action.id == id)
+            .then_some(())?;
+        Some(entry.screens.get(&region)?.request.screen)
     }
 
     pub(super) fn request_focus(&mut self, screen: ScreenId) {
