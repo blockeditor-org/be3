@@ -107,6 +107,7 @@ mod two_canvas_tabs_share_one_popped_out_tool_bar_that_follows_the_tab_shown;
 mod typing_after_a_new_session_opens_reaches_the_session;
 mod typing_after_a_pause_undoes_as_its_own_step;
 mod typing_in_the_add_menu_from_the_files_reaches_it_straight_away;
+mod typing_right_after_adding_notes_reaches_the_notes;
 
 fn add_to_my_files(host: &mut HostTest, label: &str) {
     start_adding_to_my_files(host, label);

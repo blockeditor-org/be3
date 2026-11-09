@@ -30,6 +30,7 @@ const SLIDE_HEIGHT: f32 = 540.0;
 const DEFAULT_RATIO: f32 = 16.0 / 9.0;
 const FILL: f32 = 0.0;
 const FILMSTRIP_PADDING: Space = Space::Sm;
+const NOTES_PADDING: Space = Space::Sm;
 const TILE_INSET: Space = Space::Xs;
 const TILE_SPACING: Space = Space::Md;
 const PRESENTING: Color32 = Color32::BLACK;
@@ -380,9 +381,16 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
     });
     let target = create_memo(move || match notes.get() {
         Notes::Block(target) => Some(target),
-        Notes::None | Notes::Loading => None,
+        Notes::None | Notes::Loading | Notes::Missing => None,
     });
     let missing = create_memo(move || notes.get() == Notes::None);
+    let status = create_memo(move || match notes.get() {
+        Notes::Loading => Some("Loading the notes…"),
+        Notes::Missing => Some("This slide's notes could not be found."),
+        Notes::None | Notes::Block(_) => None,
+    });
+    let waiting = create_memo(move || status.get().is_some());
+    let message = create_memo(move || status.get().unwrap_or_default().to_owned());
     let written = create_memo(move || target.get().is_some());
     let focus = slides.focus_notes();
     let add = move || {
@@ -403,9 +411,9 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
     view! {
         <Frame fill=ColorRole::Surface>
             <Layers>
-                <Show condition={missing}>
-                    <List spacing=Space::None>
-                        <Frame padding=FILMSTRIP_PADDING>
+                <List spacing=Space::None>
+                    <Show condition={missing}>
+                        <Frame padding=NOTES_PADDING>
                             <List
                                 direction=Direction::Horizontal
                                 align=Align::Center
@@ -423,8 +431,15 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
                                 />
                             </List>
                         </Frame>
-                    </List>
-                </Show>
+                    </Show>
+                    <Show condition={waiting}>
+                        <Frame padding=NOTES_PADDING>
+                            <Text style=TextStyle::CAPTION @test_id={"presentation.notes.status"}>
+                                {message}
+                            </Text>
+                        </Frame>
+                    </Show>
+                </List>
                 <Show condition={written}>
                     <ChildBlock
                         editor={editor}
@@ -627,6 +642,7 @@ fn SlideTile(
                             label="More"
                             glyph=ICON_ELLIPSIS
                             open={menu}
+                            capture_presses=true
                             @test_id={format!("presentation.slide.{id}.more")}
                             items={view! {
                                 <MenuItem

@@ -2881,6 +2881,12 @@ impl Instances {
         }
     }
 
+    pub(super) fn child_focus_pending(&self, instance: EditorInstanceId) -> bool {
+        self.entries
+            .get(&instance)
+            .is_some_and(|entry| !entry.child_focus.is_empty())
+    }
+
     pub(super) fn take_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) -> bool {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
