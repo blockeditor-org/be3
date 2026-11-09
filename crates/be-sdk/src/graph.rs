@@ -18,7 +18,8 @@ pub enum BlockParent {
     Root,
     Block(Uuid),
     /// The account's Unfiled, for a block made without a place the person chose. The host
-    /// resolves it, so a block placed there reads back as inside a block.
+    /// resolves it to the account's own, and a block in it reads back as `Unfiled`, so an
+    /// editor never learns its id.
     Unfiled,
 }
 

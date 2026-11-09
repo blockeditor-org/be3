@@ -43,6 +43,11 @@ to a band's edges on the axis the placement opens along (`layer::banded`), so
 a button's panel in a bar opens just past the whole bar while lining up with
 the button.
 
+A `BelowStart` menu opens below its anchor, or above when only that side has
+room; one that fits on neither side covers its anchor, as low as the window
+allows, and shrinks (and scrolls) only when it is taller than the window
+(`layer::resolve_rect`, `layer::room_beside`).
+
 `bounds` (window coordinates) narrows the room an overlay is placed, flipped,
 shifted and shrunk in; a menu passes it to its submenus, and a panel that must
 not cover a dock's bands takes the dock's area. The HTML core ignores it, and

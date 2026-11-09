@@ -1287,7 +1287,12 @@ impl Versions {
             .insert(block);
     }
 
-    pub(super) async fn refresh(&mut self, context: &mut Context<'_>) {
+    /// Recomputes the status of every watched block whose inputs changed. Answers whether a
+    /// status could not be computed yet (a commit the store has not written, a tree it could
+    /// not read): that block is computed again on the next refresh, which the caller must
+    /// schedule, since nothing else need change to make it computable.
+    pub(super) async fn refresh(&mut self, context: &mut Context<'_>) -> bool {
+        let mut retry = false;
         let watched: Vec<Uuid> = context
             .shared
             .lock()
@@ -1317,8 +1322,15 @@ impl Versions {
             if self.computed.get(&block) == Some(&signature) {
                 continue;
             }
+            let status = match self.status(context, block).await {
+                Ok(status) => status,
+                Err(_) => {
+                    self.computed.remove(&block);
+                    retry = true;
+                    continue;
+                }
+            };
             self.computed.insert(block, signature);
-            let status = self.status(context, block).await;
             let mut held = context
                 .shared
                 .lock()
@@ -1335,9 +1347,14 @@ impl Versions {
                 held.touch(block);
             }
         }
+        retry
     }
 
-    async fn status(&mut self, context: &mut Context<'_>, block: Uuid) -> VersionStatus {
+    async fn status(
+        &mut self,
+        context: &mut Context<'_>,
+        block: Uuid,
+    ) -> Result<VersionStatus, String> {
         let (checkout, repository) = {
             let held = context
                 .shared
@@ -1349,7 +1366,7 @@ impl Versions {
             )
         };
         if let Some(repository) = repository {
-            return VersionStatus {
+            return Ok(VersionStatus {
                 branches: branches(&repository),
                 log: self
                     .log(
@@ -1359,13 +1376,13 @@ impl Versions {
                     .await,
                 operations: operations(&repository),
                 ..VersionStatus::default()
-            };
+            });
         }
         let Some(state) = checkout else {
-            return VersionStatus::default();
+            return Ok(VersionStatus::default());
         };
         let Some(repository_id) = state.repository else {
-            return VersionStatus::default();
+            return Ok(VersionStatus::default());
         };
         self.follow(context, block, &state, repository_id).await;
         let repository = {
@@ -1375,19 +1392,15 @@ impl Versions {
                 .unwrap_or_else(PoisonError::into_inner);
             content_of::<Repository>(&held, repository_id)
         };
-        let Ok((_, working)) = self.live(context, block, &state).await else {
-            return VersionStatus::default();
-        };
+        let (_, working) = self.live(context, block, &state).await?;
         let commit = match state.working {
-            Some(id) => self.commit_of(context.peer, id).await.ok(),
+            Some(id) => Some(self.commit_of(context.peer, id).await?),
             None => None,
         };
         let parent = commit
             .as_ref()
             .and_then(|commit| commit.parents.first().copied());
-        let Ok(parent_tree) = self.tree(context.peer, parent).await else {
-            return VersionStatus::default();
-        };
+        let parent_tree = self.tree(context.peer, parent).await?;
         let changes = with_graph(context.shared, |graph| {
             changes(graph, &working, &parent_tree, block)
         });
@@ -1398,7 +1411,7 @@ impl Versions {
             .working
             .zip(commit)
             .map(|(id, commit)| version_commit(id, &commit, !working.tree.conflicts.is_empty()));
-        VersionStatus {
+        Ok(VersionStatus {
             behind: repository.is_some() && head.is_some() && head != parent,
             branches: repository.as_ref().map(branches).unwrap_or_default(),
             changes,
@@ -1406,7 +1419,7 @@ impl Versions {
             log: self.log(context.peer, head.into_iter().collect()).await,
             operations: repository.as_ref().map(operations).unwrap_or_default(),
             ..VersionStatus::default()
-        }
+        })
     }
 
     async fn follow(

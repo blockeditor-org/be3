@@ -5,7 +5,10 @@ a derived root per account per organization (`be_block::unfiled`), never to My
 files. Unfiled has no content: it holds every block whose parent names it, so
 apps and the host can file a block there without editing anything another
 person must be able to edit. Apps name it with `block-location::unfiled` and
-never learn its id.
+list it with `block-query::unfiled`, and never learn its id. Only the
+account's own Unfiled is hidden this way: another account's, which an
+administrator of a company organization sees as they see that account's My
+files, is a block like any other.
 
 ## Why
 
