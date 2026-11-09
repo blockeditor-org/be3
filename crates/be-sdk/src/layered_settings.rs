@@ -35,9 +35,13 @@ where
     Document<R>: LiveEdit<Op = be_block::Edit> + BlockContent + Clone + Default,
 {
     pub fn new(core: EditorCore) -> Self {
+        let blocks = match R::VISIBILITY.owner_only() {
+            true => RootSetting::owner_only(),
+            false => RootSetting::default(),
+        };
         Self {
             core,
-            blocks: RefCell::default(),
+            blocks: RefCell::new(blocks),
         }
     }
 
@@ -65,53 +69,74 @@ where
         block
     }
 
+    /// Sets `setting` in `layer`; false when what it would change hasn't loaded yet, so nothing
+    /// was written (`write_all`).
+    #[must_use]
     pub fn write<V: Clone + 'static>(
         &self,
         graph: &dyn SettingsGraph,
         layer: SettingsLayer,
         setting: &Setting<R, V>,
         value: Option<V>,
-    ) {
+    ) -> bool {
         let setting = setting.clone();
         let edit: KeptEdit<R> = Rc::new(move |own: &R| setting.set(own, value.clone()));
-        self.write_all(graph, layer, &[edit]);
+        self.write_all(graph, layer, &[edit])
     }
 
+    /// Applies `edits` to the kind's block in `layer`, making the block (and the account's
+    /// `Settings` with it) when there is none. False when nothing was written because what it
+    /// reads hasn't loaded yet (the account's settings, the layer's block): try again once it
+    /// has, as a reading of them wakes an effect.
+    #[must_use]
     pub fn write_all(
         &self,
         graph: &dyn SettingsGraph,
         layer: SettingsLayer,
         edits: &[KeptEdit<R>],
-    ) {
+    ) -> bool {
         let layers = self.layer_blocks(graph);
         if let Some(block) = layers.block(layer) {
-            self.edit_block(block, edits);
-            return;
+            return self.edit_block(block, edits);
         }
         let mut content = Document::new(&R::default());
         for edit in edits {
             let made = edit(&content.root());
             content.apply(&made);
         }
-        if self.create(graph, layer, content).is_none()
-            && let Some(block) = layers.top()
-        {
-            self.edit_block(block, edits);
+        if self.create(graph, layer, content).is_some() {
+            return true;
         }
+        layers
+            .top()
+            .is_some_and(|block| self.edit_block(block, edits))
     }
 
-    fn edit_block(&self, block: Uuid, edits: &[KeptEdit<R>]) {
+    fn edit_block(&self, block: Uuid, edits: &[KeptEdit<R>]) -> bool {
         let content = self.core.content_of::<Document<R>>(block);
         for edit in edits {
-            let own = content.read(|content| content.root()).unwrap_or_default();
+            let Ok(own) = content.read(|content| content.root()) else {
+                return false;
+            };
             content.operate(edit(&own));
         }
+        true
     }
 
-    pub fn write_block<V: Clone>(&self, block: Uuid, setting: &Setting<R, V>, value: Option<V>) {
+    /// Sets `setting` in `block`; false when the block hasn't loaded yet.
+    #[must_use]
+    pub fn write_block<V: Clone>(
+        &self,
+        block: Uuid,
+        setting: &Setting<R, V>,
+        value: Option<V>,
+    ) -> bool {
         let content = self.core.content_of::<Document<R>>(block);
-        let own = content.read(|content| content.root()).unwrap_or_default();
+        let Ok(own) = content.read(|content| content.root()) else {
+            return false;
+        };
         content.operate(setting.set(&own, value));
+        true
     }
 }
 

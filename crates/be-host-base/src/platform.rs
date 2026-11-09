@@ -20,4 +20,4 @@ pub fn default_account_server() -> Option<be_lib_build_id::DefaultServer> {
 }
 
 mod browser;
-pub use browser::open_browser;
+pub use browser::{open_browser, open_link};

@@ -47,6 +47,12 @@ pub const BENCHMARKS: &[Benchmark] = &[
         about: "resizing and editing beui text",
     },
     Benchmark {
+        name: "text-snapshot",
+        program: "text-snapshot-bench",
+        arguments: &[],
+        about: "an editor decoding and adopting the snapshot of a 1 MB text",
+    },
+    Benchmark {
         name: "access",
         program: "access-bench",
         arguments: &[],

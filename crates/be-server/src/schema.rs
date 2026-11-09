@@ -114,6 +114,7 @@ const SCHEMA: &str = "
         version         INTEGER NOT NULL DEFAULT 0,
         key_id          TEXT NOT NULL DEFAULT '',
         payer           TEXT NOT NULL,
+        owner_only      INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, id)
     );
 
@@ -163,6 +164,9 @@ const SCHEMA: &str = "
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,
         hash            TEXT NOT NULL,
+        -- When an `until-committed` hold was last made, which ends `upload_grace` after it;
+        -- NULL for a lasting one.
+        held_since      INTEGER,
         PRIMARY KEY (organization_id, block_id, hash)
     );
 
@@ -223,7 +227,8 @@ const SCHEMA: &str = "
     CREATE TABLE agents (
         account_id      TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-        created_by      TEXT NOT NULL
+        created_by      TEXT NOT NULL,
+        bound_to        TEXT
     );
 
     CREATE INDEX commit_objects_hash
@@ -231,6 +236,9 @@ const SCHEMA: &str = "
 
     CREATE INDEX block_objects_hash
         ON block_objects (organization_id, hash);
+
+    CREATE INDEX block_objects_held_since
+        ON block_objects (held_since) WHERE held_since IS NOT NULL;
 
     CREATE INDEX organizations_owner
         ON organizations (owner_id);
@@ -252,6 +260,7 @@ const SCHEMA: &str = "
     );
 
     CREATE INDEX agents_created_by ON agents (created_by);
+    CREATE INDEX agents_bound_to ON agents (organization_id, bound_to);
 
     CREATE TABLE object_sizes (
         hash            TEXT PRIMARY KEY,

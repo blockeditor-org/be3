@@ -36,7 +36,7 @@ pub(super) fn leaves_on_tab(cx: &Context, press: KeyPress) -> bool {
 }
 
 pub(super) fn submit(cx: &Context) {
-    cx.state.external_edit();
+    cx.state.end_undo_group();
     cx.on_submit.call();
 }
 

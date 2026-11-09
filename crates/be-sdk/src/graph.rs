@@ -17,13 +17,17 @@ pub enum BlockParent {
     Detached,
     Root,
     Block(Uuid),
+    /// The account's Unfiled, for a block made without a place the person chose. The host
+    /// resolves it to the account's own, and a block in it reads back as `Unfiled`, so an
+    /// editor never learns its id.
+    Unfiled,
 }
 
 impl BlockParent {
     pub const fn block(self) -> Option<Uuid> {
         match self {
             Self::Block(id) => Some(id),
-            Self::Detached | Self::Root => None,
+            Self::Detached | Self::Root | Self::Unfiled => None,
         }
     }
 
@@ -32,6 +36,7 @@ impl BlockParent {
             Self::Root => BlockLocation::Root,
             Self::Detached => BlockLocation::Detached,
             Self::Block(id) => BlockLocation::Block(id.into_bytes()),
+            Self::Unfiled => BlockLocation::Unfiled,
         }
     }
 
@@ -40,6 +45,7 @@ impl BlockParent {
             BlockLocation::Root => Self::Root,
             BlockLocation::Detached => Self::Detached,
             BlockLocation::Block(id) => Self::Block(Uuid::from_bytes(id)),
+            BlockLocation::Unfiled => Self::Unfiled,
         }
     }
 }
@@ -49,6 +55,8 @@ pub enum BlockQuery {
     Roots,
     Detached,
     Shared,
+    /// What is in the account's Unfiled, whose id an editor never learns.
+    Unfiled,
     Children(Uuid),
     References(Uuid),
     Backrefs(Uuid),
@@ -64,6 +72,7 @@ impl BlockQuery {
             Self::Roots => Wire::Roots,
             Self::Detached => Wire::Detached,
             Self::Shared => Wire::Shared,
+            Self::Unfiled => Wire::Unfiled,
             Self::Children(id) => Wire::Children(id.into_bytes()),
             Self::References(id) => Wire::References(id.into_bytes()),
             Self::Backrefs(id) => Wire::Backrefs(id.into_bytes()),
@@ -79,6 +88,7 @@ impl BlockQuery {
             Wire::Roots => Self::Roots,
             Wire::Detached => Self::Detached,
             Wire::Shared => Self::Shared,
+            Wire::Unfiled => Self::Unfiled,
             Wire::Children(id) => Self::Children(Uuid::from_bytes(id)),
             Wire::References(id) => Self::References(Uuid::from_bytes(id)),
             Wire::Backrefs(id) => Self::Backrefs(Uuid::from_bytes(id)),
@@ -251,6 +261,8 @@ pub enum GraphCommand {
         parent: BlockParent,
         defined: Entries,
         content: Option<Vec<u8>>,
+        /// Readable by this account alone (`KindVisibility::Owner`).
+        owner_only: bool,
     },
     SetParent {
         id: Uuid,
@@ -505,9 +517,12 @@ impl BlockGraph {
         parent: BlockParent,
         metadata: BlockMetadata,
     ) -> Uuid {
-        self.create_at(Uuid::now_v7(), block_type, content, parent, metadata)
+        self.create_at(Uuid::now_v7(), block_type, content, parent, metadata, false)
     }
 
+    /// Creates a block with the id given. With `owner_only`, only this account reads it, on any
+    /// of its devices: a settings kind whose type says `KindVisibility::Owner`, made in the
+    /// account's own settings.
     pub fn create_at(
         &self,
         id: Uuid,
@@ -515,6 +530,7 @@ impl BlockGraph {
         content: Option<Vec<u8>>,
         parent: BlockParent,
         metadata: BlockMetadata,
+        owner_only: bool,
     ) -> Uuid {
         self.graph.push(GraphCommand::Create {
             id,
@@ -522,6 +538,7 @@ impl BlockGraph {
             parent,
             defined: metadata.defined,
             content,
+            owner_only,
         });
         self.waker.wake();
         id

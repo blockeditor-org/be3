@@ -205,6 +205,10 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         self.inner().live.commit_gesture();
     }
 
+    pub fn break_step(&self) {
+        self.inner().live.break_step();
+    }
+
     pub fn cancel_gesture(&self) {
         self.inner().live.cancel_gesture();
     }

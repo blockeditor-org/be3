@@ -22,6 +22,7 @@ use crate::{
     editor::{EditorMirror, FromEditor, Gesture, ToEditor},
 };
 
+mod a_break_ends_a_burst_but_not_an_open_gesture;
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_file_maps_to_a_block_and_back;
@@ -60,6 +61,7 @@ mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
+mod an_operation_adds_a_part_by_its_hash;
 mod an_owner_renews_its_lease_while_it_holds_the_session;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
 mod child_changes_become_edits_of_the_parent;
@@ -68,6 +70,7 @@ mod concurrent_edits_converge;
 mod edits_are_committed_once_they_rest_for_the_quiet_interval;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
+mod two_editors_typing_at_once_keep_their_own_undo_steps;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_reverts_only_this_devices_edit;
@@ -382,6 +385,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     deaf: BTreeSet<usize>,
     largest_relay: usize,
     part_reads: usize,
+    parts_put: usize,
+    largest_written: usize,
     written: u64,
     journal: Option<Journal>,
     journal_tag: SessionTag,
@@ -434,6 +439,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             deaf: BTreeSet::new(),
             largest_relay: 0,
             part_reads: 0,
+            parts_put: 0,
+            largest_written: 0,
             written: 0,
             journal: None,
             journal_tag: TAG,
@@ -866,6 +873,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         reply.send(host, &Ok(PublishOutcome::Rejected(head)))
                     });
                 }
+                self.largest_written = self.largest_written.max(content.bytes.len());
                 let parts = be_sdk_type_api::written_parts(&content.bytes, &content.parts);
                 let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
                 if let Some(head) = expected
@@ -926,6 +934,16 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .vault
                     .read_part(part.into(), range.offset, range.length)
                     .map_err(|error| error.to_string());
+                self.to(device, |host| reply.send(host, &result));
+            }
+            Call::PutPart { reply, bytes } => {
+                self.parts_put += 1;
+                let result = self
+                    .vault
+                    .write(SEALING, Uuid::nil(), be_block::Part::from(bytes.as_slice()))
+                    .map_err(|error| error.to_string())
+                    .and_then(|manifest| manifest.root.ok_or_else(|| "no bytes".to_owned()))
+                    .map(be_sdk_type_api::PartRef::from);
                 self.to(device, |host| reply.send(host, &result));
             }
             Call::ResumeSession { reply, local } => {

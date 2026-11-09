@@ -93,8 +93,9 @@ reaches it, so only host and window capture listeners hear its keys; with
 window for everything but media keys.
 
 `on_shortcut(handler)` is a tree capture listener at the registering component,
-seeing every press before the focused control (the dock's Ctrl+Tab, which works from a text input
-in a pane but not past a dialog; guides/beui/docking.md). `on_global_key(handler)` is a
+seeing every press before the focused control; a command the palette should list is an
+action at that node with `.capture()` instead (the dock's Ctrl+Tab, which works from a text
+input in a pane but not past a dialog; guides/beui/docking.md). `on_global_key(handler)` is a
 window capture listener, handed a `KeyEvent` with the target's kind (typing,
 program). `held_modifiers()` is a signal of the modifiers held; hold-and-release
 shortcuts (a switcher) are built from these two.
@@ -146,7 +147,12 @@ switches a canvas tool.
 `.at(KeyAt::Window)` hears what nothing in the tree took, dialogs included, and
 the palette lists it everywhere. `.at(KeyAt::Window).capture()` is the opt-in to
 take a key from a focused program (the desktop's Super+F and media keys); only
-chords with Ctrl, Alt or Super, or media keys, are offered over a program. With
+chords with Ctrl, Alt or Super, or media keys, are offered over a program. A
+window capture Ctrl chord is so taken from every program, a Wayland window's
+own shortcuts included; a key the program should keep is a window capture
+`on_global_key` that answers `false` when `KeyEvent::target.program` says so
+(be-host's Ctrl+Shift+P opens its palette over app views but leaves it to a
+focused Wayland window). With
 `inhibits_shortcuts` (a remote desktop, a VM) only `.at(KeyAt::Host).capture()`
 actions answer: be-host's Super+L lock and be-host-wayland's Super+Escape
 (guides/desktop/wayland.md, Input).
@@ -165,9 +171,14 @@ instead. A document with a focus-trapping layer open reports
 while its dialog is open.
 
 `styled::CommandPalette` lists the actions live where the focus was when it
-opened, puts the focus back before running one, and opens with Ctrl+Shift+P in
-an editor frame. Given `items={PaletteItems::list(..)}` it searches arbitrary
-`PaletteItem`s instead. It, `styled::SearchList` (inline, no overlay) and
+opened and puts the focus back before running one. Given
+`items={PaletteItems::list(..)}` it searches arbitrary `PaletteItem`s instead,
+which is how be-host draws its one palette over every app (Ctrl+Shift+P; an
+editor frame opens its own only in a host that draws none; guides/apps/editor.md,
+Actions and the palette). A document publishes its actions outside itself
+(`Document::published_actions`, from a reactive effect over the registry, the
+focus and each action's label, enabled and checked state), and runs one asked
+for by id (`Context::request_action_in`) whether or not a driver is attached. It, `styled::SearchList` (inline, no overlay) and
 `Select` are stylings of `unstyled::SearchList`. A menu is described once as
 `MenuNode`s; `<MenuNodes nodes />` renders it, and `add_to_menu` adds to the
 document's own `document_menu()`, which an editor frame hands its host.

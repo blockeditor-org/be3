@@ -133,11 +133,13 @@ pub struct BeuiTest<A: BeuiRoot> {
     views_children: Vec<(ViewId, Vec<ChildPlacement>)>,
     occluders: Vec<Occluder>,
     report: Option<FrameReport>,
+    actions: Vec<be_sdk_api::DescribedAction>,
     window: be_sdk_api::WindowRequests,
     intrinsic: Option<Vec2>,
     exited: bool,
     draft: Vec<u8>,
     requests: Vec<(Option<OpId>, Call)>,
+    fetches: crate::fetches::Fetches,
     wakes: Arc<Wakes>,
     clock: std::time::Duration,
     desk: Option<desk::Desk>,
@@ -240,6 +242,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
         test
     }
 
+    /// Another editor run beside `beside`, on the blocks it holds: the same block reopened, or
+    /// one it made.
+    pub fn new_beside<B: BeuiRoot>(beside: &BeuiTest<B>, editor: OwnedEditor) -> Self {
+        beside.store.forget_answers();
+        SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
+        Self::new(editor)
+    }
+
     pub fn rename_beside<B: BeuiRoot>(beside: &BeuiTest<B>, host: EditorHost, block: Uuid) -> Self {
         beside.store.forget_answers();
         SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
@@ -304,6 +314,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     organization_id,
                     client_id,
                     editable: host.editable(),
+                    page_origin: host.page_origin(),
+                    host_palette: host.host_palette(),
                 })
             }
             Kind::Creation => Opening::Creation(OpenCreation {
@@ -419,11 +431,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
             views_children: Vec::new(),
             occluders: Vec::new(),
             report: None,
+            actions: Vec::new(),
             window: be_sdk_api::WindowRequests::default(),
             intrinsic: None,
             exited: false,
             draft: data,
             requests: Vec::new(),
+            fetches: crate::fetches::Fetches::default(),
             wakes,
             clock: std::time::Duration::ZERO,
             desk: None,
@@ -1146,6 +1160,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.store.tick(self.clock.as_millis() as u64);
         let mut inbox = std::mem::take(&mut self.inbox);
         self.link.answer(&self.store, &mut self.connection);
+        self.fetches.answer(&mut self.connection);
         let mut frames = std::mem::take(&mut self.answered);
         frames.extend(self.connection.take_outbound());
         if !frames.is_empty() {
@@ -1283,11 +1298,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 .filter(|placement| !hidden(placement))
                 .collect();
         }
-        if let Some(report) = commit
+        if let Some(mut report) = commit
             .reports
             .into_iter()
             .find(|report| report.screen == SCREEN)
         {
+            if let Some(actions) = report.actions.take() {
+                self.actions = actions;
+            }
             self.report = Some(report);
         }
         self.desk_intercepts(&commit.windows);
@@ -1347,6 +1365,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 }
                 Incoming::Canceled { op } if self.link.holds(op) => {
                     self.link.ended(op, &self.store, &mut self.connection);
+                    continue;
+                }
+                Incoming::Canceled { op } if self.fetches.holds(op) => {
+                    self.fetches.ended(op, &mut self.connection);
+                    continue;
+                }
+                Incoming::Canceled { op } if self.fetches.withdrawn(op, &mut self.connection) => {
                     continue;
                 }
                 Incoming::Started(started) if extension_call(started.method) => {
@@ -1429,6 +1454,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
                             self.requests.push((Some(op), call));
                             continue;
                         }
+                        Some(embed::Call::Network(call)) => {
+                            self.fetches.call(call, connection);
+                            continue;
+                        }
                         Some(call) => {
                             let (op, outcome) = call.refuse(OpError::Unsupported);
                             connection.complete(op, outcome);
@@ -1491,6 +1520,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             self.calls.push(call);
         }
         self.link.answer(&self.store, &mut self.connection);
+        self.fetches.answer(&mut self.connection);
         let frames = self.connection.take_outbound();
         let acknowledged = &mut self.acknowledged;
         match frames.iter().all(|frame| acknowledges(frame, acknowledged)) {
@@ -1652,6 +1682,36 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.run();
     }
 
+    /// The actions the editor's view last described to the host (`frame-report.actions`), sent
+    /// whether or not the host asks it to describe, as be-host's palette lists them.
+    pub fn described_actions(&self) -> &[be_sdk_api::DescribedAction] {
+        &self.actions
+    }
+
+    pub fn described_action(&self, id: &str) -> be_sdk_api::DescribedAction {
+        self.actions
+            .iter()
+            .find(|action| action.id == id)
+            .cloned()
+            .unwrap_or_else(|| panic!("the view describes no action {id:?}"))
+    }
+
+    /// Runs an action by id as the host's palette does (`app.run-action`).
+    pub fn run_action(&mut self, id: &str) {
+        be_sdk_api::embed::exports::app::run_action(&mut self.connection, SCREEN, id.to_owned());
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
+        self.run();
+    }
+
+    /// The palettes the editor asked the host to open (`shell.open-palette`).
+    pub fn take_palette_opens(&mut self) -> Vec<be_sdk_api::PaletteMode> {
+        self.take_calls(|call| match call {
+            ShellCall::OpenPalette { mode, .. } => Some(*mode),
+            _ => None,
+        })
+    }
+
     pub fn take_cards(&mut self) -> Vec<bool> {
         self.take_calls(|call| match call {
             ShellCall::ShowCard { card, .. } => Some(*card),
@@ -1759,6 +1819,44 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn has_requests(&self) -> bool {
         !self.requests.is_empty()
+    }
+
+    /// Whether the editor sent a fetch `take_fetches` has not taken yet.
+    pub fn has_fetches(&self) -> bool {
+        self.fetches.has_sent()
+    }
+
+    /// The requests the editor sent with `EditorHost::fetch` since the last call, each
+    /// whole as it asked; answer each with `respond` or `fail_fetch`.
+    pub fn take_fetches(&mut self) -> Vec<crate::Fetch> {
+        self.fetches.take_sent()
+    }
+
+    /// Answers `fetch` with `head`, then its body in `chunks`, each sent once the editor has
+    /// credit for it, as a host streams a body that arrives in pieces.
+    pub fn respond(
+        &mut self,
+        fetch: &crate::Fetch,
+        head: be_sdk_api::network::ResponseHead,
+        chunks: impl IntoIterator<Item = Vec<u8>>,
+    ) {
+        self.fetches.respond(fetch, head, chunks);
+        self.fetches.answer(&mut self.connection);
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
+    }
+
+    /// Answers `fetch` with `failure`: no response came, or the body ends with it.
+    pub fn fail_fetch(&mut self, fetch: &crate::Fetch, failure: be_sdk_beui::Failure) {
+        self.fetches.fail(fetch, failure);
+        self.fetches.answer(&mut self.connection);
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
+    }
+
+    /// The links the editor opened with `EditorHost::open_url` since the last call.
+    pub fn take_opened_urls(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.fetches.opened)
     }
 
     pub fn take_requests(&mut self) -> Vec<Call> {

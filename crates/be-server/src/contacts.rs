@@ -336,6 +336,7 @@ impl ServerStore {
                 account: owner,
                 organization: grant.organization,
                 role,
+                bound: None,
             };
             let grant = grant.clone();
             self.with_graph(grant.organization, move |store, graph, database| {
@@ -343,6 +344,15 @@ impl ServerStore {
                     return Err(ServerError::Refused(
                         ErrorCode::PermissionDenied,
                         format!("block {} is not managed by this account", grant.block),
+                    ));
+                }
+                if graph.owner_only_root(grant.block).is_some() {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!(
+                            "block {} is readable by its author alone, so it is shared with no one",
+                            grant.block
+                        ),
                     ));
                 }
                 if !store
@@ -476,11 +486,13 @@ impl ServerStore {
                 let owner_role = role_in(&transaction, owner, grant.organization)?;
                 let may_grant = is_member_of(&transaction, caller, grant.organization)?
                     && graph.contains(grant.block)
+                    && graph.owner_only_root(grant.block).is_none()
                     && owner_role.is_some_and(|role| {
                         visibility(Identity {
                             account: owner,
                             organization: grant.organization,
                             role,
+                            bound: None,
                         })
                         .can_manage(graph, grant.block)
                     })
@@ -684,16 +696,18 @@ impl ServerStore {
         let mut revoked = Vec::new();
         for (organization, mine, theirs) in shared {
             let found = self
-                .with_graph(organization, move |_, graph, database| {
+                .with_graph(organization, move |store, graph, database| {
                     let me = visibility(Identity {
                         account: caller,
                         organization,
                         role: mine,
+                        bound: None,
                     });
                     let them = visibility(Identity {
                         account: other,
                         organization,
                         role: theirs,
+                        bound: None,
                     });
                     let mut grants = Vec::new();
                     for (grantee, granter) in [(other, &me), (caller, &them)] {
@@ -724,7 +738,15 @@ impl ServerStore {
                             before,
                         });
                     }
+                    let forgotten = crate::store::forget_orphaned_block_agents(
+                        graph,
+                        &transaction,
+                        organization,
+                    )?;
                     transaction.commit()?;
+                    if !forgotten.is_empty() {
+                        store.sessions_changed();
+                    }
                     Ok(revoked)
                 })
                 .await?;

@@ -472,19 +472,28 @@ impl Editors {
             child.creation.step(&registry, client_id);
             let progress = match &child.commit {
                 None => CreationProgress::Options,
-                Some(commit) => match child.creation.create() {
-                    Ok(Some(block)) => {
-                        be_host_stack::set_parent(block, commit.parent);
-                        if let Some(name) = commit.name.clone() {
-                            be_host_stack::name_when_created(block, name);
-                        }
-                        CreationProgress::Created(block.into_bytes())
-                    }
-                    Ok(None) => CreationProgress::Working,
-                    Err(error) => {
+                Some(commit) => match be_host_stack::app_graph::parent_of(commit.parent) {
+                    // Only Unfiled resolves to nothing, and only before the host has made it
+                    // (`RootSettings::ensure_unfiled`), which waits for the organization's
+                    // blocks: offline on a first run that is never, so fail rather than wait.
+                    None => {
                         child.commit = None;
-                        CreationProgress::Failed(error)
+                        CreationProgress::Failed("Your files are still loading".to_owned())
                     }
+                    Some(parent) => match child.creation.create() {
+                        Ok(Some(block)) => {
+                            be_host_stack::set_parent(block, parent);
+                            if let Some(name) = commit.name.clone() {
+                                be_host_stack::name_when_created(block, name);
+                            }
+                            CreationProgress::Created(block.into_bytes())
+                        }
+                        Ok(None) => CreationProgress::Working,
+                        Err(error) => {
+                            child.commit = None;
+                            CreationProgress::Failed(error)
+                        }
+                    },
                 },
             };
             if child.progress.as_ref() != Some(&progress) {

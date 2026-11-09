@@ -391,6 +391,7 @@ impl Editor {
             Some(content.encode()),
             BlockParent::Block(settings),
             be_block::BlockMetadata::default(),
+            R::VISIBILITY.owner_only(),
         );
         if R::VISIBILITY == KindVisibility::Inside {
             self.host()
@@ -424,6 +425,7 @@ impl Editor {
             Some(content.encode()),
             BlockParent::Block(owner),
             be_block::BlockMetadata::default(),
+            false,
         );
         blocks.define(
             owner,

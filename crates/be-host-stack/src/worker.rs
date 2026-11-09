@@ -42,6 +42,27 @@ pub(super) fn reconnect_delay(failures: u32, jitter: f64) -> Duration {
     ceiling.mul_f64(0.5 + 0.5 * jitter.clamp(0.0, 1.0))
 }
 
+/// When to try failed version statuses again (`Versions::refresh`), from the deadline
+/// already armed and how many came due in a row: armed once and kept until it comes due, then
+/// moved on by `reconnect_delay`; cleared when nothing transient awaits it or the line is down.
+pub(crate) fn next_retry(
+    awaiting: bool,
+    now: Duration,
+    armed: Option<Duration>,
+    failures: u32,
+    jitter: f64,
+) -> (Option<Duration>, u32) {
+    let due = armed.is_some_and(|at| at <= now);
+    match (awaiting, due || armed.is_none()) {
+        (true, true) => (
+            Some(now + reconnect_delay(failures, jitter)),
+            failures.saturating_add(1),
+        ),
+        (true, false) => (armed, failures),
+        (false, _) => (None, 0),
+    }
+}
+
 fn jitter() -> f64 {
     (Uuid::new_v4().as_u128() as u64 >> 11) as f64 / (1u64 << 53) as f64
 }
@@ -159,6 +180,7 @@ pub(super) enum Command {
         parent: BlockParent,
         metadata: BlockMetadata,
         bytes: Option<Vec<u8>>,
+        owner_only: bool,
     },
     SetParent {
         block: Uuid,
@@ -218,7 +240,33 @@ pub(super) enum Command {
         name: String,
         reply: AgentReply,
     },
+    /// An app's `create-block-agent`: an agent bound to `block`, its key sealed to it.
+    CreateBlockAgent {
+        block: Uuid,
+        name: String,
+        reply: BlockAgentReply,
+    },
+    /// An app's `rotate-agent-token` or `remove-agent`, refused for an agent of the person's
+    /// own (one the Agents menu lists).
+    BlockAgent {
+        agent: Uuid,
+        change: AgentChange,
+    },
     Sync,
+}
+
+pub(super) enum AgentChange {
+    Rotate(Box<dyn FnOnce(Result<String, String>) + Send>),
+    Remove(Box<dyn FnOnce(Result<(), String>) + Send>),
+}
+
+impl AgentChange {
+    fn fail(self, error: String) {
+        match self {
+            Self::Rotate(reply) => reply(Err(error)),
+            Self::Remove(reply) => reply(Err(error)),
+        }
+    }
 }
 
 impl Command {
@@ -268,6 +316,7 @@ impl Command {
             | Command::SetAccess { block, .. }
             | Command::ListAccess { block, .. }
             | Command::ReadHead { block, .. }
+            | Command::CreateBlockAgent { block, .. }
             | Command::PlainFile { block, .. }
             | Command::Version { block, .. }
             | Command::WatchVersion(block)
@@ -294,6 +343,7 @@ impl Command {
             | Command::Members(_)
             | Command::Invite { .. }
             | Command::CreateAgent { .. }
+            | Command::BlockAgent { .. }
             | Command::Sync
             | Command::Storage
             | Command::HoldClock(_) => None,
@@ -304,6 +354,7 @@ impl Command {
         match self {
             Command::SetParent { block, .. }
             | Command::SetAccess { block, .. }
+            | Command::CreateBlockAgent { block, .. }
             | Command::Leave(block)
             | Command::Contact(ContactCommand::Link {
                 offer: Some((block, _)),
@@ -332,6 +383,9 @@ pub(super) enum MembersCommand {
 type LinkReply = Box<dyn FnOnce(Result<String, String>) + Send>;
 
 type AgentReply = Box<dyn FnOnce(Result<crate::accounts::AgentCredentials, String>) + Send>;
+
+type BlockAgentReply =
+    Box<dyn FnOnce(Result<(Uuid, crate::accounts::AgentCredentials), String>) + Send>;
 
 type CardReply = Box<dyn FnOnce(Result<be_block_keys::ContactCard, String>) + Send>;
 
@@ -532,6 +586,8 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             line: Line::down(&config, 0, Duration::ZERO),
             tasks: Tasks::new(),
             drained_at: Duration::ZERO,
+            versions_due: None,
+            version_failures: 0,
             rejoin: false,
         };
         session.run(open).await;
@@ -722,6 +778,11 @@ struct Session<'a> {
     line: Line,
     tasks: (Tasks, UnboundedReceiver<()>),
     drained_at: Duration,
+    /// When to refresh the version statuses again, set while one could not be computed and
+    /// the line is up: backing off as reconnecting does (`reconnect_delay`), from
+    /// `version_failures` refreshes in a row that failed.
+    versions_due: Option<Duration>,
+    version_failures: u32,
     rejoin: bool,
 }
 
@@ -732,8 +793,11 @@ impl Session<'_> {
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             let my_files = be_block::my_files(peer.organization(), peer.account());
-            held.graph
-                .want(Owner::Host, vec![Query::Roots, Query::Block(my_files)]);
+            let unfiled = be_block::unfiled(peer.organization(), peer.account());
+            held.graph.want(
+                Owner::Host,
+                vec![Query::Roots, Query::Block(my_files), Query::Block(unfiled)],
+            );
         }
         match open {
             Some(open) => self.arrive(open).await,
@@ -742,13 +806,7 @@ impl Session<'_> {
                 want_open(shared, &self.wanted.blocks());
                 relist(shared);
                 spawn_listings(peer, shared, &self.tasks.0);
-                self.versions
-                    .refresh(&mut Context {
-                        peer,
-                        shared,
-                        replicas: &mut *self.replicas,
-                    })
-                    .await;
+                self.refresh_versions().await;
                 report(peer, shared);
                 self.changed.notify_all();
                 be_host_base::host::wake();
@@ -764,11 +822,14 @@ impl Session<'_> {
                 report(peer, shared);
                 return;
             }
-            let retry_at = self.retry_at();
-            let wake_at = match (self.replicas.modules.wake_at(), retry_at) {
-                (Some(module), Some(retry)) => Some(module.min(retry)),
-                (module, retry) => module.or(retry),
-            };
+            let wake_at = [
+                self.replicas.modules.wake_at(),
+                self.retry_at(),
+                self.versions_due,
+            ]
+            .into_iter()
+            .flatten()
+            .min();
             let woken = {
                 let waited = std::pin::pin!(wait(
                     self.commands,
@@ -907,6 +968,12 @@ impl Session<'_> {
                         }
                     }
                     for event in heard_all {
+                        if matches!(
+                            event,
+                            Some(Event::HeadChanged { .. } | Event::BlockChanged(_)) | None
+                        ) {
+                            self.versions.announced();
+                        }
                         match &event {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),
@@ -934,13 +1001,7 @@ impl Session<'_> {
             moved |= self.settle_outbox().await;
             rekey_changed(peer, self.replicas, &mut keyed);
             let before = version_revisions(shared);
-            self.versions
-                .refresh(&mut Context {
-                    peer,
-                    shared,
-                    replicas: &mut *self.replicas,
-                })
-                .await;
+            self.refresh_versions().await;
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
             spawn_listings(peer, shared, &self.tasks.0);
@@ -972,6 +1033,34 @@ impl Session<'_> {
                 be_host_base::host::wake();
             }
         }
+    }
+
+    async fn refresh_versions(&mut self) {
+        let (peer, shared) = (self.peer, self.shared);
+        let now = self.config.clock.now();
+        let due = self.versions_due.is_some_and(|at| at <= now);
+        let awaiting = self
+            .versions
+            .refresh(
+                &mut Context {
+                    peer,
+                    shared,
+                    replicas: &mut *self.replicas,
+                },
+                due,
+            )
+            .await;
+        // A status whose inputs change is computed again at once; one that failed for want of
+        // the server (`Versions::refresh`) is tried again only when this deadline comes due,
+        // less often each time, and not while the line is down: reconnecting forgets those
+        // failures and refreshes.
+        (self.versions_due, self.version_failures) = next_retry(
+            awaiting && self.line.is_up(),
+            now,
+            self.versions_due,
+            self.version_failures,
+            jitter(),
+        );
     }
 
     fn retry_at(&self) -> Option<Duration> {
@@ -1066,13 +1155,8 @@ impl Session<'_> {
             .await;
         }
         self.replicas.pump((peer, shared)).await;
-        self.versions
-            .refresh(&mut Context {
-                peer,
-                shared,
-                replicas: &mut *self.replicas,
-            })
-            .await;
+        self.versions.reconnected();
+        self.refresh_versions().await;
         report(peer, shared);
         self.changed.notify_all();
         be_host_base::host::wake();
@@ -1374,6 +1458,8 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         ) => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::Invite { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::CreateAgent { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::CreateBlockAgent { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::BlockAgent { change, .. } => change.fail(NEEDS_CONNECTION.to_owned()),
         Command::Contact(ContactCommand::Link { reply, .. }) => {
             reply(Err(NEEDS_CONNECTION.to_owned()))
         }
@@ -1423,11 +1509,29 @@ impl Ran<'_> {
                 false
             }
             Command::CreateAgent { name, reply } => {
-                let created = create_agent(self.peer, self.config, name).await;
+                let created = create_agent(self.peer, self.config, name, None)
+                    .await
+                    .map(|(_, credentials)| credentials);
                 if created.is_ok() {
                     self.tasks.sync_contacts(self.peer, self.shared).await;
                 }
                 reply(created.map_err(|error| error.to_string()));
+                be_host_base::host::wake();
+                false
+            }
+            Command::CreateBlockAgent { block, name, reply } => {
+                let created = create_agent(self.peer, self.config, name, Some(block)).await;
+                if created.is_ok() {
+                    self.tasks.sync_contacts(self.peer, self.shared).await;
+                    self.tasks.refresh(self.peer, self.shared, block);
+                }
+                reply(created.map_err(|error| error.to_string()));
+                be_host_base::host::wake();
+                false
+            }
+            Command::BlockAgent { agent, change } => {
+                change_block_agent(self.peer, agent, change).await;
+                self.tasks.sync_contacts(self.peer, self.shared).await;
                 be_host_base::host::wake();
                 false
             }
@@ -1622,11 +1726,14 @@ async fn invite(
     ))
 }
 
+/// Makes an agent, a contact of the person's from the start; one `bound_to` a block also gets
+/// the block's key sealed to it, as sharing would.
 async fn create_agent(
     peer: &Peer<Store>,
     config: &Config,
     name: String,
-) -> Result<crate::accounts::AgentCredentials, ClientError> {
+    bound_to: Option<Uuid>,
+) -> Result<(Uuid, crate::accounts::AgentCredentials), ClientError> {
     let identity = peer.keys().identity();
     let me = be_block_client::contacts::card(
         peer.account(),
@@ -1647,6 +1754,7 @@ async fn create_agent(
         peer.keys().escrow().map_or_else(Vec::new, |escrow| {
             be_block_client::contacts::seal_pin(&secret, organization, &escrow)
         }),
+        bound_to,
     ))
     .await?;
     let card = be_block_keys::ContactCard {
@@ -1655,19 +1763,73 @@ async fn create_agent(
         display_name: agent.name.clone(),
         email: agent.email.clone(),
     };
-    ask(client::contacts::put_contact(
-        &peer.connection(),
+    let finished = async {
+        ask(client::contacts::put_contact(
+            &peer.connection(),
+            agent.account,
+            card.seal_own(identity),
+        ))
+        .await?;
+        if let Some(block) = bound_to {
+            peer.seal_share(block, agent.account, &public).await?;
+        }
+        Ok::<_, ClientError>(())
+    }
+    .await;
+    if let Err(error) = finished {
+        // An agent the person never got the credentials of is of no use to anyone.
+        let _ = ask(client::members::remove_agent(
+            &peer.connection(),
+            organization,
+            agent.account,
+        ))
+        .await;
+        return Err(error);
+    }
+    Ok((
         agent.account,
-        card.seal_own(identity),
+        crate::accounts::AgentCredentials {
+            name: agent.name,
+            server: config.server_url.clone(),
+            organization,
+            token,
+            phrase: phrase.to_string(),
+        },
     ))
-    .await?;
-    Ok(crate::accounts::AgentCredentials {
-        name: agent.name,
-        server: config.server_url.clone(),
-        organization,
-        token,
-        phrase: phrase.to_string(),
-    })
+}
+
+/// Rotates the token of, or removes, an agent bound to a block; refuses one of the person's
+/// own agents, which only the Agents menu changes.
+async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange) {
+    let connection = peer.connection();
+    let organization = peer.organization();
+    let own = match ask(client::members::list_agents(&connection, organization)).await {
+        Ok(agents) => agents.iter().any(|listed| listed.account == agent),
+        Err(error) => return change.fail(error.to_string()),
+    };
+    if own {
+        return change.fail("That agent is not a block's agent.".to_owned());
+    }
+    match change {
+        AgentChange::Rotate(reply) => reply(
+            ask(client::members::rotate_agent_token(
+                &connection,
+                organization,
+                agent,
+            ))
+            .await
+            .map_err(|error| error.to_string()),
+        ),
+        AgentChange::Remove(reply) => reply(
+            ask(client::members::remove_agent(
+                &connection,
+                organization,
+                agent,
+            ))
+            .await
+            .map_err(|error| error.to_string()),
+        ),
+    }
 }
 
 async fn contact(
@@ -1806,6 +1968,8 @@ async fn apply(
         | Command::Members(_)
         | Command::Invite { .. }
         | Command::CreateAgent { .. }
+        | Command::CreateBlockAgent { .. }
+        | Command::BlockAgent { .. }
         | Command::Storage
         | Command::Sync => false,
         Command::Leave(block) => {
@@ -2085,7 +2249,7 @@ async fn apply(
                 return false;
             }
             let created = peer
-                .create_block(to, content_type, BlockParent::Detached, &metadata)
+                .create_block(to, content_type, BlockParent::Detached, &metadata, false)
                 .await;
             if let Err(error) = settled(peer, shared, Some(tasks), to, created).await {
                 record(shared, error);
@@ -2168,6 +2332,7 @@ async fn apply(
             parent,
             mut metadata,
             bytes,
+            owner_only,
         } => {
             let kind = replicas.kind(content_type).await;
             let bytes = bytes.or_else(|| kind.as_ref().map(|kind| kind.blank.clone()));
@@ -2184,7 +2349,7 @@ async fn apply(
                 };
             }
             let created = peer
-                .create_block(block, content_type, parent, &metadata)
+                .create_block(block, content_type, parent, &metadata, owner_only)
                 .await;
             if let Err(error) = settled(peer, shared, Some(tasks), block, created).await {
                 record(shared, error);
@@ -2475,6 +2640,12 @@ async fn export(
     block: Uuid,
 ) -> Result<(String, Vec<u8>), ClientError> {
     let picked = peer.summary(block).await?;
+    if picked.owner_only {
+        return Err(ClientError::Refused(
+            be_block_protocol::ErrorCode::PermissionDenied,
+            "a block only you can read is not exported, since a block file opens for anyone".into(),
+        ));
+    }
     let mut top = picked.clone();
     if let Some(BlockParent::Block(parent)) = picked.parent
         && let Ok(whole) = peer.summary(parent).await
@@ -2494,7 +2665,10 @@ async fn export(
         let mut next = Vec::new();
         for ((_, position), children) in level.into_iter().zip(below) {
             for child in children {
-                if child.access.can_view() && found.iter().all(|(held, _)| held.id != child.id) {
+                if child.access.can_view()
+                    && !child.owner_only
+                    && found.iter().all(|(held, _)| held.id != child.id)
+                {
                     next.push((child.id, found.len()));
                     found.push((child, Some(position)));
                 }

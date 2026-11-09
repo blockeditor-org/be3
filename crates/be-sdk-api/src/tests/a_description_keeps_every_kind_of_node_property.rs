@@ -64,14 +64,6 @@ fn a_description_keeps_every_kind_of_node_property() {
             tree_id: TreeId::ROOT,
             focus: NodeId(2),
         }),
-        actions: vec![DescribedAction {
-            id: "editor.undo".into(),
-            label: "Undo".into(),
-            shortcut: Some("Ctrl+Z".into()),
-            enabled: true,
-            checked: None,
-            live: false,
-        }],
     };
     let carried = crate::ops::encode(&crate::accessibility::Description::from(
         description.clone(),

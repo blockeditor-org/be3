@@ -116,6 +116,9 @@ interface types {
         /// `size` plus the `tree-size` of each child (blocks whose parent is
         /// this one), not deduplicated across blocks.
         tree-size: u64,
+        /// Readable by its author alone, and never escrowed: made with
+        /// `create-block`'s `owner-only`. Set only when the reader may view it.
+        owner-only: bool,
     }
 
     enum key-kind {

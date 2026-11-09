@@ -1956,8 +1956,8 @@ fn actions(groups: &[ActionGroup], all: bool) -> String {
         };
         for action in listed {
             text.push_str(&format!("{indent}{} {:?}", action.id, action.label));
-            if let Some(shortcut) = &action.shortcut {
-                text.push_str(&format!(" {shortcut}"));
+            if let Some(shortcut) = action.shortcut {
+                text.push_str(&format!(" {}", shortcut.label()));
             }
             if let Some(checked) = action.checked {
                 text.push_str(&format!(" checked={checked}"));

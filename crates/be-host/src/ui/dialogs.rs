@@ -476,20 +476,10 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
     });
     let proxy = create_signal(false);
     let credentials = create_memo(move || {
-        let Some(created) = created.get() else {
-            return String::new();
-        };
-        let mut bundle = serde_json::json!({
-            "server": created.server,
-            "organization": created.organization,
-            "recovery_phrase": created.phrase,
-        });
-        if proxy.get() {
-            bundle["authentication"] = "proxy".into();
-        } else {
-            bundle["token"] = created.token.into();
-        }
-        bundle.to_string()
+        created
+            .get()
+            .map(|created| created.bundle(proxy.get()))
+            .unwrap_or_default()
     });
     let header = field(|created| format!("Bearer {}", created.token));
     view! {

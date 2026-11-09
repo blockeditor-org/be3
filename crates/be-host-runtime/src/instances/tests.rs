@@ -385,6 +385,7 @@ fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
                 drawing: Vec::new(),
                 claims: Vec::new(),
                 description: None,
+                actions: None,
                 anchored: Some(layer.placement),
                 work_area: None,
                 backdrop: None,
@@ -404,6 +405,7 @@ fn shown_rects(instances: &Instances) -> Vec<Rect> {
         .collect()
 }
 
+mod a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise;
 mod a_block_is_named_after_its_content_until_someone_names_it;
 mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
 mod a_child_asked_full_screen_or_closed_reaches_the_host;
@@ -415,6 +417,7 @@ mod a_hidden_window_child_takes_no_room_and_is_kept;
 mod a_key_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard;
 mod a_key_intercepted_for_an_app_reaches_it_with_its_modifiers;
 mod a_listing_the_host_could_not_load_reaches_the_app_as_failed;
+mod a_menu_pick_lets_an_instance_open_the_palette_only_in_the_frames_right_after_it;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
 mod a_moved_view_moves_its_anchored_views_with_it_and_a_pan_does_not;
 mod a_press_on_a_blocking_menus_trigger_closes_it_unless_the_press_reaches_the_trigger;
@@ -428,12 +431,14 @@ mod a_tap_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard;
 mod a_view_attached_to_an_edge_stays_on_it_when_the_view_it_hangs_from_moves;
 mod a_watched_value_reaches_an_instance_watching_it_again_after_a_restart;
 mod a_window_the_app_opened_is_shown_and_asked_for_by_its_own_screen;
+mod a_windows_actions_are_offered_while_it_is_shown_and_again_when_shown_again;
 mod a_zoomed_view_is_shown_at_the_zoom_its_frame_was_painted_at;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
 mod an_active_child_takes_the_frame_of_the_dock_view_holding_the_content;
 mod an_anchored_view_is_shown_from_the_report_that_opens_it_clipped_to_its_bounds;
 mod an_app_hears_every_sample_only_while_it_asks;
 mod an_app_is_told_when_the_pointer_leaves_it;
+mod an_app_makes_a_blocks_agent_only_if_its_manifest_allows_and_only_for_its_own_block;
 mod an_app_reaches_only_the_hosts_its_manifest_names;
 mod an_app_seeds_only_blocks_it_holds;
 mod an_editor_can_read_and_edit_a_block_it_watches;
@@ -443,6 +448,7 @@ mod an_instance_inside_a_checkout_speaks_in_its_local_ids;
 mod an_instance_the_app_never_opened_is_not_closed;
 mod an_instance_watching_a_blocks_head_is_sent_its_stored_bytes;
 mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
+mod any_host_is_still_reached_only_over_https;
 mod children_laid_out_against_an_older_view_are_moved_to_the_current_one;
 mod children_of_a_dock_view_holding_the_content_follow_its_camera;
 mod clearing_a_name_names_the_block_after_its_content_at_once;

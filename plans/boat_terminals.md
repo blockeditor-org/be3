@@ -1,9 +1,10 @@
 # boat.dev terminals
 
-Depends on: plans/boat.md, plans/unfiled.md, plans/block_agents.md and
-plans/owner_settings.md.
+Depends on: nothing left. The boat app (`crates/be-app-boat`), Unfiled
+(guides/blocks/workspaces.md), owner-only settings (guides/settings.md, Owner
+only) and blocks' agents (guides/tracker.md, A block's agent) have landed.
 
-Opening a terminal block into a boat VM from the boat app (plans/boat.md).
+Opening a terminal block into a boat VM from the boat app (`crates/be-app-boat`).
 The design follows the constraints.
 
 ## Constraints
@@ -38,12 +39,13 @@ The design follows the constraints.
   that Connect sends the right files and commands calls, that a resume
   rewrites the credentials with a rotated token, and that Disconnect removes
   the agent. The terminal host's side is the existing `a_terminal_host_*`
-  tests run as a bound agent (plans/block_agents.md). No HTTP fake and no
+  tests, which run as a block's agent (guides/tracker.md, A block's agent). No HTTP fake and no
   end-to-end run in a VM.
-- **Boat key actions.** The sign-in page in plans/boat.md asks only for the
-  list, start and stop actions. Connect also needs the commands and files
-  actions (`exec` and the file write action; verify the names against boat's
-  `openapi.yaml`), so the sign-in page asks for them once this lands, and a
+- **Boat key actions.** The boat app's sign-in page asks only for
+  `sandbox.read`, `sandbox.resume`, `sandbox.stop` and `account.read`
+  (`api::ACTIONS`). Connect also needs `exec` and `file.write` (boat's key
+  scopes, `https://docs.boat.dev/api-keys/scopes.md`), so the sign-in page
+  asks for them once this lands, and a
   key without them shows Reconnect when Connect is pressed.
 - **Files and secrets.** boat's files API writes only under `/home/user` and
   `/tmp` (400 `invalid_path` elsewhere). Commands run as `user` with
@@ -59,12 +61,12 @@ The design follows the constraints.
 
 ## Design
 
-- **Connect** makes a terminal block in Unfiled (plans/unfiled.md) and adds it
+- **Connect** makes a terminal block in Unfiled (`block-location::unfiled`) and adds it
   to the boat block's content as a reference. A viewer sees the first terminal
   for that VM they can open; anyone else makes their own. A terminal reaches
   someone else only if its owner shares it or moves it into a shared place.
 - **The host runs inside the VM**: `be terminal-host` as a block-bound agent
-  (plans/block_agents.md), so the terminal block works unchanged on every
+  (guides/tracker.md, A block's agent), so the terminal block works unchanged on every
   platform. Connecting:
   1. `create-block-agent(terminal, "boat VM <id>")`.
   2. Write the credentials, block id and sandbox id as in "Files and secrets"
@@ -75,7 +77,7 @@ The design follows the constraints.
      `.path` unit when its file appears.
 - **The credentials** `create-block-agent` answers, recovery phrase included,
   are kept in the viewer's owner-only `BoatSettings` kind
-  (plans/owner_settings.md), keyed by terminal block, since `be` won't sign in
+  (guides/settings.md, Owner only), keyed by terminal block, since `be` won't sign in
   without the phrase and a rotation answers only a token.
 - **Every resume** leaves the VM without credentials. When the app sees the VM
   running again it calls `rotate-agent-token`, which revokes the old token,

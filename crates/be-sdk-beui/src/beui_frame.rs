@@ -105,13 +105,25 @@ pub(crate) fn FrameChrome(
         false => Density::Compact,
     }));
     let palette = create_signal(false);
-    let opener = Action::new("editor.palette", "Command palette", move || {
-        palette.set(true)
-    })
-    .glyph(ICON_TERMINAL)
-    .shortcut(PALETTE)
-    .register();
     let host = editor.host();
+    let host_palette = host.host_palette();
+    let asking = host.clone();
+    let opener = Action::new(
+        "editor.palette",
+        "Command palette",
+        move || match host_palette {
+            true => asking.open_palette(be_sdk_api::PaletteMode::Actions),
+            false => palette.set(true),
+        },
+    )
+    .glyph(ICON_TERMINAL)
+    .shortcut(PALETTE);
+    // With the host's palette the frame's menu row only names the host's chord: a detached
+    // action hears no key and is not among the actions the frame describes.
+    let opener = match host_palette {
+        true => opener.detached(),
+        false => opener.register(),
+    };
     let releasing = Rc::clone(&docked);
     let hosting = Rc::clone(&docked);
     create_effect(move || {
@@ -205,8 +217,9 @@ pub(crate) fn menu_entries(nodes: &[MenuNode]) -> Vec<MenuEntry> {
                 label: label.clone().unwrap_or_else(|| action.label().get()),
                 glyph: action
                     .glyph()
-                    .map(|glyph| glyph.as_str().to_owned())
-                    .unwrap_or_default(),
+                    .and_then(|glyph| glyph.name())
+                    .unwrap_or_default()
+                    .to_owned(),
                 enabled: action.enabled().get(),
                 check: match (action.checked(), action.is_radio()) {
                     (None, _) => MenuCheck::None,
@@ -226,8 +239,9 @@ pub(crate) fn menu_entries(nodes: &[MenuNode]) -> Vec<MenuEntry> {
                 label: submenu.label.clone(),
                 glyph: submenu
                     .glyph
-                    .map(|glyph| glyph.as_str().to_owned())
-                    .unwrap_or_default(),
+                    .and_then(|glyph| glyph.name())
+                    .unwrap_or_default()
+                    .to_owned(),
                 entries: menu_entries(&submenu.items),
             }),
             MenuNode::Separator => MenuEntry::Separator,

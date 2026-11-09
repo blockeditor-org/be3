@@ -65,6 +65,7 @@ async fn removing_a_member_rotates_the_organizations_settings() {
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
             &be_block::BlockMetadata::named("Another"),
+            false,
         )
         .await
         .unwrap_err();

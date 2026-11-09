@@ -1,9 +1,7 @@
 # Search
 
-Depends on: plans/search_library.md; plans/large_blocks.md steps 1 to 4 (the
-operation that adds a part by its hash, `merge3` over parts, per-type
-retention, lazy rekeying); plans/command_palette.md for step 4 only (quick
-open, which search fills with results).
+Depends on: plans/search_library.md; plans/large_blocks.md steps 3 and 4
+(per-type retention, lazy rekeying).
 
 Full-text search over names and content. The server never reads content
 (guides/the_new_block_stack.md, goal 5), so clients build the index, encrypt
@@ -69,10 +67,10 @@ move or a revocation).
   whole.
 - **Edited through its replica's session.** The indexer opens the index block
   like any open block (`be_block_type_host::Replicas`) and sends a batch as an
-  operation adding the segment's parts by hash (large_blocks step 1) with the
+  operation adding the segment's parts by hash (`put-part`, guides/type_modules.md, "Parts named by hash") with the
   document table entries. Two indexers online at once are sequenced by the
-  session owner; offline batches merge with `merge3` over parts (large_blocks
-  step 2), as `be-lib-search` merges two indexes.
+  session owner; offline batches merge by parts (`MergeParts`, guides/type_modules.md,
+  "Merging by parts"), as `be-lib-search` merges two indexes.
 - **History**: a short per-type retention policy (large_blocks step 3). Old
   index commits would keep terms of blocks that left the tree.
 - Charged to the tree's owner like everything in the tree
@@ -131,7 +129,12 @@ worker").
 
 - The file tree's filter field (today it matches loaded rows by name only)
   answers from the index once it exists.
-- Quick open (`plans/command_palette.md`) lists search hits.
+- Quick open lists search hits: a `BlockSource` for be-host's palette
+  (`be-host/src/compositor/palette.rs`, guides/apps/editor.md, Actions and the
+  palette), a memo of the hits for the query signal it is handed, in the
+  index's order, each with its matched text as `detail`. Opening a hit at its
+  location needs `OpenableBlock` and `EditorAction::OpenBlock` to carry one;
+  neither does yet.
 - Opening a hit opens the block at its document and highlights the match where
   the editor supports a location.
 
@@ -176,7 +179,9 @@ Design notes, not done criteria. The target is a tree with a gigabyte of text
 - A batch from an ordinary edit writes one small segment and a few chunks of
   the document table.
 - What does not scale and is accepted: the first index of a large tree, and a
-  large compaction, both resumable.
+  large compaction, both resumable. be-lib-search's compaction is neither
+  yet: it reads its input segments whole into memory and writes the merged
+  one in a single call.
 
 ## What the server learns
 

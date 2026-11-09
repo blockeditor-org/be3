@@ -87,8 +87,29 @@ impl<T: 'static> Asked<T> {
         }))
     }
 
+    /// What `future` answers, `None` when what it waited on was canceled.
+    pub(crate) fn from_future(future: impl Future<Output = Option<T>> + 'static) -> Self {
+        Self(Box::pin(future))
+    }
+
     pub fn map<U>(self, map: impl FnOnce(T) -> U + 'static) -> Asked<U> {
         Asked(Box::pin(async move { self.await.map(map) }))
+    }
+}
+
+impl<T: 'static> Asked<Result<T, Failure>> {
+    /// Asks `next` with what this answered, unless it failed: `host.fetch(request)
+    /// .and_then(Response::json::<Reply>)` reads a whole JSON answer.
+    pub fn and_then<U: 'static>(
+        self,
+        next: impl FnOnce(T) -> Asked<Result<U, Failure>> + 'static,
+    ) -> Asked<Result<U, Failure>> {
+        Asked(Box::pin(async move {
+            match self.await? {
+                Ok(value) => next(value).await,
+                Err(failure) => Some(Err(failure)),
+            }
+        }))
     }
 }
 

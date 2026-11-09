@@ -21,6 +21,12 @@ pub struct Property {
     pub aliases: Vec<&'static str>,
     pub from_old: Vec<(&'static str, Convert)>,
     pub critical: bool,
+    /// On a `List` (`#[model(merge_appends)]`): an offline merge keeps theirs (the published
+    /// head) as it is and puts the items only ours added after all of it, in our order, rather
+    /// than after the sibling each was inserted after. For lists that grow at the end, such as
+    /// a chat's messages: what others have already seen stays put, and neither side's run is
+    /// interleaved with the other's.
+    pub merge_appends: bool,
     pub shape: Shape,
 }
 

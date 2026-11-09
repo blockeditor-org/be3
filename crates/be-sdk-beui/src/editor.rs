@@ -838,7 +838,7 @@ impl Editor {
         state.next_pick.set(serial);
         let mut filter = filter;
         let parent = match self.block_id() {
-            own if own.is_nil() => BlockParent::Root,
+            own if own.is_nil() => BlockParent::Unfiled,
             own => {
                 if !filter.excluded.contains(&own.into_bytes()) {
                     filter.excluded.push(own.into_bytes());
@@ -1389,12 +1389,21 @@ impl crate::root_settings::SettingsGraph for Editor {
             .ok()
     }
 
-    fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid {
-        self.blocks().create_with(
+    fn create(
+        &self,
+        block: Uuid,
+        block_type: Uuid,
+        content: Vec<u8>,
+        parent: BlockParent,
+        owner_only: bool,
+    ) -> Uuid {
+        self.blocks().create_at(
+            block,
             block_type,
             Some(content),
             parent,
             be_block::BlockMetadata::default(),
+            owner_only,
         )
     }
 

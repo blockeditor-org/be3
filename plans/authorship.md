@@ -1,6 +1,6 @@
 # Authorship
 
-Depends on: plans/chat.md (step 1a, which defines the bytes a message signs).
+Builds on plans/chat.md step 1a, which defined the bytes a message signs (`crates/be-type-chat/src/signed.rs`).
 
 Signing what a person writes, so nobody with Edit can post as someone else.
 Chat is the first user. Not implemented yet.
@@ -34,6 +34,14 @@ Chat is the first user. Not implemented yet.
   saw (both hashes defined and stored by plans/chat.md step 1a). That last
   one proves a message was written after it, and shows a gap when one of an
   author's messages is removed.
+- **Open in what 1a signs** (`crates/be-type-chat/src/signed.rs`): taking a
+  reaction back removes its key (a `LatestMap` entry with no value), which
+  carries no signature, so anyone with Edit can remove another's reaction
+  unnoticed; and an edit's signed bytes name the message but not its hash nor
+  the edit it replaces, so an older signed edit by the same author can be
+  replayed over a newer one. Bind each edit to the message's hash and a
+  sequence number (or the previous edit's hash), and sign removals as records
+  with no value, before signing ships.
 - **Members who aren't contacts** have keys only from the server: trust them on
   first use, keeping the pinned key in the refs database beside contacts,
   marked unverified; show them differently from contacts, and warn when the

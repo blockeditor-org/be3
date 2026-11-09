@@ -1,0 +1,13 @@
+# Two overlays too tall for either side of their anchor in a 300 high window.
+# A menu covers its anchor and stays whole inside the window; anything else
+# anchored below keeps clear of its anchor.
+clock stop
+resize 400x300
+click '#covering.open-menu'
+wait '#covering.Menu'
+wait 'Menu covers true, within true'
+key Escape
+gone '#covering.Menu'
+click '#covering.open-below'
+wait '#covering.Below'
+wait 'Below covers false'

@@ -22,7 +22,8 @@ registry (`be_block_type_host::modules`, sources listed in
 `be-host-stack/src/types.rs`) starts an app's module only once a block of its
 types needs it, so `be_host_stack::kind_of` is `None` until then and the worker
 asks `Replicas::kind`, which starts the module. Merging, describing and
-validating are requests to the module (`Replicas::merge`, `describe`). A block
+validating are requests to the module (`Replicas::merge`, by parts for a type
+that merges by parts, guides/type_modules.md "Merging by parts"; `describe`). A block
 whose type no module has has no content in the host (`be_host_stack::provided`).
 
 ## Blocks saved by another build
@@ -271,7 +272,12 @@ of the last, by the frame-clock time each relayed frame is stamped with, may
 absorb into one, and `be_host_stack::undo`/`redo` send `Change::Undo`/`Redo`.
 An editor groups a gesture into one step with `FromEditor::Gesture`
 (`ContentProjection::begin_gesture`, `commit_gesture`, `cancel_gesture`; a
-cancel reverts and leaves no step). Apps call `act(block, block-command::undo)`
+cancel reverts and leaves no step), and ends its burst with `break_step`
+(`Gesture::Break`), so its next edit starts a step however soon it comes. A text
+editor breaks where its core ends a group: at word boundaries (so quick typing
+undoes a word at a time), a paste, a caret move, formatting, blur; never for a
+peer's edit. A break leaves the editor's own open gesture alone, and another
+editor's burst. Apps call `act(block, block-command::undo)`
 and watch `history-watch`. A session restart (guides/type_modules.md, Peers)
 drops every step, since none applies to the reloaded content: `block-history`
 says `restarted-at`, and the frame answers an undo with nothing left by saying

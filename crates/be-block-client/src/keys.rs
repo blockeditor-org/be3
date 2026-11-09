@@ -22,6 +22,9 @@ pub struct KeyBook {
 
 #[derive(Default)]
 struct Rows {
+    /// How many times keys were recorded: a read that failed for want of a key may succeed
+    /// once it moves.
+    revision: u64,
     keys: HashMap<Uuid, KeyRow>,
     wraps: HashMap<Uuid, Vec<WrappedKey>>,
     by_block: HashMap<Uuid, Vec<Uuid>>,
@@ -251,6 +254,9 @@ impl KeyBook {
         let Some(escrow) = self.escrow() else {
             return Ok(None);
         };
+        if self.owner_only(key) {
+            return Ok(None);
+        }
         if self.wrapped_by(key).contains(&WrappedBy::Key(escrow.id)) {
             return Ok(None);
         }
@@ -526,13 +532,16 @@ impl KeyBook {
         })
     }
 
-    fn mint(&self, block: Uuid, kind: KeyKind) -> KeyRow {
+    fn mint(&self, block: Uuid, kind: KeyKind, owner_only: bool) -> KeyRow {
         let epoch = self
             .keys_of(block, kind)
             .last()
             .map_or(1, |row| row.epoch + 1);
         let row = KeyRow {
-            id: Uuid::new_v4(),
+            id: match owner_only {
+                true => be_block_protocol::owner_only_key_id(),
+                false => Uuid::new_v4(),
+            },
             block,
             kind,
             epoch,
@@ -544,7 +553,7 @@ impl KeyBook {
 
     pub fn mint_data(&self, block: Uuid, under: Uuid) -> Result<(Uuid, KeySet), StoreError> {
         self.trusted_plain(under)?;
-        let row = self.mint(block, KeyKind::Data);
+        let row = self.mint(block, KeyKind::Data, false);
         let wrapped = self.wrap(row.id, under)?;
         Ok((
             row.id,
@@ -563,7 +572,7 @@ impl KeyBook {
         if let Some(parent) = parent_scope {
             self.trusted_plain(parent)?;
         }
-        let row = self.mint(block, KeyKind::Scope);
+        let row = self.mint(block, KeyKind::Scope, false);
         let mut wrapped = vec![self.seal_to(row.id, self.account, &self.identity.public())?];
         if let Some(parent) = parent_scope {
             wrapped.push(self.wrap(row.id, parent)?);
@@ -578,8 +587,34 @@ impl KeyBook {
         ))
     }
 
+    /// The scope key of an owner-only block, sealed to this account alone: never wrapped under
+    /// the scope above nor escrowed.
+    pub fn mint_own_scope(&self, block: Uuid) -> Result<(Uuid, KeySet), StoreError> {
+        let row = self.mint(block, KeyKind::Scope, true);
+        let wrapped = vec![self.seal_to(row.id, self.account, &self.identity.public())?];
+        Ok((
+            row.id,
+            KeySet {
+                keys: vec![row],
+                wrapped,
+            },
+        ))
+    }
+
+    /// Whether `key` is an owner-only block's scope key, which nothing else may wrap. Told by
+    /// the key's own id, which every seal of it binds, so the server cannot say otherwise.
+    pub fn owner_only(&self, key: Uuid) -> bool {
+        be_block_protocol::owner_only_key(key)
+    }
+
+    /// Moves on each time keys are recorded (`record`).
+    pub fn revision(&self) -> u64 {
+        self.rows.lock().unwrap().revision
+    }
+
     pub fn record(&self, set: &KeySet) {
         let mut rows = self.rows.lock().unwrap();
+        rows.revision += 1;
         for row in &set.keys {
             rows.add_row(*row);
         }

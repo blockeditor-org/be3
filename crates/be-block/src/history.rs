@@ -26,8 +26,14 @@ struct Gesture<C: Undo> {
     step: Option<C::Step>,
 }
 
+/// When a step's last edit was made, and by whom, while later edits may still absorb into it.
+struct Burst<T> {
+    at: T,
+    origin: Option<u64>,
+}
+
 pub struct History<C: Undo, T: Moment = Instant> {
-    undo: Vec<(C::Step, Option<T>)>,
+    undo: Vec<(C::Step, Option<Burst<T>>)>,
     redo: Vec<C::Step>,
     gesture: Option<Gesture<C>>,
     stopped: bool,
@@ -60,10 +66,12 @@ impl<C: Undo, T: Moment> History<C, T> {
             return;
         }
         let step = match (self.undo.last_mut(), at) {
-            (Some((previous, Some(then))), Some(now)) if now.within(*then, EDIT_BURST) => {
+            (Some((previous, Some(burst))), Some(now))
+                if burst.origin == origin && now.within(burst.at, EDIT_BURST) =>
+            {
                 match C::absorb(previous, step) {
                     Ok(()) => {
-                        *then = now;
+                        burst.at = now;
                         return;
                     }
                     Err(step) => step,
@@ -71,7 +79,7 @@ impl<C: Undo, T: Moment> History<C, T> {
             }
             _ => step,
         };
-        self.push((step, at));
+        self.push((step, at.map(|at| Burst { at, origin })));
     }
 
     pub fn begin(&mut self, origin: Option<u64>) {
@@ -86,6 +94,24 @@ impl<C: Undo, T: Moment> History<C, T> {
             .is_some_and(|gesture| gesture.origin == origin)
         {
             self.close();
+        }
+    }
+
+    /// Ends the burst `origin`'s last edit went into, so its next edit starts a step of its
+    /// own however soon it comes. A gesture `origin` holds open is left alone: the gesture
+    /// already makes one step, and its commit or cancel says where that ends.
+    pub fn split(&mut self, origin: Option<u64>) {
+        if self
+            .gesture
+            .as_ref()
+            .is_some_and(|gesture| gesture.origin == origin)
+        {
+            return;
+        }
+        if let Some((_, burst)) = self.undo.last_mut()
+            && burst.as_ref().is_some_and(|burst| burst.origin == origin)
+        {
+            *burst = None;
         }
     }
 
@@ -161,7 +187,7 @@ impl<C: Undo, T: Moment> History<C, T> {
         }
     }
 
-    fn push(&mut self, step: (C::Step, Option<T>)) {
+    fn push(&mut self, step: (C::Step, Option<Burst<T>>)) {
         self.undo.push(step);
         if self.undo.len() > HISTORY_STEPS {
             self.undo.remove(0);

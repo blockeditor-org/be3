@@ -29,6 +29,11 @@ pub struct Node {
 }
 
 impl Node {
+    /// An account's Unfiled, which holds its children without listing them.
+    pub fn unfiled(&self) -> bool {
+        self.content_type == be_block_graph::UNFILED_TYPE
+    }
+
     pub fn contents(&self) -> Vec<Uuid> {
         let described = self.metadata.references();
         self.references
@@ -528,6 +533,11 @@ impl Graph {
         self.nodes.get(&block)
     }
 
+    /// Every block the host has loaded, in no order.
+    pub fn nodes(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.values()
+    }
+
     pub fn query(&self, query: Query) -> Vec<Node> {
         let mut found: Vec<Node> = match query {
             Query::Roots => self.with_parent(BlockParent::Root),
@@ -662,10 +672,27 @@ impl Graph {
             Some(BlockParent::Root) | None => true,
             Some(BlockParent::Detached) => false,
             Some(BlockParent::Block(parent)) => match self.nodes.get(&parent) {
-                Some(parent) if parent.access.can_view() => parent.references.contains(&node.id),
+                Some(parent) if parent.access.can_view() => {
+                    parent.unfiled() || parent.references.contains(&node.id)
+                }
                 _ => node.held,
             },
         }
+    }
+
+    /// Whether `block` is `root` or below it, as far as the mirror knows its parents.
+    pub fn is_within(&self, block: Uuid, root: Uuid) -> bool {
+        let mut current = block;
+        for _ in 0..=self.nodes.len() {
+            if current == root {
+                return true;
+            }
+            match self.nodes.get(&current).and_then(|node| node.parent) {
+                Some(BlockParent::Block(parent)) => current = parent,
+                _ => return false,
+            }
+        }
+        false
     }
 
     pub fn deleted_root(&self, block: Uuid) -> Option<Uuid> {

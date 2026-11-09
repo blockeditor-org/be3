@@ -142,6 +142,10 @@ pub enum Answered {
         Reply<Result<Vec<u8>, String>, wire::Fallible<wire::Bytes, wire::Plain>>,
         Result<Vec<u8>, String>,
     ),
+    PutPart(
+        Reply<Result<be_sdk_type_api::PartRef, String>>,
+        Result<be_sdk_type_api::PartRef, String>,
+    ),
     Stash(Reply<Result<CommitId, String>>, Result<CommitId, String>),
     Resume(Reply<Result<Resume, String>>, Result<Resume, String>),
 }
@@ -155,6 +159,7 @@ impl Answered {
         match self {
             Answered::Load(reply, result) => reply.send(connection, &result),
             Answered::ReadPart(reply, result) => reply.send(connection, &result),
+            Answered::PutPart(reply, result) => reply.send(connection, &result),
             Answered::Stash(reply, result) => reply.send(connection, &result),
             Answered::Resume(reply, result) => reply.send(connection, &result),
         }
@@ -205,6 +210,29 @@ pub enum Io {
         replica: ReplicaId,
         joined: Box<Result<(ClientId, SessionState), ClientError>>,
     },
+    /// A `read-part` made under a stateless request, read.
+    Read {
+        module: usize,
+        generation: u64,
+        request: OpId,
+        read: Box<types::PartRead>,
+        result: Result<Vec<u8>, ClientError>,
+    },
+}
+
+/// A merge's answer: the commit to write, which reuses the parts a type that merges by parts
+/// kept as they were, and how many conflicts it kept both sides of.
+pub struct Merged {
+    pub content: be_sdk_type_api::Written,
+    pub conflicts: usize,
+    /// The parts the type read to merge, in the order it asked.
+    pub read: Vec<be_block_store::PartRef>,
+}
+
+impl Merged {
+    pub fn parts(&self) -> be_block_store::Part<'_> {
+        be_sdk_type_api::written_parts(&self.content.bytes, &self.content.parts)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -345,6 +373,7 @@ pub struct Replicas<H: Host> {
     contents: HashMap<(usize, OpId), (ReplicaId, Content)>,
     replies: HashMap<(usize, OpId), Waiting>,
     asked: HashMap<(usize, OpId), (ReplicaId, Asked)>,
+    scopes: HashMap<(usize, OpId), types::Scope>,
     pending: Vec<Io>,
     relaying: usize,
     left: usize,
@@ -378,6 +407,7 @@ impl<H: Host> Replicas<H> {
             contents: HashMap::new(),
             replies: HashMap::new(),
             asked: HashMap::new(),
+            scopes: HashMap::new(),
             pending: Vec::new(),
             relaying: 0,
             left: 0,
@@ -506,6 +536,26 @@ impl<H: Host> Replicas<H> {
             return Err(OpError::Canceled);
         };
         self.wait(ctx, ticket, answered).await
+    }
+
+    /// `ask` for a stateless request that may `read-part`: of the parts `scope` allows only.
+    /// Answers the scope back, holding what was read and the first read that failed. A scope
+    /// left behind by a wait that was dropped goes when its request completes or its module
+    /// restarts.
+    pub async fn ask_reading<T, E: Decode<T>>(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        module: usize,
+        scope: types::Scope,
+        call: impl FnOnce(&mut Connection) -> Ticket<T, E>,
+    ) -> (Result<T, OpError>, types::Scope) {
+        let Some((ticket, answered)) = self.ask_later(module, call) else {
+            return (Err(OpError::Canceled), scope);
+        };
+        let key = (module, ticket.op());
+        self.scopes.insert(key, scope);
+        let answer = self.wait(ctx, ticket, answered).await;
+        (answer, self.scopes.remove(&key).unwrap_or_default())
     }
 
     async fn wait<T, E: Decode<T>>(
@@ -1292,29 +1342,89 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    /// Merges three stored forms of a block (none is the type's default) as its type does:
+    /// by parts, loading only each side's first part, for a type that merges by parts, and
+    /// otherwise over whole bytes. None when the type has no module or the merge failed.
     pub async fn merge(
         &mut self,
         ctx: Ctx<'_, H>,
         content_type: Uuid,
-        base: Option<&[u8]>,
-        ours: Option<&[u8]>,
-        theirs: Option<&[u8]>,
-    ) -> Option<(Vec<u8>, usize)> {
-        let module = self.modules.module_of(content_type)?;
-        let (base, ours, theirs) = (
-            base.map(<[u8]>::to_vec),
-            ours.map(<[u8]>::to_vec),
-            theirs.map(<[u8]>::to_vec),
-        );
-        match self
+        sides: [Option<&be_block_store::Manifest>; 3],
+    ) -> Result<Option<Merged>, ClientError> {
+        let peer = ctx.0;
+        let Some(kind) = self.kind(content_type).await else {
+            return Ok(None);
+        };
+        let Some(module) = self.modules.module_of(content_type) else {
+            return Ok(None);
+        };
+        let organization = peer.organization();
+        if kind.merges_parts {
+            let mut loaded = Vec::new();
+            for side in sides {
+                loaded.push(match side {
+                    Some(manifest) => Some(be_sdk_type_api::Loaded::of(
+                        peer.load_first_part(manifest).await?,
+                    )),
+                    None => None,
+                });
+            }
+            let scope = types::Scope::of(loaded.iter().flatten());
+            let [base, ours, theirs]: [_; 3] = loaded.try_into().unwrap_or_default();
+            let (answer, mut scope) = self
+                .ask_reading(ctx, module, scope, |connection| {
+                    replicas::merge_parts(
+                        connection,
+                        content_type,
+                        base,
+                        ours,
+                        theirs,
+                        organization,
+                    )
+                })
+                .await;
+            if let Some(failed) = scope.take_failure() {
+                return Err(failed);
+            }
+            return Ok(match answer {
+                Ok(Ok(merged)) if scope.admits(&merged.content) => Some(Merged {
+                    content: merged.content,
+                    conflicts: merged.conflicts as usize,
+                    read: scope.read().to_vec(),
+                }),
+                _ => None,
+            });
+        }
+        let mut bytes = Vec::new();
+        for side in sides {
+            bytes.push(match side {
+                Some(manifest) => Some(peer.read_manifest(manifest).await?),
+                None => None,
+            });
+        }
+        let [base, ours, theirs]: [_; 3] = bytes.try_into().unwrap_or_default();
+        let merged = match self
             .ask(ctx, module, |connection| {
                 replicas::merge3(connection, content_type, base, ours, theirs)
             })
             .await
         {
-            Ok(Ok(merged)) => Some((merged.bytes, merged.conflicts as usize)),
-            _ => None,
-        }
+            Ok(Ok(merged)) => merged,
+            _ => return Ok(None),
+        };
+        let Some(description) = self.describe(ctx, content_type, &merged.bytes).await else {
+            return Ok(None);
+        };
+        Ok(Some(Merged {
+            content: be_sdk_type_api::Written {
+                bytes: merged.bytes,
+                parts: Vec::new(),
+                references: description.references,
+                derived: description.derived,
+            },
+            conflicts: merged.conflicts as usize,
+            read: Vec::new(),
+        }))
     }
 
     pub async fn merge_diverged(
@@ -1335,37 +1445,26 @@ impl<H: Host> Replicas<H> {
                 Reconciled::Done => return Ok(peer.known_remote_head(block)),
                 Reconciled::Merge { base, ours, theirs } => (base, ours, theirs),
             };
-            let mut sides = Vec::new();
+            let mut manifests = Vec::new();
             for commit in [base, Some(ours), Some(theirs)] {
-                sides.push(match commit {
-                    Some(commit) => {
-                        let commit = peer.load_commit(commit).await?;
-                        Some(peer.read_manifest(&commit.manifest).await?)
-                    }
+                manifests.push(match commit {
+                    Some(commit) => Some(peer.load_commit(commit).await?.manifest),
                     None => None,
                 });
             }
-            let Some((bytes, conflicts)) = self
-                .merge(
-                    (peer, shared),
-                    content_type,
-                    sides[0].as_deref(),
-                    sides[1].as_deref(),
-                    sides[2].as_deref(),
-                )
-                .await
-            else {
+            let sides = [&manifests[0], &manifests[1], &manifests[2]].map(Option::as_ref);
+            let Some(merged) = self.merge((peer, shared), content_type, sides).await? else {
                 return Ok(None);
             };
-            let description = self
-                .describe((peer, shared), content_type, &bytes)
-                .await
-                .unwrap_or_default();
+            let conflicts = merged.conflicts;
             let saved = peer
                 .write(
                     block,
-                    Write::encoded(content_type, &bytes, Some(theirs))
-                        .described(description.references, description.derived)
+                    Write::encoded(content_type, merged.parts(), Some(theirs))
+                        .described(
+                            merged.content.references.clone(),
+                            merged.content.derived.clone(),
+                        )
                         .merging(base, ours),
                 )
                 .await?;
@@ -1727,6 +1826,20 @@ impl<H: Host> Replicas<H> {
                     self.answer_publish(unanswered, result, published);
                 }
             }
+            Io::Read {
+                module,
+                generation,
+                request,
+                read,
+                result,
+            } => {
+                if self.modules.generation(module) == generation {
+                    let mut gone = types::Scope::default();
+                    let scope = self.scopes.get_mut(&(module, request)).unwrap_or(&mut gone);
+                    self.modules
+                        .call(module, |connection| scope.answer(connection, *read, result));
+                }
+            }
             Io::Relayed => self.relaying -= 1,
             Io::Left => {
                 self.left -= 1;
@@ -1870,6 +1983,7 @@ impl<H: Host> Replicas<H> {
             .collect();
         self.handles.retain(|(from, _), _| *from != module);
         self.contents.retain(|(from, _), _| *from != module);
+        self.scopes.retain(|(from, _), _| *from != module);
         let mut waiting: HashMap<OpId, Waiting> = HashMap::new();
         for key in self
             .replies
@@ -1964,6 +2078,43 @@ impl<H: Host> Replicas<H> {
                 false
             }
             Heard::Completed { op, outcome } => self.completed(ctx, module, op, outcome).await,
+            Heard::Call {
+                op,
+                parent: Some(parent),
+                call,
+            } if self.scopes.contains_key(&(module, parent)) => {
+                let Some(scope) = self.scopes.get_mut(&(module, parent)) else {
+                    return false;
+                };
+                let under = self
+                    .modules
+                    .call(module, |connection| scope.take(connection, op, call));
+                match under {
+                    Some(types::Under::Read(read)) => {
+                        let (peer, generation, io) = (
+                            Arc::clone(ctx.0),
+                            self.modules.generation(module),
+                            self.io.clone(),
+                        );
+                        H::spawn(async move {
+                            let result = read.read(&peer).await;
+                            let _ = io.send(Io::Read {
+                                module,
+                                generation,
+                                request: parent,
+                                read: Box::new(read),
+                                result,
+                            });
+                            H::wake();
+                        });
+                    }
+                    Some(types::Under::Error(message)) => {
+                        H::report(ctx.1, None, format!("a type module: {message}"));
+                    }
+                    Some(types::Under::Answered) | None => {}
+                }
+                false
+            }
             Heard::Call { op, parent, call } => {
                 let replica = parent
                     .and_then(|parent| self.handles.get(&(module, parent)).copied())
@@ -2002,9 +2153,13 @@ impl<H: Host> Replicas<H> {
     ) -> bool {
         self.asked.remove(&(module, op));
         if let Some(answer) = self.replies.remove(&(module, op)) {
-            let _ = answer.send(outcome);
+            // Its asker takes the scope back, unless it stopped waiting.
+            if answer.send(outcome).is_err() {
+                self.scopes.remove(&(module, op));
+            }
             return false;
         }
+        self.scopes.remove(&(module, op));
         if let Some((replica, ticket)) = self.contents.remove(&(module, op)) {
             let (Some(open), Ok(Some(bytes))) = (self.open.get(&replica), ticket.decode(outcome))
             else {
@@ -2171,6 +2326,26 @@ impl<H: Host> Replicas<H> {
                     }
                     let result = read.map_err(|error| error.to_string());
                     (Answered::ReadPart(reply, result), None)
+                });
+                false
+            }
+            Call::PutPart { reply, bytes } => {
+                let peer = Arc::clone(peer);
+                let io = self.io.clone();
+                self.answer_later(replica, module, async move {
+                    let put = match made_up {
+                        true => Err(ClientError::Disconnected(
+                            "the server does not have this block yet".to_owned(),
+                        )),
+                        false => peer.put_part(block, &bytes).await,
+                    };
+                    if let Err(ClientError::Locked(_)) = &put {
+                        let _ = io.send(Io::Locked { replica });
+                    }
+                    let result = put
+                        .map(be_sdk_type_api::PartRef::from)
+                        .map_err(|error| error.to_string());
+                    (Answered::PutPart(reply, result), None)
                 });
                 false
             }

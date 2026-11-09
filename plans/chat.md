@@ -1,22 +1,43 @@
 # Chat
 
-Depends on: plans/large_blocks.md (the operation that adds a part by its hash,
-`merge3` over parts), for step 1d only; steps 1a to 1c start at once.
-plans/owner_settings.md for step 1c. plans/notifications.md for step 2.
+Depends on: none; merging by parts (guides/type_modules.md, "Merging by
+parts"), which step 1d uses, has landed. Owner-only settings, for step 1c, have landed
+(guides/settings.md, Owner only). plans/notifications.md for step 2.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
 (a type can load only its first part, guides/blocks/content_types.md "Parts"),
 and it is edited by many people at once, so it saves less often than it is
-edited (the journal, guides/blocks/client.md). Not implemented yet.
+edited (the journal, guides/blocks/client.md). Step 1a has landed.
 
 ## What exists
 
-- VISION.md lists chat as planned and not designed.
+- **The type and editor (1a).** `crates/be-type-chat` and `crates/be-app-chat`.
+  `ChatContent` is written by hand, wrapping the header `Document<ChatHeader>`
+  (its only part, `Loads::FirstPart`) and forwarding `LiveEdit`, `Merge` and
+  `Undo` to it. The header holds the messages (a `merge_appends` list),
+  `edits`, `deletions` and `reactions` (`LatestMap`s) keyed by message id, and
+  an empty `segments` index. Sending and deleting are not undoable; an edit by
+  anyone but the message's author is ignored. Each message stores the hash of the last message its
+  author saw (`seen`) and an empty signature; `Message::signed_bytes`,
+  `MessageEdit::signed_bytes`, `Deletion::signed_bytes` and
+  `ReactionKey::signed_bytes` define what a signature will cover
+  (`src/signed.rs`), and a message's hash is SHA-256 over its signed bytes.
+  Deleting removes the message with its edit and reactions and records the
+  `Deletion`. The editor sends, replies, edits and deletes its own messages and
+  toggles reactions (Lucide icon names); members other than you show as
+  "Member" and their account's first digits, since no host service names
+  members to an app yet. Attachments are in the model but the editor cannot
+  add or show them yet.
+- **Member names.** Apps have no way to learn a member's name: the `contacts`
+  watch is the shell's alone. Step 1b or a later one needs a host service that
+  names the accounts in a block's members (contacts by their card, others by
+  what the server says, marked unverified), with no framework types.
 - **Loading.** A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads
   only its first part, and its editors read the rest by range
   (`LiveContent::read_range`; guides/blocks/apps.md, "Reading a range"). Every
-  `Blob` loads that way, a content type written by hand rather than derived. A
+  `Blob` and `ChatContent` load that way, content types written by hand rather
+  than derived. A
   save reuses the parts it never loaded, and publishing sends only what
   changed. Documents save as parts but load whole.
 - **References per part.** A part's node lists the blocks its own bytes
@@ -27,7 +48,10 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
 - **Access.** Posting needs Edit, which also allows changing others' messages.
   A grant must name a contact, so a chat only ever reaches contacts.
 - **Merging.** A `List` merge puts an insert after the sibling it was made
-  after (guides/blocks/content_types.md). Publishing is a compare-and-swap on
+  after, except in a `merge_appends` list such as chat's messages, which keeps
+  the published side as it is and puts what only the merging device added
+  after it (guides/blocks/content_types.md). Edits, deletions and reactions are
+  `LatestMap`s, so the later write of a key wins and none conflicts. Publishing is a compare-and-swap on
   the head: a device whose publish is rejected merges again on the new head,
   so a merge never has to give the same result from both sides.
 
@@ -57,11 +81,14 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
   stays in the editor until sent.
 - **Closing a segment** is an operation the session owner sequences once the
   recent messages pass a size: messages a..b become segment k, carried by its
-  hash (the operation that adds a part by its hash, plans/large_blocks.md).
+  hash (`put-part`, guides/type_modules.md, "Parts named by hash").
   Only an owner online, and only for messages already confirmed. Every replica
   encodes the segment's bytes itself and checks them against the hash; on a
   mismatch (another build encoding differently) it reads the part with
-  `read-part` instead.
+  `read-part` instead. Missing: `put-part` is reachable only from an editor
+  (`FromEditor::PutPart`), so the owner closing a segment with no editor
+  attached needs a type-side hook first (a `LiveEdit` way to ask for a part
+  and sequence the operation that names it once it is put).
 - **Rewriting a segment** folds its pending edits, deletions and reactions in
   as one new part.
 - **The editor** opens the header and reads segments as the person scrolls
@@ -71,9 +98,13 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
 ### Sending offline
 
 - A message written offline goes into the document like any edit, and goes out
-  through the ordinary three-way merge. Chat's merge puts the messages only one
-  side added after all of the other side's, ours first, keeping their order: a
-  model attribute on a `List` (`merge_appends`), not a merge written for chat.
+  through the ordinary three-way merge. Chat's merge is published first: the
+  messages already on the published head (theirs, in every merge a replica or
+  `be sync` makes) keep their place, and the merging device's own new messages
+  go after all of them, in their order: a model attribute on a `List`
+  (`merge_appends`), not a merge written for chat. In a live session the owner
+  sequences each send, an insert at the end, so a message lands after those
+  sequenced before it, the same order.
 - An offline device never closes segments. The online side may have closed
   one since the base, moving a message an offline edit or reaction names into
   a segment. Edits, deletions and reactions are kept by message id whether the
@@ -96,7 +127,7 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
 
 - Where each person has read up to is theirs, not part of the shared document,
   where it would be a read receipt. It is kept in an owner-only settings kind
-  of chat's own (plans/owner_settings.md), keyed by chat id, so it matches
+  of chat's own (`KindVisibility::Owner`, guides/settings.md), keyed by chat id, so it matches
   across devices; ordinary user settings are escrowed, and administrators
   could read them.
 - The newest message and the counts come from the header, so a sidebar of
@@ -110,16 +141,7 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
 
 ## Order of work
 
-Land 1a's `merge_appends` and plans/text.md's Sequence items one after the
-other: both change `Items` merges.
-
 1. **The chat type and editor.**
-   - **1a.** The hand-written type with header-only content, messages,
-     `merge_appends`, the editor, its manifest, and beui-demo pages for any new
-     components. Done: a `BeuiTest` sends, edits, reacts to and deletes
-     messages; two replicas that each add messages offline merge with neither
-     side's lost and each side's order kept; paintings of a conversation, a
-     reply and reactions. Update VISION.md (chat is designed).
    - **1b.** Sending state and `published-head`. Done: a host test sends a
      message while the server is unreachable and the painting shows it as
      sending until the drain publishes it.

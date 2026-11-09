@@ -23,6 +23,7 @@ fn a_child_reordered_in_a_folder_is_listed_in_its_new_place() {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     for child in children {
         create(
@@ -31,6 +32,7 @@ fn a_child_reordered_in_a_folder_is_listed_in_its_new_place() {
             be_block_graph::BlockParent::Block(folder),
             be_block::BlockMetadata::default(),
             None,
+            false,
         );
     }
     wait_until("knew the folder's type", |_| {

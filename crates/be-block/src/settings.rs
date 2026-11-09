@@ -44,6 +44,25 @@ pub enum KindVisibility {
     Inside,
     #[default]
     Members,
+    /// Only the account that made the kind's block reads it, on any of its
+    /// devices: the block is its own scope root, created `owner-only`, and its
+    /// key is sealed to that account alone, never to the organization's escrow
+    /// key (decisions/owner_only_settings_are_never_escrowed.md).
+    Owner,
+}
+
+impl KindVisibility {
+    pub const fn owner_only(self) -> bool {
+        matches!(self, Self::Owner)
+    }
+}
+
+/// Whether an owner-only kind may be made under a block of `parent_type` that the maker
+/// authored: its `Settings` block or one of its `SettingsProfile`s, the only places a kind
+/// readable by its owner alone belongs.
+pub fn holds_owner_only(parent_type: Uuid) -> bool {
+    parent_type == <Settings as Root>::CONTENT_TYPE
+        || parent_type == <SettingsProfile as Root>::CONTENT_TYPE
 }
 
 pub fn union<K: Ord + Clone, V: Clone>(upper: &Map<K, V>, lower: &Map<K, V>) -> Map<K, V> {

@@ -18,6 +18,7 @@ mod host;
 mod layered_settings;
 mod link;
 mod module;
+pub mod network;
 #[cfg(target_arch = "wasm32")]
 mod panes;
 mod preferences;
@@ -44,35 +45,36 @@ pub use be_sdk_api::accesskit;
 pub use be_sdk_api::guest::desktop;
 pub use be_sdk_api::{
     AccessGrant, AccessLevel, AccessListing, AccountStorage, AdministratorWatch, ArtifactAction,
-    AudioCommand, AudioOutput, AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter,
-    BlockLocation, BlockPick, BlockTypeDescriptor, CapturedChord, CapturedTrigger, Catalog,
-    ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations, ChildPlacement, ChildPreview,
-    ChildStatus, ConflictSide, ContactsWatch, CreationProgress, CursorIcon, DescribedAction,
-    Description, DesktopBarWatch, DialogAnswer, DialogFrame, DialogStatus, DisplayMode,
-    DisplaysWatch, DropAction, EditorCapabilities, EditorDescriptor, EditorInstanceId, Edits,
-    EndingAnswer, EpaperWatch, Failure, FileSave, FrameChrome, FrameSpec, HostContact, HostDisplay,
-    HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram, HostTrayItem,
-    HostWindow, HostWindowId, ImeArea, ImportedBlock, IncomingNotification, Input, InputCapture,
-    InputCaptureWatch, InputDevicesWatch, InputReach, InputReachWatch, InteractionMode, Key,
-    KeyChord, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, LinkBaseWatch, MediaLevel,
-    MediaLevels, MediaRequest, MediaWatch, MenuAsk, MenuCheck, MenuCommand, MenuEntry, MenuPin,
-    MenuSubmenu, Modifiers, NotificationCloseReason, NotificationInbox, NotificationReport,
-    NotificationRequest, NotificationSignal, NotificationUrgency, NotificationsWatch, Occluder,
-    OpenProgram, OpenProgramsWatch, PastedBlock, PenPhase, PickedBlock, Picture, PlayerCommand,
-    PointerButton, Pointing, PowerAction, PowerAvailability, PowerWatch, Press, PreviewImage,
-    ProgramAction, ProgramCatalog, ProgramsWatch, RemapState, RemapsWatch, ResizeMode, Revision,
-    Rotation, ScreenEdge, ScreenEdgeState, ScreenEdgesWatch, ScreenLockedWatch, ScreenPlacement,
-    ScreenSide, ScrollDelta, SessionEnd, ShellCommand, ShellDialog, Size, Stopped,
-    StorageUsageWatch, SuperKeptWatch, SurfaceRect, TemplateCategory, TemplateDescriptor,
-    TimedInput, TopBar, TouchPhase, TrayClick, TrayMenuEntry, TrayMenuItem, TrayRequest,
-    TrayStatus, TrayToggle, TrayWatch, VersionBranch, VersionChange, VersionChangeKind,
-    VersionCommand, VersionCommit, VersionOperation, VersionStatus, ViewChange, Watched,
-    WebViewCommand, WebViewEvent, WebViewId, WheelTurn, WifiLink, WifiNetwork, WifiRequest,
-    WifiSecurity, WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowRequests, WindowsWatch,
+    AudioCommand, AudioOutput, AudioSource, AudioStatus, BarAction, BlockAgent, BlockCommand,
+    BlockFilter, BlockLocation, BlockPick, BlockTypeDescriptor, CapturedChord, CapturedTrigger,
+    Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations, ChildPlacement,
+    ChildPreview, ChildStatus, ConflictSide, ContactsWatch, CreationProgress, CursorIcon,
+    DescribedAction, Description, DesktopBarWatch, DialogAnswer, DialogFrame, DialogStatus,
+    DisplayMode, DisplaysWatch, DropAction, EditorCapabilities, EditorDescriptor, EditorInstanceId,
+    Edits, EndingAnswer, EpaperWatch, Failure, FileSave, FrameChrome, FrameSpec, HostContact,
+    HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
+    HostTrayItem, HostWindow, HostWindowId, ImeArea, ImportedBlock, IncomingNotification, Input,
+    InputCapture, InputCaptureWatch, InputDevicesWatch, InputReach, InputReachWatch,
+    InteractionMode, Key, KeyChord, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch,
+    LinkBaseWatch, MediaLevel, MediaLevels, MediaRequest, MediaWatch, MenuAsk, MenuCheck,
+    MenuCommand, MenuEntry, MenuPin, MenuSubmenu, Modifiers, NotificationCloseReason,
+    NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
+    NotificationUrgency, NotificationsWatch, Occluder, OpenProgram, OpenProgramsWatch, PastedBlock,
+    PenPhase, PickedBlock, Picture, PlayerCommand, PointerButton, Pointing, PowerAction,
+    PowerAvailability, PowerWatch, Press, PreviewImage, ProgramAction, ProgramCatalog,
+    ProgramsWatch, RemapState, RemapsWatch, ResizeMode, Revision, Rotation, ScreenEdge,
+    ScreenEdgeState, ScreenEdgesWatch, ScreenLockedWatch, ScreenPlacement, ScreenSide, ScrollDelta,
+    SessionEnd, ShellCommand, ShellDialog, Size, Stopped, StorageUsageWatch, SuperKeptWatch,
+    SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase, TrayClick,
+    TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch, VersionBranch,
+    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
+    VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId, WheelTurn,
+    WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowKind,
+    WindowOrigin, WindowRequests, WindowsWatch,
 };
 pub use be_sdk_api::{
-    AnchorSpace, AnchoredPlacement, HostTransform, HostView, ParentView, Scrim, View, ViewAnchor,
-    ViewEdge, ViewId, ViewPlacement, ViewRef,
+    AnchorSpace, AnchoredPlacement, HostTransform, HostView, PaletteMode, ParentView, Scrim, View,
+    ViewAnchor, ViewEdge, ViewId, ViewPlacement, ViewRef,
 };
 pub use be_sdk_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSourcesWatch, Preferences, ThemeKind,

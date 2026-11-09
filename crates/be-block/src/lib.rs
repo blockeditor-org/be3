@@ -37,15 +37,15 @@ pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
 pub use metadata::{
-    ARTIFACT, Artifact, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE, Entries,
-    ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME, Origin,
-    ROW_PREFIX, SCHEMA, SETTINGS, THUMBHASH, Thumbhash, VIEW_EDITOR,
+    ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
+    EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES,
+    MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, SETTINGS, THUMBHASH, Thumbhash, VIEW_EDITOR,
 };
 pub use model::Root;
 pub use organization::{
     Allowance, LostAccess, OfflineChoice, OfflinePolicy, OfflineSettings, OfflineSettingsContent,
-    OrganizationPolicies, OrganizationPoliciesContent, SYSTEM_TYPES, WhoMay, is_workspace_type,
-    my_files, my_files_of, organization_settings,
+    OrganizationPolicies, OrganizationPoliciesContent, SYSTEM_TYPES, UNFILED_TYPE, WhoMay,
+    is_workspace_type, my_files, my_files_of, organization_settings, unfiled, unfiled_of,
 };
 pub use profile::{
     DESKTOP_EDITOR, FILES_EDITOR, RecentBlock, Recents, VIEW_TYPE, WORKSPACE_EDITOR, WORKSPACE_TYPE,
@@ -53,7 +53,8 @@ pub use profile::{
 pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{
     Follows, KindRule, KindVisibility, Layered, Resolution, ResolutionLayers, Settings,
-    SettingsContent, SettingsProfile, SettingsProfileContent, SettingsSource, layered,
+    SettingsContent, SettingsProfile, SettingsProfileContent, SettingsSource, holds_owner_only,
+    layered,
 };
 pub use settling::{Landed, Settling};
 pub use streamed::{
@@ -123,6 +124,14 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     /// Decodes stored content, keeping the refs of the parts it was saved in for `parts`.
     fn from_stored(stored: &Stored) -> Result<Self, ContentError> {
         Self::decode(&stored.bytes)
+    }
+
+    /// The bytes of a part this content hands back as `Part::Reused` and holds anyway, such as
+    /// one it rebuilt from an operation that named the part by its hash and found to match
+    /// (guides/type_modules.md, "Parts named by hash"), so reading it needs no `read-part`.
+    fn reused_bytes(&self, part: PartRef) -> Option<std::borrow::Cow<'_, [u8]>> {
+        let _ = part;
+        None
     }
 
     fn references(&self) -> Vec<Uuid> {
@@ -258,6 +267,41 @@ pub trait Undo: LiveEdit {
 
 pub trait Merge: BlockContent {
     fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self>;
+}
+
+/// Reads a range of a saved part's bytes, for content that loaded only its first part
+/// (`Loads::FirstPart`): the host's `read-part`.
+#[derive(Clone)]
+pub struct PartReader(std::rc::Rc<dyn Fn(PartRef, u64, u64) -> PartRead>);
+
+pub type PartRead = std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>>>>;
+
+impl PartReader {
+    pub fn new(read: impl Fn(PartRef, u64, u64) -> PartRead + 'static) -> Self {
+        Self(std::rc::Rc::new(read))
+    }
+
+    pub fn read(&self, part: PartRef, offset: u64, length: u64) -> PartRead {
+        (self.0)(part, offset, length)
+    }
+
+    /// The whole part.
+    pub fn read_all(&self, part: PartRef) -> PartRead {
+        self.read(part, 0, part.length())
+    }
+}
+
+/// `merge3` over parts, for content that loads only its first part: each side as
+/// `from_stored` decoded it from that part, reading whatever else it needs with `parts`. The
+/// merged value hands back the parts it kept as they were as `Part::Reused`, so writing it
+/// uploads only what the merge changed (guides/type_modules.md, "Merging by parts").
+pub trait MergeParts: Merge {
+    fn merge_parts(
+        base: Self,
+        ours: Self,
+        theirs: Self,
+        parts: PartReader,
+    ) -> impl Future<Output = Result<MergeResult<Self>, String>> + 'static;
 }
 
 #[cfg(test)]

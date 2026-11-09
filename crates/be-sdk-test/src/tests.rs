@@ -14,9 +14,11 @@ use be_sdk_beui::be_block::{
 };
 use be_sdk_beui::{BlockInfo, BlockParent};
 
+mod a_blocks_agent_is_made_rotated_and_removed_through_the_host;
 mod a_child_block_hears_what_its_childs_bar_asked_for;
 mod a_child_block_reports_its_placement_and_follows_its_status;
 mod a_dock_bar_lifted_by_its_grip_draws_above_a_hosted_window;
+mod a_fetched_body_reaches_the_editor_in_the_chunks_it_arrived_in;
 mod a_floating_overlay_covers_only_the_children_painted_beneath_it;
 mod a_hosted_window_is_kept_off_the_band_of_its_docks_bars;
 mod a_hosted_window_keeps_its_place_when_a_dock_bar_moves_the_docks_area;
@@ -28,7 +30,11 @@ mod a_popped_out_bar_stays_above_a_window_raised_over_it_until_covered;
 mod a_shortcut_on_punctuation_reaches_the_editor;
 mod a_standalone_docks_layout_is_kept_on_this_device_and_every_instance_follows_it;
 mod a_watch_open_while_asked_starts_anew_each_time_it_opens;
+mod an_actions_label_and_where_the_focus_is_reach_the_host;
 mod an_app_timer_runs_on_the_tests_clock;
+mod an_editor_describes_its_actions_to_the_host_and_runs_one_it_asks_for;
+mod an_editor_opens_a_link_through_its_host;
+mod an_editor_with_no_block_of_its_own_picks_into_unfiled;
 mod ctrl_z_in_a_text_field_is_left_to_the_field;
 mod ctrl_z_undoes_a_block_that_owns_its_frame_without_a_top_bar;
 mod ctrl_z_undoes_the_block_through_the_frames_undo;
@@ -40,6 +46,7 @@ mod the_menu_offers_close_only_to_a_framed_child;
 mod the_menu_opens_the_command_palette;
 mod undo_at_a_session_restart_says_so_and_offers_version_history;
 mod undo_in_the_menu_asks_the_host_for_a_block_it_cannot_open;
+mod with_a_host_palette_the_menu_asks_the_host_for_it;
 
 const SLIDE: Uuid = Uuid::from_u128(0x0001);
 const SLIDE_TYPE: Uuid = Uuid::from_u128(0x0002);

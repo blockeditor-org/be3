@@ -649,7 +649,14 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         block: Uuid,
         parent: BlockParent,
+        owner_only: bool,
     ) -> Result<(Uuid, KeySet), ClientError> {
+        if owner_only {
+            let (scope, mut keys) = self.keys.mint_own_scope(block)?;
+            let (data, more) = self.keys.mint_data(block, scope)?;
+            keys.extend(more);
+            return Ok((data, keys));
+        }
         let under = match parent {
             BlockParent::Block(parent) => self.scope_key_under(parent).await?,
             BlockParent::Root | BlockParent::Detached => {
@@ -777,6 +784,15 @@ impl<S: ObjectStore> Peer<S> {
         let key = self.sealing_key(block).await?;
         let parts = parts.into();
         let vault = self.commits.vault();
+        // A reused part this device never read (one another device put) names its key in its
+        // top object alone: fetch those first, so only a part sealed under another key is
+        // fetched whole.
+        let tops: Vec<Hash> = vault
+            .stale_parts(key, &parts)?
+            .iter()
+            .map(|part| part.hash())
+            .collect();
+        self.fetch(&tops).await?;
         let stale = vault.stale_parts(key, &parts)?;
         for part in stale {
             let manifest = Manifest {
@@ -833,19 +849,29 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         parent: BlockParent,
     ) -> Result<Uuid, ClientError> {
-        self.create_block(block, C::CONTENT_TYPE, parent, &BlockMetadata::default())
-            .await
-            .map(|summary| summary.id)
+        self.create_block(
+            block,
+            C::CONTENT_TYPE,
+            parent,
+            &BlockMetadata::default(),
+            false,
+        )
+        .await
+        .map(|summary| summary.id)
     }
 
+    /// Makes a block. With `owner_only`, only this account reads it, on any of its devices: its
+    /// own scope root, whose key is sealed to this account alone and never escrowed
+    /// (`KindVisibility::Owner`), made only in this account's own settings.
     pub async fn create_block(
         &self,
         block: Uuid,
         content_type: Uuid,
         parent: BlockParent,
         metadata: &BlockMetadata,
+        owner_only: bool,
     ) -> Result<BlockSummary, ClientError> {
-        let (key, keys) = self.new_keys(block, parent).await?;
+        let (key, keys) = self.new_keys(block, parent, owner_only).await?;
         let references = deduplicated(self.resolve(block, metadata.references()));
         let metadata = self.commits.vault().seal(key, &metadata.encode())?;
         let response = crate::ask(client::blocks::create_block(
@@ -857,6 +883,7 @@ impl<S: ObjectStore> Peer<S> {
             references.clone(),
             key,
             keys.clone(),
+            owner_only,
         ))
         .await;
         let response = match response {
@@ -869,6 +896,7 @@ impl<S: ObjectStore> Peer<S> {
                     references,
                     key,
                     keys,
+                    owner_only,
                 });
             }
             response => response?,
@@ -1013,7 +1041,13 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(());
         }
         match self
-            .create_block(block, content_type, parent, &BlockMetadata::default())
+            .create_block(
+                block,
+                content_type,
+                parent,
+                &BlockMetadata::default(),
+                false,
+            )
             .await
         {
             Ok(_) => Ok(()),
@@ -1490,7 +1524,10 @@ impl<S: ObjectStore> Peer<S> {
         let mut room = CARRIED_BYTES;
         let mut carried = Vec::with_capacity(hashes.len());
         for hash in hashes {
-            let bytes = store.get(hash)?.ok_or(ClientError::MissingObject(hash))?;
+            // A part another device put (`put_part`) is on the server and maybe not here.
+            let Some(bytes) = store.get(hash)? else {
+                return Ok(None);
+            };
             if bytes.len() > room {
                 return Ok(None);
             }
@@ -1500,13 +1537,39 @@ impl<S: ObjectStore> Peer<S> {
         Ok(Some(carried))
     }
 
-    pub async fn hold(&self, block: Uuid, objects: &[Hash]) -> Result<(), ClientError> {
+    /// Uploads the objects among `objects` the server lacks and has `block` hold them all.
+    pub async fn hold(
+        &self,
+        block: Uuid,
+        objects: &[Hash],
+        hold: be_block_protocol::Hold,
+    ) -> Result<(), ClientError> {
         if objects.is_empty() {
             return Ok(());
         }
         self.push(objects).await?;
-        client::objects::hold_objects(&self.connection(), block, objects.to_vec()).await??;
+        client::objects::hold_objects(&self.connection(), block, objects.to_vec(), hold).await??;
         Ok(())
+    }
+
+    /// Seals `bytes` as a part of `block` under its current key and uploads it, held for the
+    /// block until a commit that uses it publishes (`host.put-part` in be-sdk-type-api), so an
+    /// operation can name it by its ref and every replica save a commit that reuses it.
+    pub async fn put_part(
+        &self,
+        block: Uuid,
+        bytes: &[u8],
+    ) -> Result<be_block_store::PartRef, ClientError> {
+        let key = self.sealing_key(block).await?;
+        let vault = self.commits.vault();
+        let manifest = vault.write(key, Uuid::nil(), Part::from(bytes))?;
+        let part = manifest
+            .root
+            .ok_or_else(|| ClientError::Encoding("a part needs at least one byte".to_owned()))?;
+        let objects = vault.objects(&manifest)?;
+        self.hold(block, &objects, be_block_protocol::Hold::UntilCommitted)
+            .await?;
+        Ok(part)
     }
 
     pub fn watch(&self, block: Uuid) {
@@ -1727,6 +1790,9 @@ impl<S: ObjectStore> Peer<S> {
             BlockParent::Root | BlockParent::Detached => None,
         };
         let mut keys = KeySet::default();
+        if moved.owner_only {
+            return Ok(keys);
+        }
         let under = match (shared, parent_scope) {
             (false, Some(under)) => under,
             (_, parent_scope) => {
@@ -1758,9 +1824,13 @@ impl<S: ObjectStore> Peer<S> {
         while !level.is_empty() {
             let mut below = Vec::new();
             for node in level {
+                if node.id != block && (!node.access.can_view() || node.owner_only) {
+                    continue;
+                }
                 if node.id != block && node.scope == Some(node.id) {
                     if let Some(nested) = self.keys.scope_key(node.id)
                         && !wrapped_under(nested)
+                        && !self.keys.owner_only(nested)
                     {
                         keys.wrapped.push(self.keys.wrap(nested, under)?);
                     }

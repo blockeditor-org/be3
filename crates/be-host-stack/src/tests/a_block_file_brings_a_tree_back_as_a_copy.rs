@@ -24,6 +24,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
         be_block_graph::BlockParent::Root,
         named,
         None,
+        false,
     );
     let inner = Uuid::new_v4();
     create(
@@ -32,6 +33,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
         be_block_graph::BlockParent::Block(folder),
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     let counter = Uuid::new_v4();
     create(
@@ -40,6 +42,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
         be_block_graph::BlockParent::Block(folder),
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     open(counter, CounterContent::CONTENT_TYPE);
     add(counter, 5);
@@ -52,6 +55,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
             be_block_graph::BlockParent::Block(inner),
             be_block::BlockMetadata::default(),
             None,
+            false,
         );
         open(*block, CounterContent::CONTENT_TYPE);
         add(*block, count);
@@ -65,7 +69,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
 
     for bytes in [while_open, after_closing] {
         let (top, top_type) =
-            import(&bytes, be_block_graph::BlockParent::Root).expect("the file imports");
+            import(&bytes, be_block_graph::BlockParent::Root, None).expect("the file imports");
         assert_ne!(top, folder, "an import is a copy with ids of its own");
         let copy = query(Query::Children(top))
             .into_iter()

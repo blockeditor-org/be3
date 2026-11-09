@@ -4,9 +4,9 @@ use be_block_commit::{merge::join_lines, merge_lines, merge_slices, render_confl
 
 use be_lib_sequence::marks::{Rich, Scope, Seed};
 
-use crate::{Items, Kept, Object, ObjectId, Objects, Place, Sequence, Tree, Value};
+use crate::{Items, Kept, Kind, Object, ObjectId, Objects, Place, Sequence, Tree, Value};
 
-pub(crate) fn merge3(base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
+pub(crate) fn merge3(root: fn() -> Kind, base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
     let mut conflicts = 0;
     let ids: BTreeSet<ObjectId> = base
         .objects()
@@ -72,7 +72,7 @@ pub(crate) fn merge3(base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
     rehome(&mut kept, base, [ours, theirs, base], &mut conflicts);
     restore_ancestors(&mut kept, [ours, theirs, base], &mut conflicts);
     let mut merged = Tree::from_objects(kept);
-    rebuild_lists(&mut merged, base, ours, theirs, &mut conflicts);
+    rebuild_lists(root, &mut merged, base, ours, theirs, &mut conflicts);
     merged.refresh_sequences();
     (merged, conflicts)
 }
@@ -504,6 +504,7 @@ fn sibling_list(kept: &Objects, versions: [&Tree; 3], removed: Place) -> Option<
 }
 
 fn rebuild_lists(
+    root: fn() -> Kind,
     merged: &mut Tree,
     base: &Tree,
     ours: &Tree,
@@ -525,7 +526,10 @@ fn rebuild_lists(
             ours.list_ids(place),
             theirs.list_ids(place),
         );
-        let order = merge_order(&before, &mine, &other, conflicts);
+        let order = match merged.merges_appends(root, place) {
+            true => append_order(&before, &mine, &other, conflicts),
+            false => merge_order(&before, &mine, &other, conflicts),
+        };
         let belongs: BTreeSet<ObjectId> = children
             .get(&place)
             .map(|ids| ids.iter().copied().collect())
@@ -594,6 +598,32 @@ fn merge_order(
     {
         let index = after_placed(&order, other, *id, |sibling| !moved_mine.contains(sibling));
         order.insert(index, *id);
+    }
+    order
+}
+
+/// A `merge_appends` list's order, published first: what theirs holds (the published head, in
+/// every merge a replica or `be sync` makes) keeps its place, merged with what ours changed of
+/// the base, and the items only ours added come after all of it, in our order.
+fn append_order(
+    before: &[ObjectId],
+    mine: &[ObjectId],
+    other: &[ObjectId],
+    conflicts: &mut usize,
+) -> Vec<ObjectId> {
+    let based: HashSet<ObjectId> = before.iter().copied().collect();
+    let in_base = |ids: &[ObjectId]| -> Vec<ObjectId> {
+        ids.iter()
+            .filter(|id| based.contains(id))
+            .copied()
+            .collect()
+    };
+    let mut order = merge_order(before, &in_base(mine), other, conflicts);
+    let mut placed: HashSet<ObjectId> = order.iter().copied().collect();
+    for id in mine {
+        if placed.insert(*id) {
+            order.push(*id);
+        }
     }
     order
 }

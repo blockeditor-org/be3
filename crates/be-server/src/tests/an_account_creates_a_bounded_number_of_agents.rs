@@ -12,7 +12,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
     let organization = store.personal_organization().await.unwrap();
     let mut agents = Vec::new();
     for index in 0..MAX_AGENTS_PER_CREATOR {
-        let (agent, _) = store
+        let (agent, _, _) = store
             .create_agent(
                 profile.account,
                 organization,
@@ -20,6 +20,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
                 [7; 32],
                 Vec::new(),
                 Vec::new(),
+                None,
             )
             .await
             .unwrap();
@@ -33,7 +34,8 @@ async fn an_account_creates_a_bounded_number_of_agents() {
                 "One more",
                 [7; 32],
                 Vec::new(),
-                Vec::new()
+                Vec::new(),
+                None
             )
             .await
             .is_err()
@@ -50,6 +52,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
             [7; 32],
             Vec::new(),
             Vec::new(),
+            None,
         )
         .await
         .unwrap();

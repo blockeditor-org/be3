@@ -79,6 +79,11 @@ pub enum Placement {
     Over(u16),
     Around,
     BelowStart,
+    /// A menu or a select's list: below its anchor, else above it, and where it fits on
+    /// neither side, over the anchor and as low as the window allows rather than cut short
+    /// to scroll. Only menus cover what opened them; everything else anchored below
+    /// (`BelowStart`: completions, tooltips, popovers) keeps clear of its anchor and shrinks.
+    Menu,
     RightStart,
     Center,
     Fill,
@@ -89,7 +94,10 @@ pub enum Placement {
     InsideBottomStart,
     InsideBottomEnd,
     CenterOn,
-    Popover { gap: u16, margin: u16 },
+    Popover {
+        gap: u16,
+        margin: u16,
+    },
     Edge(LayerEdge),
 }
 
@@ -104,6 +112,7 @@ impl Placement {
             | Placement::Over(_)
             | Placement::Around
             | Placement::BelowStart
+            | Placement::Menu
             | Placement::RightStart
             | Placement::Center
             | Placement::CenterOn
@@ -335,6 +344,20 @@ pub fn resolve_rect(
         );
     }
     let mut content_size = content_size.min(viewport.size());
+    if placement == Placement::Menu {
+        let below = viewport.bottom() - anchor_rect.bottom();
+        let above = anchor_rect.top() - viewport.top();
+        let left = anchor_rect
+            .left()
+            .min(viewport.right() - content_size.x)
+            .max(viewport.left());
+        let top = match (content_size.y <= below, content_size.y <= above) {
+            (true, _) => anchor_rect.bottom(),
+            (false, true) => anchor_rect.top() - content_size.y,
+            (false, false) => (viewport.bottom() - content_size.y).max(viewport.top()),
+        };
+        return Rect::from_min_size(pos2(left, top), content_size);
+    }
     if placement == Placement::BelowStart {
         let below = viewport.bottom() - anchor_rect.bottom();
         let above = anchor_rect.top() - viewport.top();
@@ -367,6 +390,7 @@ pub fn resolve_rect(
         | Placement::InsideBottomStart
         | Placement::InsideBottomEnd
         | Placement::CenterOn
+        | Placement::Menu
         | Placement::Popover { .. }
         | Placement::Edge(_) => {
             unreachable!("a centred or pinned overlay is placed above")
@@ -400,6 +424,9 @@ pub fn room_beside(viewport: Rect, anchor_rect: Rect, placement: Placement) -> O
         Placement::BelowStart => {
             (viewport.bottom() - anchor_rect.bottom()).max(anchor_rect.top() - viewport.top())
         }
+        // A menu that fits on neither side covers its anchor (`resolve_rect`), so it has the
+        // window's height.
+        Placement::Menu => viewport.height(),
         Placement::RightStart => {
             (viewport.bottom() - anchor_rect.top()).max(anchor_rect.bottom() - viewport.top())
         }
@@ -436,7 +463,7 @@ impl OverlayAnchor {
 
 pub fn banded(node: Rect, band: Rect, placement: Placement) -> Rect {
     match placement {
-        Placement::BelowStart | Placement::Above | Placement::Popover { .. } => {
+        Placement::BelowStart | Placement::Menu | Placement::Above | Placement::Popover { .. } => {
             Rect::from_min_max(pos2(node.min.x, band.min.y), pos2(node.max.x, band.max.y))
         }
         Placement::RightStart => {

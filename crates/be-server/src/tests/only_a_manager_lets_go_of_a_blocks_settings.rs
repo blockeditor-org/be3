@@ -40,6 +40,7 @@ async fn only_a_manager_lets_go_of_a_blocks_settings() {
                     keys: vec![row(key, settings, KeyKind::Data)],
                     wrapped: Vec::new(),
                 },
+                false,
             )
         })
         .await;

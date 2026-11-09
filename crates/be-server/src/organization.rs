@@ -395,6 +395,23 @@ impl ServerStore {
                 "this id is kept for another account's My files".into(),
             ));
         }
+        let claimed = be_block::unfiled_of(identity.organization, block);
+        if claimed != identity.account && account_exists(connection, claimed)? {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                "this id is kept for another account's Unfiled".into(),
+            ));
+        }
+        let own_unfiled = block == be_block::unfiled(identity.organization, identity.account);
+        if own_unfiled != (content_type == be_block::UNFILED_TYPE)
+            || (own_unfiled && parent != BlockParent::Root)
+        {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                "an account's Unfiled is made only at its own id, at the top of the organization"
+                    .into(),
+            ));
+        }
         if parent != BlockParent::Root {
             return Ok(());
         }

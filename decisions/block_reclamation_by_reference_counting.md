@@ -2,9 +2,10 @@
 
 Every block has exactly one parent, and a block is live when its parent chain
 reaches the root with every parent still listing its child
-(`be-block-graph`). Storage is reclaimed by reference counting: a block holds
-its commits, a commit holds its chunk hashes, and `ObjectRefs` deletes an
-object when its last holder releases it.
+(`be-block-graph`). An account's Unfiled, which has no content, is the one
+parent that holds its children by their parent alone. Storage is reclaimed by
+reference counting: a block holds its commits, a commit holds its chunk
+hashes, and `ObjectRefs` deletes an object when its last holder releases it.
 
 ## Why
 

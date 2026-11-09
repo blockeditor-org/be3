@@ -5,6 +5,7 @@ use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 
+use be_sdk_beui::network::{Request, Response};
 use be_sdk_beui::{EditorHost, Task, Waker};
 
 use crate::raster::Window;
@@ -175,7 +176,11 @@ impl TileWorker {
             };
             let fetched = Rc::clone(&self.fetched);
             let waker = self.waker.clone();
-            let task = host.then(host.fetch(id.url()), move |result| {
+            let tile = host
+                .fetch(Request::get(id.url()))
+                .map(|answer| answer.and_then(Response::success))
+                .and_then(Response::bytes);
+            let task = host.then(tile, move |result| {
                 fetched
                     .borrow_mut()
                     .push((id, result.map_err(|failure| failure.to_string())));

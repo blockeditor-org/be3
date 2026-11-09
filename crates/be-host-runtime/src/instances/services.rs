@@ -1,18 +1,18 @@
 use be_lib_stable_hash::HashMap;
 
 use be_sdk_api::{
-    AccessListing, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock, PastedBlock,
-    SavedFile,
+    AccessListing, BlockAgent, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock,
+    PastedBlock, SavedFile,
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply, wire},
 };
 use uuid::Uuid;
 
-use super::{Instances, allowed};
+use super::Instances;
 use crate::wire::Service;
 use be_host_base::{
     host,
-    platform::http::{self, AbortFlag, Aborted},
+    platform::http::{AbortFlag, Aborted},
 };
 use be_host_stack::{discovery, revisions};
 
@@ -163,9 +163,40 @@ impl Instances {
         });
     }
 
+    /// Blocks' agents are only for an app whose manifest sets `block_agents`, and an agent only
+    /// for the block the instance shows or one below it, so an app cannot mint credentials for
+    /// another place the person manages.
+    fn refuses_block_agents(&self, instance: EditorInstanceId, call: &Call) -> bool {
+        match call {
+            Call::CreateBlockAgent { block, .. } => {
+                let own = self
+                    .entries
+                    .get(&instance)
+                    .and_then(|entry| entry.role.block())
+                    .map(|own| own.id);
+                let block = Uuid::from_bytes(*block);
+                !self.block_agents
+                    || own.is_none_or(|own| {
+                        !be_host_stack::with_graph(|graph| graph.is_within(block, own))
+                            .unwrap_or(false)
+                    })
+            }
+            Call::RotateAgentToken { .. } | Call::RemoveAgent { .. } => !self.block_agents,
+            _ => false,
+        }
+    }
+
     pub(super) fn local(&self, instance: EditorInstanceId, mut id: [u8; 16]) -> [u8; 16] {
         self.scoped(instance, false, &mut |visit| visit(&mut id));
         id
+    }
+
+    /// Whether `instance` shows a revision preview, which may read but change nothing.
+    pub(super) fn previewing(&self, instance: EditorInstanceId) -> bool {
+        self.entries
+            .get(&instance)
+            .and_then(|entry| entry.role.block())
+            .is_some_and(|block| revisions::source(block.id).is_some())
     }
 
     pub fn serve(&mut self, service: Service) {
@@ -173,21 +204,16 @@ impl Instances {
         self.scoped(instance, true, &mut |visit| {
             call.visit_block_ids(&mut |id| visit(id))
         });
-        let previewing = self
-            .entries
-            .get(&instance)
-            .and_then(|entry| entry.role.block())
-            .is_some_and(|block| revisions::source(block.id).is_some());
-        if previewing
-            && !matches!(
-                call,
-                Call::Fetch { .. } | Call::ReadData { .. } | Call::ListData { .. }
-            )
+        if self.previewing(instance)
+            && !matches!(call, Call::ReadData { .. } | Call::ListData { .. })
         {
             return self.refuse(call, OpError::Denied);
         }
         if !self.entries.contains_key(&instance) {
             return self.refuse(call, OpError::Canceled);
+        }
+        if self.refuses_block_agents(instance, &call) {
+            return self.refuse(call, OpError::Denied);
         }
         match call {
             Call::ListRevisions { reply, block } => {
@@ -280,11 +306,14 @@ impl Instances {
                 });
             }
             Call::ImportBlocks { reply, parent } => {
-                let parent = be_host_stack::app_graph::parent_of(parent);
+                let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
+                    return self.answer_now(reply, Err(Failure::Denied));
+                };
                 if parent.block().is_some_and(|parent| !self.editable(parent)) {
                     return self.answer_now(reply, Err(Failure::Denied));
                 }
                 let answering = self.answering(instance, reply);
+                let created_by = self.created_by();
                 let imported = |imported: Result<(Uuid, Uuid), String>| {
                     imported.map(|(block, block_type)| {
                         Some(ImportedBlock {
@@ -302,14 +331,25 @@ impl Instances {
                             if be_block::plain::extension(&file.name)
                                 == be_block_client::transfer::EXTENSION =>
                         {
-                            answering.imported(imported(be_host_stack::import(&file.data, parent)));
+                            answering.imported(imported(be_host_stack::import(
+                                &file.data,
+                                parent,
+                                created_by.as_deref(),
+                            )));
                         }
                         Ok(Some(file)) => {
-                            be_host_stack::import_file(file.name, file.data, parent, move |file| {
-                                if !answering.withdrawn() {
-                                    answering.imported(imported(file));
-                                }
-                            });
+                            let created_by = created_by.as_deref();
+                            be_host_stack::import_file(
+                                file.name,
+                                file.data,
+                                parent,
+                                created_by,
+                                move |file| {
+                                    if !answering.withdrawn() {
+                                        answering.imported(imported(file));
+                                    }
+                                },
+                            );
                         }
                         Ok(None) => answering.imported(Ok(None)),
                         Err(error) => answering.imported(Err(error)),
@@ -338,8 +378,10 @@ impl Instances {
                 blocks,
                 parent,
             } => {
-                let parent = be_host_stack::app_graph::parent_of(parent);
-                let editable = !parent.block().is_some_and(|parent| !self.editable(parent));
+                let resolved = be_host_stack::app_graph::parent_of(parent);
+                let parent = resolved.unwrap_or(be_block_graph::BlockParent::Detached);
+                let editable = resolved.is_some()
+                    && !parent.block().is_some_and(|parent| !self.editable(parent));
                 let mut pasted = Vec::new();
                 for block in blocks.into_iter().map(Uuid::from_bytes) {
                     let cut = super::cuts::take(block);
@@ -370,24 +412,29 @@ impl Instances {
                 parent,
             } => {
                 let source = Uuid::from_bytes(source);
-                let parent = be_host_stack::app_graph::parent_of(parent);
+                let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
+                    return self.answer_now(reply, Err(Failure::Denied));
+                };
                 if !self.can_view(source)
                     || parent.block().is_some_and(|parent| !self.editable(parent))
                 {
                     return self.answer_now(reply, Err(Failure::Denied));
                 }
                 let answering = self.answering(instance, reply);
+                let created_by = self.created_by();
                 be_host_stack::export(source, move |exported| {
                     if answering.withdrawn() {
                         return;
                     }
                     answering.imported(exported.and_then(|(_, bytes)| {
-                        be_host_stack::import(&bytes, parent).map(|(block, block_type)| {
-                            Some(ImportedBlock {
-                                block_id: block.into_bytes(),
-                                block_type: block_type.into_bytes(),
-                            })
-                        })
+                        be_host_stack::import(&bytes, parent, created_by.as_deref()).map(
+                            |(block, block_type)| {
+                                Some(ImportedBlock {
+                                    block_id: block.into_bytes(),
+                                    block_type: block_type.into_bytes(),
+                                })
+                            },
+                        )
                     }));
                 });
             }
@@ -424,15 +471,25 @@ impl Instances {
                     answering.send_or_fail(made)
                 });
             }
-            Call::Fetch { reply, url } => {
-                if !allowed(&url, &self.network) {
-                    return self.answer_now(reply, Err(Failure::Denied));
-                }
-                let op = reply.op();
+            Call::CreateBlockAgent { reply, block, name } => {
                 let answering = self.answering(instance, reply);
-                let aborted = self.services.serving[&op].aborted.clone();
-                http::fetch(url, Vec::new(), aborted, move |body| {
-                    answering.send_or_fail(body)
+                be_host_stack::create_block_agent(Uuid::from_bytes(block), name, move |made| {
+                    answering.send_or_fail(made.map(|(agent, credentials)| BlockAgent {
+                        agent: agent.into_bytes(),
+                        credentials: credentials.bundle(false),
+                    }))
+                });
+            }
+            Call::RotateAgentToken { reply, agent } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::rotate_agent_token(Uuid::from_bytes(agent), move |rotated| {
+                    answering.send_or_fail(rotated)
+                });
+            }
+            Call::RemoveAgent { reply, agent } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::remove_block_agent(Uuid::from_bytes(agent), move |removed| {
+                    answering.send_or_fail(removed)
                 });
             }
             Call::ListData { reply } => {
@@ -454,6 +511,9 @@ impl Instances {
     }
 
     pub fn withdraw(&mut self, op: OpId) {
+        if self.fetch_ended(op) {
+            return;
+        }
         let Some(work) = self.services.serving.remove(&op) else {
             return;
         };
@@ -471,9 +531,11 @@ impl Instances {
         for op in ops {
             self.withdraw(op);
         }
+        self.forget_fetches(Some(instance));
     }
 
     pub(super) fn forget_services(&mut self) {
+        self.forget_fetches(None);
         for (_, work) in self.services.serving.drain() {
             work.aborted.abort();
         }

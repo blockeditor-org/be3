@@ -94,6 +94,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             | members::Call::RemoveMember { .. } => Rule::Administrator,
             members::Call::CreateAgent { .. }
             | members::Call::ListAgents { .. }
+            | members::Call::RotateAgentToken { .. }
             | members::Call::RemoveAgent { .. } => Rule::SignedIn,
         },
         Call::Contacts(call) => match call {
@@ -162,6 +163,118 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             keys::Call::KeyWorkChanged { .. } => Rule::SignedIn,
         },
     }
+}
+
+/// Whether a block's agent bound to `root` may make `call` at all, before its rule applies.
+/// It may make what a terminal host needs on connecting that names no block (opening its
+/// organization, its keys and contacts as `Peer::attach` reads them, the change streams, object
+/// transfers), and the calls about blocks, which `blocks::Visibility` limits to `root` and the
+/// blocks under it, except moving `root` itself, trashing anything, or making a block anywhere
+/// else.
+/// `be terminal-host` makes no call this refuses (the `a_terminal_host_*` tests run as one).
+/// Everything that reaches past the block is refused: agents, contact links and contacts,
+/// organizations, members, pairing, access, escrows, a new recovery key, collecting.
+pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
+    use embed::{Call, account, blocks, contacts, keys, members, objects, organizations, sessions};
+    match call {
+        Call::Connection(embed::connection::Call::Ping { .. }) => true,
+        Call::Account(call) => match call {
+            account::Call::Authenticate { .. } | account::Call::Logout { .. } => true,
+            account::Call::BeginBrowserLogin { .. }
+            | account::Call::PollBrowserLogin { .. }
+            | account::Call::CreateLocalProfile { .. }
+            | account::Call::StorageUsage { .. }
+            | account::Call::StorageChanged { .. }
+            | account::Call::Pair { .. }
+            | account::Call::Paired { .. } => false,
+        },
+        Call::Organizations(call) => match call {
+            organizations::Call::ListOrganizations { .. }
+            | organizations::Call::OpenOrganization { .. } => true,
+            organizations::Call::CreateOrganization { .. }
+            | organizations::Call::Invite { .. }
+            | organizations::Call::GetInvitation { .. }
+            | organizations::Call::AcceptInvitation { .. } => false,
+        },
+        Call::Members(call) => match call {
+            members::Call::ListMembers { .. }
+            | members::Call::SetRole { .. }
+            | members::Call::RemoveMember { .. }
+            | members::Call::CreateAgent { .. }
+            | members::Call::ListAgents { .. }
+            | members::Call::RotateAgentToken { .. }
+            | members::Call::RemoveAgent { .. } => false,
+        },
+        Call::Contacts(call) => match call {
+            contacts::Call::ListContacts { .. } | contacts::Call::ContactsChanged { .. } => true,
+            contacts::Call::CreateContactLink { .. }
+            | contacts::Call::GetContactLink { .. }
+            | contacts::Call::AcceptContactLink { .. }
+            | contacts::Call::ListContactLinks { .. }
+            | contacts::Call::DeleteContactLink { .. }
+            | contacts::Call::PutContact { .. }
+            | contacts::Call::RemoveContact { .. } => false,
+        },
+        Call::Objects(call) => match call {
+            objects::Call::HoldObjects { .. }
+            | objects::Call::UploadUrls { .. }
+            | objects::Call::DownloadUrls { .. }
+            | objects::Call::MissingObjects { .. } => true,
+        },
+        Call::Blocks(call) => match call {
+            // Opening a block makes it first unless it exists (`Peer::ensure_type`), so making
+            // `root` again goes through, to be answered that it exists.
+            blocks::Call::CreateBlock { block, parent, .. } => {
+                *block == root || matches!(parent, BlockParent::Block(_))
+            }
+            blocks::Call::SetParent { block, parent, .. } => {
+                *block != root && matches!(parent, BlockParent::Block(_))
+            }
+
+            blocks::Call::SetMetadata { .. }
+            | blocks::Call::Publish { .. }
+            | blocks::Call::ReadBlock { .. }
+            | blocks::Call::ReadContents { .. }
+            | blocks::Call::ListBlocks { .. }
+            | blocks::Call::Unlist { .. }
+            | blocks::Call::ListHistory { .. }
+            | blocks::Call::Watch { .. }
+            | blocks::Call::Changes { .. } => true,
+            // A block it trashed would leave what it reaches, and no one else could see it to
+            // restore or collect it.
+            blocks::Call::DeleteBlock { .. }
+            | blocks::Call::SetAccess { .. }
+            | blocks::Call::ListAccess { .. }
+            | blocks::Call::CollectDetached { .. } => false,
+        },
+        Call::Sessions(call) => match call {
+            sessions::Call::SessionNew { .. }
+            | sessions::Call::SessionJoin { .. }
+            | sessions::Call::SessionHeartbeat { .. }
+            | sessions::Call::SessionRelay { .. }
+            | sessions::Call::SessionClaimOwnership { .. }
+            | sessions::Call::SessionAppend { .. }
+            | sessions::Call::SessionRebaseJournal { .. } => true,
+        },
+        Call::Keys(call) => match call {
+            keys::Call::GetKeys { .. }
+            | keys::Call::PutKeys { .. }
+            | keys::Call::GetKeyWork { .. }
+            | keys::Call::KeyWorkChanged { .. }
+            | keys::Call::PinEscrow { .. }
+            | keys::Call::ResealKeys { .. }
+            | keys::Call::GetRecoveryKey { .. }
+            | keys::Call::Rotate { .. } => true,
+            keys::Call::SetRecoveryKey { .. } | keys::Call::CreateEscrow { .. } => false,
+        },
+    }
+}
+
+fn bound_refused() -> ServerError {
+    ServerError::Refused(
+        ErrorCode::PermissionDenied,
+        "an agent bound to one block may not do this".into(),
+    )
 }
 
 /// Whether a session's connection may make `call` first: only a call that signs it in. Signing
@@ -292,6 +405,8 @@ pub(crate) struct Connection {
     pub(crate) registry: Arc<SessionRegistry>,
     pub(crate) client: u64,
     pub(crate) account: Option<Uuid>,
+    /// For a block's agent, its organization and block (`ServerStore::bound_to`).
+    pub(crate) bound: Option<(Uuid, Uuid)>,
     pub(crate) token: Option<String>,
     /// The `ServerStore::session_changes` version `token` last resolved at.
     checked: Option<u64>,
@@ -350,6 +465,7 @@ impl Client {
                 registry: Arc::clone(&services.registry),
                 client,
                 account: None,
+                bound: None,
                 token: None,
                 checked: None,
                 header_token: None,
@@ -470,8 +586,13 @@ impl Client {
             hub,
             registry,
             client,
+            account,
+            bound,
             ..
         } = self.connection;
+        if let (Some(account), Some(_)) = (account, bound) {
+            hub.leave_live(account, client);
+        }
         self.peer.close();
         for (block, state) in registry.leave_all(client).await {
             let participants = registry.participants(block).await;
@@ -633,6 +754,7 @@ impl Client {
     }
 
     async fn serve(&mut self, started: Started) {
+        let method = started.method;
         let Some(call) = embed::Call::accept(&mut self.peer.lock(), started) else {
             return;
         };
@@ -653,6 +775,13 @@ impl Client {
         let prelude = self.prelude().await;
         let rule = rule(&call);
         let prelude = match prelude {
+            Ok(()) => match self.connection.bound {
+                Some(bound) => self.admit_bound(&call, method, bound).await,
+                None => Ok(()),
+            },
+            refused => refused,
+        };
+        let prelude = match prelude {
             Ok(()) => self.admit(rule).await,
             refused => refused,
         };
@@ -666,6 +795,37 @@ impl Client {
             embed::Call::Blocks(call) => self.blocks(call, prelude).await,
             embed::Call::Sessions(call) => self.sessions(call, prelude).await,
             embed::Call::Keys(call) => self.keys(call, prelude).await,
+        }
+    }
+
+    /// Refuses what a block's agent may not do (`bound_may`), and every call but signing in and
+    /// out while its block is in the trash.
+    async fn admit_bound(
+        &self,
+        call: &embed::Call,
+        method: be_wasm_ops::MethodId,
+        (organization, root): (Uuid, Uuid),
+    ) -> Result<(), ServerError> {
+        if !bound_may(call, root) {
+            let method = embed::METHODS
+                .iter()
+                .find_map(|(id, name)| (*id == method).then_some(*name))
+                .unwrap_or("this call");
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                format!("an agent bound to one block may not make {method} with these arguments"),
+            ));
+        }
+        match call {
+            embed::Call::Account(
+                embed::account::Call::Authenticate { .. } | embed::account::Call::Logout { .. },
+            ) => Ok(()),
+            _ => {
+                self.connection
+                    .store
+                    .require_bound_live(organization, root)
+                    .await
+            }
         }
     }
 
@@ -791,7 +951,7 @@ impl Client {
                         .store
                         .create_local_profile(&display_name)
                         .await?;
-                    Ok(self.connection.authenticated(profile, token).await)
+                    self.connection.authenticated(profile, token).await
                 }
                 .await;
                 self.reply(reply, created);
@@ -809,7 +969,7 @@ impl Client {
                             )
                         })?;
                     let profile = self.connection.store.resolve_token(&token).await?;
-                    let mut authenticated = self.connection.authenticated(profile, token).await;
+                    let mut authenticated = self.connection.authenticated(profile, token).await?;
                     if header {
                         authenticated.token.clear();
                     }
@@ -1085,19 +1245,48 @@ impl Client {
                 recovery,
                 contact,
                 escrow,
+                bound_to,
             } => {
                 let created = async {
                     prelude?;
                     let account = connection.account()?;
-                    let (agent, token) = connection
+                    let (agent, token, before) = connection
                         .store
-                        .create_agent(account, organization, &name, recovery, contact, escrow)
+                        .create_agent(
+                            account,
+                            organization,
+                            &name,
+                            recovery,
+                            contact,
+                            escrow,
+                            bound_to,
+                        )
                         .await?;
+                    if let Some(block) = bound_to {
+                        connection
+                            .reannounce_in(organization, vec![block], true, before)
+                            .await;
+                    }
                     connection.contacts_changed(&[account]).await;
                     Ok(CreatedAgent { agent, token })
                 }
                 .await;
                 self.reply(reply, created);
+            }
+            Call::RotateAgentToken {
+                reply,
+                organization,
+                account,
+            } => {
+                let rotated = async {
+                    prelude?;
+                    connection
+                        .store
+                        .rotate_agent_token(connection.account()?, organization, account)
+                        .await
+                }
+                .await;
+                self.reply(reply, rotated);
             }
             Call::ListAgents {
                 reply,
@@ -1346,12 +1535,13 @@ impl Client {
                 reply,
                 block,
                 objects,
+                hold,
             } => {
                 let held = async {
                     prelude?;
                     connection
                         .store
-                        .hold_objects(connection.identity()?, block, objects)
+                        .hold_objects(connection.identity()?, block, objects, hold)
                         .await
                 }
                 .await;
@@ -1373,6 +1563,7 @@ impl Client {
                 references,
                 key,
                 keys,
+                owner_only,
             } => {
                 let created = async {
                     prelude?;
@@ -1388,6 +1579,7 @@ impl Client {
                             references,
                             key,
                             keys,
+                            owner_only,
                         )
                         .await?;
                     let mut announced = vec![block.id];
@@ -2105,27 +2297,51 @@ impl Connection {
         Some(self.anonymous_since + self.config.sign_in_timeout)
     }
 
-    async fn authenticated(&mut self, profile: store::Profile, token: String) -> Authenticated {
+    async fn authenticated(
+        &mut self,
+        profile: store::Profile,
+        token: String,
+    ) -> Result<Authenticated, ServerError> {
+        let bound = self.store.bound_to(profile.account).await?;
+        if let Some(account) = self.account.filter(|_| self.bound.is_some()) {
+            self.hub.leave_live(account, self.client);
+        }
+        self.bound = bound;
+        let replaced = bound.and_then(|_| self.hub.go_live(profile.account, self.client));
+        if let Some(replaced) = replaced {
+            // The replaced connection closes at its next sign-in check; its sessions are left
+            // now, so this one takes them over at once.
+            self.store.sessions_changed();
+            for (block, state) in self.registry.leave_all(replaced).await {
+                self.announce(block, &state).await;
+            }
+        }
         self.hub.join_account(self.client, profile.account).await;
         self.account = Some(profile.account);
         self.anonymous = None;
         self.token = Some(token.clone());
         self.checked = None;
-        Authenticated {
+        Ok(Authenticated {
             account: profile.account,
             email: profile.email,
             display_name: profile.display_name,
             token,
-        }
+        })
     }
 
     async fn open(&mut self, organization: Uuid) -> Result<OrganizationOpened, ServerError> {
         let account = self.account()?;
         let role = self.store.membership(account, organization).await?;
+        let bound = match self.bound {
+            Some((of, block)) if of == organization => Some(block),
+            Some(_) => return Err(bound_refused()),
+            None => None,
+        };
         let identity = Identity {
             account,
             organization,
             role,
+            bound,
         };
         self.identity = Some(identity);
         self.hub.join_organization(self.client, identity).await;
@@ -2151,6 +2367,18 @@ impl Connection {
             return Ok(());
         }
         self.store.resolve_token(token).await?;
+        if let (Some(account), Some((organization, block))) = (self.account, self.bound) {
+            if !self.hub.is_live(account, self.client) {
+                return Err(ServerError::Refused(
+                    ErrorCode::NotAuthenticated,
+                    "this agent signed in on another connection".into(),
+                ));
+            }
+            // An open connection stops hearing of its block once that is in the trash.
+            if self.identity.is_some() {
+                self.store.require_bound_live(organization, block).await?;
+            }
+        }
         self.checked = Some(version);
         Ok(())
     }

@@ -47,7 +47,9 @@ pub fn shared_with_me(shared: Vec<BlockInfo>) -> Vec<BlockInfo> {
 pub fn own_system(roots: Vec<BlockInfo>, account: Uuid) -> Vec<BlockInfo> {
     let mut found: Vec<BlockInfo> = roots
         .into_iter()
-        .filter(|block| is_system(block.block_type) && block.author == Some(account))
+        .filter(|block| {
+            be_block::SYSTEM_TYPES.contains(&block.block_type) && block.author == Some(account)
+        })
         .collect();
     found.sort_by_key(|block| {
         let kind = be_block::SYSTEM_TYPES

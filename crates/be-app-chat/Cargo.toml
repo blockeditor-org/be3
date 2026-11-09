@@ -1,0 +1,20 @@
+[package]
+name = "be-app-chat"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+beui = { path = "../beui" }
+be-sdk-beui = { path = "../be-sdk-beui" }
+be-type-chat = { path = "../be-type-chat" }
+uuid = "1"
+
+[dev-dependencies]
+be-sdk-test = { path = "../be-sdk-test" }
+
+[lints]
+workspace = true

@@ -68,6 +68,7 @@ fn commit(serial: u64, sheet: AnchoredPlacement) {
                 drawing: Vec::new(),
                 claims: Vec::new(),
                 description: None,
+                actions: None,
                 anchored: Some(sheet),
                 work_area: None,
                 backdrop: None,

@@ -2,6 +2,8 @@ use super::*;
 
 #[test]
 fn two_hosts_in_one_process_each_send_a_type_to_their_own_module() {
+    // Every test of the process names one build, as the server a test starts needs.
+    be_lib_build_id::install("test");
     let counter = be_type_example_counter::CounterContent::CONTENT_TYPE;
     let mut both = pollster::block_on(started(
         vec![

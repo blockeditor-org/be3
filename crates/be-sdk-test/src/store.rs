@@ -86,6 +86,7 @@ struct Inner {
     seeded: Vec<SeededContent>,
     graph: BTreeMap<Uuid, BlockInfo>,
     created: Vec<Uuid>,
+    owner_only: BTreeSet<Uuid>,
     watched_content: BTreeSet<Uuid>,
     watched_heads: BTreeSet<Uuid>,
     heads_sent: BTreeMap<Uuid, u64>,
@@ -121,6 +122,7 @@ impl Default for Inner {
             seeded: Vec::new(),
             graph: BTreeMap::new(),
             created: Vec::new(),
+            owner_only: BTreeSet::new(),
             watched_content: BTreeSet::new(),
             watched_heads: BTreeSet::new(),
             heads_sent: BTreeMap::new(),
@@ -286,6 +288,12 @@ impl Inner {
                 reply.send(&mut self.host, &result);
             }
             Call::ReadPart { reply, .. } => {
+                reply.send(
+                    &mut self.host,
+                    &Err("commits here have no parts".to_owned()),
+                );
+            }
+            Call::PutPart { reply, .. } => {
                 reply.send(
                     &mut self.host,
                     &Err("commits here have no parts".to_owned()),
@@ -604,6 +612,11 @@ impl ContentStore {
         self.0.borrow().created.clone()
     }
 
+    /// Whether the editor made `block` readable by its account alone.
+    pub fn owner_only(&self, block: Uuid) -> bool {
+        self.0.borrow().owner_only.contains(&block)
+    }
+
     pub fn watches(&self, block: Uuid) -> bool {
         self.0.borrow().watched_content.contains(&block)
     }
@@ -871,6 +884,7 @@ impl ContentStore {
         parent: be_sdk_api::BlockLocation,
         defined: be_sdk_api::MetadataEntries,
         content: Option<Vec<u8>>,
+        owner_only: bool,
     ) {
         let id = Uuid::from_bytes(block_id);
         let block_type = Uuid::from_bytes(content_type);
@@ -895,6 +909,9 @@ impl ContentStore {
             let mut inner = self.0.borrow_mut();
             inner.graph.insert(id, info);
             inner.created.push(id);
+            if owner_only {
+                inner.owner_only.insert(id);
+            }
         }
         match content {
             Some(bytes) => self.seed(id, block_type, bytes, false),
@@ -1043,7 +1060,7 @@ impl ContentStore {
 
     fn held(&self, nodes: &[BlockInfo], node: &BlockInfo) -> bool {
         match node.parent {
-            Some(BlockParent::Root) | None => true,
+            Some(BlockParent::Root | BlockParent::Unfiled) | None => true,
             Some(BlockParent::Detached) => false,
             Some(BlockParent::Block(parent)) => {
                 !nodes.iter().any(|above| above.id == parent)
@@ -1063,7 +1080,9 @@ impl ContentStore {
             }
             match node.parent {
                 Some(BlockParent::Block(parent)) => current = parent,
-                Some(BlockParent::Root | BlockParent::Detached) | None => return false,
+                Some(BlockParent::Root | BlockParent::Detached | BlockParent::Unfiled) | None => {
+                    return false;
+                }
             }
         }
         false
@@ -1116,6 +1135,11 @@ impl ContentStore {
             BlockQuery::Detached => nodes
                 .iter()
                 .filter(|node| node.parent.is_some() && !self.held(&nodes, node))
+                .cloned()
+                .collect(),
+            BlockQuery::Unfiled => nodes
+                .iter()
+                .filter(|node| node.parent == Some(BlockParent::Unfiled))
                 .cloned()
                 .collect(),
             BlockQuery::Children(parent) => nodes

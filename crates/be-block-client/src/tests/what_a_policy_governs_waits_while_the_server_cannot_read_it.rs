@@ -56,6 +56,7 @@ async fn what_a_policy_governs_waits_while_the_server_cannot_read_it() {
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
             &be_block::BlockMetadata::named("Another"),
+            false,
         )
         .await
         .unwrap_err();

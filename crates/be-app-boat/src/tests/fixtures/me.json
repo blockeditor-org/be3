@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "type": "user.info",
+  "user": {
+    "id": "0b7e5c1a-3f2d-4c8e-9a61-5d4f2e8b7c30",
+    "login": "sam@example.com",
+    "email": "sam@example.com",
+    "displayName": "Sam Sailor",
+    "connectionMethod": "github",
+    "connectionMethods": [
+      "github"
+    ],
+    "accountPlan": "user",
+    "serviceAccount": false,
+    "suspended": false,
+    "suspendedAt": null,
+    "suspendedReason": null,
+    "accountStatus": "active",
+    "closed": false,
+    "closedAt": null,
+    "purgeAt": null,
+    "purgedAt": null,
+    "zeroDataRetention": false,
+    "zeroDataRetentionEnabledAt": null
+  }
+}

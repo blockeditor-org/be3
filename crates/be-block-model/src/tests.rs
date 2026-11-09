@@ -30,6 +30,7 @@ mod a_grid_reshaped_differently_on_each_side_conflicts_and_keeps_ours;
 mod a_key_removed_on_one_side_and_changed_on_the_other_stays_removed;
 mod a_later_stamp_wins_whichever_order_the_writes_arrive_in;
 mod a_line_inserted_with_text_starts_from_fresh_positions;
+mod a_list_that_merges_appends_keeps_the_published_side_and_puts_ours_after_it;
 mod a_move_that_changes_nothing_has_no_step;
 mod a_newer_schema_that_only_adds_is_compatible_and_one_that_takes_away_is_not;
 mod a_node_cannot_move_inside_itself;
@@ -37,6 +38,7 @@ mod a_paint_the_other_side_cropped_away_counts_as_a_conflict;
 mod a_peer_edit_under_local_edits_touches_only_what_either_changed;
 mod a_pending_edit_of_any_kind_carries_over_onto_content_loaded_afresh;
 mod a_property_only_a_newer_build_knows_survives_an_older_build_saving;
+mod a_range_someone_split_meanwhile_does_not_move;
 mod a_register_that_cannot_read_without_one_of_its_fields_is_reported;
 mod a_reloaded_document_that_adopts_removals_places_an_insert_after_a_removed_card;
 mod a_renamed_property_still_reads_its_old_name;
@@ -46,8 +48,10 @@ mod a_series_appended_on_both_sides_merges_to_both;
 mod a_series_grows_by_sending_only_what_was_appended;
 mod a_series_saves_as_an_array_and_reads_a_list_saved_as_a_register;
 mod a_stored_grid_whose_size_overflows_reads_as_blank;
+mod a_stream_that_repeats_its_parts_without_end_is_refused;
 mod a_text_field_keeps_bytes_that_are_not_utf8;
 mod a_text_field_saves_its_bytes_and_reloads_with_fresh_positions;
+mod a_text_value_travels_as_one_byte_string;
 mod adopting_session_state_carries_marks_to_a_reloaded_document;
 mod adopting_session_state_carries_series_positions_to_a_reloaded_document;
 mod adopting_session_state_carries_text_positions_to_a_reloaded_document;
@@ -93,6 +97,7 @@ mod removals_are_kept_in_memory_and_never_saved;
 mod removing_a_column_while_the_other_side_moves_a_card_out_of_it_keeps_only_that_card;
 mod removing_touches_the_list_and_everything_that_was_inside;
 mod reorders_of_different_cards_on_each_side_merge_to_both;
+mod repeated_parts_count_the_memory_they_take;
 mod replicas_loading_the_same_bytes_share_positions_and_exchange_edits;
 mod rereading_a_series_matches_a_fresh_read_after_any_edit;
 mod rich_text_changed_on_the_same_line_on_each_side_conflicts_with_markers;
@@ -100,10 +105,12 @@ mod rich_text_formatted_and_typed_on_different_lines_merges_cleanly;
 mod rich_text_saves_its_formatting_as_byte_ranges_and_reloads_it;
 mod saving_the_same_document_twice_gives_the_same_parts;
 mod setting_a_field_of_a_removed_card_changes_nothing;
+mod stored_parts_are_found_by_place_and_checked;
 mod strokes_into_different_grids_undo_separately;
 mod text_changed_on_different_lines_on_each_side_merges_cleanly;
 mod text_changed_on_the_same_line_on_each_side_conflicts_with_markers;
 mod the_same_value_put_under_a_key_on_both_sides_merges_without_a_conflict;
+mod three_cards_move_in_one_change_and_undo_puts_them_back;
 mod two_inserts_after_the_same_card_at_once_both_land_after_it;
 mod typing_in_a_large_text_changes_one_part;
 mod undo_leaves_a_field_someone_else_changed_since;
@@ -508,4 +515,17 @@ fn from_parts<R: Model>(root: &crate::DocumentPart) -> Document<R> {
     let mut bytes = Vec::new();
     root.write(&mut bytes);
     Document::from_bytes(&bytes).expect("the parts load")
+}
+
+fn todo_column(cards: &[&str]) -> (Document<Board>, ObjectId) {
+    let document = Document::new(&Board {
+        columns: [column("Todo", cards)].into_iter().collect(),
+        ..Board::default()
+    });
+    let todo = document.root().columns[0].id;
+    (document, todo)
+}
+
+fn card_ids(document: &Document<Board>, texts: &[&str]) -> Vec<ObjectId> {
+    texts.iter().map(|text| card_id(document, text)).collect()
 }

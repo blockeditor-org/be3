@@ -11,7 +11,9 @@ be-sdk-type-guest = { path = "../be-sdk-type-guest" }
 uuid = "1"
 be-type-audio = { path = "../be-type-audio" }
 be-type-example-beui-gallery = { path = "../be-type-example-beui-gallery" }
+be-type-boat = { path = "../be-type-boat" }
 be-type-browser-tab = { path = "../be-type-browser-tab" }
+be-type-chat = { path = "../be-type-chat" }
 be-type-checklist = { path = "../be-type-checklist" }
 be-type-example-counter = { path = "../be-type-example-counter" }
 be-type-database = { path = "../be-type-database" }

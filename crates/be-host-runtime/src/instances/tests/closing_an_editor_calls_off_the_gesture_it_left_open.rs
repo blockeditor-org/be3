@@ -24,6 +24,7 @@ fn closing_an_editor_calls_off_the_gesture_it_left_open() {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     let mut instances = placed_on(own, CounterContent::CONTENT_TYPE);
     next_screens(&mut instances);

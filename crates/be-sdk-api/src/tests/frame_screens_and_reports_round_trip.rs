@@ -88,15 +88,34 @@ fn frame_screens_and_reports_round_trip() {
             }],
             description: Some(crate::accessibility::Description {
                 tree: Some((&checklist_tree()).into()),
-                actions: vec![DescribedAction {
+            }),
+            actions: Some(vec![
+                DescribedAction {
                     id: "checklist.clear".to_owned(),
                     label: "Clear completed".to_owned(),
-                    shortcut: Some("Ctrl+Shift+K".to_owned()),
+                    glyph: Some("trash-2".to_owned()),
+                    shortcut: Some(KeyChord::new(
+                        Key::K,
+                        Modifiers {
+                            ctrl: true,
+                            shift: true,
+                            ..Modifiers::default()
+                        },
+                    )),
                     enabled: false,
                     checked: None,
                     live: true,
-                }],
-            }),
+                },
+                DescribedAction {
+                    id: "checklist.hide-done".to_owned(),
+                    label: "Hide completed".to_owned(),
+                    glyph: None,
+                    shortcut: None,
+                    enabled: true,
+                    checked: Some(true),
+                    live: false,
+                },
+            ]),
             anchored: None,
             work_area: None,
             backdrop: Some(crate::accessibility::Color {

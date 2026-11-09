@@ -146,6 +146,13 @@ impl<T> FromIterator<T> for List<T> {
     }
 }
 
+/// What `#[model(merge_appends)]` may mark: a `List`. The derive requires it, so the attribute
+/// on any other field is a compile error rather than ignored.
+#[diagnostic::on_unimplemented(message = "`#[model(merge_appends)]` marks only a `List` field")]
+pub trait MergesAppends {}
+
+impl<T> MergesAppends for List<T> {}
+
 impl<T: Model> Field for List<T> {
     fn blank() -> Value {
         Value::List(Items::default())
@@ -259,6 +266,16 @@ impl<M, T: Model> FieldRef<M, List<T>> {
             place: self.of(owner),
             anchor,
             client: crate::local_client(),
+        }
+    }
+
+    /// Moves the items from `first` to `last`, both included, to behind `anchor`, in one
+    /// change (`Change::MoveRange`).
+    pub fn move_range(self, owner: ObjectId, objects: Vec<ObjectId>, anchor: Anchor) -> Change {
+        Change::MoveRange {
+            place: self.of(owner),
+            objects,
+            anchor,
         }
     }
 }

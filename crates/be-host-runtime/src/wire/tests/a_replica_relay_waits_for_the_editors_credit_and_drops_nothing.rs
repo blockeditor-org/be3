@@ -60,6 +60,8 @@ fn a_replica_relay_waits_for_the_editors_credit_and_drops_nothing() {
         organization_id: [5; 16],
         client_id: [6; 16],
         editable: true,
+        page_origin: String::new(),
+        host_palette: false,
     }));
     exchange(&mut wire, &guest, &mut heard);
     let editor = editor.borrow().expect("the guest served the editor");

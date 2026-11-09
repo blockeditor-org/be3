@@ -10,6 +10,9 @@ pub enum Gesture {
     Begin,
     Commit,
     Cancel,
+    /// Ends the current undo step without opening a gesture, so the next edit starts one of
+    /// its own however soon it comes: a text editor's paste, or typing after a caret jump.
+    Break,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -36,6 +39,14 @@ pub enum FromEditor {
         token: u64,
         offset: u64,
         length: u64,
+    },
+    /// Asks the replica to put `bytes` as a part of the block (`host.put-part`), so an
+    /// operation can name it by its hash instead of carrying it. The replica answers
+    /// `ToEditor::PartPut` with the same `token` once the part is uploaded.
+    PutPart {
+        token: u64,
+        #[serde(with = "serde_bytes")]
+        bytes: Vec<u8>,
     },
 }
 
@@ -97,6 +108,10 @@ pub enum ToEditor {
         token: u64,
         #[serde(with = "range_result")]
         result: Result<Vec<u8>, String>,
+    },
+    PartPut {
+        token: u64,
+        result: Result<be_block::PartRef, String>,
     },
 }
 
@@ -195,6 +210,7 @@ pub struct EditorMirror<C: LiveEdit> {
     snapshots: u64,
     reads: u64,
     ranges: Vec<(u64, Result<Vec<u8>, String>)>,
+    puts: Vec<(u64, Result<be_block::PartRef, String>)>,
 }
 
 impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
@@ -214,6 +230,7 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             snapshots: 0,
             reads: 0,
             ranges: Vec::new(),
+            puts: Vec::new(),
         }
     }
 }
@@ -288,6 +305,19 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         std::mem::take(&mut self.ranges)
     }
 
+    /// Asks the replica to put `bytes` as a part of the block; the part's ref comes back from
+    /// `receive` and is taken with `take_parts_put` under the token this returns, to put in an
+    /// operation's payload.
+    pub fn put_part(&mut self, bytes: Vec<u8>) -> (u64, FromEditor) {
+        self.reads += 1;
+        let token = self.reads;
+        (token, FromEditor::PutPart { token, bytes })
+    }
+
+    pub fn take_parts_put(&mut self) -> Vec<(u64, Result<be_block::PartRef, String>)> {
+        std::mem::take(&mut self.puts)
+    }
+
     pub fn pending(&self) -> usize {
         self.pending.len()
     }
@@ -341,6 +371,10 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             }
             ToEditor::Range { token, result } => {
                 self.ranges.push((token, result));
+                None
+            }
+            ToEditor::PartPut { token, result } => {
+                self.puts.push((token, result));
                 None
             }
         }

@@ -185,6 +185,12 @@ pub(crate) fn served_keys(
     })
 }
 
+/// Whether `row` is the scope key of an owner-only block, which is sealed to the block's author
+/// alone: never wrapped by another key, sealed to the escrow key or to anyone else.
+pub(crate) fn owner_only_scope(graph: &BlockGraph, row: &KeyRow) -> bool {
+    row.kind == KeyKind::Scope && graph.get(row.block).is_some_and(|node| node.owner_only)
+}
+
 fn passes_on(graph: &BlockGraph, seen: &Visibility, kind: Uuid) -> bool {
     graph
         .get(kind)
@@ -241,6 +247,12 @@ pub(crate) fn store_keys(
                 ),
             ));
         }
+        if be_block_protocol::owner_only_key(row.id) != owner_only_scope(graph, row) {
+            return Err(refused(format!(
+                "key {} has an owner-only id exactly when it is the scope key of an owner-only block",
+                row.id
+            )));
+        }
         if fresh.insert(row.id, *row).is_some()
             || key_row(connection, organization, row.id)?.is_some()
         {
@@ -264,6 +276,18 @@ pub(crate) fn store_keys(
                 ErrorCode::PermissionDenied,
                 format!("key {} may not be wrapped by this account", row.id),
             ));
+        }
+        if owner_only_scope(graph, &row) {
+            let author = graph.get(row.block).map(|node| node.author);
+            if wrap.wrapped_by != WrappedBy::Account(caller) || author != Some(caller) {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!(
+                        "key {} belongs to a block readable by its author alone, so it is sealed only to its author",
+                        row.id
+                    ),
+                ));
+            }
         }
         match wrap.wrapped_by {
             WrappedBy::Key(by) => {
@@ -501,7 +525,9 @@ pub(crate) fn is_viewer(
     Ok(
         match crate::contacts::role_in(connection, account, organization)? {
             None => false,
-            Some(be_block_protocol::OrganizationRole::Administrator) => graph.contains(block),
+            Some(be_block_protocol::OrganizationRole::Administrator) => {
+                graph.contains(block) && !graph.closed_to(block, account)
+            }
             Some(be_block_protocol::OrganizationRole::Editor) => {
                 graph.inherited(block, account).can_view()
                     || crate::organization::in_settings(graph, organization, block)
@@ -525,7 +551,7 @@ pub(crate) fn sealed_to(
         .filter(|(_, level)| level.can_view())
         .map(|(account, _)| *account)
         .collect();
-    if !matches!(node.parent, be_block_graph::BlockParent::Block(_)) {
+    if !matches!(node.parent, be_block_graph::BlockParent::Block(_)) || node.owner_only {
         accounts.insert(node.author);
     }
     if node.is_open_inside()
@@ -688,7 +714,8 @@ pub(crate) fn rotate_escrow_later(
 
 fn administrators(connection: &Connection, organization: Uuid) -> Result<Vec<Uuid>, ServerError> {
     let mut statement = connection.prepare_cached(
-        "SELECT account_id FROM memberships WHERE organization_id = ?1 AND role = 'administrator'",
+        "SELECT account_id FROM memberships WHERE organization_id = ?1 AND role = 'administrator'
+            AND account_id NOT IN (SELECT account_id FROM agents WHERE bound_to IS NOT NULL)",
     )?;
     let rows = statement.query_map([organization.to_string()], |row| row.get::<_, String>(0))?;
     let mut found = Vec::new();
@@ -747,12 +774,14 @@ impl ServerStore {
     ) -> Result<KeySet, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
-            store.server_key().seal_settings_to(
-                database,
-                graph,
-                identity.organization,
-                identity.account,
-            )?;
+            if identity.bound.is_none() {
+                store.server_key().seal_settings_to(
+                    database,
+                    graph,
+                    identity.organization,
+                    identity.account,
+                )?;
+            }
             let settings = crate::organization::settings_of(identity.organization);
             let wanted: BTreeSet<Uuid> = match blocks {
                 None if seen.administrator() => graph.ids().into_iter().collect(),
@@ -852,6 +881,7 @@ impl ServerStore {
                     }
                 }
                 if editor
+                    && !graph.get(block).is_some_and(|node| node.owner_only)
                     && let Some(escrow) = escrow
                     && !wraps
                         .iter()
@@ -911,6 +941,9 @@ impl ServerStore {
                     ));
                 }
                 for block in graph.subtree(*root) {
+                    if graph.closed_to(block, identity.account) {
+                        continue;
+                    }
                     if !data.contains(&block) {
                         return Err(refused(format!(
                             "a rotation gives every block below it a new data key, and {block} has none"
@@ -1076,18 +1109,27 @@ impl ServerStore {
             self.with_database(move |_, database| {
                 let public = recovery_key_of(&database, account)?;
                 let mut statement = database.prepare(
-                    "SELECT organization_id, role FROM memberships WHERE account_id = ?1",
+                    "SELECT memberships.organization_id, memberships.role, agents.bound_to
+                     FROM memberships
+                     LEFT JOIN agents ON agents.account_id = memberships.account_id
+                        AND agents.organization_id = memberships.organization_id
+                     WHERE memberships.account_id = ?1",
                 )?;
                 let rows = statement.query_map([account.to_string()], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                    ))
                 })?;
                 let mut memberships = Vec::new();
                 for row in rows {
-                    let (organization, role) = row?;
+                    let (organization, role, bound) = row?;
                     memberships.push(Identity {
                         account,
                         organization: parse_uuid(&organization)?,
                         role: decode_role(&role)?,
+                        bound: bound.as_deref().map(parse_uuid).transpose()?,
                     });
                 }
                 Ok((public, memberships))

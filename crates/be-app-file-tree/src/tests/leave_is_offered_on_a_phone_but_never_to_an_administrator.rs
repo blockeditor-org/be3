@@ -23,6 +23,10 @@ fn leave_is_offered_on_a_phone_but_never_to_an_administrator() {
     let more = format!("file-tree.{plan}.more");
     fixture.test.click(&more);
     fixture.settle();
+    fixture.test.settle();
+    fixture
+        .test
+        .snapshot("a_row_menu_with_room_on_neither_side_covers_its_row_to_fit_the_phone");
     fixture.click_item("Leave");
     assert!(
         fixture

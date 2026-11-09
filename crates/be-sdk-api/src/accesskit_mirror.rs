@@ -1108,7 +1108,6 @@ impl From<crate::Description> for wire::Description {
     fn from(description: crate::Description) -> Self {
         Self {
             tree: description.tree.as_ref().map(tree_update_to),
-            actions: description.actions,
         }
     }
 }
@@ -1117,7 +1116,6 @@ impl From<wire::Description> for crate::Description {
     fn from(description: wire::Description) -> Self {
         Self {
             tree: description.tree.map(tree_update_from),
-            actions: description.actions,
         }
     }
 }

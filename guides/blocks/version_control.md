@@ -10,7 +10,7 @@ rewritten, conflicts are data, and every operation can be undone.
 
 - A **repository** (`be_block::Repository`) holds branch heads, an optional
   upstream repository in the same organization, and the operation log. It
-  keeps its history alive with `Peer::hold` (`HoldObjects`), whatever its own
+  keeps its history alive with `Peer::hold` (`HoldObjects`, `Hold::Lasting`), whatever its own
   commits' retention does.
 - A **snapshot** is a `Commit` of kind `Snapshot(description)` whose manifest is
   a `be_block_vcs::Tree`: one entry per block of the versioned subtree, keyed by
@@ -57,8 +57,9 @@ falls back to the block with that id, so references out of the tree work.
 
 `crates/be-host-stack/src/version.rs` runs them in the worker: adopt, save
 (finish), checkout, switch, branch, combine, bring in (`be_block_vcs::merge`
-over the trees, then each type's `Merge::merge3` for blocks both sides
-changed, leaving `before`, `yours` and `incoming` copies of a conflicted block
+over the trees, then `Replicas::merge` for blocks both sides changed, which
+is each type's `Merge::merge3` or, for a type that merges by parts, its
+`MergeParts` (guides/type_modules.md, "Merging by parts"), leaving `before`, `yours` and `incoming` copies of a conflicted block
 under the checkout), resolve, undo, fork, pull and push. It answers a
 `version-watch` with each shown repository's and checkout's `version-status`,
 recomputed when the mirror changes, and holds followed checkouts' trees in the

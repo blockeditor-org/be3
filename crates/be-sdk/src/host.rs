@@ -9,18 +9,20 @@ use std::{
 
 use crate::asked::{Asked, Task, asking};
 use crate::graph::BlockParent;
+use crate::network::{Request, Response};
 use crate::state::Subscription;
 use be_lib_geometry::{Pos2, Rect, Vec2};
 use be_sdk_api::OfferedClipItem;
 use be_sdk_api::TopBar;
-use be_sdk_api::guest::host_services;
+use be_sdk_api::guest::{host_services, network};
+use be_sdk_api::ops::OpError;
 use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
-    BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
-    HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView, PerformanceMeasurement,
-    Revision, ShellCommand, ShellDialog, Size, ViewChange, ViewId, ViewPlacement, Watched,
-    WebViewCommand, WebViewEvent, WebViewId,
+    BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
+    ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
+    FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView,
+    PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, ViewChange, ViewId,
+    ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -550,6 +552,8 @@ pub struct EditorHost {
     child_dismissals: Rc<RefCell<Vec<ChildId>>>,
     child_closes: Rc<RefCell<Vec<ChildId>>>,
     keyboard_gifts: Rc<RefCell<Vec<ChildId>>>,
+    host_palette: Rc<Cell<bool>>,
+    palette_opens: Rc<RefCell<Vec<be_sdk_api::PaletteMode>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
     showing: Rc<Cell<Option<be_sdk_api::View>>>,
     drops: Rc<RefCell<HashMap<ViewId, ViewDrops>>>,
@@ -592,6 +596,7 @@ pub struct EditorHost {
     graph: Rc<crate::graph::GraphState>,
     account: Rc<Cell<Uuid>>,
     organization: Rc<Cell<Uuid>>,
+    page_origin: Rc<RefCell<String>>,
     module: Rc<RefCell<std::rc::Weak<crate::module::ModuleState>>>,
     settings_draft: Rc<RefCell<Option<crate::SettingsDraft>>>,
     pub(crate) docks: Rc<RefCell<crate::docks::Docks>>,
@@ -1254,8 +1259,10 @@ impl EditorHost {
                     })
                     .collect(),
             ),
-            content
-            @ (ToEditor::Snapshot(_) | ToEditor::Operations(_) | ToEditor::Range { .. }) => {
+            content @ (ToEditor::Snapshot(_)
+            | ToEditor::Operations(_)
+            | ToEditor::Range { .. }
+            | ToEditor::PartPut { .. }) => {
                 if self.followed.borrow().contains_key(&block) {
                     self.update_content(block, content);
                 }
@@ -1320,7 +1327,7 @@ impl EditorHost {
             @ (FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_)) => {
                 self.content_operations.borrow_mut().push((block, message));
             }
-            message @ FromEditor::Read { .. } => {
+            message @ (FromEditor::Read { .. } | FromEditor::PutPart { .. }) => {
                 self.content_operations.borrow_mut().push((block, message));
                 self.waker.wake();
             }
@@ -1809,6 +1816,28 @@ impl EditorHost {
         Asked::of(self.ask(|| host_services::make_contact_link(block_id.into_bytes(), access)))
     }
 
+    /// Makes an agent named `name` that reaches `block_id` and the blocks under it with Edit,
+    /// and nothing else, for a program hosting the block on a machine trusted less than the
+    /// person's devices. Needs Manage on the block, and the manifest's `block_agents`.
+    pub fn create_block_agent(
+        &self,
+        block_id: Uuid,
+        name: impl Into<String>,
+    ) -> Asked<Result<BlockAgent, Failure>> {
+        let name = name.into();
+        Asked::of(self.ask(|| host_services::create_block_agent(block_id.into_bytes(), name)))
+    }
+
+    /// A new token for an agent `create_block_agent` made; every older one stops signing in.
+    pub fn rotate_agent_token(&self, agent: Uuid) -> Asked<Result<String, Failure>> {
+        Asked::of(self.ask(|| host_services::rotate_agent_token(agent.into_bytes())))
+    }
+
+    /// Deletes an agent `create_block_agent` made.
+    pub fn remove_agent(&self, agent: Uuid) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::remove_agent(agent.into_bytes())))
+    }
+
     pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {
         self.ask(|| {
             host_services::set_access(block_id.into_bytes(), account.into_bytes(), access).detach()
@@ -1845,12 +1874,31 @@ impl EditorHost {
         self.push(Pushed::Audio);
     }
 
-    /// A GET the host makes for the app, its only network on any platform. The host refuses
-    /// a URL whose host name the manifest's `network` does not list. Canceling aborts the
-    /// request in the browser and drops the answer natively.
-    pub fn fetch(&self, url: impl Into<String>) -> Asked<Result<Vec<u8>, Failure>> {
+    /// Sends `request` through the host, the app's only network on any platform, and answers
+    /// with the response's status and headers once they arrive; the body follows as it
+    /// arrives, with no limit on its length (`Response::chunk`, `bytes`, `json`). The host
+    /// refuses an `http://` URL, or one whose host name the manifest's `network` does not
+    /// list (`"*"` lists every one), and adds no credentials: a token is the app's own
+    /// (`Request::bearer`). Canceling, or dropping the response, aborts the request.
+    pub fn fetch(&self, request: Request) -> Asked<Result<Response, Failure>> {
+        let fetch = self.ask(|| network::Fetch::new(request));
+        let head = fetch.response();
+        Asked::from_future(async move {
+            match head.await {
+                Ok(Ok(head)) => Some(Ok(Response::new(head, fetch))),
+                Ok(Err(failure)) => Some(Err(failure)),
+                Err(OpError::Canceled) => None,
+                Err(error) => Some(Err(Failure::from(error))),
+            }
+        })
+    }
+
+    /// Opens `url`, an `http://` or `https://` link, in the system's browser or a new tab on
+    /// the web. Where the browser blocks the tab, the host shows the link for the person to
+    /// press instead, and still answers that it opened.
+    pub fn open_url(&self, url: impl Into<String>) -> Asked<Result<(), Failure>> {
         let url = url.into();
-        Asked::of(self.ask(|| host_services::fetch(url)))
+        Asked::of(self.ask(|| network::open_url(url)))
     }
 
     pub fn list_data(&self) -> Asked<Result<Vec<String>, Failure>> {
@@ -2273,6 +2321,16 @@ impl EditorHost {
         self.organization.get()
     }
 
+    /// The origin of the web page the host runs in, empty where it is not a web page. On the
+    /// web `fetch` is the browser's, so a server answers only if its CORS allows this origin.
+    pub fn page_origin(&self) -> String {
+        self.page_origin.borrow().clone()
+    }
+
+    pub fn set_page_origin(&self, origin: String) {
+        *self.page_origin.borrow_mut() = origin;
+    }
+
     pub fn graph(&self) -> crate::graph::BlockGraph {
         crate::graph::BlockGraph {
             graph: Rc::clone(&self.graph),
@@ -2442,6 +2500,26 @@ impl EditorHost {
 
     pub(crate) fn take_child_closes(&self) -> Vec<ChildId> {
         std::mem::take(&mut self.child_closes.borrow_mut())
+    }
+
+    /// Whether the host draws the command palette (`open-block.host-palette`), so the frame
+    /// keeps none of its own and asks for the host's with `open_palette`.
+    pub fn host_palette(&self) -> bool {
+        self.host_palette.get()
+    }
+
+    pub fn set_host_palette(&self, host_palette: bool) {
+        self.host_palette.set(host_palette);
+    }
+
+    /// Asks the host to open its command palette (`shell.open-palette`).
+    pub fn open_palette(&self, mode: be_sdk_api::PaletteMode) {
+        self.palette_opens.borrow_mut().push(mode);
+        self.changed();
+    }
+
+    pub(crate) fn take_palette_opens(&self) -> Vec<be_sdk_api::PaletteMode> {
+        std::mem::take(&mut self.palette_opens.borrow_mut())
     }
 
     pub(crate) fn take_keyboard_gifts(&self) -> Vec<ChildId> {

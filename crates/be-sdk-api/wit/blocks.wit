@@ -13,6 +13,9 @@ interface blocks {
         roots,
         detached,
         shared,
+        /// What is in the account's own Unfiled, whose id the editor never
+        /// learns: each such block reads back with the parent `unfiled`.
+        unfiled,
         children(block-id),
         references(block-id),
         backrefs(block-id),
@@ -259,13 +262,16 @@ interface blocks {
     version: async func(block: block-id, command: version-command);
 
     /// Creates a block with the id the editor chose, so it can name the block
-    /// before the host has seen it.
+    /// before the host has seen it. With `owner-only`, only this account
+    /// reads it, on any of its devices: a settings kind whose type says
+    /// `KindVisibility::Owner`, whose key is never escrowed.
     create-block: async func(
         block: block-id,
         block-type: block-type-id,
         parent: block-location,
         defined: metadata-entries,
         content: option<list<u8>>,
+        owner-only: bool,
     );
 
     set-parent: async func(block: block-id, parent: block-location);

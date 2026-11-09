@@ -42,7 +42,180 @@ pub(super) struct Versions {
     commits: HashMap<CommitId, Commit>,
     watching: Arc<Mutex<HashSet<Uuid>>>,
     roots: HashSet<Uuid>,
-    computed: HashMap<Uuid, (u64, u64, u64)>,
+    statuses: Statuses,
+}
+
+/// Which watched statuses are current, and which could not be computed, by the inputs they
+/// failed with: tried again when those inputs change, or, for a transient failure, when the
+/// session's backoff comes due (`refresh`'s `retry`).
+#[derive(Default)]
+pub(crate) struct Statuses {
+    computed: HashMap<Uuid, Signature>,
+    failed: HashMap<Uuid, Failed>,
+}
+
+/// What `refresh` does with a watched block's status.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum Due {
+    /// It is current.
+    Current,
+    /// It failed with these inputs and is not tried again yet; `transient` when the backoff
+    /// will try it.
+    Waiting { transient: bool },
+    /// Compute it.
+    Compute,
+}
+
+impl Statuses {
+    pub(crate) fn due(&self, block: Uuid, signature: Signature, retry: bool) -> Due {
+        if self.computed.get(&block) == Some(&signature) {
+            return Due::Current;
+        }
+        match self.failed.get(&block) {
+            Some(failed)
+                if failed.signature == signature && !(failed.failure.transient() && retry) =>
+            {
+                Due::Waiting {
+                    transient: failed.failure.transient(),
+                }
+            }
+            _ => Due::Compute,
+        }
+    }
+
+    /// Records a status computed with `signature`; answers the error this bookkeeping showed
+    /// for it, which the status should no longer carry.
+    pub(crate) fn computed(&mut self, block: Uuid, signature: Signature) -> Option<String> {
+        self.computed.insert(block, signature);
+        self.failed.remove(&block).and_then(|failed| failed.shown)
+    }
+
+    /// Records a status that failed with `signature`; answers the error to show in it once
+    /// the failure is permanent or has repeated `SHOWN_AFTER` times.
+    pub(crate) fn failed(
+        &mut self,
+        block: Uuid,
+        signature: Signature,
+        failure: Failure,
+    ) -> Option<String> {
+        self.computed.remove(&block);
+        let (attempts, previous) = self
+            .failed
+            .get(&block)
+            .map_or((0, None), |failed| (failed.attempts, failed.shown.clone()));
+        let attempts = attempts.saturating_add(1);
+        let shown = match !failure.transient() || attempts >= SHOWN_AFTER {
+            true => Some(format!(
+                "Could not read this block's versions: {}",
+                failure.message
+            )),
+            false => previous,
+        };
+        self.failed.insert(
+            block,
+            Failed {
+                signature,
+                failure,
+                attempts,
+                shown: shown.clone(),
+            },
+        );
+        shown
+    }
+
+    /// Forgets which statuses failed for want of the server, once it can be reached again.
+    pub(crate) fn reconnected(&mut self) {
+        self.failed.retain(|_, failed| !failed.failure.transient());
+    }
+
+    /// Forgets which statuses failed for want of an object, once a block's head is
+    /// announced: the object may be what was uploaded.
+    pub(crate) fn announced(&mut self) {
+        self.failed
+            .retain(|_, failed| failed.failure.kind != FailureKind::Object);
+    }
+}
+
+/// What a watched block's status is computed from: the graph's revision, the revisions of
+/// the block's and its repository's content, and the keyring's (`KeyBook::revision`), so a
+/// read that failed for want of a key is tried again once keys arrive.
+pub(crate) type Signature = (u64, u64, u64, u64);
+
+struct Failed {
+    signature: Signature,
+    failure: Failure,
+    attempts: u32,
+    /// The message this failure put in the status's `error`, to clear once it computes.
+    shown: Option<String>,
+}
+
+/// How many transient failures in a row a status takes before it shows the error.
+const SHOWN_AFTER: u32 = 3;
+
+/// Why a status could not be computed, and what could make trying again succeed.
+#[derive(Clone, Debug)]
+pub(crate) struct Failure {
+    message: String,
+    kind: FailureKind,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FailureKind {
+    /// A request that broke off, timed out or found the server or the disk busy: nothing
+    /// announces that it would now succeed, so it is tried again on the session's backoff.
+    Transient,
+    /// An object neither the store nor the server has yet: tried again when a block's head
+    /// is announced (`Versions::announced`), which is how an upload of it arrives.
+    Object,
+    /// Anything else: a missing key (keys arriving move the signature), bytes that do not
+    /// decode. Tried again only when its inputs change.
+    Lasting,
+}
+
+impl Failure {
+    pub(crate) fn client(error: ClientError) -> Self {
+        let kind = match &error {
+            ClientError::Disconnected(_)
+            | ClientError::TimedOut(_)
+            | ClientError::Contended
+            | ClientError::Refused(ErrorCode::Storage | ErrorCode::SlowDown, _) => {
+                FailureKind::Transient
+            }
+            ClientError::Store(stored) => return Self::stored_as(stored, error.to_string()),
+            ClientError::MissingObject(_) | ClientError::Refused(ErrorCode::ObjectNotFound, _) => {
+                FailureKind::Object
+            }
+            _ => FailureKind::Lasting,
+        };
+        Self {
+            message: error.to_string(),
+            kind,
+        }
+    }
+
+    fn stored(error: be_block_store::StoreError) -> Self {
+        let message = error.to_string();
+        Self::stored_as(&error, message)
+    }
+
+    fn stored_as(error: &be_block_store::StoreError, message: String) -> Self {
+        let kind = match error {
+            be_block_store::StoreError::Io(_) => FailureKind::Transient,
+            be_block_store::StoreError::MissingObject(_) => FailureKind::Object,
+            _ => FailureKind::Lasting,
+        };
+        Self { message, kind }
+    }
+
+    fn transient(&self) -> bool {
+        self.kind == FailureKind::Transient
+    }
+}
+
+impl From<Failure> for String {
+    fn from(failure: Failure) -> String {
+        failure.message
+    }
 }
 
 struct Scanned {
@@ -103,6 +276,27 @@ fn failed(error: ClientError) -> String {
 
 fn stored(error: be_block_store::StoreError) -> String {
     error.to_string()
+}
+
+/// Writes a watched block's status, made from its current one, telling its watchers when it
+/// changed.
+fn show_status(
+    context: &Context<'_>,
+    block: Uuid,
+    status: impl FnOnce(&mut VersionStatus) -> VersionStatus,
+) {
+    let mut held = context
+        .shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let entry = held.versions.entry(block).or_default();
+    let mut current = entry.status.clone();
+    let status = status(&mut current);
+    if entry.status != status {
+        entry.status = status;
+        entry.revision += 1;
+        held.touch(block);
+    }
 }
 
 fn scope(checkout: Uuid) -> Scope {
@@ -187,7 +381,11 @@ impl Versions {
         }
     }
 
-    async fn tree(&mut self, peer: &Peer<Store>, commit: Option<CommitId>) -> Result<Tree, String> {
+    async fn tree(
+        &mut self,
+        peer: &Peer<Store>,
+        commit: Option<CommitId>,
+    ) -> Result<Tree, Failure> {
         let Some(commit) = commit else {
             return Ok(Tree::default());
         };
@@ -195,18 +393,22 @@ impl Versions {
             return Ok(tree.clone());
         }
         let manifest = self.commit_of(peer, commit).await?.manifest;
-        let tree: Tree =
-            be_block_store::decode_value(&peer.read_manifest(&manifest).await.map_err(failed)?)
-                .map_err(stored)?;
+        let tree: Tree = be_block_store::decode_value(
+            &peer
+                .read_manifest(&manifest)
+                .await
+                .map_err(Failure::client)?,
+        )
+        .map_err(Failure::stored)?;
         self.trees.insert(commit, tree.clone());
         Ok(tree)
     }
 
-    async fn commit_of(&mut self, peer: &Peer<Store>, commit: CommitId) -> Result<Commit, String> {
+    async fn commit_of(&mut self, peer: &Peer<Store>, commit: CommitId) -> Result<Commit, Failure> {
         if let Some(found) = self.commits.get(&commit) {
             return Ok(found.clone());
         }
-        let loaded = peer.load_commit(commit).await.map_err(failed)?;
+        let loaded = peer.load_commit(commit).await.map_err(Failure::client)?;
         self.commits.insert(commit, loaded.clone());
         Ok(loaded)
     }
@@ -218,7 +420,7 @@ impl Versions {
         scanned: &[Scanned],
         saved: &Tree,
         root: Option<Uuid>,
-    ) -> Result<Working, String> {
+    ) -> Result<Working, Failure> {
         let mut working = Working::default();
         working.tree.root = root;
         let scope = scope(checkout);
@@ -232,7 +434,7 @@ impl Versions {
                             .peer
                             .references_of(block.real, &commit)
                             .await
-                            .map_err(failed)?;
+                            .map_err(Failure::client)?;
                         let references = with_graph(context.shared, |graph| {
                             listed
                                 .iter()
@@ -271,7 +473,7 @@ impl Versions {
         context: &Context<'_>,
         checkout: Uuid,
         state: &Checkout,
-    ) -> Result<(Tree, Working), String> {
+    ) -> Result<(Tree, Working), Failure> {
         let saved = self.tree(context.peer, state.working).await?;
         let scanned = with_graph(context.shared, |graph| scan(graph, checkout, state, &saved));
         let root = state.root.map(|root| {
@@ -369,7 +571,11 @@ impl Versions {
         let mut held = vec![commit.hash()];
         held.extend(context.peer.objects_of(&manifest).await.map_err(failed)?);
         held.extend(tree_objects(context.peer, tree, known).await?);
-        context.peer.hold(repository, &held).await.map_err(failed)?;
+        context
+            .peer
+            .hold(repository, &held, be_block_protocol::Hold::Lasting)
+            .await
+            .map_err(failed)?;
         self.trees.insert(commit, tree.clone());
         Ok(commit)
     }
@@ -384,7 +590,7 @@ impl Versions {
         let id = context.peer.commits().put(key, &commit).map_err(stored)?;
         context
             .peer
-            .hold(repository, &[id.hash()])
+            .hold(repository, &[id.hash()], be_block_protocol::Hold::Lasting)
             .await
             .map_err(failed)?;
         self.commits.insert(id, commit);
@@ -1148,7 +1354,11 @@ impl Versions {
             BlockMetadata::named(name),
         )
         .await?;
-        context.peer.hold(fork, &objects).await.map_err(failed)?;
+        context
+            .peer
+            .hold(fork, &objects, be_block_protocol::Hold::Lasting)
+            .await
+            .map_err(failed)?;
         let state = Repository {
             branches: held
                 .branches
@@ -1215,7 +1425,11 @@ impl Versions {
         }
         let heads: Vec<CommitId> = moved.iter().map(|(_, _, head)| *head).collect();
         let objects = self.reachable(context.peer, &heads, &known).await?;
-        context.peer.hold(into, &objects).await.map_err(failed)?;
+        context
+            .peer
+            .hold(into, &objects, be_block_protocol::Hold::Lasting)
+            .await
+            .map_err(failed)?;
         if !moved.is_empty() {
             let step = Step {
                 checkout: None,
@@ -1275,7 +1489,15 @@ impl Versions {
             .insert(block);
     }
 
-    pub(super) async fn refresh(&mut self, context: &mut Context<'_>) {
+    /// Recomputes the status of every watched block whose inputs changed. A status that
+    /// fails is remembered with the inputs it failed with and not computed again until they
+    /// change, which their own events announce. A transient failure (a request to the server
+    /// that broke off or timed out: nothing announces that it would now succeed) is tried again
+    /// when `retry` is set, which the session sets on a backoff; answers whether one awaits it.
+    /// A permanent failure, or a transient one that keeps failing, shows its reason in the
+    /// status's `error`.
+    pub(super) async fn refresh(&mut self, context: &mut Context<'_>, retry: bool) -> bool {
+        let mut awaiting = false;
         let watched: Vec<Uuid> = context
             .shared
             .lock()
@@ -1300,32 +1522,59 @@ impl Versions {
                     held.graph.revision,
                     revision_of(Some(block)),
                     revision_of(repository),
+                    context.peer.keys().revision(),
                 )
             };
-            if self.computed.get(&block) == Some(&signature) {
-                continue;
+            match self.statuses.due(block, signature, retry) {
+                Due::Current => continue,
+                Due::Waiting { transient } => {
+                    awaiting |= transient;
+                    continue;
+                }
+                Due::Compute => {}
             }
-            self.computed.insert(block, signature);
-            let status = self.status(context, block).await;
-            let mut held = context
-                .shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
-            let entry = held.versions.entry(block).or_default();
-            let status = VersionStatus {
-                busy: entry.status.busy,
-                error: entry.status.error.clone(),
-                ..status
-            };
-            if entry.status != status {
-                entry.status = status;
-                entry.revision += 1;
-                held.touch(block);
+            match self.status(context, block).await {
+                Ok(status) => {
+                    let shown = self.statuses.computed(block, signature);
+                    show_status(context, block, |entry| {
+                        let error = match entry.error.take() {
+                            Some(error) if Some(&error) == shown.as_ref() => None,
+                            error => error,
+                        };
+                        VersionStatus {
+                            busy: entry.busy,
+                            error,
+                            ..status
+                        }
+                    });
+                }
+                Err(failure) => {
+                    awaiting |= failure.transient();
+                    if let Some(message) = self.statuses.failed(block, signature, failure) {
+                        show_status(context, block, |entry| VersionStatus {
+                            error: Some(message),
+                            ..entry.clone()
+                        });
+                    }
+                }
             }
         }
+        awaiting
     }
 
-    async fn status(&mut self, context: &mut Context<'_>, block: Uuid) -> VersionStatus {
+    pub(super) fn reconnected(&mut self) {
+        self.statuses.reconnected();
+    }
+
+    pub(super) fn announced(&mut self) {
+        self.statuses.announced();
+    }
+
+    async fn status(
+        &mut self,
+        context: &mut Context<'_>,
+        block: Uuid,
+    ) -> Result<VersionStatus, Failure> {
         let (checkout, repository) = {
             let held = context
                 .shared
@@ -1337,7 +1586,7 @@ impl Versions {
             )
         };
         if let Some(repository) = repository {
-            return VersionStatus {
+            return Ok(VersionStatus {
                 branches: branches(&repository),
                 log: self
                     .log(
@@ -1347,13 +1596,13 @@ impl Versions {
                     .await,
                 operations: operations(&repository),
                 ..VersionStatus::default()
-            };
+            });
         }
         let Some(state) = checkout else {
-            return VersionStatus::default();
+            return Ok(VersionStatus::default());
         };
         let Some(repository_id) = state.repository else {
-            return VersionStatus::default();
+            return Ok(VersionStatus::default());
         };
         self.follow(context, block, &state, repository_id).await;
         let repository = {
@@ -1363,19 +1612,15 @@ impl Versions {
                 .unwrap_or_else(PoisonError::into_inner);
             content_of::<Repository>(&held, repository_id)
         };
-        let Ok((_, working)) = self.live(context, block, &state).await else {
-            return VersionStatus::default();
-        };
+        let (_, working) = self.live(context, block, &state).await?;
         let commit = match state.working {
-            Some(id) => self.commit_of(context.peer, id).await.ok(),
+            Some(id) => Some(self.commit_of(context.peer, id).await?),
             None => None,
         };
         let parent = commit
             .as_ref()
             .and_then(|commit| commit.parents.first().copied());
-        let Ok(parent_tree) = self.tree(context.peer, parent).await else {
-            return VersionStatus::default();
-        };
+        let parent_tree = self.tree(context.peer, parent).await?;
         let changes = with_graph(context.shared, |graph| {
             changes(graph, &working, &parent_tree, block)
         });
@@ -1386,7 +1631,7 @@ impl Versions {
             .working
             .zip(commit)
             .map(|(id, commit)| version_commit(id, &commit, !working.tree.conflicts.is_empty()));
-        VersionStatus {
+        Ok(VersionStatus {
             behind: repository.is_some() && head.is_some() && head != parent,
             branches: repository.as_ref().map(branches).unwrap_or_default(),
             changes,
@@ -1394,7 +1639,7 @@ impl Versions {
             log: self.log(context.peer, head.into_iter().collect()).await,
             operations: repository.as_ref().map(operations).unwrap_or_default(),
             ..VersionStatus::default()
-        }
+        })
     }
 
     async fn follow(
@@ -1845,7 +2090,7 @@ async fn create(
 ) -> Result<(), String> {
     let summary = match context
         .peer
-        .create_block(block, content_type, parent, &metadata)
+        .create_block(block, content_type, parent, &metadata, false)
         .await
     {
         Ok(summary) => summary,
@@ -2032,42 +2277,29 @@ async fn merge_content(
     checkout: Uuid,
     merge: &be_block_vcs::ContentMerge,
 ) -> Result<(Option<Manifest>, Vec<Uuid>, Option<be_block::Entries>, bool), String> {
-    let mut sides = Vec::new();
-    for manifest in [&merge.base, &merge.ours, &merge.theirs] {
-        sides.push(match manifest {
-            Some(manifest) => Some(context.peer.read_manifest(manifest).await.map_err(failed)?),
-            None => None,
-        });
-    }
     let merged = context
         .replicas
         .merge(
             (context.peer, context.shared),
             merge.content_type,
-            sides[0].as_deref(),
-            sides[1].as_deref(),
-            sides[2].as_deref(),
+            [&merge.base, &merge.ours, &merge.theirs].map(Option::as_ref),
         )
-        .await;
-    let Some((bytes, conflicts)) = merged else {
-        return Ok((merge.ours.clone(), Vec::new(), None, true));
-    };
-    let conflicted = conflicts > 0;
-    let manifest = context
-        .peer
-        .write_content(checkout, merge.content_type, &bytes)
         .await
         .map_err(failed)?;
-    let description = context
-        .replicas
-        .describe((context.peer, context.shared), merge.content_type, &bytes)
-        .await;
-    let references = description
-        .as_ref()
-        .map(|description| description.references.clone())
-        .unwrap_or_default();
-    let derived = description.map(|description| description.derived);
-    Ok((Some(manifest), references, derived, conflicted))
+    let Some(merged) = merged else {
+        return Ok((merge.ours.clone(), Vec::new(), None, true));
+    };
+    let manifest = context
+        .peer
+        .write_content(checkout, merge.content_type, merged.parts())
+        .await
+        .map_err(failed)?;
+    Ok((
+        Some(manifest),
+        merged.content.references.clone(),
+        Some(merged.content.derived.clone()),
+        merged.conflicts > 0,
+    ))
 }
 
 async fn version_block(

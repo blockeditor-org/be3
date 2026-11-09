@@ -32,6 +32,15 @@ macro_rules! icons {
                     _ => None,
                 }
             }
+
+            /// Its Lucide name, as saved data and the app protocol hold it ([`named`] reads
+            /// it back).
+            pub fn name(self) -> Option<&'static str> {
+                match self.0 {
+                    $($codepoint => Some($name),)*
+                    _ => None,
+                }
+            }
         }
     };
 }

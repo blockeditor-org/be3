@@ -80,6 +80,14 @@ pub enum History {
     Redo,
 }
 
+/// What the text sends its block, in the order it happened.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Outgoing {
+    Edit(Edit),
+    /// The editor ended an undo group: the next edit starts a step of its own.
+    Break,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Synced {
     Waiting,
@@ -95,7 +103,10 @@ struct State {
     revision: u64,
     changes: ChangeLog,
     pending: TextChange,
-    outgoing: Vec<Edit>,
+    outgoing: Vec<Outgoing>,
+    /// Whether an edit went out since the last break, so a break with nothing to end is not
+    /// sent.
+    unbroken: bool,
     history: Option<History>,
     external: bool,
     client: u64,
@@ -132,6 +143,7 @@ impl<F: TextField> LiveText<F> {
                 changes: ChangeLog::default(),
                 pending: TextChange::NONE,
                 outgoing: Vec::new(),
+                unbroken: false,
                 history: None,
                 external: false,
                 client: Uuid::new_v4().as_u64_pair().0 | 1 << 63,
@@ -245,11 +257,16 @@ impl<F: TextField> LiveText<F> {
         block: Uuid,
         whole: bool,
     ) -> Synced {
-        let operations = self.take_operations();
-        let own = !operations.is_empty();
+        let outgoing = self.take_outgoing();
+        let own = outgoing
+            .iter()
+            .any(|outgoing| matches!(outgoing, Outgoing::Edit(_)));
         let mut whole = whole || (own && !host.editable());
-        for operation in operations {
-            content.operate(operation);
+        for outgoing in outgoing {
+            match outgoing {
+                Outgoing::Edit(operation) => content.operate(operation),
+                Outgoing::Break => content.break_step(),
+            }
         }
         match self.take_history() {
             Some(History::Undo) => host.undo(block),
@@ -279,7 +296,7 @@ impl<F: TextField> LiveText<F> {
         }
     }
 
-    pub fn take_operations(&self) -> Vec<Edit> {
+    pub fn take_outgoing(&self) -> Vec<Outgoing> {
         std::mem::take(&mut self.write_state().outgoing)
     }
 
@@ -309,7 +326,8 @@ impl<F: TextField> LiveText<F> {
 
     fn send(&self, state: &mut State, edit: Option<Edit>) {
         if let Some(edit) = edit {
-            state.outgoing.push(edit);
+            state.outgoing.push(Outgoing::Edit(edit));
+            state.unbroken = true;
             self.waker.wake();
         }
     }
@@ -363,7 +381,12 @@ impl<F: TextField> Document for LiveText<F> {
         self.send(&mut state, Some(Edit(changes)));
     }
 
-    fn finish_history_group(&self) {}
+    fn finish_history_group(&self) {
+        let mut state = self.write_state();
+        if std::mem::take(&mut state.unbroken) {
+            state.outgoing.push(Outgoing::Break);
+        }
+    }
 
     fn undo(&self) -> Option<Vec<CursorPosition>> {
         self.request(History::Undo)

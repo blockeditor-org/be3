@@ -1001,7 +1001,13 @@ impl<S: ObjectStore> Tracker<S> {
         let (view, database, schema) = (Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7());
         let named = BlockMetadata::named(name);
         self.peer
-            .create_block(view, DatabaseViewContent::CONTENT_TYPE, parent, &named)
+            .create_block(
+                view,
+                DatabaseViewContent::CONTENT_TYPE,
+                parent,
+                &named,
+                false,
+            )
             .await
             .map_err(explain)?;
         let mut shown = DatabaseView::of(database);
@@ -1016,6 +1022,7 @@ impl<S: ObjectStore> Tracker<S> {
                 DatabaseContent::CONTENT_TYPE,
                 BlockParent::Block(view),
                 &held,
+                false,
             )
             .await
             .map_err(explain)?;
@@ -1025,6 +1032,7 @@ impl<S: ObjectStore> Tracker<S> {
                 DatabaseSchemaContent::CONTENT_TYPE,
                 BlockParent::Block(database),
                 &BlockMetadata::default(),
+                false,
             )
             .await
             .map_err(explain)?;
@@ -1824,6 +1832,7 @@ impl<S: ObjectStore> Tracker<S> {
                         TextContent::CONTENT_TYPE,
                         BlockParent::Block(database),
                         &BlockMetadata::named(title),
+                        false,
                     )
                     .await
                     .map_err(explain)?;

@@ -88,6 +88,12 @@ impl Instance {
 }
 
 impl Instances {
+    /// What the host records as having made a block this runtime's app creates, imports or
+    /// copies (`CREATED_BY`): its manifest id, never what the app says.
+    pub(super) fn created_by(&self) -> Option<String> {
+        (!self.app_id.is_empty()).then(|| self.app_id.clone())
+    }
+
     pub(super) fn scope(&self, instance: EditorInstanceId) -> Option<be_host_stack::Scope> {
         let block = self.entries.get(&instance)?.role.block()?.id;
         let source = be_host_stack::revisions::source(block).unwrap_or(block);
@@ -210,9 +216,14 @@ impl Instances {
                 parent,
                 defined,
                 content,
+                owner_only,
             } => {
-                let parent = be_host_stack::app_graph::parent_of(parent);
-                if parent.block().is_some_and(|parent| !self.editable(parent)) {
+                let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
+                    return self.acknowledge(reply, None);
+                };
+                if parent.block().is_some_and(|parent| !self.editable(parent))
+                    || (owner_only && !own_settings(parent))
+                {
                     return self.acknowledge(reply, None);
                 }
                 let block = Uuid::from_bytes(block);
@@ -221,16 +232,18 @@ impl Instances {
                 }
                 let mut defined = be_host_stack::app_graph::entries_of(defined);
                 defined.remove(&be_block::LOCAL_ID.id);
-                let metadata = be_block::BlockMetadata {
+                let mut metadata = be_block::BlockMetadata {
                     defined,
                     ..be_block::BlockMetadata::default()
                 };
+                metadata.put(&be_block::CREATED_BY, self.created_by().as_ref());
                 be_host_stack::create(
                     block,
                     Uuid::from_bytes(block_type),
                     parent,
                     metadata,
                     content,
+                    owner_only,
                 );
                 self.acknowledge(reply, Some(true))
             }
@@ -240,7 +253,9 @@ impl Instances {
                 parent,
             } => {
                 let block = Uuid::from_bytes(block);
-                let parent = be_host_stack::app_graph::parent_of(parent);
+                let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
+                    return self.acknowledge(reply, None);
+                };
                 if !self.editable(block)
                     || parent.block().is_some_and(|parent| !self.editable(parent))
                 {
@@ -257,7 +272,10 @@ impl Instances {
             } => {
                 let block = Uuid::from_bytes(block);
                 let key = Uuid::from_bytes(key);
-                if !self.editable(block) || key == be_block::LOCAL_ID.id {
+                if !self.editable(block)
+                    || key == be_block::LOCAL_ID.id
+                    || key == be_block::CREATED_BY.id
+                {
                     return self.acknowledge(reply, None);
                 }
                 be_host_stack::define(block, vec![(key, value)]);
@@ -384,6 +402,9 @@ impl Instances {
     }
 
     pub fn ended(&mut self, op: OpId) {
+        if self.fetch_ended(op) {
+            return;
+        }
         let Some(instance) = self.owners.remove(&op) else {
             return;
         };
@@ -533,4 +554,18 @@ impl Instances {
             entry.offer(Subject::Artifact(block), &state);
         }
     }
+}
+
+/// Whether `parent` is a block of this account's own settings, the only place an owner-only
+/// block is made (guides/settings.md, Owner only).
+fn own_settings(parent: be_block_graph::BlockParent) -> bool {
+    let account = be_host_stack::account();
+    parent
+        .block()
+        .and_then(be_host_stack::node)
+        .is_some_and(|node| {
+            node.author.is_some()
+                && node.author == account
+                && be_block::holds_owner_only(node.content_type)
+        })
 }

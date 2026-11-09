@@ -85,6 +85,9 @@ pub fn Fixture(name: String) -> Root {
         "overlay" => view! {
             <OverlayFixture />
         },
+        "covering" => view! {
+            <CoveringFixture />
+        },
         "portal" => view! {
             <PortalFixture />
         },
@@ -537,6 +540,82 @@ fn OverlayFixture() -> NodeId {
                 <OverlayContent anchor={anchor_rect} />
             </Overlay>
             <Text color={INK} @test_id="overlay.report">{report}</Text>
+        </List>
+    }
+}
+
+/// Two overlays too tall for either side of their anchor in a 300 high window: a menu
+/// covers its anchor to stay whole inside the window, and anything else anchored below
+/// (a completion, a tooltip) keeps clear of it.
+#[component]
+fn CoveringFixture() -> NodeId {
+    let menu = create_signal(false);
+    let below = create_signal(false);
+    let anchor = NodeRef::new();
+    let target = view! {
+        <Interactive @test_id="covering.anchor" @node_ref=&anchor focusable=true>
+            <Frame width=80.0 height=30.0 fill={AMBER} />
+        </Interactive>
+    };
+    let anchor_rect = measured_rect(target);
+    let trigger = view! {
+        <List spacing=0.0>
+            <Frame width=200.0 height=100.0 />
+            {target}
+        </List>
+    };
+    let opener = |label: &'static str, open: Signal<bool>| {
+        view! {
+            <Interactive
+                @test_id={format!("covering.open-{label}")}
+                focusable=true
+                on_click={move || open.set(true)}
+            >
+                <Frame fill={GREEN} padding={Sides::symmetric(12.0, 6.0)}>
+                    <Text color={INK}>{label}</Text>
+                </Frame>
+            </Interactive>
+        }
+    };
+    let placed = |placement: Placement, open: Signal<bool>, name: &'static str| {
+        let content = view! {
+            <Frame width=120.0 height=250.0 fill={BLUE} @test_id={format!("covering.{name}")} />
+        };
+        let rect = measured_rect(content);
+        let report = create_memo(move || match (rect.get(), anchor_rect.get()) {
+            (Some(content), Some(trigger)) => {
+                let anchor_bottom = trigger.max.y;
+                format!(
+                    "{name} covers {}, within {}",
+                    content.min.y < anchor_bottom,
+                    content.min.y >= 0.0 && content.max.y <= 300.5
+                )
+            }
+            _ => format!("{name} unmeasured"),
+        });
+        view! {
+            <List spacing=4.0>
+                <Overlay
+                    anchor={&anchor}
+                    placement={placement}
+                    open={open}
+                    on_dismiss={move |_: Dismiss| open.set(false)}
+                >
+                    {content}
+                </Overlay>
+                <Text color={INK}>{report}</Text>
+            </List>
+        }
+    };
+    view! {
+        <List direction=Direction::Horizontal spacing=8.0>
+            {trigger}
+            <List spacing=4.0>
+                {opener("menu", menu)}
+                {opener("below", below)}
+                {placed(Placement::Menu, menu, "Menu")}
+                {placed(Placement::BelowStart, below, "Below")}
+            </List>
         </List>
     }
 }

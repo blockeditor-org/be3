@@ -113,9 +113,12 @@ impl Harness {
     }
 }
 
+/// An agent of the owner's, bound to `bound_to` when it names a block (which grants it Edit
+/// there), and the settings `be` signs in with as it.
 async fn agent(
     harness: &Harness,
     owner: &Tracker<MemoryStore>,
+    bound_to: Option<Uuid>,
 ) -> (Settings, Uuid, be_block_keys::RecoveryPublic) {
     let phrase = be_block_keys::RecoveryPhrase::generate();
     let public = phrase.secret().public();
@@ -137,6 +140,7 @@ async fn agent(
             peer.keys().escrow().map_or_else(Vec::new, |escrow| {
                 be_block_client::contacts::seal_pin(&phrase.secret(), organization, &escrow)
             }),
+            bound_to,
         ))
         .await
         .expect("creating the agent failed");
@@ -164,6 +168,7 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
         be_type_workspace::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &BlockMetadata::named(name),
+        false,
     )
     .await
     .unwrap();
@@ -207,6 +212,7 @@ async fn database(
         DatabaseContent::CONTENT_TYPE,
         parent,
         &BlockMetadata::named(name),
+        false,
     )
     .await
     .unwrap();
@@ -215,6 +221,7 @@ async fn database(
         DatabaseSchemaContent::CONTENT_TYPE,
         BlockParent::Block(database),
         &BlockMetadata::default(),
+        false,
     )
     .await
     .unwrap();

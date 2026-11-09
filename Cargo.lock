@@ -794,12 +794,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-app-boat"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-boat",
+ "beui",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "be-app-browser-tab"
 version = "0.1.0"
 dependencies = [
  "be-sdk-beui",
  "be-sdk-test",
  "be-type-browser-tab",
+ "beui",
+ "uuid",
+]
+
+[[package]]
+name = "be-app-chat"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-chat",
  "beui",
  "uuid",
 ]
@@ -1244,6 +1268,7 @@ dependencies = [
  "be-block-model-derive",
  "be-block-store",
  "be-lib-sequence",
+ "be-tool-bench",
  "ciborium",
  "postcard",
  "serde",
@@ -1321,6 +1346,7 @@ dependencies = [
  "be-block-vcs",
  "be-lib-build-id",
  "be-sdk-type-api",
+ "be-sdk-type-testing",
  "be-server",
  "be-type-bundle",
  "be-type-image",
@@ -1344,12 +1370,15 @@ dependencies = [
  "be-block-client",
  "be-block-commit",
  "be-block-graph",
+ "be-block-keys",
  "be-block-protocol",
  "be-block-session",
  "be-block-store",
  "be-lib-build-id",
  "be-sdk-type-api",
  "be-sdk-type-guest",
+ "be-sdk-type-testing",
+ "be-server",
  "be-type-checklist",
  "be-type-example-counter",
  "be-wasm-guest-abi",
@@ -1752,6 +1781,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-lib-search"
+version = "0.1.0"
+dependencies = [
+ "be-lib-graphemes",
+ "caseless",
+ "postcard",
+ "serde",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "be-lib-sequence"
 version = "0.1.0"
 dependencies = [
@@ -1813,6 +1853,7 @@ dependencies = [
  "be-wasm-guest-abi",
  "beui-lucide",
  "beui-paint-format",
+ "serde",
  "serde_bytes",
  "serde_json",
  "uuid",
@@ -2037,6 +2078,19 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "be-sdk-type-guest",
+]
+
+[[package]]
+name = "be-sdk-type-testing"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-sdk-type-api",
+ "be-sdk-type-guest",
+ "postcard",
+ "serde",
+ "uuid",
 ]
 
 [[package]]
@@ -2386,6 +2440,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-type-boat"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "be-type-browser-tab"
 version = "0.1.0"
 dependencies = [
@@ -2403,7 +2469,9 @@ dependencies = [
  "be-block-type-host",
  "be-sdk-type-guest",
  "be-type-audio",
+ "be-type-boat",
  "be-type-browser-tab",
+ "be-type-chat",
  "be-type-checklist",
  "be-type-database",
  "be-type-deterministic-game",
@@ -2424,6 +2492,21 @@ dependencies = [
  "be-type-video",
  "be-type-workspace",
  "be-wasm-guest-abi",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-chat"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-block-store",
+ "be-sdk-type-guest",
+ "serde",
+ "serde_bytes",
+ "sha2 0.10.9",
  "uuid",
 ]
 

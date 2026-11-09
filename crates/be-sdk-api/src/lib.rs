@@ -62,7 +62,7 @@ pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
 pub use guest::dock::DockWatch;
 pub use host_services::{
-    AccessGrant, AccessListing, ImportedBlock, PastedBlock, Revision, ShellDialog,
+    AccessGrant, AccessListing, BlockAgent, ImportedBlock, PastedBlock, Revision, ShellDialog,
 };
 pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;
@@ -92,7 +92,9 @@ pub use types::{
     DockPlacedBar, DockRequest, DockSplit, DockSplitSize, DockTab, DockTabPath, DockTree,
     DockViewRequest, DockWindow,
 };
-pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin};
+pub use types::{
+    MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin, PaletteMode,
+};
 pub use types::{
     ViewRef, WindowEdge, WindowOpen, WindowOver, WindowPlace, WindowPlacement, WindowRequest,
     WindowResize, WindowResizeBegin,
@@ -145,6 +147,7 @@ mod accesskit_mirror;
 mod block_ids;
 mod desktop_types;
 mod docking;
+mod fetching;
 mod input;
 mod nesting;
 mod opening;
@@ -325,7 +328,6 @@ impl MenuEntry {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Description {
     pub tree: Option<accesskit::TreeUpdate>,
-    pub actions: Vec<DescribedAction>,
 }
 
 impl ScreenPlacement {

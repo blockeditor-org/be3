@@ -9,7 +9,15 @@ pub trait SettingsGraph {
     fn account(&self) -> Uuid;
     fn settings(&self, block: Uuid) -> Option<Settings>;
     fn settings_profile(&self, block: Uuid) -> Option<SettingsProfile>;
-    fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid;
+    /// Makes `block`; `owner_only` makes one only this account reads (`KindVisibility::Owner`).
+    fn create(
+        &self,
+        block: Uuid,
+        block_type: Uuid,
+        content: Vec<u8>,
+        parent: BlockParent,
+        owner_only: bool,
+    ) -> Uuid;
     fn edit_settings(&self, block: Uuid, edit: Edit);
     fn edit_settings_profile(&self, block: Uuid, edit: Edit);
 }
@@ -71,17 +79,32 @@ impl RootSettings {
     }
 
     pub fn ensure(&mut self, graph: &dyn SettingsGraph) -> Option<Uuid> {
+        self.ensure_with(graph, SettingsContent::default())
+            .map(|(block, _)| block)
+    }
+
+    /// The account's `Settings` block, made with `content` when it has none, and whether it
+    /// was made here: a block just made can't be read back yet, so whatever it should hold
+    /// goes in `content` rather than in an edit after it.
+    pub fn ensure_with(
+        &mut self,
+        graph: &dyn SettingsGraph,
+        content: SettingsContent,
+    ) -> Option<(Uuid, bool)> {
         if let Some(block) = self.find(graph) {
-            return Some(block);
+            return Some((block, false));
         }
         graph.roots()?;
-        let block = graph.create(
+        let block = Uuid::now_v7();
+        graph.create(
+            block,
             SettingsContent::CONTENT_TYPE,
-            SettingsContent::default().encode(),
+            content.encode(),
             BlockParent::Root,
+            false,
         );
         self.created = Some(block);
-        Some(block)
+        Some((block, true))
     }
 }
 
@@ -104,6 +127,7 @@ pub struct RootSetting<C> {
     created: Option<Uuid>,
     created_here: Option<Uuid>,
     block: Option<Uuid>,
+    owner_only: bool,
     content: std::marker::PhantomData<C>,
 }
 
@@ -114,7 +138,18 @@ impl<C> Default for RootSetting<C> {
             created: None,
             created_here: None,
             block: None,
+            owner_only: false,
             content: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<C> RootSetting<C> {
+    /// A kind whose blocks only this account reads (`KindVisibility::Owner`).
+    pub fn owner_only() -> Self {
+        Self {
+            owner_only: true,
+            ..Self::default()
         }
     }
 }
@@ -141,15 +176,7 @@ impl<C: BlockContent + Default> RootSetting<C> {
         if self.find(graph, client).is_some() {
             return self.block;
         }
-        let settings = self.settings.ensure(graph)?;
-        graph.settings(settings)?;
-        let block = graph.create(
-            C::CONTENT_TYPE,
-            C::default().encode(),
-            BlockParent::Block(settings),
-        );
-        graph.edit_settings(settings, Settings::set_kind(C::CONTENT_TYPE, block));
-        self.created = Some(block);
+        let block = self.create_layer(graph, client, SettingsLayer::EveryDevice, C::default())?;
         self.block = Some(block);
         self.block
     }
@@ -169,28 +196,38 @@ impl<C: BlockContent + Default> RootSetting<C> {
         layer: SettingsLayer,
         content: C,
     ) -> Option<Uuid> {
-        let settings = self.settings.ensure(graph)?;
-        graph.settings(settings)?;
+        let block = Uuid::now_v7();
+        let set_kind = Settings::set_kind(C::CONTENT_TYPE, block);
         let parent = match layer {
-            SettingsLayer::EveryDevice => settings,
+            SettingsLayer::EveryDevice => {
+                let mut made = SettingsContent::default();
+                made.apply(&set_kind);
+                let (settings, created) = self.settings.ensure_with(graph, made)?;
+                if !created {
+                    graph.settings(settings)?;
+                    graph.edit_settings(settings, set_kind);
+                }
+                settings
+            }
             SettingsLayer::ThisDevice => {
+                let settings = self.settings.ensure(graph)?;
+                graph.settings(settings)?;
                 let profile = self.settings.read(graph)?.settings.profile(client)?;
                 graph.settings_profile(profile)?;
+                graph.edit_settings_profile(
+                    profile,
+                    SettingsProfile::set_kind(C::CONTENT_TYPE, block),
+                );
                 profile
             }
         };
-        let block = graph.create(
+        graph.create(
+            block,
             C::CONTENT_TYPE,
             content.encode(),
             BlockParent::Block(parent),
+            self.owner_only,
         );
-        match layer {
-            SettingsLayer::EveryDevice => {
-                graph.edit_settings(settings, Settings::set_kind(C::CONTENT_TYPE, block))
-            }
-            SettingsLayer::ThisDevice => graph
-                .edit_settings_profile(parent, SettingsProfile::set_kind(C::CONTENT_TYPE, block)),
-        }
         match layer {
             SettingsLayer::EveryDevice => self.created = Some(block),
             SettingsLayer::ThisDevice => self.created_here = Some(block),
@@ -198,3 +235,6 @@ impl<C: BlockContent + Default> RootSetting<C> {
         Some(block)
     }
 }
+
+#[cfg(test)]
+mod tests;

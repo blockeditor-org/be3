@@ -101,7 +101,9 @@ An editor writes every change as it happens (each frame of a drag, a stroke as
 it grows) so peers see it at once; the client batches saving
 (decisions/editors_write_every_change_as_it_happens.md). Bracket a gesture with
 `begin_gesture` and `commit_gesture` so it undoes as one step;
-`cancel_gesture` puts back what it wrote and leaves no history. The host
+`cancel_gesture` puts back what it wrote and leaves no history; `break_step`
+ends the editor's burst of quick edits so its next edit starts a step of its
+own, and inside an open gesture does nothing. The host
 cancels a gesture still open when the instance closes, so a gesture held open
 until something is decided (the canvas's new text, kept only once written in)
 ends with its editor.
@@ -213,9 +215,14 @@ The `be_sdk_manifest` types document every field. What is easy to get wrong:
   inside it it handles (`show_block`, `dialog`, `panel`, `window`; `pick` and `rename`
   mark the editor picker and rename children run in),
   and which editors it places as soon as it opens.
-- `network` lists the host names `fetch` may reach; `extensions` the protocol
+- `network` lists the host names `fetch` may reach, matched whole against an
+  `https://` URL's host, or `"*"` for any (still https only), which
+  first-party apps use for now; `extensions` the protocol
   packages beyond the core it uses (`be_sdk_api::EXTENSIONS`, only
   `be3:desktop`). The host denies anything else.
+- `"block_agents": true` lets the app make agents bound to one block
+  (guides/apps/host_services.md, Asking and answering); the host denies those calls
+  to any other app.
 - `block_types` belong to the type, not an editor (adding_a_block.md, Declare
   it in the manifest).
 

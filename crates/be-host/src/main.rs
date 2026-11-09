@@ -1971,6 +1971,12 @@ impl HostCore {
             return;
         }
         self.block_types.insert(child, block_type);
+        if is_unfiled(parent) {
+            if !linked {
+                be_host_stack::set_parent(child, BlockParent::Block(parent));
+            }
+            return;
+        }
         if !self.ensure_editor(parent) {
             return;
         }
@@ -2007,13 +2013,15 @@ impl HostCore {
         }
         self.block_types.insert(child, block_type);
         let source_ready = match source {
-            SidebarDragSource::Root | SidebarDragSource::Orphaned => true,
+            SidebarDragSource::Root | SidebarDragSource::Orphaned | SidebarDragSource::Unfiled => {
+                true
+            }
             SidebarDragSource::Block(source) => self.ensure_editor(source),
         };
-        if !source_ready || !self.ensure_editor(destination) {
+        if !source_ready || !(is_unfiled(destination) || self.ensure_editor(destination)) {
             return;
         }
-        if source == SidebarDragSource::Orphaned && !is_reference {
+        if source == SidebarDragSource::Orphaned && !is_reference && !is_unfiled(destination) {
             be_host_stack::placing(child, true);
         }
         self.pending_transfers.push(PendingTransfer {
@@ -2077,31 +2085,27 @@ impl HostCore {
                 .and_then(|parent| be_host_stack::discovery::block_type(parent.content_type))
                 .is_some_and(|block_type| block_type.children.add)
         };
-        if let Some(BlockParent::Block(parent)) = node.parent
-            && usable(parent)
-            && addable(parent)
-        {
-            self.queue_placement(root, node.content_type, parent, false);
-            return;
-        }
-        let from = match node.parent {
-            Some(BlockParent::Block(parent)) => Some(be_block::DeletedFrom::Block(parent)),
-            _ => node.metadata.get(&be_block::DELETED_FROM),
+        let restoring = Restoring {
+            parent: node.parent,
+            deleted_from: node.metadata.get(&be_block::DELETED_FROM),
+            unfiled: self.root_settings.unfiled(),
+            root_addable: addable(root),
         };
-        let destination = match from {
-            Some(be_block::DeletedFrom::Root) if addable(root) => {
+        let destination = match restore_to(&restoring, usable, addable) {
+            RestoreTo::Nowhere => return,
+            RestoreTo::Placed(parent) => {
+                self.queue_placement(root, node.content_type, parent, false);
+                return;
+            }
+            RestoreTo::Root => {
                 be_host_stack::set_parent(root, BlockParent::Root);
                 return;
             }
-            Some(be_block::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
-                parent
+            RestoreTo::Unfiled(unfiled) => {
+                be_host_stack::set_parent(root, BlockParent::Block(unfiled));
+                return;
             }
-            Some(be_block::DeletedFrom::Root | be_block::DeletedFrom::Block(_)) | None => {
-                match self.root_settings.my_files() {
-                    Some(files) => files,
-                    None => return,
-                }
-            }
+            RestoreTo::Into(destination) => destination,
         };
         let listed = be_host_stack::node(destination)
             .is_some_and(|parent| parent.references.contains(&root));
@@ -2127,7 +2131,9 @@ impl HostCore {
         }
         self.block_types.insert(child, block_type);
         let ready = match source {
-            SidebarDragSource::Root | SidebarDragSource::Orphaned => true,
+            SidebarDragSource::Root | SidebarDragSource::Orphaned | SidebarDragSource::Unfiled => {
+                true
+            }
             SidebarDragSource::Block(source) => self.ensure_editor(source),
         };
         if !ready {
@@ -2148,7 +2154,10 @@ impl HostCore {
             if matches!(transfer.stage, TransferStage::DeleteSource) {
                 let ready = match transfer.source {
                     None | Some(SidebarDragSource::Orphaned) => Some(true),
-                    Some(SidebarDragSource::Root) => {
+                    Some(SidebarDragSource::Unfiled) if transfer.destination.is_some() => {
+                        Some(true)
+                    }
+                    Some(SidebarDragSource::Root | SidebarDragSource::Unfiled) => {
                         be_host_stack::set_parent(transfer.child, BlockParent::Detached);
                         Some(true)
                     }
@@ -2164,8 +2173,12 @@ impl HostCore {
             }
 
             let ready = transfer.destination.map_or(Some(true), |destination| {
-                self.with_editor(destination, |editor| editor.add_child(transfer.child))
-                    .flatten()
+                match is_unfiled(destination) {
+                    true => Some(true),
+                    false => self
+                        .with_editor(destination, |editor| editor.add_child(transfer.child))
+                        .flatten(),
+                }
             });
             if ready != Some(true) {
                 self.pending_transfers.push(transfer);
@@ -2270,6 +2283,7 @@ impl HostCore {
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
         self.root_settings.ensure_my_files();
+        self.root_settings.ensure_unfiled();
         let class = root_settings::device_class();
         self.root_settings.ensure_profile(self.client_id, class)?;
         if let Some(profile) = self.root_settings.take_set_up() {
@@ -2856,6 +2870,27 @@ impl HostCore {
         };
     }
 
+    /// Moves the theme setting on from the system's to light, dark and back, written to the
+    /// layer the Settings app would write it to; `sync_ui_settings` applies it as it applies
+    /// a change made there.
+    fn cycle_theme(&mut self) {
+        let setting = DisplaySettings::theme_setting();
+        let this_device = self.display.layers().this_device.unwrap_or_default();
+        let layer = setting.layer(&this_device);
+        let next = match self
+            .display
+            .applied()
+            .and_then(|settings| setting.get(settings))
+        {
+            None => Some(beui::ThemeKind::Light),
+            Some(beui::ThemeKind::Light) => Some(beui::ThemeKind::Dark),
+            Some(_) => None,
+        };
+        let edit: local_settings::LayerEdit<DisplaySettings> =
+            std::rc::Rc::new(move |own: &DisplaySettings| setting.set(own, next));
+        self.display.commit(&self.host_state, vec![(layer, edit)]);
+    }
+
     fn answer_display(&mut self, round: u64, keep: bool) {
         let display::Prompt::Asking { round: asked, .. } = display::prompt(host::now()) else {
             return;
@@ -3283,6 +3318,7 @@ impl HostCore {
             }
             UiCommand::CancelDiscardUnsent => self.discarding_unsent = None,
             UiCommand::DismissToast(id) => notices::dismiss(id),
+            UiCommand::CycleTheme => self.cycle_theme(),
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),
             #[cfg(target_os = "linux")]
@@ -3585,13 +3621,7 @@ impl HostCore {
                         name: agent.name.clone(),
                     })
                     .collect(),
-                created: self.agent_created.as_ref().map(|created| ui::CreatedAgent {
-                    name: created.name.clone(),
-                    server: created.server.clone(),
-                    organization: created.organization.to_string(),
-                    token: created.token.clone(),
-                    phrase: created.phrase.clone(),
-                }),
+                created: self.agent_created.clone(),
             }),
             contacts: self.contacts.view(),
             members: self.members.view(self.account.id),
@@ -3727,10 +3757,74 @@ fn set_artifact(id: Uuid, artifact: Option<be_block::Artifact>) {
     be_host_stack::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
 }
 
+/// What Restore knows of a deleted block: where it was, and what it was deleted from when its
+/// parent no longer says (`DELETED_FROM`).
+struct Restoring {
+    parent: Option<BlockParent>,
+    deleted_from: Option<be_block::DeletedFrom>,
+    /// The account's Unfiled, once the graph has it at the root.
+    unfiled: Option<Uuid>,
+    /// Whether the block itself may stand at the root (a workspace).
+    root_addable: bool,
+}
+
+#[derive(Debug, PartialEq)]
+enum RestoreTo {
+    /// Its parent still holds it in place: list it there again.
+    Placed(Uuid),
+    Root,
+    /// Into the account's Unfiled, which lists nothing, so setting the parent is enough.
+    Unfiled(Uuid),
+    /// Into a block that must list it.
+    Into(Uuid),
+    Nowhere,
+}
+
+/// Where Restore puts a deleted block back: where it was deleted from when that still takes
+/// it, else into the account's Unfiled.
+fn restore_to(
+    restoring: &Restoring,
+    usable: impl Fn(Uuid) -> bool,
+    addable: impl Fn(Uuid) -> bool,
+) -> RestoreTo {
+    if let Some(BlockParent::Block(parent)) = restoring.parent
+        && usable(parent)
+        && addable(parent)
+    {
+        return RestoreTo::Placed(parent);
+    }
+    let from = match restoring.parent {
+        Some(BlockParent::Block(parent)) => Some(be_block::DeletedFrom::Block(parent)),
+        _ => restoring.deleted_from,
+    };
+    match from {
+        Some(be_block::DeletedFrom::Block(parent))
+            if restoring.unfiled == Some(parent) && usable(parent) =>
+        {
+            RestoreTo::Unfiled(parent)
+        }
+        Some(be_block::DeletedFrom::Root) if restoring.root_addable => RestoreTo::Root,
+        Some(be_block::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
+            RestoreTo::Into(parent)
+        }
+        Some(be_block::DeletedFrom::Root | be_block::DeletedFrom::Block(_)) | None => restoring
+            .unfiled
+            .map_or(RestoreTo::Nowhere, RestoreTo::Unfiled),
+    }
+}
+
+/// Whether `block` is an account's Unfiled, which lists nothing: a block goes into it by its
+/// parent alone.
+fn is_unfiled(block: Uuid) -> bool {
+    be_host_stack::node(block).is_some_and(|node| node.unfiled())
+}
+
 fn drag_source(location: BlockLocation) -> SidebarDragSource {
     match location {
         BlockLocation::Root => SidebarDragSource::Root,
         BlockLocation::Detached => SidebarDragSource::Orphaned,
+        BlockLocation::Unfiled => SidebarDragSource::Unfiled,
+        BlockLocation::Block(id) if is_unfiled(Uuid::from_bytes(id)) => SidebarDragSource::Unfiled,
         BlockLocation::Block(id) => SidebarDragSource::Block(Uuid::from_bytes(id)),
     }
 }

@@ -44,6 +44,7 @@ fn a_window_the_app_opened_is_shown_and_asked_for_by_its_own_screen() {
         drawing: Vec::new(),
         claims: Vec::new(),
         description: None,
+        actions: None,
         anchored: None,
         work_area: None,
         backdrop: None,

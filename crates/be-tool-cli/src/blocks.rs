@@ -76,7 +76,9 @@ impl Index {
 
 pub fn workspaces(top: &[Entry]) -> Vec<&Entry> {
     top.iter()
-        .filter(|entry| entry.parent == BlockParent::Root)
+        .filter(|entry| {
+            entry.parent == BlockParent::Root && be_block::is_workspace_type(entry.block_type)
+        })
         .collect()
 }
 

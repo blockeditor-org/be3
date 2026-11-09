@@ -152,6 +152,10 @@ impl Backend {
         self.wire.relay(replica, frame)
     }
 
+    pub(super) fn stream_item(&mut self, stream: be_sdk_api::ops::OpId, item: &[u8]) -> bool {
+        self.wire.stream_item(stream, item)
+    }
+
     pub(super) fn answer(&mut self, answers: Vec<(be_sdk_api::ops::OpId, Outcome)>) {
         for (op, outcome) in answers {
             self.wire.answer(op, outcome);

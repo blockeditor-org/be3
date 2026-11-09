@@ -9,7 +9,8 @@ modules (guides/type_modules.md).
 A block's content opts into traits in `be-block`: `BlockContent` (durable
 bytes, the references they declare, a name), `LiveEdit` (what a session
 carries: `apply`, `rebase`, `absorb_operation`, `child_operations`), `Merge`
-(three-way merge, required for offline editing), `Undo` (client-local steps)
+(three-way merge, required for offline editing), `MergeParts` (the same merge
+over parts, for a type that loads only its first part), `Undo` (client-local steps)
 and `Streamed` (`[u32 header length][header][payload]`, so a reader takes the
 header and then a byte range).
 
@@ -57,7 +58,10 @@ first part (a file's header): `from_stored` gets a `Stored` whose `bytes` hold
 that part (`Stored::holds` says which parts it has), `parts` hands the others
 back as `Reused`, and `encode` gives only the loaded bytes, which is what its
 replica's followers and editors are sent. Its editors read the rest by range
-(guides/blocks/apps.md, "Reading a range").
+(guides/blocks/apps.md, "Reading a range"), except a reused part the content
+holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash"). Such
+a type merges outside a session by parts if it implements `MergeParts`
+(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes.
 
 ## Documents: `be_block_model`
 
@@ -65,7 +69,9 @@ Almost every type is a `Document<R>`: structs deriving `be_block_model::Model`
 with a `Root` naming the content type. The derive supplies merge, rebase and
 undo; `Document<R>` implements the traits in `be-block` (`model.rs`), so it is
 registered with `undo` in `be_block_types!`. Content that does not fit can
-implement the traits by hand (blobs, below).
+implement the traits by hand (blobs, below); content that is a document but
+must not load whole wraps one and forwards them to it (`ChatContent` in
+`crates/be-type-chat`).
 
 A field is a **register** (any serde value, set whole; setting it on both
 sides offline conflicts), `Count`, `Grid<T>` (dense cells for pixels; bounds
@@ -83,10 +89,13 @@ How the model works:
   and edits name the object, not a position: an edit to an object that moved
   still lands on it. `move_into` carries an object and its subtree to another
   list of the same kind; into another kind it does nothing, since saving would
-  retype it.
+  retype it. `move_range` moves several objects shown one after another in a
+  list (and what was removed from between them) behind an anchor in one
+  change; it is refused once someone put another object between them or moved
+  one away.
 - **Edits.** The derive gives each field a constant (`CalendarEvent::TITLE`)
   that builds `Change`s: `set`, `add`, `put`, `insert`, `move_into`,
-  `Change::remove`. Types wrap these in helpers that write only fields that
+  `move_range`, `Change::remove`. Types wrap these in helpers that write only fields that
   changed.
 - **Nothing to rebase.** Edits address objects by id and anchor inserts to a
   sibling. A list is a `Sequence` of ids (`Items`) remembering each object's
@@ -107,7 +116,11 @@ How the model works:
 - **Offline merge** (`Document::merge`) matches objects by id across the three
   versions and merges each field on its own; list order merges like
   `merge_slices` once moved items are taken out and put back after their
-  sibling. You delete what you saw: deleting what the other side edited deletes
+  sibling. A `List` field marked `#[model(merge_appends)]` (chat's messages)
+  instead merges published first: theirs (the published head, in every merge
+  a replica or `be sync` makes) keeps its order, and the items only ours added
+  go after all of it in our order, so what others have seen stays put and two
+  runs written offline never interleave. You delete what you saw: deleting what the other side edited deletes
   it and counts a conflict; what the other side moved or inserted into a
   removed container survives (back where it came from) and counts a conflict.
 - **Undo** (`Document::step`) records an undo and redo change per change, taken
@@ -167,7 +180,8 @@ CBOR is what registers hold in memory and what `set` sends.
 `Document::to_bytes` writes that value split into a tree of `DocumentPart`s,
 each about 16–64 KiB of CBOR (`crates/be-block-model/src/parts.rs`): a CBOR
 sequence of the root part, then each part it names with its own parts after
-it. `from_bytes` hashes each part and joins them back
+it. `from_bytes` finds each part where it sits, checks it hashes to its name,
+and joins them back
 (`be_block_model::read_stored` does that alone, for tools that show a
 document's CBOR). A parent names its parts by the SHA-256 of their bytes:
 `PART(hash)` stands for a list object larger than a part, `SPLICE([hash,

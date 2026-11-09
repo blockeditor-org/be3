@@ -80,9 +80,10 @@ impl Blocks {
         content: Option<Vec<u8>>,
         parent: BlockParent,
         metadata: BlockMetadata,
+        owner_only: bool,
     ) -> Uuid {
         self.graph
-            .create_at(id, block_type, content, parent, metadata)
+            .create_at(id, block_type, content, parent, metadata, owner_only)
     }
 
     pub fn set_parent(&self, id: Uuid, parent: BlockParent) {

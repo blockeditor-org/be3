@@ -43,6 +43,21 @@ to a band's edges on the axis the placement opens along (`layer::banded`), so
 a button's panel in a bar opens just past the whole bar while lining up with
 the button.
 
+`BelowStart` opens below its anchor, or above when only that side has room,
+and when neither side has room takes the roomier one and shrinks (scrolling
+what it holds), so it never covers its anchor: completions, tooltips and
+popovers keep their input or button in view. `Placement::Menu`, which menus
+(`MenuPopup`, context menus) and selects use, instead covers its anchor when
+neither side has room, as low as the window allows, and shrinks only when it
+is taller than the window (`layer::resolve_rect`, `layer::room_beside`). A
+menu that must keep clear of what opened it passes `placement=BelowStart` to
+its `MenuButton` or `ContextMenu`: a dock bar's grip and the desktop bar's own
+menus (tray, layouts, window chips), which must not hide the bar. The
+HTML core places a `Menu` from its measured size, since CSS anchor positioning
+cannot cover the anchor; so unlike a `BelowStart`, which CSS keeps on its
+anchor, an open menu there moves only when beui lays out again, not as a DOM
+scroller under its anchor scrolls.
+
 `bounds` (window coordinates) narrows the room an overlay is placed, flipped,
 shifted and shrunk in; a menu passes it to its submenus, and a panel that must
 not cover a dock's bands takes the dock's area. The HTML core ignores it, and

@@ -279,11 +279,10 @@ impl TextAreaState {
         }
     }
 
-    /// Like [`Self::sync`], and also breaks the undo group, for an edit that
-    /// arrived from elsewhere.
-    pub fn external_edit(&self) {
+    /// Like [`Self::sync`], and also ends the undo group (`Core::end_undo_group`).
+    pub fn end_undo_group(&self) {
         let inner = self.0.value();
-        inner.core.borrow_mut().external_edit();
+        inner.core.borrow_mut().end_undo_group();
         self.sync();
     }
 

@@ -115,6 +115,7 @@ world editor-app {
     import blocks;
     import shell;
     import host-services;
+    import network;
     import account;
     import contacts;
     import dock;

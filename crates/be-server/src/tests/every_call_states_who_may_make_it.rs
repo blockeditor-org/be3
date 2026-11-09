@@ -6,7 +6,7 @@ use be_block_protocol::embed::METHODS;
 use super::*;
 
 #[derive(Debug, PartialEq)]
-enum Answered {
+pub(super) enum Answered {
     Allowed,
     Refused(ErrorCode),
     /// A stream the server ended at once, or a session it would not open.
@@ -36,7 +36,7 @@ impl TestClient {
 
     /// Makes every call of `be3:server` that names a block on `block`, and the rest with arguments
     /// that would do something were the caller allowed to; answers how each was answered.
-    async fn everything(
+    pub(super) async fn everything(
         &mut self,
         block: Uuid,
         organization: Uuid,
@@ -154,6 +154,7 @@ impl TestClient {
                         [7; 32],
                         sealed(),
                         sealed(),
+                        None,
                     )
                     .await,
                 ),
@@ -161,6 +162,10 @@ impl TestClient {
             (
                 "list-agents",
                 answered(client::members::list_agents(peer, organization).await),
+            ),
+            (
+                "rotate-agent-token",
+                answered(client::members::rotate_agent_token(peer, organization, other).await),
             ),
             (
                 "remove-agent",
@@ -230,7 +235,9 @@ impl TestClient {
             ),
             (
                 "hold-objects",
-                answered(client::objects::hold_objects(peer, block, vec![hash]).await),
+                answered(
+                    client::objects::hold_objects(peer, block, vec![hash], Hold::Lasting).await,
+                ),
             ),
             (
                 "create-block",
@@ -247,6 +254,7 @@ impl TestClient {
                             keys: vec![row(KEY, other, KeyKind::Data)],
                             wrapped: Vec::new(),
                         },
+                        false,
                     )
                     .await,
                 ),
@@ -521,6 +529,7 @@ async fn every_call_states_who_may_make_it() {
                     keys: vec![row(key, referrer, KeyKind::Data)],
                     wrapped: Vec::new(),
                 },
+                false,
             )
         })
         .await;

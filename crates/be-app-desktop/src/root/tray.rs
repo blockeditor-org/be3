@@ -1,3 +1,4 @@
+use be_sdk_beui::beui::Placement;
 use be_sdk_beui::beui::icons::ICON_BLOCKS;
 use be_sdk_beui::beui::native::last_pointer;
 use be_sdk_beui::beui::reactive::*;
@@ -162,6 +163,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
             click_opens
             secondary_opens={has_menu}
             bounds={bar_bounds()}
+            placement=Placement::BelowStart
             @test_id={prefix.clone()}
             items={view! {
                 <TrayEntries entries chosen prefix={prefix.clone()} />

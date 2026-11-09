@@ -8,27 +8,63 @@ covers how those calls work as a whole and the parts that trip agents up.
 ## Asking and answering
 
 A call the host answers (`save_file`, `export_block`, `read_plain_file`,
-`fetch`, `list_data`, `read_data`, the revision calls, ...) is an async
+`list_data`, `read_data`, the revision calls, ...) is an async
 function of the host-services interface
-(`crates/be-sdk-api/wit/host-services.wit`), made for the editor's own
+(`crates/be-sdk-api/wit/host-services.wit`; `fetch` and `open_url` are the
+`network` interface's, `network.wit`), made for the editor's own
 instance, and returns an `Asked<T>`. Run it with
-`editor.then(asked, answered)` (`Creation::then` in a creation dialog): the
-answer reaches `answered` only if the asking scope is still alive, and the
-returned `Task`'s `cancel()` withdraws the call. Closing the editor cancels
-everything it waits on, and the host drops the work (an unsent fetch, an
-export not yet made).
+`editor.then(asked, answered)` (`Creation::then` in a creation dialog), which
+takes any future answering an `Option` (an `async` block awaiting several
+`Asked`s): the answer reaches `answered` only if the asking scope is still
+alive, and the returned `Task`'s `cancel()` withdraws the call. Closing the
+editor cancels everything it waits on, and the host drops the work (a fetch
+in flight, an export not yet made). `Asked::and_then` chains a second call on
+the first's success.
 
 A call that can fail answers `be_sdk_api::Failure`: `denied` (including the
 host refusing the call outright), `unavailable`, or `failed` with a message;
 its `Display` is the text to show.
 
 In a test, `BeuiTest::take_requests()` returns the calls as
-`be_sdk_test::HostCall`s, each answered with `answer(reply, value)`.
+`be_sdk_test::HostCall`s, each answered with `answer(reply, value)`; fetches
+are `take_fetches()`, each a `be_sdk_test::Fetch` holding the whole request,
+answered with `respond(fetch, head, chunks)` (the body goes out in those
+chunks, as the editor's credit allows) or `fail_fetch`, and the links opened
+are `take_opened_urls()`. No test needs a real server.
 
 Notes on particular calls:
 
-- `fetch(url)` is the app's only network, on every platform, and only to host
-  names in the manifest's `network`.
+- `fetch(request)` is the app's only network, on every platform: a
+  `be_sdk::network::Request` (`Request::get(url).bearer(token)`,
+  `Request::post(url).json(&value)?`) answered with a `Response`: its `head`
+  (status and headers, whatever the status), then its body as it arrives,
+  `chunk()` a piece at a time or `bytes()`, `text()`, `json::<T>()` whole,
+  also whatever the status, so an API's JSON error body reads like any other.
+  To want only a success, chain `Response::success`, which turns any other
+  status into a failure: `host.fetch(request).map(|answer|
+  answer.and_then(Response::success)).and_then(Response::json::<T>)`. A body
+  the host stopped sending ends with a failure, never as if it were whole.
+  Dropping the `Response` aborts the request. The host refuses `http://`
+  (redirects too), and a host name the manifest's `network` does not list
+  (`"*"` lists every one), checking the URL a redirect ended at as well; a
+  revision preview may only `GET` and `HEAD`, and opens no links. The host
+  adds no credentials: tokens, their expiry and rotation are the app's. In a
+  browser CORS applies. Natively the host reads the response with ureq on a
+  thread per request, which reads at most `http::CHUNKS_AHEAD` chunks ahead of
+  what the app's stream credit has taken, so a slow app holds the download
+  back rather than the host holding the body
+  (`be-host-runtime/src/instances/network.rs`); a connection, and each read
+  and write on it, times out after 30 seconds of silence, not the whole
+  download.
+- The web is where CORS applies: `editor.host().page_origin()` (the
+  opening's `page-origin`) is the origin of the page the host runs in, empty
+  natively. An app whose service
+  answers no browser page (boat.dev) says it is not available there rather
+  than failing each fetch (`crates/be-app-boat`, which also shows an app
+  holding its own key: decisions/an_app_owns_its_credentials_for_outside_services.md).
+- `open_url(url)` opens an `http(s)` link in the system browser, or a new tab
+  on the web; where the browser blocks a tab opened that long after the press
+  that led to it, the host shows a notice whose Open button opens it.
 - Files are picked with beui's own picker (guides/beui/components.md, Inputs and
   forms), which
   inside an app forwards to the host's; `be_sdk_beui::FileChooser` adds the
@@ -46,6 +82,13 @@ Notes on particular calls:
   what you asked.
 - `occlude(rect)` tells the host the editor draws over children placed so
   far there.
+- `create_block_agent(block, name)`, `rotate_agent_token(agent)` and
+  `remove_agent(agent)` make, re-key and delete an agent that reaches only one
+  block, the editor's own or one below it (guides/tracker.md, A block's agent), for an app that hands its
+  credentials (`BlockAgent::credentials`, the JSON `BE3_AGENT_CREDENTIALS`
+  holds) to a machine of its own. The host denies them unless the manifest
+  sets `"block_agents": true`, and refuses to rotate or remove an agent the
+  Agents menu lists.
 - Web views can be placed (`SubregionContent::WebView`) but no host shows one
   yet: every open fails, and the editor shows that in its place.
 - A revision preview is a temporary, read-only block id: the host isolates it
@@ -109,6 +152,14 @@ the same kind of popup, holding `SubregionContent::Rename` (run in the
 workspace's `rename.rs`) or `SubregionContent::Host(HostPanel::Menu)` (drawn
 by be-host). The frame menu's Rename anchors at `Editor::frame_anchor`.
 
+## The command palette
+
+When `open-block.host-palette` is set the host draws the command palette from
+the actions every instance describes (guides/apps/editor.md, Actions and the
+palette). An editor asks for it with `EditorHost::open_palette(PaletteMode)`
+(`shell.open-palette`): `actions` for the instance's actions and its
+ancestors', `blocks` for blocks to open.
+
 ## Watches and host calls
 
 `editor.watch::<W>()` is a memo of a watch resource of the WIT world (a
@@ -146,7 +197,7 @@ If an editor needs something the host has, add it to the `be3:app` world in
 `crates/be-sdk-api/wit` (`PROTOCOL.md` there lists the interfaces; how WIT is
 written and travels is in guides/type_modules.md, Operations and WIT). An app's
 request goes in the import that fits (`host`, `blocks`, `shell`,
-`host-services`); a host request to an app goes in `app.wit`, as a method of
+`host-services`, `network`); a host request to an app goes in `app.wit`, as a method of
 the `editor` resource when it concerns one instance. Every function is an
 `async func`: one the app only tells the host returns nothing and is
 `.detach()`ed; a followed value is a resource whose `next` the host answers

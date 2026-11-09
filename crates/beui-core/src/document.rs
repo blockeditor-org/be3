@@ -44,7 +44,35 @@ type PickedCallback = Box<dyn FnOnce(FilePick)>;
 type SavedCallback = Box<dyn FnOnce(FileSave)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
 
-pub type ActionsHook = dyn Fn(&Context, &[NodeId], &[WindowId], &[(WindowId, WindowId)]);
+/// Runs the actions the frame's `Context::action_requests` ask for, given the focus path and
+/// which window hosts which.
+pub type ActionsHook = dyn Fn(&Context, &[NodeId], &[(WindowId, WindowId)]);
+
+/// The actions a document describes outside itself, as its action registry last published them
+/// (from a reactive effect, whenever the list or a field of it changes), handed to the
+/// document's context (`Context::document_actions`).
+#[derive(Default)]
+pub struct PublishedActions {
+    document: Cell<u32>,
+    groups: RefCell<Vec<beui_types::ActionGroup>>,
+    changed: Cell<bool>,
+    context: RefCell<Option<Context>>,
+}
+
+impl PublishedActions {
+    /// Hands the groups to the document's context at once, so a frame whose effects change
+    /// them carries them; before the document's first frame, that frame does.
+    pub fn publish(&self, groups: Vec<beui_types::ActionGroup>) {
+        match self.context.borrow().as_ref() {
+            Some(context) => {
+                context.document_actions(self.document.get(), &groups);
+                context.request_repaint();
+            }
+            None => self.changed.set(true),
+        }
+        *self.groups.borrow_mut() = groups;
+    }
+}
 
 pub trait Tools: Any {
     fn show(&mut self, document: &mut Document, ctx: &Context, rect: Rect);
@@ -106,6 +134,9 @@ pub struct Document {
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
     pub keys: crate::keys::KeyListeners,
     actions_hooks: RefCell<Vec<Weak<ActionsHook>>>,
+    published_actions: Rc<PublishedActions>,
+    hosts_watched: ::beui_reactive::OwnedSignal<Vec<(WindowId, WindowId)>>,
+    hosts_generation: Cell<Option<u64>>,
     pub(crate) tapping: Option<Key>,
     keyboard: ::beui_reactive::OwnedSignal<bool>,
     input_frames: u64,
@@ -350,6 +381,9 @@ impl Document {
             finger_taps: RefCell::new(Vec::new()),
             keys: Default::default(),
             actions_hooks: RefCell::new(Vec::new()),
+            published_actions: Rc::default(),
+            hosts_watched: ::beui_reactive::OwnedSignal::new(Vec::new()),
+            hosts_generation: Cell::new(None),
             tapping: None,
             keyboard: ::beui_reactive::OwnedSignal::new(true),
             input_frames: 0,
@@ -490,6 +524,10 @@ impl Document {
     }
 
     pub fn dispose(&mut self) {
+        if let Some(ctx) = self.context() {
+            ctx.forget_document_actions(self.accessibility_id);
+        }
+        self.published_actions.context.replace(None);
         let scope = std::mem::replace(&mut self.reactive_scope, ::beui_reactive::Scope::detached());
         crate::current::with_reactive_scope(self, || scope.dispose());
         ::beui_reactive::forget_zone(self.zone);
@@ -626,16 +664,56 @@ impl Document {
         self.actions_hooks.borrow_mut().push(hook);
     }
 
-    fn describe_actions(&self, ctx: &Context) {
+    pub fn published_actions(&self) -> Rc<PublishedActions> {
+        Rc::clone(&self.published_actions)
+    }
+
+    /// Keeps `watch_window_hosts` up to date: windows are layers, so which window hosts which
+    /// can change only when the layers do.
+    fn follow_window_hosts(&mut self) {
+        let generation = self.layer_state.generation();
+        if self.hosts_generation.replace(Some(generation)) == Some(generation) {
+            return;
+        }
+        let hosts = self.window_hosts();
+        if self
+            .hosts_watched
+            .read_only()
+            .with_untracked(|held| *held != hosts)
+        {
+            self.hosts_watched.set(hosts);
+        }
+    }
+
+    /// Which window hosts which (`window_hosts`), as a signal that moves when that changes.
+    pub fn watch_window_hosts(&self) -> ::beui_reactive::ReadSignal<Vec<(WindowId, WindowId)>> {
+        self.hosts_watched.read_only()
+    }
+
+    fn run_requested_actions(&self, ctx: &Context) {
         let mut hooks = self.actions_hooks.borrow_mut();
         hooks.retain(|hook| hook.strong_count() > 0);
         let live: Vec<Rc<ActionsHook>> = hooks.iter().filter_map(Weak::upgrade).collect();
         drop(hooks);
         let path = self.focus_ancestry();
-        let windows = self.open_windows();
         let hosts = self.window_hosts();
         for hook in live {
-            hook(ctx, &path, &windows, &hosts);
+            hook(ctx, &path, &hosts);
+        }
+    }
+
+    fn hand_over_actions(&mut self, ctx: &Context) {
+        if self.published_actions.context.borrow().is_none() {
+            self.published_actions.document.set(self.accessibility_id);
+            self.published_actions.context.replace(Some(ctx.clone()));
+        }
+        self.follow_window_hosts();
+        if !ctx.action_requests().is_empty() {
+            crate::current::run_in(self, |document| document.run_requested_actions(ctx));
+        }
+        let published = &self.published_actions;
+        if published.changed.take() {
+            ctx.document_actions(self.accessibility_id, &published.groups.borrow());
         }
     }
 
@@ -1415,9 +1493,7 @@ impl Document {
         });
 
         crate::current::run_in(self, |document| document.run_timers());
-        if ctx.automated() {
-            crate::current::run_in(self, |document| document.describe_actions(ctx));
-        }
+        self.hand_over_actions(ctx);
         self.deliver_file_dialogs(ctx);
 
         {

@@ -156,6 +156,7 @@ pub(super) enum Heard {
     Debug(EditorInstanceId, DebugCall),
     Ended(be_sdk_api::ops::OpId),
     Service(super::wire::Service),
+    Network(EditorInstanceId, be_sdk_api::embed::network::Call),
     Withdrawn(be_sdk_api::ops::OpId),
 }
 
@@ -184,6 +185,7 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::CommitChild { instance, .. }
         | ShellCall::Picked { instance, .. }
         | ShellCall::ShowCard { instance, .. }
+        | ShellCall::OpenPalette { instance, .. }
         | ShellCall::ArtifactDescribed { instance, .. }
         | ShellCall::ArtifactEdited { instance, .. }
         | ShellCall::ChildStatusesWatchNew { instance, .. }

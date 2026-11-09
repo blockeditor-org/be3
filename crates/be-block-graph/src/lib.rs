@@ -68,9 +68,22 @@ pub struct BlockNode {
     /// ancestors, and `add_size` adds to every ancestor, so it is kept in O(depth).
     #[serde(default)]
     pub tree_size: u64,
+    /// Readable by its author alone: a scope root of its own whose key is sealed only to the
+    /// author, never escrowed (`KindVisibility::Owner`). Set when it is made and kept for life.
+    pub owner_only: bool,
 }
 
+/// The type of an account's Unfiled (`be_block::unfiled`): a root with no content that holds
+/// every block whose parent names it.
+pub const UNFILED_TYPE: Uuid = Uuid::from_u128(0x756e_6669_6c65_642d_626c_6f63_6b73_3031);
+
 impl BlockNode {
+    /// An account's Unfiled: it has no content listing its children, so it holds every block
+    /// whose parent names it.
+    pub fn unfiled(&self) -> bool {
+        self.content_type == UNFILED_TYPE
+    }
+
     pub fn new(content_type: Uuid, author: Uuid, parent: BlockParent) -> Self {
         Self {
             content_type,
@@ -84,6 +97,7 @@ impl BlockNode {
             key: None,
             size: 0,
             tree_size: 0,
+            owner_only: false,
         }
     }
 }
@@ -192,6 +206,20 @@ pub fn created_access(
 /// higher, and anything below either
 /// has exactly its parent's access, whatever its own grants say.
 fn level_below(
+    node: &BlockNode,
+    account: Uuid,
+    parent: Access,
+    parent_viewable: bool,
+    in_settings: bool,
+) -> Access {
+    let level = level_below_open(node, account, parent, parent_viewable, in_settings);
+    match node.owner_only && node.author != account {
+        true => level.min(Access::KnowExists),
+        false => level,
+    }
+}
+
+fn level_below_open(
     node: &BlockNode,
     account: Uuid,
     parent: Access,
@@ -314,7 +342,8 @@ impl BlockGraph {
         };
     }
 
-    /// A parent holds a child only while the parent's references list it. A block whose link
+    /// A parent holds a child only while the parent's references list it, except an Unfiled
+    /// (`BlockNode::unfiled`), which holds every child by parent alone. A block whose link
     /// does not hold is in the trash with its subtree even when something else references it;
     /// references from anything but the parent keep nothing alive.
     pub fn holds(&self, id: Uuid) -> bool {
@@ -323,7 +352,7 @@ impl BlockGraph {
             Some(BlockParent::Block(parent)) => self
                 .blocks
                 .get(&parent)
-                .is_some_and(|parent| parent.references.contains(&id)),
+                .is_some_and(|parent| parent.unfiled() || parent.references.contains(&id)),
             Some(BlockParent::Detached) | None => false,
         }
     }
@@ -352,8 +381,24 @@ impl BlockGraph {
     pub fn is_scope_root(&self, id: Uuid) -> bool {
         self.blocks.get(&id).is_some_and(|node| {
             !matches!(node.parent, BlockParent::Block(_))
+                || node.owner_only
                 || node.grants.values().any(|level| level.can_view())
         })
+    }
+
+    /// The nearest owner-only block at or above `id`.
+    pub fn owner_only_root(&self, id: Uuid) -> Option<Uuid> {
+        std::iter::once(id)
+            .chain(self.ancestors(id))
+            .find(|block| self.blocks.get(block).is_some_and(|node| node.owner_only))
+    }
+
+    /// Whether `id` lies in an owner-only block someone other than `account` made, which
+    /// `account` may at most know exists, whatever its role.
+    pub fn closed_to(&self, id: Uuid, account: Uuid) -> bool {
+        self.owner_only_root(id)
+            .and_then(|root| self.blocks.get(&root))
+            .is_some_and(|root| root.author != account)
     }
 
     pub fn scope(&self, id: Uuid) -> Uuid {
@@ -958,6 +1003,12 @@ impl BlockGraph {
     }
 
     pub fn viewers(&self, id: Uuid) -> BTreeSet<Uuid> {
+        if let Some(root) = self
+            .owner_only_root(id)
+            .and_then(|root| self.blocks.get(&root))
+        {
+            return BTreeSet::from([root.author]);
+        }
         let mut viewers = BTreeSet::new();
         let chain: Vec<(Uuid, &BlockNode)> = std::iter::once(id)
             .chain(self.ancestors(id))

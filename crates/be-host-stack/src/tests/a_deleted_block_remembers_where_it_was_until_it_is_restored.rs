@@ -15,6 +15,7 @@ fn a_deleted_block_remembers_where_it_was_until_it_is_restored() {
         BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     create(
         note,
@@ -22,6 +23,7 @@ fn a_deleted_block_remembers_where_it_was_until_it_is_restored() {
         BlockParent::Block(folder),
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     let remembered = || node(note).and_then(|node| node.metadata.get(&DELETED_FROM));
     let deleted = || with_graph(|graph| graph.deleted_root(note)).flatten();

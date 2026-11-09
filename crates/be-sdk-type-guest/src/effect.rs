@@ -40,6 +40,11 @@ pub(crate) enum Effect {
         offset: u64,
         length: u64,
     },
+    PutPart {
+        replica: ReplicaId,
+        token: Token,
+        bytes: Vec<u8>,
+    },
     Resume {
         replica: ReplicaId,
         token: Token,

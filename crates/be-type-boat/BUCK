@@ -1,0 +1,9 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
+load("@root//buck/wasm:defs.bzl", "type_module")
+
+cargo_package()
+
+# The boat app's block types: the block, which says which boat.dev account it
+# shows, and BoatSettings, the owner-only settings kind holding the viewer's
+# boat.dev keys (guides/settings.md, Owner only).
+type_module(module = "boat_types")

@@ -1,11 +1,13 @@
 package be3:block-type@0.1.0;
 
 /// What a type module offers: a replica for each open block, and requests
-/// that need none.
+/// that need none. A call the module makes under a stateless request has the
+/// request as its parent; the host serves only `read-part` there, and only of
+/// the parts of the `loaded` content the request was handed.
 interface replicas {
     use types.{
         block-id, change, client-id, commit-id, content-type-id, description, editor-id,
-        endpoint, failure, journal, merged, organization-id, plain-file, session-state,
+        endpoint, failure, journal, loaded, merged, merged-parts, organization-id, plain-file, session-state,
         session-tag, type-info,
     };
 
@@ -89,6 +91,18 @@ interface replicas {
         ours: option<list<u8>>,
         theirs: option<list<u8>>,
     ) -> result<merged, failure>;
+
+    /// `merge3` for a type that merges by parts (`type-info.merges-parts`): each side as
+    /// `host.load` with `first-part` answers it, or for content not saved yet, its bytes and
+    /// no parts. The module reads the other parts it needs with `read-part` under this
+    /// request.
+    merge-parts: async func(
+        content-type: content-type-id,
+        base: option<loaded>,
+        ours: option<loaded>,
+        theirs: option<loaded>,
+        organization: organization-id,
+    ) -> result<merged-parts, failure>;
 
     describe: async func(content-type: content-type-id, bytes: list<u8>, organization: organization-id) -> result<description, failure>;
 

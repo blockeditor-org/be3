@@ -26,13 +26,28 @@ pub fn my_files_of(organization: Uuid, block: Uuid) -> Uuid {
     Uuid::from_u128(organization.as_u128() ^ block.as_u128() ^ MY_FILES_MASK)
 }
 
+const UNFILED_MASK: u128 = 0x756e_6669_6c65_642d_6f66_2d61_6363_7473;
+
+pub use be_block_graph::UNFILED_TYPE;
+
+/// The account's Unfiled in an organization: where blocks made without a place the person
+/// chose go, so My files holds only what they put there.
+pub const fn unfiled(organization: Uuid, account: Uuid) -> Uuid {
+    Uuid::from_u128(organization.as_u128() ^ account.as_u128() ^ UNFILED_MASK)
+}
+
+/// The account whose Unfiled `block` would be.
+pub fn unfiled_of(organization: Uuid, block: Uuid) -> Uuid {
+    Uuid::from_u128(organization.as_u128() ^ block.as_u128() ^ UNFILED_MASK)
+}
+
 pub const SYSTEM_TYPES: [Uuid; 2] = [
     crate::settings::Settings::CONTENT_TYPE,
     crate::settings::SettingsProfile::CONTENT_TYPE,
 ];
 
 pub fn is_workspace_type(content_type: Uuid) -> bool {
-    !SYSTEM_TYPES.contains(&content_type)
+    !SYSTEM_TYPES.contains(&content_type) && content_type != UNFILED_TYPE
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]

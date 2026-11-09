@@ -280,6 +280,8 @@ impl Rig {
             organization_id: [4; 16],
             client_id: [5; 16],
             editable: true,
+            page_origin: String::new(),
+            host_palette: false,
         })));
         let surfaces = Surfaces::new(spec).expect("the test runner has a gpu");
         Self {

@@ -33,7 +33,7 @@ async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
         .await;
     assert_eq!(missing.as_ref().ok(), Some(&hashes), "{missing:?}");
     let held = client
-        .call(|peer| client::objects::hold_objects(peer, block, hashes.clone()))
+        .call(|peer| client::objects::hold_objects(peer, block, hashes.clone(), Hold::Lasting))
         .await;
     assert!(refused_as(&held, ErrorCode::ObjectNotFound), "{held:?}");
     let published = client

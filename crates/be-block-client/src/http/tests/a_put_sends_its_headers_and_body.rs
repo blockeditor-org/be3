@@ -32,7 +32,7 @@ async fn a_put_sends_its_headers_and_body() {
             .contains("\r\nContent-Type: application/octet-stream\r\n")
     );
     assert!(sent.head.contains("\r\nContent-Length: 5\r\n"));
-    assert!(!sent.head.contains("99"), "{}", sent.head);
+    assert!(!sent.head.contains("Content-Length: 99"), "{}", sent.head);
     assert_eq!(sent.body, b"bytes");
 
     // A header that would split the request is never sent.

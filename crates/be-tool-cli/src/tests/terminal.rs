@@ -4,7 +4,6 @@ use std::time::Duration;
 use be_block::ObjectId;
 use be_block::presence::{ChannelKind, PresenceKind};
 use be_block_client::Peer;
-use be_block_graph::Access;
 use be_block_store::FileStore;
 use be_type_terminal::{
     Key, Modifiers, Terminal, TerminalContent, TerminalHost, TerminalKey, TerminalLine,
@@ -37,6 +36,7 @@ impl Setup {
                 TerminalContent::CONTENT_TYPE,
                 BlockParent::Root,
                 &BlockMetadata::named("Shell"),
+                false,
             )
             .await
             .unwrap();
@@ -47,11 +47,13 @@ impl Setup {
         }
     }
 
+    /// A terminal host's peer, signed in as an agent bound to the block, as on a machine the
+    /// owner trusts less than their own devices.
     pub async fn agent(&self) -> Arc<Peer<FileStore>> {
-        let (settings, account, public) = agent(&self.harness, &self.owner).await;
+        let (settings, account, public) = agent(&self.harness, &self.owner, Some(self.block)).await;
         self.owner
             .peer()
-            .share(self.block, account, Access::Edit, &public)
+            .seal_share(self.block, account, &public)
             .await
             .unwrap();
         Arc::new(connect_live(&settings).await.unwrap())

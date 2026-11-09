@@ -52,6 +52,8 @@ fn opened(runtime: &mut Runtime, guest: &mut Connection) -> OpId {
         organization_id: [5; 16],
         client_id: [6; 16],
         editable: true,
+        page_origin: String::new(),
+        host_palette: false,
     }));
     match carry(wire.take_outbound(), guest).as_slice() {
         [Incoming::Started(started)] => started.op,
@@ -98,6 +100,7 @@ fn an_app_s_calls_are_served_in_the_order_it_made_them() {
         parent: BlockLocation::Root,
         defined: MetadataEntries::new(),
         content: None,
+        owner_only: false,
     };
     guest.start(Some(editor), BLOCKS_CREATE_BLOCK, encode(&create));
     let read = guest.start(

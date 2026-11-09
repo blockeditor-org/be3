@@ -112,8 +112,9 @@ The module imports `host` and exports `replicas`. `replicas.start(entropy)`
 comes first: it answers the module's types, and seeds the module's randomness,
 since a pure guest has none.
 
-Stateless requests (`blank`, `merge3`, `describe`, `to-file`, `claims`,
-`apply`) are answered in the step that asks. `apply` is how a host that
+Stateless requests (`blank`, `merge3`, `merge-parts`, `describe`, `to-file`,
+`claims`, `apply`) are answered in the step that asks, except `merge-parts`,
+which reads parts first (below, "Merging by parts"). `apply` is how a host that
 publishes commits rather than joining a session edits a block (`be sync`,
 version control).
 
@@ -138,9 +139,106 @@ host owes a replica (the WIT documents each call):
   editor's `Read` uses outside that one-answer rule (guides/blocks/apps.md,
   "Reading a range"). `written` carries the parts a save keeps as they were as
   `reused`, so such a replica saves without the bytes it never loaded.
+  `put-part` uploads bytes as a part of the block before an operation names
+  it (below, "Parts named by hash").
 - **The lease, relaying and reports.** The host passes on the session's lease
   state, relays `send`s to peers or editors, and stores what the replica
   reports (status, description, history, conflicts, errors).
+
+### Parts named by hash
+
+An operation can carry a part by its ref instead of its bytes: chat closing a
+segment, the search index's writer adding one, an edit too large to relay.
+The sender calls `put-part(bytes)`, which seals the bytes under the block's
+current key, uploads them and has the server hold them for the block
+(`hold-objects` with `hold.until-committed`), and answers the `part-ref`
+once the upload is done. Only then does it send the operation, with that ref
+(a `be_block::PartRef`) in its own payload. The hold ends when a commit of the
+block that uses the part publishes, or once `upload_grace` passed and the
+block's journal holds no entries (an uncommitted operation may still name the
+part). Only an editor can ask today: `EditorMirror::put_part`
+(`FromEditor::PutPart`, answered `ToEditor::PartPut` under its token), which
+the replica turns into its `Effect::PutPart`. `LiveEdit` has no hook for a
+replica to put a part of its own (chat's owner closing a segment with no
+editor attached), and the block must be on the server: a block made offline,
+or one whose replica has not joined yet, is refused.
+
+Each replica that applies the operation keeps the part in its parts as
+`Part::Reused`, so whoever commits next saves a manifest reusing it, uploading
+nothing (the server holds it, so `missing-objects` names none of it) and
+downloading its nodes, never its chunks: its top object to learn its key, and
+the rest to list the commit's objects. That needs the server, so an owner
+offline cannot seal a commit reusing a part it never fetched. A type that only
+keeps the part (the search index) never reads it. A type that can rebuild the
+bytes (chat) puts a hash of them in the operation, rebuilds them on applying it
+and keeps them when they match, answering reads of the part from
+`BlockContent::reused_bytes`; when its encoding differs (another build) it
+keeps nothing and reads go to `read-part`. Such a type loads only its first
+part (`Loads::FirstPart`), so `encode` never needs the bytes. It takes its
+parts' refs from what it loaded (`from_stored`'s `Stored::root`), never from
+refs it wrote into its own bytes: after a rotation a save reseals a reused part
+under a new ref.
+
+A part that is an operation's payload rather than a part of the content (an
+oversized text edit) is not served yet: `LiveEdit::apply` is synchronous and
+nothing reads a payload by its ref before applying it, and no commit ever
+holds such a part, so its hold lasts the whole grace. Hosts: `Peer::put_part`;
+be-sdk-test's store refuses. Tests:
+`be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` (the
+flow), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
+and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes`.
+
+### Merging by parts
+
+Outside a session (`Replicas::merge`, which `merge_diverged` and version
+control's combine call, and `be sync`) the host merges a block with whichever
+request its type has. `merge3` takes each side's whole bytes and answers
+`merged`, the Rust `Merge::merge3` over whole values. A type that loads only its
+first part and implements `be_block::MergeParts` registers it
+(`Registration::merge_parts`, `be_block_types![T { merge_parts }]`), which sets
+`type-info.merges-parts`; the host then calls `merge-parts` with each side as
+`loaded` (the first part's bytes and the part list, or content not saved yet as
+its bytes and no parts) and gets `merged-parts`: a `written` whose `reused`
+parts the merge kept as they were, with its references and derived metadata,
+and `conflicts`. `MergeParts::merge_parts` gets each side as `from_stored`
+decoded it and a `PartReader`; a merged value hands unchanged parts back as
+`Part::Reused`, so the commit uploads only what the merge changed. Equal refs
+mean equal bytes, but not the other way round (a rotation reseals a part under
+a new ref), so a merge that must know reads the bytes. The answer may reuse
+only parts of the sides (`Scope::admits`); a merge that reused any other, or
+whose reads failed (offline, a missing key), is not written: the read failure
+comes back as the `ClientError`.
+
+The in-session merges of a replica (a rejected seal, a head written offline)
+still call the synchronous `Merge::merge3` on the values it loaded, so a type
+that loads only its first part writes `merge3` over what it holds: a part
+unloaded on a side is settled by refs where they settle it (a side holding the
+base's part gives way) and otherwise kept as ours with a conflict, never read.
+Its `merge_parts` must agree wherever `merge3` decides without a conflict
+(`Sections` shares one function, `by_refs`, between them).
+
+**`read-part` under a stateless request.** A call a module makes while serving
+a stateless request has that request as its parent (`ops::guest::request()`
+with `with_parent`; `be_sdk_type_guest::request_parts()` is the reader). The
+host serves only `read-part` there, and only of the parts of the `loaded`
+content it handed the request: it asks with `Replicas::ask_reading` or
+`Modules::ask_reading` and a `Scope` (`Scope::of` the sides), refuses a read of
+any other part with `OUTSIDE_REQUEST`, and refuses every other call. Any
+stateless request that hands a module `loaded` content asks this way, and the
+scope answers what was read (`Scope::read`, `Merged::read`) and the first
+read that failed. A scope whose asker stopped waiting goes when its request
+completes or its module restarts. `be sync` hands base and theirs as their
+commits' first parts and ours as the file's bytes, which have no refs, so a
+type settling by refs reads every part theirs changed (and the base's); it
+then reads the merged commit's reused parts whole, since it becomes a file.
+
+Tests use the types in `crates/be-sdk-type-testing` (a dev-dependency only):
+`Sections`, ten sections each a part after a header of their lengths, and
+`Probe`, whose merge reads a part its content names and makes a call other than
+`read-part`, so a test sees the host refuse both. be-block-type-host's
+`a_merge_over_parts_reads_only_the_parts_each_side_changed` and
+`a_stateless_request_reads_only_parts_of_the_commits_it_was_handed`, and
+be-block-sync's `a_type_that_merges_by_parts_merges_edits_on_both_sides`.
 
 ## Peers
 

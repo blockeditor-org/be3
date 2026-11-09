@@ -160,12 +160,8 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: be_host_stack::St
     let delete = move || {
         let source = be_host_stack::node(block)
             .and_then(|node| node.parent)
-            .map_or(BlockLocation::Detached, |parent| match parent {
-                be_block_graph::BlockParent::Root => BlockLocation::Root,
-                be_block_graph::BlockParent::Detached => BlockLocation::Detached,
-                be_block_graph::BlockParent::Block(parent) => {
-                    BlockLocation::Block(parent.into_bytes())
-                }
+            .map_or(BlockLocation::Detached, |parent| {
+                be_host_stack::app_graph::location_of(parent, be_host_stack::unfiled())
             });
         crate::compositor::act(
             None,

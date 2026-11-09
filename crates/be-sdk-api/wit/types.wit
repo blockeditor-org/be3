@@ -3,7 +3,7 @@ package be3:app@0.1.0;
 /// What the host and an app share.
 interface types {
     use be3:manifest/types@0.1.0.{app-identity, parent-view};
-    use accessibility.{color, description};
+    use accessibility.{color, described-action, description};
     use be3:ui/types@0.1.0.{
         key-chord, modifiers, pos2, rect, vec2, input, window-level, window-requests,
     };
@@ -12,6 +12,13 @@ interface types {
     use be3:shared/ids@0.1.0.{
         account-id, block-id, block-type-id, organization-id, surface-id, uuid,
     };
+
+    /// What the host's command palette lists: the actions of the instance
+    /// and those around it, or blocks to open.
+    enum palette-mode {
+        actions,
+        blocks,
+    }
 
     /// Where a command shows outside its menu.
     enum menu-pin {
@@ -27,6 +34,8 @@ interface types {
         radio(bool),
     }
 
+    /// `glyph` is an icon's name as the icon library names it (Lucide's),
+    /// empty for none.
     record menu-command {
         id: string,
         label: string,
@@ -37,7 +46,8 @@ interface types {
         pin: menu-pin,
     }
 
-    /// A submenu's own fields; its entries follow it.
+    /// A submenu's own fields, `glyph` named as `menu-command`'s; its entries
+    /// follow it.
     record menu-heading {
         id: string,
         label: string,
@@ -417,12 +427,16 @@ interface types {
         block-id: block-id,
     }
 
-    /// Where a block is listed: at the root, detached from every parent, or
-    /// inside a block.
+    /// Where a block is listed: at the root, detached from every parent,
+    /// inside a block, or in the account's Unfiled, which the host resolves
+    /// to the account's own and where everything made without a place the
+    /// person chose goes. A block in Unfiled reads back as `unfiled`, so an
+    /// editor never learns Unfiled's id.
     variant block-location {
         root,
         detached,
         block(block-id),
+        unfiled,
     }
 
     /// Which blocks a pick offers: of these types (any when empty), never the
@@ -620,7 +634,13 @@ interface types {
         scrims: list<scrim>,
         drawing: list<rect>,
         claims: list<press-claim>,
+        /// Only while the host asks the app to `describe`.
         description: option<description>,
+        /// The actions the view offers (`described-action`), sent whenever
+        /// the list or a field of it changed, whether or not the host asks
+        /// the app to describe; `none` when they did not change since the
+        /// view's last report.
+        actions: option<list<described-action>>,
         /// Set on the report of a screen the app opened for a view it
         /// anchored: how that view hangs, which every report of it repeats.
         /// The view closes when the app's layout no longer lists its
@@ -778,6 +798,14 @@ interface types {
         organization-id: organization-id,
         client-id: installation-id,
         editable: bool,
+        /// The origin of the web page the host runs in (`https://be3.example`),
+        /// empty where the host is not a web page. On the web `fetch` is the
+        /// browser's, so a server answers only if its CORS allows this origin.
+        page-origin: string,
+        /// The host draws the command palette, listing the actions every
+        /// instance describes: the editor's frame keeps none of its own and
+        /// asks the host for it with `shell.open-palette`.
+        host-palette: bool,
     }
 
     record open-creation {

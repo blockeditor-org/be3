@@ -64,7 +64,10 @@ editor reads the rest with `LiveContent::read_range(offset, length, done)`,
 which sends `FromEditor::Read { token, offset, length }`; the replica answers
 `ToEditor::Range { token, result }` from the parts it holds, unsaved ones
 included, and the type module's `read-part` host call for the parts it left in
-the store (guides/type_modules.md). Offsets are into the whole stored form.
+the store (guides/type_modules.md). `FromEditor::PutPart { token, bytes }`
+goes the other way: the replica puts the bytes as a part of the block and
+answers `ToEditor::PartPut { token, result }` with its ref, for an operation
+to name (guides/type_modules.md, "Parts named by hash"). Offsets are into the whole stored form.
 A blob editor uses `ContentProjection::payload()` instead, a signal of the
 payload that reads it once per snapshot (so a header edit reads nothing) and
 holds what a host-made snapshot already carried.
@@ -132,12 +135,14 @@ invisible block counts as live). Links to it still resolve; places that list
 references mute it or list it last, and pickers never offer it.
 `EditorHost::restore_block` (`block-command::restore`) lists it in its parent
 again, or for a detached block puts it back where `DELETED_FROM` metadata says
-(recorded by `be_host_stack::set_parent`), else into My files.
+(recorded by `be_host_stack::set_parent`), else into the account's Unfiled.
 
 **Graph commands.** `create-block(block, block-type, parent, defined,
-content)`, `set-parent` and `define` are sync calls with no answer: the app
-picks a new block's id, so it can use the block before the host has seen it.
-The host takes them only when the account may edit the block and the parent.
+content, owner-only)`, `set-parent` and `define` are sync calls with no answer:
+the app picks a new block's id, so it can use the block before the host has
+seen it. The host takes them only when the account may edit the block and the
+parent. `owner-only` makes a block only the account reads (guides/settings.md,
+Owner only).
 
 ## Presence
 
@@ -170,7 +175,8 @@ on its character while others type: `be_sdk_text::live_text::LiveText` is that
 for any `Text` or `RichText` field (a `TextField`, or `FieldOf::rich`/`plain`).
 It keeps its own copy of the sequence and marks and turns local edits into
 `Change::Text` and `Change::Mark`. `LiveText::sync`, called on every change of
-the document and the projection, sends them, asks the host to undo or redo,
+the document and the projection, sends them (and a `break_step` wherever the
+editor ends an undo group, `finish_history_group`), asks the host to undo or redo,
 and applies others' edits in place. The projection must `record()` while a
 `LiveText` reads its log (`stop_recording()` after), and only one `LiveText`
 per projection syncs at a time: the canvas syncs the text being edited and has

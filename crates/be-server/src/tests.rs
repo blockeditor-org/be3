@@ -4,8 +4,8 @@ use be_block_commit::{Commit, CommitId, CommitStore};
 use be_block_graph::BlockParent;
 use be_block_protocol::{
     Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry,
-    KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, SessionEvent,
-    SessionState, UploadUrl, WrappedBy, WrappedKey, client,
+    Hold, KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage,
+    SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
 };
 use be_block_session::{Resume, resume, takeover_needs_merge};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -20,6 +20,15 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod a_block_agent_is_deleted_with_its_block_or_its_grant;
+mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
+mod a_block_agent_never_becomes_an_administrator;
+mod a_block_agent_reaches_its_block_and_nothing_else;
+mod a_block_agent_reaches_no_further_than_its_creator;
+mod a_block_agents_long_poll_session_is_replaced_too;
+mod a_block_agents_new_connection_replaces_the_open_one;
+mod a_block_holds_a_bounded_number_of_agents_of_its_own;
+mod a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_block_shared_from_a_hidden_folder_is_listed_as_shared;
 mod a_blocks_references_are_listed_and_announced_together;
@@ -44,6 +53,7 @@ mod a_message_arriving_slowly_is_not_taken_for_silence;
 mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_move_past_the_new_payers_quota_is_refused;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
+mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
 mod a_range_get_reads_part_of_an_s3_object;
@@ -62,6 +72,7 @@ mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
 mod an_account_creates_a_bounded_number_of_agents;
 mod an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within;
+mod an_administrator_sees_a_members_unfiled_as_their_my_files;
 mod an_agent_signs_in_with_its_token_until_it_is_removed;
 mod an_agent_stores_against_its_creators_quota;
 mod an_editor_changes_the_prefixes_and_tags_but_no_other_kind;
@@ -99,6 +110,7 @@ mod members_manage_only_the_agents_they_created;
 mod metadata_travels_with_the_content_once_a_block_has_any;
 mod moving_a_block_drops_the_wraps_of_its_old_scope;
 mod moving_a_block_out_of_what_is_shared_rotates_its_keys;
+mod nobody_makes_or_writes_to_another_accounts_unfiled;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod objects_are_served_only_from_blocks_the_reader_can_see;
 mod old_database_backups_thin_out_by_age;
@@ -124,6 +136,7 @@ mod repeated_failed_sign_ins_lock_the_account_out;
 mod requests_sent_before_a_close_are_still_carried_out;
 mod revoking_a_session_announces_only_a_change;
 mod revoking_an_http_session_removes_its_access;
+mod rotating_an_agents_token_revokes_every_older_one;
 mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 mod sign_in_failures_lock_a_pair_before_an_address_or_an_email_and_decay;
@@ -601,6 +614,7 @@ impl TestClient {
                     Vec::new(),
                     key,
                     keys,
+                    false,
                 )
             })
             .await;
@@ -1012,6 +1026,37 @@ impl TestClient {
         self.call(|peer| client::contacts::list_contacts(peer))
             .await
             .expect("listing contacts failed")
+    }
+
+    /// Makes an agent bound to `block`; answers its account and token.
+    async fn block_agent(
+        &mut self,
+        organization: Uuid,
+        block: Uuid,
+    ) -> Result<(Uuid, String), Error> {
+        self.call(|peer| {
+            client::members::create_agent(
+                peer,
+                organization,
+                "Terminal host".into(),
+                [7; 32],
+                Vec::new(),
+                Vec::new(),
+                Some(block),
+            )
+        })
+        .await
+        .map(|created| (created.agent.account, created.token))
+    }
+
+    /// Whether `token` still signs a new connection in.
+    async fn signs_in(harness: &Harness, token: &str) -> bool {
+        let mut client = harness.client().await;
+        let token = token.to_owned();
+        client
+            .call(|peer| client::account::authenticate(peer, Some(token)))
+            .await
+            .is_ok()
     }
 
     async fn move_to(&mut self, block: Uuid, parent: BlockParent) -> Result<(), Error> {

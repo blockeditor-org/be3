@@ -32,6 +32,7 @@ use super::{
 use be_host_base::{host, performance};
 
 mod cuts;
+mod network;
 mod services;
 
 thread_local! {
@@ -51,6 +52,10 @@ fn presence_wanted(instance: EditorInstanceId) -> bool {
     PRESENCE_WANTED.with_borrow(|wanted| wanted.contains(&instance))
 }
 
+/// How many of the app's layout commits a frame menu pick lets it open the host's palette
+/// for: the pick runs in the app's next frame, which asks in that frame's answers.
+const MENU_PICK_COMMITS: u32 = 2;
+
 #[derive(Default)]
 pub(super) struct Instances {
     entries: HashMap<EditorInstanceId, Instance>,
@@ -62,8 +67,11 @@ pub(super) struct Instances {
     block_types: Option<Arc<crate::AppCatalog>>,
     sent_block_types: Option<u64>,
     network: Vec<String>,
+    /// Whether the app's manifest sets `block_agents`.
+    block_agents: bool,
     app_id: String,
     services: services::Services,
+    fetches: network::Fetches,
     epoch: u64,
     graph_seen: Option<u64>,
     mail: Mail,
@@ -85,6 +93,7 @@ struct Mail {
     head_reads: (host::Mailbox, host::Post<HeadRead>),
     audio_changes: (host::Mailbox, host::Post<EditorInstanceId>),
     answers: (host::Mailbox, host::Post<services::Delivered>),
+    fetched: (host::Mailbox, host::Post<network::Arrived>),
 }
 
 impl Default for Mail {
@@ -95,6 +104,7 @@ impl Default for Mail {
             head_reads: desk.mailbox(Instances::head_read),
             audio_changes: desk.mailbox(Instances::audio_changed),
             answers: desk.mailbox(Instances::service_answered),
+            fetched: desk.mailbox(Instances::arrived),
         }
     }
 }
@@ -122,6 +132,11 @@ struct Instance {
     simulated: Vec<(Uuid, AccessLevel)>,
     reported_focus: Option<Focus>,
     reported_editable: Option<bool>,
+    /// The actions each view last described (`frame-report.actions`), kept while nothing asks
+    /// the app to describe.
+    actions: HashMap<ViewId, Vec<DescribedAction>>,
+    /// Whether the person picked from its frame menu since it last asked for the palette.
+    menu_picked: Option<u32>,
     focus_reports: Vec<Focus>,
     artifact_watch: Option<Vec<Uuid>>,
     heads: Heads,
@@ -280,6 +295,8 @@ impl Instance {
             simulated: Vec::new(),
             reported_focus: None,
             reported_editable: None,
+            actions: HashMap::default(),
+            menu_picked: None,
             focus_reports: Vec::new(),
             artifact_watch: None,
             heads: Heads::default(),
@@ -1022,12 +1039,14 @@ impl Instances {
     }
 
     pub(super) fn unmount(&mut self, instance: EditorInstanceId, region: ViewId) {
-        if let Some(screen) = self.screen_mut(instance, region) {
-            screen.mounted = screen.mounted.saturating_sub(1);
-            if screen.mounted == 0 {
-                screen.unplace();
-            }
+        let Some(screen) = self.screen_mut(instance, region) else {
+            return;
+        };
+        screen.mounted = screen.mounted.saturating_sub(1);
+        if screen.mounted > 0 {
+            return;
         }
+        screen.unplace();
     }
 
     pub(super) fn unplace(&mut self, instance: EditorInstanceId, region: ViewId) {
@@ -1786,6 +1805,7 @@ impl Instances {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
+        self.note_menu_pick(instance);
         let view = entry_menu_holds(self, instance).unwrap_or(ViewId::MAIN);
         vec![Outbound::Editor(
             instance,
@@ -1903,6 +1923,10 @@ impl Instances {
         self.network = hosts;
     }
 
+    pub(super) fn allow_block_agents(&mut self, allowed: bool) {
+        self.block_agents = allowed;
+    }
+
     pub(super) fn set_app_id(&mut self, app_id: String) {
         self.app_id = app_id;
     }
@@ -1993,6 +2017,13 @@ impl Instances {
                     }
                 })
                 .collect();
+            // A window or dock view the app is no longer asked to draw is gone from the app's
+            // views, which forget what they described then and send it again if shown again.
+            entry.actions.retain(|view, _| {
+                view.is_main()
+                    || regions.iter().any(|request| request.view == *view)
+                    || entry.anchored.iter().any(|held| held.view == *view)
+            });
             if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(..)) {
                 continue;
             }
@@ -2020,6 +2051,8 @@ impl Instances {
                             entry.reported_editable = Some(editable);
                             editable
                         },
+                        page_origin: page_origin(),
+                        host_palette: crate::host_draws_palette(),
                     }),
                     InstanceRole::Picker(editor) => {
                         let picker = super::picker_request(instance).unwrap_or_default();
@@ -3028,6 +3061,9 @@ impl Instances {
     }
 
     pub(super) fn set_frame_reports(&mut self, reports: Vec<FrameReport>) -> bool {
+        for entry in self.entries.values_mut() {
+            entry.menu_picked = entry.menu_picked.and_then(|left| left.checked_sub(1));
+        }
         let mut changed = false;
         for mut report in reports {
             let mut tree = report
@@ -3035,14 +3071,23 @@ impl Instances {
                 .as_mut()
                 .and_then(|description| description.tree.take())
                 .map(beui::accesskit::TreeUpdate::from);
+            let actions = report.actions.take();
             for entry in self.entries.values_mut() {
-                let anchored = entry.anchored.iter_mut().map(|held| &mut held.screen);
-                if let Some(screen) = entry
+                let anchored = entry
+                    .anchored
+                    .iter_mut()
+                    .map(|held| (held.view, &mut held.screen));
+                if let Some((view, screen)) = entry
                     .screens
-                    .values_mut()
+                    .iter_mut()
+                    .map(|(view, screen)| (*view, screen))
                     .chain(anchored)
-                    .find(|screen| screen.request.screen == report.screen)
+                    .find(|(_, screen)| screen.request.screen == report.screen)
                 {
+                    if let Some(actions) = actions.clone() {
+                        entry.actions.insert(view, actions);
+                        changed = true;
+                    }
                     if let Some(tree) = tree.take() {
                         screen.accessibility.update(tree);
                         changed = true;
@@ -3074,14 +3119,105 @@ impl Instances {
         region: ViewId,
     ) -> Option<Described<'_>> {
         let focused = self.view_focused(instance, region);
-        let screen = self.any_screen_mut(instance, region)?;
-        let description = screen.report.as_ref()?.description.as_ref()?;
+        let entry = self.entries.get_mut(&instance)?;
+        let actions = entry
+            .actions
+            .get(&region)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let screen = match entry.screens.get_mut(&region) {
+            Some(screen) => screen,
+            None => entry
+                .anchored
+                .iter_mut()
+                .find(|held| held.view == region)
+                .map(|held| &mut held.screen)?,
+        };
+        screen.report.as_ref()?.description.as_ref()?;
         Some(Described {
             screen: screen.request.screen,
-            actions: &description.actions,
+            actions,
             focused,
             tree: &mut screen.accessibility,
         })
+    }
+
+    /// The actions every view of the instance last described, the view `first` names first,
+    /// each with the view it came from. A window or dock view the host does not show now offers
+    /// none, and its own again once the host shows it again (`offers_actions`).
+    pub(super) fn instance_actions(
+        &self,
+        instance: EditorInstanceId,
+        first: ViewId,
+    ) -> Vec<(ViewId, DescribedAction)> {
+        let Some(entry) = self.entries.get(&instance) else {
+            return Vec::new();
+        };
+        let mut views: Vec<ViewId> = entry
+            .actions
+            .keys()
+            .copied()
+            .filter(|view| offers_actions(entry, *view))
+            .collect();
+        views.sort_by_key(|view| (*view != first, view.0));
+        views
+            .into_iter()
+            .flat_map(|view| {
+                entry.actions[&view]
+                    .iter()
+                    .map(move |action| (view, action.clone()))
+            })
+            .collect()
+    }
+
+    /// Whether the instance may open the host's palette (`shell.open-palette`): it is no
+    /// revision preview, shows a view, and either one of its views has the keyboard or the
+    /// person picked from its frame menu within its last `MENU_PICK_COMMITS` layout commits
+    /// (whose "Command palette" asks for it while a menu the host draws has the focus), so an
+    /// instance in the background cannot, however long ago someone used its menu.
+    pub(super) fn may_open_palette(&mut self, instance: EditorInstanceId) -> bool {
+        self.entries.get_mut(&instance).is_some_and(|entry| {
+            let preview = entry
+                .role
+                .block()
+                .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
+            let picked = entry.menu_picked.take().is_some();
+            let shown = entry.screens.values().any(|screen| screen.mounted > 0);
+            let keyboard = entry.screens.values().any(|screen| screen.input.focused());
+            !preview && shown && (keyboard || picked)
+        })
+    }
+
+    /// The person picked from the instance's frame menu (`editor.menu-pick`).
+    pub(super) fn note_menu_pick(&mut self, instance: EditorInstanceId) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.menu_picked = Some(MENU_PICK_COMMITS);
+        }
+    }
+
+    /// The screen that runs the view's action `id`, while the view still describes it.
+    pub(super) fn action_screen(
+        &self,
+        instance: EditorInstanceId,
+        region: ViewId,
+        id: &str,
+    ) -> Option<ScreenId> {
+        let entry = self.entries.get(&instance)?;
+        entry
+            .actions
+            .get(&region)?
+            .iter()
+            .any(|action| action.id == id)
+            .then_some(())?;
+        offers_actions(entry, region).then_some(())?;
+        match entry.screens.get(&region) {
+            Some(screen) => Some(screen.request.screen),
+            None => entry
+                .anchored
+                .iter()
+                .find(|held| held.view == region)
+                .map(|held| held.screen.request.screen),
+        }
     }
 
     pub(super) fn request_focus(&mut self, screen: ScreenId) {
@@ -3610,6 +3746,7 @@ impl Instances {
                 ack(reply);
                 self.ask_child_focus(instance, child);
             }
+            ShellCall::OpenPalette { reply, .. } => ack(reply),
             ShellCall::ShowCard { reply, card, .. } => {
                 ack(reply);
                 if entry.card == card {
@@ -3634,7 +3771,7 @@ impl Instances {
                 ack(reply);
                 entry.child_commits.push(ChildCommit {
                     child,
-                    parent: be_host_stack::app_graph::parent_of(parent),
+                    parent,
                     name,
                 });
             }
@@ -3940,7 +4077,9 @@ fn allowed(url: &str, hosts: &[String]) -> bool {
         return false;
     };
     let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
-    hosts.iter().any(|allowed| allowed == host)
+    hosts
+        .iter()
+        .any(|allowed| allowed == be_sdk_manifest::ANY_HOST || allowed == host)
 }
 
 fn only_moved(sent: Option<AnchorSpace>, now: Option<AnchorSpace>) -> bool {
@@ -3963,4 +4102,33 @@ fn entry_menu_holds(instances: &Instances, instance: EditorInstanceId) -> Option
         .menus
         .contains_key(&view)
         .then_some(view)
+}
+
+/// The origin of the web page the host runs in, empty natively (`OpenBlock::page_origin`).
+fn page_origin() -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let global = js_sys::global();
+        js_sys::Reflect::get(&global, &"location".into())
+            .and_then(|location| js_sys::Reflect::get(&location, &"origin".into()))
+            .ok()
+            .and_then(|origin| origin.as_string())
+            .unwrap_or_default()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        String::new()
+    }
+}
+
+/// Whether the view's actions stand in the host's palette: the main view's always (an instance
+/// whose content a dock view shows may never mount it), any other view's while the host shows
+/// it, an anchored view's while it is open.
+fn offers_actions(entry: &Instance, view: ViewId) -> bool {
+    view.is_main()
+        || entry
+            .screens
+            .get(&view)
+            .is_some_and(|screen| screen.mounted > 0)
+        || entry.anchored.iter().any(|held| held.view == view)
 }

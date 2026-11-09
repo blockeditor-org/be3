@@ -10,6 +10,7 @@ use crate::embedded_server;
 
 mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
+mod a_block_deleted_from_unfiled_remembers_it_and_apps_never_see_its_id;
 mod a_block_file_brings_a_tree_back_as_a_copy;
 mod a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
@@ -33,6 +34,7 @@ mod a_held_block_stays_open_when_its_editors_close;
 mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
 mod a_merge_conflict_shows_both_versions_and_keeps_the_one_chosen;
 mod a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one;
+mod a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it;
 mod a_paste_too_large_to_relay_is_acknowledged_to_its_editor;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
@@ -47,7 +49,9 @@ mod a_session_owned_here_follows_a_peer_that_claims_it;
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_takes_over_a_session_this_peer_opened_first;
+mod a_transient_version_failure_is_retried_on_the_backoff_and_on_reconnecting;
 mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
+mod a_version_status_that_failed_waits_for_its_inputs_or_its_kind_of_news;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_edit_counts_as_unsaved_from_when_it_is_sent_until_it_is_sealed;
 mod an_edit_made_across_a_takeover_is_kept;
@@ -631,6 +635,7 @@ fn start_versioning(text: &str) -> Versioned {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Notes"),
         Some(listing.encode()),
+        false,
     );
     create(
         note,
@@ -638,6 +643,7 @@ fn start_versioning(text: &str) -> Versioned {
         be_block_graph::BlockParent::Block(folder),
         be_block::BlockMetadata::named("Note"),
         Some(be_type_text::TextBlock::of(text).encode()),
+        false,
     );
     create(
         repository,
@@ -645,6 +651,7 @@ fn start_versioning(text: &str) -> Versioned {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::named("History"),
         Some(be_block::RepositoryContent::default().encode()),
+        false,
     );
     version_since(repository, be_block::RepositoryContent::CONTENT_TYPE, None);
     version(
@@ -810,6 +817,7 @@ fn written(block: Uuid, text: &str) {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Plan"),
         Some(be_type_text::TextBlock::of(text).encode()),
+        false,
     );
     flush();
 }

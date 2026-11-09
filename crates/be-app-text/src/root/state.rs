@@ -149,8 +149,7 @@ impl State {
             .sync(&inner.content.live(), &self.host(), self.block_id, first);
         match synced {
             Synced::Waiting => return,
-            Synced::External => self.text.external_edit(),
-            Synced::Unchanged => self.text.sync(),
+            Synced::External | Synced::Unchanged => self.text.sync(),
         }
         inner.adopted.set(true);
         if first {

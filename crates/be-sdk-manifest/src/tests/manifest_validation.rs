@@ -35,6 +35,7 @@ fn manifest_validation() {
         entry_point: "counter.wasm".into(),
         network: vec!["api.github.com".into()],
         extensions: Vec::new(),
+        block_agents: false,
     };
     assert_eq!(manifest.validate(), Ok(()));
 

@@ -19,8 +19,9 @@ layered setting from an editor, and the settings the host applies itself.
   administrator's client makes it on first opening a company organization
   (`Peer::ensure_organization_settings`); personal organizations have none.
 
-`be_block::my_files(organization, account)` is the other derived id: each account's My files,
-kept by the server for that account alone.
+`be_block::my_files(organization, account)` and `be_block::unfiled(organization, account)` are
+the other derived ids: each account's My files and Unfiled, kept by the server for that account
+alone.
 
 ## Kinds and resolution
 
@@ -61,6 +62,29 @@ server) returns the nearest open kind above `block` among ancestors the viewer c
 pushed again when one changes. Losing view of every block inside, or a kind closing, queues a
 rotation of its key.
 
+## Owner only
+
+A kind with `KindVisibility::Owner` (an app's key for an outside service, such as
+`be-type-boat`'s `BoatSettings`; where a chat was read up to) is readable by the account that made it alone, on any of its devices, administrators and
+the server included (decisions/owner_only_settings_are_never_escrowed.md). Its block is made
+`owner-only`: `RootSetting::owner_only` (which `SettingsLayers` picks from `VISIBILITY`) and
+`ensure_block_kind` pass `owner_only` to `Blocks::create_at`, the app protocol's `create-block`
+carries the flag, and the host passes it to `Peer::create_block`. It is made only in the
+author's own `Settings` or `SettingsProfile` (`be_block::holds_owner_only`, checked by the host
+and the server), nothing moves into it, block files leave it out, and collecting a detached
+subtree takes it with its parent. The block protocol's
+`create-block` stores it on the block for its whole life (`BlockNode::owner_only`), and the
+block is a scope root of its own whose key is sealed to its author alone (guides/blocks/keys.md,
+Escrow). Everyone else, administrators too, at most knows it exists
+(`BlockGraph::closed_to`, `Visibility::inherited` in `be-server/src/blocks.rs`); only the
+author moves it, and no one is granted it, by `set-access` or a contact link. `RootSetting` and `SettingsLayers` make a kind's
+block for an account with no `Settings` yet together with its `Settings`, whose first version
+already lists it, since a block just made can't be read back to edit; `write_all` answers false
+when what it writes to hasn't loaded, rather than dropping the write. Like every kind it syncs to every device unless a
+profile keeps it, and belongs to one organization. Losing the recovery phrase loses it, which
+the Settings list says in a company organization (`ONLY_YOURS` in `root/ui.rs`); an app holding
+a key just asks to connect again.
+
 ## Prefixes and tags
 
 `PrefixRegistry` is the only way a row id resolves
@@ -97,6 +121,8 @@ menus opens or makes a block's settings.
 Tests: be-block's `settings_resolve_from_the_organization_the_nearest_block_and_the_viewer`;
 be-block-graph's access tests, including random graphs (`src/tests.rs`); be-server's settings
 and open-inside tests; be-block-client's
-`an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server`; be-tool-cli's
+`an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server` and
+`an_owner_only_block_is_read_by_its_author_alone`; be-sdk's
+`an_owner_only_kind_makes_its_block_owner_only`; be-tool-cli's
 `a_row_id_resolves_through_the_workspaces_prefixes`; and paintings in
 `crates/be-app-settings/src/tests/`.

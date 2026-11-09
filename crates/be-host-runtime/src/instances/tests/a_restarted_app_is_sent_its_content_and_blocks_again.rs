@@ -36,6 +36,7 @@ fn a_restarted_app_is_sent_its_content_and_blocks_again() {
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::default(),
         None,
+        false,
     );
     let mut instances = placed_on(block, CounterContent::CONTENT_TYPE);
     let watching = |instances: &mut Instances| {

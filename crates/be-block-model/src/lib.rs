@@ -32,7 +32,7 @@ pub use be_block_model_derive::Model;
 pub use be_lib_sequence::marks;
 pub use be_lib_sequence::{LOADED, Pos, SeqOp, Sequence, Span, Splice};
 pub use byte_string::{Bytes, bytes};
-pub use field::{Count, Field, FieldRef, Item, List, Map, Register};
+pub use field::{Count, Field, FieldRef, Item, List, Map, MergesAppends, Register};
 pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
 pub use items::Items;
@@ -114,9 +114,30 @@ pub enum Value {
     Map(BTreeMap<Vec<u8>, Vec<u8>>),
     Grid(Cells),
     Latest(BTreeMap<Vec<u8>, Stamped>),
-    Text(Sequence<u8>),
+    Text(#[serde(with = "text_bytes")] Sequence<u8>),
     Rich(marks::Rich),
     Series(Sequence<Vec<u8>>),
+}
+
+/// A text's bytes as one byte string rather than byte by byte, which postcard writes the
+/// same way but reads at once.
+mod text_bytes {
+    use serde::{Deserializer, Serializer};
+
+    use crate::{Sequence, bytes};
+
+    pub(crate) fn serialize<S: Serializer>(
+        text: &Sequence<u8>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        bytes::serialize(&text.visible(), serializer)
+    }
+
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Sequence<u8>, D::Error> {
+        bytes::deserialize(deserializer).map(Sequence::from_items)
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -238,6 +259,17 @@ pub enum Change {
         place: Place,
         anchor: Anchor,
         client: u64,
+    },
+    /// Moves `objects`, two or more items shown one after another in this order in the list
+    /// at `place`, to behind `anchor`, taking along what was removed from between them.
+    /// Refused unless what is shown from the first to the last is exactly `objects` (so an
+    /// item someone put between them, or moved out, refuses it) and the anchor is outside
+    /// them. One item moves with `Move`. Its undo is refused the same way once a peer changed
+    /// the run it moved.
+    MoveRange {
+        place: Place,
+        objects: Vec<ObjectId>,
+        anchor: Anchor,
     },
     Stamp {
         object: ObjectId,
@@ -449,6 +481,7 @@ impl<R: Model> Document<R> {
             | Change::Paint { .. }
             | Change::Reshape { .. }
             | Change::Move { .. }
+            | Change::MoveRange { .. }
             | Change::Text { .. }
             | Change::Mark { .. }
             | Change::Unmark { .. } => {}
@@ -594,7 +627,7 @@ impl<R: Model> Document<R> {
     }
 
     pub fn merge(base: &Self, ours: &Self, theirs: &Self) -> (Self, usize) {
-        let (tree, conflicts) = merge::merge3(&base.tree, &ours.tree, &theirs.tree);
+        let (tree, conflicts) = merge::merge3(R::kind, &base.tree, &ours.tree, &theirs.tree);
         (Self::from_tree(tree), conflicts)
     }
 }

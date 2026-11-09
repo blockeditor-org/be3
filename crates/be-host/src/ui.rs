@@ -16,7 +16,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use uuid::Uuid;
 
-use crate::compositor::{AnchoredViews, ShellDisplay};
+use crate::compositor::{AnchoredViews, HostPalette, ShellDisplay};
 use be_host_base::host_state::{SavedAccount, ServerLocation};
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 
@@ -33,23 +33,27 @@ thread_local! {
 }
 
 const COPY_REPORT: &str = "copy-report";
+const OPEN_LINK: &str = "open-link";
 
 pub(crate) fn notice_toasts() -> Vec<Toast> {
     be_host_base::notices::shown()
         .into_iter()
-        .map(|notice| Toast {
-            id: notice.id,
-            message: notice.message,
-            danger: true,
-            actions: notice
-                .report
-                .iter()
-                .map(|_| ToastAction {
-                    key: COPY_REPORT.to_owned(),
-                    label: "Copy report".to_owned(),
-                })
-                .collect(),
-            ..Toast::default()
+        .map(|notice| {
+            let report = notice.report.iter().map(|_| ToastAction {
+                key: COPY_REPORT.to_owned(),
+                label: "Copy report".to_owned(),
+            });
+            let link = notice.link.iter().map(|_| ToastAction {
+                key: OPEN_LINK.to_owned(),
+                label: "Open".to_owned(),
+            });
+            Toast {
+                id: notice.id,
+                message: notice.message,
+                danger: notice.link.is_none(),
+                actions: report.chain(link).collect(),
+                ..Toast::default()
+            }
         })
         .collect()
 }
@@ -280,14 +284,7 @@ pub(crate) struct AgentRow {
     pub(crate) name: String,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct CreatedAgent {
-    pub(crate) name: String,
-    pub(crate) server: String,
-    pub(crate) organization: String,
-    pub(crate) token: String,
-    pub(crate) phrase: String,
-}
+pub(crate) type CreatedAgent = be_host_stack::accounts::AgentCredentials;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct AgentsView {
@@ -433,6 +430,8 @@ pub(crate) enum UiCommand {
     KeepDisplay(u64),
     RevertDisplay(u64),
     LockScreen,
+    /// Cycles the theme setting through the system's, light and dark.
+    CycleTheme,
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Unlock(be_host_base::password::Password),
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
@@ -616,9 +615,34 @@ pub(crate) fn Root(view: HostUiStore) -> NodeId {
                 <onboarding::RemoveAccountDialog view />
                 <onboarding::AddAccountDialog view />
                 <DisplayChrome view area primary=true />
+                <HostActions view />
+                <HostPalette />
                 <Host::WindowActions />
             </List>
         </Frame>
+    }
+}
+
+/// The host's own actions, which its palette lists after every app's.
+#[component]
+fn HostActions(view: HostUiStore) -> NodeId {
+    let screen = view.screen;
+    let signed_in = create_memo(move || screen.get() == Screen::Organization);
+    Action::new("host.switch-account", "Switch account", || {
+        send(UiCommand::SwitchAccount)
+    })
+    .glyph(beui::icons::ICON_USERS)
+    .enabled(signed_in)
+    .register();
+    Action::new(
+        "host.theme",
+        "Switch between system, light and dark theme",
+        || send(UiCommand::CycleTheme),
+    )
+    .glyph(beui::icons::ICON_SUN_MOON)
+    .register();
+    view! {
+        <Frame />
     }
 }
 
@@ -649,6 +673,14 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
                         && let Some(report) = be_host_base::notices::report_of(id)
                     {
                         copy(Clip::text(report));
+                    }
+                    if key == OPEN_LINK
+                        && let Some(link) = be_host_base::notices::link_of(id)
+                    {
+                        if let Err(error) = be_host_base::platform::open_link(&link) {
+                            be_host_base::notices::report(error);
+                        }
+                        send(UiCommand::DismissToast(id));
                     }
                 }}
             />

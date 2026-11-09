@@ -276,6 +276,7 @@ pub(crate) fn AppView(
     });
     let desktop_editor = store(editor.clone());
     let name = editor.app.identity.name.clone();
+    let app_name = store(name.clone());
     let crash_id = format!("{app_id}.{}.{}.crashed", instance.0, region.id.0);
     let app_id = store(app_id);
     let block = editor.role.block().map(|block| block.id);
@@ -317,6 +318,7 @@ pub(crate) fn AppView(
         instance,
         view: region,
     });
+    let placed_by = store(placer.clone());
     let mount = next_mount();
     super::desktop::show_view(&app_id.value(), instance, region);
     on_cleanup(move || {
@@ -710,6 +712,9 @@ pub(crate) fn AppView(
                         parent: enclosing
                             .and_then(|Enclosing(parent)| parent.get())
                             .and_then(|parent| parent.try_get()),
+                        block,
+                        app_name: app_name.value().to_string(),
+                        placer: placed_by.with(Clone::clone),
                     },
                 )
             });

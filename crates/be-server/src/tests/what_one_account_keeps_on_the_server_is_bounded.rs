@@ -45,6 +45,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         account,
         organization,
         role: OrganizationRole::Administrator,
+        bound: None,
     };
     refused(
         store
@@ -55,6 +56,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 [0; 32],
                 Vec::new(),
                 Vec::new(),
+                None,
             )
             .await,
         ErrorCode::InvalidRequest,
@@ -187,6 +189,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 [0; 32],
                 Vec::new(),
                 Vec::new(),
+                None,
             )
             .await,
         ErrorCode::OverQuota,
@@ -202,6 +205,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
             Vec::new(),
             Uuid::new_v4(),
             KeySet::default(),
+            false,
         )
     };
     refused(

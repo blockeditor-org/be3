@@ -1,4 +1,4 @@
-load("@root//buck/cargo:defs.bzl", "cargo_fuzz", "cargo_library", "cargo_package", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_example", "cargo_fuzz", "cargo_library", "cargo_package", "cargo_test")
 
 cargo_package()
 
@@ -7,3 +7,7 @@ cargo_library()
 cargo_test()
 
 cargo_fuzz(extra_features = ["fuzzing"])
+
+# Decoding and adopting a 1 MB text's snapshot: `./scripts/buck run -m release //crates/be-block-model:example-text-snapshot-bench`.
+
+cargo_example("text-snapshot-bench")

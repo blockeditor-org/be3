@@ -913,6 +913,12 @@ pub fn identity() -> Option<(Uuid, Uuid)> {
         .map(|stack| (stack.account, stack.organization))
 }
 
+/// The signed-in account's Unfiled in the open organization (`be_block::unfiled`), where
+/// blocks made without a place the person chose go.
+pub fn unfiled() -> Option<Uuid> {
+    identity().map(|(account, organization)| be_block::unfiled(organization, account))
+}
+
 pub fn stale_revision() -> u64 {
     with_shared(|shared| shared.stale_revision).unwrap_or_default()
         + be_block_type_host::kinds_revision()
@@ -1016,12 +1022,14 @@ pub fn name_when_created(block: Uuid, name: String) {
     PENDING_NAMES.with(|pending| pending.borrow_mut().insert(block, name));
 }
 
+/// Makes a block; with `owner_only`, one only this account reads (`KindVisibility::Owner`).
 pub fn create(
     block: Uuid,
     content_type: Uuid,
     parent: be_block_graph::BlockParent,
     mut metadata: be_block::BlockMetadata,
     content: Option<Vec<u8>>,
+    owner_only: bool,
 ) {
     if let Some(name) = PENDING_NAMES.with(|pending| pending.borrow_mut().remove(&block)) {
         metadata.insert(&be_block::NAME, &name);
@@ -1038,7 +1046,7 @@ pub fn create(
             && shared
                 .graph
                 .get(above)
-                .is_some_and(|above| !above.references.contains(&block))
+                .is_some_and(|above| !above.unfiled() && !above.references.contains(&block))
         {
             shared.graph.placing(block, true);
         }
@@ -1064,6 +1072,7 @@ pub fn create(
         parent,
         metadata,
         bytes: content,
+        owner_only,
     });
 }
 
@@ -1106,7 +1115,7 @@ pub fn set_parent(block: Uuid, parent: be_block_graph::BlockParent) {
             be_block_graph::BlockParent::Block(above) => shared
                 .graph
                 .get(above)
-                .is_some_and(|above| !above.references.contains(&block)),
+                .is_some_and(|above| !above.unfiled() && !above.references.contains(&block)),
             be_block_graph::BlockParent::Root | be_block_graph::BlockParent::Detached => false,
         };
         shared.graph.placing(block, placing);
@@ -1203,6 +1212,38 @@ pub async fn create_agent(name: String) -> Result<crate::accounts::AgentCredenti
     made.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))
 }
 
+/// An agent bound to `block` (an app's `create-block-agent`): its account and the credentials
+/// `be` signs in as it with.
+pub fn create_block_agent(
+    block: Uuid,
+    name: String,
+    reply: impl FnOnce(Result<(Uuid, crate::accounts::AgentCredentials), String>) + Send + 'static,
+) {
+    send(Command::CreateBlockAgent {
+        block,
+        name,
+        reply: Box::new(reply),
+    });
+}
+
+/// A new token for a block's agent; every older one stops signing it in.
+pub fn rotate_agent_token(
+    agent: Uuid,
+    reply: impl FnOnce(Result<String, String>) + Send + 'static,
+) {
+    send(Command::BlockAgent {
+        agent,
+        change: worker::AgentChange::Rotate(Box::new(reply)),
+    });
+}
+
+pub fn remove_block_agent(agent: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
+    send(Command::BlockAgent {
+        agent,
+        change: worker::AgentChange::Remove(Box::new(reply)),
+    });
+}
+
 const NOT_OPEN: &str = "Open the organization first.";
 
 pub fn list_access(
@@ -1255,8 +1296,23 @@ pub fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) 
     });
 }
 
-pub fn import(bytes: &[u8], parent: be_block_graph::BlockParent) -> Result<(Uuid, Uuid), String> {
-    let blocks = be_block_client::transfer::renumber(be_block_client::transfer::decode(bytes)?);
+/// Brings in the blocks of a block file under `parent`. `created_by` is the app that asked
+/// (`CREATED_BY`), set on the top block; what the file says made each block is dropped.
+pub fn import(
+    bytes: &[u8],
+    parent: be_block_graph::BlockParent,
+    created_by: Option<&str>,
+) -> Result<(Uuid, Uuid), String> {
+    let mut blocks = be_block_client::transfer::renumber(be_block_client::transfer::decode(bytes)?);
+    for block in &mut blocks {
+        block.metadata.remove(&be_block::CREATED_BY);
+        if block.parent.is_none() {
+            block.metadata.put(
+                &be_block::CREATED_BY,
+                created_by.map(str::to_owned).as_ref(),
+            );
+        }
+    }
     let author = account().ok_or("Sign in to import blocks.")?;
     let top = (blocks[0].id, blocks[0].block_type);
     let mut imported = Vec::with_capacity(blocks.len());
@@ -1295,24 +1351,31 @@ pub fn import(bytes: &[u8], parent: be_block_graph::BlockParent) -> Result<(Uuid
     Ok(top)
 }
 
+/// Makes a block of the type that claims a file, under `parent`; `created_by` is the app that
+/// asked (`CREATED_BY`).
 pub fn import_file(
     name: String,
     bytes: Vec<u8>,
     parent: be_block_graph::BlockParent,
+    created_by: Option<&str>,
     reply: impl FnOnce(Result<(Uuid, Uuid), String>) + Send + 'static,
 ) {
     if account().is_none() {
         reply(Err("Sign in to import files.".to_owned()));
         return;
     }
-    let metadata = be_block::BlockMetadata::named(&name);
+    let mut metadata = be_block::BlockMetadata::named(&name);
+    metadata.put(
+        &be_block::CREATED_BY,
+        created_by.map(str::to_owned).as_ref(),
+    );
     send(Command::ContentOfFile {
         name,
         bytes,
         reply: Box::new(move |content| {
             reply(content.map(|(content_type, content)| {
-                let block = Uuid::new_v4();
-                create(block, content_type, parent, metadata, Some(content));
+                let block = Uuid::now_v7();
+                create(block, content_type, parent, metadata, Some(content), false);
                 (block, content_type)
             }));
         }),
