@@ -38,7 +38,7 @@ async fn a_large_image_streams_without_downloading_all_of_it() {
     let fetched = reader.commits().vault().store().total_bytes() - after_header;
     // Leaves are cut by content, so their size varies with the random keys:
     // ask for a small fraction of the payload, not a fixed number of bytes.
-    let whole = original.data().len() as u64;
+    let whole = original.data().len();
     assert!(
         fetched < whole / 16,
         "reading 512 bytes pulled down {fetched} bytes of payload and its manifest nodes, of {whole}"

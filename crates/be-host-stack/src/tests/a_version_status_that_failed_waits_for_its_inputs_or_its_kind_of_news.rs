@@ -20,7 +20,9 @@ fn a_version_status_that_failed_waits_for_its_inputs_or_its_kind_of_news() {
         Failure::client(ClientError::Locked(Uuid::from_u128(0x6e7))),
     );
     assert!(
-        shown.as_deref().is_some_and(|shown| shown.starts_with("Could not read this block's versions")),
+        shown
+            .as_deref()
+            .is_some_and(|shown| shown.starts_with("Could not read this block's versions")),
         "a lasting failure shows why at once: {shown:?}"
     );
     assert_eq!(
