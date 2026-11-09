@@ -129,9 +129,9 @@ fn probe(host: &str, token: &str) -> Result<Option<String>> {
 /// The scheduler's host and Caddy's token, from `BE3_NL_URL` (`https://NAME-8099.on.boat.dev/?_token=TOKEN`).
 pub fn parse_address(url: &str) -> Result<(String, String)> {
     let url = url.trim();
-    let rest = url.strip_prefix("https://").ok_or_else(|| {
-        "BE3_NL_URL is not an address: it should start with https://".to_owned()
-    })?;
+    let rest = url
+        .strip_prefix("https://")
+        .ok_or_else(|| "BE3_NL_URL is not an address: it should start with https://".to_owned())?;
     let (location, query) = rest.split_once('?').unwrap_or((rest, ""));
     let token = query
         .split('&')

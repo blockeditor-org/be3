@@ -216,9 +216,7 @@ fn ask_for_server(saved: &Path) -> Option<String> {
         .map(|server| Choice {
             label: server,
             detail: match *server {
-                "nativelink" => {
-                    "our NativeLink build server on boat (needs its address and token)"
-                }
+                "nativelink" => "our NativeLink build server on boat (needs its address and token)",
                 "namespace" => "Namespace's remote execution",
                 "api.be3.pfg.pw" => "our own NativeLink server",
                 "blocks.pfg.pw" => "our NativeLink build VM, behind blocks.pfg.pw",
