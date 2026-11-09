@@ -22,7 +22,11 @@ fn a_development_build_uploads_its_own_be() {
     let upload = fetches.remove(0);
     assert_eq!(upload.request.method, "PUT");
     assert!(upload.request.url.ends_with("token=signed-upload-token"));
-    assert_eq!(upload.request.header_value("Authorization"), None, "the URL is the key");
+    assert_eq!(
+        upload.request.header_value("Authorization"),
+        None,
+        "the URL is the key"
+    );
     assert_eq!(upload.request.body, b"\x7fELF be");
     boat.answer(&upload, 200, "{}");
 

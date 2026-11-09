@@ -10,7 +10,10 @@ fn a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token() {
     boat.wait(Duration::from_secs(15));
     let list = boat.fetch();
     boat.answer(&list, 200, &stopped);
-    assert!(!boat.test.has_fetches(), "a stopped sandbox is asked nothing");
+    assert!(
+        !boat.test.has_fetches(),
+        "a stopped sandbox is asked nothing"
+    );
 
     boat.wait(Duration::from_secs(15));
     let list = boat.fetch();
@@ -39,7 +42,12 @@ fn a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token() {
         "abandon ability able about above absent absorb abstract absurd abuse access accident",
         "the whole credentials are written again"
     );
-    assert!(boat.kept_terminals()[0].1.credentials.contains("second-token"));
+    assert!(
+        boat.kept_terminals()[0]
+            .1
+            .credentials
+            .contains("second-token")
+    );
     assert_eq!(
         boat.label(&format!("boat.sandbox.{RUNNING}.terminal.status")),
         "Terminal"

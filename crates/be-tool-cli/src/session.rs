@@ -125,7 +125,10 @@ impl Settings {
     /// Refuses a machine that is not the boat.dev sandbox the credentials were installed for,
     /// given its `BOAT_ID`; a machine that doesn't say passes.
     pub fn check_machine(&self, boat_id: Option<&str>) -> Result<(), String> {
-        match (&self.boat_id, boat_id.map(str::trim).filter(|id| !id.is_empty())) {
+        match (
+            &self.boat_id,
+            boat_id.map(str::trim).filter(|id| !id.is_empty()),
+        ) {
             (Some(installed), Some(here)) if installed != here => Err(format!(
                 "this is boat.dev sandbox {here}, not {installed}, which this terminal host was \
                  installed for: a fork runs no terminal of its own until one is connected to it"

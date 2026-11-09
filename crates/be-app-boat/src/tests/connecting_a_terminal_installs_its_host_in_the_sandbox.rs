@@ -6,9 +6,7 @@ use be_type_terminal::TerminalContent;
 fn connecting_a_terminal_installs_its_host_in_the_sandbox() {
     let mut boat = Boat::listing(SANDBOXES);
     assert!(
-        !boat
-            .test
-            .shown("boat.sandbox.bx_r4t8w3ne.terminal.connect"),
+        !boat.test.shown("boat.sandbox.bx_r4t8w3ne.terminal.connect"),
         "a stopped sandbox runs no commands"
     );
     let agent = Uuid::new_v4();
@@ -74,7 +72,11 @@ fn connecting_a_terminal_installs_its_host_in_the_sandbox() {
         HostCall::RemoveAgent { reply, agent } => Ok((reply, agent)),
         call => Err(call),
     });
-    assert_eq!(removed, agent.into_bytes(), "disconnecting removes the agent");
+    assert_eq!(
+        removed,
+        agent.into_bytes(),
+        "disconnecting removes the agent"
+    );
     boat.test.answer(reply, Ok(()));
     let stop = boat.ran("sudo systemctl disable --now", DONE);
     assert!(stop.contains(&format!("be-terminal@{block}.service")));

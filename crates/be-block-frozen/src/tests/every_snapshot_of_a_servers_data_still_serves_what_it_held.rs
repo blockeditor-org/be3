@@ -391,6 +391,7 @@ async fn check(snapshot: &Snapshot) {
             phrase: snapshot.agent_phrase.into(),
             authorization: None,
             cache: unpacked.root.join("cache"),
+            boat_id: None,
         })
         .await
         .unwrap(),

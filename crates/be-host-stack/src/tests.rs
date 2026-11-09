@@ -9,7 +9,6 @@ use super::*;
 use crate::embedded_server;
 
 mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
-mod a_terminal_hosts_be_is_the_deployments_or_one_built_here;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_deleted_from_unfiled_remembers_it_and_apps_never_see_its_id;
 mod a_block_file_brings_a_tree_back_as_a_copy;
@@ -50,6 +49,7 @@ mod a_session_owned_here_follows_a_peer_that_claims_it;
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_takes_over_a_session_this_peer_opened_first;
+mod a_terminal_hosts_be_is_the_deployments_or_one_built_here;
 mod a_transient_version_failure_is_retried_on_the_backoff_and_on_reconnecting;
 mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
 mod a_version_status_that_failed_waits_for_its_inputs_or_its_kind_of_news;

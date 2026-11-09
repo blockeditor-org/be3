@@ -800,6 +800,7 @@ dependencies = [
  "be-sdk-beui",
  "be-sdk-test",
  "be-type-boat",
+ "be-type-terminal",
  "beui",
  "serde",
  "serde_json",
