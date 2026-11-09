@@ -37,15 +37,15 @@ pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
 pub use metadata::{
-    ARTIFACT, Artifact, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, EXECUTABLE, Entries,
-    ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES, MetaKey, NAME, Origin,
-    ROW_PREFIX, SCHEMA, SETTINGS, THUMBHASH, Thumbhash, VIEW_EDITOR,
+    ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
+    EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES,
+    MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, SETTINGS, THUMBHASH, Thumbhash, VIEW_EDITOR,
 };
 pub use model::Root;
 pub use organization::{
     Allowance, LostAccess, OfflineChoice, OfflinePolicy, OfflineSettings, OfflineSettingsContent,
-    OrganizationPolicies, OrganizationPoliciesContent, SYSTEM_TYPES, WhoMay, is_workspace_type,
-    my_files, my_files_of, organization_settings,
+    OrganizationPolicies, OrganizationPoliciesContent, SYSTEM_TYPES, UNFILED_TYPE, WhoMay,
+    is_workspace_type, my_files, my_files_of, organization_settings, unfiled, unfiled_of,
 };
 pub use profile::{
     DESKTOP_EDITOR, FILES_EDITOR, RecentBlock, Recents, VIEW_TYPE, WORKSPACE_EDITOR, WORKSPACE_TYPE,

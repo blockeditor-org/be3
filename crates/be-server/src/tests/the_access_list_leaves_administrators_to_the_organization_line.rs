@@ -2,7 +2,7 @@ use super::*;
 use be_block_graph::Access;
 use be_block_protocol::AccessList;
 
-async fn join(
+pub(super) async fn join(
     owner: &mut TestClient,
     member: &mut TestClient,
     organization: Uuid,

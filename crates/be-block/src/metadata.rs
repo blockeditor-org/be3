@@ -67,6 +67,11 @@ pub const DELETED_FROM: MetaKey<DeletedFrom> =
 pub const SETTINGS: MetaKey<BlockRef> =
     MetaKey::defined(0x6be3_6d65_7461_5300_8a1e_7365_7474_0001, "settings");
 
+/// The manifest id of the app that made the block, set by the host when an app creates one
+/// and never by the app itself.
+pub const CREATED_BY: MetaKey<String> =
+    MetaKey::defined(0x6be3_6d65_7461_4300_8a1e_6372_6279_0001, "created_by");
+
 pub const VIEW_EDITOR: MetaKey<Uuid> =
     MetaKey::defined(0x6be3_6d65_7461_5600_8a1e_7669_6577_0001, "view_editor");
 

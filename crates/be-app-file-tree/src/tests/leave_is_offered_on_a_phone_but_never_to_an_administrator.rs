@@ -6,7 +6,14 @@ use super::*;
 
 #[test]
 fn leave_is_offered_on_a_phone_but_never_to_an_administrator() {
-    let mut fixture = phone();
+    // Tall enough for the row's whole menu: it opens below the row and is not moved to fit.
+    let tree = Uuid::new_v4();
+    let test = BeuiTest::editing(tree)
+        .with_size(Vec2::new(390.0, 900.0))
+        .on_phone();
+    let host = test.host().clone();
+    let mut fixture = Fixture { test, host };
+    fixture.settle();
     let plan = Uuid::from_u128(5);
     my_files(&mut fixture, Vec::new());
     let mut given = BlockInfo::new(

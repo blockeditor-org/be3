@@ -1,8 +1,8 @@
 # boat.dev terminals
 
-Depends on: plans/boat.md and plans/unfiled.md. Owner-only settings have
-landed (guides/settings.md, Owner only), and so have blocks' agents
-(guides/tracker.md, A block's agent).
+Depends on: plans/boat.md. Unfiled has landed (guides/blocks/workspaces.md),
+as have owner-only settings (guides/settings.md, Owner only) and blocks'
+agents (guides/tracker.md, A block's agent).
 
 Opening a terminal block into a boat VM from the boat app (plans/boat.md).
 The design follows the constraints.
@@ -60,7 +60,7 @@ The design follows the constraints.
 
 ## Design
 
-- **Connect** makes a terminal block in Unfiled (plans/unfiled.md) and adds it
+- **Connect** makes a terminal block in Unfiled (`block-location::unfiled`) and adds it
   to the boat block's content as a reference. A viewer sees the first terminal
   for that VM they can open; anyone else makes their own. A terminal reaches
   someone else only if its owner shares it or moves it into a shared place.

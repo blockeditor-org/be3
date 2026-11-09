@@ -1,4 +1,3 @@
-use be_sdk_beui::Editor;
 use be_sdk_beui::be_block::{self, BlockContent, SettingsContent};
 use be_sdk_beui::beui::icons::{
     ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE,
@@ -7,6 +6,7 @@ use be_sdk_beui::beui::icons::{
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::{BlockParent, Editor};
 use uuid::Uuid;
 
 use super::export::Exporter;
@@ -33,7 +33,13 @@ pub(crate) fn RowMenu(tools: RowTools, key: RowKey) -> Option<TreeMenu> {
     let row = tools.tree.row(key.clone());
     let shown = row.get_untracked()?;
     let zoom = tools.zoom;
+    let unfiled = shown.key == RowKey::Unfiled;
     let zoom_in = move || zoom.enter(key.clone());
+    if unfiled {
+        return Some(view! {
+            <UnfiledMenu tools zoom_in />
+        });
+    }
     match (shown.id, shown.is_workspace()) {
         (None, _) if !shown.section => None,
         (None, _) => Some(TreeMenu {
@@ -59,6 +65,42 @@ fn ZoomIn(on_click: ClickCallback) -> MenuItem {
             row_test_id={"file-tree.zoom-in".to_owned()}
             on_click
         />
+    }
+}
+
+/// Unfiled's own menu: besides zooming in, the one thing to do with the whole section is to
+/// move what nothing uses to Recently Deleted. Nothing there is deleted automatically.
+#[component]
+fn UnfiledMenu<F: Fn() + 'static>(tools: RowTools, zoom_in: F) -> TreeMenu {
+    let RowTools { editor, tree, .. } = tools;
+    let rows = tree.rows();
+    let unused = create_memo(move || {
+        rows.with(|rows| {
+            rows.iter()
+                .filter(|row| row.unused && row.can_delete)
+                .filter_map(|row| Some((row.id?, row.block_type)))
+                .collect::<Vec<_>>()
+        })
+    });
+    let none = create_memo(move || unused.with(Vec::is_empty));
+    let move_unused = move || {
+        for (id, block_type) in unused.get_untracked() {
+            editor
+                .host()
+                .delete_block(id, block_type, BlockParent::Unfiled);
+        }
+    };
+    TreeMenu {
+        items: view! {
+            <ZoomIn on_click={zoom_in} />
+            <MenuItem
+                label="Move unused to Recently Deleted"
+                glyph=ICON_TRASH
+                disabled={none}
+                row_test_id={"file-tree.unfiled.move-unused".to_owned()}
+                on_click={move_unused}
+            />
+        },
     }
 }
 

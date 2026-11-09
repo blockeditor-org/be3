@@ -404,6 +404,7 @@ fn shown_rects(instances: &Instances) -> Vec<Rect> {
         .collect()
 }
 
+mod a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise;
 mod a_block_is_named_after_its_content_until_someone_names_it;
 mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
 mod a_child_asked_full_screen_or_closed_reaches_the_host;

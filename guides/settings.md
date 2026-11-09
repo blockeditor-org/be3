@@ -19,8 +19,9 @@ layered setting from an editor, and the settings the host applies itself.
   administrator's client makes it on first opening a company organization
   (`Peer::ensure_organization_settings`); personal organizations have none.
 
-`be_block::my_files(organization, account)` is the other derived id: each account's My files,
-kept by the server for that account alone.
+`be_block::my_files(organization, account)` and `be_block::unfiled(organization, account)` are
+the other derived ids: each account's My files and Unfiled, kept by the server for that account
+alone.
 
 ## Kinds and resolution
 

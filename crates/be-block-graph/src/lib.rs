@@ -73,7 +73,17 @@ pub struct BlockNode {
     pub owner_only: bool,
 }
 
+/// The type of an account's Unfiled (`be_block::unfiled`): a root with no content that holds
+/// every block whose parent names it.
+pub const UNFILED_TYPE: Uuid = Uuid::from_u128(0x756e_6669_6c65_642d_626c_6f63_6b73_3031);
+
 impl BlockNode {
+    /// An account's Unfiled: it has no content listing its children, so it holds every block
+    /// whose parent names it.
+    pub fn unfiled(&self) -> bool {
+        self.content_type == UNFILED_TYPE
+    }
+
     pub fn new(content_type: Uuid, author: Uuid, parent: BlockParent) -> Self {
         Self {
             content_type,
@@ -332,7 +342,8 @@ impl BlockGraph {
         };
     }
 
-    /// A parent holds a child only while the parent's references list it. A block whose link
+    /// A parent holds a child only while the parent's references list it, except an Unfiled
+    /// (`BlockNode::unfiled`), which holds every child by parent alone. A block whose link
     /// does not hold is in the trash with its subtree even when something else references it;
     /// references from anything but the parent keep nothing alive.
     pub fn holds(&self, id: Uuid) -> bool {
@@ -341,7 +352,7 @@ impl BlockGraph {
             Some(BlockParent::Block(parent)) => self
                 .blocks
                 .get(&parent)
-                .is_some_and(|parent| parent.references.contains(&id)),
+                .is_some_and(|parent| parent.unfiled() || parent.references.contains(&id)),
             Some(BlockParent::Detached) | None => false,
         }
     }

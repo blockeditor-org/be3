@@ -13,6 +13,9 @@ interface blocks {
         roots,
         detached,
         shared,
+        /// What is in the account's own Unfiled, whose id the editor never
+        /// learns: each such block reads back with the parent `unfiled`.
+        unfiled,
         children(block-id),
         references(block-id),
         backrefs(block-id),

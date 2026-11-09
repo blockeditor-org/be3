@@ -17,13 +17,16 @@ pub enum BlockParent {
     Detached,
     Root,
     Block(Uuid),
+    /// The account's Unfiled, for a block made without a place the person chose. The host
+    /// resolves it, so a block placed there reads back as inside a block.
+    Unfiled,
 }
 
 impl BlockParent {
     pub const fn block(self) -> Option<Uuid> {
         match self {
             Self::Block(id) => Some(id),
-            Self::Detached | Self::Root => None,
+            Self::Detached | Self::Root | Self::Unfiled => None,
         }
     }
 
@@ -32,6 +35,7 @@ impl BlockParent {
             Self::Root => BlockLocation::Root,
             Self::Detached => BlockLocation::Detached,
             Self::Block(id) => BlockLocation::Block(id.into_bytes()),
+            Self::Unfiled => BlockLocation::Unfiled,
         }
     }
 
@@ -40,6 +44,7 @@ impl BlockParent {
             BlockLocation::Root => Self::Root,
             BlockLocation::Detached => Self::Detached,
             BlockLocation::Block(id) => Self::Block(Uuid::from_bytes(id)),
+            BlockLocation::Unfiled => Self::Unfiled,
         }
     }
 }
@@ -49,6 +54,8 @@ pub enum BlockQuery {
     Roots,
     Detached,
     Shared,
+    /// What is in the account's Unfiled, whose id an editor never learns.
+    Unfiled,
     Children(Uuid),
     References(Uuid),
     Backrefs(Uuid),
@@ -64,6 +71,7 @@ impl BlockQuery {
             Self::Roots => Wire::Roots,
             Self::Detached => Wire::Detached,
             Self::Shared => Wire::Shared,
+            Self::Unfiled => Wire::Unfiled,
             Self::Children(id) => Wire::Children(id.into_bytes()),
             Self::References(id) => Wire::References(id.into_bytes()),
             Self::Backrefs(id) => Wire::Backrefs(id.into_bytes()),
@@ -79,6 +87,7 @@ impl BlockQuery {
             Wire::Roots => Self::Roots,
             Wire::Detached => Self::Detached,
             Wire::Shared => Self::Shared,
+            Wire::Unfiled => Self::Unfiled,
             Wire::Children(id) => Self::Children(Uuid::from_bytes(id)),
             Wire::References(id) => Self::References(Uuid::from_bytes(id)),
             Wire::Backrefs(id) => Self::Backrefs(Uuid::from_bytes(id)),

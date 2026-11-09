@@ -212,7 +212,9 @@ impl Instances {
                 content,
                 owner_only,
             } => {
-                let parent = be_host_stack::app_graph::parent_of(parent);
+                let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
+                    return self.acknowledge(reply, None);
+                };
                 if parent.block().is_some_and(|parent| !self.editable(parent))
                     || (owner_only && !own_settings(parent))
                 {
@@ -224,10 +226,13 @@ impl Instances {
                 }
                 let mut defined = be_host_stack::app_graph::entries_of(defined);
                 defined.remove(&be_block::LOCAL_ID.id);
-                let metadata = be_block::BlockMetadata {
+                let mut metadata = be_block::BlockMetadata {
                     defined,
                     ..be_block::BlockMetadata::default()
                 };
+                if !self.app_id.is_empty() {
+                    metadata.insert(&be_block::CREATED_BY, &self.app_id);
+                }
                 be_host_stack::create(
                     block,
                     Uuid::from_bytes(block_type),
@@ -244,7 +249,9 @@ impl Instances {
                 parent,
             } => {
                 let block = Uuid::from_bytes(block);
-                let parent = be_host_stack::app_graph::parent_of(parent);
+                let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
+                    return self.acknowledge(reply, None);
+                };
                 if !self.editable(block)
                     || parent.block().is_some_and(|parent| !self.editable(parent))
                 {
@@ -261,7 +268,10 @@ impl Instances {
             } => {
                 let block = Uuid::from_bytes(block);
                 let key = Uuid::from_bytes(key);
-                if !self.editable(block) || key == be_block::LOCAL_ID.id {
+                if !self.editable(block)
+                    || key == be_block::LOCAL_ID.id
+                    || key == be_block::CREATED_BY.id
+                {
                     return self.acknowledge(reply, None);
                 }
                 be_host_stack::define(block, vec![(key, value)]);

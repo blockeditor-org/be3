@@ -17,15 +17,39 @@ not a system block (`be_sdk_beui::sections::is_workspace`); its name is its
 Only workspaces and an account's own `Settings` are put at the root, though
 the server accepts any block there, so an old one left at the root shows as a
 workspace. Opening an organization ensures the account's "My files"
-(`RootSettings::ensure_my_files`, the `MY_FILES` key).
+(`RootSettings::ensure_my_files`, the `MY_FILES` key) and its Unfiled
+(`ensure_unfiled`): another derived root, `be_block::unfiled(organization,
+account)` of `UNFILED_TYPE`, reserved for that account by the server as My
+files is, and seen by an administrator as My files is. Unfiled has no content;
+it holds every block whose parent names it (guides/blocks/server.md,
+Liveness), so making a block there edits nothing anyone else must be able to
+edit.
 
 The files pane (`crates/be-app-file-tree`) shows a section per visible
-workspace (My files first, never another account's), Shared with me
-(`BlockQuery::Shared`), Recently Deleted, and System (the account's own
-`SYSTEM_TYPES` roots, for debugging). Pressing a folder, workspace or section
-zooms into it rather than opening it. Every picker places a new block in a
-workspace (My files when none is named); moving between workspaces is the
-host's `move_block`. The folder editor is `crates/be-app-workspace-index`.
+workspace (My files first, never another account's), Unfiled below My files,
+Shared with me (`BlockQuery::Shared`), Recently Deleted, and System (the
+account's own `SYSTEM_TYPES` roots, for debugging). Pressing a folder,
+workspace or section zooms into it rather than opening it. The folder editor
+is `crates/be-app-workspace-index`.
+
+A picker places a new block where it is asked. A block made without a place
+the person chose goes to Unfiled: a pick with no place, an editor with no
+block of its own, "New file here" beside a block nothing holds, a new
+database view beside one in no folder, a compiled logic grid. So My files
+holds only what the person put there. Apps name it `block-location::unfiled`
+and list it with `block-query::unfiled`; the host resolves it to the
+account's own and reads a block in it back as `unfiled`, so no app learns its
+id, and refuses a call naming it until the graph has it. Moving a block out
+files it; moving between workspaces is the host's `move_block`.
+
+Unfiled in the files pane is a flat list, newest first (block ids are
+UUIDv7), each row saying which app made the block (`CREATED_BY`, the app's
+manifest id, set by the host on every block an app creates and never by the
+app) and where it is used, from its backrefs, or "Not used anywhere". Its
+menu offers "Move unused to Recently Deleted"; nothing is deleted
+automatically. Deleting from Unfiled detaches the block with `DELETED_FROM`
+naming Unfiled, and Restore puts it back; a restored block whose place is gone
+goes to Unfiled.
 
 ## The account's Settings block and device profiles
 

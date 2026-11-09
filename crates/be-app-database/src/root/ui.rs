@@ -49,19 +49,18 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
             }
             other => other,
         };
+        let container = container.and_then(BlockParent::block);
         let created = blocks.create(
             &DatabaseViewContent::new(&database_view::DatabaseView::of(block_id)),
-            BlockParent::Detached,
+            match container {
+                Some(_) => BlockParent::Detached,
+                None => BlockParent::Unfiled,
+            },
         );
-        match container {
-            Some(BlockParent::Block(container)) => editor.host().place_block(
-                created,
-                DatabaseViewContent::CONTENT_TYPE,
-                container,
-                false,
-            ),
-            Some(other) => blocks.set_parent(created, other),
-            None => {}
+        if let Some(container) = container {
+            editor
+                .host()
+                .place_block(created, DatabaseViewContent::CONTENT_TYPE, container, false);
         }
     };
 

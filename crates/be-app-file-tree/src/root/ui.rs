@@ -96,10 +96,12 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             RowKey::Shared
             | RowKey::Orphans
             | RowKey::System
+            | RowKey::Unfiled
             | RowKey::Note(_)
             | RowKey::SharedNote
             | RowKey::OrphansNote
             | RowKey::SystemNote
+            | RowKey::UnfiledNote
             | RowKey::Pinned(_) => None,
         };
         tree.toggle(&key, id, !expanded);
@@ -109,6 +111,13 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         let focused = editor.host().focused_block();
         zoom.leave_for(&key);
         tree.show_orphans();
+        if focused
+            .block_id
+            .and_then(|id| editor.blocks().info(id))
+            .is_some_and(|info| info.parent == Some(BlockParent::Unfiled))
+        {
+            tree.show_unfiled();
+        }
         tree.reveal_system(focused.via.last().copied().or(focused.block_id));
         tree.expand(focused.via.iter().rev().copied());
     };
@@ -349,10 +358,12 @@ fn ancestors(key: &RowKey) -> Vec<RowKey> {
         RowKey::Shared
         | RowKey::Orphans
         | RowKey::System
+        | RowKey::Unfiled
         | RowKey::Note(_)
         | RowKey::SharedNote
         | RowKey::OrphansNote
         | RowKey::SystemNote
+        | RowKey::UnfiledNote
         | RowKey::Pinned(_) => Vec::new(),
     }
 }
@@ -365,10 +376,12 @@ pub(crate) fn row_test_id(key: &RowKey) -> String {
         RowKey::Shared => "shared".to_owned(),
         RowKey::Orphans => "orphans".to_owned(),
         RowKey::System => "system".to_owned(),
+        RowKey::Unfiled => "unfiled".to_owned(),
         RowKey::Note(path) => format!("note.{}", path.len()),
         RowKey::SharedNote => "note.shared".to_owned(),
         RowKey::OrphansNote => "note.orphans".to_owned(),
         RowKey::SystemNote => "note.system".to_owned(),
+        RowKey::UnfiledNote => "note.unfiled".to_owned(),
         RowKey::Pinned(path) => match path.get(1) {
             Some(id) => format!("pinned.{id}"),
             None => "pinned".to_owned(),
@@ -415,7 +428,11 @@ fn TreeRow(
         false => Weight::Normal,
     });
     let glyph_size = glyph_size();
-    let (detail, detailed) = detail(editor, row);
+    let (detail, detailed, inline) = detail(editor, row);
+    let beside = create_memo(move || match inline.get() {
+        true => format!("  {}", detail.get()),
+        false => String::new(),
+    });
     let generated_color = TextColor::Muted;
     let access_color = TextColor::Muted;
     let color = create_memo(move || match muted.get() {
@@ -430,6 +447,7 @@ fn TreeRow(
                         {before}
                         <Span background=ColorRole::AccentSoft>{hit}</Span>
                         {after}
+                        <Span size=TextSize::Sm color=TextColor::Muted>{beside}</Span>
                     </Text>
                     <Show condition={detailed}>
                         <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
@@ -504,7 +522,7 @@ fn SectionRow(
     let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
     let (before, hit, after) = highlighted(label, filter);
     let actions = create_memo(move || row.get().is_some_and(|row| has_actions(&row)));
-    let (detail, detailed) = detail(editor, row);
+    let (detail, detailed, _) = detail(editor, row);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <ListItem grow=1.0>
@@ -531,12 +549,17 @@ fn SectionRow(
     }
 }
 
-fn detail(editor: Editor, row: Memo<Option<Row>>) -> (Memo<String>, Memo<bool>) {
+/// The line under a row's name, and whether it shows there (comfortable density) or, for a
+/// row with a detail of its own such as Unfiled's, after the name on one line (compact).
+fn detail(editor: Editor, row: Memo<Option<Row>>) -> (Memo<String>, Memo<bool>, Memo<bool>) {
     let density = use_density();
     let detail = create_memo(move || {
         let Some(row) = row.get().filter(|row| row.id.is_some()) else {
             return String::new();
         };
+        if let Some(detail) = row.detail {
+            return detail;
+        }
         let size = row
             .inspection
             .as_ref()
@@ -564,10 +587,15 @@ fn detail(editor: Editor, row: Memo<Option<Row>>) -> (Memo<String>, Memo<bool>) 
             false => format!("{kind} · {size}"),
         }
     });
+    let own =
+        create_memo(move || row.with(|row| row.as_ref().is_some_and(|row| row.detail.is_some())));
     let detailed = create_memo(move || {
         density.get() == Density::Comfortable && !detail.with(String::is_empty)
     });
-    (detail, detailed)
+    let inline = create_memo(move || {
+        own.get() && density.get() == Density::Compact && !detail.with(String::is_empty)
+    });
+    (detail, detailed, inline)
 }
 
 fn glyph_size() -> Memo<TextSize> {
@@ -840,10 +868,12 @@ fn holds(key: &RowKey, id: Uuid) -> bool {
         RowKey::Shared
         | RowKey::Orphans
         | RowKey::System
+        | RowKey::Unfiled
         | RowKey::Note(_)
         | RowKey::SharedNote
         | RowKey::OrphansNote
-        | RowKey::SystemNote => false,
+        | RowKey::SystemNote
+        | RowKey::UnfiledNote => false,
     }
 }
 

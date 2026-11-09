@@ -7,12 +7,12 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use be_sdk_beui::Press;
-use be_sdk_beui::be_block::SETTINGS;
 use be_sdk_beui::be_block::metadata::ICON_COLOR;
 use be_sdk_beui::be_block::{BlockContent, HomeContent, SettingsContent};
+use be_sdk_beui::be_block::{CREATED_BY, SETTINGS};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::icons::{
-    ICON_BOXES, ICON_DATABASE, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
+    ICON_BOXES, ICON_DATABASE, ICON_INBOX, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
 use be_sdk_beui::beui::reactive::*;
 pub(crate) use be_sdk_beui::sections::{own_system, shared_with_me, workspaces};
@@ -28,10 +28,12 @@ pub(crate) enum RowKey {
     Shared,
     Orphans,
     System,
+    Unfiled,
     Note(Vec<Uuid>),
     SharedNote,
     OrphansNote,
     SystemNote,
+    UnfiledNote,
     Pinned(Vec<Uuid>),
 }
 
@@ -69,6 +71,11 @@ pub(crate) struct Row {
     pub(crate) sets_access: bool,
     pub(crate) settings: Option<Uuid>,
     pub(crate) tags: Vec<ShownTag>,
+    /// What the row says below its name in place of its kind and size: in Unfiled, the app
+    /// that made the block and where it is used.
+    pub(crate) detail: Option<String>,
+    /// In Unfiled, a block nothing references.
+    pub(crate) unused: bool,
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -127,6 +134,8 @@ impl Row {
             sets_access: false,
             settings: None,
             tags: Vec::new(),
+            detail: None,
+            unused: false,
         }
     }
 
@@ -145,6 +154,7 @@ struct Opened {
     collapsed: Vec<Uuid>,
     shared_closed: bool,
     system: bool,
+    unfiled: bool,
 }
 
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -152,6 +162,7 @@ struct Folded {
     orphans_open: bool,
     shared_closed: bool,
     system_open: bool,
+    unfiled_open: bool,
 }
 
 const GRACE: Duration = Duration::from_millis(300);
@@ -198,6 +209,8 @@ struct Watched {
     expanded: HashMap<Uuid, Listing>,
     sections: HashMap<Uuid, Listing>,
     orphans: Option<Listing>,
+    unfiled: Option<Listing>,
+    used_by: HashMap<Uuid, Listing>,
     block_types: HashMap<Uuid, Uuid>,
     workspaces: HashSet<Uuid>,
     system: HashSet<Uuid>,
@@ -262,6 +275,7 @@ impl Tree {
                         orphans_open: opened.orphans,
                         shared_closed: opened.shared_closed,
                         system_open: opened.system,
+                        unfiled_open: opened.unfiled,
                     });
                 }
             });
@@ -281,6 +295,7 @@ impl Tree {
                 orphans_open: showing,
                 shared_closed,
                 system_open,
+                unfiled_open,
             } = folded.get();
             let inside = entered.get();
             let inside = match &inside {
@@ -311,6 +326,7 @@ impl Tree {
                 due: None,
             };
             let listed = clock.listed(&roots);
+            let roots_listed = listed.is_ok();
             let held = listed.clone().unwrap_or_default();
             let sections = workspaces(
                 held.clone(),
@@ -323,6 +339,13 @@ impl Tree {
                 .map(|_| own_system(held.clone(), host.account_id()))
                 .map_err(Clone::clone);
             let loose = clock.listed(&shared).map(shared_with_me);
+            match unfiled_open {
+                true if watched.unfiled.is_none() => {
+                    watched.unfiled = Some(Listing::watch(&building, BlockQuery::Unfiled));
+                }
+                true => {}
+                false => watched.unfiled = None,
+            }
             watched.system = system.iter().flatten().map(|block| block.id).collect();
             watched.workspaces = sections.iter().map(|block| block.id).collect();
             let shown: HashSet<Uuid> = sections
@@ -350,6 +373,7 @@ impl Tree {
                 rows: Vec::new(),
                 pinned,
                 seen: HashSet::new(),
+                used: HashSet::new(),
                 entered: entered.get(),
             };
             match listed {
@@ -361,17 +385,33 @@ impl Tree {
                 Err(Some(error)) => builder.rows.push(Row::note(Vec::new(), 0, &error)),
                 Ok(_) | Err(None) => {}
             }
+            let my_files =
+                be_sdk_beui::be_block::my_files(host.organization_id(), host.account_id());
+            let unfiled_after = sections
+                .iter()
+                .find(|section| section.id == my_files)
+                .or(sections.last())
+                .map(|section| section.id);
+            if roots_listed && unfiled_after.is_none() {
+                builder.push_unfiled(unfiled_open);
+            }
             for section in sections {
                 let open = shown.contains(&section.id);
+                let id = section.id;
                 builder.push_section(section, open);
+                if Some(id) == unfiled_after {
+                    builder.push_unfiled(unfiled_open);
+                }
             }
             builder.push_shared(loose, !shared_closed);
             builder.push_orphans(showing);
             builder.push_system(system, system_open);
             let due = builder.clock.due;
             let seen = std::mem::take(&mut builder.seen);
+            let used = std::mem::take(&mut builder.used);
             let built = builder.rows;
             watched.shown.retain(|id, _| seen.contains(id));
+            watched.used_by.retain(|id, _| used.contains(id));
             drop(watched);
             if let Some(due) = due {
                 timer.start(due.saturating_duration_since(clock.now));
@@ -385,6 +425,7 @@ impl Tree {
                 orphans_open,
                 shared_closed,
                 system_open,
+                unfiled_open,
             } = folded.get();
             if !restored.get() {
                 return;
@@ -398,6 +439,7 @@ impl Tree {
                     collapsed,
                     shared_closed,
                     system: system_open,
+                    unfiled: unfiled_open,
                 },
                 Vec::new(),
             );
@@ -467,6 +509,13 @@ impl Tree {
                     ..folded
                 });
             }
+            RowKey::Unfiled => {
+                let folded = self.folded.get_untracked();
+                self.folded.set(Folded {
+                    unfiled_open: !folded.unfiled_open,
+                    ..folded
+                });
+            }
             RowKey::Block(path)
                 if path.len() == 1 && id.is_some_and(|id| self.workspaces().contains(&id)) =>
             {
@@ -499,6 +548,7 @@ impl Tree {
             | RowKey::SharedNote
             | RowKey::OrphansNote
             | RowKey::SystemNote
+            | RowKey::UnfiledNote
             | RowKey::Pinned(_) => {}
         }
     }
@@ -512,6 +562,14 @@ impl Tree {
         let folded = self.folded.get_untracked();
         self.folded.set(Folded {
             orphans_open: true,
+            ..folded
+        });
+    }
+
+    pub(crate) fn show_unfiled(&self) {
+        let folded = self.folded.get_untracked();
+        self.folded.set(Folded {
+            unfiled_open: true,
             ..folded
         });
     }
@@ -555,6 +613,7 @@ struct Builder<'a> {
     rows: Vec<Row>,
     pinned: HashMap<Uuid, Vec<Uuid>>,
     seen: HashSet<Uuid>,
+    used: HashSet<Uuid>,
     entered: Option<RowKey>,
 }
 
@@ -602,6 +661,60 @@ impl Builder<'_> {
         for block in listed {
             self.push(block, 1, None, &mut Vec::new(), true);
         }
+    }
+
+    /// The account's Unfiled: a flat list of what it holds, newest first (block ids are
+    /// UUIDv7, so they sort by when they were made), each saying which app made it and where
+    /// it is used.
+    fn push_unfiled(&mut self, open: bool) {
+        self.rows.push(Row {
+            section: true,
+            expandable: true,
+            expanded: open,
+            glyph: Some(ICON_INBOX),
+            ..Row::note_at(RowKey::Unfiled, 0, "Unfiled")
+        });
+        if !open {
+            return;
+        }
+        let Some(listing) = self.watched.unfiled.as_ref() else {
+            return;
+        };
+        let listed = self.clock.listed(listing);
+        let Some(mut blocks) = note_for(&mut self.rows, listed, "Nothing unfiled", |label| {
+            Row::note_at(RowKey::UnfiledNote, 1, label)
+        }) else {
+            return;
+        };
+        blocks.sort_by_key(|block| std::cmp::Reverse(block.id));
+        for block in blocks {
+            let used = self.used_in(block.id);
+            let made_by = block.metadata.get(&CREATED_BY);
+            let at = self.rows.len();
+            self.push(block, 1, None, &mut Vec::new(), false);
+            let row = &mut self.rows[at];
+            row.unused = used.as_ref().is_some_and(Vec::is_empty);
+            row.detail = Some(unfiled_detail(made_by, used));
+        }
+    }
+
+    /// The names of the blocks that reference `id`, None while they load.
+    fn used_in(&mut self, id: Uuid) -> Option<Vec<String>> {
+        self.used.insert(id);
+        let client = self.client;
+        let listing = self
+            .watched
+            .used_by
+            .entry(id)
+            .or_insert_with(|| Listing::watch(client, BlockQuery::Backrefs(id)));
+        let users = self.clock.listed(listing).ok()?;
+        Some(
+            users
+                .iter()
+                .filter(|user| !user.deleted && user.id != id)
+                .map(|user| user.label(self.types).name)
+                .collect(),
+        )
     }
 
     fn push_system(&mut self, blocks: Result<Vec<BlockInfo>, Option<String>>, open: bool) {
@@ -829,6 +942,26 @@ impl Builder<'_> {
     }
 }
 
+fn unfiled_detail(made_by: Option<String>, used: Option<Vec<String>>) -> String {
+    let used = used.map(|users| match users.is_empty() {
+        true => "Not used anywhere".to_owned(),
+        false => format!("Used in {}", users.join(", ")),
+    });
+    match (made_by, used) {
+        (Some(app), Some(used)) => format!("{app} · {}", lower_first(&used)),
+        (Some(app), None) => app,
+        (None, Some(used)) => used,
+        (None, None) => String::new(),
+    }
+}
+
+fn lower_first(text: &str) -> String {
+    let mut chars = text.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_lowercase().chain(chars).collect()
+    })
+}
+
 pub(crate) struct Placement {
     pub(crate) key: RowKey,
     pub(crate) depth: usize,
@@ -856,6 +989,7 @@ pub(crate) fn describe(
     let source = container.map_or_else(
         || match reference.parent {
             Some(BlockParent::Detached) => BlockParent::Detached,
+            Some(BlockParent::Unfiled) => BlockParent::Unfiled,
             Some(BlockParent::Root | BlockParent::Block(_)) | None => BlockParent::Root,
         },
         BlockParent::Block,
@@ -942,6 +1076,8 @@ pub(crate) fn describe(
             .map(|settings| settings.0)
             .filter(|_| ordinary && access.can_view()),
         tags: Vec::new(),
+        detail: None,
+        unused: false,
     }
 }
 
@@ -960,6 +1096,7 @@ fn inspect(
     let parent = match block.parent {
         Some(BlockParent::Root) => "Root".to_owned(),
         Some(BlockParent::Detached) => "Recently Deleted".to_owned(),
+        Some(BlockParent::Unfiled) => "Unfiled".to_owned(),
         Some(BlockParent::Block(id)) if block.deleted => {
             format!("{}, in Recently Deleted", described(id))
         }
@@ -1018,7 +1155,7 @@ pub(crate) fn can_move_out_of(
     is_reference: bool,
 ) -> bool {
     let can_delete = match source {
-        BlockParent::Root | BlockParent::Detached => true,
+        BlockParent::Root | BlockParent::Detached | BlockParent::Unfiled => true,
         BlockParent::Block(id) => {
             block_types
                 .get(&id)

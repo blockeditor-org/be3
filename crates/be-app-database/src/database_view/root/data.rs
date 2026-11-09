@@ -363,27 +363,29 @@ impl ViewData {
             return;
         };
         let blocks = self.editor.blocks();
-        let parent = blocks
+        let container = blocks
             .info(self.editor.block_id())
             .and_then(|info| info.parent)
-            .unwrap_or(BlockParent::Detached);
+            .and_then(BlockParent::block);
         let mut view = DatabaseView::of(database);
         view.kind = DatabaseViewKind::List;
         view.group_by = self.group_by.get_untracked();
         let count = self.views.with_untracked(Vec::len);
         let created = blocks.create_named(
             &DatabaseViewContent::new(&view),
-            BlockParent::Detached,
+            match container {
+                Some(_) => BlockParent::Detached,
+                None => BlockParent::Unfiled,
+            },
             format!("View {}", count + 1),
         );
-        match parent {
-            BlockParent::Block(container) => self.editor.host().place_block(
+        if let Some(container) = container {
+            self.editor.host().place_block(
                 created,
                 DatabaseViewContent::CONTENT_TYPE,
                 container,
                 false,
-            ),
-            other => blocks.set_parent(created, other),
+            );
         }
         self.editor
             .host()

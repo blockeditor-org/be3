@@ -1105,6 +1105,12 @@ impl ServerStore {
                 ));
             }
             require_owner_of_owner_only(graph, identity, block, "moves")?;
+            if graph.get(block).is_some_and(BlockNode::unfiled) {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "an account's Unfiled stays at the top of the organization".into(),
+                ));
+            }
             let access = seen.inherited(graph, block);
             if let Some(refusal) = graph.move_refusal(block, parent, identity.account, access) {
                 return Err(ServerError::Refused(

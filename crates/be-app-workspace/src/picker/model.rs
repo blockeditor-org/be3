@@ -132,6 +132,7 @@ impl Pick {
     pub(crate) fn created_parent(&self) -> BlockParent {
         match self.place {
             Some(BlockParent::Root) => BlockParent::Root,
+            Some(BlockParent::Unfiled) => BlockParent::Unfiled,
             Some(BlockParent::Block(_) | BlockParent::Detached) | None => self.parent,
         }
     }
@@ -255,7 +256,7 @@ impl Pick {
     fn made(&self, block: Uuid, block_type: Uuid) -> PickOutcome {
         let into = match self.place {
             Some(BlockParent::Block(container)) => Some((block, block_type, container)),
-            Some(BlockParent::Root | BlockParent::Detached) | None => None,
+            Some(BlockParent::Root | BlockParent::Detached | BlockParent::Unfiled) | None => None,
         };
         PickOutcome::Answered(
             Ok(Some(PickedBlock {

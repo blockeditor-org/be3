@@ -8,6 +8,7 @@ pub fn query_of(query: BlockQuery) -> Query {
         BlockQuery::Roots => Query::Roots,
         BlockQuery::Detached => Query::Detached,
         BlockQuery::Shared => Query::Shared,
+        BlockQuery::Unfiled => Query::Children(crate::unfiled().unwrap_or_else(Uuid::nil)),
         BlockQuery::Children(id) => Query::Children(Uuid::from_bytes(id)),
         BlockQuery::References(id) => Query::References(Uuid::from_bytes(id)),
         BlockQuery::Backrefs(id) => Query::Backrefs(Uuid::from_bytes(id)),
@@ -17,18 +18,27 @@ pub fn query_of(query: BlockQuery) -> Query {
     }
 }
 
-pub fn parent_of(location: BlockLocation) -> be_block_graph::BlockParent {
-    match location {
+/// The parent a location names, `Unfiled` resolved to the signed-in account's own. None for
+/// `Unfiled` until the graph has it, so a call naming it is refused rather than trashing or
+/// losing the block.
+pub fn parent_of(location: BlockLocation) -> Option<be_block_graph::BlockParent> {
+    Some(match location {
         BlockLocation::Root => be_block_graph::BlockParent::Root,
         BlockLocation::Detached => be_block_graph::BlockParent::Detached,
         BlockLocation::Block(id) => be_block_graph::BlockParent::Block(Uuid::from_bytes(id)),
-    }
+        BlockLocation::Unfiled => be_block_graph::BlockParent::Block(
+            crate::unfiled().filter(|unfiled| crate::node(*unfiled).is_some())?,
+        ),
+    })
 }
 
-pub fn location_of(parent: be_block_graph::BlockParent) -> BlockLocation {
+/// How an editor reads `parent`: the account's Unfiled (`crate::unfiled()`, passed in so this
+/// can run under the graph's lock) as `Unfiled`, never by its id.
+pub fn location_of(parent: be_block_graph::BlockParent, unfiled: Option<Uuid>) -> BlockLocation {
     match parent {
         be_block_graph::BlockParent::Root => BlockLocation::Root,
         be_block_graph::BlockParent::Detached => BlockLocation::Detached,
+        be_block_graph::BlockParent::Block(id) if unfiled == Some(id) => BlockLocation::Unfiled,
         be_block_graph::BlockParent::Block(id) => BlockLocation::Block(id.into_bytes()),
     }
 }
@@ -81,12 +91,12 @@ pub fn level_of(access: be_block_graph::Access) -> AccessLevel {
     }
 }
 
-pub fn info_of(node: &Node, deleted: bool) -> BlockInfo {
+pub fn info_of(node: &Node, deleted: bool, unfiled: Option<Uuid>) -> BlockInfo {
     BlockInfo {
         block_id: node.id.into_bytes(),
         block_type: node.content_type.into_bytes(),
         author: node.author.map(Uuid::into_bytes),
-        parent: node.parent.map(location_of),
+        parent: node.parent.map(|parent| location_of(parent, unfiled)),
         references: node.contents().into_iter().map(Uuid::into_bytes).collect(),
         access: level_of(node.access),
         metadata: be_sdk_api::BlockMetadata {
@@ -103,11 +113,12 @@ pub fn info_of(node: &Node, deleted: bool) -> BlockInfo {
 
 pub fn answer(query: BlockQuery) -> Vec<BlockInfo> {
     let nodes = crate::query(query_of(query));
+    let unfiled = crate::unfiled();
     crate::with_graph(|graph| {
         nodes
             .iter()
-            .filter(|node| node.access.can_know_exists())
-            .map(|node| info_of(node, graph.deleted_root(node.id).is_some()))
+            .filter(|node| node.access.can_know_exists() && !node.unfiled())
+            .map(|node| info_of(node, graph.deleted_root(node.id).is_some(), unfiled))
             .collect()
     })
     .unwrap_or_default()

@@ -1057,17 +1057,14 @@ impl Workspace {
 
     pub(crate) fn create_in(&self, parent: BlockParent) {
         self.error.set(None);
-        let container = match parent {
-            BlockParent::Block(id) => Some(id),
-            BlockParent::Root | BlockParent::Detached => self.my_files(),
-        };
-        let Some(container) = container else {
+        let container = parent.block();
+        if container.is_none() && self.my_files().is_none() {
             self.error
                 .set(Some("Your files are still loading".to_owned()));
             return;
-        };
-        let parent = BlockParent::Block(container);
-        let excluded = vec![container.into_bytes()];
+        }
+        let parent = container.map_or(BlockParent::Unfiled, BlockParent::Block);
+        let excluded = container.map(Uuid::into_bytes).into_iter().collect();
         let workspace = *self;
         self.editor.pick_block(
             BlockFilter {
@@ -1090,12 +1087,14 @@ impl Workspace {
                     }
                 };
                 let block_type = Uuid::from_bytes(picked.block_type);
-                if !picked.placed {
+                if !picked.placed
+                    && let Some(container) = container
+                {
                     workspace
                         .host()
                         .place_block(picked.id(), block_type, container, picked.linked);
                 }
-                workspace.open(TabItem::new(picked.id(), block_type), Some(container));
+                workspace.open(TabItem::new(picked.id(), block_type), container);
                 if !picked.linked {
                     workspace.open_rename(picked.id(), None);
                 }
