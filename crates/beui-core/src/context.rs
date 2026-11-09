@@ -925,7 +925,11 @@ impl Context {
             actions: {
                 let published = std::mem::take(&mut *self.inner.actions.borrow_mut());
                 match self.automated() {
-                    true => self.every_document_action().into_iter().chain(published).collect(),
+                    true => self
+                        .every_document_action()
+                        .into_iter()
+                        .chain(published)
+                        .collect(),
                     false => published,
                 }
             },

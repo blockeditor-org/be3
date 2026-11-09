@@ -92,7 +92,9 @@ pub use types::{
     DockPlacedBar, DockRequest, DockSplit, DockSplitSize, DockTab, DockTabPath, DockTree,
     DockViewRequest, DockWindow,
 };
-pub use types::{MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin, PaletteMode};
+pub use types::{
+    MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin, PaletteMode,
+};
 pub use types::{
     ViewRef, WindowEdge, WindowOpen, WindowOver, WindowPlace, WindowPlacement, WindowRequest,
     WindowResize, WindowResizeBegin,

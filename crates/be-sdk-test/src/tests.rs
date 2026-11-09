@@ -43,9 +43,9 @@ mod tapping_with_two_fingers_undoes_and_three_redoes;
 mod the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked;
 mod the_menu_offers_close_only_to_a_framed_child;
 mod the_menu_opens_the_command_palette;
-mod with_a_host_palette_the_menu_asks_the_host_for_it;
 mod undo_at_a_session_restart_says_so_and_offers_version_history;
 mod undo_in_the_menu_asks_the_host_for_a_block_it_cannot_open;
+mod with_a_host_palette_the_menu_asks_the_host_for_it;
 
 const SLIDE: Uuid = Uuid::from_u128(0x0001);
 const SLIDE_TYPE: Uuid = Uuid::from_u128(0x0002);

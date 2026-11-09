@@ -17,10 +17,10 @@ use be_host_runtime::EditorAction;
 pub(crate) use anchored::AnchoredViews;
 pub(crate) use app_view::{AppView, ChildView, ViewEditor};
 pub(crate) use desktop::DesktopPlace;
-pub(crate) use palette::HostPalette;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };
+pub(crate) use palette::HostPalette;
 
 type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;
 

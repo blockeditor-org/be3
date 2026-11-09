@@ -3152,7 +3152,10 @@ impl Instances {
     ) -> Option<(ScreenId, Vec<DescribedAction>)> {
         let entry = self.entries.get(&instance)?;
         let screen = entry.screens.get(&region)?.request.screen;
-        Some((screen, entry.actions.get(&region).cloned().unwrap_or_default()))
+        Some((
+            screen,
+            entry.actions.get(&region).cloned().unwrap_or_default(),
+        ))
     }
 
     pub(super) fn request_focus(&mut self, screen: ScreenId) {

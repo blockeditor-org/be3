@@ -42,9 +42,7 @@ pub use description::describe;
 pub use input::BlockDrag;
 pub use instances::EditorView;
 pub(crate) use palette::host_draws_palette;
-pub use palette::{
-    PaletteAsk, draw_palette, instance_actions, run_view_action, take_palette_asks,
-};
+pub use palette::{PaletteAsk, draw_palette, instance_actions, run_view_action, take_palette_asks};
 pub use pieces::uncovered as uncovered_pieces;
 pub use presenter::Piece;
 pub use presenter::Pieces;

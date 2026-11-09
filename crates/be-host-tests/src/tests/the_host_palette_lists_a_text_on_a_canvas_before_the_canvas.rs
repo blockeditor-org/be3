@@ -49,9 +49,7 @@ fn the_host_palette_lists_a_text_on_a_canvas_before_the_canvas() {
     let add = listed
         .iter()
         .find(|key| key.starts_with(CANVAS) && key.ends_with("/canvas.add.block"))
-        .unwrap_or_else(|| {
-            panic!("the canvas around the text lists its Add a block: {listed:?}")
-        });
+        .unwrap_or_else(|| panic!("the canvas around the text lists its Add a block: {listed:?}"));
     host.click(&format!("{ROW}{add}"));
     host.gone("#host.palette.search");
     host.wait("#picker.more");

@@ -108,12 +108,14 @@ pub(crate) fn FrameChrome(
     let host = editor.host();
     let host_palette = host.host_palette();
     let asking = host.clone();
-    let opener = Action::new("editor.palette", "Command palette", move || {
-        match host_palette {
+    let opener = Action::new(
+        "editor.palette",
+        "Command palette",
+        move || match host_palette {
             true => asking.open_palette(be_sdk_api::PaletteMode::Actions),
             false => palette.set(true),
-        }
-    })
+        },
+    )
     .glyph(ICON_TERMINAL);
     let opener = match host_palette {
         true => opener.detached(),

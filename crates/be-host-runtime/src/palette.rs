@@ -51,8 +51,10 @@ pub fn instance_actions(
     instance: EditorInstanceId,
     first: ViewId,
 ) -> Vec<(ViewId, DescribedAction)> {
-    crate::runtime::with(app_id, |runtime| runtime.instances.instance_actions(instance, first))
-        .unwrap_or_default()
+    crate::runtime::with(app_id, |runtime| {
+        runtime.instances.instance_actions(instance, first)
+    })
+    .unwrap_or_default()
 }
 
 /// Runs one of the view's actions by id (`app.run-action`), on the screen that shows the view.

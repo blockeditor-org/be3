@@ -44,12 +44,14 @@ pub(crate) fn HostPalette() -> NodeId {
         rows.set(Rc::new(actions_from(from)));
         open.set(true);
     };
-    Action::new("host.palette", "Command palette", move || show(focused_catcher()))
-        .glyph(ICON_TERMINAL)
-        .shortcut(PALETTE)
-        .at(KeyAt::Window)
-        .capture()
-        .register();
+    Action::new("host.palette", "Command palette", move || {
+        show(focused_catcher())
+    })
+    .glyph(ICON_TERMINAL)
+    .shortcut(PALETTE)
+    .at(KeyAt::Window)
+    .capture()
+    .register();
     let any = super::any();
     create_effect(move || {
         any.get();

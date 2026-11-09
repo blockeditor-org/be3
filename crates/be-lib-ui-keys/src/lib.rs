@@ -288,6 +288,5 @@ fn key_label(key: Key) -> String {
     symbol.to_owned()
 }
 
-
 #[cfg(test)]
 mod tests;
