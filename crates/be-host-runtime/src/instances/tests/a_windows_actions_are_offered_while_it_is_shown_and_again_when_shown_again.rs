@@ -75,8 +75,18 @@ fn a_windows_actions_are_offered_while_it_is_shown_and_again_when_shown_again() 
             .map(|(_, action)| action.id)
             .collect::<Vec<_>>()
     };
-    instances.mount(INSTANCE, View::window(window), Uuid::nil(), role, &block_types);
-    assert_eq!(offered(&instances), ["tidy"], "a shown window offers its actions");
+    instances.mount(
+        INSTANCE,
+        View::window(window),
+        Uuid::nil(),
+        role,
+        &block_types,
+    );
+    assert_eq!(
+        offered(&instances),
+        ["tidy"],
+        "a shown window offers its actions"
+    );
 
     instances.unmount(INSTANCE, window);
     assert!(
@@ -85,11 +95,20 @@ fn a_windows_actions_are_offered_while_it_is_shown_and_again_when_shown_again() 
     );
     assert_eq!(instances.action_screen(INSTANCE, window, "tidy"), None);
 
-    instances.mount(INSTANCE, View::window(window), Uuid::nil(), role, &block_types);
+    instances.mount(
+        INSTANCE,
+        View::window(window),
+        Uuid::nil(),
+        role,
+        &block_types,
+    );
     assert_eq!(
         offered(&instances),
         ["tidy"],
         "shown again, it offers them again without the app sending them anew"
     );
-    assert_eq!(instances.action_screen(INSTANCE, window, "tidy"), Some(screen));
+    assert_eq!(
+        instances.action_screen(INSTANCE, window, "tidy"),
+        Some(screen)
+    );
 }

@@ -40,7 +40,8 @@ pub(crate) fn watch_focused() -> crate::reactive::ReadSignal<Option<NodeId>> {
     beui_core_html::focus::watch_focused()
 }
 
-pub(crate) fn watch_window_hosts() -> Option<crate::reactive::ReadSignal<Vec<(WindowId, WindowId)>>> {
+pub(crate) fn watch_window_hosts() -> Option<crate::reactive::ReadSignal<Vec<(WindowId, WindowId)>>>
+{
     None
 }
 
