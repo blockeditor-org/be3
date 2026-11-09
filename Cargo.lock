@@ -2151,6 +2151,7 @@ dependencies = [
  "hyper-util",
  "jiff",
  "rand 0.9.4",
+ "ring",
  "rusqlite",
  "rusty-s3",
  "s3s",
