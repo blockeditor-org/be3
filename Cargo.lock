@@ -1345,7 +1345,7 @@ dependencies = [
  "be-block-vcs",
  "be-lib-build-id",
  "be-sdk-type-api",
- "be-sdk-type-guest",
+ "be-sdk-type-testing",
  "be-server",
  "be-type-bundle",
  "be-type-image",
@@ -1376,6 +1376,7 @@ dependencies = [
  "be-lib-build-id",
  "be-sdk-type-api",
  "be-sdk-type-guest",
+ "be-sdk-type-testing",
  "be-server",
  "be-type-checklist",
  "be-type-example-counter",
@@ -2076,6 +2077,19 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "be-sdk-type-guest",
+]
+
+[[package]]
+name = "be-sdk-type-testing"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-sdk-type-api",
+ "be-sdk-type-guest",
+ "postcard",
+ "serde",
+ "uuid",
 ]
 
 [[package]]

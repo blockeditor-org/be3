@@ -26,7 +26,6 @@ mod entropy;
 mod file;
 mod record;
 mod replica;
-pub mod sections;
 pub mod wire;
 
 pub use be_sdk_type_api as api;

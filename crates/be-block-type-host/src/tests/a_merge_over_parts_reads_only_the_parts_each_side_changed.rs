@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use be_block_client::{Saved, Write};
 use be_sdk_type_api::WrittenPart;
 
@@ -7,7 +5,7 @@ use super::*;
 
 #[test]
 fn a_merge_over_parts_reads_only_the_parts_each_side_changed() {
-    with_sections(async |peer, shared, mut replicas| {
+    with_test_types(async |peer, shared, mut replicas| {
         let block = block(&peer).await;
         let head = match peer.save(block, &base(), None).await {
             Ok(Saved::Published(head)) => head,
@@ -41,20 +39,10 @@ fn a_merge_over_parts_reads_only_the_parts_each_side_changed() {
             .expect("the sides load")
             .expect("the type merges");
         assert_eq!(merged.conflicts, 0);
-
-        let ours_and_base: HashSet<_> = [&base_parts, &ours_parts, &theirs_parts]
-            .into_iter()
-            .flatten()
-            .copied()
-            .collect();
-        let read: HashSet<_> = sections::parts_read()
-            .into_iter()
-            .filter(|part| ours_and_base.contains(part))
-            .collect();
         assert_eq!(
-            read,
-            HashSet::from([ours_parts[2], theirs_parts[5], base_parts[2], base_parts[5]]),
-            "the merge read the part each side changed and the base's of those, nothing else"
+            merged.read,
+            Vec::new(),
+            "each side changed a part the other kept, so the refs say which wins: nothing is read"
         );
         let reused: Vec<_> = merged
             .content
@@ -65,13 +53,12 @@ fn a_merge_over_parts_reads_only_the_parts_each_side_changed() {
                 _ => None,
             })
             .collect();
-        let kept: Vec<_> = (0..sections::SECTIONS)
-            .filter(|index| unchanged(*index))
-            .map(|index| base_parts[index])
-            .collect();
+        let mut expected = base_parts.clone();
+        expected[2] = ours_parts[2];
+        expected[5] = theirs_parts[5];
         assert_eq!(
-            reused, kept,
-            "the merge reuses the eight parts no side changed"
+            reused, expected,
+            "the merge reuses the eight parts no side changed and the one each side changed"
         );
 
         let published = match peer
@@ -92,17 +79,33 @@ fn a_merge_over_parts_reads_only_the_parts_each_side_changed() {
             .await
             .expect("the merge loads")
             .manifest;
-        let parts = section_parts(&peer, &manifest).await;
-        for index in (0..sections::SECTIONS).filter(|index| unchanged(*index)) {
-            assert_eq!(
-                parts[index], base_parts[index],
-                "section {index} is the base's part"
-            );
-        }
+        assert_eq!(section_parts(&peer, &manifest).await, expected);
         let content = Sections::decode(&peer.read_manifest(&manifest).await.expect("it reads"))
             .expect("it decodes");
         assert_eq!(content.section(2), Some(&b"TWO"[..]));
         assert_eq!(content.section(5), Some(&b"FIVE"[..]));
         assert_eq!(content.section(7), Some(&b"seven"[..]));
+
+        let ours = written(&peer, block, &[(3, "THREE here")]).await;
+        let theirs = written(&peer, block, &[(3, "THREE there")]).await;
+        let [ours_parts, theirs_parts] = [
+            section_parts(&peer, &ours).await,
+            section_parts(&peer, &theirs).await,
+        ];
+        let clashing = replicas
+            .merge(
+                (&peer, &shared),
+                Sections::CONTENT_TYPE,
+                [Some(&base), Some(&ours), Some(&theirs)],
+            )
+            .await
+            .expect("the sides load")
+            .expect("the type merges");
+        assert_eq!(clashing.conflicts, 1);
+        assert_eq!(
+            clashing.read,
+            vec![base_parts[3], ours_parts[3], theirs_parts[3]],
+            "a part both sides changed is read from each side and the base, and nothing else is"
+        );
     });
 }

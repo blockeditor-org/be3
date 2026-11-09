@@ -214,8 +214,9 @@ pub enum Io {
     Read {
         module: usize,
         generation: u64,
+        request: OpId,
         read: Box<types::PartRead>,
-        result: Result<Vec<u8>, String>,
+        result: Result<Vec<u8>, ClientError>,
     },
 }
 
@@ -224,6 +225,8 @@ pub enum Io {
 pub struct Merged {
     pub content: be_sdk_type_api::Written,
     pub conflicts: usize,
+    /// The parts the type read to merge, in the order it asked.
+    pub read: Vec<be_block_store::PartRef>,
 }
 
 impl Merged {
@@ -536,21 +539,23 @@ impl<H: Host> Replicas<H> {
     }
 
     /// `ask` for a stateless request that may `read-part`: of the parts `scope` allows only.
+    /// Answers the scope back, holding what was read and the first read that failed. A scope
+    /// left behind by a wait that was dropped goes when its request completes or its module
+    /// restarts.
     pub async fn ask_reading<T, E: Decode<T>>(
         &mut self,
         ctx: Ctx<'_, H>,
         module: usize,
         scope: types::Scope,
         call: impl FnOnce(&mut Connection) -> Ticket<T, E>,
-    ) -> Result<T, OpError> {
+    ) -> (Result<T, OpError>, types::Scope) {
         let Some((ticket, answered)) = self.ask_later(module, call) else {
-            return Err(OpError::Canceled);
+            return (Err(OpError::Canceled), scope);
         };
         let key = (module, ticket.op());
         self.scopes.insert(key, scope);
         let answer = self.wait(ctx, ticket, answered).await;
-        self.scopes.remove(&key);
-        answer
+        (answer, self.scopes.remove(&key).unwrap_or_default())
     }
 
     async fn wait<T, E: Decode<T>>(
@@ -1366,27 +1371,29 @@ impl<H: Host> Replicas<H> {
             }
             let scope = types::Scope::of(loaded.iter().flatten());
             let [base, ours, theirs]: [_; 3] = loaded.try_into().unwrap_or_default();
-            return Ok(
-                match self
-                    .ask_reading(ctx, module, scope, |connection| {
-                        replicas::merge_parts(
-                            connection,
-                            content_type,
-                            base,
-                            ours,
-                            theirs,
-                            organization,
-                        )
-                    })
-                    .await
-                {
-                    Ok(Ok(merged)) => Some(Merged {
-                        content: merged.content,
-                        conflicts: merged.conflicts as usize,
-                    }),
-                    _ => None,
-                },
-            );
+            let (answer, mut scope) = self
+                .ask_reading(ctx, module, scope, |connection| {
+                    replicas::merge_parts(
+                        connection,
+                        content_type,
+                        base,
+                        ours,
+                        theirs,
+                        organization,
+                    )
+                })
+                .await;
+            if let Some(failed) = scope.take_failure() {
+                return Err(failed);
+            }
+            return Ok(match answer {
+                Ok(Ok(merged)) if scope.admits(&merged.content) => Some(Merged {
+                    content: merged.content,
+                    conflicts: merged.conflicts as usize,
+                    read: scope.read().to_vec(),
+                }),
+                _ => None,
+            });
         }
         let mut bytes = Vec::new();
         for side in sides {
@@ -1405,10 +1412,9 @@ impl<H: Host> Replicas<H> {
             Ok(Ok(merged)) => merged,
             _ => return Ok(None),
         };
-        let description = self
-            .describe(ctx, content_type, &merged.bytes)
-            .await
-            .unwrap_or_default();
+        let Some(description) = self.describe(ctx, content_type, &merged.bytes).await else {
+            return Ok(None);
+        };
         Ok(Some(Merged {
             content: be_sdk_type_api::Written {
                 bytes: merged.bytes,
@@ -1417,6 +1423,7 @@ impl<H: Host> Replicas<H> {
                 derived: description.derived,
             },
             conflicts: merged.conflicts as usize,
+            read: Vec::new(),
         }))
     }
 
@@ -1822,12 +1829,15 @@ impl<H: Host> Replicas<H> {
             Io::Read {
                 module,
                 generation,
+                request,
                 read,
                 result,
             } => {
                 if self.modules.generation(module) == generation {
+                    let mut gone = types::Scope::default();
+                    let scope = self.scopes.get_mut(&(module, request)).unwrap_or(&mut gone);
                     self.modules
-                        .call(module, |connection| read.reply.send(connection, &result));
+                        .call(module, |connection| scope.answer(connection, *read, result));
                 }
             }
             Io::Relayed => self.relaying -= 1,
@@ -1973,6 +1983,7 @@ impl<H: Host> Replicas<H> {
             .collect();
         self.handles.retain(|(from, _), _| *from != module);
         self.contents.retain(|(from, _), _| *from != module);
+        self.scopes.retain(|(from, _), _| *from != module);
         let mut waiting: HashMap<OpId, Waiting> = HashMap::new();
         for key in self
             .replies
@@ -2072,7 +2083,9 @@ impl<H: Host> Replicas<H> {
                 parent: Some(parent),
                 call,
             } if self.scopes.contains_key(&(module, parent)) => {
-                let scope = &self.scopes[&(module, parent)];
+                let Some(scope) = self.scopes.get_mut(&(module, parent)) else {
+                    return false;
+                };
                 let under = self
                     .modules
                     .call(module, |connection| scope.take(connection, op, call));
@@ -2088,6 +2101,7 @@ impl<H: Host> Replicas<H> {
                             let _ = io.send(Io::Read {
                                 module,
                                 generation,
+                                request: parent,
                                 read: Box::new(read),
                                 result,
                             });
@@ -2139,9 +2153,13 @@ impl<H: Host> Replicas<H> {
     ) -> bool {
         self.asked.remove(&(module, op));
         if let Some(answer) = self.replies.remove(&(module, op)) {
-            let _ = answer.send(outcome);
+            // Its asker takes the scope back, unless it stopped waiting.
+            if answer.send(outcome).is_err() {
+                self.scopes.remove(&(module, op));
+            }
             return false;
         }
+        self.scopes.remove(&(module, op));
         if let Some((replica, ticket)) = self.contents.remove(&(module, op)) {
             let (Some(open), Ok(Some(bytes))) = (self.open.get(&replica), ticket.decode(outcome))
             else {

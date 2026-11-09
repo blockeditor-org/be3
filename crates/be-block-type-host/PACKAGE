@@ -39,6 +39,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
@@ -71,6 +72,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
@@ -103,6 +105,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
@@ -135,6 +138,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
@@ -167,6 +171,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
@@ -223,6 +228,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
@@ -255,6 +261,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-sdk-type-testing:be-sdk-type-testing",
                 "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",

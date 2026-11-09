@@ -29,6 +29,7 @@ be-wasm-host = { path = "../be-wasm-host" }
 be-block = { path = "../be-block" }
 be-block-keys = { path = "../be-block-keys" }
 be-server = { path = "../be-server" }
+be-sdk-type-testing = { path = "../be-sdk-type-testing" }
 be-type-checklist = { path = "../be-type-checklist" }
 be-type-example-counter = { path = "../be-type-example-counter" }
 pollster = "0.4"

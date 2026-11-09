@@ -139,7 +139,7 @@ async fn text_block(peer: &Peer<MemoryStore>, parent: Uuid, name: &str, text: &s
 async fn types() -> be_block_type_host::Modules {
     let mut sources = be_type_bundle::sources();
     sources.push(be_block_type_host::in_process::<
-        be_sdk_type_guest::sections::BlockTypes,
+        be_sdk_type_testing::sections::BlockTypes,
     >("test.sections"));
     be_block_type_host::started(sources, be_block_client::Clock::real()).await
 }
