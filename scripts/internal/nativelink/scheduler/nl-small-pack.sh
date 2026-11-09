@@ -4,6 +4,7 @@
 # Bunny (or on the snapshotted disk) is the problem this avoids.
 set -euo pipefail
 . /etc/nativelink/server.env
+[ -e /run/nl-small-ready ] || { logger -t nl-small-pack "not packing: the small tier was not restored from Bunny"; exit 0; }
 ROOT=/tmp/nativelink; KEY=small/pack.tar.zst
 URL=https://de-s3.storage.bunnycdn.com/be-nativelink-s3/$KEY
 tmp=$(mktemp -p $ROOT pack.XXXXXX)

@@ -99,6 +99,39 @@ Setting the VMs up again: `scheduler/setup-scheduler.sh` on a VM made in the `nl
 controller (`nl-controller.service`, its worker files in /opt/nl/worker, its boat key logged in under
 /var/lib/nl-controller/sk-home); each file's first lines say what it does.
 
+### Starting over
+
+The scheduler keeps nothing that cannot be rebuilt: the cache is in Bunny, and its small objects come back from the
+packed object on boot. To make a new one, with the Bunny zone `be-nativelink-s3` (S3 enabled when the zone was made;
+it cannot be turned on later) and a boat login that can create sandboxes:
+
+1. **Environments** (once): `boat env new nl-worker` and `boat env set nl-worker --github false --secrets true
+   --boat-credentials false --agents-credentials false`, then `boat env set-file nl-worker worker-ro.env --from FILE`
+   where FILE holds `BUNNY_S3_RO_SECRET=` and the zone's read-only key. `boat env new nl-scheduler`,
+   `boat env set nl-scheduler --github false --secrets true --boat-credentials true --agents-credentials false`
+   (the scheduler stops itself with its own token), then `boat env set-file nl-scheduler nl-bunny.env --from FILE` where
+   FILE holds `BUNNY_S3_KEY_ID=be-nativelink-s3` and `BUNNY_S3_SECRET=` with the full-access key.
+2. **Keys**: the controller's, limited to `nl-worker` with `sandbox.create,sandbox.read,sandbox.update,sandbox.delete-own`
+   and `account.read` (without it the controller counts its own starts instead of reading `boat limits`); and the wake
+   key `BE3_NL_KEY`, limited to `nl-scheduler` with `sandbox.read,sandbox.resume`.
+3. `bash scripts/internal/nativelink/new-scheduler.sh NAME CONTROLLER_KEY_FILE` makes the VM, installs NativeLink,
+   the bridge and the controller, and prints what is left.
+4. **Expose the tunnel**: `host 8099 --localhost`, then `host url 8099` prints the address with its token; store it as
+   `BE3_NL_URL`. A new scheduler has a new address.
+5. Delete the old scheduler (`boat delete`), and the clients' secrets are the only thing that changed.
+
+### What the controller spends
+
+Every VM it creates is a start. Past the plan's included starts a start costs $0.03 (up to 1.5 times the included
+number), $0.05 (up to 2 times) or $0.07 (up to 6 times, 3 times a minute), and fails above that; the price is the highest
+of the per-minute, per-hour and per-day ones (docs.boat.dev/limits#extra-starts). A VM created and deleted at once (one
+that could not reach the scheduler) is a start too, so the controller learns what share of new VMs reach the scheduler
+and creates only as many as that share needs. Its default is never to pay: it leaves 40 starts of the day and 10 of the
+hour for everybody else's VMs and stops creating when the rest is used. `NL_MAX_START_PRICE` (the dearest start it will
+buy) and `NL_EXTRA_START_BUDGET` (dollars a month) let it buy more; with `account.read` it asks boat what the next
+start costs, without it it can only count its own. Between `NL_WORKERS_BASE` (4) and `NL_WORKERS_CAP` (12) workers it
+adds some when they average 75% busy and removes the least busy after five minutes under 35%.
+
 ## When a build keeps failing
 
 Behind an HTTPS proxy, as in a cloud session, buck2 reaches the server through

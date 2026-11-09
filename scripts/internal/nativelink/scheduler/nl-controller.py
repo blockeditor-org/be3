@@ -3,12 +3,14 @@
 
 What it does, every tick:
   * A build is running when some client holds a connection to the scheduler's frontend port from a client address.
-  * While a build runs it keeps WORKERS worker VMs alive: it extends their lifetime before it runs out, and creates
-    replacements for any that are gone.
+  * While a build runs it keeps BASE worker VMs alive and scales between BASE and CAP on how busy they are (each
+    worker's nl-load.py reports its CPU): it extends their lifetime before it runs out, creates replacements for any
+    that are gone, adds workers when they are saturated and removes the least busy when they idle.
   * A new worker is created with its WireGuard config and bootstrap script handed over at creation (no SSH, which its
     key does not have). Boat places a new VM at random, and about half of them cannot reach the scheduler, so the
-    controller creates twice as many as it needs, keeps the first ones that complete a WireGuard handshake with the
-    scheduler, and deletes the rest.
+    controller creates enough to expect the ones it needs (it learns the share), keeps the ones that complete a
+    WireGuard handshake with the scheduler, and deletes the rest. Every VM created is a start, which boat limits and
+    charges for past the plan's included number, so it works within an allowance (see start_allowance).
   * With no build running it creates nothing: workers run out their own 30-minute lifetime and stop.
   * After SCHEDULER_IDLE_STOP seconds with no build and no worker it stops the scheduler itself.
 
@@ -20,21 +22,39 @@ workers it created (boat api-key, actions sandbox.create, sandbox.read, sandbox.
 import argparse
 import concurrent.futures as cf
 import json
+import math
 import os
 import re
 import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 
-WORKERS = int(os.environ.get("NL_WORKERS", "4"))
+BASE = int(os.environ.get("NL_WORKERS_BASE", "4"))           # workers kept while any build runs
+CAP = int(os.environ.get("NL_WORKERS_CAP", "12"))            # the most it will burst to
+UP_BUSY = float(os.environ.get("NL_UP_BUSY", "75"))          # workers this busy on average: add more
+DOWN_BUSY = float(os.environ.get("NL_DOWN_BUSY", "35"))      # this idle on average for DOWN_AFTER: remove one
+UP_EVERY = int(os.environ.get("NL_UP_EVERY", "45"))          # seconds between adding workers
+DOWN_AFTER = int(os.environ.get("NL_DOWN_AFTER", "300"))
 WORKER_TYPE = os.environ.get("NL_WORKER_TYPE", "default")
-WORKER_TTL = int(os.environ.get("NL_WORKER_TTL", "1800"))              # a worker's lifetime, extended while builds run
+WORKER_TTL = int(os.environ.get("NL_WORKER_TTL", "1800"))    # a worker's lifetime, extended while builds run
 EXTEND_WHEN_LEFT = int(os.environ.get("NL_EXTEND_WHEN_LEFT", "900"))   # extend when less than this is left
 SCHEDULER_IDLE_STOP = int(os.environ.get("NL_SCHEDULER_IDLE_STOP", str(4 * 3600)))
 TICK = int(os.environ.get("NL_TICK", "15"))
 HANDSHAKE_WAIT = int(os.environ.get("NL_HANDSHAKE_WAIT", "60"))        # a good worker handshakes within ~25 s of creation
-MAX_CREATES_PER_HOUR = int(os.environ.get("NL_MAX_CREATES_PER_HOUR", "24"))   # a runaway-loop guard, not a budget
+LOAD_PORT = os.environ.get("NL_LOAD_PORT", "9100")                     # nl-load.py on each worker
+
+# Starts. Every VM created is a start, and boat counts them per minute, hour and day against what the plan includes.
+# A start over that costs $0.03 (up to 1.5x the included number), $0.05 (up to 2x) or $0.07 (up to 6x, 3x a minute),
+# whichever window is highest, and fails above it (docs.boat.dev/limits#extra-starts). Over-provisioning spends starts
+# on VMs that are deleted at once, so past the included number it costs money. By default the controller never pays
+# for a start: it leaves RESERVE of each window for everybody else's VMs and stops when the rest is used.
+INCLUDED = {"day": 200, "hour": 60, "minute": 12}            # the $20 plan, used when the key cannot read `boat limits`
+RESERVE = {"day": int(os.environ.get("NL_RESERVE_DAY", "40")), "hour": int(os.environ.get("NL_RESERVE_HOUR", "10")),
+           "minute": 0}
+MAX_START_PRICE = float(os.environ.get("NL_MAX_START_PRICE", "0"))       # dollars: the dearest start it will pay for
+EXTRA_START_BUDGET = float(os.environ.get("NL_EXTRA_START_BUDGET", "0"))  # dollars a month it may spend on extra starts
 FRONTEND_PORT = os.environ.get("NL_FRONTEND_PORT", "50052")
 CLIENT_RANGE = (20, 49)     # 10.100.0.20-49: a client that joined the WireGuard network itself
 WORKER_RANGE = (51, 99)     # 10.100.0.51-99: workers
@@ -141,7 +161,7 @@ def load_state():
     try:
         return json.load(open(STATE))
     except (OSError, ValueError):
-        return {"creates": []}
+        return {"creates": [], "p": 0.5, "extra_spend": []}
 
 
 def save_state(st):
@@ -173,7 +193,9 @@ def create_candidate(name, ip, hub, tmp):
                         "--setup-file", os.path.join(FILES, "worker-bootstrap.sh"),
                         "--file", f"/home/user/nl-wg.conf={wg}",
                         "--file", f"/home/user/nl-worker.json5={cfg}",
-                        "--file", f"/home/user/nl-worker.service={os.path.join(FILES, 'nativelink-worker-sch.service')}")
+                        "--file", f"/home/user/nl-worker.service={os.path.join(FILES, 'nativelink-worker-sch.service')}",
+                        "--file", f"/home/user/nl-load.py={os.path.join(FILES, 'nl-load.py')}",
+                        "--file", f"/home/user/nl-load.service={os.path.join(FILES, 'nl-load.service')}")
     # The CLI exits with an error after the VM is up (it tries an exec this key may not run), so read the id from the
     # events and do not trust the exit code.
     for ev in json_lines(out):
@@ -183,14 +205,69 @@ def create_candidate(name, ip, hub, tmp):
     return None
 
 
+def limits():
+    """Starts left in each window and the price of the next one, if this key may read `boat limits` (account.read)."""
+    rc, out, _ = boat("--json", "limits", timeout=30)
+    if rc != 0:
+        return None
+    try:
+        d = json.loads(out)
+        left = {w: d["starts"][w]["remaining"] for w in ("day", "hour", "minute")}
+        return {**left, "price": float(d.get("nextStartDollars") or 0)}
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def start_allowance(want, st):
+    """How many VMs may be created now, and what each start over the included number costs. Free starts come first,
+    minus the reserve; paid ones only when a price and a monthly budget allow."""
+    now = time.time()
+    lim = limits()
+    if lim is None:
+        spans = {"day": 86400, "hour": 3600, "minute": 60}
+        left = {w: INCLUDED[w] - sum(1 for t in st["creates"] if now - t < spans[w]) for w in spans}
+        price = 0.0
+    else:
+        left, price = {w: lim[w] for w in ("day", "hour", "minute")}, lim["price"]
+    free = max(0, min(left[w] - RESERVE[w] for w in left))
+    allowed = min(want, free)
+    extra = 0
+    if lim is not None and allowed < want and price > 0 and MAX_START_PRICE >= price:
+        spent = sum(d for t, d in st.get("extra_spend", []) if now - t < 30 * 86400)
+        extra = min(want - allowed, int(max(0.0, EXTRA_START_BUDGET - spent) // price))
+    return allowed + extra, price, extra
+
+
+def poll_loads(alive, peers):
+    """name -> CPU busy percent, from nl-load.py on each connected worker."""
+    def ask(worker):
+        ip = peers[worker["name"]][1]
+        try:
+            with urllib.request.urlopen(f"http://{ip}:{LOAD_PORT}/load", timeout=2) as response:
+                return worker["name"], float(json.load(response)["busy"])
+        except (OSError, ValueError, KeyError):
+            return worker["name"], None
+    with cf.ThreadPoolExecutor(max_workers=max(1, len(alive))) as pool:
+        return {n: b for n, b in pool.map(ask, alive) if b is not None}
+
+
 def spawn(missing):
-    """Create 2x the workers needed, keep the first `missing` that handshake with the scheduler, delete the rest."""
+    """Create enough VMs to expect `missing` that reach the scheduler (a share p of them do, which it learns), keep
+    the ones that handshake, delete the rest, within the start allowance."""
     st = load_state()
     now = time.time()
-    st["creates"] = [t for t in st["creates"] if now - t < 3600]
-    make = missing * 2
-    if len(st["creates"]) + make > MAX_CREATES_PER_HOUR:
-        log(f"  refusing to create {make}: {len(st['creates'])} created in the last hour (limit {MAX_CREATES_PER_HOUR})")
+    st["creates"] = [t for t in st["creates"] if now - t < 86400]
+    st["extra_spend"] = [(t, d) for t, d in st.get("extra_spend", []) if now - t < 30 * 86400]
+    if st.get("backoff_until", 0) > now:
+        log(f"  boat refused a start recently; waiting {int(st['backoff_until'] - now)}s")
+        return
+    p = min(0.9, max(0.35, st.get("p", 0.5)))
+    want = min(3 * missing, max(missing, math.ceil(missing / p)))
+    make, price, extra = start_allowance(want, st)
+    if make < want:
+        log(f"  start budget: wanted {want} starts (reachable share {p:.2f}), may use {make}"
+            + (f", {extra} of them at ${price:.2f}" if extra else ""))
+    if make == 0:
         return
     peers, _ = wg_peers()
     ips = free_ips(peers)
@@ -203,30 +280,40 @@ def spawn(missing):
     if DRY:
         log(f"  [dry-run] would create {make} candidates {names[0]}.. for {missing} workers")
         return
-    st["creates"] += [now] * make
-    save_state(st)
     with tempfile.TemporaryDirectory() as tmp, cf.ThreadPoolExecutor(max_workers=make) as pool:
         ids = list(pool.map(lambda a: create_candidate(a[0], a[1], hub, tmp), zip(names, ips)))
     created = {n: i for n, i in zip(names, ids) if i}
+    st["creates"] += [now] * len(created)
+    if extra:
+        st["extra_spend"] += [(now, price)] * min(extra, len(created))
+    if len(created) < make:
+        st["backoff_until"] = now + 600        # boat refused some: its limits are reached
     log(f"  created {len(created)}/{make}; waiting up to {HANDSHAKE_WAIT}s for handshakes")
-    kept = []
+    good = []
     deadline = time.time() + HANDSHAKE_WAIT
-    while time.time() < deadline and len(kept) < missing:
+    while time.time() < deadline and len(good) < len(created):
         peers, age = wg_peers()
         for n in created:
-            if n not in kept and n in peers and age.get(peers[n][0]) is not None and age[peers[n][0]] < 120:
-                kept.append(n)
-        if len(kept) < missing:
-            time.sleep(3)
-    kept = kept[:missing]
+            if n not in good and n in peers and age.get(peers[n][0]) is not None and age[peers[n][0]] < 120:
+                good.append(n)
+        if len(good) >= missing + 1:
+            break
+        time.sleep(3)
+    if created:
+        time.sleep(4)       # the stragglers of this round: they reach the scheduler within seconds or not at all
+        peers, age = wg_peers()
+        good = [n for n in created if n in peers and age.get(peers[n][0]) is not None and age[peers[n][0]] < 120]
+        st["p"] = 0.7 * p + 0.3 * (len(good) / len(created))
+    kept = good[: missing + 1]       # a spare that already cost a start is kept: the fleet may grow
     for n, i in created.items():
         if n not in kept:
             boat("delete", "--yes", i)
             run(["/usr/local/bin/remove-peer.sh", n])
-    log(f"  kept {len(kept)}/{missing}: {kept}; deleted {len(created) - len(kept)} that did not reach the scheduler")
+    save_state(st)
+    log(f"  kept {len(kept)} for {missing} needed; deleted {len(created) - len(kept)}; reachable share now {st['p']:.2f}")
 
 
-def reap_and_extend(workers, active):
+def reap_and_extend(workers, active, wanted):
     names = {w["name"] for w in workers}
     peers, _ = wg_peers()
     # The running interface must match the config file: drop any peer that is no longer in the file.
@@ -243,6 +330,8 @@ def reap_and_extend(workers, active):
     if not active:
         return
     for w in workers:
+        if w["name"] not in wanted:
+            continue
         left = (parse_time(w.get("archiveAfter")) or 0) - time.time()
         if left < EXTEND_WHEN_LEFT:
             log(f"  extending {w['name']} ({int(left)}s left)")
@@ -251,22 +340,61 @@ def reap_and_extend(workers, active):
 
 
 def tick(state, force_active):
+    now = time.time()
     active = force_active or build_running()
     if active:
-        state["last_active"] = time.time()
+        state["last_active"] = now
     workers = [w for w in list_workers() if w["state"] not in ("stopped", "archived", "deleting")]
     peers, age = wg_peers()
     alive = [w for w in workers if w["name"] in peers and age.get(peers[w["name"]][0]) is not None
              and age[peers[w["name"]][0]] < 180]
-    starting = [w for w in workers if w not in alive and time.time() - (parse_time(w.get("createdAt")) or 0) < 120]
-    log(f"build running: {active} | workers: {len(workers)} ({len(alive)} connected, {len(starting)} starting)")
-    reap_and_extend(workers, active)
+    starting = [w for w in workers if w not in alive and now - (parse_time(w.get("createdAt")) or 0) < 120]
+    loads = poll_loads(alive, peers) if active else {}
+    if loads:
+        average = sum(loads.values()) / len(loads)
+        state["ema"] = average if state.get("ema") is None else 0.6 * state["ema"] + 0.4 * average
+    if not active:
+        state.update(target=BASE, ema=None, low_since=None)
+    else:
+        target = max(BASE, state.get("target", BASE))
+        ema = state.get("ema")
+        if ema is not None and len(loads) >= max(1, len(alive) // 2) and not starting:
+            if ema >= UP_BUSY and now - state.get("last_up", 0) >= UP_EVERY and target < CAP:
+                target = min(CAP, target + max(1, round(target * 0.5)))
+                state["last_up"] = now
+                log(f"  workers {ema:.0f}% busy: scaling up to {target}")
+            if ema <= DOWN_BUSY:
+                state.setdefault("low_since", now)
+                if now - state["low_since"] >= DOWN_AFTER and target > BASE:
+                    target -= 1
+                    state["low_since"] = now
+                    log(f"  workers {ema:.0f}% busy for {DOWN_AFTER}s: scaling down to {target}")
+            else:
+                state["low_since"] = None
+        state["target"] = target
+    target = state.get("target", BASE)
+    log(f"build running: {active} | workers: {len(workers)} ({len(alive)} connected, {len(starting)} starting)"
+        + (f" | target {target}, busy {state['ema']:.0f}%" if active and state.get("ema") is not None else
+           f" | target {target}" if active else ""))
+    # Over target (a scale-down): delete the least busy of the older workers rather than waiting out their lifetime.
+    surplus = len(alive) + len(starting) - target
+    if active and surplus > 0 and loads:
+        settled = [w for w in alive if now - (parse_time(w.get("createdAt")) or 0) > 300 and w["name"] in loads]
+        for w in sorted(settled, key=lambda w: loads[w["name"]])[:surplus]:
+            log(f"  removing {w['name']} ({loads[w['name']]:.0f}% busy): over the target")
+            if not DRY:
+                boat("delete", "--yes", w["id"])
+                run(["/usr/local/bin/remove-peer.sh", w["name"]])
+        alive = [w for w in alive if w["name"] in {x["name"] for x in alive} and w["name"] not in
+                 {x["name"] for x in sorted(settled, key=lambda w: loads[w["name"]])[:surplus]}] if not DRY else alive
+    wanted = {w["name"] for w in sorted(alive + starting, key=lambda w: parse_time(w.get("createdAt")) or 0)[:target]}
+    reap_and_extend(workers, active, wanted)
     if active:
-        missing = WORKERS - len(alive) - len(starting)
+        missing = target - len(alive) - len(starting)
         if missing > 0:
             log(f"  need {missing} more workers")
             spawn(missing)
-    elif not workers and time.time() - state["last_active"] > SCHEDULER_IDLE_STOP:
+    elif not workers and now - state["last_active"] > SCHEDULER_IDLE_STOP:
         log("idle past the limit with no workers: stopping the scheduler")
         if not DRY:
             run(["boat", "stop", "self"], env={"HOME": "/home/user"})
@@ -281,7 +409,8 @@ def main():
     a = ap.parse_args()
     DRY = a.dry_run
     state = {"last_active": time.time()}    # a freshly woken scheduler gets the full idle time
-    log(f"nl-controller: {WORKERS} x {WORKER_TYPE} workers, worker ttl {WORKER_TTL}s, scheduler idle stop {SCHEDULER_IDLE_STOP}s"
+    log(f"nl-controller: {BASE}-{CAP} x {WORKER_TYPE} workers, worker ttl {WORKER_TTL}s, scheduler idle stop {SCHEDULER_IDLE_STOP}s, "
+        f"start price limit ${MAX_START_PRICE:.2f}, extra-start budget ${EXTRA_START_BUDGET:.2f}/month"
         + (" [dry-run]" if DRY else ""))
     while True:
         try:
