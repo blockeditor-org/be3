@@ -1027,7 +1027,10 @@ impl Session<'_> {
         // the server (`Versions::refresh`) is tried again only when this deadline comes due,
         // less often each time, and not while the line is down: reconnecting forgets those
         // failures and refreshes.
-        match (awaiting && self.line.is_up(), due || self.versions_due.is_none()) {
+        match (
+            awaiting && self.line.is_up(),
+            due || self.versions_due.is_none(),
+        ) {
             (true, true) => {
                 self.versions_due = Some(now + reconnect_delay(self.version_failures, jitter()));
                 self.version_failures = self.version_failures.saturating_add(1);

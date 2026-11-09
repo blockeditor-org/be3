@@ -161,7 +161,11 @@ fn stored(error: be_block_store::StoreError) -> String {
 
 /// Writes a watched block's status, made from its current one, telling its watchers when it
 /// changed.
-fn publish(context: &Context<'_>, block: Uuid, status: impl FnOnce(&mut VersionStatus) -> VersionStatus) {
+fn show_status(
+    context: &Context<'_>,
+    block: Uuid,
+    status: impl FnOnce(&mut VersionStatus) -> VersionStatus,
+) {
     let mut held = context
         .shared
         .lock()
@@ -258,7 +262,11 @@ impl Versions {
         }
     }
 
-    async fn tree(&mut self, peer: &Peer<Store>, commit: Option<CommitId>) -> Result<Tree, Failure> {
+    async fn tree(
+        &mut self,
+        peer: &Peer<Store>,
+        commit: Option<CommitId>,
+    ) -> Result<Tree, Failure> {
         let Some(commit) = commit else {
             return Ok(Tree::default());
         };
@@ -266,18 +274,18 @@ impl Versions {
             return Ok(tree.clone());
         }
         let manifest = self.commit_of(peer, commit).await?.manifest;
-        let tree: Tree =
-            be_block_store::decode_value(&peer.read_manifest(&manifest).await.map_err(Failure::client)?)
-                .map_err(Failure::stored)?;
+        let tree: Tree = be_block_store::decode_value(
+            &peer
+                .read_manifest(&manifest)
+                .await
+                .map_err(Failure::client)?,
+        )
+        .map_err(Failure::stored)?;
         self.trees.insert(commit, tree.clone());
         Ok(tree)
     }
 
-    async fn commit_of(
-        &mut self,
-        peer: &Peer<Store>,
-        commit: CommitId,
-    ) -> Result<Commit, Failure> {
+    async fn commit_of(&mut self, peer: &Peer<Store>, commit: CommitId) -> Result<Commit, Failure> {
         if let Some(found) = self.commits.get(&commit) {
             return Ok(found.clone());
         }
@@ -1411,7 +1419,7 @@ impl Versions {
                 Ok(status) => {
                     let shown = self.failed.remove(&block).and_then(|failed| failed.shown);
                     self.computed.insert(block, signature);
-                    publish(context, block, |entry| {
+                    show_status(context, block, |entry| {
                         let error = match entry.error.take() {
                             Some(error) if Some(&error) == shown.as_ref() => None,
                             error => error,
@@ -1430,7 +1438,10 @@ impl Versions {
                         .get(&block)
                         .map_or(0, |failed| failed.attempts)
                         .saturating_add(1);
-                    let previous = self.failed.get(&block).and_then(|failed| failed.shown.clone());
+                    let previous = self
+                        .failed
+                        .get(&block)
+                        .and_then(|failed| failed.shown.clone());
                     let shows = !failure.transient || attempts >= SHOWN_AFTER;
                     let shown = match shows {
                         true => {
@@ -1438,7 +1449,7 @@ impl Versions {
                                 "Could not read this block's versions: {}",
                                 failure.message
                             );
-                            publish(context, block, |entry| VersionStatus {
+                            show_status(context, block, |entry| VersionStatus {
                                 error: Some(message.clone()),
                                 ..entry.clone()
                             });
