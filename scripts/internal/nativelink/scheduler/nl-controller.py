@@ -35,8 +35,8 @@ import urllib.request
 
 BASE = int(os.environ.get("NL_WORKERS_BASE", "2"))           # workers kept while any build runs
 CAP = int(os.environ.get("NL_WORKERS_CAP", "6"))             # the most it will burst to
-UP_AFTER = int(os.environ.get("NL_UP_AFTER", "20"))          # seconds work must have waited before adding workers
-UP_EVERY = int(os.environ.get("NL_UP_EVERY", "45"))          # seconds between adding workers
+UP_AFTER = int(os.environ.get("NL_UP_AFTER", "60"))          # seconds work must have waited before adding a worker
+UP_EVERY = int(os.environ.get("NL_UP_EVERY", "60"))          # seconds at least between adding workers
 DOWN_AFTER = int(os.environ.get("NL_DOWN_AFTER", "300"))     # seconds with spare workers before they are let go
 BURST_TTL = int(os.environ.get("NL_BURST_TTL", "600"))       # a burst worker lives this long, and is extended while wanted
 # large: boat prices every size the same per CPU, so fewer, bigger workers cost the same and use fewer starts (each
@@ -374,13 +374,14 @@ def tick(state, force_active):
         queued, executing = queue
         needed = math.ceil((queued + executing) / SLOTS)
         note = f" | queued {queued}, executing {executing} (needs {needed} at {SLOTS} each)"
-        # Work that has waited: add workers, as many as the demand needs, at most every UP_EVERY seconds. Only once
+        # Work that has waited: add one worker, at most every UP_EVERY seconds. A burst of a build is often over in a
+        # minute, sooner than a new worker would help, so the fleet grows one at a time while the queue lasts. Only once
         # the target's workers are all connected: work queued for want of the ones not made yet (no starts left, or
         # still booting) is no reason to want more, and raising the target then only spends starts.
         state["queued_since"] = (state.get("queued_since") or now) if queued > 0 else None
         if (queued > 0 and now - state["queued_since"] >= UP_AFTER and now - state.get("last_up", 0) >= UP_EVERY
                 and target < CAP and not starting and len(alive) >= target):
-            target = min(CAP, max(target + 1, needed))
+            target = min(CAP, target + 1)
             state["last_up"] = now
             log(f"  {queued} actions have waited {int(now - state['queued_since'])}s: scaling up to {target}")
         # Spare workers: not extended once there has been no queue and room to spare for DOWN_AFTER.

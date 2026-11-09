@@ -157,8 +157,9 @@ that could not reach the scheduler) is a start too; the controller logs the shar
 the hour (`NL_RESERVE_HOUR`) for everybody else's VMs and stops creating when the rest is used. `NL_MAX_START_PRICE` (the dearest start it will
 buy) and `NL_EXTRA_START_BUDGET` (dollars a month) let it buy more; with `account.read` it asks boat what the next
 start costs, without it it can only count its own. Between `NL_WORKERS_BASE` (2) and `NL_WORKERS_CAP` (6) workers (`NL_WORKER_TYPE`, `large`) it
-scales on NativeLink's queue (read through `nl-otelcol`): once actions have waited 20 s and every worker it wants is
-connected, it raises the target to what the queue needs, and it lowers it after five minutes without a queue. Work
+scales on NativeLink's queue (read through `nl-otelcol`): once actions have waited a minute (`NL_UP_AFTER`) and every
+worker it wants is connected, it adds one worker, and another each minute the queue lasts (`NL_UP_EVERY`), since a
+build's bursts are often over before a new worker would help; it lowers the target after five minutes without a queue. Work
 queued only because workers are still being made, or because no starts are left, does not raise it.
 
 ## When a build keeps failing
