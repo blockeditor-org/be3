@@ -2,10 +2,10 @@
 
 Every buck2 action runs on a remote execution server. `BE3_BUILD_SERVER` picks which, or else
 the one saved in `~/.config/be3/build-server`; at a terminal with neither, `./scripts/buck`
-asks and saves the answer (delete the file to be asked again). Otherwise it is `api.be3.pfg.pw`.
-CI sets `BE3_BUILD_SERVER=api.be3.pfg.pw` in .github/workflows/ci.yml.
+asks and saves the answer (delete the file to be asked again). Otherwise it is `nativelink`, the
+NativeLink server on boat below. CI sets `BE3_BUILD_SERVER=nativelink` in .github/workflows/ci.yml.
 
-`api.be3.pfg.pw` is much slower than Namespace was, so verify builds only what its tests and
+`api.be3.pfg.pw` was much slower than Namespace was, so verify builds only what its tests and
 lints need: Linux, the apps' wasm, and beui's HTML core only where a test runs on it. Nothing is
 compile-checked for any other platform: not the web's be-host, the libraries planned for the
 HTML core, Windows, macOS or Android. Check one by hand when a change is likely to break it, such
@@ -18,7 +18,8 @@ release is built from (guides/bootstrap.md).
 
 | `BE3_BUILD_SERVER` | Server | Key | In a Claude Code cloud session |
 |---|---|---|---|
-| `api.be3.pfg.pw` (default, and CI's) | our NativeLink server | gateway header | works with no setup |
+| `nativelink` (default, and CI's) | our NativeLink server on boat, reached over WireGuard | a boat key, `BE3_NL_KEY` | not working: no WireGuard, set `BE3_BUILD_SERVER=api.be3.pfg.pw` |
+| `api.be3.pfg.pw` | our NativeLink server | gateway header | works with no setup |
 | `blocks.pfg.pw` | our NativeLink build VM, behind its own gateway over WireGuard | its gateway's header | works once the proxy adds the gateway header for it |
 | `namespace` | Namespace's remote execution, no longer reachable | gateway header, to its waker | not working |
 | `buildbuddy` | `remote.buildbuddy.io` | `x-buildbuddy-api-key` | not working |
@@ -47,6 +48,52 @@ or `~/.config/be3/gateway-authorization`, asking at a terminal when none works.
 `BE3_TRACKER_AUTHORIZATION` secret; in an agent's cloud session the proxy adds the header
 itself for the hosts it has a rule for. BuildBuddy's key is `BE3_BUILD_SERVER_KEY`, `.build-server-key.buildbuddy` or
 `~/.config/be3/build-server-key.buildbuddy`; a cloud session has none.
+
+## The NativeLink server on boat (`nativelink`)
+
+Everything it runs is in scripts/internal/nativelink/ (none of it is a secret). A small `nl-scheduler` VM runs
+NativeLink (CAS, action cache, scheduler) and `nl-controller.py`; boat VMs named `nl-w-*` in the `nl-worker`
+environment run the actions, each NativeLink's worker inside the image `worker_properties` names. Scheduler, workers
+and clients meet in a WireGuard network, 10.100.0.0/24: the scheduler is 10.100.0.1 and serves buck2 on port 50052.
+
+- **A client** (this tool, `crates/be-tool-bootstrap/src/nativelink.rs`) wakes the scheduler through boat's API,
+  makes a WireGuard key of its own once (`~/.config/be3/nl-wireguard-key`), registers the public key by running
+  `nl-register-client.sh` on the scheduler, brings up the `wg-be3` interface, and checks that port 50052 answers. It
+  needs Linux, root or sudo without a password, `wg` (wireguard-tools), curl, and `BE3_NL_KEY` (or `nl-key` in
+  ~/.config/be3 or `.nl-key` in the checkout): a boat key limited to the `nl-scheduler` environment with the actions
+  `sandbox.read`, `sandbox.resume` and `exec`. `BE3_NL_SCHEDULER` names another scheduler by name prefix.
+  **That key can run any command on the scheduler**, which holds the full-access Bunny key and the key that creates
+  workers; give it to nothing that runs code you do not trust. The planned fix is a registration endpoint that
+  takes only a public key.
+- **The controller** notices a build (a client connected to port 50052), keeps 4 workers alive while it runs by
+  extending their 30-minute lifetime, creates replacements, and stops the scheduler after 4 idle hours. A new VM is
+  placed at random and about half cannot reach the scheduler (see below), so it creates twice as many as it needs and
+  keeps the first that complete a WireGuard handshake. Its key is limited to the `nl-worker` environment (create,
+  read, update, delete-own).
+- **Storage**: the workers read objects of 16 KB and up straight from the Bunny zone `be-nativelink-s3` with its
+  read-only key (the `nl-worker` environment's secret file `worker-ro.env`); the scheduler keeps small objects and the
+  action cache in /tmp, persisted as one packed Bunny object every 5 minutes and restored on boot, and writes
+  everything else to Bunny with the full-access key (the `nl-scheduler` environment's `nl-bunny.env`).
+- **Speed**: a one-file change to be-lib-geometry took 250-350 s with a fresh worker fleet and 190-230 s with a warm
+  one.
+
+Things that are not obvious:
+
+- **Boat's network** blackholes about half of the VM pairs, both ways and for good, with no pattern we found. A client
+  that cannot reach the scheduler fails with a message saying so; run it on a new VM. Once boat's cache of a stopped
+  VM runs out, resuming starts a fresh machine at a random place, so the scheduler can land somewhere no client
+  reaches (forking it again, which the client does not do yet, picks a new place).
+- **Boat's start limits** (60 an hour, 200 a day on the $20 plan; `boat limits`) count every VM the controller creates,
+  including the ones it deletes at once. A cold fleet is up to 8 starts.
+- **GitHub-hosted runners** cannot reach it: they have no IPv6. CI runs on `runs-on: boat`, which needs the boat CI
+  GitHub App on the organization.
+- **Claude Code cloud sessions** cannot run WireGuard and are not supported yet.
+- **After a restore** (boat stopped the VM and started a new machine) enabled services start before the disk has its
+  files, so the units retry (`wg-quick-retry.conf`) instead of failing for good.
+
+The CI secret is `BE3_NL_KEY`, the key above. Setting up the VMs again: `scheduler/setup-scheduler.sh` on a VM made in
+the `nl-scheduler` environment, then the controller (`nl-controller.service`, its worker files in /opt/nl/worker, its
+boat key logged in under /var/lib/nl-controller/sk-home); each file's first lines say what it does.
 
 ## When a build keeps failing
 

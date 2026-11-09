@@ -10,7 +10,8 @@ use be_lib_prompt::{Choice, Saved, choose, config_directory, interactive, save_p
 
 use crate::{Result, repository};
 
-const SERVERS: [&str; 5] = [
+const SERVERS: [&str; 6] = [
+    "nativelink",
     "api.be3.pfg.pw",
     "blocks.pfg.pw",
     "namespace",
@@ -46,8 +47,12 @@ pub fn configure(buck2: &Path) -> Result<()> {
     let server = server()?;
     let (engine, storage, header);
     let (mut engine_address, mut storage_address, mut tls);
-    if server == "local" {
-        engine = local_address()?;
+    if server == "local" || server == "nativelink" {
+        engine = if server == "nativelink" {
+            crate::nativelink::connect()?
+        } else {
+            local_address()?
+        };
         storage = engine.clone();
         engine_address = engine.clone();
         storage_address = engine.clone();
@@ -202,6 +207,9 @@ fn ask_for_server(saved: &Path) -> Option<String> {
         .map(|server| Choice {
             label: server,
             detail: match *server {
+                "nativelink" => {
+                    "our NativeLink build server on boat (WireGuard, needs root and a boat key)"
+                }
                 "namespace" => "Namespace's remote execution",
                 "api.be3.pfg.pw" => "our own NativeLink server",
                 "blocks.pfg.pw" => "our NativeLink build VM, behind blocks.pfg.pw",

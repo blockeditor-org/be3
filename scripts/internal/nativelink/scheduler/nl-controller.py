@@ -99,9 +99,20 @@ REGISTRY = "/run/nl-peers"      # "name pubkey ip" per line, written by add-peer
 
 def registry():
     try:
-        return {n: (k, ip) for n, k, ip in (l.split() for l in open(REGISTRY) if l.strip())}
+        return {f[0]: (f[1], f[2]) for f in (l.split() for l in open(REGISTRY) if l.strip())}
     except OSError:
         return {}
+
+
+def lease_times():
+    try:
+        return {f[0]: int(f[3]) for f in (l.split() for l in open(REGISTRY) if l.strip()) if len(f) > 3}
+    except OSError:
+        return {}
+
+
+CLIENT_LEASE_UNUSED = 900        # a client that registered but never handshook
+CLIENT_LEASE_IDLE = 8 * 3600     # a client silent this long registers again for its next build
 
 
 def conf_peers():
@@ -225,7 +236,15 @@ def spawn(missing):
 
 def reap_and_extend(workers, active):
     names = {w["name"] for w in workers}
-    peers, _ = wg_peers()
+    peers, age = wg_peers()
+    for name, started in lease_times().items():
+        if not name.startswith("c-") or name not in peers:
+            continue
+        silent = age.get(peers[name][0])
+        if (silent is None and time.time() - started > CLIENT_LEASE_UNUSED) or (silent is not None and silent > CLIENT_LEASE_IDLE):
+            log(f"  dropping the lease of the idle client {name}")
+            if not DRY:
+                run(["/usr/local/bin/remove-peer.sh", name])
     # The running interface must match the config file: drop any peer that is no longer in the file.
     _, live, _ = run(["wg", "show", WG_IF, "peers"])
     known = {pub for pub, _ in peers.values()} | conf_peers()[0]
