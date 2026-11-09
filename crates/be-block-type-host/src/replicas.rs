@@ -1320,7 +1320,11 @@ impl<H: Host> Replicas<H> {
     }
 
     fn tell(&self, shared: &Arc<Mutex<H>>, block: Uuid, published: bool) {
-        let Some(open) = self.blocks.get(&block).and_then(|replica| self.open.get(replica)) else {
+        let Some(open) = self
+            .blocks
+            .get(&block)
+            .and_then(|replica| self.open.get(replica))
+        else {
             return;
         };
         let frame = ToEditor::Published(published).encode();

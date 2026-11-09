@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::root::ChatRoot;
 
 mod a_conversation_shows_each_message_with_its_author_and_time;
-mod a_message_shows_as_sending_until_it_is_delivered;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
+mod a_message_shows_as_sending_until_it_is_delivered;
 mod a_reply_or_edit_ends_when_its_message_is_deleted_or_the_other_starts;
 mod a_reply_quotes_the_message_it_answers;
 mod messages_are_sent_edited_reacted_to_and_deleted;

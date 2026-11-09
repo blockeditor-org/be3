@@ -27,7 +27,7 @@
     "chat_reads": {
       "id": "63686174-2d72-6561-6473-000000000001",
       "display_name": "Chats read",
-      "icon": "",
+      "icon": "\ue38e",
       "color": [72, 133, 237],
       "module": "chat_types.wasm"
     }
