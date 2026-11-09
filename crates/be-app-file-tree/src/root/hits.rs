@@ -1,13 +1,13 @@
 //! What the filter finds in content (plans/search.md): the search index's hits for the filter's
-//! words, under the rows whose names match, each with its name and the text around the match.
+//! words, above the rows whose names match, each with its name and the text around the match.
 
-use be_sdk_beui::beui::styled::Span;
 use be_sdk_beui::beui::NodeId;
-use beui::{Align, Direction, Overflow};
 use be_sdk_beui::beui::icons::ICON_FILE_TEXT;
 use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::styled::Span;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{BlockQuery, Editor, Search, SearchHit};
+use beui::{Align, Direction, Overflow};
 use uuid::Uuid;
 
 use super::ui::PADDING;
@@ -98,11 +98,7 @@ fn HitRow(editor: Editor, hit: Memo<SearchHit>, block: Uuid) -> NodeId {
         }
     };
     view! {
-        <ListRow
-            label
-            on_click={open}
-            @test_id={format!("file-tree.hit.{block}")}
-        >
+        <ListRow label on_click={open} @test_id={format!("file-tree.hit.{block}")}>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text color=TextColor::Muted>
                     <Icon glyph={ICON_FILE_TEXT} />
