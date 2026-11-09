@@ -130,10 +130,7 @@ mod text_bytes {
         text: &Sequence<u8>,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        match text.mirrored() {
-            Some(flat) => bytes::serialize(flat, serializer),
-            None => bytes::serialize(&text.items(), serializer),
-        }
+        bytes::serialize(&text.visible(), serializer)
     }
 
     pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
@@ -263,14 +260,14 @@ pub enum Change {
         anchor: Anchor,
         client: u64,
     },
-    /// Moves the items of the list at `place` from `first` to `last`, both included, with
-    /// whatever lies between them (removed items, and items inserted there at the same
-    /// time), to behind `anchor`. Refused unless both are shown there, `first` comes no
-    /// later than `last`, and the anchor is outside the range.
+    /// Moves `objects`, two or more items shown one after another in this order in the list
+    /// at `place`, to behind `anchor`, taking along what was removed from between them.
+    /// Refused unless what is shown from the first to the last is exactly `objects` (so an
+    /// item someone put between them, or moved out, refuses it) and the anchor is outside
+    /// them. One item moves with `Move`.
     MoveRange {
         place: Place,
-        first: ObjectId,
-        last: ObjectId,
+        objects: Vec<ObjectId>,
         anchor: Anchor,
     },
     Stamp {

@@ -89,11 +89,13 @@ How the model works:
   and edits name the object, not a position: an edit to an object that moved
   still lands on it. `move_into` carries an object and its subtree to another
   list of the same kind; into another kind it does nothing, since saving would
-  retype it. `move_range` moves the objects from one to another of a list, with
-  what lies between them, behind an anchor in one change.
+  retype it. `move_range` moves several objects shown one after another in a
+  list (and what was removed from between them) behind an anchor in one
+  change; it is refused once someone put another object between them or moved
+  one away.
 - **Edits.** The derive gives each field a constant (`CalendarEvent::TITLE`)
   that builds `Change`s: `set`, `add`, `put`, `insert`, `move_into`,
-  `Change::remove`. Types wrap these in helpers that write only fields that
+  `move_range`, `Change::remove`. Types wrap these in helpers that write only fields that
   changed.
 - **Nothing to rebase.** Edits address objects by id and anchor inserts to a
   sibling. A list is a `Sequence` of ids (`Items`) remembering each object's

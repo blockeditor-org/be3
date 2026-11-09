@@ -184,6 +184,25 @@ impl Client {
                     .then(|| Column::CARDS.insert_as(id, place.object, anchor, &card))
             }
             2 => pick(input, &objects).map(|id| Change::remove(*id)),
+            4 => {
+                let Some(Value::List(items)) = self
+                    .visible
+                    .tree()
+                    .object(place.object)
+                    .and_then(|object| object.fields().get(usize::from(place.field)))
+                else {
+                    return None;
+                };
+                let ids = items.ids();
+                let start = usize::from(input.byte()) % ids.len().max(1);
+                let len = 2 + usize::from(input.byte()) % 3;
+                let objects = ids.get(start..(start + len).min(ids.len()))?.to_vec();
+                Some(Change::MoveRange {
+                    place,
+                    objects,
+                    anchor,
+                })
+            }
             _ => pick(input, &objects).map(|id| Change::Move {
                 object: *id,
                 place,

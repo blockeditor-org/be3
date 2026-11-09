@@ -397,7 +397,11 @@ impl Core {
         &self.document
     }
 
-    pub fn external_edit(&mut self) {
+    /// Ends the undo group, so the next edit starts one of its own: on blur, on submit, or
+    /// where a document whose own history cannot span it changed from behind. An edit that
+    /// arrived from elsewhere needs nothing here: positions follow it, and a document whose
+    /// steps a host groups (`LiveText`) must not have a peer's edit cut them.
+    pub fn end_undo_group(&mut self) {
         self.last_undo_classification = UndoClassification::AlwaysSplit;
         self.document.finish_history_group();
     }

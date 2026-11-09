@@ -218,10 +218,12 @@ impl Items {
             && self.sequence.previous(at) != before
     }
 
-    /// Moves the slots from `first` to `last`, both included, with what lies between them,
-    /// to behind `after`, in one sequence move.
-    pub fn shift_range(&mut self, first: ObjectId, last: ObjectId, after: Option<Pos>) -> bool {
-        let Some((first, last)) = self.range(first, last) else {
+    /// Moves `objects`, two or more shown one after another in this order, to behind `after`
+    /// in one sequence move, which takes along what was removed from between them. Refused
+    /// when what is shown from the first to the last is not exactly `objects`, as when someone
+    /// moved one of them away or put another between them since.
+    pub fn shift_range(&mut self, objects: &[ObjectId], after: Option<Pos>) -> bool {
+        let Some((first, last)) = self.range(objects) else {
             return false;
         };
         self.sequence
@@ -230,17 +232,22 @@ impl Items {
     }
 
     /// Whether `shift_range` would move anything.
-    pub(crate) fn shifts_range(&self, first: ObjectId, last: ObjectId, after: Option<Pos>) -> bool {
-        self.range(first, last).is_some_and(|(first, last)| {
+    pub(crate) fn shifts_range(&self, objects: &[ObjectId], after: Option<Pos>) -> bool {
+        self.range(objects).is_some_and(|(first, last)| {
             self.sequence
                 .applies(&SeqOp::<ObjectId>::Move { first, last, after })
         })
     }
 
-    fn range(&self, first: ObjectId, last: ObjectId) -> Option<(Pos, Pos)> {
-        self.index_of(first)?;
-        self.index_of(last)?;
-        Some((*self.slots.get(&first)?, *self.slots.get(&last)?))
+    fn range(&self, objects: &[ObjectId]) -> Option<(Pos, Pos)> {
+        let (&first, &last) = (objects.first()?, objects.last()?);
+        let start = self.index_of(first)?;
+        let together = objects.len() > 1
+            && objects
+                .iter()
+                .enumerate()
+                .all(|(at, id)| self.index_of(*id) == Some(start + at));
+        together.then_some((*self.slots.get(&first)?, *self.slots.get(&last)?))
     }
 
     pub(crate) fn stays(&self, id: ObjectId, after: Option<Pos>) -> bool {
