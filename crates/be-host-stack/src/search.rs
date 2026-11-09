@@ -279,7 +279,9 @@ async fn index(
         });
         kept.extend(batches.flat_map(|(_, blocks)| blocks));
         held.search.dirty = kept;
-        held.search.writing.extend(first.iter().map(|(index, _)| *index));
+        held.search
+            .writing
+            .extend(first.iter().map(|(index, _)| *index));
         (first, roots)
     };
     for (root, index) in roots {
@@ -451,7 +453,11 @@ async fn make_index(peer: &Peer<Store>, root: Uuid, index: Uuid) -> Result<(), S
 
 /// Names a made index in its root's metadata, as a define command does: in the loop, so the
 /// root's open replica is told its head moved here rather than meeting a stranger's commit.
-async fn name_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, replicas: &mut Replicas) {
+async fn name_indexes(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    replicas: &mut Replicas,
+) {
     let made = std::mem::take(
         &mut shared
             .lock()
