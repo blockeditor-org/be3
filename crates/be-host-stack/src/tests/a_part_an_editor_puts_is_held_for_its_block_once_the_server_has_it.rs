@@ -3,7 +3,11 @@ use be_sdk_type_guest::editor::{FromEditor, ToEditor};
 use be_type_text::TextContent;
 
 /// Asks the replica to put `bytes` as a part of the editor's block and waits for its answer.
-fn put(editor: &mut Editor<TextContent>, token: u64, bytes: &[u8]) -> Result<be_block::PartRef, String> {
+fn put(
+    editor: &mut Editor<TextContent>,
+    token: u64,
+    bytes: &[u8],
+) -> Result<be_block::PartRef, String> {
     editor.send(FromEditor::PutPart {
         token,
         bytes: bytes.to_vec(),
