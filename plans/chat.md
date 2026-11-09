@@ -2,7 +2,9 @@
 
 Depends on: none; merging by parts (guides/type_modules.md, "Merging by
 parts"), which step 1d uses, has landed. Owner-only settings, for step 1c, have landed
-(guides/settings.md, Owner only). plans/notifications.md for step 2.
+(guides/settings.md, Owner only). Step 2 needs plans/notifications.md step 1
+(a device that shows a push); the server's side and the `notify` host call
+it uses have landed.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
@@ -151,7 +153,8 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
      messages opens reading only the header; scrolling back reads segments by
      range; an offline reaction to a message moved into a segment survives the
      merge; a forced hash mismatch reads the part instead.
-2. **Notifications** for chat, on plans/notifications.md. Done: a member who is
+2. **Notifications** for chat: sending a message calls `notify` with its text
+   and the accounts it mentions (guides/apps/host_services.md). Done: a member who is
    not connected gets a notification naming the chat and author, and none for
    a muted chat.
 
