@@ -7,7 +7,8 @@ modules (guides/type_modules.md).
 ## The content traits
 
 A block's content opts into traits in `be-block`: `BlockContent` (durable
-bytes, the references they declare, a name), `LiveEdit` (what a session
+bytes, the references they declare, a name, its searchable text for the search
+index: guides/type_modules.md, "The protocol"), `LiveEdit` (what a session
 carries: `apply`, `rebase`, `absorb_operation`, `child_operations`), `Merge`
 (three-way merge, required for offline editing), `MergeParts` (the same merge
 over parts, for a type that loads only its first part), `Undo` (client-local steps)

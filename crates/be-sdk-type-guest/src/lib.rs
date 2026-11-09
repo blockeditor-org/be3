@@ -11,8 +11,8 @@ use be_block::{
 use be_block_commit::MergeResult;
 use be_sdk_type_api::{
     Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Journal,
-    Loaded, Merged, MergedParts, Opening, Plain, PlainFile, PublishOutcome, ReorderChild,
-    ReplaceChild, ReplicaId, SessionState, TypeInfo, Written,
+    Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome, ReorderChild,
+    ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, Pending, Sender},
     types::Failure,
@@ -50,6 +50,15 @@ type MergePartsFn = fn(
 )
     -> std::pin::Pin<Box<dyn Future<Output = Result<(Written, usize), String>>>>;
 
+type SearchTextFn = fn(
+    Loaded,
+    Option<Vec<String>>,
+    Vec<be_block::PartRef>,
+    PartReader,
+) -> std::pin::Pin<
+    Box<dyn Future<Output = Result<Vec<be_block::SearchDocument>, String>>>,
+>;
+
 type ChildFn = fn(Option<&[u8]>, ChildChange) -> Result<Option<Vec<u8>>, String>;
 
 type ToFileFn = fn(&[u8]) -> Result<Option<PlainFile>, String>;
@@ -64,6 +73,7 @@ pub struct Registration {
     merge: MergeFn,
     merge_parts: Option<MergePartsFn>,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
+    search_text: SearchTextFn,
     replay: ReplayFn,
     child: ChildFn,
     to_file: Option<ToFileFn>,
@@ -82,6 +92,7 @@ impl Registration {
                 schema: be_block::schema_fingerprint::<C>(),
                 undo: false,
                 plain: Plain::None,
+                first_part: C::LOADS == Loads::FirstPart,
                 merges_parts: false,
             },
             open: open::<C, NoHistory>,
@@ -90,6 +101,7 @@ impl Registration {
             merge: merge::<C>,
             merge_parts: None,
             describe: describe_bytes::<C>,
+            search_text: search_text::<C>,
             replay: replica::replay::<C>,
             child: child::<C>,
             to_file: None,
@@ -195,6 +207,33 @@ fn merge_parts<C: MergeParts + Default>(
             MergeResult::Conflicted { value, conflicts } => (value, conflicts.max(1)),
         };
         Ok((written(&value, organization), conflicts))
+    })
+}
+
+fn search_text<C: BlockContent>(
+    content: Loaded,
+    keys: Option<Vec<String>>,
+    indexed: Vec<be_block::PartRef>,
+    parts: PartReader,
+) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<be_block::SearchDocument>, String>>>> {
+    Box::pin(async move {
+        let stored = content
+            .into_stored()
+            .ok_or_else(|| "the host loaded parts that form no tree".to_owned())?;
+        let content = C::from_stored(&stored).map_err(|error| error.to_string())?;
+        let mut documents = content
+            .search_text(keys.as_deref(), &indexed, parts)
+            .await?;
+        documents.retain(|document| document.asked(keys.as_deref()));
+        for document in &mut documents {
+            if document
+                .source
+                .is_some_and(|source| indexed.contains(&source))
+            {
+                document.body = None;
+            }
+        }
+        Ok(documents)
     })
 }
 
@@ -798,6 +837,32 @@ impl replicas::Guest for Module {
                 Some(Some(file)) => file.map_err(Failure::Malformed),
             },
         )
+    }
+
+    fn search_text(
+        &self,
+        content_type: Uuid,
+        content: Loaded,
+        keys: Option<Vec<String>>,
+        indexed: Vec<PartRef>,
+    ) -> impl Future<Output = Result<Vec<SearchDocument>, Failure>> + 'static {
+        let search = self.with_kind(content_type, |kind| kind.search_text);
+        let indexed = indexed.into_iter().map(be_block::PartRef::from).collect();
+        async move {
+            let search = search.ok_or(Failure::UnknownType)?;
+            let documents = search(content, keys, indexed, request_parts())
+                .await
+                .map_err(Failure::Malformed)?;
+            Ok(documents
+                .into_iter()
+                .map(|document| SearchDocument {
+                    key: document.key,
+                    source: document.source.map(PartRef::from),
+                    name: document.name,
+                    body: document.body,
+                })
+                .collect())
+        }
     }
 
     fn claims(

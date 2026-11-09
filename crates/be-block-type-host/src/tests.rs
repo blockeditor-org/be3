@@ -16,6 +16,7 @@ use crate::{Conflict, Host, Replicas, in_process, started};
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
+mod search_text_reads_only_the_parts_asked_for_and_not_yet_indexed;
 mod two_hosts_in_one_process_each_send_a_type_to_their_own_module;
 
 /// A host that keeps nothing, for tests of stateless requests.

@@ -29,6 +29,8 @@ pub struct Kind {
     pub frozen: bool,
     pub schema: String,
     pub plain: Plain,
+    /// Loads only its first part (`be_block::Loads::FirstPart`).
+    pub first_part: bool,
     pub merges_parts: bool,
     pub blank: Vec<u8>,
     pub described: Description,
@@ -577,6 +579,7 @@ impl Modules {
                 frozen: info.frozen,
                 schema: info.schema,
                 plain: info.plain,
+                first_part: info.first_part,
                 merges_parts: info.merges_parts,
                 blank,
                 described: match described {
