@@ -94,9 +94,7 @@ impl Snapshot {
             let fingerprint = *keys
                 .entry(*key)
                 .or_insert_with(|| crate::fingerprint(pixels.size, &pixels.rgba));
-            if let std::collections::btree_map::Entry::Vacant(entry) =
-                textures.entry(fingerprint)
-            {
+            if let std::collections::btree_map::Entry::Vacant(entry) = textures.entry(fingerprint) {
                 entry.insert(Texture::encode(pixels.size, &pixels.rgba)?);
             }
             *key = fingerprint;
@@ -165,9 +163,7 @@ fn texture_keys<'a>(
                 into.extend(triangles.iter_mut().map(|triangle| &mut triangle.texture))
             }
             beui_paint_format::Content::Glyph(glyph) => into.push(&mut glyph.texture),
-            beui_paint_format::Content::Group(group) => {
-                texture_keys(&mut group.primitives, into)
-            }
+            beui_paint_format::Content::Group(group) => texture_keys(&mut group.primitives, into),
             _ => {}
         }
     }

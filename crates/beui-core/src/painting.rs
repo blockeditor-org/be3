@@ -109,11 +109,9 @@ fn cut(primitives: Vec<Primitive>, hole: [f32; 4]) -> Vec<Primitive> {
     primitives
         .into_iter()
         .flat_map(|primitive: Primitive| match primitive.content {
-            Content::Group(group) => {
-                Group::primitive(group.opacity, cut(group.primitives, hole))
-                    .into_iter()
-                    .collect::<Vec<_>>()
-            }
+            Content::Group(group) => Group::primitive(group.opacity, cut(group.primitives, hole))
+                .into_iter()
+                .collect::<Vec<_>>(),
             content => outside(primitive.clip, hole)
                 .into_iter()
                 .map(|clip| Primitive {
@@ -181,7 +179,9 @@ impl Converting {
             } = &quad
             {
                 let clip = points(*clip);
-                if clip[2].min(size.x) <= clip[0].max(0.0) || clip[3].min(size.y) <= clip[1].max(0.0) {
+                if clip[2].min(size.x) <= clip[0].max(0.0)
+                    || clip[3].min(size.y) <= clip[1].max(0.0)
+                {
                     continue;
                 }
                 let triangle = Triangle {
@@ -233,7 +233,9 @@ impl Converting {
                         primitive.clip[3].min(clip[3]),
                     ];
                     primitive.fade = saved(loaded(fade).within(loaded(primitive.fade)));
-                    if primitive.clip[2] > primitive.clip[0] && primitive.clip[3] > primitive.clip[1] {
+                    if primitive.clip[2] > primitive.clip[0]
+                        && primitive.clip[3] > primitive.clip[1]
+                    {
                         primitives.push(primitive);
                     }
                 }
