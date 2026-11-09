@@ -367,6 +367,14 @@ interface shell {
     /// popover) is open, it does nothing.
     focus-child: async func(instance: editor-instance-id, child: child-id);
 
+    /// As `focus-child`, for the child that shows `block` once the editor
+    /// places it: an editor that makes a block to type into asks in the
+    /// frame it makes it, before the child exists, so the keys typed while
+    /// the child loads wait for it. The gift ends when the child's view
+    /// takes the keyboard or the person presses in the editor or takes the
+    /// keyboard elsewhere first.
+    focus-block-child: async func(instance: editor-instance-id, block: block-id);
+
     /// The person asked to close a child the editor placed, as closing its
     /// tab. For a program window the host asks its program to close it (or
     /// force-closes one that does not respond); the window leaves the list

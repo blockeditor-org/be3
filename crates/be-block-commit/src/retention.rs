@@ -18,6 +18,9 @@ pub struct RetentionPolicy {
     /// Every state newer than this is kept: an organization's `history_kept_for`.
     pub keep_all_within: i64,
     pub buckets: Vec<Bucket>,
+    /// States older than this are dropped rather than kept one per slot, unless pinned or inside
+    /// `keep_all_within`: a type whose old states are worth nothing (the search index).
+    pub drop_after: Option<i64>,
 }
 
 impl RetentionPolicy {
@@ -63,6 +66,7 @@ impl Default for RetentionPolicy {
                     interval: WEEK,
                 },
             ],
+            drop_after: None,
         }
     }
 }
@@ -100,6 +104,10 @@ pub fn plan(summaries: &[CommitSummary], now: i64, policy: &RetentionPolicy) -> 
         let age = now - summary.time;
         if summary.pinned || (policy.keep_all_within > 0 && age <= policy.keep_all_within) {
             plan.keep.push(summary.id);
+            continue;
+        }
+        if policy.drop_after.is_some_and(|after| age > after) {
+            plan.drop.push(summary.id);
             continue;
         }
         let (bucket, interval) = policy.bucket_of(age);

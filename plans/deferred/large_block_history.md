@@ -2,7 +2,8 @@
 
 Depends on: none.
 
-Set aside from `plans/large_blocks.md`: nothing needs it yet, and it rewrites
+Set aside from the follow-ups to #804 (merging by parts and per-type
+retention, built; plans/deferred/large_blocks_lazy_rekeying.md): nothing needs it yet, and it rewrites
 the server's schema, access checks and billing.
 
 The server writes a `commit_objects` row for every object of every commit it

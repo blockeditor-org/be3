@@ -93,3 +93,23 @@ parts' references from `references_in`. Done: a document with a lazy list opens
 without reading that list's parts, and saving it reuses them with their
 references. Until this lands, documents merge as whole bytes (`merge3`), not by parts
 (guides/type_modules.md, "Merging by parts").
+
+## 6. Handing the keyboard to a child block
+
+The held-keys mechanism in be-host (an editor giving the keyboard to a child
+block, such as a deck's notes; guides/apps/children.md, Focus) works but is
+spread over three thread-local maps, two runtime lists and a `seen` flag.
+Replace them with one gift record per editor instance in be-host-runtime: what
+it is given to (a block, a child or a view), the keys held and whose they are,
+moving pending → given → ready → done, with one function that ends it. Done
+when:
+- a child that is placed but never takes the keyboard ends the gift instead of
+  holding the editor's keys until a press or a focus move;
+- an entry left when the focus moved away before the child's view saw it can
+  no longer replay its keys when that view is focused later;
+- a block gift's deadline counts the asking instance's layout commits, not the
+  whole app's, and a gift ends even if the editor commits no layout;
+- held keys are released by the child's input-method request only if a frame
+  was answered after the focus, so a stale `ime` can't release them early;
+- a unit test covers a block gift turning into a child gift at a layout
+  commit, and ending when no child shows the block.

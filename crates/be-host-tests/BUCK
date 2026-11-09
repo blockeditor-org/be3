@@ -107,6 +107,7 @@ APPS = {
     "typing_after_a_new_session_opens_reaches_the_session": ["desktop"],
     "typing_after_a_pause_undoes_as_its_own_step": ["text"],
     "typing_in_the_add_menu_from_the_files_reaches_it_straight_away": ["checklist"],
+    "typing_right_after_adding_notes_reaches_the_notes": ["infinite-canvas", "presentation", "text"],
 }
 
 cargo_library()

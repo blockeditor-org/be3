@@ -735,9 +735,11 @@ impl ServerStore {
                     let before = graph.references(block);
                     change_edges(&transaction, &organization, block, &before, &references)?;
                 }
-                let policy = store
-                    .policies(graph, database, identity.organization)?
-                    .retention();
+                let content_type = graph.get(block).ok_or(ServerError::Corrupt)?.content_type;
+                let policy = crate::retention::policy(
+                    content_type,
+                    &store.policies(graph, database, identity.organization)?,
+                );
                 let freed = store.thin_history(
                     &transaction,
                     graph,
