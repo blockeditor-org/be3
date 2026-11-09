@@ -268,9 +268,9 @@ what is on screen, signed messages and notifications.
 
 ### Presentation
 
-A deck of slides, each one a canvas. `plans/presentation.md` plans speaker notes
-and duplicating slides; `plans/deferred/presentation.md` lists later ideas,
-such as following the presenter live.
+A deck of slides, each one a canvas, with speaker notes for each slide (a
+text block, made on first use). `plans/deferred/presentation.md` lists later
+ideas, such as a presenter view and following the presenter live.
 
 ### Pixel art and video
 
