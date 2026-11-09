@@ -80,7 +80,8 @@ port 50052.
   `BE3_BUILD_SERVER=nativelink`, `BE3_NL_URL` to the address without `?_token=` (buck2 then sends no header and the
   proxy adds it) and `BE3_NL_KEY` to any placeholder such as `boat_dummy`, which the proxy replaces. A hosted port has
   two names, `on.boat.dev` and the older `on.ascii.dev`; the network secret's host must be the one `BE3_NL_URL` uses.
-- **The controller** notices a build (a connection from Caddy on port 50052), keeps 2 large workers (8 CPUs, 16 actions each) alive while it runs
+- **The controller** notices a build (a connection from Caddy on port 50052), keeps 2 large workers (8 CPUs, 8 actions each: two per CPU took twice as long, since the big
+  compiles on the critical path ran on half a CPU) alive while it runs
   by extending their 30-minute lifetime, creates replacements, and stops the scheduler after 4 idle hours. Boat
   places a new VM at random and about half cannot reach the scheduler (below), so it creates as many workers as are
   missing, deletes the ones that do not complete a WireGuard handshake within `NL_HANDSHAKE_WAIT` (60 s), and makes
