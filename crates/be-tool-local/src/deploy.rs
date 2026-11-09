@@ -483,8 +483,8 @@ fn with_terminal_hosts(
     json: &[u8],
     terminal_hosts: &[be_lib_build_id::TerminalHostBinary],
 ) -> Result<Vec<u8>, String> {
-    let mut metadata: serde_json::Value = serde_json::from_slice(json)
-        .map_err(|error| format!("invalid build metadata: {error}"))?;
+    let mut metadata: serde_json::Value =
+        serde_json::from_slice(json).map_err(|error| format!("invalid build metadata: {error}"))?;
     let object = metadata
         .as_object_mut()
         .ok_or("the build metadata is not a JSON object")?;
@@ -514,8 +514,8 @@ fn archive_with_terminal_hosts(
             .by_index(index)
             .map_err(|error| format!("a download: {error}"))?;
         let name = entry.name().to_owned();
-        let metadata = name == be_lib_build_id::FILE
-            || name.ends_with(&format!("/{}", be_lib_build_id::FILE));
+        let metadata =
+            name == be_lib_build_id::FILE || name.ends_with(&format!("/{}", be_lib_build_id::FILE));
         if !metadata {
             drop(entry);
             let raw = read

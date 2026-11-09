@@ -204,7 +204,8 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
     let sandbox = store(id);
     let shown = create_memo(move || sandbox.with(|sandbox| state.terminal_of(sandbox)));
     let block = create_memo(move || shown.with(|shown| shown.as_ref().map(|shown| shown.block)));
-    let own = create_memo(move || shown.with(|shown| shown.as_ref().is_some_and(|shown| shown.own)));
+    let own =
+        create_memo(move || shown.with(|shown| shown.as_ref().is_some_and(|shown| shown.own)));
     let status = create_memo(move || {
         let block = block.get()?;
         state
@@ -218,7 +219,9 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
     let text = create_memo(move || match status.get() {
         Some(TerminalStatus::Connecting) => "Connecting the terminal…".to_owned(),
         Some(TerminalStatus::Reconnecting) => "Terminal offline, reconnecting…".to_owned(),
-        Some(TerminalStatus::Failed(message)) => format!("The terminal could not connect: {message}"),
+        Some(TerminalStatus::Failed(message)) => {
+            format!("The terminal could not connect: {message}")
+        }
         _ if !own.get() => "Terminal, shared with you".to_owned(),
         _ => "Terminal".to_owned(),
     });

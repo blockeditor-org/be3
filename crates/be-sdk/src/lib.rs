@@ -46,7 +46,6 @@ pub use be_sdk_api::guest::desktop;
 pub use be_sdk_api::{
     AccessGrant, AccessLevel, AccessListing, AccountStorage, AdministratorWatch, ArtifactAction,
     AudioCommand, AudioOutput, AudioSource, AudioStatus, BarAction, BlockAgent, BlockCommand,
-    TerminalHostBe, TerminalHostDownload, TerminalHostSource,
     BlockFilter, BlockLocation, BlockPick, BlockTypeDescriptor, CapturedChord, CapturedTrigger,
     Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations, ChildPlacement,
     ChildPreview, ChildStatus, ConflictSide, ContactsWatch, CreationProgress, CursorIcon,
@@ -66,12 +65,13 @@ pub use be_sdk_api::{
     ProgramsWatch, RemapState, RemapsWatch, ResizeMode, Revision, Rotation, ScreenEdge,
     ScreenEdgeState, ScreenEdgesWatch, ScreenLockedWatch, ScreenPlacement, ScreenSide, ScrollDelta,
     SessionEnd, ShellCommand, ShellDialog, Size, Stopped, StorageUsageWatch, SuperKeptWatch,
-    SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase, TrayClick,
-    TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch, VersionBranch,
-    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
-    VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId, WheelTurn,
-    WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowKind,
-    WindowOrigin, WindowRequests, WindowsWatch,
+    SurfaceRect, TemplateCategory, TemplateDescriptor, TerminalHostBe, TerminalHostDownload,
+    TerminalHostSource, TimedInput, TopBar, TouchPhase, TrayClick, TrayMenuEntry, TrayMenuItem,
+    TrayRequest, TrayStatus, TrayToggle, TrayWatch, VersionBranch, VersionChange,
+    VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus, ViewChange,
+    Watched, WebViewCommand, WebViewEvent, WebViewId, WheelTurn, WifiLink, WifiNetwork,
+    WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowRequests,
+    WindowsWatch,
 };
 pub use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, HostTransform, HostView, PaletteMode, ParentView, Scrim, View,
