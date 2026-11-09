@@ -166,5 +166,10 @@ fn summary(content: &Content) -> String {
             "a glyph over {:?} in {:?} from texture {:016x}",
             glyph.rect, glyph.color, glyph.texture
         ),
+        Content::Group(group) => format!(
+            "a group of {} shapes at opacity {}",
+            group.primitives.len(),
+            group.opacity
+        ),
     }
 }

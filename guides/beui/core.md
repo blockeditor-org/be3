@@ -158,7 +158,12 @@ them:
 - **Retained paint and damage.** A node records a tree (`display.rs`) of
   shapes, children by id and groups; the new tree is set against the old by
   identity to find damage, and a scrolled group becomes a copy
-  (`WindowOutput::moved`) instead.
+  (`WindowOutput::moved`) instead. A frame's `opacity` records a
+  `Group::Mask` that fades its subtree as one picture: beui-renderer-wgpu
+  draws it onto an offscreen layer and paints that at the opacity
+  (`group.rs`), and a painting holds it as a `Content::Group` the rasterizer
+  composites the same way, so overlapping shapes inside do not show through
+  each other. Edge fades (`fade_edges`) still fade shape by shape.
 - **Checking paint.** Tests repaint every frame from scratch and fail when the
   retained painting differs or changed outside the damage (`verify_paint`).
   `BEUI_OVER_REPAINT=1` reports frames that damage over four times what

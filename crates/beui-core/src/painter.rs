@@ -358,7 +358,11 @@ impl Painter {
     pub fn faded(&self, space: SpaceId, rect: Rect, widths: [f32; 4], opacity: f32) -> Self {
         self.grouped(Group::Mask {
             space,
-            fade: Fade::faded(rect, widths, opacity),
+            fade: Fade::new(rect, widths),
+            opacity: match opacity.is_finite() {
+                true => opacity.clamp(0.0, 1.0),
+                false => 1.0,
+            },
         })
     }
 
