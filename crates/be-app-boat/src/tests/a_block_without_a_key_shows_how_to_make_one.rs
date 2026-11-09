@@ -7,7 +7,7 @@ fn a_block_without_a_key_shows_how_to_make_one() {
     assert!(boat.test.shown("boat.sign-in"));
     assert_eq!(
         boat.label("boat.sign-in.actions"),
-        "sandbox.read, sandbox.resume, sandbox.stop, account.read"
+        "sandbox.read, sandbox.resume, sandbox.stop, account.read, exec, file.write"
     );
     assert!(!boat.test.has_fetches(), "nothing is asked without a key");
 

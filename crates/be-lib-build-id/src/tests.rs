@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_bundle_file_comes_from_the_first_directory_that_has_it;
+mod a_deployed_build_names_its_be_per_arch;
 mod a_program_without_its_build_id_file_has_no_build;
 mod metadata_fields;
 mod only_the_same_build_is_compatible;

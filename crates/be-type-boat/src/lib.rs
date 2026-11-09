@@ -1,8 +1,8 @@
 mod boat;
 mod settings;
 
-pub use boat::{Boat, BoatContent};
-pub use settings::{BoatKey, BoatSettings, BoatSettingsContent};
+pub use boat::{Boat, BoatContent, BoatTerminal};
+pub use settings::{BoatKey, BoatSettings, BoatSettingsContent, TerminalAgent};
 
 be_sdk_type_guest::be_block_types![BoatContent { undo }, BoatSettingsContent];
 

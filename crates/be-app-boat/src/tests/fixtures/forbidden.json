@@ -1,0 +1,6 @@
+{
+  "ok": false,
+  "code": "forbidden",
+  "message": "Forbidden",
+  "error": { "code": "forbidden", "message": "Forbidden", "status": 403 }
+}

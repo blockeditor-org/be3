@@ -84,11 +84,14 @@ Notes on particular calls:
   far there.
 - `create_block_agent(block, name)`, `rotate_agent_token(agent)` and
   `remove_agent(agent)` make, re-key and delete an agent that reaches only one
-  block, the editor's own or one below it (guides/tracker.md, A block's agent), for an app that hands its
+  block, the editor's own, one below it, or one the app made (`CREATED_BY`)
+  (guides/tracker.md, A block's agent), for an app that hands its
   credentials (`BlockAgent::credentials`, the JSON `BE3_AGENT_CREDENTIALS`
-  holds) to a machine of its own. The host denies them unless the manifest
-  sets `"block_agents": true`, and refuses to rotate or remove an agent the
-  Agents menu lists.
+  holds) to a machine of its own. `terminal_host_binary(arch)` answers the
+  `be` of the host's own build for that machine (guides/terminal.md, A
+  terminal host in a boat.dev sandbox). The host denies them unless the
+  manifest sets `"block_agents": true`, and refuses to rotate or remove an
+  agent the Agents menu lists.
 - Web views can be placed (`SubregionContent::WebView`) but no host shows one
   yet: every open fails, and the editor shows that in its place.
 - A revision preview is a temporary, read-only block id: the host isolates it

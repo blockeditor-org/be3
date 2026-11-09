@@ -1,4 +1,5 @@
-use be_block_model::{Document, Edit, Model, ObjectId};
+use be_block_model::{Document, Edit, Map, Model, ObjectId};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use be_block::Root;
@@ -15,6 +16,18 @@ pub struct Boat {
     pub name_prefix: String,
     /// Shows only the sandboxes with this `key=value` label, when not empty.
     pub label: String,
+    /// The terminal blocks connected to its sandboxes, keyed by block id: references, so a
+    /// viewer who can open one sees it in the sandbox's row. A terminal of someone who may not
+    /// edit the block is in their Unfiled alone.
+    pub terminals: Map<String, BoatTerminal>,
+}
+
+/// A terminal block whose host runs in a sandbox.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
+pub struct BoatTerminal {
+    /// The sandbox's id, `bx_...`.
+    pub sandbox: String,
 }
 
 impl Boat {
@@ -34,6 +47,30 @@ impl Boat {
             .into()
     }
 
+    pub fn add_terminal(block: Uuid, sandbox: impl Into<String>) -> Edit {
+        let terminal = BoatTerminal {
+            sandbox: sandbox.into(),
+        };
+        Self::TERMINALS
+            .put(ObjectId::ROOT, &block.to_string(), Some(&terminal))
+            .into()
+    }
+
+    pub fn remove_terminal(block: Uuid) -> Edit {
+        Self::TERMINALS
+            .put(ObjectId::ROOT, &block.to_string(), None)
+            .into()
+    }
+
+    /// The terminal blocks connected to `sandbox`, oldest first (block ids are UUIDv7).
+    pub fn terminals_of(&self, sandbox: &str) -> Vec<Uuid> {
+        self.terminals
+            .iter()
+            .filter(|(_, terminal)| terminal.sandbox == sandbox)
+            .filter_map(|(block, _)| Uuid::parse_str(block).ok())
+            .collect()
+    }
+
     /// The `key=value` a label filter asks for, if it is one.
     pub fn label_filter(label: &str) -> Option<(&str, &str)> {
         let (key, value) = label.split_once('=')?;
@@ -47,6 +84,13 @@ impl Root for Boat {
 
     fn name(&self) -> Option<String> {
         (!self.organization.is_empty()).then(|| format!("boat.dev: {}", self.organization))
+    }
+
+    fn references(&self) -> Vec<Uuid> {
+        self.terminals
+            .keys()
+            .filter_map(|block| Uuid::parse_str(block).ok())
+            .collect()
     }
 }
 
