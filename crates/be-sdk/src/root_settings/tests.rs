@@ -60,4 +60,3 @@ impl SettingsGraph for Graph {
 
     fn edit_settings_profile(&self, _: Uuid, _: Edit) {}
 }
-

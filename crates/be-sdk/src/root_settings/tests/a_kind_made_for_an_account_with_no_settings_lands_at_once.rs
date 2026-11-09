@@ -12,13 +12,19 @@ fn a_kind_made_for_an_account_with_no_settings_lands_at_once() {
         .ensure(&graph, Uuid::nil())
         .expect("the kind is made on the first try");
 
-    let settings = graph.settings.borrow().expect("the account's Settings is made");
+    let settings = graph
+        .settings
+        .borrow()
+        .expect("the account's Settings is made");
     let contents = graph.contents.borrow();
     let made = contents
         .iter()
         .find(|(block, _)| *block == settings)
         .map(|(_, bytes)| SettingsContent::decode(bytes).expect("Settings content"))
         .expect("the Settings block was made with content");
-    assert_eq!(made.root().kind(SettingsProfileContent::CONTENT_TYPE), Some(kind));
+    assert_eq!(
+        made.root().kind(SettingsProfileContent::CONTENT_TYPE),
+        Some(kind)
+    );
     assert!(contents.iter().any(|(block, _)| *block == kind));
 }

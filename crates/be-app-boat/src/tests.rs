@@ -196,7 +196,10 @@ impl Boat {
     /// The key the viewer's settings keep for the block's own account.
     fn kept_key(&self) -> Option<be_type_boat::BoatKey> {
         let blocks = self.settings_blocks();
-        assert!(blocks.len() <= 1, "one settings block for the kind: {blocks:?}");
+        assert!(
+            blocks.len() <= 1,
+            "one settings block for the kind: {blocks:?}"
+        );
         let block = *blocks.first()?;
         self.test
             .content::<BoatSettingsContent>(Some(block))
