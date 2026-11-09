@@ -1,56 +1,6 @@
-use be_sdk_beui::beui::clipboard::{Blocks, ClipBlock, ClipFormat as _};
-use be_sdk_beui::{BlockCommand, BlockParent, PastedBlock};
-use be_sdk_test::HostCall;
+use be_sdk_beui::BlockCommand;
 
 use super::*;
-
-fn paste(fixture: &mut Fixture, folder: Uuid, block: Uuid, moved: bool) {
-    fixture.choose(folder, "Paste");
-    let copied = Blocks {
-        blocks: vec![ClipBlock {
-            id: block,
-            organization: None,
-            block_type: PLAIN,
-            title: "Notes".to_owned(),
-        }],
-    };
-    fixture.test.step(vec![Input::Paste(copied.encode())]);
-    fixture.settle();
-    let asked = fixture
-        .test
-        .take_requests()
-        .into_iter()
-        .filter_map(|call| match call {
-            HostCall::PasteBlocks {
-                reply,
-                blocks,
-                parent,
-                ..
-            } => Some((reply, blocks, parent)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let [(reply, blocks, parent)]: [_; 1] = asked
-        .try_into()
-        .unwrap_or_else(|asked: Vec<_>| panic!("the paste asks the host once, asked {asked:?}"));
-    assert_eq!(
-        (blocks, parent),
-        (
-            vec![block.into_bytes()],
-            BlockParent::Block(folder).encode()
-        ),
-        "the clip goes into the folder the menu was opened on"
-    );
-    fixture.test.answer(
-        reply,
-        Ok(vec![PastedBlock {
-            block_id: block.into_bytes(),
-            block_type: PLAIN.into_bytes(),
-            moved,
-        }]),
-    );
-    fixture.settle();
-}
 
 #[test]
 fn paste_on_a_folder_places_the_copied_blocks_there() {
@@ -64,7 +14,7 @@ fn paste_on_a_folder_places_the_copied_blocks_there() {
     fixture.test.take_requests();
     fixture.test.take_block_commands();
 
-    paste(&mut fixture, folder, notes.id, false);
+    paste_into_folder(&mut fixture, folder, notes.id, false);
     assert_eq!(
         fixture.test.take_block_commands(),
         vec![(
@@ -78,7 +28,7 @@ fn paste_on_a_folder_places_the_copied_blocks_there() {
         "a copied block is linked into the folder"
     );
 
-    paste(&mut fixture, folder, notes.id, true);
+    paste_into_folder(&mut fixture, folder, notes.id, true);
     assert_eq!(
         fixture.test.take_block_commands(),
         Vec::new(),

@@ -134,7 +134,9 @@ before the editor removes its references as a delete does. A paste of
 `be3/blocks` goes through `host().paste_blocks(blocks, parent)`, which answers
 with the blocks the editor may view; a block cut from its parent moves to
 `parent` (`moved`), and every paste uses up the record, so later ones add
-references. A drag over an editor carries the same clip with a `DropAction`
+references. The files pane keeps a link it cut where it is until that first
+paste, which moves it (`move_block` with `is_reference`); pasting any other
+block on a folder links it there (`place_block`). A drag over an editor carries the same clip with a `DropAction`
 the host picked from the modifiers (`DropAction::of`): a move, Ctrl or Alt for a
 copy (`copy_blocks`), Ctrl+Shift for a reference.
 

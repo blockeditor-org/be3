@@ -29,7 +29,19 @@ pub(crate) struct RowTools {
     pub(crate) zoom: Zoom,
     pub(crate) renaming: Renaming,
     pub(crate) tree_api: ComponentRef<TreeApi<RowKey>>,
+    pub(crate) cut: CutReference,
 }
+
+/// A link this files pane cut, which the paste that uses up the host's record
+/// of the cut moves out of where it was cut from rather than linking again.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) struct CutLink {
+    block: Uuid,
+    block_type: Uuid,
+    source: BlockParent,
+}
+
+pub(crate) type CutReference = Stored<std::cell::Cell<Option<CutLink>>>;
 
 #[component]
 pub(crate) fn RowMenu(tools: RowTools, key: RowKey) -> Option<TreeMenu> {
@@ -212,6 +224,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
         inspected_from,
         renaming,
         tree_api,
+        cut: cut_link,
         ..
     } = tools;
     let leavable = leavable(editor, row);
@@ -295,6 +308,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
     };
     let copy_row = move || {
         if let Some((id, shown)) = shown() {
+            cut_link.value().set(None);
             editor.copy_blocks(&[(id, shown.block_type, shown.label.clone())]);
         }
     };
@@ -310,6 +324,11 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
     let cut = move || {
         if let Some((id, shown)) = shown() {
             editor.copy_blocks(&[(id, shown.block_type, shown.label.clone())]);
+            cut_link.value().set(shown.is_reference.then_some(CutLink {
+                block: id,
+                block_type: shown.block_type,
+                source: shown.source,
+            }));
             if let Some(container) = shown.container {
                 editor.host().cut_blocks(&[id], container);
             }
@@ -497,9 +516,10 @@ fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) ->
 
 /// Pastes a `be3/blocks` clip into the folder `row` shows. The host
 /// (`paste-blocks`) moves a block cut from its parent there and answers with
-/// the blocks this editor may view; every other block answered is linked into
-/// the folder here, as the add picker links a block.
-pub(crate) fn paste_into(editor: Editor, row: Option<Row>, pasted: ClipItem) {
+/// the blocks this editor may view. A link this pane cut moves out of where it
+/// was cut from; every other block answered is linked into the folder here, as
+/// the add picker links a block.
+pub(crate) fn paste_into(editor: Editor, cut: CutReference, row: Option<Row>, pasted: ClipItem) {
     let Some(folder) = row.filter(|row| row.can_add).and_then(|row| row.id) else {
         return;
     };
@@ -510,9 +530,15 @@ pub(crate) fn paste_into(editor: Editor, row: Option<Row>, pasted: ClipItem) {
     let host = editor.host();
     let asked = host.paste_blocks(&ids, BlockParent::Block(folder));
     let _ = editor.then(asked, move |pasted| {
+        let link = cut.try_with(|cut| cut.take()).flatten();
         for (block, block_type, moved) in pasted {
-            if !moved {
-                host.place_block(block, block_type, folder, true);
+            if moved {
+                continue;
+            }
+            match link.filter(|link| link.block == block) {
+                Some(link) if link.source == BlockParent::Block(folder) => {}
+                Some(link) => host.move_block(block, link.block_type, link.source, folder, true),
+                None => host.place_block(block, block_type, folder, true),
             }
         }
     });

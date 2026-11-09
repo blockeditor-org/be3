@@ -54,6 +54,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         zoom,
         renaming,
         tree_api: tree_ref,
+        cut: store(std::cell::Cell::new(None)),
     };
     let rows = tree.rows();
     let focused_block = editor.focused_block();
@@ -245,7 +246,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                             let row = tree.rows().with_untracked(|rows| {
                                                 rows.iter().find(|row| row.key == key).cloned()
                                             });
-                                            paste_into(editor, row, pasted)
+                                            paste_into(editor, tools.cut, row, pasted)
                                         }}
                                         on_select={open}
                                         on_expand={expand}
