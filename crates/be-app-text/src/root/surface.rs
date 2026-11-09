@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use be_sdk_beui::{Drag, be_sdk_ui::BlockLabel};
 use beui::NodeId;
 use beui::reactive::*;
@@ -76,6 +78,7 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
         });
     });
 
+    caret_when_given_the_keyboard(state);
     let typing = state.typing;
     view! {
         <TextArea
@@ -93,6 +96,43 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
             selected_widget={open_row}
         />
     }
+}
+
+/// An empty text given the keyboard (an editor that just made it handed it over, as a deck's
+/// "Add notes" does) puts its caret in the text, so typing starts there.
+fn caret_when_given_the_keyboard(state: State) {
+    let keyboard = use_keyboard();
+    let read_only = state.editor.read_only();
+    let focusing = create_timer(move || {
+        if focused_node().is_none() {
+            state.text.focus();
+        }
+        None
+    });
+    let armed = StoredCell::new(false);
+    let had = StoredCell::new(false);
+    create_effect(move || {
+        let given = keyboard.get();
+        state.text.content().get();
+        if !given {
+            had.set(false);
+            armed.set(false);
+            return;
+        }
+        if !had.replace(true) {
+            armed.set(true);
+        }
+        untrack(|| {
+            if !armed.get() || !state.text.loaded() {
+                return;
+            }
+            armed.set(false);
+            let empty = state.text.bytes().is_empty();
+            if empty && !read_only.get() && focused_node().is_none() {
+                focusing.start(Duration::ZERO);
+            }
+        });
+    });
 }
 
 #[component]

@@ -25,6 +25,7 @@ pub fn MenuButton(
     #[prop(default = false)] placeholder: Prop<bool>,
     #[prop(default = true)] click_opens: Prop<bool>,
     #[prop(default = false)] secondary_opens: Prop<bool>,
+    #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = false)] open: Binding<bool>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
@@ -48,6 +49,7 @@ pub fn MenuButton(
             disabled
             click_opens
             secondary_opens
+            capture_presses
             bounds
             placement
             menu={menu_style()}

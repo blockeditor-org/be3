@@ -1706,6 +1706,14 @@ pub fn take_child_focus(
     .unwrap_or(false)
 }
 
+/// Whether the instance asked to give the keyboard to a child whose view has not taken it yet.
+pub fn child_focus_pending(app_id: &str, instance: EditorInstanceId) -> bool {
+    with(app_id, |runtime| {
+        runtime.instances.child_focus_pending(instance)
+    })
+    .unwrap_or(false)
+}
+
 pub fn take_child_dismissals(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::ChildId> {
     with(app_id, |runtime| {
         runtime.instances.take_child_dismissals(instance)

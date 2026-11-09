@@ -22,8 +22,11 @@ pub struct Slide {
 pub enum Notes {
     None,
     Loading,
+    Missing,
     Block(ChildTarget),
 }
+
+const NOTES_NAME: &str = "Speaker notes";
 
 #[derive(Clone, Copy)]
 pub struct Slides {
@@ -51,6 +54,11 @@ impl Slides {
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
         create_binding(move || slides.refresh(&dependencies));
+        let focus_notes = slides.focus_notes;
+        create_effect(move || {
+            selected.get();
+            focus_notes.set(None);
+        });
         slides
     }
 
@@ -165,23 +173,23 @@ impl Slides {
         );
     }
 
-    fn source_of(&self, id: Uuid) -> Option<Uuid> {
+    fn slide_blocks(&self, id: Uuid) -> Option<(Option<Uuid>, Option<Uuid>)> {
         self.block
             .read(|presentation| {
                 presentation
                     .root()
                     .slides
                     .get(ObjectId::from_uuid(id))
-                    .and_then(|slide| slide.block)
+                    .map(|slide| (slide.block, slide.notes))
             })
             .ok()
             .flatten()
     }
 
     /// Copies the slide's block, and everything inside it, into the deck and shows the copy after
-    /// the slide.
+    /// the slide; the slide's notes are copied too, so the copy has notes of its own.
     pub fn duplicate(&self, id: Uuid) {
-        let Some(source) = self.source_of(id) else {
+        let Some((Some(source), notes)) = self.slide_blocks(id) else {
             return;
         };
         let slides = *self;
@@ -195,13 +203,37 @@ impl Slides {
                 .index_of_untracked(id)
                 .map_or(usize::MAX, |index| index + 1);
             let slide = Uuid::new_v4();
-            if let Ok(edit) = slides.block.read(|presentation| {
+            let Ok(edit) = slides.block.read(|presentation| {
                 presentation
                     .root()
                     .insert(ObjectId::from_uuid(slide), index, copy)
-            }) {
-                slides.block.operate(edit);
+            }) else {
+                return;
+            };
+            slides.block.operate(edit);
+            let still = slides.selected.get_untracked() == Some(id);
+            if still && !slides.editor.presenting().get_untracked() {
                 slides.selected.set(Some(slide));
+            }
+            if let Some(notes) = notes {
+                slides.copy_notes(slide, notes);
+            }
+        });
+    }
+
+    fn copy_notes(&self, slide: Uuid, notes: Uuid) {
+        let slides = *self;
+        let deck = BlockParent::Block(self.editor.block_id());
+        let asked = self.editor.host().copy_blocks(notes, deck);
+        self.editor.then(asked, move |copied| {
+            let (Ok(Some((copy, _))), true) = (copied, slides.selected.is_alive()) else {
+                return;
+            };
+            if slides.slide_blocks(slide).is_some() {
+                slides.block.operate(Presentation::set_notes(
+                    ObjectId::from_uuid(slide),
+                    Some(copy),
+                ));
             }
         });
     }
@@ -219,7 +251,7 @@ impl Slides {
             TEXT_TYPE,
             None,
             BlockParent::Block(self.editor.block_id()),
-            BlockMetadata::default(),
+            BlockMetadata::named(NOTES_NAME),
         );
         self.made_notes
             .set(Some(ChildTarget::new(notes, TEXT_TYPE)));
@@ -247,6 +279,7 @@ impl Slides {
             return;
         };
         let references = dependencies.read();
+        let resolved = references.is_ok();
         let pending = match &references {
             Err(Pending::Failed(error)) => error.clone(),
             _ => "Loading…".to_owned(),
@@ -276,7 +309,13 @@ impl Slides {
                                 .chain(kept)
                                 .find(|target| target.id == notes)
                         })
-                        .map_or(Notes::Loading, Notes::Block),
+                        .map_or(
+                            match resolved {
+                                true => Notes::Missing,
+                                false => Notes::Loading,
+                            },
+                            Notes::Block,
+                        ),
                 };
                 let reference = block.and_then(|id| metadata.get(&id));
                 let slide = match reference {

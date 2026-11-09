@@ -60,7 +60,7 @@ pub use runtime::{
     unplace_view, view_damage, view_drawing, view_has_keyboard, view_placed, view_published,
 };
 pub use runtime::{
-    artifact, artifact_draft, aspect_ratio, assigned_size, begin_frame, busy, card, close,
+    artifact, artifact_draft, aspect_ratio, assigned_size, begin_frame, busy, card, child_focus_pending, close,
     commit_creation, content_view, crash, creation, dialog_status, dismiss, drawing, flush,
     forget_dialog_answer, frame_child, frame_rects, hold, in_use, install, intrinsic_size, kill,
     menu, menu_pick, pass_child_focus, picked, poll, present, presenting, preview_image,

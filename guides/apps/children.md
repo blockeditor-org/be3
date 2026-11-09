@@ -98,7 +98,14 @@ keyboard (one being presented) brings nothing forward. The other way,
 `EditorHost::focus_child` gives a child the keyboard, but only while the
 keyboard is already inside the editor's views and no popover or
 keyboard-taking layer is open, so it never steals focus from elsewhere. `ChildBlock` and `Subregion` in a dock tab ask for it whenever the
-dock gives that tab the keyboard.
+dock gives that tab the keyboard. Until the child's view takes the keyboard
+(a child still loading), be-host holds the keys typed into the editor's view
+and hands them to the child once its view has the keyboard and asks for an
+input method (a focused text field), or half a second after it took the
+keyboard; or back to the editor if the gift falls through or takes over two
+seconds (`be-host/src/compositor/app_view/held_keys.rs`). So an editor that
+makes a block and gives it the keyboard ("Add notes") loses no keystroke. An
+empty text block given the keyboard puts its caret in its text.
 
 ## Docks across apps
 
