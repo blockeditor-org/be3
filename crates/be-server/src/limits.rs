@@ -21,6 +21,14 @@ pub const MAX_INVITATIONS_PER_ORGANIZATION: i64 = 1_000;
 /// Escrow keys an organization may make; each rotation makes one.
 pub const MAX_ESCROWS_PER_ORGANIZATION: i64 = 1_000;
 
+/// Push endpoints (devices) one account keeps per organization; registering another drops the
+/// oldest.
+pub const MAX_PUSH_ENDPOINTS: i64 = 32;
+/// Notifications one account may send a minute, over all blocks.
+pub const MAX_NOTIFICATIONS_PER_MINUTE: u32 = 120;
+/// Accounts one notification may mention.
+pub const MAX_MENTIONS: usize = 1_024;
+
 /// Live sessions one connection may be joined to at once.
 pub const MAX_SESSIONS_PER_CONNECTION: usize = 1_024;
 /// Listings one connection may hold at once: folders, references and backlinks open. A block's
