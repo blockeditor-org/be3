@@ -89,10 +89,13 @@ How the model works:
   and edits name the object, not a position: an edit to an object that moved
   still lands on it. `move_into` carries an object and its subtree to another
   list of the same kind; into another kind it does nothing, since saving would
-  retype it.
+  retype it. `move_range` moves several objects shown one after another in a
+  list (and what was removed from between them) behind an anchor in one
+  change; it is refused once someone put another object between them or moved
+  one away.
 - **Edits.** The derive gives each field a constant (`CalendarEvent::TITLE`)
   that builds `Change`s: `set`, `add`, `put`, `insert`, `move_into`,
-  `Change::remove`. Types wrap these in helpers that write only fields that
+  `move_range`, `Change::remove`. Types wrap these in helpers that write only fields that
   changed.
 - **Nothing to rebase.** Edits address objects by id and anchor inserts to a
   sibling. A list is a `Sequence` of ids (`Items`) remembering each object's
@@ -177,7 +180,8 @@ CBOR is what registers hold in memory and what `set` sends.
 `Document::to_bytes` writes that value split into a tree of `DocumentPart`s,
 each about 16–64 KiB of CBOR (`crates/be-block-model/src/parts.rs`): a CBOR
 sequence of the root part, then each part it names with its own parts after
-it. `from_bytes` hashes each part and joins them back
+it. `from_bytes` finds each part where it sits, checks it hashes to its name,
+and joins them back
 (`be_block_model::read_stored` does that alone, for tools that show a
 document's CBOR). A parent names its parts by the SHA-256 of their bytes:
 `PART(hash)` stands for a list object larger than a part, `SPLICE([hash,

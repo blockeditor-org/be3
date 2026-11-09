@@ -22,6 +22,7 @@ use crate::{
     editor::{EditorMirror, FromEditor, Gesture, ToEditor},
 };
 
+mod a_break_ends_a_burst_but_not_an_open_gesture;
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_file_maps_to_a_block_and_back;
@@ -69,6 +70,7 @@ mod concurrent_edits_converge;
 mod edits_are_committed_once_they_rest_for_the_quiet_interval;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
+mod two_editors_typing_at_once_keep_their_own_undo_steps;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_reverts_only_this_devices_edit;

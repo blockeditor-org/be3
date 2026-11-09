@@ -182,6 +182,7 @@ impl Root for ChatHeader {
                 | Change::Remove { .. }
                 | Change::RemoveIf { .. }
                 | Change::Move { .. }
+                | Change::MoveRange { .. }
         )
     }
 }

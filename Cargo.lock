@@ -1268,6 +1268,7 @@ dependencies = [
  "be-block-model-derive",
  "be-block-store",
  "be-lib-sequence",
+ "be-tool-bench",
  "ciborium",
  "postcard",
  "serde",

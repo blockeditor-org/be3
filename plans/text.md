@@ -5,54 +5,9 @@ its hash (`put-part`, guides/type_modules.md, "Parts named by hash").
 
 Text and lists share one ordered sequence: `Sequence<T>` in `be-lib-sequence`,
 wrapped by `be-block-model` as the `Text` field and as `Items` for lists. The
-session code is `be-sdk-type-guest/src/replica.rs`. What is left is below, in
-order.
+session code is `be-sdk-type-guest/src/replica.rs`. What is left is below.
 
-## 1. Undo groups from the editor
-
-The replica groups edits into undo steps by time: an edit within `EDIT_BURST`
-(750 ms, `be-block/src/history.rs`) of the last joins its step. An editor can
-also bracket a gesture (`LiveContent::begin_gesture`, `commit_gesture`,
-`cancel_gesture`, sent as `FromEditor::Gesture`), such as a drag, which makes
-everything between one step. beui-text-editor-core calls
-`finish_history_group` to end a step where a text editor expects one (a paste,
-a caret jump between typing), but `LiveText`
-(`be-sdk-text/src/live_text.rs`) ignores it, so text steps follow the clock
-alone.
-
-Add `Gesture::Break`, which ends the current step without opening a gesture,
-and send it from `LiveText::finish_history_group`. `History::close` only
-flushes an open gesture, so Break must also stop the next edit merging into
-the last step by time: clear the last step's time, or set a flag `record`
-honours. Not
-begin and commit: a gesture left open blocks session restarts (`restart_due`,
-decisions/sessions_restart_when_their_state_outgrows_the_content.md). Done: in
-a `BeuiTest`, typing, a pause shorter than `EDIT_BURST` and a paste, with the
-editor ending a group between them, undo the paste alone and then the typing.
-
-## 2. Sequence
-
-`merge_appends` (a `List` attribute, chat's messages) has landed and also changes
-how list orders merge (`append_order` in `crates/be-block-model/src/merge.rs`);
-keep it working. A change to what an operation does is fine across builds, since
-a journal belongs to its module tag.
-
-- **A replace after a move.** A replace inserts after the last element of its
-  last span as listed; it should insert after whichever replaced element is
-  last in the document now. Done: a test moves an element of a span, then
-  replaces the span, and the insert lands after the element now last.
-- **Moving a range of list items.** `SeqOp::Move` already moves a range;
-  nothing builds one for a list (`Items::shift` moves one slot). Add
-  `Items::shift_range(first, last, after)`. Done: a test moves three items in
-  one operation, and undo puts them back.
-- **Saving text as one byte string.** `impl Serialize for Sequence<T>` writes
-  element by element. Rust has no specialisation, so serialise `Value::Text`
-  (`be-block-model/src/lib.rs`) through a bytes adapter instead. Postcard
-  writes both the same way, so the stored form does not change; the gain is
-  decoding. Done: decoding and adopting a 1 MB text's snapshot takes under
-  1 ms in release (6.5 ms today), measured by a bench.
-
-## 3. An oversized edit is an operation like any other
+## An oversized edit is an operation like any other
 
 Today an edit over `LARGEST_RELAYED_OPERATION` (1 MiB, a large paste) is not
 relayed. A follower stashes a commit holding its whole content and tells the

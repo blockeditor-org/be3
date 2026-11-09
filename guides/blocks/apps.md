@@ -175,7 +175,8 @@ on its character while others type: `be_sdk_text::live_text::LiveText` is that
 for any `Text` or `RichText` field (a `TextField`, or `FieldOf::rich`/`plain`).
 It keeps its own copy of the sequence and marks and turns local edits into
 `Change::Text` and `Change::Mark`. `LiveText::sync`, called on every change of
-the document and the projection, sends them, asks the host to undo or redo,
+the document and the projection, sends them (and a `break_step` wherever the
+editor ends an undo group, `finish_history_group`), asks the host to undo or redo,
 and applies others' edits in place. The projection must `record()` while a
 `LiveText` reads its log (`stop_recording()` after), and only one `LiveText`
 per projection syncs at a time: the canvas syncs the text being edited and has

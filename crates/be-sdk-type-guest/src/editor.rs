@@ -10,6 +10,9 @@ pub enum Gesture {
     Begin,
     Commit,
     Cancel,
+    /// Ends the current undo step without opening a gesture, so the next edit starts one of
+    /// its own however soon it comes: a text editor's paste, or typing after a caret jump.
+    Break,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

@@ -135,6 +135,8 @@ pub struct Document {
     pub keys: crate::keys::KeyListeners,
     actions_hooks: RefCell<Vec<Weak<ActionsHook>>>,
     published_actions: Rc<PublishedActions>,
+    hosts_watched: ::beui_reactive::OwnedSignal<Vec<(WindowId, WindowId)>>,
+    hosts_generation: Cell<Option<u64>>,
     pub(crate) tapping: Option<Key>,
     keyboard: ::beui_reactive::OwnedSignal<bool>,
     input_frames: u64,
@@ -380,6 +382,8 @@ impl Document {
             keys: Default::default(),
             actions_hooks: RefCell::new(Vec::new()),
             published_actions: Rc::default(),
+            hosts_watched: ::beui_reactive::OwnedSignal::new(Vec::new()),
+            hosts_generation: Cell::new(None),
             tapping: None,
             keyboard: ::beui_reactive::OwnedSignal::new(true),
             input_frames: 0,
@@ -664,6 +668,28 @@ impl Document {
         Rc::clone(&self.published_actions)
     }
 
+    /// Keeps `watch_window_hosts` up to date: windows are layers, so which window hosts which
+    /// can change only when the layers do.
+    fn follow_window_hosts(&mut self) {
+        let generation = self.layer_state.generation();
+        if self.hosts_generation.replace(Some(generation)) == Some(generation) {
+            return;
+        }
+        let hosts = self.window_hosts();
+        if self
+            .hosts_watched
+            .read_only()
+            .with_untracked(|held| *held != hosts)
+        {
+            self.hosts_watched.set(hosts);
+        }
+    }
+
+    /// Which window hosts which (`window_hosts`), as a signal that moves when that changes.
+    pub fn watch_window_hosts(&self) -> ::beui_reactive::ReadSignal<Vec<(WindowId, WindowId)>> {
+        self.hosts_watched.read_only()
+    }
+
     fn run_requested_actions(&self, ctx: &Context) {
         let mut hooks = self.actions_hooks.borrow_mut();
         hooks.retain(|hook| hook.strong_count() > 0);
@@ -681,6 +707,7 @@ impl Document {
             self.published_actions.document.set(self.accessibility_id);
             self.published_actions.context.replace(Some(ctx.clone()));
         }
+        self.follow_window_hosts();
         if !ctx.action_requests().is_empty() {
             crate::current::run_in(self, |document| document.run_requested_actions(ctx));
         }

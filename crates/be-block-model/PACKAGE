@@ -5,7 +5,12 @@
 write_package_value("be3.cargo", {
     "binaries": [],
     "edition": "2024",
-    "examples": [],
+    "examples": [
+        {
+            "crate_root": "examples/text-snapshot-bench.rs",
+            "name": "text-snapshot-bench",
+        },
+    ],
     "library": {
         "crate": "be_block_model",
         "crate_root": "src/lib.rs",
@@ -26,9 +31,26 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
             ],
-            "examples": {},
+            "examples": {
+                "text-snapshot-bench": {
+                    "deps": [
+                        "//crates/be-block-commit:be-block-commit",
+                        "//crates/be-block-model-derive:be-block-model-derive",
+                        "//crates/be-block-store:be-block-store",
+                        "//crates/be-lib-sequence:be-lib-sequence",
+                        "//crates/be-tool-bench:be-tool-bench",
+                        "//third-party/rust:ciborium-0.2.2",
+                        "//third-party/rust:postcard-1.1.3",
+                        "//third-party/rust:serde-1.0.228",
+                        "//third-party/rust:uuid-1.29.1",
+                    ],
+                    "features": [],
+                },
+            },
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-tool-bench:be-tool-bench",
+            ],
             "test_features": [],
         },
         "linux-arm64": {
@@ -43,9 +65,26 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
             ],
-            "examples": {},
+            "examples": {
+                "text-snapshot-bench": {
+                    "deps": [
+                        "//crates/be-block-commit:be-block-commit",
+                        "//crates/be-block-model-derive:be-block-model-derive",
+                        "//crates/be-block-store:be-block-store",
+                        "//crates/be-lib-sequence:be-lib-sequence",
+                        "//crates/be-tool-bench:be-tool-bench",
+                        "//third-party/rust:ciborium-0.2.2",
+                        "//third-party/rust:postcard-1.1.3",
+                        "//third-party/rust:serde-1.0.228",
+                        "//third-party/rust:uuid-1.29.1",
+                    ],
+                    "features": [],
+                },
+            },
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-tool-bench:be-tool-bench",
+            ],
             "test_features": [],
         },
         "linux-x86_64": {
@@ -60,9 +99,26 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
             ],
-            "examples": {},
+            "examples": {
+                "text-snapshot-bench": {
+                    "deps": [
+                        "//crates/be-block-commit:be-block-commit",
+                        "//crates/be-block-model-derive:be-block-model-derive",
+                        "//crates/be-block-store:be-block-store",
+                        "//crates/be-lib-sequence:be-lib-sequence",
+                        "//crates/be-tool-bench:be-tool-bench",
+                        "//third-party/rust:ciborium-0.2.2",
+                        "//third-party/rust:postcard-1.1.3",
+                        "//third-party/rust:serde-1.0.228",
+                        "//third-party/rust:uuid-1.29.1",
+                    ],
+                    "features": [],
+                },
+            },
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-tool-bench:be-tool-bench",
+            ],
             "test_features": [],
         },
         "linux-x86_64-html": {
@@ -94,9 +150,26 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
             ],
-            "examples": {},
+            "examples": {
+                "text-snapshot-bench": {
+                    "deps": [
+                        "//crates/be-block-commit:be-block-commit",
+                        "//crates/be-block-model-derive:be-block-model-derive",
+                        "//crates/be-block-store:be-block-store",
+                        "//crates/be-lib-sequence:be-lib-sequence",
+                        "//crates/be-tool-bench:be-tool-bench",
+                        "//third-party/rust:ciborium-0.2.2",
+                        "//third-party/rust:postcard-1.1.3",
+                        "//third-party/rust:serde-1.0.228",
+                        "//third-party/rust:uuid-1.29.1",
+                    ],
+                    "features": [],
+                },
+            },
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-tool-bench:be-tool-bench",
+            ],
             "test_features": [],
         },
         "macos-x86_64": {
@@ -111,9 +184,26 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
             ],
-            "examples": {},
+            "examples": {
+                "text-snapshot-bench": {
+                    "deps": [
+                        "//crates/be-block-commit:be-block-commit",
+                        "//crates/be-block-model-derive:be-block-model-derive",
+                        "//crates/be-block-store:be-block-store",
+                        "//crates/be-lib-sequence:be-lib-sequence",
+                        "//crates/be-tool-bench:be-tool-bench",
+                        "//third-party/rust:ciborium-0.2.2",
+                        "//third-party/rust:postcard-1.1.3",
+                        "//third-party/rust:serde-1.0.228",
+                        "//third-party/rust:uuid-1.29.1",
+                    ],
+                    "features": [],
+                },
+            },
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-tool-bench:be-tool-bench",
+            ],
             "test_features": [],
         },
         "wasi": {
@@ -179,9 +269,26 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
             ],
-            "examples": {},
+            "examples": {
+                "text-snapshot-bench": {
+                    "deps": [
+                        "//crates/be-block-commit:be-block-commit",
+                        "//crates/be-block-model-derive:be-block-model-derive",
+                        "//crates/be-block-store:be-block-store",
+                        "//crates/be-lib-sequence:be-lib-sequence",
+                        "//crates/be-tool-bench:be-tool-bench",
+                        "//third-party/rust:ciborium-0.2.2",
+                        "//third-party/rust:postcard-1.1.3",
+                        "//third-party/rust:serde-1.0.228",
+                        "//third-party/rust:uuid-1.29.1",
+                    ],
+                    "features": [],
+                },
+            },
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-tool-bench:be-tool-bench",
+            ],
             "test_features": [],
         },
         "windows-x86_64": {
@@ -196,9 +303,26 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
             ],
-            "examples": {},
+            "examples": {
+                "text-snapshot-bench": {
+                    "deps": [
+                        "//crates/be-block-commit:be-block-commit",
+                        "//crates/be-block-model-derive:be-block-model-derive",
+                        "//crates/be-block-store:be-block-store",
+                        "//crates/be-lib-sequence:be-lib-sequence",
+                        "//crates/be-tool-bench:be-tool-bench",
+                        "//third-party/rust:ciborium-0.2.2",
+                        "//third-party/rust:postcard-1.1.3",
+                        "//third-party/rust:serde-1.0.228",
+                        "//third-party/rust:uuid-1.29.1",
+                    ],
+                    "features": [],
+                },
+            },
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-tool-bench:be-tool-bench",
+            ],
             "test_features": [],
         },
     },

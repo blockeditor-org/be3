@@ -20,7 +20,14 @@ fn plain_text_takes_no_formats() {
         Some(beui_text_editor_core::TextLanguage::PlainText)
     );
     assert!(plain.read().and_then(|read| read.formats()).is_none());
-    let sent = plain.take_operations();
+    let sent = plain
+        .take_outgoing()
+        .into_iter()
+        .filter_map(|outgoing| match outgoing {
+            Outgoing::Edit(edit) => Some(edit),
+            Outgoing::Break => None,
+        })
+        .collect::<Vec<_>>();
     assert!(
         sent.iter()
             .flat_map(|edit| &edit.0)

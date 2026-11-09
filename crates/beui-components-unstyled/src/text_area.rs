@@ -1051,7 +1051,7 @@ fn blur(cx: &Context) {
     cx.state.set_selecting(false);
     cx.state.set_caret_handle(false);
     cx.autoscroll.set(false);
-    cx.state.external_edit();
+    cx.state.end_undo_group();
 }
 
 fn release(cx: &Context, active: bool) {

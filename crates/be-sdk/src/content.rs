@@ -182,6 +182,12 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         self.gesture(Gesture::Commit);
     }
 
+    /// Ends the current undo step, so the next edit starts one of its own however soon it
+    /// comes, without opening a gesture.
+    pub fn break_step(&self) {
+        self.gesture(Gesture::Break);
+    }
+
     /// Puts back what the open gesture wrote and leaves no history. The host cancels a
     /// gesture still open when the instance closes.
     pub fn cancel_gesture(&self) {

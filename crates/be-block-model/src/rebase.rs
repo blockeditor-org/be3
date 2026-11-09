@@ -71,5 +71,11 @@ fn spotted(trees: &[&Tree], change: &Change, spots: &mut BTreeSet<Spot>) {
             }
             spots.insert(Spot::Object(*object));
         }
+        Change::MoveRange {
+            place: at, objects, ..
+        } => {
+            place(*at);
+            spots.extend(objects.iter().map(|id| Spot::Object(*id)));
+        }
     }
 }

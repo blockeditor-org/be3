@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     fmt,
     ops::{Bound, Range},
@@ -76,6 +77,8 @@ pub enum SeqOp<T> {
     },
     /// All or nothing: applies only if every span is still visible. Typing over a selection
     /// stays a delete and an insert; this is for edits like toggling a markdown checkbox.
+    /// The items go after whichever replaced element is last in the document when it
+    /// applies, which a move since may have changed.
     Replace {
         spans: Vec<Span>,
         client: u64,
@@ -228,7 +231,25 @@ impl<T: Clone> Sequence<T> {
     }
 
     pub fn items(&self) -> Vec<T> {
-        self.iter().cloned().collect()
+        let mut items = Vec::with_capacity(self.len());
+        for slice in self.slices() {
+            items.extend_from_slice(slice);
+        }
+        items
+    }
+
+    /// The visible items, borrowed when they are held in one piece, as a sequence loaded
+    /// and not edited since holds them.
+    pub fn visible(&self) -> Cow<'_, [T]> {
+        if let Some(flat) = &self.flat {
+            return Cow::Borrowed(flat);
+        }
+        let mut slices = self.slices().filter(|slice| !slice.is_empty());
+        match (slices.next(), slices.next()) {
+            (None, _) => Cow::Borrowed(&[]),
+            (Some(only), None) => Cow::Borrowed(only),
+            _ => Cow::Owned(self.items()),
+        }
     }
 
     pub fn mirror(&mut self) {
@@ -273,14 +294,34 @@ impl<T: Clone> Sequence<T> {
             .filter(|fragment| fragment.visible)
             .copied()
             .collect();
-        let mut sequence = Self::build(BTreeMap::new(), state.next, state.fragments);
+        let mut placed = Vec::with_capacity(shown.len());
         let mut rest = visible;
         for fragment in shown {
             let (taken, after) = rest.split_at(fragment.len as usize);
-            sequence.store(fragment.first(), taken);
+            placed.push((fragment.first(), taken));
             rest = after;
         }
-        Ok(sequence)
+        placed.sort_unstable_by_key(|(first, _)| *first);
+        let mut runs: BTreeMap<Pos, Vec<T>> = BTreeMap::new();
+        let mut at = 0;
+        while at < placed.len() {
+            let (first, _) = placed[at];
+            let mut end = at + 1;
+            while end < placed.len()
+                && placed[end].0.client == first.client
+                && placed[end].0.offset == placed[end - 1].0.offset + placed[end - 1].1.len() as u64
+            {
+                end += 1;
+            }
+            let mut run =
+                Vec::with_capacity(placed[at..end].iter().map(|(_, items)| items.len()).sum());
+            for (_, items) in &placed[at..end] {
+                run.extend_from_slice(items);
+            }
+            runs.insert(first, run);
+            at = end;
+        }
+        Ok(Self::build(runs, state.next, state.fragments))
     }
 
     pub fn insert(&self, client: u64, index: usize, items: Vec<T>) -> Option<SeqOp<T>> {
@@ -665,9 +706,9 @@ impl<T> Sequence<T> {
                 start,
                 items,
             } => {
+                let after = self.last_of(spans);
                 self.set_visible(spans, false, &mut splices);
                 if !items.is_empty() {
-                    let after = spans.last().map(|span| span.last());
                     self.add(after, *client, *start, items, &mut splices)?;
                 }
             }
@@ -940,6 +981,17 @@ impl<T> Sequence<T> {
             client: previous.client,
             offset: previous.end() - 1,
         })
+    }
+
+    /// Of the elements `spans` name, the one last in the document now: a move may have put
+    /// any of them after the end of the last span.
+    fn last_of(&self, spans: &[Span]) -> Option<Pos> {
+        spans
+            .iter()
+            .filter_map(|span| self.walk(*span))
+            .flatten()
+            .map(|(_, part)| part.last())
+            .max_by_key(|pos| self.global(*pos))
     }
 
     fn all(&self, spans: &[Span], visible: bool) -> bool {

@@ -101,7 +101,9 @@ An editor writes every change as it happens (each frame of a drag, a stroke as
 it grows) so peers see it at once; the client batches saving
 (decisions/editors_write_every_change_as_it_happens.md). Bracket a gesture with
 `begin_gesture` and `commit_gesture` so it undoes as one step;
-`cancel_gesture` puts back what it wrote and leaves no history. The host
+`cancel_gesture` puts back what it wrote and leaves no history; `break_step`
+ends the editor's burst of quick edits so its next edit starts a step of its
+own, and inside an open gesture does nothing. The host
 cancels a gesture still open when the instance closes, so a gesture held open
 until something is decided (the canvas's new text, kept only once written in)
 ends with its editor.

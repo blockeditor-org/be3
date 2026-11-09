@@ -654,17 +654,18 @@ impl Reference {
                 if *client == LOADED || *start != next {
                     return false;
                 }
-                let Some(last) = spans.last().filter(|_| self.all(spans, true)) else {
+                if spans.is_empty() || !self.all(spans, true) {
                     self.reserve(*client, *start, items);
                     return false;
-                };
+                }
+                let last = spans
+                    .iter()
+                    .flat_map(|span| self.positions(*span).unwrap_or_default())
+                    .max()
+                    .map(|index| self.order[index].0);
                 self.set(spans, false);
                 if !items.is_empty() {
-                    let after = Pos {
-                        client: last.client,
-                        offset: last.start + last.len - 1,
-                    };
-                    self.add(Some(after), *client, *start, items);
+                    self.add(last, *client, *start, items);
                 }
                 true
             }

@@ -165,10 +165,10 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
             )
         };
         if external[0] {
-            left.external_edit();
+            left.sync();
         }
         if external[1] {
-            right.external_edit();
+            right.sync();
         }
         if flight.get_untracked() != counts {
             flight.set(counts);
