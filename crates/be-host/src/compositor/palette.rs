@@ -290,9 +290,7 @@ fn focused_catcher() -> Option<NodeId> {
 /// first it shows. Never the focus, which may still be moving back from the menu that asked, so
 /// the palette lists the same rows in the same order each time.
 fn catcher_of(app: &str, instance: EditorInstanceId) -> Option<NodeId> {
-    views_of(app, instance)
-        .first()
-        .map(|(_, node)| *node)
+    views_of(app, instance).first().map(|(_, node)| *node)
 }
 
 /// The views of an instance the host shows, in view id order, so the main view comes first.
