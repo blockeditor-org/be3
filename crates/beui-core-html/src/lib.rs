@@ -1,6 +1,6 @@
 mod aria;
-pub mod back;
 pub mod automate;
+pub mod back;
 pub mod canvas;
 pub mod colors;
 pub mod css;

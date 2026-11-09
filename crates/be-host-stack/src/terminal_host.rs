@@ -34,7 +34,9 @@ fn built() -> Option<std::path::PathBuf> {
     let cache = std::env::var_os("XDG_CACHE_HOME")
         .filter(|cache| !cache.is_empty())
         .map(std::path::PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".cache")))
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".cache"))
+        })
         .or_else(|| std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from))?;
     Some(cache.join("be3").join("terminal-host"))
 }
