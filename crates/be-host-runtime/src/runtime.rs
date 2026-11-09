@@ -1733,7 +1733,10 @@ pub fn refuse_child_focus(app_id: &str, instance: EditorInstanceId) {
 /// The frames asked of the app and the frames it answered: input sent while `asked` was `n`
 /// has been drawn once `answered` exceeds `n`.
 pub fn frames_answered(app_id: &str) -> (u64, u64) {
-    with(app_id, |runtime| (runtime.pacing.asked, runtime.pacing.answered)).unwrap_or_default()
+    with(app_id, |runtime| {
+        (runtime.pacing.asked, runtime.pacing.answered)
+    })
+    .unwrap_or_default()
 }
 
 pub fn take_child_dismissals(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::ChildId> {

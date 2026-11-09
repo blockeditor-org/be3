@@ -42,13 +42,24 @@ fn deck(pending: bool, events: Vec<Forwarded>) -> (Vec<Forwarded>, Routed) {
 
 fn notes(frames: (u64, u64), events: Vec<Forwarded>) -> Vec<Forwarded> {
     let mut input = input(events);
-    held_keys::route(TEXT, NOTES_EDITOR, Some(NOTES_VIEW), false, frames, &mut input);
+    held_keys::route(
+        TEXT,
+        NOTES_EDITOR,
+        Some(NOTES_VIEW),
+        false,
+        frames,
+        &mut input,
+    );
     input.events
 }
 
 #[test]
 fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
-    assert_eq!(deck(true, vec![letter("T")]).0, [], "the deck does not hear a key meant for its notes");
+    assert_eq!(
+        deck(true, vec![letter("T")]).0,
+        [],
+        "the deck does not hear a key meant for its notes"
+    );
     assert_eq!(deck(true, vec![letter("h")]).0, []);
 
     held_keys::given(DECK, PLACER, NOTES_VIEW);
@@ -73,17 +84,32 @@ fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
     );
     assert_eq!(notes((8, 8), vec![letter("n")]), [letter("n")]);
 
-    assert_eq!(deck(false, vec![letter("x")]).0, [letter("x")], "with no gift pending the deck hears its keys");
+    assert_eq!(
+        deck(false, vec![letter("x")]).0,
+        [letter("x")],
+        "with no gift pending the deck hears its keys"
+    );
 
     assert_eq!(deck(true, vec![letter("y")]).0, []);
     held_keys::refused(DECK, PLACER);
-    assert_eq!(held_keys::owed_now(DECK, PLACER, DECK_VIEW, false, 4), Some(Modifiers::NONE));
-    assert_eq!(deck(false, Vec::new()).0, [letter("y")], "a gift that falls through gives the deck its keys back");
+    assert_eq!(
+        held_keys::owed_now(DECK, PLACER, DECK_VIEW, false, 4),
+        Some(Modifiers::NONE)
+    );
+    assert_eq!(
+        deck(false, Vec::new()).0,
+        [letter("y")],
+        "a gift that falls through gives the deck its keys back"
+    );
 
     assert_eq!(deck(true, vec![letter("z")]).0, []);
     let (events, routed) = deck(true, vec![Forwarded::Focus(false)]);
     assert!(routed.refuse, "taking the keyboard elsewhere ends the gift");
-    assert_eq!(events, [letter("z"), Forwarded::Focus(false)], "and the deck hears its keys before it lets go");
+    assert_eq!(
+        events,
+        [letter("z"), Forwarded::Focus(false)],
+        "and the deck hears its keys before it lets go"
+    );
 
     assert_eq!(deck(true, vec![letter("w")]).0, []);
     assert_eq!(
