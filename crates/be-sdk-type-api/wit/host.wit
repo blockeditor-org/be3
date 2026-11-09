@@ -2,7 +2,8 @@ package be3:block-type@0.1.0;
 
 /// What a type module asks of its host. A call made for a replica has that
 /// replica as its parent, so the host knows which block it is about, and it is
-/// canceled when the replica ends.
+/// canceled when the replica ends. A call made while serving a stateless
+/// request has that request as its parent (only `read-part`).
 interface host {
     use types.{
         byte-range, commit-id, description, journal-base, journal-entry, loaded, undo-state, merging,
@@ -23,7 +24,8 @@ interface host {
     load: async func(commit: commit-id, first-part: bool) -> result<loaded, string>;
 
     /// A range of the bytes of a saved part, which a replica that loaded only
-    /// its first part reads on demand.
+    /// its first part reads on demand. Under a stateless request, only a part
+    /// of the `loaded` content that request was handed; any other is refused.
     read-part: async func(part: part-ref, range: byte-range) -> result<list<u8>, string>;
 
     /// Seals `bytes` under the block's current key as a part, uploads it and has

@@ -27,10 +27,12 @@ be-wasm-host = { path = "../be-wasm-host" }
 
 [dev-dependencies]
 be-block = { path = "../be-block" }
+be-block-keys = { path = "../be-block-keys" }
+be-server = { path = "../be-server" }
 be-type-checklist = { path = "../be-type-checklist" }
 be-type-example-counter = { path = "../be-type-example-counter" }
 pollster = "0.4"
-tokio = { version = "1", features = ["rt", "sync"] }
+tokio = { version = "1", features = ["net", "rt", "sync", "time"] }
 
 [lints]
 workspace = true

@@ -2044,42 +2044,29 @@ async fn merge_content(
     checkout: Uuid,
     merge: &be_block_vcs::ContentMerge,
 ) -> Result<(Option<Manifest>, Vec<Uuid>, Option<be_block::Entries>, bool), String> {
-    let mut sides = Vec::new();
-    for manifest in [&merge.base, &merge.ours, &merge.theirs] {
-        sides.push(match manifest {
-            Some(manifest) => Some(context.peer.read_manifest(manifest).await.map_err(failed)?),
-            None => None,
-        });
-    }
     let merged = context
         .replicas
         .merge(
             (context.peer, context.shared),
             merge.content_type,
-            sides[0].as_deref(),
-            sides[1].as_deref(),
-            sides[2].as_deref(),
+            [&merge.base, &merge.ours, &merge.theirs].map(Option::as_ref),
         )
-        .await;
-    let Some((bytes, conflicts)) = merged else {
-        return Ok((merge.ours.clone(), Vec::new(), None, true));
-    };
-    let conflicted = conflicts > 0;
-    let manifest = context
-        .peer
-        .write_content(checkout, merge.content_type, &bytes)
         .await
         .map_err(failed)?;
-    let description = context
-        .replicas
-        .describe((context.peer, context.shared), merge.content_type, &bytes)
-        .await;
-    let references = description
-        .as_ref()
-        .map(|description| description.references.clone())
-        .unwrap_or_default();
-    let derived = description.map(|description| description.derived);
-    Ok((Some(manifest), references, derived, conflicted))
+    let Some(merged) = merged else {
+        return Ok((merge.ours.clone(), Vec::new(), None, true));
+    };
+    let manifest = context
+        .peer
+        .write_content(checkout, merge.content_type, merged.parts())
+        .await
+        .map_err(failed)?;
+    Ok((
+        Some(manifest),
+        merged.content.references.clone(),
+        Some(merged.content.derived.clone()),
+        merged.conflicts > 0,
+    ))
 }
 
 async fn version_block(

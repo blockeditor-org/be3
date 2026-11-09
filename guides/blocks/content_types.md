@@ -9,7 +9,8 @@ modules (guides/type_modules.md).
 A block's content opts into traits in `be-block`: `BlockContent` (durable
 bytes, the references they declare, a name), `LiveEdit` (what a session
 carries: `apply`, `rebase`, `absorb_operation`, `child_operations`), `Merge`
-(three-way merge, required for offline editing), `Undo` (client-local steps)
+(three-way merge, required for offline editing), `MergeParts` (the same merge
+over parts, for a type that loads only its first part), `Undo` (client-local steps)
 and `Streamed` (`[u32 header length][header][payload]`, so a reader takes the
 header and then a byte range).
 
@@ -58,7 +59,9 @@ that part (`Stored::holds` says which parts it has), `parts` hands the others
 back as `Reused`, and `encode` gives only the loaded bytes, which is what its
 replica's followers and editors are sent. Its editors read the rest by range
 (guides/blocks/apps.md, "Reading a range"), except a reused part the content
-holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash").
+holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash"). Such
+a type merges outside a session by parts if it implements `MergeParts`
+(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes.
 
 ## Documents: `be_block_model`
 

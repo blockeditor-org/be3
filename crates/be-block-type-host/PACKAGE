@@ -37,7 +37,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//third-party/rust:pollster-0.4.0",
@@ -67,7 +69,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//third-party/rust:pollster-0.4.0",
@@ -97,7 +101,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//third-party/rust:pollster-0.4.0",
@@ -127,7 +133,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//third-party/rust:pollster-0.4.0",
@@ -157,7 +165,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//third-party/rust:pollster-0.4.0",
@@ -211,7 +221,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//third-party/rust:pollster-0.4.0",
@@ -241,7 +253,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block:be-block",
+                "//crates/be-server:be-server",
                 "//crates/be-type-checklist:be-type-checklist",
                 "//crates/be-type-example-counter:be-type-example-counter",
                 "//third-party/rust:pollster-0.4.0",
