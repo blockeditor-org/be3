@@ -6,8 +6,8 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
 use be_sdk_beui::beui::icons::{
-    Glyph, ICON_ARROW_DOWN, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_SEND,
-    ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
+    Glyph, ICON_ARROW_DOWN, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL,
+    ICON_REPLY, ICON_SEND, ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -513,7 +513,10 @@ fn MessageRow(
                                 <Text style=TextStyle::CAPTION>"edited"</Text>
                             </Show>
                             <Show condition={sending}>
-                                <Text style=TextStyle::CAPTION @test_id={format!("chat.message.{id}.sending")}>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    @test_id={format!("chat.message.{id}.sending")}
+                                >
                                     "Sending"
                                 </Text>
                             </Show>
