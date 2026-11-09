@@ -42,12 +42,23 @@ blending view trees attribute by attribute (`lerpViews`).
   No hypothetical node is ever built. The cost is one layout of data per candidate at lift: a
   list's n slots in one O(n) pass, and the dock's few hundred candidates over its handful of
   panes.
-- **Preview by applying, animation by `Glide`.** While the chosen candidate holds, the site
-  applies its drop state inside a gesture (`begin_gesture`), as editors already write every
-  change as it happens (decisions/editors_write_every_change_as_it_happens.md). A release
-  commits the gesture, and Escape or a drop nowhere cancels it, which puts back what it wrote.
-  The retained nodes glide from their old layout to the new one, as `Reorder` already does.
-  Nothing blends view trees. `between` blends only the item's own rect.
+- **The preview is the drop's own layout, animated.** A site previews a candidate in one of two
+  ways, and both use the same candidates:
+  - **Apply:** apply the drop state inside a gesture (`begin_gesture`). Editors write every
+    change as it happens (decisions/editors_write_every_change_as_it_happens.md), so a release
+    commits the gesture, and Escape or a drop nowhere cancels it and puts back what it wrote.
+    Retained nodes glide to their new place, as `Reorder` already does.
+  - **Show:** draw the layout the drop would produce, without touching the state. This is the
+    dock's way (step 3).
+
+  Nothing blends view trees. What gets interpolated is plain layout data: the item's rect, and
+  in the dock the rects of a `DockLayout`.
+- **Choosing a candidate and resting in it are separate.** Nearest resting place is the default
+  measure, but a site may give each candidate a zone instead. A split's resting place is a whole
+  half of the pane, far from the edge the pointer is at, so the dock chooses by edge bands and
+  the pane's middle, and every candidate holds on a little past its zone (`sticky`). Zones and
+  resting places are both measured against the layout at lift, never the morphing one, so the
+  thing being chosen does not move away from the pointer that is choosing it.
 - **Sites contribute, not just the source.** A Dragology drag is wholly the source's. In beui a
   tab can land in any pane, a row in any list that accepts it, a block in any app. When a drag
   is lifted, the board asks every registered site that accepts the payload for its spec, and the
@@ -69,8 +80,9 @@ In `beui-types` (`drag.rs`) and unstyled `drag_board.rs`, replacing `Target`, `D
 
 ```rust
 pub struct Candidate {
-    pub drop: Rc<dyn Any>,       // handed to the site's apply/commit
+    pub drop: Rc<dyn Any>,       // handed to the site's preview/commit
     pub rest: Rect,              // where the item rests, relative to `node`
+    pub zone: Option<Rect>,      // where the pointer chooses it, if not by nearest `rest`
     pub node: NodeRef,
     pub label: Option<String>,
 }
@@ -100,8 +112,8 @@ continuous drag in the repo (canvas items, a floating bar or window, a clip's st
 pointer minus the grab offset, clamped or quantised, so there is no optimiser. Add one only when
 a drag needs one.
 
-A site is `DropSite { node, accepts, spec(payload) -> DragSpec, apply(drop), commit(drop),
-revert() }`. The source is `Lift { payload, own: DragSpec, preview }` on what is pressed.
+A site is `DropSite { node, accepts, spec(payload) -> DragSpec, preview(Option<drop>),
+commit(drop) }`; `preview(None)` puts back what an applying site wrote. The source is `Lift { payload, own: DragSpec, preview }` on what is pressed.
 `drive`, `Space`, `Driver`, edge scrolling and drops outside every window stay as they are.
 
 ## Steps
@@ -117,15 +129,38 @@ revert() }`. The source is `Lift { payload, own: DragSpec, preview }` on what is
    `closest(slots).when_far(floating)`. Drop `ReorderGap` hit testing and `hover`/`drop_at`: a
    host's block drag reaches a list as a site like any other. `styled::Tree`'s `reorder`,
    database lists and kanban, and the files pane follow.
-3. **Dock tabs.** For a lifted tab or pane grip, each pane, edge and tab bar becomes a candidate
-   built from a `DockState` drop (group, split on an edge, insert at a bar index, float), its rect
-   from `layout_tree` after that drop. Locks leave candidates out instead of refusing them: a
-   locked place simply isn't reachable, and the tab glides home. Alt while dropping keeps
-   floating. The highlight that names the grouped tab reads the chosen candidate.
+3. **Dock tabs, fluid.** The drop highlight goes. Instead, the dock moves aside for the tab
+   while it is carried, the way a list opens a gap.
+   - **Candidates:** for a lifted tab or pane grip, each `DockState` drop is a candidate: group
+     with a pane, split a pane or the whole dock on an edge, insert at a tab bar index, or float.
+     It carries the `DockLayout` that `layout_tree` gives for the state after it. Locks leave
+     candidates out: a locked place isn't reachable, so nothing opens there.
+   - **Showing the preview:** the dock draws the chosen candidate's layout, not the state's. A
+     change of candidate springs every pane's rect from where it is drawn now to where it lies
+     in the new layout, keyed by leaf and tab. A pane that only exists after the drop grows out
+     of its edge, and one that would close shrinks into its neighbour. `DockState` is not
+     touched until the release, so nothing is saved or undone mid-drag, and Escape just springs
+     back.
+   - **The carried tab:** it floats under the pointer, already sized and shaped like where it
+     would rest (a tab in a bar, or a pane the size of the opening), and on release it glides
+     into that rest.
+   - **Panels keep their size while the layout moves.** A pane shows its panel at the size it
+     was laid out at, clipped to the pane's animated rect, and only resizes it for real when the
+     drop commits. Resizing the panels every frame would make every app in a pane, and every
+     Wayland program in a tab, lay out and present again on each frame of the drag (the host
+     waits for each app's answer before painting, guides/apps/runtime.md, Settling). A panel
+     drawn by beui alone could resize once its candidate has held still for a moment;
+     decide that after trying it.
+   - **Keys and bars:** Alt while dropping keeps the tab floating. Dock bars belonging to a tab
+     move with its pane in the preview.
+
+   Expect a different feel from today, not a copy of it: replace the drop-highlight tests and
+   paintings with ones that show the dock part for a carried tab.
 4. **Dock tool bars.** `unstyled/bars.rs`'s band geometry (half-band reach, hold on past it,
    pull halfway, `thrown`, `float_near`) becomes
    `closest(band slots, sticky).when_far(free(float)).thrown()`, with the slots laid out from the
-   bars' measured sizes. Whatever the current tests and paintings pin down must still hold.
+   bars' measured sizes. Bars beside a slot move aside for the carried bar, as the dock's panes
+   do. The feel may change, so update tests that pin the old thresholds.
 5. **Apps.**
    - **video timeline:** `TimelineDropTarget` becomes candidates for attach, base index and
      offset;
@@ -145,11 +180,14 @@ revert() }`. The source is `Lift { payload, own: DragSpec, preview }` on what is
 ## Open questions
 
 - Does `Between` earn its place? Nothing in the repo blends between discrete states today.
-  Leave it out of step 1 unless the beui-demo switch needs it.
-- Writing a chosen state as a preview means peers see a reorder change its order once per
-  chosen slot during the drag, not just at the end. That is what the decision on writing
-  changes asks for, but for lists it is new. If it reads as noise, a site can preview locally
-  and write on commit; decide in step 2.
+  Leave it out of step 1 unless the beui-demo switch or the dock (below) needs it.
+- Should lists apply or show? Applying means peers see a reorder change its order once per
+  chosen slot during the drag, not just at the end. That is what the decision on writing changes
+  asks for, but for lists it is new. Showing, as the dock does, sends nothing until the drop.
+  Decide in step 2.
+- Should the dock open in proportion? With `Between`, an opening split could grow as the pointer
+  nears the edge instead of snapping open when the band is entered. Try it in step 3 once the
+  snapping version works.
 - What drag a press starts is decided at press time. Should a site be able to change its spec
   mid-drag beyond chaining, for example when a peer's edit removes a pane? Recomputing that
   site's candidates is the simple answer.
