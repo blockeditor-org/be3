@@ -111,6 +111,12 @@ Each account may store 10 GiB by default, counting every version its blocks keep
 no block has taken yet; `--account-quota BYTES` changes it and `--account-quota none` lifts it.
 Uploads no block takes are deleted after a day.
 
+Push notifications (guides/blocks/server.md, "Notifications") go out through Web Push with a
+VAPID key the server makes in its database, so they need no setup. FCM, for Android devices
+without a UnifiedPush distributor, needs a Firebase project: its service account's JSON key on
+the host, passed as `--fcm-credentials FILE`. The deployment has none yet, so the server offers
+only Web Push.
+
 Browser sessions last 30 days in an HttpOnly cookie scoped to `/auth` and can't be used as
 be-host credentials. Email goes through `mail::Delivery`, which is `LogDelivery`: the server log
 contains every verification and reset link, so the log gives access to those accounts. A
