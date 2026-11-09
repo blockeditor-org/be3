@@ -52,11 +52,11 @@ fn presence_wanted(instance: EditorInstanceId) -> bool {
     PRESENCE_WANTED.with_borrow(|wanted| wanted.contains(&instance))
 }
 
-#[derive(Default)]
 /// How many of the app's layout commits a frame menu pick lets it open the host's palette
 /// for: the pick runs in the app's next frame, which asks in that frame's answers.
 const MENU_PICK_COMMITS: u32 = 2;
 
+#[derive(Default)]
 pub(super) struct Instances {
     entries: HashMap<EditorInstanceId, Instance>,
     focus: Focus,
