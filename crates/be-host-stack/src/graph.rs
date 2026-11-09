@@ -680,6 +680,12 @@ impl Graph {
         }
     }
 
+    /// Whether any block the mirror knows has `block` as its parent.
+    pub fn has_children(&self, block: Uuid) -> bool {
+        let parent = BlockParent::Block(block);
+        self.nodes.values().any(|node| node.parent == Some(parent))
+    }
+
     /// Whether `block` is `root` or below it, as far as the mirror knows its parents.
     pub fn is_within(&self, block: Uuid, root: Uuid) -> bool {
         let mut current = block;

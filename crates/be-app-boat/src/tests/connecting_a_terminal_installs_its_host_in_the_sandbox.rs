@@ -43,10 +43,11 @@ fn connecting_a_terminal_installs_its_host_in_the_sandbox() {
         sha256: BE_SHA256.to_owned(),
     }));
     let download = boat.ran("set -e", DONE);
+    assert!(download.contains("cd /home/user/.local/lib/be3/builds/tree"));
     assert!(download.contains(&format!("curl -fsSL -o be.part '{DEPLOYED_BE}'")));
     assert!(download.contains(&format!("echo '{BE_SHA256}  be.part' | sha256sum -c")));
     assert!(download.contains("mv be.part be"));
-    let build_info = boat.write_answered("/home/user/.local/lib/be3/build-info.json");
+    let build_info = boat.write_answered("/home/user/.local/lib/be3/builds/tree/build-info.json");
     assert_eq!(build_info, BUILD_INFO);
     let credentials = boat.install_answered(block, true);
     assert_eq!(credentials["token"], "first-token");

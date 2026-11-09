@@ -22,6 +22,11 @@ pub fn binary(arch: String, deliver: impl FnOnce(Result<TerminalHostBe, String>)
     deliver(be_lib_build_id::metadata().and_then(|metadata| answer(metadata, &arch, None)));
 }
 
+/// The `build-info.json` a `be` of this host's build carries, which names the build.
+pub fn build_info() -> Result<String, String> {
+    be_lib_build_id::metadata().map(Metadata::for_be)
+}
+
 /// Where a development build looks for the `be` built for `arch`: `be3/terminal-host/ARCH` in
 /// the user's cache directory.
 fn built() -> Option<PathBuf> {
@@ -55,10 +60,11 @@ pub fn answer(
             build_info,
         });
     }
-    let Some(built) = built else {
+    let development = metadata.program_id == "be-host-dev";
+    let Some(built) = built.filter(|_| development) else {
         return Err(format!(
-            "this build of be3 has no be for {arch}: only a deployed build or one running on a \
-             computer has one"
+            "this build of be3 names no be for {arch} Linux machines, so it cannot connect a \
+             terminal there"
         ));
     };
     let directory = built.join(arch);

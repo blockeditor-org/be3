@@ -18,8 +18,7 @@ fn a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token() {
     boat.wait(Duration::from_secs(15));
     let list = boat.fetch();
     boat.answer(&list, 200, SANDBOXES);
-    let check = boat.ran("test -s", MISSING);
-    assert!(check.contains(&format!("/run/be3/terminal-host-{block}.json")));
+    boat.checked(block, MISSING);
 
     let (reply, rotated) = boat.host_call("the token rotated", |call| match call {
         HostCall::RotateAgentToken { reply, agent } => Ok((reply, agent)),
@@ -57,7 +56,7 @@ fn a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token() {
     let mut reopened = boat.reopened();
     let list = reopened.fetch();
     reopened.answer(&list, 200, SANDBOXES);
-    reopened.ran("test -s", PRESENT);
+    reopened.checked(block, PRESENT);
     assert!(
         reopened.kept_terminals()[0]
             .1

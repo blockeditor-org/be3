@@ -164,8 +164,9 @@ impl Instances {
     }
 
     /// Blocks' agents are only for an app whose manifest sets `block_agents`, and an agent only
-    /// for the block the instance shows or one below it, or a block the app made itself (a
-    /// terminal the boat app made in Unfiled), so an app cannot mint credentials for another
+    /// for the block the instance shows or one below it, or a block the app made that still sits
+    /// alone in the person's Unfiled (a terminal the boat app made,
+    /// `be_host_stack::made_by_app_in_unfiled`), so an app cannot mint credentials for another
     /// place the person manages.
     fn refuses_block_agents(&self, instance: EditorInstanceId, call: &Call) -> bool {
         match call {
@@ -177,10 +178,7 @@ impl Instances {
                     .map(|own| own.id);
                 let block = Uuid::from_bytes(*block);
                 let made_here = !self.app_id.is_empty()
-                    && be_host_stack::node(block).is_some_and(|node| {
-                        node.metadata.get(&be_block::CREATED_BY).as_deref()
-                            == Some(self.app_id.as_str())
-                    });
+                    && be_host_stack::made_by_app_in_unfiled(block, &self.app_id);
                 !self.block_agents
                     || (!made_here
                         && own.is_none_or(|own| {
@@ -190,7 +188,8 @@ impl Instances {
             }
             Call::RotateAgentToken { .. }
             | Call::RemoveAgent { .. }
-            | Call::TerminalHostBinary { .. } => !self.block_agents,
+            | Call::TerminalHostBinary { .. }
+            | Call::TerminalHostBuild { .. } => !self.block_agents,
             _ => false,
         }
     }
@@ -506,6 +505,10 @@ impl Instances {
                 be_host_stack::terminal_host::binary(arch, move |answer| {
                     answering.send_or_fail(answer)
                 });
+            }
+            Call::TerminalHostBuild { reply } => {
+                let answering = self.answering(instance, reply);
+                answering.send_or_fail(be_host_stack::terminal_host::build_info());
             }
             Call::ListData { reply } => {
                 let answering = self.answering(instance, reply);

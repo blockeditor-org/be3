@@ -222,11 +222,12 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
         Some(TerminalStatus::Failed(message)) => {
             format!("The terminal could not connect: {message}")
         }
+        Some(TerminalStatus::NotRemoved(message)) => message,
         _ if !own.get() => "Terminal, shared with you".to_owned(),
         _ => "Terminal".to_owned(),
     });
     let color = create_memo(move || match status.get() {
-        Some(TerminalStatus::Failed(_)) => TextColor::Danger,
+        Some(TerminalStatus::Failed(_) | TerminalStatus::NotRemoved(_)) => TextColor::Danger,
         Some(TerminalStatus::Connecting | TerminalStatus::Reconnecting) => TextColor::Muted,
         _ => TextColor::Default,
     });

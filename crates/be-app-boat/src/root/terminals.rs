@@ -17,7 +17,9 @@ use uuid::Uuid;
 use super::state::State;
 use crate::api::{self, Account, BoatError, Phase};
 
-/// Where `be` and its `build-info.json` go in a sandbox.
+/// Where `be` goes in a sandbox: `builds/BUILD/` holds each build's `be` and its
+/// `build-info.json`, and `blocks/BLOCK` links the build a terminal runs, so a terminal
+/// connected from another build of be3 never replaces the `be` another one runs.
 pub(crate) const BE_DIRECTORY: &str = "/home/user/.local/lib/be3";
 /// Where files wait before a command moves them where the files API can't write.
 pub(crate) const STAGING: &str = "/home/user/.cache/be3";
@@ -27,13 +29,16 @@ const COMMAND_TIMEOUT: u32 = 600;
 /// How a terminal of the viewer's own stands in this editor.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum TerminalStatus {
-    /// Asking the sandbox whether it still has the terminal's credentials.
+    /// Asking the sandbox whether it still has the terminal's credentials and build.
     Checking,
     Connecting,
-    /// The sandbox resumed without credentials; a new token is on its way to it.
+    /// The sandbox lacks the credentials, a token this editor kept, or this build's `be`;
+    /// they are on their way to it.
     Reconnecting,
     Online,
     Failed(String),
+    /// Disconnecting could not remove the terminal's agent, so the terminal is kept.
+    NotRemoved(String),
 }
 
 /// Why connecting or reconnecting stopped.
@@ -72,18 +77,21 @@ pub(crate) fn credentials_name(block: Uuid) -> String {
 /// The service that runs a terminal's host, one instance per terminal block, started by its
 /// `.path` unit once the credentials are in `/run/be3`, which is in memory, so no snapshot of
 /// the sandbox carries them. A key a gateway in front of the server wants goes in
-/// `~/.config/be3/gateway` by hand, as `BE3_AUTHORIZATION=...`.
+/// `~/.config/be3/gateway` by hand, as `BE3_AUTHORIZATION=...`. A host whose token was
+/// revoked stops after a few tries rather than retrying for ever.
 pub(crate) const SERVICE_UNIT: &str = "[Unit]
 Description=be3 terminal host for block %i
 After=network-online.target
 Wants=network-online.target
 ConditionPathExists=/run/be3/terminal-host-%i.json
+StartLimitIntervalSec=600
+StartLimitBurst=5
 
 [Service]
 User=user
 EnvironmentFile=-/home/user/.config/be3/gateway
 PassEnvironment=BOAT_ID
-ExecStart=/bin/sh -c 'BE3_AGENT_CREDENTIALS=\"$$(cat /run/be3/terminal-host-%i.json)\" exec /home/user/.local/lib/be3/be %i terminal-host'
+ExecStart=/bin/sh -c 'BE3_AGENT_CREDENTIALS=\"$$(cat /run/be3/terminal-host-%i.json)\" exec /home/user/.local/lib/be3/blocks/%i/be %i terminal-host'
 Restart=on-failure
 RestartSec=10
 ";
@@ -99,66 +107,144 @@ Unit=be-terminal@%i.service
 WantedBy=paths.target
 ";
 
-/// The command that moves the staged credentials (and, when connecting, the units) into
-/// place and starts the terminal's service. The staged copy is deleted however it ends.
-pub(crate) fn install_command(block: Uuid, units: bool) -> String {
+/// The SHA-256 of `bytes` in lower-case hex.
+pub(crate) fn sha256(bytes: &[u8]) -> String {
+    use sha2::Digest;
+    sha2::Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// What the sandbox keeps beside the credentials to say which token they hold, without
+/// holding it: the SHA-256 of the token.
+pub(crate) fn fingerprint(credentials: &str) -> String {
+    let token = serde_json::from_str::<serde_json::Value>(credentials)
+        .ok()
+        .and_then(|credentials| credentials["token"].as_str().map(str::to_owned))
+        .unwrap_or_default();
+    sha256(token.as_bytes())
+}
+
+/// A build id from `build-info.json`, if it is one that is safe in a path and a command.
+fn build_of(build_info: &str) -> Option<String> {
+    let id = serde_json::from_str::<serde_json::Value>(build_info)
+        .ok()?
+        .get("id")?
+        .as_str()?
+        .to_owned();
+    let safe = !id.is_empty()
+        && id
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "._+-".contains(character))
+        && !id.starts_with('.');
+    safe.then_some(id)
+}
+
+/// The command that moves the staged credentials into place, notes their token's
+/// fingerprint, links the build the terminal runs and (when connecting) installs the units,
+/// and starts the terminal's service. The staged copy is deleted however it ends.
+pub(crate) fn install_command(
+    block: Uuid,
+    fingerprint: &str,
+    build: Option<&str>,
+    units: bool,
+) -> String {
     let name = credentials_name(block);
     let mut lines = vec![
         "set -e".to_owned(),
         format!("trap 'rm -f {STAGING}/{name}' EXIT"),
         "sudo install -d -m 0755 /run/be3".to_owned(),
         format!("sudo install -m 0600 -o user -g user {STAGING}/{name} /run/be3/{name}"),
+        format!("echo '{fingerprint}' | sudo tee /run/be3/terminal-host-{block}.sha256 > /dev/null"),
     ];
+    if let Some(build) = build {
+        lines.push(format!("mkdir -p {BE_DIRECTORY}/blocks"));
+        lines.push(format!(
+            "ln -sfn ../builds/{build} {BE_DIRECTORY}/blocks/{block}"
+        ));
+    }
     if units {
         lines.push(format!(
             "sudo install -m 0644 {STAGING}/be-terminal@.service {STAGING}/be-terminal@.path \
              /etc/systemd/system/"
         ));
         lines.push("sudo systemctl daemon-reload".to_owned());
-        lines.push(format!(
-            "sudo systemctl enable --now be-terminal@{block}.path"
-        ));
+        lines.push(format!("sudo systemctl enable --now be-terminal@{block}.path"));
     }
-    lines.push(format!(
-        "sudo systemctl restart be-terminal@{block}.service"
-    ));
+    lines.push(format!("sudo systemctl reset-failed be-terminal@{block}.service || true"));
+    lines.push(format!("sudo systemctl restart be-terminal@{block}.service"));
     lines.join("\n")
 }
 
-/// Whether the sandbox still has the terminal's credentials: `present` or `missing`.
-pub(crate) fn check_command(block: Uuid) -> String {
-    format!(
-        "test -s /run/be3/{} && echo present || echo missing",
-        credentials_name(block)
-    )
+/// Deletes credentials left staged on the sandbox's disk when installing them stopped.
+pub(crate) fn unstage_command(block: Uuid) -> String {
+    format!("rm -f {STAGING}/{}", credentials_name(block))
 }
 
-/// Stops the terminal's service and deletes its credentials.
+/// What the sandbox holds of a terminal: the fingerprint of its credentials' token
+/// (`missing` without credentials), then the build its `be` is. Deletes credentials left
+/// staged first.
+pub(crate) fn check_command(block: Uuid) -> String {
+    let name = credentials_name(block);
+    [
+        unstage_command(block),
+        format!(
+            "if test -s /run/be3/{name}; then cat /run/be3/terminal-host-{block}.sha256 \
+             2>/dev/null || echo unknown; else echo missing; fi"
+        ),
+        format!("basename \"$(readlink {BE_DIRECTORY}/blocks/{block})\""),
+    ]
+    .join("\n")
+}
+
+/// What `check_command` answered.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct Held {
+    /// The fingerprint of the token the sandbox holds, none without credentials.
+    pub fingerprint: Option<String>,
+    pub build: String,
+}
+
+impl Held {
+    pub(crate) fn parse(said: &str) -> Self {
+        let mut lines = said.lines().map(str::trim);
+        let fingerprint = lines.next().unwrap_or("missing");
+        Self {
+            fingerprint: (fingerprint != "missing" && !fingerprint.is_empty())
+                .then(|| fingerprint.to_owned()),
+            build: lines.next().unwrap_or_default().to_owned(),
+        }
+    }
+}
+
+/// Stops the terminal's service and deletes its credentials and link.
 pub(crate) fn remove_command(block: Uuid) -> String {
     format!(
         "sudo systemctl disable --now be-terminal@{block}.path be-terminal@{block}.service; \
-         sudo rm -f /run/be3/{}",
-        credentials_name(block)
+         sudo rm -f /run/be3/{name} /run/be3/terminal-host-{block}.sha256; \
+         rm -f {STAGING}/{name} {BE_DIRECTORY}/blocks/{block}",
+        name = credentials_name(block)
     )
 }
 
-/// Downloads a deployed `be` and checks its SHA-256 before it replaces the last one.
-pub(crate) fn download_command(url: &str, sha256: &str) -> String {
+/// Puts `be` of `build` in place unless it is there: downloaded from `url`, or uploaded
+/// already, and checked against `sha256` either way before it can run.
+pub(crate) fn be_command(build: &str, url: Option<&str>, sha256: &str) -> String {
+    let fetch = match url {
+        Some(url) => format!("curl -fsSL -o be.part '{url}'"),
+        None => "test -f be.part".to_owned(),
+    };
     [
         "set -e".to_owned(),
-        format!("mkdir -p {BE_DIRECTORY}"),
-        format!("cd {BE_DIRECTORY}"),
-        format!("curl -fsSL -o be.part '{url}'"),
+        format!("mkdir -p {BE_DIRECTORY}/builds/{build}"),
+        format!("cd {BE_DIRECTORY}/builds/{build}"),
+        fetch,
         format!("echo '{sha256}  be.part' | sha256sum -c --quiet -"),
         "chmod 0755 be.part".to_owned(),
         "mv be.part be".to_owned(),
     ]
     .join("\n")
-}
-
-/// Makes an uploaded `be` the one the service runs.
-pub(crate) fn uploaded_command() -> String {
-    format!("cd {BE_DIRECTORY} && chmod 0755 be.part && mv be.part be")
 }
 
 /// The file the terminal host reads, as `BE3_AGENT_CREDENTIALS`: the agent's credentials with
@@ -191,12 +277,14 @@ fn arch(machine: &str) -> String {
     }
 }
 
-/// Writes the credentials file and starts the service, with the units too when `units`.
+/// Writes the credentials file and starts the service, with the units too when `units`, and
+/// the link to `build` when given. Credentials left staged are deleted when it stops early.
 async fn install_credentials(
     host: be_sdk_beui::EditorHost,
     account: Account,
     block: Uuid,
     terminal: TerminalAgent,
+    build: Option<String>,
     units: bool,
 ) -> Option<Result<(), Trouble>> {
     let sandbox = terminal.sandbox.clone();
@@ -216,20 +304,37 @@ async fn install_credentials(
             PATH_UNIT,
         ));
     }
-    step!(api::write_file(
+    let written = api::write_file(
         &host,
         &account,
         &sandbox,
         &format!("{STAGING}/{}", credentials_name(block)),
         &credentials_file(block, &terminal),
-    ));
-    step!(api::command(
-        &host,
-        &account,
-        &sandbox,
-        &install_command(block, units),
-        COMMAND_TIMEOUT,
-    ));
+    )
+    .await?;
+    let installed = match written {
+        Ok(()) => {
+            api::command(
+                &host,
+                &account,
+                &sandbox,
+                &install_command(
+                    block,
+                    &fingerprint(&terminal.credentials),
+                    build.as_deref(),
+                    units,
+                ),
+                COMMAND_TIMEOUT,
+            )
+            .await?
+        }
+        Err(error) => Err(error),
+    };
+    if let Err(error) = installed {
+        // A write that failed may still have landed; nothing secret stays on the disk.
+        let _ = api::command(&host, &account, &sandbox, &unstage_command(block), 30).await;
+        return Some(Err(error.into()));
+    }
     Some(Ok(()))
 }
 
@@ -243,41 +348,48 @@ async fn install(
     let sandbox = terminal.sandbox.clone();
     let machine = step!(api::command(&host, &account, &sandbox, "uname -m", 30));
     let be = step!(host.terminal_host_binary(arch(&machine)));
-    match be.source {
+    let Some(build) = build_of(&be.build_info) else {
+        return Some(Err(Trouble::Host(
+            "the host named no build for be".to_owned(),
+        )));
+    };
+    let command = match be.source {
         TerminalHostSource::Download(download) => {
-            step!(api::command(
-                &host,
-                &account,
-                &sandbox,
-                &download_command(&download.url, &download.sha256),
-                COMMAND_TIMEOUT,
-            ));
+            be_command(&build, Some(&download.url), &download.sha256)
         }
         TerminalHostSource::Bytes(bytes) => {
+            let hash = sha256(&bytes);
             step!(api::upload(
                 &host,
                 &account,
                 &sandbox,
-                &format!("{BE_DIRECTORY}/be.part"),
+                &format!("{BE_DIRECTORY}/builds/{build}/be.part"),
                 bytes,
             ));
-            step!(api::command(
-                &host,
-                &account,
-                &sandbox,
-                &uploaded_command(),
-                COMMAND_TIMEOUT,
-            ));
+            be_command(&build, None, &hash)
         }
-    }
+    };
+    step!(api::command(&host, &account, &sandbox, &command, COMMAND_TIMEOUT));
     step!(api::write_file(
         &host,
         &account,
         &sandbox,
-        &format!("{BE_DIRECTORY}/build-info.json"),
+        &format!("{BE_DIRECTORY}/builds/{build}/build-info.json"),
         &be.build_info,
     ));
-    install_credentials(host, account, block, terminal, true).await
+    install_credentials(host, account, block, terminal, Some(build), true).await
+}
+
+/// What the sandbox holds of a terminal, and the host's own build.
+async fn check(
+    host: be_sdk_beui::EditorHost,
+    account: Account,
+    block: Uuid,
+    sandbox: String,
+) -> Option<Result<(Held, String), Trouble>> {
+    let said = step!(api::command(&host, &account, &sandbox, &check_command(block), 30));
+    let build_info = step!(host.terminal_host_build());
+    Some(Ok((Held::parse(&said), build_of(&build_info).unwrap_or_default())))
 }
 
 /// A terminal's row: the viewer's own, or one shared with them.
@@ -321,7 +433,12 @@ impl State {
         let Some(listed) = self.listed.get() else {
             return Vec::new();
         };
-        if listed.cut_off {
+        // A filtered list hides sandboxes that still run; only an unfiltered one says a
+        // sandbox is gone.
+        let filtered = self
+            .filters
+            .with(|filters| !filters.name_prefix.is_empty() || !filters.label.trim().is_empty());
+        if listed.cut_off || filtered || listed.filters != self.filters.get() {
             return Vec::new();
         }
         let organization = self.filters.with(|filters| filters.organization.clone());
@@ -358,7 +475,10 @@ impl State {
             untrack(|| {
                 state.terminal_status.update(|status| {
                     status.retain(|block, standing| {
-                        matches!(standing, TerminalStatus::Connecting)
+                        matches!(
+                            standing,
+                            TerminalStatus::Connecting | TerminalStatus::NotRemoved(_)
+                        )
                             || own
                                 .get(block)
                                 .is_some_and(|terminal| running.contains(&terminal.sandbox))
@@ -397,15 +517,17 @@ impl State {
         });
     }
 
-    /// Ends a chain: online, or why not, with a key lacking `exec` or `file.write` offering
-    /// Reconnect.
+    /// Ends a chain: online, or why not. boat.dev's API refusing a command or a file (403)
+    /// means the key lacks `exec` or `file.write`, which Reconnect fixes.
     fn finished(&self, block: Uuid, answer: Result<(), Trouble>) {
         let status = match answer {
             Ok(()) => TerminalStatus::Online,
             Err(Trouble::Boat(BoatError::Refused { status: 403, .. })) => {
                 self.lacking.set(true);
                 TerminalStatus::Failed(
-                    "This boat.dev key can't run commands or write files in sandboxes".to_owned(),
+                    "boat.dev refused to run a command or write a file in the sandbox with this \
+                     key"
+                        .to_owned(),
                 )
             }
             Err(Trouble::Boat(error @ BoatError::Reconnect { .. })) => {
@@ -458,25 +580,48 @@ impl State {
             let made = match made {
                 Ok(made) => made,
                 Err(failure) => {
-                    state.set_status(block, None);
-                    if !state.editor.read_only().get_untracked() {
-                        state.content.operate(Boat::remove_terminal(block));
-                    }
+                    state.unmake(block);
                     state
                         .notice
                         .set(Some(format!("The terminal could not be made: {failure}")));
                     return;
                 }
             };
+            let agent = Uuid::from_bytes(made.agent);
             let terminal = TerminalAgent {
-                agent: Uuid::from_bytes(made.agent).to_string(),
+                agent: agent.to_string(),
                 credentials: made.credentials,
                 sandbox,
                 organization,
             };
-            state.keep_terminal(block, Some(terminal.clone()));
+            if !state.keep_terminal(block, Some(terminal.clone())) {
+                // Nothing would keep the agent's credentials, so nothing could disconnect it.
+                let removed = state.editor.host().remove_agent(agent);
+                state.editor.then(removed, |_| {});
+                state.unmake(block);
+                state.notice.set(Some(
+                    "The terminal could not be made: your settings have not loaded yet".to_owned(),
+                ));
+                return;
+            }
             state.install_terminal(block, terminal, account);
         });
+    }
+
+    /// Takes back a terminal block whose connecting never got as far as an agent.
+    fn unmake(&self, block: Uuid) {
+        self.set_status(block, None);
+        let referenced = self
+            .content_terminals
+            .with_untracked(|terminals| terminals.contains_key(&block.to_string()));
+        if referenced && !self.editor.read_only().get_untracked() {
+            self.content.operate(Boat::remove_terminal(block));
+        }
+        self.editor.host().delete_block(
+            block,
+            <TerminalContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE,
+            BlockParent::Unfiled,
+        );
     }
 
     fn install_terminal(&self, block: Uuid, terminal: TerminalAgent, account: Account) {
@@ -501,8 +646,10 @@ impl State {
         self.install_terminal(block, terminal, account);
     }
 
-    /// Asks the sandbox whether it has the terminal's credentials, and writes them again with
-    /// a rotated token when it doesn't.
+    /// Asks the sandbox what it holds of the terminal. Without credentials (a resume) the
+    /// token is rotated and written again; with another token than the one kept (another
+    /// editor rotated it too) the kept one is written, so the last to write wins; with
+    /// another build's `be` this build's is installed.
     fn check_terminal(&self, block: Uuid) {
         let Some(account) = untrack(|| self.account()) else {
             return;
@@ -515,25 +662,52 @@ impl State {
         };
         self.set_status(block, Some(TerminalStatus::Checking));
         let state = *self;
-        let asked = api::command(
-            &self.editor.host(),
-            &account,
-            &terminal.sandbox,
-            &check_command(block),
-            30,
+        let asked = check(
+            self.editor.host(),
+            account.clone(),
+            block,
+            terminal.sandbox.clone(),
         );
-        self.editor.then(asked, move |answer| match answer {
-            Ok(said) if said.trim() == "present" => {
-                state.set_status(block, Some(TerminalStatus::Online));
+        self.editor.then(asked, move |answer| {
+            let (held, build) = match answer {
+                Ok(answer) => answer,
+                Err(trouble) => return state.finished(block, Err(trouble)),
+            };
+            let refresh = held.build != build;
+            match held.fingerprint {
+                None => state.reconnect_terminal(block, terminal, account, refresh),
+                Some(_) if refresh => state.rewrite_terminal(block, terminal, account, true),
+                Some(fingerprint) if fingerprint != self::fingerprint(&terminal.credentials) => {
+                    state.rewrite_terminal(block, terminal, account, false);
+                }
+                Some(_) => state.set_status(block, Some(TerminalStatus::Online)),
             }
-            Ok(_) => state.reconnect_terminal(block, terminal, account),
-            Err(error) => state.finished(block, Err(Trouble::Boat(error))),
         });
+    }
+
+    /// Writes the kept credentials to the sandbox again, with this build's `be` too when
+    /// `refresh`.
+    fn rewrite_terminal(&self, block: Uuid, terminal: TerminalAgent, account: Account, refresh: bool) {
+        self.set_status(block, Some(TerminalStatus::Reconnecting));
+        let state = *self;
+        match refresh {
+            true => {
+                let writing = install(self.editor.host(), account, block, terminal);
+                self.editor
+                    .then(writing, move |answer| state.finished(block, answer));
+            }
+            false => {
+                let writing =
+                    install_credentials(self.editor.host(), account, block, terminal, None, false);
+                self.editor
+                    .then(writing, move |answer| state.finished(block, answer));
+            }
+        }
     }
 
     /// Rotates the agent's token, which revokes the one the sandbox had, keeps the new
     /// credentials and writes them to the sandbox.
-    fn reconnect_terminal(&self, block: Uuid, terminal: TerminalAgent, account: Account) {
+    fn reconnect_terminal(&self, block: Uuid, terminal: TerminalAgent, account: Account, refresh: bool) {
         self.set_status(block, Some(TerminalStatus::Reconnecting));
         let Ok(agent) = Uuid::parse_str(&terminal.agent) else {
             return self.finished(
@@ -552,16 +726,19 @@ impl State {
                 credentials: with_token(&terminal.credentials, &token),
                 ..terminal
             };
-            state.keep_terminal(block, Some(terminal.clone()));
-            let writing = install_credentials(state.editor.host(), account, block, terminal, false);
-            state
-                .editor
-                .then(writing, move |answer| state.finished(block, answer));
+            if !state.keep_terminal(block, Some(terminal.clone())) {
+                return state.finished(
+                    block,
+                    Err(Trouble::Host("your settings have not loaded yet".to_owned())),
+                );
+            }
+            state.rewrite_terminal(block, terminal, account, refresh);
         });
     }
 
-    /// Removes the terminal's agent at once, stops its host in the sandbox while it runs, and
-    /// forgets the terminal; the block stays in the viewer's Unfiled.
+    /// Stops the terminal's host in the sandbox while it runs and removes its agent; once the
+    /// agent is gone the terminal is forgotten, and the block stays in the viewer's Unfiled.
+    /// When the agent can't be removed the terminal is kept, to disconnect again.
     pub(crate) fn disconnect_terminal(&self, block: Uuid) {
         let Some(terminal) = self
             .own_terminals
@@ -569,17 +746,6 @@ impl State {
         else {
             return;
         };
-        let state = *self;
-        if let Ok(agent) = Uuid::parse_str(&terminal.agent) {
-            let removed = self.editor.host().remove_agent(agent);
-            self.editor.then(removed, move |removed| {
-                if let Err(failure) = removed {
-                    state.notice.set(Some(format!(
-                        "The terminal's agent could not be removed: {failure}"
-                    )));
-                }
-            });
-        }
         let running = self.listed.with_untracked(|listed| {
             listed.as_ref().is_some_and(|listed| {
                 listed.sandboxes.iter().any(|sandbox| {
@@ -597,6 +763,26 @@ impl State {
             );
             self.editor.then(stopping, |_| {});
         }
+        let Ok(agent) = Uuid::parse_str(&terminal.agent) else {
+            return self.forget_terminal(block);
+        };
+        let state = *self;
+        let removed = self.editor.host().remove_agent(agent);
+        self.editor.then(removed, move |removed| match removed {
+            Ok(()) => state.forget_terminal(block),
+            // The server no longer has the agent (its block was collected, say).
+            Err(Failure::Failed(message)) if message.contains("not an agent") => {
+                state.forget_terminal(block);
+            }
+            Err(failure) => {
+                let message = format!("The terminal's agent could not be removed: {failure}");
+                state.notice.set(Some(message.clone()));
+                state.set_status(block, Some(TerminalStatus::NotRemoved(message)));
+            }
+        });
+    }
+
+    fn forget_terminal(&self, block: Uuid) {
         let referenced = self
             .content_terminals
             .with_untracked(|terminals| terminals.contains_key(&block.to_string()));
