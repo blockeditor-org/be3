@@ -37,6 +37,7 @@ fn adding_notes_makes_a_text_block_and_gives_it_the_keyboard() {
 
     test.click("presentation.notes.add");
     test.settle();
+    let asked = test.take_block_child_focus();
     let [made]: [Uuid; 1] = texts(&test)
         .try_into()
         .unwrap_or_else(|made: Vec<_>| panic!("one notes block is made, made {made:?}"));
@@ -53,22 +54,17 @@ fn adding_notes_makes_a_text_block_and_gives_it_the_keyboard() {
         "only the slide whose notes were added has a notes block"
     );
 
-    let placed = test
-        .children()
-        .iter()
-        .find_map(|placement| match placement.content {
-            ChildContent::Block { block_id, .. } if Uuid::from_bytes(block_id) == made => {
-                Some(placement.child)
-            }
-            _ => None,
-        })
-        .expect("the notes editor is placed");
-    test.available_children();
-    test.settle();
     assert_eq!(
-        test.take_child_focus().last(),
-        Some(&placed),
-        "the keyboard goes into the notes editor"
+        asked,
+        [made],
+        "the keyboard is asked for the editor of the notes block just made"
+    );
+    assert!(
+        test.children().iter().any(|placement| matches!(
+            placement.content,
+            ChildContent::Block { block_id, .. } if Uuid::from_bytes(block_id) == made
+        )),
+        "the notes editor is placed"
     );
     assert!(!test.shown("presentation.notes.add"));
 

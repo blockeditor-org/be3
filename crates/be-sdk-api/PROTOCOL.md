@@ -889,7 +889,8 @@ nowhere, and its status keeps arriving, so a raise or bell of a hidden window
 is heard. Any other child placed hidden is unavailable. A placement's
 `fullscreen` says the placer shows the child full screen, `close-child` says the
 person asked to close it, which closes a program window and does nothing yet for
-any other child, and `focus-child` or the keyboard the host gives the view that
+any other child, and `focus-child` (or `focus-block-child`, for the child that will show a
+block) or the keyboard the host gives the view that
 shows the child gives a program window the keyboard. A program window placed
 nowhere, or only hidden, is suspended. A block
 already open above the instance is refused, so an editor cannot be nested inside
