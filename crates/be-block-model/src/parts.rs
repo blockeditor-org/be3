@@ -370,10 +370,13 @@ fn splice(mut parts: Vec<DocumentPart>, out: &mut Vec<DocumentPart>) -> (Stored,
 /// its index levels.
 pub(crate) const DEEPEST_PARTS: usize = 64;
 
-/// The most bytes that parts named more than once may join into a document,
-/// beyond the stored bytes themselves, so a small stream naming its parts
-/// over and over cannot grow without bound.
-pub(crate) const MOST_REPEATED: usize = 1 << 30;
+/// The most memory that parts named more than once may add to a document as
+/// it is read: 16 times the stored bytes, and at least 64 MiB, so a document
+/// that names its parts over and over (a blank grid) loads, and a small stream
+/// that would grow without bound is refused early.
+pub(crate) fn most_repeated(stored: usize) -> usize {
+    stored.saturating_mul(16).max(64 << 20)
+}
 
 /// Reads a document's stored bytes, written by `DocumentPart::write`: a CBOR
 /// sequence of parts, the root first. Returns the document as if it had been
@@ -382,13 +385,13 @@ pub(crate) const MOST_REPEATED: usize = 1 << 30;
 /// `write` puts each part's children right after it, each once, in the order
 /// the part first names them, so a name is found where its part sits, and
 /// the part's bytes must hash to it. Bytes left after the root's last part,
-/// parts nested deeper than `DEEPEST_PARTS`, or repeats past `MOST_REPEATED`
+/// parts nested deeper than `DEEPEST_PARTS`, or repeats past `most_repeated`
 /// are refused.
 pub fn read(bytes: &[u8]) -> Result<Stored, Malformed> {
-    read_within(bytes, MOST_REPEATED)
+    read_within(bytes, most_repeated(bytes.len()))
 }
 
-/// `read`, letting repeated parts add at most `most_repeated` bytes.
+/// `read`, letting repeated parts add at most `most_repeated` bytes of memory.
 pub(crate) fn read_within(bytes: &[u8], most_repeated: usize) -> Result<Stored, Malformed> {
     let mut reader = Reader {
         rest: bytes,
@@ -515,19 +518,22 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// About how many bytes `value` holds, to count what repeats add.
+/// How much memory `value` takes, to count what repeats add: each value's own
+/// size and what it holds on the heap.
 fn size(value: &Stored) -> usize {
-    match value {
+    let own = std::mem::size_of::<Stored>();
+    let held = match value {
         Stored::Bytes(bytes) => bytes.len(),
         Stored::Text(text) => text.len(),
-        Stored::Tag(_, inner) => 1 + size(inner),
-        Stored::Array(items) => items.iter().map(size).fold(1, usize::saturating_add),
+        Stored::Tag(_, inner) => size(inner),
+        Stored::Array(items) => items.iter().map(size).fold(0, usize::saturating_add),
         Stored::Map(entries) => entries
             .iter()
             .map(|(key, value)| size(key).saturating_add(size(value)))
-            .fold(1, usize::saturating_add),
-        _ => 1,
-    }
+            .fold(0, usize::saturating_add),
+        _ => 0,
+    };
+    own.saturating_add(held)
 }
 
 fn count_names(value: &Stored, names: &mut HashMap<Hash, usize>) -> Result<(), Malformed> {

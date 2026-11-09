@@ -264,7 +264,8 @@ pub enum Change {
     /// at `place`, to behind `anchor`, taking along what was removed from between them.
     /// Refused unless what is shown from the first to the last is exactly `objects` (so an
     /// item someone put between them, or moved out, refuses it) and the anchor is outside
-    /// them. One item moves with `Move`.
+    /// them. One item moves with `Move`. Its undo is refused the same way once a peer changed
+    /// the run it moved.
     MoveRange {
         place: Place,
         objects: Vec<ObjectId>,
