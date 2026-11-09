@@ -89,6 +89,8 @@ pub fn Tree<K>(
     #[prop(default = None)] menu: Option<Func<K, Option<TreeMenu>>>,
     #[prop(default = None)] editing: Prop<Option<K>>,
     #[prop(default = false)] reorder: bool,
+    #[prop(default = None)] pastes: Option<Func<K, Vec<String>>>,
+    on_paste: Callback<(K, ClipItem)>,
     on_select: Callback<K>,
     on_open: Callback<K>,
     on_expand: Callback<(K, bool)>,
@@ -111,6 +113,7 @@ where
     let outline = outline.unwrap_or_else(|| Func::new(|_| None));
     let viewport = NodeRef::new();
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
+    let pastes = pastes.unwrap_or_else(|| Func::new(|_| Vec::new()));
     let spacing = use_space(spacing).get_untracked();
     view! {
         <List spacing=Space::None>
@@ -126,6 +129,8 @@ where
                             spacing
                             editing
                             reorder
+                            pastes
+                            on_paste={on_paste}
                             menu={menu.map(|menu| unstyled::TreeMenus::new(menu_style(), menu))}
                             on_select={on_select}
                             on_open={on_open}
